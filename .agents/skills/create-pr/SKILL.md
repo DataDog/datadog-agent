@@ -24,17 +24,19 @@ Create a pull request for the current branch following the Datadog Agent contrib
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main..HEAD` to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
-5. **Local code review** (optional): Run `dda review`, which builds the same prompt (from the `codereview_guideline.md` files relevant to the diff) and uses the same default provider as the PR `Code review` workflow (`.github/workflows/code-review.yml`), so local findings match what CI will post. It reviews against the repository default branch by default:
+5. **Local code review**: Run the review script. It runs `dda review`, which builds the same prompt as the PR `Code review` workflow (`.github/workflows/code-review.yml`) from the `codereview_guideline.md` files relevant to the diff, against the repository default branch:
    ```bash
-   dda review
+   .agents/skills/create-pr/scripts/review.sh
    ```
-   The default provider (`codex`) must be installed. Check each executable separately, since `command -v dda codex` succeeds in bash if either one exists:
-   ```bash
-   command -v dda >/dev/null && command -v codex >/dev/null
-   ```
-   If either is missing, skip this step silently. `dda review` is an LLM-based review and can take several minutes. Don't give it a short timeout and don't let it get killed mid-run: launch it asynchronously (e.g. `run_in_background: true` in Claude Code) and poll until it finishes, or give it a timeout of at least 10 minutes. If it hasn't finished after 10 minutes, tell the user and continue without it rather than stalling PR creation indefinitely. Outcomes:
-   - **Review completes**: show the findings to the user. They don't block PR creation; fix them first only if the user asks.
-   - **Review fails** (non-zero exit, e.g. provider auth error): tell the user it failed, with the error, and continue.
+   The script uses the first reviewer that is available, and tries the next one if a review fails:
+   1. `codex` on the host, the same provider as CI, so findings should match what CI will post
+   2. `claude` on the host
+   3. `claude` in a `dda env dev` developer environment, which needs docker and authenticates through `ddtool`. The environment is kept for later runs.
+
+   An LLM review takes several minutes. Don't give it a short timeout and don't let it get killed mid-run: launch it asynchronously (e.g. `run_in_background: true` in Claude Code) and poll until it finishes, or give it a timeout of at least 10 minutes. Allow 20 minutes when it starts a developer environment, since the first start pulls a large image. If it still hasn't finished by then, tell the user and continue without it rather than stalling PR creation indefinitely. Outcomes, by exit code:
+   - **0, review completed**: show the findings to the user, and say which reviewer ran when it wasn't `codex`, since CI uses `codex`. Findings don't block PR creation; fix them first only if the user asks.
+   - **1, every attempted review failed**: tell the user, with the errors, and continue.
+   - **2, no reviewer available**: never skip this silently. Show the user the alert and the reasons the script printed, then continue.
 6. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
