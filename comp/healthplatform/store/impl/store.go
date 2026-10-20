@@ -133,11 +133,7 @@ func issueStateFromString(s string) IssueState {
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
-// It is both the in-memory and on-disk representation; when the agent restarts,
-// health checks re-run and call ReportIssue with the same ID, at which point
-// storeIssue picks up the existing firstSeen/state from this struct.
-// Issue holds the last reported proto (protojson) so resolutions carry the full
-// payload; it is absent in files written by older agents.
+// It is both the in-memory and on-disk representation; Issue is the last reported proto, absent in older files.
 //
 // IssueType (this struct) is a legacy name for the issue's IssueName, kept as-is
 // for on-disk compatibility — it is not the proto Issue.IssueType field. ProtoIssueType
@@ -198,12 +194,11 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 	return pi
 }
 
-// resolvedIssue builds the issue reported downstream when p resolves: the last
-// full issue when available, otherwise a minimal one.
+// resolvedIssue builds the resolution from the last full issue, or a minimal one.
 func (h *healthPlatformImpl) resolvedIssue(p *PersistedIssue) *healthplatform.Issue {
 	resolved := &healthplatform.Issue{}
 	if len(p.Issue) > 0 {
-		// Fields from a newer agent-payload must not discard the rest of the issue after a downgrade.
+		// Fields from a newer agent-payload must not discard the issue after a downgrade.
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(p.Issue, resolved); err != nil {
 			h.log.Warnf("health platform: failed to restore issue %s for resolution, sending minimal: %v", p.IssueID, err)
 			resolved = &healthplatform.Issue{}
@@ -725,8 +720,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // ============================================================================
 
 // loadFromDisk restores lifecycle state from the persistence layer.
-// Health checks re-running after restart call ReportIssue with the same ID and
-// storeIssue picks up firstSeen/state from the restored PersistedIssue.
+// Re-run health checks pick up firstSeen/state from the restored entries.
 func (h *healthPlatformImpl) loadFromDisk() error {
 	state, err := h.persistence.load()
 	if err != nil {
