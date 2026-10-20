@@ -44,7 +44,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.12.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.213
+	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.0.0-00010101000000-000000000000
@@ -433,6 +433,7 @@ require (
 	go.opentelemetry.io/collector/consumer/xconsumer v0.159.0
 	go.opentelemetry.io/collector/exporter v1.65.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.159.0
+	go.opentelemetry.io/collector/exporter/exportertest v0.159.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.159.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.159.0
 	go.opentelemetry.io/collector/extension v1.65.0
@@ -1104,7 +1105,6 @@ require (
 	go.opentelemetry.io/collector/consumer/consumertest v0.159.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.159.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.159.0 // indirect
-	go.opentelemetry.io/collector/exporter/exportertest v0.159.0 // indirect
 	go.opentelemetry.io/collector/exporter/nopexporter v0.159.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.159.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.65.0 // indirect
