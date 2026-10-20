@@ -20,6 +20,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/status",
+        "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/def",
         "//comp/haagent/def",

@@ -160,7 +160,8 @@ func TestTruncateLoaderErrors(t *testing.T) {
 	longMsg := strings.Repeat("x", maxCheckErrorLength+1)
 	errs := map[string]string{"python": longMsg, "core": "check not found"}
 
-	got := truncateLoaderErrors(errs, truncateCheckError)
+	truncator := messageTruncator{enabled: true, metrics: newOversizedMetrics(telemetryimpl.NewMock(t))}
+	got := truncator.truncateLoaderErrors(errs, "postgres")
 	assert.Equal(t, "check not found", got["core"])
 	assert.LessOrEqual(t, len(got["python"]), maxCheckErrorLength)
 	assert.Equal(t, longMsg, errs["python"], "input map must not be modified")
@@ -232,34 +233,26 @@ func TestOversizedMessageTelemetry(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		truncated := strconv.FormatBool(enabled)
 		t.Run("truncation enabled="+truncated, func(t *testing.T) {
-			tel := telemetryimpl.GetCompatComponent()
-			tel.Reset()
-			t.Cleanup(tel.Reset)
-			// Reset drops the registry, so the package metrics must be registered again.
-			tlmOversizedMessages = tel.NewCounter("checks", "metadata_message_oversized",
-				[]string{"check_name", "kind", "truncated"}, "test")
-			tlmOversizedMessageBytes = tel.NewHistogram("checks", "metadata_message_oversized_bytes",
-				[]string{"kind"}, "test", []float64{8 << 10, 16 << 10})
+			tel := telemetryimpl.NewMock(t)
+			metrics := newOversizedMetrics(tel)
+			truncator := messageTruncator{enabled: enabled, metrics: metrics}
 
-			capError := newMessageCapper(enabled, "postgres", kindError)
-			capWarning := newMessageCapper(enabled, "postgres", kindWarning)
+			assert.Equal(t, "short", truncator.maybeTruncate("short", "postgres", kindError))
+			assert.Equal(t, strings.Repeat("a", maxCheckErrorLength), truncator.maybeTruncate(strings.Repeat("a", maxCheckErrorLength), "postgres", kindError))
+			assert.Zero(t, metrics.messages.WithValues("postgres", kindError, truncated).Get(), "short messages are not counted")
 
-			assert.Equal(t, "short", capError("short"))
-			assert.Equal(t, strings.Repeat("a", maxCheckErrorLength), capError(strings.Repeat("a", maxCheckErrorLength)))
-			assert.Zero(t, tlmOversizedMessages.WithValues("postgres", kindError, truncated).Get(), "short messages are not counted")
-
-			got := capError(longMsg)
-			capError(longMsg)
-			capWarning(longMsg)
+			got := truncator.maybeTruncate(longMsg, "postgres", kindError)
+			truncator.maybeTruncate(longMsg, "postgres", kindError)
+			truncator.maybeTruncate(longMsg, "postgres", kindWarning)
 			if enabled {
 				assert.LessOrEqual(t, len(got), maxCheckErrorLength)
 			} else {
 				assert.Equal(t, longMsg, got)
 			}
 
-			assert.Equal(t, float64(2), tlmOversizedMessages.WithValues("postgres", kindError, truncated).Get())
-			assert.Equal(t, float64(1), tlmOversizedMessages.WithValues("postgres", kindWarning, truncated).Get())
-			assert.Zero(t, tlmOversizedMessages.WithValues("postgres", kindError, strconv.FormatBool(!enabled)).Get())
+			assert.Equal(t, float64(2), metrics.messages.WithValues("postgres", kindError, truncated).Get())
+			assert.Equal(t, float64(1), metrics.messages.WithValues("postgres", kindWarning, truncated).Get())
+			assert.Zero(t, metrics.messages.WithValues("postgres", kindError, strconv.FormatBool(!enabled)).Get())
 
 			text, err := tel.GatherText(func(*telemetry.MetricFamily) bool { return true })
 			require.NoError(t, err)
