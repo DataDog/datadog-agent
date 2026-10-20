@@ -67,7 +67,6 @@ go_deps.gazelle_override(
 use_repo(
     go_deps,
     "cat_dario_mergo",
-    "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_participle_v2",
