@@ -248,7 +248,9 @@ func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[en
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
-			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
+			// An hour of payloads fills more than 2GiB here, and a task killed for memory
+			// comes back under a new IP. Fargate needs 1024 CPU units past 4096MiB.
+			scenkubeadm.WithFakeintakeOptions(fakeintake.WithCPU(1024), fakeintake.WithMemory(6144), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenkubeadm.WithDeploySBOMWorkloads(),
 			scenkubeadm.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
