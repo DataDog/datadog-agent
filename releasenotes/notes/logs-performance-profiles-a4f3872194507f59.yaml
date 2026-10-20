@@ -9,13 +9,11 @@ features:
     operators can tune the Logs Agent for a given workload shape without
     setting each option individually. Individual ``logs_config`` settings set
     explicitly (via the config file, environment variables, Fleet Automation,
-    remote config, the command line, or at runtime) take precedence over the profile, so a profile can serve as a starting
-    point that is further customized. Profiles are off by default, in which
-    case the Agent keeps its standard default settings. The companion
-    ``logs_config.profile_version`` option pins an immutable profile version so
-    that upgrading the Agent never changes a host's effective settings; an
-    unset version resolves to version 1. ``max-throughput`` disables
-    compression for HTTP ``additional_endpoints`` as well. ``high-compression`` only
-    takes effect with zstd compression, so it has no effect when
+    remote config, the command line, or at runtime) take precedence over the
+    profile, so a profile can serve as a starting point that is further
+    customized. Profiles are off by default, in which case the Agent keeps its
+    standard default settings. ``max-throughput`` disables compression for
+    HTTP ``additional_endpoints`` as well. ``high-compression`` only takes
+    effect with zstd compression, so it has no effect when
     ``additional_endpoints`` are configured unless
     ``logs_config.compression_kind`` is set to ``zstd``.

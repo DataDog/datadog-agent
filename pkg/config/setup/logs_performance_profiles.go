@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -63,50 +62,38 @@ var (
 	})
 )
 
-// logsPerformanceProfiles is keyed by name then version; ship tuning changes as a new version.
-var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
+// logsPerformanceProfiles is the catalog, keyed by name.
+var logsPerformanceProfiles = map[string]logsPerformanceProfile{
 	"high-concurrency": {
-		1: {
-			description: "Maximize concurrent in-flight sends to absorb intake/network latency (send/transport bottleneck).",
-			settings:    highConcurrencySettings,
-		},
+		description: "Maximize concurrent in-flight sends to absorb intake/network latency (send/transport bottleneck).",
+		settings:    highConcurrencySettings,
 	},
 	"high-throughput": {
-		1: {
-			description: "Maximize sustained log throughput (one pipeline per core up to 16, high send concurrency, larger buffers).",
-			settings:    highThroughputSettings,
-		},
+		description: "Maximize sustained log throughput (one pipeline per core up to 16, high send concurrency, larger buffers).",
+		settings:    highThroughputSettings,
 	},
 	"max-throughput": {
-		1: {
-			description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled, including for HTTP additional_endpoints), at the expense of bandwidth and memory.",
-			settings:    maxThroughputSettings,
-		},
+		description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled, including for HTTP additional_endpoints), at the expense of bandwidth and memory.",
+		settings:    maxThroughputSettings,
 	},
 	"low-latency": {
-		1: {
-			description: "Minimize log delivery latency (short batch wait).",
-			settings: map[string]interface{}{
-				"logs_config.batch_wait": 1.0,
-			},
+		description: "Minimize log delivery latency (short batch wait).",
+		settings: map[string]interface{}{
+			"logs_config.batch_wait": 1.0,
 		},
 	},
 	"low-resource": {
-		1: {
-			description: "Minimize CPU and memory footprint (fewer pipelines, lower send concurrency, fewer in-flight payloads).",
-			settings: map[string]interface{}{
-				"logs_config.pipelines":                 pipelinesAtMost(2),
-				"logs_config.batch_max_concurrent_send": 4,
-				"logs_config.payload_channel_size":      5,
-			},
+		description: "Minimize CPU and memory footprint (fewer pipelines, lower send concurrency, fewer in-flight payloads).",
+		settings: map[string]interface{}{
+			"logs_config.pipelines":                 pipelinesAtMost(2),
+			"logs_config.batch_max_concurrent_send": 4,
+			"logs_config.payload_channel_size":      5,
 		},
 	},
 	"high-compression": {
-		1: {
-			description: "Reduce network bytes at the cost of CPU (higher zstd compression level; no effect when logs are sent with gzip, the default with additional_endpoints).",
-			settings: map[string]interface{}{
-				"logs_config.zstd_compression_level": 6,
-			},
+		description: "Reduce network bytes at the cost of CPU (higher zstd compression level; no effect when logs are sent with gzip, the default with additional_endpoints).",
+		settings: map[string]interface{}{
+			"logs_config.zstd_compression_level": 6,
 		},
 	},
 }
@@ -131,42 +118,26 @@ func configuredLogsPerformanceProfile(config pkgconfigmodel.Reader) string {
 	return strings.ToLower(strings.TrimSpace(config.GetString("logs_config.profile")))
 }
 
-// resolveLogsPerformanceProfileVersion maps an unset (0) version to 1.
-func resolveLogsPerformanceProfileVersion(version int) int {
-	if version == 0 {
-		return 1
-	}
-	return version
-}
-
 // lookupLogsPerformanceProfile resolves the configured profile; ok is false when none is active.
-func lookupLogsPerformanceProfile(config pkgconfigmodel.Reader) (profile logsPerformanceProfile, name string, version int, ok bool) {
+func lookupLogsPerformanceProfile(config pkgconfigmodel.Reader) (profile logsPerformanceProfile, name string, ok bool) {
 	name = configuredLogsPerformanceProfile(config)
 	if isLogsPerformanceProfileOff(name) {
-		return logsPerformanceProfile{}, name, 0, false
+		return logsPerformanceProfile{}, name, false
 	}
-	versions, found := logsPerformanceProfiles[name]
-	if !found {
-		return logsPerformanceProfile{}, name, 0, false
-	}
-	version = resolveLogsPerformanceProfileVersion(config.GetInt("logs_config.profile_version"))
-	profile, found = versions[version]
-	if !found {
-		return logsPerformanceProfile{}, name, version, false
-	}
-	return profile, name, version, true
+	profile, ok = logsPerformanceProfiles[name]
+	return profile, name, ok
 }
 
 // ResolvedLogsPerformanceProfile reports the active profile and its settings sorted by key.
-func ResolvedLogsPerformanceProfile(config pkgconfigmodel.Reader) (name string, version int, settings []LogsPerformanceProfileSetting, ok bool) {
-	profile, name, version, ok := lookupLogsPerformanceProfile(config)
+func ResolvedLogsPerformanceProfile(config pkgconfigmodel.Reader) (name string, settings []LogsPerformanceProfileSetting, ok bool) {
+	profile, name, ok := lookupLogsPerformanceProfile(config)
 	if !ok {
-		return "", 0, nil, false
+		return "", nil, false
 	}
 	for _, key := range sortedSettingKeys(profile.settings) {
 		settings = append(settings, LogsPerformanceProfileSetting{Key: key, Value: resolveProfileSettingValue(profile.settings[key])})
 	}
-	return name, version, settings, true
+	return name, settings, true
 }
 
 // LogsPerformanceProfileExists reports whether name is in the catalog.
@@ -175,16 +146,16 @@ func LogsPerformanceProfileExists(name string) bool {
 	return ok
 }
 
-// LogsPerformanceProfileCovers reports whether active's version 1 applies every candidate setting at the same value.
+// LogsPerformanceProfileCovers reports whether active applies every candidate setting at the same value.
 func LogsPerformanceProfileCovers(active, candidate string) bool {
 	if isLogsPerformanceProfileOff(active) || isLogsPerformanceProfileOff(candidate) {
 		return false
 	}
-	a, ok := logsPerformanceProfiles[active][1]
+	a, ok := logsPerformanceProfiles[active]
 	if !ok {
 		return false
 	}
-	c, ok := logsPerformanceProfiles[candidate][1]
+	c, ok := logsPerformanceProfiles[candidate]
 	if !ok {
 		return false
 	}
@@ -225,11 +196,9 @@ func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
 // allProfileSettingKeys returns every key any profile can write, sorted.
 func allProfileSettingKeys() []string {
 	seen := map[string]struct{}{}
-	for _, versions := range logsPerformanceProfiles {
-		for _, profile := range versions {
-			for key := range profile.settings {
-				seen[key] = struct{}{}
-			}
+	for _, profile := range logsPerformanceProfiles {
+		for key := range profile.settings {
+			seen[key] = struct{}{}
 		}
 	}
 	keys := make([]string, 0, len(seen))
@@ -251,19 +220,10 @@ func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 		return
 	}
 
-	versions, ok := logsPerformanceProfiles[name]
+	profile, ok := logsPerformanceProfiles[name]
 	if !ok {
 		log.Errorf("Unknown logs_config.profile %q; ignoring and using default logs settings. Available profiles: %s",
 			name, strings.Join(sortedProfileNames(), ", "))
-		return
-	}
-
-	version := resolveLogsPerformanceProfileVersion(config.GetInt("logs_config.profile_version"))
-
-	profile, ok := versions[version]
-	if !ok {
-		log.Errorf("Unknown version %d for logs_config.profile %q; ignoring and using default logs settings. Available versions: %s",
-			version, name, sortedVersions(versions))
 		return
 	}
 
@@ -276,15 +236,15 @@ func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 		config.Set(key, resolveProfileSettingValue(profile.settings[key]), pkgconfigmodel.SourceConfigPostInit)
 	}
 
-	log.Infof("Applied logs performance profile %q (version %d): %s", name, version, profile.description)
+	log.Infof("Applied logs performance profile %q: %s", name, profile.description)
 	if _, ok := profile.settings[zstdLevelKey]; ok && !keyExplicitlySet(config, zstdLevelKey) {
 		if reason := zstdLevelIgnoredReason(config); reason != "" {
 			log.Warnf("Logs performance profile %q sets %s, which has no effect: %s", name, zstdLevelKey, reason)
 		}
 	}
 	if len(kept) > 0 {
-		log.Infof("Logs performance profile %q (version %d) kept explicitly-configured settings: %s",
-			name, version, strings.Join(kept, ", "))
+		log.Infof("Logs performance profile %q kept explicitly-configured settings: %s",
+			name, strings.Join(kept, ", "))
 	}
 }
 
@@ -325,19 +285,6 @@ func sortedProfileNames() []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func sortedVersions(versions map[int]logsPerformanceProfile) string {
-	nums := make([]int, 0, len(versions))
-	for version := range versions {
-		nums = append(nums, version)
-	}
-	sort.Ints(nums)
-	parts := make([]string, 0, len(nums))
-	for _, n := range nums {
-		parts = append(parts, strconv.Itoa(n))
-	}
-	return strings.Join(parts, ", ")
 }
 
 func sortedSettingKeys(settings map[string]interface{}) []string {
