@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Update Agent Data Plane to 1.6.4 to reject server certificate chains
+    containing compromised eMudhra public keys for direct and proxied HTTPS
+    connections, including FIPS builds.
