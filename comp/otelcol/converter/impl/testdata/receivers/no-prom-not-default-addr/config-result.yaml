@@ -66,5 +66,5 @@ service:
           exporters: [datadog]
       metrics/dd-autoconfigured/datadog:
           receivers: [prometheus/dd-autoconfigured]
-          processors: [filter/drop-prometheus-internal-metrics/dd-autoconfigured]
+          processors: [filter/drop-prometheus-internal-metrics/dd-autoconfigured, cumulativetodelta/dd-autoconfigured]
           exporters: [datadog]
