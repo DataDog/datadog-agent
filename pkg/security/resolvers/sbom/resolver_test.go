@@ -18,16 +18,19 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -40,10 +43,7 @@ import (
 // without the reset the refresh re-scan is silently discarded and the runtime
 // properties are never recomputed.
 func TestRefreshScanResetsStateForRescan(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		dataCache: dataCache,
 		scanChan:  make(chan *SBOM, 10),
@@ -51,14 +51,14 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	sbom.state.Store(computedState)
-	dataCache.Add("image:tag", &Data{})
+	dataCache.unused.Add("image:tag", &Data{})
 
 	r.refreshScan(sbom)
 
 	if got := sbom.state.Load(); got != pendingState {
 		t.Errorf("state = %d, want pendingState (%d)", got, pendingState)
 	}
-	if _, ok := dataCache.Get("image:tag"); ok {
+	if _, ok := dataCache.peek("image:tag"); ok {
 		t.Errorf("cached SBOM data was not invalidated")
 	}
 	select {
@@ -71,8 +71,102 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 	}
 }
 
-func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[string]pendingFileEvent] {
-	events, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
+// newScanResolver returns a resolver that queues the scans of its workloads
+// for the tests to run, and forwards on their call alone.
+func newScanResolver(t *testing.T) *Resolver {
+	t.Helper()
+	dataCache := newTestDataCache(t, 10)
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		cfg: &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    time.Hour,
+		},
+		dataCache:         dataCache,
+		scanChan:          make(chan *SBOM, 10),
+		pendingFileEvents: newPendingFileEvents(t),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	return r
+}
+
+// TestRefreshScanKeepsQueuedWorkload checks that refreshing a container whose
+// scan waits in the queue keeps the container, its scan and its accesses.
+func TestRefreshScanKeepsQueuedWorkload(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		queue func(*Resolver, *SBOM)
+	}{
+		{"first scan", func(r *Resolver, sbom *SBOM) { r.queueWorkload(sbom) }},
+		{"rescan", func(r *Resolver, sbom *SBOM) {
+			sbom.state.Store(computedState)
+			r.refreshScan(sbom)
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newScanResolver(t)
+			sbom := r.newSBOM("container-id", nil, "image:tag")
+			t.Cleanup(sbom.stop)
+			tt.queue(r, sbom)
+			r.queuePendingFileEvent("container-id", "/usr/bin/gzip", 0o755, false)
+
+			r.refreshScan(sbom)
+
+			if got := sbom.state.Load(); got != pendingState {
+				t.Errorf("state = %d, want pendingState (%d)", got, pendingState)
+			}
+			if _, ok := r.sboms.Peek("container-id"); !ok {
+				t.Errorf("the refresh dropped the queued container")
+			}
+			if n := len(r.scanChan); n != 1 {
+				t.Errorf("%d scans queued, want 1", n)
+			}
+			if want := []containerutils.ContainerID{"container-id"}; !slices.Equal(r.pendingScan, want) {
+				t.Errorf("pending scans = %v, want %v", r.pendingScan, want)
+			}
+			if _, ok := r.pendingFileEvents.Peek("container-id"); !ok {
+				t.Errorf("the refresh released the queued file accesses")
+			}
+		})
+	}
+}
+
+// TestTriggerScanOnFullQueue checks that a container already queued keeps its
+// place when the queue is full, while a container the queue cannot take goes.
+func TestTriggerScanOnFullQueue(t *testing.T) {
+	r := newScanResolver(t)
+	for i := range scanQueueSize - 1 {
+		r.pendingScan = append(r.pendingScan, containerutils.ContainerID(fmt.Sprintf("other-%d", i)))
+	}
+	queued := r.newSBOM("container-id", nil, "image:tag")
+	late := r.newSBOM("late-container-id", nil, "image:tag")
+	t.Cleanup(queued.stop)
+
+	for _, sbom := range []*SBOM{queued, queued, late} {
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+	}
+
+	if _, ok := r.sboms.Peek("container-id"); !ok {
+		t.Errorf("a full queue dropped the container it held")
+	}
+	if _, ok := r.sboms.Peek("late-container-id"); ok {
+		t.Errorf("a full queue kept a container it could not take")
+	}
+	if n := len(r.scanChan); n != 1 {
+		t.Errorf("%d scans queued, want 1", n)
+	}
+}
+
+func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[uint64]pendingFileEvent] {
+	events, err := simplelru.NewLRU[containerutils.ContainerID, map[uint64]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
 		t.Fatalf("NewLRU: %v", err)
 	}
@@ -88,7 +182,8 @@ func newHostMisses(t *testing.T) *simplelru.LRU[string, hostMiss] {
 }
 
 func newPendingFileEventsResolver(t *testing.T) *Resolver {
-	return &Resolver{pendingFileEvents: newPendingFileEvents(t)}
+	dataCache := newTestDataCache(t, 10)
+	return &Resolver{pendingFileEvents: newPendingFileEvents(t), dataCache: dataCache}
 }
 
 // TestDeleteReleasesPendingFileEventsWithoutSBOM checks that a container leaving
@@ -103,7 +198,7 @@ func TestDeleteReleasesPendingFileEventsWithoutSBOM(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 	r.sboms = sboms
 
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 	r.Delete("container-id")
 
 	if r.pendingFileEvents.Len() != 0 {
@@ -123,10 +218,10 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	r.sboms = sboms
 
 	sboms.Add("evicted-container-id", NewSBOM("evicted-container-id", nil, "image:tag"))
-	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("evicted-container-id", "/usr/bin/su", 04755, true)
 
 	sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 
 	if _, ok := r.pendingFileEvents.Get("evicted-container-id"); ok {
 		t.Errorf("queued file accesses of the evicted SBOM were not released")
@@ -139,16 +234,92 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 	}
 }
 
+// TestRefreshSBOMSkipsStoppedSBOM checks that a refresh racing the deletion of
+// its container starts no refresher, which nothing would stop.
+func TestRefreshSBOMSkipsStoppedSBOM(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverRefreshInterval: time.Hour}
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+
+	sbom := r.newSBOM("container-id", nil, "image")
+	sbom.stop()
+	if err := r.RefreshSBOM("container-id"); err != nil {
+		t.Fatalf("RefreshSBOM: %v", err)
+	}
+	if sbom.refresher != nil {
+		t.Errorf("a stopped SBOM got a refresher")
+	}
+}
+
+// TestEvictedSBOMStopsUnderItsLock checks that an SBOM evicted while a lookup
+// holds its lock stops once the lock is free, with the forwarder it latched.
+func TestEvictedSBOMStopsUnderItsLock(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+		sboms, err := simplelru.NewLRU(1, r.onSBOMEvicted)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r.sboms = sboms
+
+		evicted := NewSBOM("evicted-container-id", nil, "image:tag")
+		evicted.state.Store(computedState)
+		sboms.Add(evicted.ContainerID, evicted)
+
+		evicted.Lock()
+		sboms.Add("container-id", NewSBOM("container-id", nil, "image:tag"))
+		r.triggerForwarding(evicted)
+		evicted.Unlock()
+		synctest.Wait()
+
+		evicted.Lock()
+		defer evicted.Unlock()
+		if evicted.state.Load() != stoppedState || evicted.forwarder != nil {
+			t.Fatal("the evicted SBOM kept its forwarder")
+		}
+	})
+}
+
+// TestTriggerScanQueuesEveryWorkload checks that every SBOM entry the resolver
+// holds can wait for its scan, as at a start on a host of many containers.
+func TestTriggerScanQueuesEveryWorkload(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, scanQueueSize)
+
+	for i := range maxSBOMEntries {
+		id := containerutils.ContainerID(fmt.Sprintf("container-%d", i))
+		sbom := NewSBOM(id, nil, "image:tag")
+		sboms.Add(id, sbom)
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+	}
+
+	if n := len(r.scanChan); n != maxSBOMEntries {
+		t.Errorf("%d workloads queued for a scan, want %d", n, maxSBOMEntries)
+	}
+	if n := sboms.Len(); n != maxSBOMEntries {
+		t.Errorf("%d SBOM entries left, want %d", n, maxSBOMEntries)
+	}
+}
+
 // TestAnalyzeWorkloadReusesCachedDataAsComputed checks that a workload whose data
 // landed in the cache while it was queued for a scan still ends up computed. Left
 // pending, every package lookup for that container queues instead of resolving and
 // its queued accesses are never applied — which is the fate of every replica of an
 // image but the one that gets scanned.
 func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		// long enough that the forwarding debouncer cannot fire during the test
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
@@ -158,14 +329,14 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+	dataCache.unused.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false))
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	t.Cleanup(sbom.stop)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
 
 	if err := r.analyzeWorkload(sbom); err != nil {
 		t.Fatalf("analyzeWorkload: %v", err)
@@ -193,10 +364,7 @@ func TestAnalyzeWorkloadReusesCachedDataAsComputed(t *testing.T) {
 // debouncer that can never be stopped again, since a stopped workload is no longer
 // reachable from the resolver, and reports an SBOM for a container that is gone.
 func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour},
 		dataCache:         dataCache,
@@ -205,7 +373,7 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 		sbomsCacheMiss:    atomic.NewUint64(0),
 	}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+	dataCache.unused.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false))
@@ -232,37 +400,169 @@ func TestAnalyzeWorkloadSkipsStoppedWorkload(t *testing.T) {
 // that admits it, so a workload going idle right after would otherwise never have
 // them applied.
 func TestQueueWorkloadAppliesQueuedAccessesOnCacheHit(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	synctest.Test(t, func(t *testing.T) {
+		dataCache := newTestDataCache(t, 10)
+		r := &Resolver{
+			Notifier:          utils.NewNotifier[Event, *sbompkg.ScanResult](),
+			cfg:               &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: 10 * time.Millisecond},
+			dataCache:         dataCache,
+			scanChan:          make(chan *SBOM, 1),
+			pendingFileEvents: newPendingFileEvents(t),
+			sbomsCacheHit:     atomic.NewUint64(0),
+			sbomsCacheMiss:    atomic.NewUint64(0),
+		}
+		reports := make(chan *sbompkg.ScanResult, 1)
+		if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+			select {
+			case reports <- result:
+			default:
+			}
+		}); err != nil {
+			t.Fatalf("RegisterListener: %v", err)
+		}
+
+		dataCache.unused.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "shadow-utils"},
+			InstalledFiles: []string{"/usr/bin/su"},
+		}}, false))
+
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		sbom.status = workloadmeta.Success
+		t.Cleanup(sbom.stop)
+		r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+
+		r.queueWorkload(sbom)
+
+		if !sbom.IsComputed() {
+			t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
+		}
+		if r.pendingFileEvents.Len() != 0 {
+			t.Errorf("queued file accesses were not applied")
+		}
+		if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+			t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+		}
+
+		// The replica forwards the usage it drained, with no later event.
+		select {
+		case <-reports:
+		case <-time.After(10 * time.Second):
+			t.Errorf("the drained usage was not forwarded")
+		}
+	})
+}
+
+// TestQueueWorkloadSharesDataOfRunningImage checks that a new container shares the
+// scan of its running image, however many other images the host ran since.
+func TestQueueWorkloadSharesDataOfRunningImage(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.dataCache = newTestDataCache(t, 1)
+	r.scanChan = make(chan *SBOM, 1)
+	r.sbomsCacheHit = atomic.NewUint64(0)
+
+	running := &Data{}
+	r.dataCache.add("image-x", running)
+	for _, other := range []workloadKey{"image-y", "image-z"} {
+		r.dataCache.add(other, &Data{})
+		r.dataCache.release(other)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image-x")
+	t.Cleanup(sbom.stop)
+	r.queueWorkload(sbom)
+
+	if !sbom.IsComputed() || sbom.data != running {
+		t.Errorf("state = %d, data = %p, want the data of the running image, %p", sbom.state.Load(), sbom.data, running)
+	}
+	if len(r.scanChan) != 0 {
+		t.Errorf("the container was queued for a scan")
+	}
+}
+
+// TestDeleteReleasesSharedData checks that the data of an image stays in use until
+// its last container leaves, then serves the next container from the cache.
+func TestDeleteReleasesSharedData(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(10, r.onSBOMEvicted)
 	if err != nil {
 		t.Fatalf("NewLRU: %v", err)
 	}
-	r := &Resolver{
-		dataCache:         dataCache,
-		scanChan:          make(chan *SBOM, 1),
-		pendingFileEvents: newPendingFileEvents(t),
-		sbomsCacheHit:     atomic.NewUint64(0),
-		sbomsCacheMiss:    atomic.NewUint64(0),
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, 1)
+	r.sbomsCacheHit = atomic.NewUint64(0)
+
+	scanned := &Data{}
+	r.dataCache.unused.Add("image-k", scanned)
+
+	for _, id := range []containerutils.ContainerID{"a", "b"} {
+		sbom := NewSBOM(id, nil, "image-k")
+		sboms.Add(id, sbom)
+		r.queueWorkload(sbom)
+	}
+	if users := r.dataCache.users("image-k"); users != 2 {
+		t.Fatalf("image-k has %d users, want 2", users)
 	}
 
-	dataCache.Add("image:tag", newData([]sbomtypes.PackageWithInstalledFiles{{
-		Package:        sbomtypes.Package{Name: "shadow-utils"},
-		InstalledFiles: []string{"/usr/bin/su"},
-	}}, false))
+	r.Delete("a")
+	if used, unused := r.dataCache.lens(); r.dataCache.users("image-k") != 1 || used != 1 || unused != 0 {
+		t.Fatalf("after a leaves: %d users, %d used and %d unused keys, want image-k used by b", r.dataCache.users("image-k"), used, unused)
+	}
 
-	sbom := NewSBOM("container-id", nil, "image:tag")
+	r.Delete("b")
+	if used, unused := r.dataCache.lens(); used != 0 || unused != 1 {
+		t.Fatalf("after b leaves: %d used and %d unused keys, want image-k unused", used, unused)
+	}
+
+	sbom := NewSBOM("c", nil, "image-k")
 	t.Cleanup(sbom.stop)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
-
 	r.queueWorkload(sbom)
+	if !sbom.IsComputed() || sbom.data != scanned || len(r.scanChan) != 0 {
+		t.Errorf("state = %d, data = %p, %d queued scans, want the unused data, %p, without a scan", sbom.state.Load(), sbom.data, len(r.scanChan), scanned)
+	}
+}
 
-	if !sbom.IsComputed() {
-		t.Errorf("state = %d, want computedState (%d)", sbom.state.Load(), computedState)
+// TestEvictedSBOMReleasesData checks that an SBOM evicted to make room releases
+// the data of its image.
+func TestEvictedSBOMReleasesData(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		sboms, err := simplelru.NewLRU(1, r.onSBOMEvicted)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r.sboms = sboms
+		r.sbomsCacheHit = atomic.NewUint64(0)
+
+		r.dataCache.unused.Add("image-k", &Data{})
+		evicted := NewSBOM("evicted", nil, "image-k")
+		sboms.Add(evicted.ContainerID, evicted)
+		r.queueWorkload(evicted)
+
+		sboms.Add("other", NewSBOM("other", nil, "image-o"))
+		synctest.Wait()
+
+		if used, unused := r.dataCache.lens(); used != 0 || unused != 1 {
+			t.Errorf("image-k has %d users after the eviction of its container, want 0", r.dataCache.users("image-k"))
+		}
+	})
+}
+
+// TestSetScanLeavesEmptyScanUncached checks that an empty scan, as a failing
+// scanner returns, serves its container and stays out of the cache.
+func TestSetScanLeavesEmptyScanUncached(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	sbom := NewSBOM("container-id", nil, "image-k")
+	t.Cleanup(sbom.stop)
+	sbom.Lock()
+	data := r.setScan(sbom, nil)
+	sbom.Unlock()
+
+	if sbom.data != data || sbom.cached {
+		t.Errorf("data = %p, cached = %v, want %p kept out of the cache", sbom.data, sbom.cached, data)
 	}
-	if r.pendingFileEvents.Len() != 0 {
-		t.Errorf("queued file accesses were not applied")
-	}
-	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
-		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	if _, ok := r.dataCache.acquire("image-k"); ok {
+		t.Errorf("the empty scan was cached")
 	}
 }
 
@@ -275,19 +575,19 @@ func TestPendingFileEventsAreDeduplicatedPerPath(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for range 3 {
-		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, 1000)
+		r.queuePendingFileEvent("container-id", "/usr/lib/libc.so.6", 0644, false)
 	}
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 1000)
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, false)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 0755, true)
 
 	events, _ := r.pendingFileEvents.Get("container-id")
 	if len(events) != 2 {
 		t.Fatalf("queued %d distinct events, want 2", len(events))
 	}
-	if event := events["/usr/lib/libc.so.6"]; event.suidBit || event.accessedByRoot {
+	if event := events[murmur3.StringSum64("/usr/lib/libc.so.6")]; event.suidBit || event.accessedByRoot {
 		t.Errorf("libc event = %+v, want no sticky property set", event)
 	}
-	if event := events["/usr/bin/su"]; !event.suidBit || !event.accessedByRoot {
+	if event := events[murmur3.StringSum64("/usr/bin/su")]; !event.suidBit || !event.accessedByRoot {
 		t.Errorf("su event = %+v, want both sticky properties merged", event)
 	}
 }
@@ -299,39 +599,42 @@ func TestPendingFileEventsBoundDistinctPathsPerContainer(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
 	for i := range maxPendingFileEvents {
-		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, 1000)
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/lib%d.so", i), 0644, false)
 	}
-	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, 1000)
-	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, 0)
+	r.queuePendingFileEvent("container-id", "/usr/lib/overflow.so", 0644, false)
+	r.queuePendingFileEvent("container-id", "/usr/lib/lib0.so", 0644, true)
 
 	events, _ := r.pendingFileEvents.Get("container-id")
 	if len(events) != maxPendingFileEvents {
 		t.Fatalf("queued %d distinct events, want %d", len(events), maxPendingFileEvents)
 	}
-	if _, ok := events["/usr/lib/overflow.so"]; ok {
+	if _, ok := events[murmur3.StringSum64("/usr/lib/overflow.so")]; ok {
 		t.Errorf("path queued past the maximum number of pending events")
 	}
-	if !events["/usr/lib/lib0.so"].accessedByRoot {
+	if !events[murmur3.StringSum64("/usr/lib/lib0.so")].accessedByRoot {
 		t.Errorf("access to an already queued path was not merged")
 	}
 }
 
 // TestProcessPendingFileEventsEnrichesPackages checks that draining the queue applies
-// the queued accesses to the packages owning the files and marks the SBOM for
-// forwarding.
+// the queued accesses to the packages owning the files and latches a forward.
 func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
 	sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "shadow-utils"},
 		InstalledFiles: []string{"/usr/bin/su"},
 	}}, false)
 
-	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, 0)
-	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, 1000)
+	r.queuePendingFileEvent("container-id", "/usr/bin/su", 04755, true)
+	r.queuePendingFileEvent("container-id", "/usr/bin/not-in-any-package", 0644, false)
 
+	sbom.Lock()
 	r.processPendingFileEvents(sbom)
+	sbom.Unlock()
 
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("pending events were not drained")
@@ -339,8 +642,8 @@ func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
 	}
-	if !sbom.invalidated {
-		t.Errorf("sbom was not marked for forwarding")
+	if sbom.forwarder == nil {
+		t.Errorf("no forward was latched")
 	}
 }
 
@@ -366,6 +669,8 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	r := newPendingFileEventsResolver(t)
 	r.Notifier = utils.NewNotifier[Event, *sbompkg.ScanResult]()
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+	t.Cleanup(sbomA.stop)
 
 	var wg sync.WaitGroup
 
@@ -373,7 +678,7 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 	// LastAccess/SuidBit/AccessedByRoot on the shared Data).
 	wg.Go(func() {
 		for range 2000 {
-			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, 0)
+			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, true)
 			sbomA.Lock()
 			r.processPendingFileEvents(sbomA)
 			sbomA.Unlock()
@@ -452,10 +757,7 @@ func TestForwardSkipsStoppedSBOM(t *testing.T) {
 // workload was deleted keeps the SBOM stopped and out of the scan queue, and
 // keeps the cached data of the image for its other containers.
 func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 	r := &Resolver{
 		dataCache: dataCache,
 		scanChan:  make(chan *SBOM, 10),
@@ -463,7 +765,7 @@ func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
 
 	sbom := NewSBOM("container-id", nil, "image:tag")
 	sbom.stop()
-	dataCache.Add("image:tag", &Data{})
+	dataCache.unused.Add("image:tag", &Data{})
 
 	r.refreshScan(sbom)
 
@@ -473,7 +775,7 @@ func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
 	if len(r.scanChan) != 0 {
 		t.Errorf("the deleted workload was queued for a scan")
 	}
-	if _, ok := dataCache.Get("image:tag"); !ok {
+	if _, ok := dataCache.peek("image:tag"); !ok {
 		t.Errorf("the deleted workload dropped the cached data of its image")
 	}
 }
@@ -495,6 +797,49 @@ func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
 	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
 		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
 	}
+}
+
+// imageWorkloadmeta knows the image ID of the containers in images.
+type imageWorkloadmeta struct {
+	workloadmeta.Component
+	images map[string]string
+}
+
+func (w imageWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
+	if image, ok := w.images[id]; ok {
+		return &workloadmeta.Container{Image: workloadmeta.ContainerImage{ID: image}}, nil
+	}
+	return nil, fmt.Errorf("container %q not found", id)
+}
+
+// TestWorkloadKeyOf checks that containers share a scan by image ID, and that a
+// container of an unknown image keeps its scan to itself.
+func TestWorkloadKeyOf(t *testing.T) {
+	r := &Resolver{wmeta: imageWorkloadmeta{images: map[string]string{"from-wmeta": "sha256:wmeta"}}}
+	byName := []string{"image_name:nginx", "image_tag:latest"}
+
+	for _, tc := range []struct {
+		name string
+		id   containerutils.ContainerID
+		tags []string
+		want workloadKey
+	}{
+		{"image ID tag", "tagged", append([]string{"image_id:sha256:tag"}, byName...), "sha256:tag"},
+		{"image ID from workloadmeta", "from-wmeta", byName, "sha256:wmeta"},
+		{"unknown image", "unknown", byName, "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.workloadKeyOf(tc.id, &tags.Workload{Tags: tc.tags}); got != tc.want {
+				t.Errorf("workloadKeyOf = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	t.Run("no workloadmeta", func(t *testing.T) {
+		r := &Resolver{}
+		if got := r.workloadKeyOf("unknown", &tags.Workload{Tags: byName}); got != "unknown" {
+			t.Errorf("workloadKeyOf = %q, want %q", got, "unknown")
+		}
+	})
 }
 
 // ownRoot returns the device and the inode of the root of the test process.
@@ -1221,7 +1566,7 @@ func inode(t *testing.T, path string) uint64 {
 func TestPendingFileEventsSkipDirectories(t *testing.T) {
 	r := newPendingFileEventsResolver(t)
 
-	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, 0)
+	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, true)
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("the directory open was queued")
 	}
@@ -1232,10 +1577,7 @@ func TestPendingFileEventsSkipDirectories(t *testing.T) {
 // scans, and keeps the usage of the packages it finds again, upgraded ones
 // included.
 func TestRefreshScanRescansHost(t *testing.T) {
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
-	if err != nil {
-		t.Fatalf("NewLRU: %v", err)
-	}
+	dataCache := newTestDataCache(t, 10)
 
 	r := newHostSBOMResolver(t)
 	r.dataCache = dataCache
@@ -1284,22 +1626,26 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	if len(r.scanChan) != 0 {
 		t.Errorf("the host was queued as a workload")
 	}
-	if dataCache.Len() != 0 {
+	if used, unused := dataCache.lens(); used+unused != 0 {
 		t.Errorf("the host entered the workload cache")
 	}
 }
 
 // TestKeepUsageKeepsObservationStart checks that the usage a rescan keeps keeps
-// the time it started being recorded, and that the data of a first scan starts
-// recording its own.
+// the time it started being recorded and the time it was last forwarded, and
+// that the data of a first scan starts recording its own.
 func TestKeepUsageKeepsObservationStart(t *testing.T) {
 	since := time.Unix(1700000000, 0)
 	report := []sbomtypes.PackageWithInstalledFiles{{Package: sbomtypes.Package{Name: "bash", Version: "5.2"}}}
 
+	forwarded := since.Add(time.Hour)
 	rescan := newData(report, false)
-	rescan.keepUsage(&Data{packages: []sbomtypes.Package{{Name: "bash", Version: "5.1"}}, observedSince: since})
+	rescan.keepUsage(&Data{packages: []sbomtypes.Package{{Name: "bash", Version: "5.1"}}, observedSince: since, forwardedAt: forwarded})
 	if !rescan.observedSince.Equal(since) {
 		t.Errorf("observation start = %v, want %v, that of the usage kept", rescan.observedSince, since)
+	}
+	if !rescan.forwardedAt.Equal(forwarded) {
+		t.Errorf("last forward = %v, want %v, that of the usage kept", rescan.forwardedAt, forwarded)
 	}
 
 	first := newData(report, false)
@@ -1311,8 +1657,8 @@ func TestKeepUsageKeepsObservationStart(t *testing.T) {
 }
 
 // TestKeepUsage checks the usage a rescan keeps. A package keeps the usage of
-// its build, combined with that of the builds of its name the rescan no longer
-// finds, as an upgrade replaces them.
+// its build, combined with that of the builds of its name and architecture the
+// rescan no longer finds, as an upgrade replaces them.
 func TestKeepUsage(t *testing.T) {
 	seen := time.Unix(1700000000, 0)
 	used := func(pkg sbomtypes.Package, at time.Time, suid, root bool) sbomtypes.Package {
@@ -1324,6 +1670,9 @@ func TestKeepUsage(t *testing.T) {
 	}
 	gzip := func(version string) sbomtypes.Package {
 		return sbomtypes.Package{Name: "gzip", Version: version}
+	}
+	glibc := func(release, arch string) sbomtypes.Package {
+		return sbomtypes.Package{Name: "glibc", Version: "2.39", Release: release, Arch: arch}
 	}
 
 	tests := []struct {
@@ -1373,6 +1722,24 @@ func TestKeepUsage(t *testing.T) {
 			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), gzip("1.12")},
 			scan: []sbomtypes.Package{gzip("1.13"), gzip("1.13")},
 			want: []sbomtypes.Package{used(gzip("1.13"), seen, false, true), used(gzip("1.13"), seen, false, true)},
+		},
+		{
+			name: "upgrade of the builds of two architectures",
+			prev: []sbomtypes.Package{used(glibc("37.el10", "x86_64"), seen, false, true), glibc("37.el10", "i686")},
+			scan: []sbomtypes.Package{glibc("38.el10", "x86_64"), glibc("38.el10", "i686")},
+			want: []sbomtypes.Package{used(glibc("38.el10", "x86_64"), seen, false, true), glibc("38.el10", "i686")},
+		},
+		{
+			name: "upgrade that drops an architecture",
+			prev: []sbomtypes.Package{used(glibc("37.el10", "x86_64"), seen, false, true), used(glibc("37.el10", "i686"), seen, true, false)},
+			scan: []sbomtypes.Package{glibc("38.el10", "x86_64")},
+			want: []sbomtypes.Package{used(glibc("38.el10", "x86_64"), seen, false, true)},
+		},
+		{
+			name: "upgrade that changes the architecture",
+			prev: []sbomtypes.Package{used(sbomtypes.Package{Name: "python3-six", Version: "1.16.0", Arch: "x86_64"}, seen, false, true)},
+			scan: []sbomtypes.Package{{Name: "python3-six", Version: "1.17.0", Arch: "noarch"}},
+			want: []sbomtypes.Package{used(sbomtypes.Package{Name: "python3-six", Version: "1.17.0", Arch: "noarch"}, seen, false, true)},
 		},
 	}
 
@@ -1690,6 +2057,7 @@ func TestScanHostCreditsMissedRuns(t *testing.T) {
 		identity  bool          // the run carries the inode of a file under the host root
 		replaced  bool          // a new file takes the path of the file before the scan
 		credited  bool          // the scan credits the run to gzip
+		uid       uint32        // the real UID of the process, whose effective UID is 0
 		kept      bool          // the run waits for a later scan
 	}{
 		{name: "run", path: "/usr/bin/gzip", credited: true},
@@ -1700,6 +2068,7 @@ func TestScanHostCreditsMissedRuns(t *testing.T) {
 		{name: "container", path: "/usr/bin/gzip", container: true},
 		{name: "expired", path: "/usr/bin/gzip", age: hostMissTTL + time.Minute},
 		{name: "unowned", path: "/usr/local/bin/gzip", kept: true},
+		{name: "setuid-root run", path: "/usr/bin/gzip", uid: 1000, credited: true},
 	}
 
 	for _, tt := range tests {
@@ -1717,6 +2086,7 @@ func TestScanHostCreditsMissedRuns(t *testing.T) {
 
 			pc := &model.ProcessContext{}
 			pc.Pid = uint32(os.Getpid())
+			pc.UID = tt.uid
 			pc.Process.FileEvent.SetPathnameStr(tt.path)
 			pc.Process.FileEvent.Mode = 04755
 			file := &pc.Process.FileEvent
@@ -1861,5 +2231,218 @@ func TestScanHostForwardsChangesAlone(t *testing.T) {
 
 	if r.hostSBOM.forwarder != nil {
 		t.Errorf("the rescan of unchanged packages triggered forwarding")
+	}
+}
+
+// TestProcessPendingFileEventsKeepsAccessTime checks that a queued access keeps
+// the time it happened once the scan of its container ends.
+func TestProcessPendingFileEventsKeepsAccessTime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		t.Cleanup(sbom.stop)
+		sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "bash"},
+			InstalledFiles: []string{"/usr/bin/bash"},
+		}}, false)
+
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false)
+		queued := time.Now()
+		time.Sleep(2 * time.Millisecond)
+		sbom.Lock()
+		r.processPendingFileEvents(sbom)
+		sbom.Unlock()
+
+		if last := sbom.data.packages[0].LastAccess; !last.Equal(queued) {
+			t.Errorf("last access = %v, want the time of the access, %v", last, queued)
+		}
+	})
+}
+
+// TestProcessPendingFileEventsKeepsNewerAccess checks that a queued access
+// leaves a later access another container of the image recorded as it is.
+func TestProcessPendingFileEventsKeepsNewerAccess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		t.Cleanup(sbom.stop)
+		sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "bash"},
+			InstalledFiles: []string{"/usr/bin/bash"},
+		}}, false)
+
+		r.queuePendingFileEvent("container-id", "/usr/bin/bash", 0755, false)
+		time.Sleep(2 * time.Millisecond)
+		later := time.Now()
+		sbom.data.packages[0].LastAccess = later
+
+		sbom.Lock()
+		r.processPendingFileEvents(sbom)
+		sbom.Unlock()
+
+		if last := sbom.data.packages[0].LastAccess; !last.Equal(later) {
+			t.Errorf("last access = %v, want the later access, at %v", last, later)
+		}
+	})
+}
+
+// TestLatches checks which accesses latch a forward: the first, one after a gap,
+// and one in steady use once the forwarded usage is maxForwardedAge old.
+func TestLatches(t *testing.T) {
+	r := &Resolver{cfg: &config.RuntimeSecurityConfig{SBOMResolverEnrichmentInterval: time.Minute}}
+	now := time.Now()
+
+	for _, tc := range []struct {
+		name                string
+		previous, forwarded time.Time
+		want                bool
+	}{
+		{"first access", time.Time{}, time.Time{}, true},
+		{"after a gap", now.Add(-2 * time.Minute), now.Add(-2 * time.Minute), true},
+		{"steady use", now.Add(-time.Second), now.Add(-time.Minute), false},
+		{"steady use with old forwarded usage", now.Add(-time.Second), now.Add(-maxForwardedAge - time.Second), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.latches(&Data{forwardedAt: tc.forwarded}, tc.previous, now); got != tc.want {
+				t.Errorf("latches = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestLatchesClaimsTheHour checks that, of the containers sharing data in steady
+// use, the first to access it once the forwarded usage is old latches a forward.
+func TestLatchesClaimsTheHour(t *testing.T) {
+	r := &Resolver{cfg: &config.RuntimeSecurityConfig{SBOMResolverEnrichmentInterval: time.Minute}}
+	now := time.Now()
+	shared := &Data{forwardedAt: now.Add(-maxForwardedAge - time.Second)}
+
+	if !r.latches(shared, now.Add(-time.Second), now) {
+		t.Fatalf("the first access past the hour latched no forward")
+	}
+	if r.latches(shared, now, now.Add(time.Second)) {
+		t.Errorf("a second container latched its own forward of the shared data")
+	}
+}
+
+// TestResolvePackageRefreshesSteadyUsage checks that a package in steady use goes
+// out again once its forwarded usage is maxForwardedAge old.
+func TestResolvePackageRefreshesSteadyUsage(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newPendingFileEventsResolver(t)
+		r.Notifier = utils.NewNotifier[Event, *sbompkg.ScanResult]()
+		r.cfg = &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    10 * time.Millisecond,
+		}
+		reports := make(chan *sbompkg.ScanResult, 1)
+		if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+			select {
+			case reports <- result:
+			default:
+			}
+		}); err != nil {
+			t.Fatalf("RegisterListener: %v", err)
+		}
+
+		sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+		if err != nil {
+			t.Fatalf("NewLRU: %v", err)
+		}
+		r.sboms = sboms
+		sbom := NewSBOM("container-id", nil, "image:tag")
+		sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+			Package:        sbomtypes.Package{Name: "bash"},
+			InstalledFiles: []string{"/usr/bin/bash"},
+		}})
+		sbom.status = workloadmeta.Success
+		sbom.state.Store(computedState)
+		t.Cleanup(sbom.stop)
+		sboms.Add(sbom.ContainerID, sbom)
+
+		now := time.Now()
+		sbom.data.packages[0].LastAccess = now.Add(-time.Second)
+		sbom.data.forwardedAt = now.Add(-maxForwardedAge - time.Minute)
+
+		pc := &model.ProcessContext{}
+		pc.ContainerContext.ContainerID = sbom.ContainerID
+		pc.UID, pc.EUID = 1000, 1000
+		file := &model.FileEvent{}
+		file.SetPathnameStr("/usr/bin/bash")
+		r.ResolvePackage(pc, file)
+
+		select {
+		case <-reports:
+		case <-time.After(10 * time.Second):
+			t.Errorf("the steady usage was not forwarded")
+		}
+	})
+}
+
+// TestPendingFileEventsHoldAReplayedProcess checks that a container queues the
+// executable mappings the replay reports for one process, up to 1024 files.
+func TestPendingFileEventsHoldAReplayedProcess(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	for i := range 1024 {
+		r.queuePendingFileEvent("container-id", fmt.Sprintf("/usr/lib/python3/dist-packages/ext%d.so", i), 0755, false)
+	}
+
+	if events, _ := r.pendingFileEvents.Get("container-id"); len(events) != 1024 {
+		t.Errorf("queued %d distinct events, want 1024", len(events))
+	}
+}
+
+// TestProcessPendingFileEventsUsrMergeAlias checks that a queued access to /bin/bash
+// credits the package listing /usr/bin/bash on a usr-merged layout.
+func TestProcessPendingFileEventsUsrMergeAlias(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}}, true)
+
+	r.queuePendingFileEvent("container-id", "/bin/bash", 0755, false)
+	sbom.Lock()
+	r.processPendingFileEvents(sbom)
+	sbom.Unlock()
+
+	if sbom.data.packages[0].LastAccess.IsZero() {
+		t.Errorf("the access to /bin/bash was not recorded on bash")
+	}
+}
+
+// TestResolvePackageRecordsEffectiveRoot checks that a setuid-root binary run by
+// another user, with an effective UID of 0, records its package as run by root.
+func TestResolvePackageRecordsEffectiveRoot(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		uid, euid uint32
+		want      bool
+	}{
+		{"setuid root", 1000, 0, true},
+		{"user", 1000, 1000, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			pc, file := hostAccess()
+			pc.UID, pc.EUID = tc.uid, tc.euid
+
+			pkg := r.ResolvePackage(pc, file)
+			if pkg == nil {
+				t.Fatalf("no package resolved for %s", file.PathnameStr)
+			}
+			if pkg.AccessedByRoot != tc.want {
+				t.Errorf("AccessedByRoot = %v, want %v", pkg.AccessedByRoot, tc.want)
+			}
+		})
 	}
 }

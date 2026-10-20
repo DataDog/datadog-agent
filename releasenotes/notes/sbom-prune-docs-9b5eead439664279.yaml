@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe leaves the documentation of packages,
+    under ``/usr/share/doc``, ``info``, ``licenses``, ``locale`` and ``man``,
+    out of its index, which shrinks the index, and reading an example script
+    that a package ships as documentation leaves the usage of the package
+    unchanged.
