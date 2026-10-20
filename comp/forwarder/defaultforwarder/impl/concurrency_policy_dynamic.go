@@ -267,6 +267,18 @@ func (t *backoffSignalTransport) RoundTrip(req *http.Request) (*http.Response, e
 	return resp, err
 }
 
+// CloseIdleConnections forwards to the base transport so that
+// http.Client.CloseIdleConnections still reaches it through the wrapper.
+func (t *backoffSignalTransport) CloseIdleConnections() {
+	// Same approach as net/http's http.Client.CloseIdleConnections.
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if tr, ok := t.base.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
 // isTimeout reports whether err is a timeout we should back off on. It excludes
 // context.Canceled, which is how worker shutdown cancels in-flight requests.
 func isTimeout(err error) bool {

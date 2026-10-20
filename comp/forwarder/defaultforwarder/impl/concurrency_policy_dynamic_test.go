@@ -266,6 +266,23 @@ func TestBackoffSignalTransport(t *testing.T) {
 	}
 }
 
+type closeIdleRoundTripper struct {
+	stubRoundTripper
+	closed int
+}
+
+func (c *closeIdleRoundTripper) CloseIdleConnections() { c.closed++ }
+
+func TestBackoffSignalTransportCloseIdleConnections(t *testing.T) {
+	base := &closeIdleRoundTripper{}
+	client := &http.Client{Transport: &backoffSignalTransport{base: base, onBackoff: func() {}}}
+	client.CloseIdleConnections()
+	assert.Equal(t, 1, base.closed)
+
+	client = &http.Client{Transport: &backoffSignalTransport{base: stubRoundTripper{}, onBackoff: func() {}}}
+	assert.NotPanics(t, client.CloseIdleConnections)
+}
+
 func TestDynamicDomainSignalBackoffCoalesces(t *testing.T) {
 	p, _, _ := newTestDynamicDomain(t, 10)
 
