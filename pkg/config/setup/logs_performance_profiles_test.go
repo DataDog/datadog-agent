@@ -86,6 +86,9 @@ func TestZstdLevelIgnoredReason(t *testing.T) {
 		{name: "zstd by default", yaml: "logs_config: {}"},
 		{name: "explicit zstd with additional endpoints", yaml: "logs_config:\n  compression_kind: zstd\n  additional_endpoints:\n    - host: example.com"},
 		{name: "additional endpoints", yaml: "logs_config:\n  additional_endpoints:\n    - host: example.com", want: "additional_endpoints fall back to gzip"},
+		{name: "additional endpoints as JSON", yaml: "logs_config:\n  additional_endpoints: '[{\"host\": \"example.com\"}]'", want: "additional_endpoints fall back to gzip"},
+		{name: "null additional endpoints", yaml: "logs_config:\n  additional_endpoints: 'null'"},
+		{name: "malformed additional endpoints", yaml: "logs_config:\n  additional_endpoints: '[{'"},
 		{name: "explicit gzip", yaml: "logs_config:\n  compression_kind: gzip", want: `compression_kind is "gzip"`},
 		{name: "compression off", yaml: "logs_config:\n  use_compression: false", want: "use_compression is false"},
 	} {
