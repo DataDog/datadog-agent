@@ -48,9 +48,6 @@ type traceToMetricConnector struct {
 	// ctagKeys are container tag keys
 	ctagKeys []string
 
-	// peerTagKeys are peer tag keys to group APM stats
-	peerTagKeys []string
-
 	// primaryTagKeys are span-derived primary tag keys appended to APM stats
 	primaryTagKeys []string
 
@@ -108,7 +105,6 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 		translator:      trans,
 		tcfg:            tcfg,
 		ctagKeys:        cfg.(*datadogconfig.ConnectorComponentConfig).Traces.ResourceAttributesAsContainerTags,
-		peerTagKeys:     tcfg.ConfiguredPeerTags(),
 		primaryTagKeys:  tcfg.ConfiguredSpanDerivedPrimaryTagKeys(),
 		concentrator:    concentrator,
 		statsout:        statsout,
@@ -204,7 +200,13 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// _sample_rate (head-based sampling weight) is injected during OTel→DD span
 	// conversion in pkg/trace/transform, so the Concentrator scales stats by the
 	// head-sampling weight without any connector-local logic.
-	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.peerTagKeys, c.primaryTagKeys, c.obfuscator)
+	//
+	// Peer tag keys are read from the concentrator on every batch rather than
+	// cached at construction: they are derived from the semantic registry, which
+	// Remote Config can swap at runtime. Using the concentrator's set keeps the
+	// attributes copied onto spans in sync with the keys stats are grouped by
+	// (a swap racing a single batch is corrected on the next one).
+	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
 	for _, input := range inputs {
 		c.concentrator.Add(input)
 	}
