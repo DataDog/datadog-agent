@@ -139,7 +139,7 @@ func countSum(stats *teststatsd.Client, name string) int64 {
 }
 
 func TestOTLPIdxGRPCExport(t *testing.T) {
-	h := newOTLPIdxHarness(t, true)
+	h := newOTLPIdxHarness(t, true, otlpIdxFeature)
 	assert.Equal(t, 1.0, gaugeLast(h.stats, "datadog.trace_agent.otlp.idx_enabled"))
 	svc, ok := h.rcv.grpcsrv.GetServiceInfo()["opentelemetry.proto.collector.trace.v1.TraceService"]
 	require.True(t, ok)
@@ -193,7 +193,7 @@ func TestOTLPIdxGRPCExport(t *testing.T) {
 }
 
 func TestOTLPIdxComputedTopLevel(t *testing.T) {
-	h := newOTLPIdxHarness(t, true, "enable_otlp_compute_top_level_by_span_kind")
+	h := newOTLPIdxHarness(t, true, otlpIdxFeature, "enable_otlp_compute_top_level_by_span_kind")
 	req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{Attributes: map[string]interface{}{}, Spans: []*testutil.OTLPSpan{{Name: "s"}}},
 	})
@@ -201,18 +201,18 @@ func TestOTLPIdxComputedTopLevel(t *testing.T) {
 	assert.True(t, receiveV1(t, h.outV1).ClientComputedTopLevel)
 }
 
-// TestOTLPIdxGate checks that the kill switch, legacy options the decoder doesn't implement, and
-// a receiver without a V1 channel keep the pdata / v04 path.
+// TestOTLPIdxGate checks that the direct decoder is opt-in, and that legacy options it doesn't
+// implement and a receiver without a V1 channel keep the pdata / v04 path even when opted in.
 func TestOTLPIdxGate(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		withOutV1 bool
 		features  []string
 	}{
-		{name: "kill switch", withOutV1: true, features: []string{"disable_otlp_idx"}},
-		{name: "legacy receive resource spans", withOutV1: true, features: []string{"disable_receive_resource_spans_v2"}},
-		{name: "legacy container tags", withOutV1: true, features: []string{"disable_otlp_container_tags_v2"}},
-		{name: "no V1 channel"},
+		{name: "default", withOutV1: true},
+		{name: "legacy receive resource spans", withOutV1: true, features: []string{otlpIdxFeature, "disable_receive_resource_spans_v2"}},
+		{name: "legacy container tags", withOutV1: true, features: []string{otlpIdxFeature, "disable_otlp_container_tags_v2"}},
+		{name: "no V1 channel", features: []string{otlpIdxFeature}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newOTLPIdxHarness(t, tt.withOutV1, tt.features...)
@@ -231,7 +231,7 @@ func TestOTLPIdxGate(t *testing.T) {
 // TestOTLPIdxFallback checks that a request the direct decoder rejects but pdata accepts is still
 // processed, through the v04 path.
 func TestOTLPIdxFallback(t *testing.T) {
-	h := newOTLPIdxHarness(t, true)
+	h := newOTLPIdxHarness(t, true, otlpIdxFeature)
 	// Nesting deeper than the decoder's limit, which pdata accepts.
 	var nested interface{} = "leaf"
 	for range 40 {
@@ -278,7 +278,7 @@ func TestPow2BufferPool(t *testing.T) {
 // TestOTLPIdxInvalidRequest checks that bytes neither decoder accepts fail the RPC, as they do
 // with the pdata codec, and emit nothing.
 func TestOTLPIdxInvalidRequest(t *testing.T) {
-	h := newOTLPIdxHarness(t, true)
+	h := newOTLPIdxHarness(t, true, otlpIdxFeature)
 	// A length-delimited ResourceSpans field whose length exceeds the message.
 	err := h.exportRaw(t, []byte{0x0a, 0x10, 0x01})
 	require.Error(t, err)

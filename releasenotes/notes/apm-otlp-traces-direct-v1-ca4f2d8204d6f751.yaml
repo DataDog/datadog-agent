@@ -8,18 +8,21 @@
 ---
 enhancements:
   - |
-    APM: The trace-agent now decodes OTLP traces received over gRPC directly
-    into its V1 trace representation and processes them like other V1
-    traces, which reduces the CPU time and memory allocated for OTLP trace
-    ingestion. The resulting spans match the previous behavior, with these
-    differences: instrumentation scope attributes keep their original type
-    instead of being converted to strings (numbers are sent as numeric
-    values, and arrays and maps are flattened into dotted keys), and spans
-    with an unspecified span kind are reported as ``internal``.
-    Configurations that use the legacy OTLP options
+    APM: Add an opt-in mode in which the trace-agent decodes OTLP traces
+    received over gRPC directly into its V1 trace representation and
+    processes them like other V1 traces, which reduces the CPU time and
+    memory allocated for OTLP trace ingestion. Enable it by adding
+    ``enable_otlp_idx`` to ``apm_config.features`` (or ``DD_APM_FEATURES``).
+    The resulting spans match the default behavior, with these differences:
+    instrumentation scope attributes keep their original type instead of
+    being converted to strings (numbers are sent as numeric values, and
+    arrays and maps are flattened into dotted keys); span events and links
+    are sent as native V1 events and links, without their dropped attribute
+    counts; spans with an unspecified span kind are reported as
+    ``internal``; spans are grouped into traces by their full 128-bit trace
+    ID; and a ``_sample_rate`` attribute sent as a string is read as a
+    number. Configurations that use the legacy OTLP options
     (``disable_receive_resource_spans_v2``,
     ``disable_operation_and_resource_name_logic_v2``,
     ``disable_otlp_container_tags_v2``, ``span_name_as_resource_name`` or
-    ``span_name_remappings``) keep the previous behavior. To restore the
-    previous behavior otherwise, add ``disable_otlp_idx`` to
-    ``apm_config.features`` (or ``DD_APM_FEATURES``).
+    ``span_name_remappings``) keep the default behavior.

@@ -241,8 +241,8 @@ func newDrainingOTLPExportReceiver(b *testing.B, idx, serve bool) *OTLPReceiver 
 	}()
 	b.Cleanup(func() { close(done) })
 	cfg := NewBenchmarkTestConfig(b)
-	if !idx {
-		cfg.Features["disable_otlp_idx"] = struct{}{}
+	if idx {
+		cfg.Features[otlpIdxFeature] = struct{}{}
 	}
 	if serve {
 		cfg.OTLPReceiver.BindHost = "localhost"

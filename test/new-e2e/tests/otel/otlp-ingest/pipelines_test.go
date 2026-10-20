@@ -53,8 +53,9 @@ agents:
 	)
 }
 
-// otlpIngestIdxTestSuite runs the same checks without the legacy operation and resource name
-// flag, so the trace-agent takes the direct OTLP to V1 decoder path (the flag forces pdata/v04).
+// otlpIngestIdxTestSuite runs the same checks with the trace-agent's direct OTLP to V1 decoder
+// enabled, and without the legacy operation and resource name flag, which would force the
+// pdata / v04 path.
 type otlpIngestIdxTestSuite struct {
 	otlpIngestTestSuite
 }
@@ -74,6 +75,10 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
+    traceAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'enable_otlp_idx'
     agent:
       env:
         - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS

@@ -114,11 +114,11 @@ func sortOTLPAgentSpans(spans []otlpAgentSpan) {
 }
 
 // TestOTLPIdxProcessV1 sends the same OTLP request over gRPC through the direct decoder and
-// ProcessV1, and through the kill switch's pdata / v04 path and Process, and checks that the
+// ProcessV1, and through the default pdata / v04 path and Process, and checks that the
 // written spans and stats inputs agree.
 func TestOTLPIdxProcessV1(t *testing.T) {
 	// V1 path.
-	agnt, client := newOTLPTestAgent(t)
+	agnt, client := newOTLPTestAgent(t, "enable_otlp_idx")
 	exportOTLP(t, client)
 	select {
 	case p := <-agnt.InV1:
@@ -147,7 +147,7 @@ func TestOTLPIdxProcessV1(t *testing.T) {
 	require.Len(t, statsV1, 1)
 
 	// v04 path.
-	agnt04, client04 := newOTLPTestAgent(t, "disable_otlp_idx")
+	agnt04, client04 := newOTLPTestAgent(t)
 	exportOTLP(t, client04)
 	select {
 	case p := <-agnt04.In:

@@ -78,9 +78,8 @@ var (
 	}
 )
 
-// otlpIngestMode is a trace-agent OTLP ingest path: the direct decoder into the V1 (idx)
-// representation, which is the default, or the pdata / v04 path behind the disable_otlp_idx kill
-// switch.
+// otlpIngestMode is a trace-agent OTLP ingest path: the pdata / v04 path, which is the default,
+// or the direct decoder into the V1 (idx) representation behind the enable_otlp_idx feature.
 type otlpIngestMode struct {
 	name     string
 	features []string
@@ -88,8 +87,8 @@ type otlpIngestMode struct {
 }
 
 var otlpIngestModes = []otlpIngestMode{
-	{name: "idx", idx: true},
-	{name: "v04", features: []string{"disable_otlp_idx"}},
+	{name: "idx", idx: true, features: []string{"enable_otlp_idx"}},
+	{name: "v04"},
 }
 
 // otlpAgentConfig returns the agent configuration for an OTLP test on the given internal port,

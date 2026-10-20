@@ -26,11 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
+// otlpIdxFeature opts in to decoding OTLP gRPC traces directly into the V1 representation.
+const otlpIdxFeature = "enable_otlp_idx"
+
 // otlpIdxEnabled reports whether OTLP gRPC requests are decoded directly into the V1
-// representation and processed by ProcessV1. Configurations the decoder doesn't implement
-// (see otlpidx.Supported) and the disable_otlp_idx kill switch keep the pdata / v04 path.
+// representation and processed by ProcessV1. It is opt-in (otlpIdxFeature), and configurations
+// the decoder doesn't implement (see otlpidx.Supported) keep the pdata / v04 path regardless.
 func otlpIdxEnabled(conf *config.AgentConfig) bool {
-	return otlpidx.Supported(conf) && !conf.HasFeature("disable_otlp_idx")
+	return conf.HasFeature(otlpIdxFeature) && otlpidx.Supported(conf)
 }
 
 // rawExportRequest is a serialized ExportTraceServiceRequest, decoded by the Export handler

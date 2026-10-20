@@ -52,13 +52,13 @@ func (s *otlpIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {
 	utils.TestTracesWithSpanReceiverV2(s)
 }
 
-// otlpIngestSpanReceiverV2NoIdxTestSuite runs the same checks with the direct
-// OTLP to V1 decoder disabled, so the trace-agent takes the pdata/v04 path.
-type otlpIngestSpanReceiverV2NoIdxTestSuite struct {
+// otlpIngestSpanReceiverV2IdxTestSuite runs the same checks with the trace-agent's direct OTLP
+// to V1 decoder enabled.
+type otlpIngestSpanReceiverV2IdxTestSuite struct {
 	otlpIngestSpanReceiverV2TestSuite
 }
 
-func TestOTLPIngestSpanReceiverV2NoIdx(t *testing.T) {
+func TestOTLPIngestSpanReceiverV2Idx(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -76,10 +76,10 @@ agents:
     traceAgent:
       env:
         - name: DD_APM_FEATURES
-          value: 'disable_otlp_idx'
+          value: 'enable_otlp_idx'
 `
 	t.Parallel()
-	e2e.Run(t, &otlpIngestSpanReceiverV2NoIdxTestSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &otlpIngestSpanReceiverV2IdxTestSuite{}, e2e.WithProvisioner(
 		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
