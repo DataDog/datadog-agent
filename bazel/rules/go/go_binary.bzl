@@ -54,7 +54,7 @@ def dd_agent_go_binary(
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/strip definitions; caller-supplied values take
+    the version definitions; caller-supplied values take
     precedence over the defaults provided here.
 
     Defaults applied automatically (override by passing the attribute explicitly):
@@ -62,9 +62,7 @@ def dd_agent_go_binary(
 
     Args:
       name: target name
-      gc_linkopts: Base set of link opts. Stripping options are automatically
-                   added to these: on release builds, -s -w (strip symbol
-                   table and DWARF).
+      gc_linkopts: Base set of link opts.
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
@@ -106,13 +104,6 @@ def dd_agent_go_binary(
             "//conditions:default": False,
         })
 
-    # Strip the symbol table and DWARF debug info in release builds to reduce
-    # binary size.  Dev builds keep symbols for debugger and profiler use.
-    strip_linkopts = select({
-        "//:is_release": ["-s", "-w"],
-        "//conditions:default": [],
-    })
-
     if exact_gotags:
         # this might be select()'ed by platform. It is up to the user to sort it.
         kwargs["gotags"] = exact_gotags
@@ -126,9 +117,9 @@ def dd_agent_go_binary(
             "//conditions:default": sorted(COMMON_TAGS | gotags),
         })
 
-    go_binary(
+    unstripped_go_binary(
         name = name,
-        gc_linkopts = (gc_linkopts or []) + strip_linkopts,
+        gc_linkopts = gc_linkopts or [],
         toolchains = kwargs.pop("toolchains", []) + [
             "//:install_dir",
             "//bazel/rules/variables",
@@ -141,9 +132,8 @@ def dd_agent_go_binary(
     )
 
 # Bazel's default --strip=sometimes strips rules_go binaries in fastbuild mode.
-# We have cases (like fixture binaries for tests) that rely on having
-# unconditionally unstripped binaries. This creates a target with a transition
-# that enforces that.
+# We have cases where we want unconditionally unstripped binaries.
+# This creates a target with a transition that enforces that.
 unstripped_go_binary, _unstripped_go_binary_internal = with_cfg(
     go_binary,
 ).set(

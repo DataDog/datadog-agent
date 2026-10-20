@@ -24,7 +24,16 @@ def _get_deps(ctx, attr_names):
             deps.append(val)
     return deps
 
-_WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data"]
+_WALKED_ATTRS = [
+    "dynamic_deps",
+    "input",
+    "shared_library",
+    "embed",
+    "deps",
+    "cdeps",
+    "data",
+    "exports",  # "internal" attribute used by with_cfg transition wrapper to point at the wrapped target
+]
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
     if DdPackagingInfo in target:
@@ -102,6 +111,15 @@ def _dd_collect_dependencies_impl(ctx):
         DefaultInfo(files = all_files),
     ]
 
+def _strip_never_transition_impl(_settings, _attr):
+    return {"//command_line_option:strip": "never"}
+
+_strip_never_transition = transition(
+    implementation = _strip_never_transition_impl,
+    inputs = [],
+    outputs = ["//command_line_option:strip"],
+)
+
 dd_collect_dependencies = rule(
     implementation = _dd_collect_dependencies_impl,
     doc = """
@@ -117,6 +135,8 @@ dd_collect_dependencies = rule(
         "srcs": attr.label_list(
             doc = "Top-level CC targets which dependency graph should be searched for DdPackagingInfo.",
             aspects = [_collect_dd_packaging_aspect],
+            # We want unstripped dependencies for packaging, as stripping is a post-processing step
+            cfg = _strip_never_transition,
         ),
     },
     provides = [PackageFilegroupInfo, DdPackagingInfo],
