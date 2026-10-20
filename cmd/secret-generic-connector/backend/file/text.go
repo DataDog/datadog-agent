@@ -77,6 +77,10 @@ func (b *TextFileBackend) GetSecretOutput(_ context.Context, secretString string
 		es := fmt.Sprintf("failed to stat secret file '%s': %s", secretString, err.Error())
 		return secret.Output{Value: nil, Error: &es}
 	}
+	if info.IsDir() {
+		es := fmt.Sprintf("secret '%s' is a directory, not a file", secretString)
+		return secret.Output{Value: nil, Error: &es}
+	}
 
 	if info.Size() > b.Config.MaxFileReadSize {
 		es := fmt.Sprintf("secret file '%s' exceeds maximum size limit of %d bytes (actual: %d bytes)", secretString, b.Config.MaxFileReadSize, info.Size())

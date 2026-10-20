@@ -145,7 +145,7 @@ func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
 		"org_id": 101,
 		"main_dc": "eu-west-1",
 		"public_id": "pub-12345",
-		"run_type": "on-demand",
+		"run_type": "triggered",
 		"tick_every": 60
 	}`
 
@@ -167,7 +167,7 @@ func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
 		OrgID:    101,
 		MainDC:   "eu-west-1",
 		PublicID: "pub-12345",
-		RunType:  "on-demand",
+		RunType:  RunTypeTriggered,
 		Interval: 60,
 		Config: struct {
 			Assertions []Assertion   `json:"assertions"`
@@ -212,4 +212,37 @@ func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
 	require.True(t, ok)
 	expectedReq := expected.Config.Request.(TCPConfigRequest)
 	require.Equal(t, expectedReq, actualReq)
+}
+
+func TestSyntheticsTestConfig_UnmarshalJSON_Enrichment(t *testing.T) {
+	tests := []struct {
+		name               string
+		enrichmentFragment string
+		expected           json.RawMessage
+	}{
+		{
+			name: "missing enrichment",
+		},
+		{
+			name:               "empty enrichment",
+			enrichmentFragment: `,"enrichment":{}`,
+			expected:           json.RawMessage(`{}`),
+		},
+		{
+			name:               "nested unknown enrichment fields",
+			enrichmentFragment: `,"enrichment":{"execution":{"origin":"network-ephemeral"},"future":{"large":9007199254740993,"values":[true,null,"value"]}}`,
+			expected:           json.RawMessage(`{"execution":{"origin":"network-ephemeral"},"future":{"large":9007199254740993,"values":[true,null,"value"]}}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := `{"subtype":"ICMP","config":{"request":{"host":"8.8.8.8"}}` + tt.enrichmentFragment + `}`
+
+			var cfg SyntheticsTestConfig
+			err := json.Unmarshal([]byte(input), &cfg)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, cfg.Enrichment)
+		})
+	}
 }

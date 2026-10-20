@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package ebpf holds ebpf related files
 package ebpf
@@ -24,7 +24,7 @@ func TestLoaderCompile(t *testing.T) {
 		require.NoError(t, err)
 		cfg, err := config.NewConfig()
 		require.NoError(t, err)
-		out, err := getRuntimeCompiledPrograms(cfg, false, false, false)
+		out, err := getRuntimeCompiledPrograms(cfg, false, false, false, false)
 		require.NoError(t, err)
 		_ = out.Close()
 	})

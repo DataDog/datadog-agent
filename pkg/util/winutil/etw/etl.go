@@ -64,7 +64,7 @@ func ProcessETLFile(etlPath string, callback EventCallback, opts ...ProcessOptio
 
 	var openErr C.ULONG
 	traceHandle := C.DDOpenTraceFromFile((*C.WCHAR)(unsafe.Pointer(utf16Path)), C.uintptr_t(handle), &openErr)
-	if traceHandle == C.INVALID_PROCESSTRACE_HANDLE {
+	if traceHandle == ^C.TRACEHANDLE(0) {
 		return fmt.Errorf("OpenTraceW failed: %w", windows.Errno(openErr))
 	}
 	defer C.CloseTrace(traceHandle)
@@ -101,6 +101,7 @@ func ddEtwEventCallback(eventRecord C.PEVENT_RECORD) {
 	event := &Event{
 		ProviderID:  providerID,
 		EventID:     eventID,
+		ActivityID:  guidFromC(eventRecord.EventHeader.ActivityId),
 		Timestamp:   fileTimeToGo(C.LONGLONG(*(*int64)(unsafe.Pointer(&eventRecord.EventHeader.TimeStamp)))),
 		eventRecord: eventRecord,
 	}

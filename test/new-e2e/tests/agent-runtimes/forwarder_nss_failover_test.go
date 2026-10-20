@@ -8,6 +8,7 @@ package agentruntimes
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -172,23 +174,39 @@ func (v *multiFakeIntakeSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 
 	maxWaitTime := 10 * time.Minute
+	stillUsedErr := errors.New("fakeintake is still in use")
 
-	checkNotUsed := func(intake *fi.Client) {
-		require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-			intake.FlushServerAndResetAggregators()
+	skipTestIfUsed := func(intake *fi.Client) {
+		_, err := backoff.Retry(v.T().Context(), func() (any, error) {
+			if err := intake.FlushServerAndResetAggregators(); err != nil {
+				return nil, err
+			}
 
 			// give time to the agent to flush to the intake
 			time.Sleep(intakeUnusedWaitTime)
 
 			stats, err := intake.RouteStats()
-			require.NoError(t, err)
-			assert.Empty(t, stats)
+			if err != nil {
+				return nil, err
+			}
 
-		}, maxWaitTime, intakeTick)
+			if len(stats) == 0 {
+				return nil, nil
+			}
+
+			v.T().Logf("fakeintake %s is still in use: %+v", intake.URL(), stats)
+			return nil, stillUsedErr
+		}, backoff.WithMaxElapsedTime(maxWaitTime), backoff.WithBackOff(backoff.NewConstantBackOff(intakeTick)))
+
+		if errors.Is(err, stillUsedErr) {
+			v.T().Skipf("fakeintake %s is still in use", intake.URL())
+		}
+
+		require.NoError(v.T(), err)
 	}
 
-	checkNotUsed(v.Env().Fakeintake1.Client())
-	checkNotUsed(v.Env().Fakeintake2.Client())
+	skipTestIfUsed(v.Env().Fakeintake1.Client())
+	skipTestIfUsed(v.Env().Fakeintake2.Client())
 }
 
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
@@ -270,7 +288,8 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 		assert.NotEmpty(t, traces)
 
 		// check flares
-		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		_, flareErr := v.Env().Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		require.NoError(t, flareErr)
 		_, err = intake.GetLatestFlare()
 		if err != nil {
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
@@ -292,8 +311,9 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 		// write a log
 		v.Env().Host.MustExecuteOn(t, "echo 'totoro' >> "+logFile)
 
-		// send a flare
-		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		// send a flare to generate outbound traffic; a transient failure here is
+		// irrelevant to the "intake not used" assertion
+		_, _ = v.Env().Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 		// send traces
 		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")

@@ -85,6 +85,37 @@ func TestPrometheusServicesEPS_Collect(t *testing.T) {
 			},
 		},
 		{
+			name: "skip check with kubernetes_container_names",
+			checks: []*types.PrometheusCheck{
+				{
+					Instances: types.DefaultPrometheusCheck.Instances,
+					AD: &types.ADConfig{
+						KubeAnnotations: &types.InclExcl{
+							Excl: map[string]string{"prometheus.io/scrape": "false"},
+							Incl: map[string]string{"prometheus.io/scrape": "true"},
+						},
+						KubeContainerNames: []string{"example-container"},
+					},
+				},
+			},
+			services: []*v1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       k8stypes.UID("test"),
+						Name:      "svc",
+						Namespace: "ns",
+						Annotations: map[string]string{
+							"prometheus.io/scrape": "true",
+							"prometheus.io/path":   "/mewtrix",
+							"prometheus.io/port":   "1234",
+						},
+					},
+				},
+			},
+			collectEndpoints: true,
+			expectConfigs:    nil,
+		},
+		{
 			name:   "collect only endpointslices",
 			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
 			services: []*v1.Service{

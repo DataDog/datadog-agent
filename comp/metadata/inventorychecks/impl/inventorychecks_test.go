@@ -9,14 +9,18 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -290,6 +294,26 @@ func TestGetPayload(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetPayloadFilesMetadata(t *testing.T) {
+	confdPath := t.TempDir()
+	configPath := filepath.Join(confdPath, "secret_test.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("init_config: {}\ninstances:\n- custom_field: some_value\n"), 0600))
+
+	ic := getTestInventoryChecks(
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
+	)
+
+	providers.ResetReader([]string{confdPath})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+
+	backendPayload := ic.getPayload(true).(*Payload)
+	require.Contains(t, backendPayload.FilesMetadata, configPath)
+	assert.Contains(t, backendPayload.FilesMetadata[configPath], "raw_config")
+
+	expvarPayload := ic.getPayload(false).(*Payload)
+	assert.Empty(t, expvarPayload.FilesMetadata)
 }
 
 func TestFlareProviderFilename(t *testing.T) {

@@ -42,9 +42,10 @@ dd_agent_go_test(
     gotags_sets = [[
         "cel",
         "clusterchecks",
+        "containerd",
+        "docker",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = [
         "//comp/core/workloadfilter/def",

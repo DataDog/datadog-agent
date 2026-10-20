@@ -300,10 +300,40 @@ func TestEnsureErrorWhenIntermediateNotMap(t *testing.T) {
 	require.Contains(t, err.Error(), "processors")
 }
 
+func TestConverterWithoutAgentDisablesHealthMetricsByDefault(t *testing.T) {
+	configData := confMap{
+		"service": confMap{
+			"pipelines": confMap{
+				"profiles": confMap{
+					"receivers":  []any{"profiling"},
+					"processors": []any{},
+					"exporters":  []any{"otlp_http"},
+				},
+			},
+		},
+		"receivers": confMap{
+			"profiling": confMap{"symbol_uploader": confMap{"enabled": false}},
+		},
+		"exporters": confMap{
+			"otlp_http": confMap{
+				"endpoint": "https://otlp.datadoghq.com",
+				"headers":  confMap{"dd-api-key": "test-api-key"},
+			},
+		},
+	}
+	conf := confmap.NewFromStringMap(configData)
+
+	err := newTestConverterWithoutAgent(zap.NewNop(), noContainerID).Convert(t.Context(), conf)
+	require.NoError(t, err)
+
+	_, hasHealthMetricsPipeline := confmaputils.Get[confMap](conf.ToStringMap(), "service::pipelines::metrics/profiler-internal-health")
+	require.False(t, hasHealthMetricsPipeline)
+}
+
 func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
 	logger, logs := newObserverLogger(zap.WarnLevel)
 
-	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conv := newTestConverterWithoutAgent(logger, noContainerID)
 	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/symbol-up-disabled/in.yaml"))
 
 	err := conv.Convert(context.Background(), conf)
@@ -324,7 +354,7 @@ func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
 func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	logger, logs := newObserverLogger(zap.DebugLevel)
 
-	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conv := newTestConverterWithoutAgent(logger, noContainerID)
 	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/preserve-host-arch/in.yaml"))
 
 	err := conv.Convert(context.Background(), conf)
@@ -370,7 +400,7 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 	}
 
 	conf := confmap.NewFromStringMap(configData)
-	err := newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}).Convert(t.Context(), conf)
+	err := newTestConverterWithoutAgent(zap.NewNop(), noContainerID).Convert(t.Context(), conf)
 	require.NoError(t, err)
 
 	convertedMap := xconfmap.ToStringMapRaw(conf)

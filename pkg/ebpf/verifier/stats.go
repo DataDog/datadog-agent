@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package verifier is responsible for exposing information the verifier provides
 // for any loaded eBPF program
@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
@@ -55,7 +55,7 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 	if kversion < kernel.VersionCode(4, 15, 0) {
 		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
 	}
-	err = ddebpf.Setup(ddebpf.NewConfig(), nil, telemetryimpl.GetCompatComponent())
+	err = ddebpf.Setup(ddebpf.NewConfig(), nil, noopsimpl.NewComponent())
 	if err != nil {
 		return nil, nil, fmt.Errorf("ebpf setup: %s", err)
 	}
@@ -69,16 +69,19 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 
 	for _, file := range opts.ObjectFiles {
 		if !isCOREAsset(file) {
-			bc, err := os.Open(file)
-			if err != nil {
-				return nil, nil, fmt.Errorf("couldn't open asset %s: %v", file, err)
+			if err := func() error {
+				bc, err := os.Open(file)
+				if err != nil {
+					return fmt.Errorf("couldn't open asset %s: %v", file, err)
+				}
+				defer bc.Close()
+				if err := generateLoadFunction(file, opts, results, failedToLoad)(bc, manager.Options{}); err != nil {
+					return fmt.Errorf("failed to load non-core asset %s: %w", file, err)
+				}
+				return nil
+			}(); err != nil {
+				return nil, nil, err
 			}
-			defer bc.Close()
-
-			if err := generateLoadFunction(file, opts, results, failedToLoad)(bc, manager.Options{}); err != nil {
-				return nil, nil, fmt.Errorf("failed to load non-core asset %s: %w", file, err)
-			}
-
 			continue
 		}
 
@@ -173,9 +176,9 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 		)
 
 		if opts.DetailedComplexity {
-			sourceMap, funcsPerSect, err = getSourceMap(file, collectionSpec)
+			sourceMap, funcsPerSect, err = getSourceMap(collectionSpec)
 			if err != nil {
-				return fmt.Errorf("failed to get llvm-objdump data for %v: %w", file, err)
+				return fmt.Errorf("failed to get source map for %v: %w", file, err)
 			}
 			results.FuncsPerSection[objectFileName] = funcsPerSect
 		}

@@ -6,7 +6,10 @@ go_library(
     srcs = [
         "check.go",
         "handler.go",
+        "handler_container_creation.go",
         "handler_container_termination.go",
+        "handler_pod_creation.go",
+        "handler_pod_state.go",
         "handler_pod_termination.go",
         "handler_task_termination.go",
         "processor.go",
@@ -17,6 +20,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/def",
@@ -33,7 +38,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_datadog_agent_payload_v5//contlcycle",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -47,6 +52,8 @@ dd_agent_go_test(
     ],
     embed = [":containerlifecycle"],
     deps = [
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/types",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/check/id",
@@ -56,5 +63,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
     ],
 )

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"crypto/rand"
@@ -53,7 +54,6 @@ func newMockArtiFactory(t *testing.T) (string, *MockArtiFactory) {
 }
 
 func TestFetchArtifact(t *testing.T) {
-	t.Parallel()
 	location, mockFactory := newMockArtiFactory(t)
 
 	_, err := TryFetchArtifact(location, mockFactory)
@@ -71,11 +71,89 @@ func TestFetchArtifact(t *testing.T) {
 	assert.Equal(t, mockFactory.data, artifact)
 }
 
+func TestArtifactRetryBackoff(t *testing.T) {
+	for _, operation := range []struct {
+		name  string
+		fetch func(context.Context, string, ArtifactBuilder[string]) (string, error)
+	}{
+		{"fetch", FetchArtifact[string]},
+		{"fetch_or_create", FetchOrCreateArtifact[string]},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			// Publish just after the preceding attempt and check when the next
+			// attempt finds the artifact. Include two retries at the 5s cap.
+			var previousAttempt time.Duration
+			for _, expected := range []time.Duration{
+				0, 100 * time.Millisecond, 200 * time.Millisecond,
+				300 * time.Millisecond, 400 * time.Millisecond,
+				500 * time.Millisecond, 600 * time.Millisecond,
+				700 * time.Millisecond, 800 * time.Millisecond,
+				900 * time.Millisecond, 1000 * time.Millisecond,
+				1200 * time.Millisecond, 1600 * time.Millisecond,
+				2400 * time.Millisecond, 4000 * time.Millisecond,
+				7200 * time.Millisecond, 12200 * time.Millisecond,
+				17200 * time.Millisecond,
+			} {
+				t.Run(expected.String(), func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						location, factory := newMockArtiFactory(t)
+						// Prevent FetchOrCreateArtifact from creating the artifact itself.
+						lock := flock.New(location + lockSuffix)
+						locked, err := lock.TryLock()
+						require.NoError(t, err)
+						require.True(t, locked)
+						defer lock.Unlock()
+
+						if expected == 0 {
+							require.NoError(t, os.WriteFile(location, []byte(factory.data), 0o600))
+						} else {
+							go func() {
+								time.Sleep(previousAttempt + time.Millisecond)
+								assert.NoError(t, os.WriteFile(location, []byte(factory.data), 0o600))
+							}()
+						}
+
+						ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+						defer cancel()
+						start := time.Now()
+						artifact, err := operation.fetch(ctx, location, factory)
+						require.NoError(t, err)
+						assert.Equal(t, factory.data, artifact)
+						assert.Equal(t, expected, time.Since(start))
+					})
+				})
+				previousAttempt = expected
+			}
+
+			// Cancellation must interrupt both the fixed-delay and capped-backoff phases.
+			for _, timeout := range []time.Duration{50 * time.Millisecond, 8 * time.Second} {
+				t.Run("cancellation/"+timeout.String(), func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						location, factory := newMockArtiFactory(t)
+						lock := flock.New(location + lockSuffix)
+						locked, err := lock.TryLock()
+						require.NoError(t, err)
+						require.True(t, locked)
+						defer lock.Unlock()
+
+						ctx, cancel := context.WithTimeout(t.Context(), timeout)
+						defer cancel()
+						start := time.Now()
+						artifact, err := operation.fetch(ctx, location, factory)
+						require.Error(t, err)
+						assert.Empty(t, artifact)
+						assert.Equal(t, timeout, time.Since(start))
+					})
+				})
+			}
+		})
+	}
+}
+
 func TestCreateNewArtifact(t *testing.T) {
-	t.Parallel()
 	location, mockFactory := newMockArtiFactory(t)
 
-	artifact, err := FetchOrCreateArtifact(context.Background(), location, mockFactory)
+	artifact, err := FetchOrCreateArtifact(t.Context(), location, mockFactory)
 	assert.NoError(t, err)
 	assert.Equal(t, mockFactory.data, artifact)
 
@@ -93,7 +171,10 @@ func TestCreateNewArtifact(t *testing.T) {
 }
 
 func TestContextCancellation(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, syncTestContextCancellation)
+}
+
+func syncTestContextCancellation(t *testing.T) {
 	location, mockFactory := newMockArtiFactory(t)
 
 	// Ensure the artifact file does not exist
@@ -107,7 +188,7 @@ func TestContextCancellation(t *testing.T) {
 	defer lockFile.Unlock()
 
 	// Create a context with a timeout to simulate cancellation
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	// Call FetchOrCreateArtifact with the context
@@ -119,7 +200,10 @@ func TestContextCancellation(t *testing.T) {
 }
 
 func TestHandleMultipleConcurrentWrites(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, syncTestHandleMultipleConcurrentWrites)
+}
+
+func syncTestHandleMultipleConcurrentWrites(t *testing.T) {
 	dir := t.TempDir()
 	location := path.Join(dir, "test_artifact")
 
@@ -145,7 +229,7 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 				id:            i,
 				dataGenerator: generator,
 			}
-			res, err := FetchOrCreateArtifact(context.Background(), location, instance)
+			res, err := FetchOrCreateArtifact(t.Context(), location, instance)
 			results <- res
 			return err
 		})
@@ -173,7 +257,10 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 }
 
 func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, syncTestKeepTryingLockingIfPermissionDenied)
+}
+
+func syncTestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 	location, mockFactory := newMockArtiFactory(t)
 	lockFilePath := location + lockSuffix
 
@@ -189,7 +276,7 @@ func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a context with a timeout to simulate cancellation
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	// Calling FetchOrCreateArtifact in a goroutine to simulate a concurrent call
@@ -199,8 +286,8 @@ func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 		return err
 	})
 
-	// Wait for a while to ensure FetchOrCreateArtifact tried at least once to acquire the lock
-	time.Sleep(1 * time.Second)
+	// Wait for FetchOrCreateArtifact to try at least once to acquire the lock
+	synctest.Wait()
 
 	// Make the lock file readable again and release it
 	err = os.Chmod(lockFilePath, 0o600)

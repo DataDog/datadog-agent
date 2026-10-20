@@ -57,6 +57,9 @@ var (
 	MutationAttempts = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
 		[]string{"mutation_type", "status", "injected", "error"}, "Number of pod mutation attempts by mutation type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	AgentSidecarInjectionSkipped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("admission_webhooks", "agent_sidecar_injection_skipped",
+		[]string{"reason"}, "Number of Agent sidecar injections skipped because the required Secret is not ready",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"admission_webhooks",
 		"webhooks_received",
@@ -76,6 +79,14 @@ var (
 		[]string{"mutation_type", "webhook_name", "webhook_type"},
 		"Webhook response duration distribution (in seconds).",
 		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+	WebhooksRequestSize = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+		"admission_webhooks",
+		"request_size_bytes",
+		[]string{"webhook_name", "webhook_type"},
+		"Admission webhook request body size distribution (in bytes), from the declared Content-Length.",
+		[]float64{1 << 10, 4 << 10, 16 << 10, 64 << 10, 256 << 10, 1 << 20, 2 << 20, 4 << 20, 7 << 20, 16 << 20},
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 	LibInjectionAttempts = telemetryimpl.GetCompatComponent().NewCounterWithOpts("admission_webhooks", "library_injection_attempts",

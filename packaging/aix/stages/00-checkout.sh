@@ -43,8 +43,8 @@ trap cleanup EXIT
 # ─── Step 1: Validate agent source tree ───────────────────────────────────────
 #
 # The agent source is NOT cloned here — it must already be present at
-# $AGENT_SRC (resolved by env.sh from the script directory's .git ancestor), transferred from the build machine
-# by the caller. (The local clone contains AIX-specific changes not yet merged
+# $AGENT_SRC (resolved by env.sh as the nearest .git ancestor of the current
+# directory), transferred from the build machine by the caller. (The local clone contains AIX-specific changes not yet merged
 # to main.)
 #
 # Expected transfer method:
@@ -65,7 +65,7 @@ fi
 log "Agent source found at $AGENT_SRC"
 log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
-# ─── Step 2: Read dependency versions from release.json ───────────────────────
+# ─── Step 2: Read dependency versions from release.json ──────────────────────
 
 RELEASE_JSON="$AGENT_SRC/release.json"
 if [ ! -f "$RELEASE_JSON" ]; then
@@ -83,20 +83,6 @@ if [ -z "$INTEGRATIONS_CORE_VERSION" ]; then
 fi
 
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
-
-ADP_JSON="$AGENT_SRC/deps/adp.json"
-if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
-    if [ ! -f "$ADP_JSON" ]; then
-        log "ERROR: $ADP_JSON not found — is the source tree complete?"
-        exit 1
-    fi
-    AGENT_DATA_PLANE_VERSION=$(python3.12 -c \
-        "import json; print(json.load(open('$ADP_JSON'))['version'])")
-fi
-if [ -z "$AGENT_DATA_PLANE_VERSION" ]; then
-    log "ERROR: Could not read AGENT_DATA_PLANE_VERSION from $ADP_JSON"
-    exit 1
-fi
 log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"
 
 # ─── Step 3: Clone or fetch integrations-core ─────────────────────────────────
@@ -106,7 +92,9 @@ log "Checking out DataDog/integrations-core at $INTEGRATIONS_CORE_VERSION into $
 mkdir -p "$(dirname "$INTEGRATIONS_CORE")"
 
 if [ -d "$INTEGRATIONS_CORE/.git" ]; then
-    log "integrations-core repository already exists — fetching latest refs"
+    log "integrations-core repository already exists — resetting to a clean state and fetching latest refs"
+    git -C "$INTEGRATIONS_CORE" reset --quiet --hard
+    git -C "$INTEGRATIONS_CORE" clean --quiet -fd
     git -C "$INTEGRATIONS_CORE" fetch --quiet
 else
     log "Cloning https://github.com/DataDog/integrations-core.git (shallow --depth=1)"
@@ -132,7 +120,9 @@ log "Checking out DataDog/saluki at $AGENT_DATA_PLANE_VERSION into $SALUKI_SRC"
 mkdir -p "$(dirname "$SALUKI_SRC")"
 
 if [ -d "$SALUKI_SRC/.git" ]; then
-    log "saluki repository already exists — fetching $AGENT_DATA_PLANE_VERSION"
+    log "saluki repository already exists — resetting to a clean state and fetching $AGENT_DATA_PLANE_VERSION"
+    git -C "$SALUKI_SRC" reset --quiet --hard
+    git -C "$SALUKI_SRC" clean --quiet -fd
     git -C "$SALUKI_SRC" fetch --quiet --depth=1 origin \
         "refs/tags/$AGENT_DATA_PLANE_VERSION:refs/tags/$AGENT_DATA_PLANE_VERSION"
 else

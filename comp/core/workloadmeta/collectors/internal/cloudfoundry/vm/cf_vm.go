@@ -108,7 +108,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	var allContainersTags map[string][]string
 	if dcaClient := c.getDCAClient(); dcaClient != nil {
-		allContainersTags, err = c.dcaClient.GetCFAppsMetadataForNode(c.nodeName)
+		allContainersTags, err = dcaClient.GetCFAppsMetadataForNode(c.nodeName)
 		if err != nil {
 			log.Debugf("Unable to fetch CF tags from cluster agent, CF tags will be missing, err: %v", err)
 		}
@@ -231,13 +231,18 @@ func (c *collector) getDCAClient() clusteragent.DCAClientInterface {
 		return c.dcaClient
 	}
 
-	var err error
-	c.dcaClient, err = clusteragent.GetClusterAgentClient()
+	// Assign to a local *DCAClient first and only store it into the interface
+	// field on success. GetClusterAgentClient returns (*DCAClient, error); on
+	// failure that nil pointer would otherwise be boxed into the c.dcaClient
+	// interface field, producing a non-nil "typed nil" that passes the
+	// `c.dcaClient != nil` check above and panics when a method is called on it.
+	client, err := clusteragent.GetClusterAgentClient()
 	if err != nil {
 		log.Debugf("Could not initialise the communication with the cluster agent, PCF tags may be missing, err: %v", err)
 		return nil
 	}
 
+	c.dcaClient = client
 	return c.dcaClient
 }
 

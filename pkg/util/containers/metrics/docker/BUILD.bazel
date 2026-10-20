@@ -64,6 +64,7 @@ dd_agent_go_test(
     ],
     embed = [":docker"],
     gotags_sets = [[
+        "cel",
         "docker",
         "kubelet",
     ]],

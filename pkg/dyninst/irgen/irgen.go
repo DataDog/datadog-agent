@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package irgen generates an IR program from an object file and a list of
 // probes.
@@ -891,7 +891,7 @@ func analyzeCondition(
 	if len(leaves) == 0 {
 		return nil, ir.Issue{
 			Kind:    ir.IssueKindUnsupportedFeature,
-			Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
+			Message: conditionUnsupportedMessage(condExpr),
 		}
 	}
 	// Validate every leaf is a supported shape first so error messages
@@ -901,7 +901,7 @@ func analyzeCondition(
 		if !ok {
 			return nil, ir.Issue{
 				Kind:    ir.IssueKindUnsupportedFeature,
-				Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+				Message: conditionUnsupportedMessage(leaf),
 			}
 		}
 		// A condition leaf's LHS must be a variable-derived path
@@ -1100,6 +1100,8 @@ func checkConditionLHS(expr exprlang.Expr) error {
 		)
 	case *exprlang.LiteralExpr:
 		return errors.New("condition leaf LHS may not be a literal")
+	case *exprlang.UnsupportedExpr:
+		return errors.New(conditionUnsupportedMessage(e))
 	default:
 		return fmt.Errorf("unsupported condition leaf LHS type: %T", expr)
 	}
@@ -1160,6 +1162,14 @@ func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func conditionUnsupportedMessage(e exprlang.Expr) string {
+	if unsupported, ok := e.(*exprlang.UnsupportedExpr); ok {
+		return "unsupported condition operation: " + unsupported.Operation
+	}
+	// we don't expect to reach this return
+	return fmt.Sprintf("unsupported condition expression type: %T", e)
 }
 
 // rewriteReturnRefs rewrites every @return reference in expr to reference
@@ -4422,7 +4432,7 @@ func exploreTypesForExpressions(
 				if !ok {
 					ap.conditionIssue = ir.Issue{
 						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+						Message: conditionUnsupportedMessage(leaf),
 					}
 					ap.condition = nil
 					break

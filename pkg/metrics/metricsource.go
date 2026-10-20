@@ -68,6 +68,8 @@ const (
 	MetricSourceGPU
 	MetricSourceWlan
 	MetricSourceWindowsCertificateStore
+	MetricSourceThermal
+	MetricSourcePowerShell
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -347,6 +349,10 @@ const (
 	MetricSourceNiFi
 	MetricSourceKueue
 	MetricSourceExternalSecrets
+	MetricSourceCiscoCatalystCenter
+	MetricSourceAmazonVpcCni
+	MetricSourceRavendb
+	MetricSourceSglang
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -404,6 +410,9 @@ const (
 	MetricSourceGoogleCloudRunCustom
 	MetricSourceGoogleCloudRunEnhanced
 	MetricSourceGoogleCloudRunRuntime
+	MetricSourceAWSMicroVMCustom
+	MetricSourceAWSMicroVMEnhanced
+	MetricSourceAWSMicroVMRuntime
 )
 
 // String returns a string representation of MetricSource
@@ -1137,10 +1146,20 @@ func (ms MetricSource) String() string {
 		return "google_cloud_run_enhanced"
 	case MetricSourceGoogleCloudRunRuntime:
 		return "google_cloud_run_runtime"
+	case MetricSourceAWSMicroVMCustom:
+		return "aws_microvm_custom"
+	case MetricSourceAWSMicroVMEnhanced:
+		return "aws_microvm_enhanced"
+	case MetricSourceAWSMicroVMRuntime:
+		return "aws_microvm_runtime"
 	case MetricSourceWlan:
 		return "wlan"
 	case MetricSourceWindowsCertificateStore:
 		return "windows_certificate"
+	case MetricSourceThermal:
+		return "thermal"
+	case MetricSourcePowerShell:
+		return "powershell"
 	case MetricSourceBattery:
 		return "battery"
 	case MetricSourcePinot:
@@ -1155,6 +1174,14 @@ func (ms MetricSource) String() string {
 		return "kueue"
 	case MetricSourceExternalSecrets:
 		return "external_secrets"
+	case MetricSourceCiscoCatalystCenter:
+		return "cisco_catalyst_center"
+	case MetricSourceAmazonVpcCni:
+		return "amazon_vpc_cni"
+	case MetricSourceRavendb:
+		return "ravendb"
+	case MetricSourceSglang:
+		return "sglang"
 	default:
 		return "<unknown>"
 	}
@@ -1317,7 +1344,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
-	case "gpu":
+	case "gpu", "amd_gpu":
 		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
@@ -1841,6 +1868,10 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWlan
 	case "windows_certificate":
 		return MetricSourceWindowsCertificateStore
+	case "thermal":
+		return MetricSourceThermal
+	case "powershell":
+		return MetricSourcePowerShell
 	case "battery":
 		return MetricSourceBattery
 	case "pinot":
@@ -1859,6 +1890,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKueue
 	case "external_secrets":
 		return MetricSourceExternalSecrets
+	case "cisco_catalyst_center":
+		return MetricSourceCiscoCatalystCenter
+	case "amazon_vpc_cni":
+		return MetricSourceAmazonVpcCni
+	case "ravendb":
+		return MetricSourceRavendb
+	case "sglang":
+		return MetricSourceSglang
 	default:
 		return MetricSourceUnknown
 	}

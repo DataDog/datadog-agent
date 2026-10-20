@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,7 +19,7 @@ import (
 // this change into 6.4.0 to pick up a CVE so the version number is not reliable.
 // Instead, we directly check if the function exists.
 func HasTCPSendPage(kv kernel.Version) bool {
-	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
+	missing, err := ksyms.VerifyKernelFuncs("tcp_sendpage")
 	if err == nil {
 		return len(missing) == 0
 	}

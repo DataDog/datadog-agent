@@ -24,6 +24,13 @@ from tasks.libs.common.color import color_message
 PYTHON_FTP_URL = "https://www.python.org/ftp/python/"
 PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Python-{version}.tgz.spdx.json"
 
+# Patch versions the automated upgrade must never select, mapped to the reason.
+# Drop an entry once the version is older than the current one.
+EXCLUDED_PYTHON_VERSIONS = {
+    # The Agent imports Python checks from several goroutines, so some checks randomly fail to load.
+    "3.13.16": "the python/cpython#130094 backport makes concurrent imports raise _DeadlockError",
+}
+
 
 def _version_tuple(version: str) -> tuple[int, ...]:
     """Convert a version string like '3.13.8' to a comparable tuple (3, 13, 8)."""
@@ -86,9 +93,9 @@ def update(
     # Prepare all updates first to validate patterns before writing anything
     updates = []
     try:
-        updates.append(_prepare_omnibus_update(target_version))
         updates.append(_prepare_bazel_update(target_version, sha256_hash))
         updates.append(_prepare_test_update(target_version))
+        updates.append(_prepare_aix_update(target_version))
     except Exit:
         # If any validation fails, don't write anything
         raise
@@ -107,13 +114,17 @@ def update(
 
 
 def _get_current_python_version() -> str:
-    """Get the current Python version from omnibus config."""
-    omnibus_file = Path("omnibus/config/software/python3.rb")
-    content = omnibus_file.read_text()
+    """Get the current Python version from the Bazel module file.
 
-    match = re.search(r'^default_version\s+"([0-9.]+)"', content, re.MULTILINE)
+    The Bazel file (deps/cpython/cpython.MODULE.bazel) is the source of truth for
+    the embedded Python version; the omnibus config no longer pins it.
+    """
+    bazel_file = Path("deps/cpython/cpython.MODULE.bazel")
+    content = bazel_file.read_text()
+
+    match = re.search(r'^PYTHON_VERSION\s*=\s*"([0-9.]+)"', content, re.MULTILINE)
     if not match:
-        raise Exit("Could not find default_version in omnibus/config/software/python3.rb")
+        raise Exit("Could not find PYTHON_VERSION in deps/cpython/cpython.MODULE.bazel")
 
     return match.group(1)
 
@@ -168,6 +179,11 @@ def _get_latest_python_version(major_minor: str) -> str | None:
         match = re.search(pattern, line)
         if match:
             version_str = match.group(1)
+            if version_str in EXCLUDED_PYTHON_VERSIONS:
+                print(
+                    color_message(f"Skipping Python {version_str}: {EXCLUDED_PYTHON_VERSIONS[version_str]}", "yellow")
+                )
+                continue
             if _validate_version_string(version_str):
                 versions.append(version_str)
 
@@ -225,27 +241,6 @@ def _get_python_sha256_hash(version: str) -> str:
     return hash_value.lower()
 
 
-def _prepare_omnibus_update(version: str) -> tuple[Path, str]:
-    """Prepare Python version update for omnibus config.
-
-    The SHA256 hash is managed in deps/cpython/cpython.MODULE.bazel, not here.
-
-    Returns:
-        Tuple of (file_path, new_content) ready to write
-    """
-    file_path = Path("omnibus/config/software/python3.rb")
-    content = file_path.read_text()
-
-    # Update version
-    version_pattern = r'^(default_version\s+")([0-9.]+)(")$'
-    new_content, count = re.subn(version_pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
-
-    if count != 1:
-        raise Exit(f"Expected 1 version match in {file_path}, found {count}")
-
-    return (file_path, new_content)
-
-
 def _prepare_bazel_update(version: str, sha256: str) -> tuple[Path, str]:
     """Prepare Python version and SHA256 update for Bazel module file.
 
@@ -288,6 +283,24 @@ def _prepare_test_update(version: str) -> tuple[Path, str]:
 
     if count != 1:
         raise Exit(f"Expected 1 version match in {file_path}, found {count}")
+
+    return (file_path, new_content)
+
+
+def _prepare_aix_update(version: str) -> tuple[Path, str]:
+    """Prepare Python version update for the AIX packaging scripts.
+
+    Returns:
+        Tuple of (file_path, new_content) ready to write
+    """
+    file_path = Path("packaging/aix/lib/env.sh")
+    content = file_path.read_text()
+
+    pattern = r'^(PYTHON_VERSION=")([0-9.]+)(")$'
+    new_content, count = re.subn(pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
+
+    if count != 1:
+        raise Exit(f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}")
 
     return (file_path, new_content)
 

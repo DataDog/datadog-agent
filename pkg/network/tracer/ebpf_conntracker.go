@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tracer
 
@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"sync/atomic"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -25,6 +26,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -62,14 +64,14 @@ var conntrackerTelemetry = struct {
 	getsTotal           telemetryComp.Counter
 	unregistersTotal    telemetryComp.Counter
 	registersTotal      *prometheus.Desc
-	lastRegisters       uint64
+	lastRegisters       atomic.Uint64
 }{
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
-	0,
+	atomic.Uint64{},
 }
 
 type ebpfConntracker struct {
@@ -88,7 +90,7 @@ type ebpfConntracker struct {
 var ebpfConntrackerCORECreator func(cfg *config.Config) (*manager.Manager, error) = getCOREConntracker
 var ebpfConntrackerRCCreator func(cfg *config.Config) (*manager.Manager, error) = getRCConntracker
 var ebpfConntrackerPrebuiltCreator func(cfg *config.Config) (*manager.Manager, error) = getPrebuiltConntracker
-var verifyKernelFuncs = ddebpf.VerifyKernelFuncs
+var verifyKernelFuncs = ksyms.VerifyKernelFuncs
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Component) (netlink.Conntracker, error) {
@@ -411,9 +413,23 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	if err := e.telemetryMap.Lookup(&zero, ebpfTelemetry); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
-		delta := ebpfTelemetry.Registers - conntrackerTelemetry.lastRegisters
-		conntrackerTelemetry.lastRegisters = ebpfTelemetry.Registers
+		delta := computeRegistersDelta(ebpfTelemetry.Registers)
 		ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.registersTotal, prometheus.CounterValue, float64(delta))
+	}
+}
+
+// computeRegistersDelta atomically computes the delta between the current
+// and last-seen register count, and updates the last-seen value. Safe to
+// call concurrently (e.g. when two Prometheus Gather ticks overlap).
+func computeRegistersDelta(currentRegisters uint64) uint64 {
+	for {
+		last := conntrackerTelemetry.lastRegisters.Load()
+		if currentRegisters <= last {
+			return 0
+		}
+		if conntrackerTelemetry.lastRegisters.CompareAndSwap(last, currentRegisters) {
+			return currentRegisters - last
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,11 +28,32 @@ const (
 	infoFunction = byte(safeelf.STB_GLOBAL)<<4 | byte(safeelf.STT_FUNC)
 )
 
+func isBazelTest() bool {
+	return os.Getenv("TEST_SRCDIR") != "" || os.Getenv("RUNFILES_DIR") != "" || os.Getenv("RUNFILES_MANIFEST_FILE") != ""
+}
+
+func bazelPCLNTABFixture(t *testing.T) string {
+	t.Helper()
+
+	loc := os.Getenv("BININSPECT_PCLNTAB_FIXTURE")
+	require.NotEmpty(t, loc, "expected BININSPECT_PCLNTAB_FIXTURE to be set by the Bazel test rule")
+
+	fixture, err := runfiles.Rlocation(loc)
+	require.NoError(t, err)
+	return fixture
+}
+
 // TestGetPCLNTABSymbolParser tests the GetPCLNTABSymbolParser function with strings set symbol filter.
-// We are looking to find all symbols of the current process executable and check if they are found in the PCLNTAB.
+// We are looking to find all symbols of a Go fixture executable and check if they are found in the PCLNTAB.
 func TestGetPCLNTABSymbolParser(t *testing.T) {
-	currentPid := os.Getpid()
-	f, err := safeelf.Open("/proc/" + strconv.Itoa(currentPid) + "/exe")
+	var exe string
+	if isBazelTest() {
+		exe = bazelPCLNTABFixture(t)
+	} else {
+		currentPid := os.Getpid()
+		exe = "/proc/" + strconv.Itoa(currentPid) + "/exe"
+	}
+	f, err := safeelf.Open(exe)
 	require.NoError(t, err)
 	symbolSet := make(common.StringSet)
 	staticSymbols, _ := f.Symbols()
@@ -48,7 +70,7 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 			symbolSet[sym.Name] = struct{}{}
 		}
 	}
-	if len(symbolSet) == 0 {
+	if !isBazelTest() && len(symbolSet) == 0 {
 		t.Skip("No symbols found")
 	}
 

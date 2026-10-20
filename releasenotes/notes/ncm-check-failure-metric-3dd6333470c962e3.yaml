@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Network Configuration Management (NCM) check now emits a ``datadog.ncm.check_failure`` metric, tagged with the failure reason, whenever the check encounters an error.

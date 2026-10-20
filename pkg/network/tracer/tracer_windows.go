@@ -183,6 +183,18 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 	return tr, nil
 }
 
+// PrepareStop winds down the parts of the tracer that a caller can be blocked
+// in, without tearing anything down. GetActiveConnections drains HTTP
+// transactions from the driver, which under sustained traffic keeps going for
+// as long as they keep arriving, so a shutdown that has to wait for a
+// collection in flight calls this first to bound that wait. Stop is still
+// required afterwards.
+func (t *Tracer) PrepareStop() {
+	if t.usmMonitor != nil { //nolint
+		t.usmMonitor.PrepareStop()
+	}
+}
+
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
@@ -342,6 +354,9 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 
 // GetProcessCacheTags returns a map of PID -> []string tags from the process cache.
 func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	if t.processCache == nil {
+		return nil
+	}
 	return t.processCache.GetAllPIDTags()
 }
 

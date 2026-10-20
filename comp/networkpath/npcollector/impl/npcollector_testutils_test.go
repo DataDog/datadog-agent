@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
@@ -36,7 +38,6 @@ import (
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -58,7 +59,6 @@ var testOptions = fx.Options(
 	eventplatformmock.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
-	logscompression.MockModule(),
 	mocktelemetry.Module(),
 	hostnameimpl.MockModule(),
 	fx.Provide(delegatedauthmock.New),
@@ -70,6 +70,11 @@ func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient 
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, agentConfigs) }),
+		fx.Provide(func() sysprobeconfig.Component {
+			return sysprobeconfigmock.NewMockWithOverrides(t, map[string]any{
+				"network_config.enabled": true,
+			})
+		}),
 		fx.Populate(&component),
 		fx.Provide(func() statsd.ClientInterface {
 			return statsdClient

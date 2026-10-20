@@ -24,7 +24,10 @@ type Filter struct {
 	// identify the remote configuration responsible for admitting its path. It
 	// is empty for built-in and local filters.
 	TestConfigID string
-	Tags         []string
+	// TestConfigName is the user-facing name of the RC config. It is empty for
+	// built-in and local filters.
+	TestConfigName string
+	Tags           []string
 }
 
 // ConnFilter class
@@ -83,8 +86,9 @@ func NewConnFilter(config []Config, site string, monitorIPWithoutDomain bool) (*
 			matchDomain: matchDomainRe,
 			matchIPCidr: matchIPCidr,
 
-			TestConfigID: cfg.TestConfigID,
-			Tags:         slices.Clone(cfg.Tags),
+			TestConfigID:   cfg.TestConfigID,
+			TestConfigName: cfg.TestConfigName,
+			Tags:           slices.Clone(cfg.Tags),
 		})
 	}
 	return &ConnFilter{
@@ -108,8 +112,16 @@ func (f *ConnFilter) Evaluate(domain string, ip netip.Addr) (bool, string) {
 // EvaluateWithTags also returns the config tags of the winning rule. The
 // returned tags are owned by the filter and must not be modified.
 func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, string, []string) {
+	included, testConfigID, _, tags := f.EvaluateWithConfig(domain, ip)
+	return included, testConfigID, tags
+}
+
+// EvaluateWithConfig also returns the name and tags of the remote config whose
+// rule won evaluation. The returned tags are owned by the filter and must not be modified.
+func (f *ConnFilter) EvaluateWithConfig(domain string, ip netip.Addr) (bool, string, string, []string) {
 	isIncluded := true
 	testConfigID := ""
+	testConfigName := ""
 	var tags []string
 	if domain == "" {
 		isIncluded = false
@@ -128,6 +140,7 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 		}
 		if matched {
 			testConfigID = filter.TestConfigID
+			testConfigName = filter.TestConfigName
 			tags = filter.Tags
 			if filter.Type == FilterTypeExclude {
 				isIncluded = false
@@ -137,7 +150,7 @@ func (f *ConnFilter) EvaluateWithTags(domain string, ip netip.Addr) (bool, strin
 		}
 	}
 	if !isIncluded {
-		return false, "", nil
+		return false, "", "", nil
 	}
-	return true, testConfigID, tags
+	return true, testConfigID, testConfigName, tags
 }

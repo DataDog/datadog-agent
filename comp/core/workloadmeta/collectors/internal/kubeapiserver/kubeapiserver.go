@@ -10,11 +10,14 @@ package kubeapiserver
 
 import (
 	"context"
+	"math"
 	"strings"
 	"time"
 
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -44,7 +47,7 @@ type dependencies struct {
 }
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
@@ -169,13 +172,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 // resourcesForAPMConfig returns the list of resources to collect metadata from
 // for the auto instrumentation configuration. Namespaces are collected in order
-// to utilize namespace labels for target based configuration and to determine
-// pod security policies to apply to restricted namespaces.
+// to utilize namespace labels for target and remote policy matching, and to
+// determine pod security policies to apply to restricted namespaces.
 func resourcesForAPMConfig(cfg config.Reader) []string {
-	// If APM is not enabled, we don't need to collect any resources for the
-	// auto instrumentation configuration.
-	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
-	if !apmEnabled {
+	// Both implicit and on-demand instrumentation can inject pods, so both need
+	// namespace labels.
+	if !cfg.GetBool("apm_config.instrumentation.enabled") && !cfg.GetBool("apm_config.instrumentation.on_demand") {
 		return nil
 	}
 
@@ -185,14 +187,13 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 // resourcesForCSIDetection returns the list of resources to collect metadata
 // from for the APM auto-instrumentation library injection AutoProvider.
 //
-// When CSI auto-detection is enabled, the AutoProvider needs to know whether
-// the Datadog CSI driver is registered in the cluster and has APM SSI
-// capabilities advertised on its annotations, in order to choose between
-// the CSI- and init-container-based library injection providers.
+// The AutoProvider needs to know whether the Datadog CSI driver is registered
+// in the cluster and has APM SSI capabilities advertised on its annotations,
+// in order to choose between the CSI- and init-container-based library
+// injection providers.
 func resourcesForCSIDetection(cfg config.Reader) []string {
 	if !cfg.GetBool("admission_controller.enabled") ||
-		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") ||
-		!cfg.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") {
 		return nil
 	}
 
@@ -244,13 +245,18 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
 		for _, gvr := range gvrs {
-			reflector, store := newMetadataStore(ctx, wlmetaStore, c.config, metadataclient, gvr)
-			objectStores = append(objectStores, store)
+			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr)
+			// The csidrivers RBAC may be missing with older Helm charts or
+			// Operators. It must not block readiness: without data, the
+			// AutoProvider falls back to init containers.
+			if gvr.Group != "storage.k8s.io" || gvr.Resource != "csidrivers" {
+				objectStores = append(objectStores, store)
+			}
 			go reflector.Run(ctx.Done())
 		}
 	}
 
-	nodeReflector, nodeStore := newNodeStore(ctx, wlmetaStore, c.config, client)
+	nodeReflector, nodeStore := newNodeStore(wlmetaStore, c.config, client)
 	objectStores = append(objectStores, nodeStore)
 	go nodeReflector.Run(ctx.Done())
 
@@ -263,7 +269,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			// block the startup readiness check.
 			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
 		} else {
-			reflector, store := newPodStore(ctx, wlmetaStore, c.config, client)
+			reflector, store := newPodStore(wlmetaStore, c.config, client)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 			if autoscalingEnabled {
@@ -273,7 +279,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 
 	if shouldHaveDeploymentStore(c.config) {
-		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
+		reflector, store := newDeploymentStore(wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
@@ -289,7 +295,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
 					continue
 				}
-				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				reflector, store, err := newKueueQueueStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
 				if err != nil {
 					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
 					continue
@@ -304,7 +310,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueResourceFlavorStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueResourceFlavorStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
 				if err != nil {
 					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
 					continue
@@ -319,7 +325,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue Workload resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueWorkloadStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
 				if err != nil {
 					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue
@@ -340,7 +346,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			objectStores = append(objectStores, handlerRegistration)
 		}
 	}
-	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
+	go collectKubeCapabilities(ctx, apiserverClient.Cl.Discovery(), wlmetaStore)
 
 	go runStartupCheck(ctx, objectStores)
 
@@ -355,7 +361,7 @@ func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloa
 	}
 
 	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
-	reflector, store := newStore(ctx, wlmetaStore, c.config, client)
+	reflector, store := newStore(wlmetaStore, c.config, client)
 	go reflector.Run(ctx.Done())
 
 	c.markPodCollectionSyncedWhenReady(ctx, store)
@@ -380,14 +386,45 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient, wlmetaStore workloadmeta.Component) {
-	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 15*time.Second)
+var (
+	// kubeCapabilitiesTimeout bounds the retries to get the cluster version and feature gates.
+	kubeCapabilitiesTimeout = 15 * time.Second
+	// kubeCapabilitiesBackoff is the retry policy to get the cluster version, until the collector stops.
+	kubeCapabilitiesBackoff = wait.Backoff{
+		Duration: 30 * time.Second,
+		Factor:   2,
+		Jitter:   0.1,
+		Steps:    math.MaxInt32,
+		Cap:      10 * time.Minute,
+	}
+)
+
+func collectKubeCapabilities(ctx context.Context, discoveryCl discovery.DiscoveryInterface, wlmetaStore workloadmeta.Component) {
+	var versionInfo *version.Info
+	err := kubeCapabilitiesBackoff.DelayFunc().Until(ctx, true, false, func(context.Context) (bool, error) {
+		var err error
+		versionInfo, err = common.KubeServerVersion(discoveryCl, kubeCapabilitiesTimeout)
+		if err != nil {
+			log.Infof("Couldn't collect cluster version, will retry: %v", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return
+	}
+
+	// Publish the version right away: feature gates need access to the API server
+	// /metrics endpoint and can take until the timeout to fail.
+	notifyKubeCapabilities(wlmetaStore, versionInfo, nil)
+
+	featureGates, err := common.ClusterFeatureGates(ctx, discoveryCl, kubeCapabilitiesTimeout)
 	if err != nil {
 		log.Infof("Couldn't collect cluster feature gates: %v", err)
 		return
 	}
 
-	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
+	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate, len(featureGates))
 	for name, featureGate := range featureGates {
 		wlmFeatureGates[name] = workloadmeta.FeatureGate{
 			Name:    featureGate.Name,
@@ -395,13 +432,10 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 			Enabled: featureGate.Enabled,
 		}
 	}
+	notifyKubeCapabilities(wlmetaStore, versionInfo, wlmFeatureGates)
+}
 
-	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 15*time.Second)
-	if err != nil {
-		log.Infof("Couldn't collect cluster version: %v", err)
-		return
-	}
-
+func notifyKubeCapabilities(wlmetaStore workloadmeta.Component, versionInfo *version.Info, featureGates map[string]workloadmeta.FeatureGate) {
 	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -415,7 +449,7 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 					Name: workloadmeta.KubeCapabilitiesName,
 				},
 				Version:      versionInfo,
-				FeatureGates: wlmFeatureGates,
+				FeatureGates: featureGates,
 			},
 		},
 	})

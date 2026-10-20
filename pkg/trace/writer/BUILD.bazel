@@ -57,5 +57,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

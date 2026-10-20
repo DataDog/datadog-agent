@@ -103,12 +103,18 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 
 	a := result.Anomalies[0]
 	assert.Equal(t, "holt_residual", a.DetectorName)
-	assert.Contains(t, a.Title, "Holt residual")
+	title, description := observer.FormatAnomaly(a)
+	assert.Equal(t, "Holt residual: metric:avg", title)
+	assert.Contains(t, description, "deviated from forecast")
 	require.NotNil(t, a.Score)
 	assert.Greater(t, *a.Score, 4.5, "score should clear the |z| threshold")
 	assert.NotNil(t, a.SourceRef, "SourceRef must be populated for downstream correlators")
 	require.NotNil(t, a.DebugInfo, "DebugInfo must be populated")
 	assert.Equal(t, 4.5, a.DebugInfo.Threshold)
+	assert.NotZero(t, a.DebugInfo.Forecast)
+	assert.NotZero(t, a.DebugInfo.Residual)
+	assert.NotZero(t, a.DebugInfo.HoltLevel)
+	assert.NotZero(t, a.DebugInfo.ValueMADs)
 	// Fire timestamp lands on the second spike point (M=2 confirmation).
 	assert.Equal(t, spikeStart+spikeLen-1, a.Timestamp)
 }
@@ -247,7 +253,7 @@ func TestHoltResidual_RemoveSeries(t *testing.T) {
 
 	d.RemoveSeries([]observer.SeriesRef{ref})
 	assert.Empty(t, d.series, "RemoveSeries must drop per-series state for freed refs")
-	assert.Nil(t, d.cachedSeries, "RemoveSeries should invalidate the series cache")
+	assert.Nil(t, d.cachedRefs, "RemoveSeries should invalidate the series cache")
 }
 
 // TestHoltResidual_Reset confirms that Reset wipes per-series state.
@@ -261,7 +267,7 @@ func TestHoltResidual_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "Reset must clear per-series state")
-	assert.Nil(t, d.cachedSeries, "Reset must clear cached series")
+	assert.Nil(t, d.cachedRefs, "Reset must clear cached series")
 }
 
 // TestHoltResidual_DefaultsApplied confirms ensureDefaults populates a
@@ -296,8 +302,7 @@ func TestHoltResidual_Name(t *testing.T) {
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
-// observer.Detector AND observer.SeriesRemover (it is stateful and is NOT
-// listed in statelessDetectorAllowlist).
+// observer.Detector AND observer.SeriesRemover so eviction frees its state.
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
 	d := NewHoltResidualDetector()
 	var _ observer.Detector = d
@@ -343,7 +348,7 @@ func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
 // that still fall inside the dataTime range.
 func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *testing.T) {
 	d := testHoltResidualDetector()
-	d.WarmupPoints = 10
+	d.WarmupPoints = 1
 	d.ResidualWindow = 4
 	storage := newDetectorTestStorage()
 
@@ -356,7 +361,7 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
@@ -367,20 +372,20 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 
 	d.Detect(storage, 20)
 	state = d.series[key]
-	require.Equal(t, []float64{20.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime, "merge replay must not advance to dataTime")
 
 	storage.Add("ns", "metric", 50.0, 15, nil)
 	d.Detect(storage, 20)
 	state = d.series[key]
-	require.Equal(t, []float64{20.0, 50.0}, state.warmupBuf)
+	require.Len(t, state.resWin, 1)
 	assert.Equal(t, int64(15), state.lastProcessedTime)
 	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
 }
 
 func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	d := testHoltResidualDetector()
-	d.WarmupPoints = 10
+	d.WarmupPoints = 1
 	d.ResidualWindow = 4
 	storage := newDetectorTestStorage()
 
@@ -393,7 +398,7 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 5.0, 5, nil)
@@ -401,14 +406,15 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	assert.Equal(t, []float64{5.0, 10.0}, state.warmupBuf)
+	assert.True(t, state.warmedUp)
+	assert.Len(t, state.resWin, 1)
 	assert.Equal(t, 2, state.lastProcessedCount)
 	assert.Equal(t, int64(10), state.lastProcessedTime)
 }
 
 func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	d := testHoltResidualDetector()
-	d.WarmupPoints = 10
+	d.WarmupPoints = 1
 	d.ResidualWindow = 4
 	storage := newDetectorTestStorage()
 
@@ -421,7 +427,7 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
-	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
@@ -430,9 +436,56 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 
 	state = d.series[key]
 	require.NotNil(t, state)
-	assert.Equal(t, []float64{20.0, 40.0}, state.warmupBuf)
+	assert.True(t, state.warmedUp)
+	assert.Len(t, state.resWin, 1)
 	assert.Equal(t, 2, state.lastProcessedCount)
 	assert.Equal(t, int64(11), state.lastProcessedTime)
+}
+
+func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 1
+	d.ResidualWindow = 4
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+
+	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
+	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 3, state.lastProcessedCount)
+
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+
+	require.Same(t, state, d.series[key])
+	assert.Equal(t, int64(4), state.lastProcessedTime)
+	assert.Equal(t, 3, state.lastProcessedCount)
+}
+
+func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 3
+	d.ResidualWindow = 4
+	storage := newDetectorTestStorage()
+
+	for timestamp := int64(1); timestamp <= 3; timestamp++ {
+		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+	d.Detect(storage, 3)
+	key := holtStateKey{ref: 0, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+
+	storage.cfg.PointRetentionSecs = 1
+	storage.Add("ns", "metric", 4, 4, nil)
+	d.Detect(storage, 4)
+	require.Same(t, state, d.series[key])
+	require.Equal(t, int64(4), state.lastProcessedTime)
 }
 
 // TestHoltResidual_ConfirmationStartsAfterWindowsReady verifies that
@@ -456,17 +509,18 @@ func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
 		valWin:   []float64{0, 0, 0},
 	}
 
-	_, fired := d.processPoint(state, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage)
+	series := &observer.Series{Name: "metric"}
+	_, fired := d.processPoint(state, series, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage, true)
 	require.False(t, fired)
 	assert.Zero(t, state.consecutivePos, "under-filled windows must not pre-arm confirmation")
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage)
+	_, fired = d.processPoint(state, series, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage, true)
 	require.False(t, fired, "first ready-window breach should only arm confirmation")
 	assert.Equal(t, 1, state.consecutivePos)
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage)
+	_, fired = d.processPoint(state, series, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage, true)
 	require.True(t, fired, "second ready-window breach should satisfy ConfirmM")
 }
 

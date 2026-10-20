@@ -28,7 +28,7 @@
 --     detectors, correlators, scheduler, storage engine)
 --   - How and when correlators fire CorrelationDetected events (owned by
 --     comp/anomalydetection/observer correlationEmitter)
---   - The shape of upstream signals (metric series, log streams, RRCF) and
+--   - The shape of upstream signals (metric series, log streams) and
 --     how they become Anomaly values
 --   - Event-platform forwarder transport (HTTP delivery, retry, backpressure,
 --     domain selection); the forwarder is treated as an external service
@@ -144,12 +144,21 @@ external entity ChangeEvent {
 --
 -- Episode events carry a Correlation snapshot that records the scorer
 -- state at the transition time; the correlation object is immutable from
--- the reporter's perspective.
+-- the reporter's perspective. EpisodeStarted additionally carries a bounded
+-- snapshot of storage-backed metric contributors. The snapshot contains
+-- compact handles and shares; reporters resolve the handles at render time.
 external entity CorrelatorEvent {
     kind: CorrelatorEventKind
     correlator_name: String
     correlation: Correlation
     timestamp: Timestamp
+    contributors: List<ScorerContributor>
+}
+
+external entity ScorerContributor {
+    handle: QueryHandle
+    weight: Float
+    share: Float
 }
 
 enum CorrelatorEventKind {
@@ -250,12 +259,12 @@ entity Reporter {
 variant StdoutReporter : Reporter {
 }
 
--- Publishes change events to the Event Management intake. Fully stateless:
--- deduplication and recurrence detection are entirely owned by the
--- correlators that produce CorrelatorEvents. The reporter forwards each
--- CorrelationDetected event as a ChangeEvent and each episode event as a
--- scorer-episode ChangeEvent. All events are at-most-once; a transient
--- forwarder failure logs an error and discards the event.
+-- Publishes change events to the Event Management intake. Deduplication and
+-- recurrence detection are entirely owned by the correlators that produce
+-- CorrelatorEvents. The reporter forwards each CorrelationDetected event as a
+-- ChangeEvent and each episode event as a scorer-episode ChangeEvent. It keeps
+-- bounded delivery state only for CorrelationDetected events whose synchronous
+-- forwarder enqueue fails; episode events remain at-most-once.
 variant EventReporter : Reporter {
 }
 
@@ -510,6 +519,15 @@ rule PublishCorrelatorEvents {
 -- map_to_pattern_set(cs: List<Correlation>) -> Set<String>
 --   The set of c.pattern values from cs.
 
+-- render_scorer_contributors(items: List<ScorerContributor>) -> String
+--
+-- Resolves only the captured handles that still exist in storage and renders
+-- their display names (including tags) in captured rank order as a numbered
+-- list with each item's percentage share. Shares are normalized over the
+-- displayed top items. EpisodeStarted uses this as its entire message; scores,
+-- raw weights, anomaly counts and debug data are not rendered. EpisodeEnded
+-- has no contributor snapshot.
+
 ------------------------------------------------------------
 -- Invariants
 ------------------------------------------------------------
@@ -569,8 +587,9 @@ invariant GracefulDegradationWithoutForwarder {
 -- it fires CorrelationDetected at most once per episode per pattern. A
 -- new episode begins after the pattern leaves the active set and the
 -- correlator resets its emitter state. The reporter inherits the guarantee
--- without maintaining its own seen-pattern set. A forwarder failure on the
--- single emission discards the event (at-most-once, not exactly-once).
+-- without maintaining its own seen-pattern set. If the synchronous forwarder
+-- enqueue fails, the reporter may retry that same CorrelationDetected event;
+-- at most one enqueue succeeds. Episode events are not retried.
 
 ------------------------------------------------------------
 -- Surfaces
@@ -600,13 +619,15 @@ surface ObserverReportBoundary {
         -- advance cycle. Reporters use it to display or log ongoing patterns
         -- and to distinguish newly-detected patterns from ongoing ones.
         -- correlator_events carries only the events produced during this
-        -- cycle; events from prior cycles are not re-delivered.
+        -- cycle; the observer does not re-deliver events from prior cycles.
+        -- The EventReporter may retain a failed CorrelationDetected event
+        -- solely for its bounded delivery retry policy.
 
     @guarantee CorrelationsAreOpaque
         -- The reporter treats Correlation, Anomaly, and CorrelatorEvent as
-        -- read-only data carriers. It never mutates them, never persists
-        -- them beyond the current Report call, and never queries observer
-        -- internals.
+        -- read-only data carriers. It never mutates them and never queries
+        -- observer internals. The EventReporter may retain an immutable
+        -- Correlation snapshot solely for bounded delivery retries.
 
     @guidance
         -- An optional companion handshake exists for reporters that want
@@ -621,12 +642,14 @@ surface ObserverReportBoundary {
 ------------------------------------------------------------
 
 deferred ForwarderTransport -- see: comp/forwarder/eventplatform
-    -- Event-platform forwarder delivery semantics (HTTP intake selection,
-    -- retry policy, backpressure, payload draining at shutdown) are owned
-    -- by comp/forwarder/eventplatform and not specified here. The reporter
-    -- requires only that SendEventPlatformEventBlocking returns an error
-    -- when delivery fails synchronously; asynchronous failures are not
-    -- surfaced.
+    -- Event-platform transport semantics (HTTP intake selection, asynchronous
+    -- retry policy, backpressure, payload draining at shutdown) are owned by
+    -- comp/forwarder/eventplatform and not specified here. The reporter uses
+    -- SendEventPlatformEvent so a full forwarder queue returns an error instead
+    -- of blocking the observer's advance loop. Its response to that synchronous
+    -- enqueue error is specified here: retry CorrelationDetected events within
+    -- a bounded budget and discard episode events. Asynchronous delivery
+    -- failures are not surfaced to the reporter.
 
 deferred AnomalyProduction -- see: comp/anomalydetection/observer
     -- How Anomaly and Correlation values are produced (extractors,

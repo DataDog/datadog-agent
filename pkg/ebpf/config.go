@@ -56,7 +56,11 @@ type Config struct {
 	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
 	KernelHeadersDownloadDir string
 
-	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
+	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs.
+	// This directory and every parent up to the filesystem root must be a root-owned directory that is
+	// not writable by other users (a sticky, world-writable parent such as the default /var/tmp is
+	// allowed). If that is not the case system-probe refuses to use the directory and skips runtime
+	// compilation instead of loading objects from an untrusted location; see secureRuntimeDir.
 	RuntimeCompilerOutputDir string
 
 	// BTFOutputDir is the directory where extracted BTF files are stored

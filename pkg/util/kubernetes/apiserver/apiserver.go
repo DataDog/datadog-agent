@@ -47,6 +47,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -206,6 +207,16 @@ func GetAPIClient() (*APIClient, error) {
 		return nil, err
 	}
 	return globalAPIClient, nil
+}
+
+// GetClusterID returns the cluster ID from the ConfigMap of the Cluster Agent, and creates the ConfigMap when it is missing.
+// It does not expose the APIClient type, because each package that uses this type adds several KiB to the binary.
+func GetClusterID() (string, error) {
+	client, err := GetAPIClient()
+	if err != nil {
+		return "", err
+	}
+	return common.GetOrCreateClusterID(client.Cl.CoreV1())
 }
 
 // WaitForAPIClient waits for availability of APIServer Client before returning
@@ -442,13 +453,14 @@ func (c *APIClient) connect() error {
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
+		// needed to watch HPAs on clusters that don't serve autoscaling/v2 (Kubernetes < 1.23)
+		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
 		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 

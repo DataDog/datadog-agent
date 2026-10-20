@@ -2373,11 +2373,16 @@ func (r fakeConfigReader) Close() {
 	}
 }
 
-func (r fakeConfigReader) ReadFile(context.Context, string) (ConfigFile, error) {
+func (r fakeConfigReader) ReadFile(context.Context, VerifiedConfigFilePath) (ConfigFile, error) {
 	return ConfigFile{}, errors.New("not implemented")
 }
 
-func (r fakeConfigReader) ReadEnvVars(context.Context, []string) (map[string]string, error) {
+// ReadMatchingFiles is not implemented by this test reader.
+func (r fakeConfigReader) ReadMatchingFiles(context.Context, ConfigFileSearch, int, ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
+	return nil, false, errors.New("not implemented")
+}
+
+func (r fakeConfigReader) ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error) {
 	return nil, errors.New("not implemented")
 }
 

@@ -19,7 +19,4 @@ func fixupInitConfig() {
 	ddcfg := Datadog()
 	fixupInitCommonConfigComponents(ddcfg)
 	fixupInitFullAgentOnlyComponents(ddcfg)
-
-	sysprobe := SystemProbe()
-	fixupInitSystemProbe(sysprobe)
 }

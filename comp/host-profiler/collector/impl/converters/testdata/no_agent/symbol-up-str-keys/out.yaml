@@ -33,7 +33,6 @@ receivers:
             enabled: true
             symbol_endpoints:
                 - api_key: test-key
-                  app_key: test-app-key
 service:
     pipelines:
         profiles:

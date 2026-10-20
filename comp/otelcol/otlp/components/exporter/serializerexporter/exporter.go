@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -151,7 +152,11 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 		return source.Source{}, err
 	}
 
-	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
+	return source.Source{
+		Kind:             source.HostnameKind,
+		Identifier:       hostnameIdentifier, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		SourceIdentifier: source.SourceIdentifier{Primary: hostnameIdentifier},
+	}, nil
 }
 
 // Exporter translate OTLP metrics into the Datadog format and sends
@@ -170,6 +175,15 @@ type Exporter struct {
 	coatUsageMetric   telemetry.Gauge
 	coatGWUsageMetric telemetry.Gauge
 	ipath             ingestionPath
+	standalone        bool
+
+	// workloadIdentityOnce/cachedWorkloadIdentity cache the result of
+	// detectWorkloadIdentity: it performs a network call for ECS Fargate (the
+	// ECS Task Metadata Endpoint v4), and the workload's identity cannot change
+	// over the lifetime of the process, so it must be detected at most once
+	// rather than blocking every ConsumeMetrics call.
+	workloadIdentityOnce   sync.Once
+	cachedWorkloadIdentity workloadIdentity
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -181,6 +195,37 @@ func translatorFromConfig(
 	statsIn chan []byte,
 	extraOptions ...metrics.TranslatorOption,
 ) (metrics.Provider, error) {
+	options, err := translatorOptionsFromConfig(cfg, hostGetter, statsIn, extraOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
+}
+
+// minimalTranslatorFromConfig builds the translator that sends OTel histograms as is.
+// It only translates delta sums and histograms, and does no metric remapping.
+func minimalTranslatorFromConfig(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
+) (metrics.Provider, error) {
+	options, err := translatorOptionsFromConfig(cfg, hostGetter, statsIn, extraOptions...)
+	if err != nil {
+		return nil, err
+	}
+	logger := set.Logger.With(zap.String("component", "metrics translator"))
+	return metrics.NewMinimalTranslator(logger, attributesTranslator, options...)
+}
+
+func translatorOptionsFromConfig(
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
+) ([]metrics.TranslatorOption, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -223,7 +268,7 @@ func translatorFromConfig(
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
+	return options, nil
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
@@ -239,6 +284,7 @@ func NewExporter(
 	coatUsageMetric telemetry.Gauge,
 	coatGWUsageMetric telemetry.Gauge,
 	ipath ingestionPath,
+	standalone bool,
 ) (*Exporter, error) {
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
@@ -262,6 +308,7 @@ func NewExporter(
 		coatUsageMetric:   coatUsageMetric,
 		coatGWUsageMetric: coatGWUsageMetric,
 		ipath:             ipath,
+		standalone:        standalone,
 	}, nil
 }
 
@@ -292,8 +339,22 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
+	var wi workloadIdentity
+	if e.ipath == ddot && e.standalone {
+		// Workload identity is static for the life of the process (a Fargate
+		// task's ARN and an Azure Container Apps replica's identity never
+		// change), so detect it at most once rather than on every flush: the
+		// Fargate path performs a blocking call to the ECS Task Metadata
+		// Endpoint v4.
+		e.workloadIdentityOnce.Do(func() {
+			e.cachedWorkloadIdentity = detectWorkloadIdentity(ctx, e.params.Logger)
+		})
+		wi = e.cachedWorkloadIdentity
+	}
+
+	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric, wi)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	consumer.addRunningMetric(hostname, wi)
 	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
 	if err := consumer.Send(e.s); err != nil {
 		errFlush := fmt.Errorf("failed to flush metrics: %w", err)

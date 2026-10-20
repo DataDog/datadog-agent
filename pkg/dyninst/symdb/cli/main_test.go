@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package main
 
@@ -39,7 +39,7 @@ const benchBinaryEnv = "SYMDBCLI_BENCH_BINARY"
 // Run with:
 //
 //	SYMDBCLI_BENCH_BINARY=/path/to/binary \
-//	  go test -tags linux_bpf,test -run='^$' -bench=BenchmarkExtractAndUpload \
+//	  go test -tags bpf,test -run='^$' -bench=BenchmarkExtractAndUpload \
 //	  ./pkg/dyninst/symdb/cli/...
 //
 // The benchmark uses an on-disk object cache rooted at b.TempDir() to
@@ -81,10 +81,7 @@ func BenchmarkExtractAndUpload(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for range b.N {
-		it, err := symdb.PackagesIterator(binaryPath, diskCache, extractOpts)
-		if err != nil {
-			b.Fatalf("PackagesIterator: %v", err)
-		}
+		it := symdb.PackagesIterator(binaryPath, diskCache, extractOpts)
 		enc, err := uploader.NewBatchEncoder(
 			srv.URL,
 			"bench-service", "bench-version", "bench-runtime-id",

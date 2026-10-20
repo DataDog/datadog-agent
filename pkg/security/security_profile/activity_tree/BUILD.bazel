@@ -15,6 +15,7 @@ go_library(
         "file_node.go",
         "flow_node.go",
         "imds_node.go",
+        "mount_node.go",
         "network_device_node.go",
         "paths_reducer.go",
         "process_node.go",
@@ -77,6 +78,8 @@ dd_agent_go_test(
     name = "activity_tree_test",
     srcs = [
         "activity_tree_test.go",
+        "dns_node_test.go",
+        "mount_node_test.go",
         "paths_reducer_test.go",
         "process_node_snapshot_test.go",
         "size_test.go",
@@ -86,7 +89,6 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/probe/procfs",
-            "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",
@@ -95,7 +97,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/probe/procfs",
-            "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",

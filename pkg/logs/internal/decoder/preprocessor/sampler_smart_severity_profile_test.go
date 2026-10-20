@@ -49,7 +49,7 @@ func newAnomalyProfileSampler(profiles [severityeventsdef.NumSeverityLevels]Samp
 		SmartSeverityProfilesEnabled: true,
 		Profiles:                     profiles,
 		SeverityProvider:             provider,
-	}, "test", 0)
+	}, staticSourceTag("test"), 0)
 }
 
 func TestAdaptiveSampler_SmartSeverityProfilesDisabled_IgnoresPublishedLevel(t *testing.T) {
@@ -77,6 +77,30 @@ func TestAdaptiveSampler_NewSamplerPicksUpActiveLevelOnFirstMessage(t *testing.T
 	require.NotNil(t, s.Process(testMsg(), patternA))
 	assert.Equal(t, 10.0, s.config.RateLimit)
 	assert.Equal(t, 100.0, s.config.BurstSize)
+}
+
+func TestAdaptiveSampler_SmartSeverityOutcomesRecordAppliedProfileDecisions(t *testing.T) {
+	provider, emit := activateSeverity()
+	s := newAnomalyProfileSampler(testProfiles(), provider)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	lowKeptBefore := tlmAdaptiveSamplerOutcomes.WithValues("low", "kept").Get()
+	lowDroppedBefore := tlmAdaptiveSamplerOutcomes.WithValues("low", "dropped").Get()
+
+	// No severity reader result means the base configuration is in use, not an
+	// AAD-derived profile, so it is deliberately absent from collaboration telemetry.
+	require.NotNil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, lowKeptBefore, tlmAdaptiveSamplerOutcomes.WithValues("low", "kept").Get())
+
+	emit(severityeventsdef.SeverityLow)
+	for i := 0; i < 4; i++ {
+		require.NotNilf(t, s.Process(testMsg(), patternA), "message %d should fit in the Low burst", i)
+	}
+	require.Nil(t, s.Process(testMsg(), patternA), "the next message should be dropped after the Low burst")
+
+	assert.Equal(t, lowKeptBefore+4, tlmAdaptiveSamplerOutcomes.WithValues("low", "kept").Get())
+	assert.Equal(t, lowDroppedBefore+1, tlmAdaptiveSamplerOutcomes.WithValues("low", "dropped").Get())
 }
 
 func TestAdaptiveSampler_EscalationGrantsFreshBurstImmediately(t *testing.T) {

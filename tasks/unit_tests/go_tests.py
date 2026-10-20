@@ -1,13 +1,22 @@
+import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
+from invoke.context import Context
+from invoke.exceptions import Exit
+
 from tasks.gotest import (
+    _bazel_test_jobs,
     _minimize_bazel_patterns,
     _parse_bazel_test_line,
+    _run_bazel_tests,
     _target_to_bazel_pattern,
     find_impacted_packages,
+    get_go_modified_files,
+    get_modified_packages,
     should_run_all_tests,
 )
+from tasks.modules import GoModule
 
 
 class TestUtils(unittest.TestCase):
@@ -80,6 +89,47 @@ class TestUtils(unittest.TestCase):
         trigger_files = ["pkgs/*"]
 
         self.assertFalse(should_run_all_tests(None, trigger_files))
+
+
+class TestGetModifiedPackages(unittest.TestCase):
+    """Tests for the package selection used by `linter.go -o` and `test -o`."""
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["pkg/aggregator/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_file_in_package_under_target_dir(self):
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./pkg/aggregator"])
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["internal/somepkg/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_not_targeted_when_directory_name_contains_target(self):
+        # `internal/somepkg` must not match the `./pkg` target.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(modules, [])
+
+
+class TestGetGoModifiedFiles(unittest.TestCase):
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock(return_value="main"))
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/existing/foo.go", "docs/readme.md"]))
+    @patch(
+        "tasks.gotest.get_untracked_files",
+        new=MagicMock(return_value=["pkg/newpkg/foo.go", "pkg/existing/foo.go", "pkg/newpkg/notes.txt"]),
+    )
+    def test_untracked_files_are_included(self):
+        files = get_go_modified_files(Context())
+
+        self.assertEqual(files, ["pkg/existing/foo.go", "pkg/newpkg/foo.go"])
 
 
 class TestTargetToBazelPattern(unittest.TestCase):
@@ -192,3 +242,45 @@ class TestParseBazelTestLine(unittest.TestCase):
 
     def test_non_label_line_returns_none(self):
         self.assertIsNone(_parse_bazel_test_line('Computing main repo mapping:'))
+
+
+class TestBazelTestJobs(unittest.TestCase):
+    def test_bazel_test_jobs_from_env(self):
+        with patch.dict("os.environ", {"DD_BAZEL_TEST_JOBS": "3"}, clear=True):
+            self.assertEqual(_bazel_test_jobs(), "3")
+
+    def test_bazel_test_jobs_default_for_windows_ci(self):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.gotest.sys.platform", "win32"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertEqual(_bazel_test_jobs(), "4")
+
+    def test_bazel_test_jobs_no_default_outside_windows_ci(self):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("tasks.gotest.sys.platform", "linux"),
+            patch("tasks.gotest.running_in_ci", return_value=True),
+        ):
+            self.assertIsNone(_bazel_test_jobs())
+
+    def test_bazel_test_jobs_rejects_invalid_value(self):
+        with patch.dict("os.environ", {"DD_BAZEL_TEST_JOBS": "0"}, clear=True):
+            with self.assertRaises(Exit):
+                _bazel_test_jobs()
+
+    @patch("tasks.gotest._run_bazel")
+    def test_run_bazel_tests_passes_jobs_cap(self, run_bazel):
+        run_bazel.return_value = subprocess.CompletedProcess(
+            [],
+            0,
+            "//pkg/foo:foo_test PASSED in 0.1s\n",
+            "",
+        )
+
+        with patch.dict("os.environ", {"DD_BAZEL_TEST_JOBS": "3"}, clear=True):
+            stats = _run_bazel_tests(None, None, ["//pkg/foo:foo_test"])
+
+        self.assertEqual(stats.passed, 1)
+        self.assertIn("--jobs=3", run_bazel.call_args.args)

@@ -12,9 +12,8 @@
 #include "rtloader_mem.h"
 #include "rtloader_types.h"
 
-
-PyObject * jloads = NULL;
-PyObject * jdumps = NULL;
+PyObject *jloads = NULL;
+PyObject *jdumps = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
@@ -50,7 +49,38 @@ char *as_string(PyObject *object)
     return NULL;
 }
 
-int init_stringutils(void) {
+/**
+ * Like as_string, but unencodable Unicode (e.g. lone surrogates) is escaped instead of
+ * returning NULL. Intended for diagnostic paths such as exception formatting, where a
+ * missing conversion must not crash the Agent.
+ *
+ * The returned pointer is allocated from the heap and must be deallocated by the caller.
+ */
+char *as_string_lossy(PyObject *object)
+{
+    if (object == NULL) {
+        return NULL;
+    }
+
+    if (!PyUnicode_Check(object)) {
+        return as_string(object);
+    }
+
+    // backslashreplace turns non-UTF-8 code points into \\uXXXX / \\UXXXXXXXX so this
+    // only fails on allocation errors, not on lone surrogates.
+    PyObject *utf8 = PyUnicode_AsEncodedString(object, "utf-8", "backslashreplace");
+    if (utf8 == NULL) {
+        PyErr_Clear();
+        return NULL;
+    }
+
+    char *ret = strdupe(PyBytes_AS_STRING(utf8));
+    Py_DECREF(utf8);
+    return ret;
+}
+
+int init_stringutils(void)
+{
     PyObject *json = NULL;
     int ret = EXIT_FAILURE;
 
@@ -81,7 +111,8 @@ done:
     return ret;
 }
 
-PyObject *from_json(const char *data) {
+PyObject *from_json(const char *data)
+{
     PyObject *args = NULL;
     PyObject *retval = NULL;
 
@@ -103,7 +134,8 @@ done:
     return retval;
 }
 
-char *as_json(PyObject *object) {
+char *as_json(PyObject *object)
+{
     char *retval = NULL;
     PyObject *dumped = NULL;
 
@@ -119,7 +151,7 @@ char *as_json(PyObject *object) {
     retval = as_string(dumped);
 
 done:
-    //Py_XDECREF can accept (and ignore) NULL references
+    // Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
     Py_XDECREF(args);
     return retval;

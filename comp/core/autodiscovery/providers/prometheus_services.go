@@ -147,6 +147,11 @@ func (p *PrometheusServicesConfigProvider) Collect(_ context.Context) ([]integra
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
+			if check.AD != nil && check.AD.HasContainerNamesFilter() {
+				log.Tracef("Skipping check with kubernetes_container_names for service %s/%s", svc.Namespace, svc.Name)
+				continue
+			}
+
 			if !check.IsIncluded(svc.Annotations) {
 				log.Tracef("Service %s/%s does not have matching annotations, skipping", svc.Namespace, svc.Name)
 				continue

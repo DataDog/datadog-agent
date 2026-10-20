@@ -20,14 +20,14 @@ Probes:
           events:
             - Kind: Entry
               Type: 997 EventRootType Probe[main.HandleHTTP]
-              InjectionPoints: [{PC: "0xcfdd73", Frameless: false}]
+              InjectionPoints: [{PC: "0xcfdd53", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 998 EventRootType Probe[main.HandleHTTP]Return
               InjectionPoints:
-                - PC: "0xcfdfcb"
+                - PC: "0xcfdfab"
                   Frameless: false
-                - PC: "0xcfdfdf"
+                - PC: "0xcfdfbf"
                   Frameless: false
               Condition: null
     - id: look_at_the_request
@@ -43,34 +43,34 @@ Probes:
           events:
             - Kind: Entry
               Type: 999 EventRootType Probe[main.LookAtTheRequest]
-              InjectionPoints: [{PC: "0xcfe0ee", Frameless: false}]
+              InjectionPoints: [{PC: "0xcfe0ce", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1000 EventRootType Probe[main.LookAtTheRequest]Return
-              InjectionPoints: [{PC: "0xcfe17d", Frameless: false}]
+              InjectionPoints: [{PC: "0xcfe15d", Frameless: false}]
               Condition: null
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
-      OutOfLinePCRanges: [0xcfdd60..0xcfe010]
+      OutOfLinePCRanges: [0xcfdd40..0xcfdff0]
       InlinePCRanges: []
       Variables:
         - Name: w
           Type: 110 GoInterfaceType net/http.ResponseWriter
           Locations:
-            - Range: 0xcfdd60..0xcfddcc
+            - Range: 0xcfdd40..0xcfddac
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-            - Range: 0xcfddcc..0xcfddcf
+            - Range: 0xcfddac..0xcfddaf
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 0}
                 - Size: 8
                   Op: {CfaOffset: 8}
-            - Range: 0xcfddcf..0xcfe010
+            - Range: 0xcfddaf..0xcfdff0
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 0}
@@ -82,9 +82,9 @@ Subprograms:
         - Name: r
           Type: 111 PointerType *net/http.Request
           Locations:
-            - Range: 0xcfdd60..0xcfddd6
+            - Range: 0xcfdd40..0xcfddb6
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
-            - Range: 0xcfddd6..0xcfe010
+            - Range: 0xcfddb6..0xcfdff0
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: -1
@@ -92,9 +92,9 @@ Subprograms:
         - Name: '&buf'
           Type: 113 PointerType *bytes.Buffer
           Locations:
-            - Range: 0xcfdf0e..0xcfdf29
+            - Range: 0xcfdeee..0xcfdf09
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0xcfdf29..0xcfe010
+            - Range: 0xcfdf09..0xcfdff0
               Pieces: [{Size: 8, Op: {CfaOffset: -136}}]
           Role: Local
           DictIndex: -1
@@ -102,19 +102,19 @@ Subprograms:
         - Name: span
           Type: 115 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
           Locations:
-            - Range: 0xcfdde8..0xcfdde8
+            - Range: 0xcfddc8..0xcfddc8
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0xcfdde8..0xcfde28
+            - Range: 0xcfddc8..0xcfde08
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-            - Range: 0xcfde28..0xcfde2c
+            - Range: 0xcfde08..0xcfde0c
               Pieces:
                 - Size: 8
                   Op: null
@@ -126,13 +126,13 @@ Subprograms:
       DictRegister: null
     - ID: 2
       Name: main.LookAtTheRequest
-      OutOfLinePCRanges: [0xcfe0e0..0xcfe1a5]
+      OutOfLinePCRanges: [0xcfe0c0..0xcfe185]
       InlinePCRanges: []
       Variables:
         - Name: path
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0xcfe0e0..0xcfe105
+            - Range: 0xcfe0c0..0xcfe0e5
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}

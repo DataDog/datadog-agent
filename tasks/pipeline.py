@@ -2,12 +2,11 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import yaml
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabGetError
-from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -101,11 +100,13 @@ def auto_cancel_previous_pipelines(ctx):
     if git_ref == "":
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
 
-    git_sha = os.getenv("CI_COMMIT_SHA")
+    current_pipeline_id = int(os.environ["CI_PIPELINE_ID"])
 
     repo = get_gitlab_repo()
     pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
-    pipelines_without_current = [p for p in pipelines if p.sha != git_sha]
+    # A pipeline with a lower id than the current one was necessarily created earlier, so it is
+    # superseded by the current pipeline and can be cancelled, regardless of commit ancestry.
+    older_pipelines = [p for p in pipelines if p.id < current_pipeline_id]
     force_cancel_stages = [
         "package_build",
         # We want to cancel all KMT jobs to ensure proper cleanup of the KMT EC2 instances.
@@ -119,29 +120,9 @@ def auto_cancel_previous_pipelines(ctx):
         "kernel_matrix_testing_security_agent",
     ]
 
-    for pipeline in pipelines_without_current:
-        # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
-        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
-        if is_ancestor.exited == 0:
-            print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
-            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
-        elif is_ancestor.exited == 1:
-            print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
-        elif is_ancestor.exited == 128:
-            min_time_before_cancel = 5
-            print(
-                f'Could not determine if {pipeline.sha} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
-            )
-            if datetime.strptime(pipeline.created_at, "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.now() - timedelta(
-                minutes=min_time_before_cancel
-            ):
-                print(
-                    f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
-                )
-                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
-        else:
-            print(is_ancestor.stderr)
-            raise Exit(code=1)
+    for pipeline in older_pipelines:
+        print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
+        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
 
 
 @task
@@ -258,57 +239,6 @@ def run(
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
-    wait_for_pipeline(repo, pipeline)
-
-
-@task
-def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
-    """
-    Follow a pipeline's progress in the CLI.
-    Use --here to follow the latest pipeline on your current branch.
-    Use --git-ref to follow the latest pipeline on a given tag or branch.
-    Use --id to follow a specific pipeline.
-    Use --project-name to specify a repo other than DataDog/datadog-agent (default)
-
-    Examples:
-    dda inv pipeline.follow --git-ref my-branch
-    dda inv pipeline.follow --here
-    dda inv pipeline.follow --id 1234567
-    """
-
-    repo = get_gitlab_repo(project_name)
-
-    args_given = 0
-    if id is not None:
-        args_given += 1
-    if git_ref is not None:
-        args_given += 1
-    if here:
-        args_given += 1
-    if args_given != 1:
-        raise Exit(
-            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
-            code=1,
-        )
-
-    if id is not None:
-        pipeline = repo.pipelines.get(id)
-        wait_for_pipeline(repo, pipeline)
-    elif git_ref is not None:
-        wait_for_pipeline_from_ref(repo, git_ref)
-    elif here:
-        git_ref = get_current_branch(ctx)
-        wait_for_pipeline_from_ref(repo, git_ref)
-
-
-def wait_for_pipeline_from_ref(repo: Project, ref):
-    # Get last updated pipeline
-    pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at')
-    if len(pipelines) == 0:
-        print(f"No pipelines found for {ref}")
-        raise Exit(code=1)
-
-    pipeline = pipelines[0]
     wait_for_pipeline(repo, pipeline)
 
 

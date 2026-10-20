@@ -5,6 +5,12 @@
 
 package main
 
+import (
+	"context"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
+
 type receiver struct {
 	u uint
 }
@@ -132,7 +138,10 @@ func testEmptyStructPointer(e *emptyStruct) {}
 func testLotsOfFields(l lotsOfFields) {}
 
 //nolint:all
-func executeStructFuncs() {
+func executeStructFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.structs")
+	defer span.Finish()
+
 	ts := threestrings{"a", "bb", "ccc"}
 	testStringStruct(ts)
 

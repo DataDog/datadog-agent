@@ -23,10 +23,8 @@ import (
 // MutationFilter is an interface to determine if a pod should be mutated.
 type MutationFilter interface {
 	// ShouldMutatePod checks if a pod is mutable per explicit rules and
-	// the NSFilter if InjectionFilter has one.
+	// namespace configuration when applicable.
 	ShouldMutatePod(pod *corev1.Pod) bool
-	// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
-	IsNamespaceEligible(ns string) bool
 }
 
 // DefaultDisabledNamespaces returns the default namespaces that are disabled for injection/mutation.
@@ -53,7 +51,7 @@ func NewDefaultFilter(enabled bool, enabledNamespaces []string, disabledNamespac
 	}, err
 }
 
-// ShouldMutatePod checks if a pod is mutable per explicit rules and them validates the namespace.
+// ShouldMutatePod checks if a pod is mutable per explicit rules and then validates the namespace.
 func (f *DefaultFilter) ShouldMutatePod(pod *corev1.Pod) bool {
 	switch getPodMutationLabelFlag(pod) {
 	case podMutationDisabled:
@@ -62,15 +60,17 @@ func (f *DefaultFilter) ShouldMutatePod(pod *corev1.Pod) bool {
 		return true
 	}
 
-	if f.IsNamespaceEligible(pod.Namespace) {
+	if f.namespaceEligible(pod.Namespace) {
 		return true
 	}
 
 	return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled")
 }
 
-// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
-func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
+// namespaceEligible reports whether ns is covered by this filter's enabled/disabled
+// namespace lists. It is an implementation detail of DefaultFilter; callers should
+// use ShouldMutatePod.
+func (f *DefaultFilter) namespaceEligible(ns string) bool {
 	if !f.enabled {
 		log.Debugf("injection filter is disabled")
 		return false

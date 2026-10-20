@@ -115,6 +115,7 @@ type RawPacketActionReport struct {
 	Filter string                `json:"filter"`
 	Policy string                `json:"policy"`
 	Status RawPacketActionStatus `json:"status"`
+	Scope  string                `json:"scope"`
 
 	// internal
 	rule *rules.Rule

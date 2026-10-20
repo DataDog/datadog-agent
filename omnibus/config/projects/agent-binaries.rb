@@ -67,11 +67,8 @@ end
 # Dependencies
 # ------------------------------------
 
-# creates required build directories
-dependency 'preparation'
-
 # Datadog agent
-dependency 'datadog-iot-agent'
+dependency 'trace-agent-windows-cf'
 dependency 'datadog-dogstatsd'
 
 dependency 'datadog-buildpack-finalize'

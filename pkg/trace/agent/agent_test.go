@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -135,6 +136,25 @@ func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	m.lastPayload = tp
 }
 
+type mockTracerPayloadModifierV1 struct {
+	modifyCalled bool
+	lastPayload  *idx.InternalTracerPayload
+}
+
+func (m *mockTracerPayloadModifierV1) ModifyV1(tp *idx.InternalTracerPayload) {
+	m.modifyCalled = true
+	m.lastPayload = tp
+}
+
+type mockSpanModifierV1 struct {
+	modifiedSpans int
+}
+
+func (m *mockSpanModifierV1) ModifySpanV1(_ *idx.InternalTraceChunk, span *idx.InternalSpan) {
+	m.modifiedSpans++
+	span.SetStringAttribute("_dd.modified", "true")
+}
+
 type mockContainerTagsBuffer struct {
 	containertagsbuffer.NoOpTagsBuffer
 	enabled    bool
@@ -163,6 +183,7 @@ func TestFormatTrace(t *testing.T) {
 		&pb.Span{
 			Resource: resource,
 			Type:     "sql",
+			Meta:     map[string]string{"db.statement": resource},
 		},
 	}
 	result := formatTrace(testTrace)[0]
@@ -172,10 +193,11 @@ func TestFormatTrace(t *testing.T) {
 	assert.NotContains(result.Resource, "42")
 	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
 
-	assert.Equal(25003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
-	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
-	assert.NotContains(result.Meta["sql.query"], "42")
-	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
+	assert.NotContains(result.Meta, "sql.query")
+	assert.Equal(25003, len(result.Meta["db.statement"])) // Ellipsis added in quantizer
+	assert.NotEqual("Non-parsable SQL query", result.Meta["db.statement"])
+	assert.NotContains(result.Meta["db.statement"], "42")
+	assert.Contains(result.Meta["db.statement"], "SELECT name FROM people WHERE age = ?")
 }
 
 func TestStopWaits(t *testing.T) {
@@ -237,16 +259,19 @@ func TestStopWaits(t *testing.T) {
 
 	assert := assert.New(t)
 	assert.Len(mtw.payloads, 1)
-	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
+	outSpan := mtw.payloads[0].TracerPayload.Chunks[0].Spans[0]
+	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", outSpan.Resource)
+	assert.NotContains(outSpan.Meta, "sql.query")
 }
 
 func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
 		// • obfuscator runs before replacer
-		// • obfuscator obfuscates both resource and "sql.query" tag
+		// • obfuscator obfuscates both resource and "db.statement" tag
 		// • resulting resource is obfuscated with replacements applied
-		// • resulting "sql.query" tag is obfuscated with no replacements applied
+		// • resulting "db.statement" tag is obfuscated with no replacements applied
+		// • no "sql.query" tag is added
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.ReplaceTags = []*config.ReplaceRule{{
@@ -266,6 +291,7 @@ func TestProcess(t *testing.T) {
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"db.statement": "SELECT name FROM people WHERE age = 42 AND extra = 55"},
 		}
 
 		agnt.Process(&api.Payload{
@@ -275,7 +301,8 @@ func TestProcess(t *testing.T) {
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
-		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["db.statement"])
+		assert.NotContains(span.Meta, "sql.query")
 	})
 
 	t.Run("TracerPayloadModifier", func(t *testing.T) {
@@ -438,6 +465,30 @@ func TestProcess(t *testing.T) {
 		})
 		assert.EqualValues(2, want.TracesFiltered.Load())
 		assert.EqualValues(3, want.SpansFiltered.Load())
+	})
+
+	t.Run("Block-all-V1-does-not-write-empty-payload", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Ignore["resource"] = []string{".*"}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable()
+		span := testutil.GetTestSpanV1(strings)
+		span.SetResource("blocked resource")
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(span, int32(sampler.PriorityUserKeep))
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        want,
+		})
+
+		assert.EqualValues(t, 1, want.TracesFiltered.Load())
+		assert.EqualValues(t, 1, want.SpansFiltered.Load())
+		assert.Empty(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1)
 	})
 
 	t.Run("BlacklistPayload", func(t *testing.T) {
@@ -805,6 +856,144 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, 2, int(payload.SpanCount))
 		assert.NotContains(t, payload.TracerPayload.Chunks[0].Spans[0].Meta, "irrelevant")
 		assert.NotContains(t, payload.TracerPayload.Chunks[0].Spans[1].Meta, "irrelevant")
+	})
+
+	t.Run("TracerPayloadModifierV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		mockModifier := &mockTracerPayloadModifierV1{}
+		agnt.TracerPayloadModifierV1 = mockModifier
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		assert.True(t, mockModifier.modifyCalled, "TracerPayloadModifierV1.ModifyV1 should have been called")
+		assert.NotNil(t, mockModifier.lastPayload, "TracerPayloadModifierV1 should have received a payload")
+	})
+
+	t.Run("SpanModifierV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		mockModifier := &mockSpanModifierV1{}
+		agnt.SpanModifierV1 = mockModifier
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		assert.Positive(t, mockModifier.modifiedSpans, "SpanModifierV1.ModifySpanV1 should have been called")
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		got, ok := payloads[0].TracerPayload.Chunks[0].Spans[0].GetAttributeAsString("_dd.modified")
+		assert.True(t, ok)
+		assert.Equal(t, "true", got)
+	})
+
+	t.Run("DiscardSpansV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		agnt.DiscardSpanV1 = func(span *idx.InternalSpan) bool {
+			v, _ := span.GetAttributeAsString("irrelevant")
+			return v == "true"
+		}
+
+		strings := idx.NewStringTable()
+		span1 := idx.NewInternalSpan(strings, &idx.Span{SpanID: 1, ServiceRef: strings.Add("a")})
+		span1.SetStringAttribute("irrelevant", "true")
+		span2 := idx.NewInternalSpan(strings, &idx.Span{SpanID: 2, ServiceRef: strings.Add("a")})
+		span3 := idx.NewInternalSpan(strings, &idx.Span{SpanID: 3, ServiceRef: strings.Add("a")})
+
+		c := spansToChunkV1(span1, span2, span3)
+		c.Priority = 1
+		tp := testutil.TracerPayloadV1WithChunk(c)
+
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		payload := payloads[0]
+		assert.Equal(t, 2, int(payload.SpanCount))
+		for _, span := range payload.TracerPayload.Chunks[0].Spans {
+			_, ok := span.GetAttributeAsString("irrelevant")
+			assert.False(t, ok, "discarded span attribute should not be present")
+		}
+	})
+
+	t.Run("nilChunkV1", func(t *testing.T) {
+		// A converted v0.x payload (or a malformed native idx payload) can carry
+		// nil chunk entries. ProcessV1 must drop them instead of panicking.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		tp := &idx.InternalTracerPayload{
+			Strings: strings,
+			Chunks:  []*idx.InternalTraceChunk{nil, chunk, nil},
+		}
+
+		assert.NotPanics(t, func() {
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: tp,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		for _, c := range payloads[0].TracerPayload.Chunks {
+			assert.NotNil(t, c, "nil chunks should have been dropped")
+		}
+	})
+
+	t.Run("nilChunkV1WithDiscardSpan", func(t *testing.T) {
+		// discardSpansV1 runs before the chunk loop, so it must also tolerate nil chunks.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		agnt.DiscardSpanV1 = func(*idx.InternalSpan) bool { return false }
+
+		strings := idx.NewStringTable()
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		tp := &idx.InternalTracerPayload{
+			Strings: strings,
+			Chunks:  []*idx.InternalTraceChunk{nil, chunk},
+		}
+
+		assert.NotPanics(t, func() {
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: tp,
+				Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			})
+		})
 	})
 
 	t.Run("chunking", func(t *testing.T) {
@@ -2992,6 +3181,15 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 }
 
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
+	// The `test` build tag makes pkg/util/log write debug output to *stdout* (see
+	// pkg/util/log/log_test_init.go). That interleaves with the `go test -bench`
+	// result lines and makes the output unparseable by the benchmarking platform's
+	// GoBench parser, so silence it for the duration of the benchmark.
+	pkglog.SetupLogger(pkglog.Default(), "off")
+
+	// Disable the HTTP server to avoid colliding with a real agent on dev/CI machines.
+	c.ReceiverPort = 0
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	wg := sync.WaitGroup{}
 	defer wg.Wait()

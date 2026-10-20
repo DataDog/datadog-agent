@@ -1,0 +1,54 @@
+# Every way a tracer metadata read can fail puts the process on the same
+# schedule. Not being allowed to read a process is not treated as a verdict
+# about it, because permissions can change and the process is cheap to keep
+# asking about; the only terminal state is the process exiting. The two failures
+# below are indistinguishable from the outside on purpose, and differ only in
+# whether they are worth a log line.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  metadata_error: permission
+  tracer_metadata: {language: "go", service: "cannot-read"}
+- !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "not-published-yet"}
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  metadata_error: permission
+  tracer_metadata: {language: "go", service: "cannot-read"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "not-published-yet"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}, {pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001, 1002]
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}, {pid: 1002, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001, 1002]

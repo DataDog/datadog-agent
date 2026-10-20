@@ -81,6 +81,7 @@ func (c *Check) Run() error {
 
 	path.Namespace = c.config.Namespace
 	path.TestConfigID = c.config.TestConfigID
+	path.TestConfigName = c.config.TestConfigName
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
 	path.TestConfigSource = c.testConfigSource
@@ -156,6 +157,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	}
 	if provider != names.NetworkPathRemoteConfig {
 		config.TestConfigID = ""
+		config.TestConfigName = ""
 	}
 	c.config = config
 	return nil

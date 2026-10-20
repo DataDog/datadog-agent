@@ -36,9 +36,13 @@ type noopAutoConfig struct{}
 
 func (n *noopAutoConfig) AddConfigProvider(types.ConfigProvider, bool, time.Duration) {}
 
-func (n *noopAutoConfig) LoadAndRun(context.Context) {}
+func (n *noopAutoConfig) LoadAndRun(context.Context) error { return nil }
 
 func (n *noopAutoConfig) GetUnresolvedConfigs() []integration.Config {
+	return []integration.Config{}
+}
+
+func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
 	return []integration.Config{}
 }
 

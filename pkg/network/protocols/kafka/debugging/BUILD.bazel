@@ -6,9 +6,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/network/protocols",
-        "//pkg/network/protocols/kafka",
-        "//pkg/process/util",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/kafka",
+            "//pkg/process/util",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/kafka",
+            "//pkg/process/util",
+        ],
+        "//conditions:default": [],
+    }),
 )

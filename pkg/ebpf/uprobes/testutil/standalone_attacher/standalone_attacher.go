@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package standalone_attacher is a standalone attacher that can be used to attach probes to a process in a standalone
 // process (usually inside of a container). The attacher will listen for HTTP requests and will reply with the status of

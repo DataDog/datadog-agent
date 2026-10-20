@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package symdbprinter renders an uploader.Scope (i.e. the wire form of a
 // SymDB upload) as human-readable text. The rendering is suitable for golden

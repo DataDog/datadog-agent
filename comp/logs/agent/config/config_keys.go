@@ -249,7 +249,7 @@ func (l *LogsConfigKeys) batchMaxContentSize() int {
 	return batchMaxContentSize
 }
 
-func (l *LogsConfigKeys) inputChanSize() int {
+func (l *LogsConfigKeys) InputChanSize() int {
 	key := l.getConfigKey("input_chan_size")
 	inputChanSize := l.getConfig().GetInt(key)
 	if inputChanSize <= 0 {

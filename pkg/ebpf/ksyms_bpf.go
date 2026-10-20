@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package ebpf
 
@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 )
 
 type ksymIterProgram struct {
@@ -69,5 +70,5 @@ func GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 	}
 	defer ksymsReader.Close()
 
-	return GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
+	return ksyms.GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
 }

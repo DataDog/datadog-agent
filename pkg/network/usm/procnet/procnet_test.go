@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procnet
 
@@ -64,7 +64,7 @@ func TestGetTCPConnections(t *testing.T) {
 }
 
 // This benchmark is mostly intended to be executed as a source of pprof data:
-// go test -tags=linux_bpf -bench=BenchmarkGetTCPConnections -benchmem -cpuprofile cpu.prof -memprofile mem.prof
+// go test -tags=bpf -bench=BenchmarkGetTCPConnections -benchmem -cpuprofile cpu.prof -memprofile mem.prof
 func BenchmarkGetTCPConnections(b *testing.B) {
 	b.ReportAllocs()
 

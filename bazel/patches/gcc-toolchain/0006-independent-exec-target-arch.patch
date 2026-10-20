@@ -1,20 +1,39 @@
-From 25e9f409b39cc7d858ecfd7f85489e36ea71fbd8 Mon Sep 17 00:00:00 2001
+From 680b330fcd6312ca15e9571d5625508bd6152523 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
-Date: Tue, 4 Aug 2026 15:40:02 +0200
-Subject: [PATCH] support independent exec/target arch
+Date: Fri, 21 Aug 2026 08:15:33 +0200
+Subject: [PATCH 4/4] support independent exec/target arch
 
 Cross toolchains (e.g. an aarch64-hosted compiler targeting armv7)
 need exec_compatible_with independent from target_arch.
+
 ---
- toolchain/defs.bzl              | 23 +++++++++++++++++++----
+ toolchain/defs.bzl              | 32 ++++++++++++++++++++++++--------
  toolchain/module_extensions.bzl |  1 +
- 2 files changed, 20 insertions(+), 4 deletions(-)
+ 2 files changed, 25 insertions(+), 8 deletions(-)
 
 diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
-index 4e46f7d..bb031de 100644
+index affcef6..0d6578e 100644
 --- a/toolchain/defs.bzl
 +++ b/toolchain/defs.bzl
-@@ -107,6 +107,11 @@ def _gcc_toolchain_impl(rctx):
+@@ -403,6 +403,17 @@ _TOOLCHAIN_DECLARATION_ATTRS = {
+         doc = "constraint_values passed to target_compatible_with of the toolchain. {target_arch} is rendered to the target_arch attribute value.",
+         mandatory = False,
+     ),
++    "exec_compatible_with": attr.string_list(
++        default = [
++            "@platforms//os:linux",
++            "@platforms//cpu:{target_arch}",
++        ],
++        doc = "constraint_values passed to exec_compatible_with of the toolchain. {target_arch} is rendered to the" +
++              " target_arch attribute value. Defaults to matching target_arch (i.e. a native compiler), but must" +
++              " be overridden for genuine cross toolchains whose execution platform differs from target_arch" +
++              " (e.g. an aarch64-hosted compiler targeting armv7).",
++        mandatory = False,
++    ),
+     "target_settings": attr.string_list(
+         default = [],
+         doc = "Additional config_settings passed to target_settings of the toolchain, on top of the GCC version selection. {target_arch} is rendered to the target_arch attribute value.",
+@@ -442,6 +453,11 @@ def _gcc_toolchains_hub_impl(rctx):
          for v in rctx.attr.target_settings
      ]
 
@@ -23,67 +42,85 @@ index 4e46f7d..bb031de 100644
 +        for v in rctx.attr.exec_compatible_with
 +    ]
 +
-     builtin_include_directories = []
-     builtin_include_directories.extend(c_builtin_includes)
-     builtin_include_directories.extend(cxx_builtin_includes)
-@@ -212,6 +217,7 @@ def _gcc_toolchain_impl(rctx):
-         enable_fortran = str(rctx.attr.enable_fortran),
-         target_compatible_with = target_compatible_with,
-         target_settings = target_settings,
-+        exec_compatible_with = exec_compatible_with,
-         binary_prefix = binary_prefix,
-         include_prefix = include_prefix,
-
-@@ -370,6 +376,17 @@ _FEATURE_ATTRS = {
-         doc = "contraint_values passed to target_compatible_with of the toolchain. {target_arch} is rendered to the target_arch attribute value.",
-         mandatory = False,
-     ),
-+    "exec_compatible_with": attr.string_list(
-+        default = [
-+            "@platforms//os:linux",
-+            "@platforms//cpu:{target_arch}",
-+        ],
-+        doc = "contraint_values passed to exec_compatible_with of the toolchain. {target_arch} is rendered to the" +
-+              " target_arch attribute value. Defaults to matching target_arch (i.e. a native compiler), but must" +
-+              " be overridden for genuine cross toolchains whose execution platform differs from target_arch" +
-+              " (e.g. an aarch64-hosted compiler targeting armv7).",
-+        mandatory = False,
-+    ),
-     "target_settings": attr.string_list(
-         default = [],
-         doc = "config_settings passed to target_compatible_with of the toolchain. {target_arch} is rendered to the target_arch attribute value.",
-@@ -393,7 +410,7 @@ gcc_toolchain = repository_rule(
-
- ATTRS_SHARED_WITH_MODULE_EXTENSION = {
-     attr_name: _FEATURE_ATTRS[attr_name]
--    for attr_name in ["gcc_version", "gcc_versions", "enable_fortran", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "binary_prefix"]
-+    for attr_name in ["gcc_version", "gcc_versions", "enable_fortran", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "binary_prefix", "exec_compatible_with"]
+     toolchain_repos = rctx.attr.toolchain_repos
+     default_gcc_version = rctx.attr.default_gcc_version
+     if default_gcc_version not in toolchain_repos:
+@@ -480,6 +496,7 @@ def _gcc_toolchains_hub_impl(rctx):
+         setting = ":_gcc_version_default" if is_default else ":_gcc_version_" + _sanitize_version(gcc_version)
+         content.append(_HUB_TOOLCHAIN_TEMPLATE.format(
+             suffix = suffix,
++            exec_compatible_with = exec_compatible_with,
+             target_compatible_with = target_compatible_with,
+             target_settings = [setting] + extra_target_settings,
+             toolchain_repo = toolchain_repos[gcc_version],
+@@ -487,6 +504,7 @@ def _gcc_toolchains_hub_impl(rctx):
+         if rctx.attr.enable_fortran:
+             content.append(_HUB_FORTRAN_TOOLCHAIN_TEMPLATE.format(
+                 suffix = suffix,
++                exec_compatible_with = exec_compatible_with,
+                 target_compatible_with = target_compatible_with,
+                 target_settings = [setting] + extra_target_settings,
+                 toolchain_repo = toolchain_repos[gcc_version],
+@@ -558,6 +576,7 @@ ATTRS_SHARED_WITH_MODULE_EXTENSION = {
+         "extra_asmflags",
+         "binary_prefix",
+         "extra_target_compatible_with",
++        "exec_compatible_with",
+         "supports_param_files",
+     ]
  }
+@@ -684,6 +703,7 @@ def gcc_declare_toolchain(
+     gcc_versions = kwargs.pop("gcc_versions", json.encode(AVAILABLE_GCC_VERSIONS))
+     enable_fortran = kwargs.pop("enable_fortran", True)
+     extra_target_compatible_with = kwargs.pop("extra_target_compatible_with", [])
++    exec_compatible_with = kwargs.pop("exec_compatible_with", None)
+     target_compatible_with = kwargs.pop("target_compatible_with", None)
+     target_settings = kwargs.pop("target_settings", [])
 
- def _render_tool_paths(rctx, path_prefix, binary_prefix):
-@@ -549,10 +566,7 @@ package(default_visibility = ["//visibility:public"])
+@@ -725,6 +745,8 @@ def gcc_declare_toolchain(
+     # one may fall back to the attribute default.
+     if target_compatible_with != None:
+         hub_kwargs["target_compatible_with"] = target_compatible_with
++    if exec_compatible_with != None:
++        hub_kwargs["exec_compatible_with"] = exec_compatible_with
 
+     # The hub BUILD file resolves @bazel_skylib, @platforms and @rules_cc as well, so it needs the
+     # same repository mapping as the per-version repositories.
+@@ -812,10 +834,7 @@ package(default_visibility = ["//visibility:public"])'''
+ _HUB_TOOLCHAIN_TEMPLATE = '''\
  toolchain(
-     name = "cc_toolchain",
+     name = "cc_toolchain{suffix}",
 -    exec_compatible_with = [
 -        "@platforms//os:linux",
--        "@platforms//cpu:{target_arch}",
+-        "@platforms//cpu:x86_64",
 -    ],
 +    exec_compatible_with = {exec_compatible_with},
      target_compatible_with = {target_compatible_with},
      target_settings = {target_settings},
-     toolchain = ":_cc_toolchain",
+     toolchain = "@{toolchain_repo}//:_cc_toolchain",
+@@ -825,10 +844,7 @@ toolchain(
+ _HUB_FORTRAN_TOOLCHAIN_TEMPLATE = '''\
+ toolchain(
+     name = "fortran_toolchain{suffix}",
+-    exec_compatible_with = [
+-        "@platforms//os:linux",
+-        "@platforms//cpu:x86_64",
+-    ],
++    exec_compatible_with = {exec_compatible_with},
+     target_compatible_with = {target_compatible_with},
+     target_settings = {target_settings},
+     toolchain = "@{toolchain_repo}//:_fortran_toolchain",
 diff --git a/toolchain/module_extensions.bzl b/toolchain/module_extensions.bzl
-index 82e133d..7b30fa3 100644
+index a940de7..3344b42 100644
 --- a/toolchain/module_extensions.bzl
 +++ b/toolchain/module_extensions.bzl
-@@ -21,6 +21,7 @@ def _gcc_register_toolchain_module_extension(mctx):
+@@ -22,6 +22,7 @@ def _gcc_register_toolchain_module_extension(mctx):
                  extra_ldflags = declare.extra_ldflags,
                  extra_fflags = declare.extra_fflags,
-                 binary_prefix = declare.binary_prefix,
+                 extra_target_compatible_with = declare.extra_target_compatible_with,
 +                exec_compatible_with = declare.exec_compatible_with,
+                 supports_param_files = declare.supports_param_files,
              )
 
-     # Since we know that for each gcc toolchain repository we'll generate the same files, we mark the rule as reproducible.
 --
-2.43.0
+2.52.0

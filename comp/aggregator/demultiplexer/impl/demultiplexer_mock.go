@@ -16,7 +16,6 @@ import (
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -72,7 +71,6 @@ func newMock(deps mockDependencies) MockProvides {
 		Log:                deps.Log,
 		Hostname:           deps.Hostname,
 		SharedForwarder:    defaultforwardernoop.NewComponent(),
-		LogsCompression:    logscompressionmock.NewMockCompressor(),
 		MetricsCompression: metricscompressionmock.NewMockCompressor(),
 		HaAgent:            haagentmock.NewMockHaAgent(),
 		FilterList:         filterlistmock.NewMockFilterList(),

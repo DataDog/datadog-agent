@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Agent OTLP Ingest no longer attaches the OpenTelemetry
+    ``debugexporter`` by default. The ``debugexporter`` is now attached only when
+    the ``otlp_config.debug`` section is explicitly configured. Declaring the
+    section without a verbosity uses the default verbosity (``basic``), while
+    setting ``otlp_config.debug.verbosity`` (or ``DD_OTLP_CONFIG_DEBUG_VERBOSITY``)
+    to ``basic``, ``normal``, or ``detailed`` selects the verbosity. Setting it to
+    ``none`` leaves the exporter detached.

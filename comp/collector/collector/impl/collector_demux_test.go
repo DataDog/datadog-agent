@@ -25,7 +25,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -85,7 +84,6 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.demux = demultiplexerimpl.NewFakeSamplerMock(
 		logmock.New(suite.T()),
 		hostname,
-		logscompressionmock.NewMockCompressor(),
 		metricscompressionmock.NewMockCompressor(),
 	)
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)

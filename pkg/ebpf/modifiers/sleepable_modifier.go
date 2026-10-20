@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package modifiers
 
@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,7 +54,7 @@ func SleepableSyscallsSupported() (bool, error) {
 		return false, nil
 	}
 
-	missing, err := ddebpf.VerifyKernelFuncs("error_injection_list")
+	missing, err := ksyms.VerifyKernelFuncs("error_injection_list")
 	if err != nil {
 		return false, err
 	}

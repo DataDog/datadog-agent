@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -30,6 +31,8 @@ import (
 const (
 	filePerm = 0644
 )
+
+var archiveNameCounter atomic.Uint64
 
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
 	fb := &builder{
@@ -144,7 +147,10 @@ type builder struct {
 }
 
 func getArchiveName() string {
-	t := time.Now().UTC()
+	return getArchiveNameForTime(time.Now().UTC(), newArchiveNameID())
+}
+
+func getArchiveNameForTime(t time.Time, uniqueSuffix string) string {
 	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
 
 	logLevel, err := log.GetLogLevel()
@@ -153,7 +159,11 @@ func getArchiveName() string {
 		logLevelString = "-" + logLevel.String()
 	}
 
-	return fmt.Sprintf("datadog-agent-%s%s.zip", timeString, logLevelString)
+	return fmt.Sprintf("datadog-agent-%s-%s%s.zip", timeString, uniqueSuffix, logLevelString)
+}
+
+func newArchiveNameID() string {
+	return fmt.Sprintf("%d-%d", os.Getpid(), archiveNameCounter.Add(1))
 }
 
 func (fb *builder) Save() (string, error) {
@@ -186,7 +196,7 @@ func (fb *builder) Save() (string, error) {
 
 		jsonData, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling non-scrubbed files to JSON: %v", err)
+			return nil, fmt.Errorf("error marshaling non-scrubbed files to JSON: %w", err)
 		}
 
 		return jsonData, nil

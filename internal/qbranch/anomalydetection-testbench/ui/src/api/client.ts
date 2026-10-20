@@ -92,15 +92,18 @@ export interface ComponentInfo {
 }
 
 export interface SeriesInfo {
-  id: SeriesID;
-  namespace: string;
-  name: string;
-  tags: string[];
+	id: SeriesID;
+	namespace: string;
+	name: string;
+	host?: string;
+	tags: string[];
   pointCount: number;
   /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
   /** Telemetry metrics: counter deltas use :sum and cumulative display; gauges use the selected aggregation. */
   metricKind?: 'gauge' | 'counter';
+  /** Recorded input metric types for this series, when available. */
+  metricTypes?: string[];
 }
 
 export interface Point {
@@ -117,10 +120,11 @@ export interface AnomalyMarker {
 }
 
 export interface SeriesData {
-  id: SeriesID;
-  namespace: string;
-  name: string;
-  tags: string[];
+	id: SeriesID;
+	namespace: string;
+	name: string;
+	host?: string;
+	tags: string[];
   points: Point[];
   anomalies: AnomalyMarker[];
 }
@@ -133,10 +137,8 @@ export interface AnomalyDebugInfo {
   baselineStddev?: number;
   baselineMAD?: number;
   threshold: number;
-  slackParam?: number;
   currentValue: number;
   deviationSigma: number;
-  cusumValues?: number[];
 }
 
 export interface Anomaly {
@@ -145,8 +147,9 @@ export interface Anomaly {
   detectorName: string;
   detectorComponent?: string;
   title: string;
-  description: string;
-  tags: string[];
+	description: string;
+	host?: string;
+	tags: string[];
   timestamp: number;
   debugInfo?: AnomalyDebugInfo;
 }
@@ -208,6 +211,7 @@ export interface Correlation {
     title: string;
     description: string;
     timestamp: number;
+    host?: string;
     tags: string[];
   }[];
   firstSeen: number;
@@ -317,10 +321,20 @@ export interface SeverityEvent {
   to_level: number;
 }
 
+/** Contributor report captured when the scorer opens an episode. */
+export interface ScorerReport {
+  timestamp: number;
+  contributors: Array<{
+    name: string;
+    share: number;
+  }>;
+}
+
 /** Full snapshot of the scorer's state — what /api/scores returns. */
 export interface ScoreState {
   buckets: ScoreBucket[];
   events: SeverityEvent[];
+  reports?: ScorerReport[];
   config: ScorerConfig;
 }
 

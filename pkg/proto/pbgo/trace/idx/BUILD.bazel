@@ -38,6 +38,8 @@ dd_agent_go_test(
         "span_marshal_test.go",
         "span_test.go",
         "span_v05_test.go",
+        "string_intern_bench_test.go",
+        "string_intern_test.go",
         "string_table_guard_test.go",
         "tracer_payload_test.go",
     ],

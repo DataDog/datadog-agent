@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package http
 
@@ -77,4 +77,50 @@ func TestOrphanEntries(t *testing.T) {
 		_ = buffer.Flush()
 		require.Empty(t, buffer.data)
 	})
+}
+
+func TestFlushMatchesOutOfOrderTransactionsByTimestamp(t *testing.T) {
+	newRequest := func(path string, started time.Time) *EbpfEvent {
+		e := &EbpfEvent{Http: EbpfTx{
+			Request_fragment: requestFragment([]byte("GET " + path)),
+			Request_started:  uint64(started.UnixNano()),
+		}}
+		e.Tuple.Sport = 60000
+		return e
+	}
+	newResponse := func(status uint16, lastSeen time.Time) *EbpfEvent {
+		e := &EbpfEvent{Http: EbpfTx{
+			Response_status_code: status,
+			Response_last_seen:   uint64(lastSeen.UnixNano()),
+		}}
+		e.Tuple.Sport = 60000
+		return e
+	}
+
+	now := time.Now()
+	at := func(seconds int) time.Time { return now.Add(time.Duration(seconds) * time.Second) }
+	buffer := NewIncompleteBuffer(config.New(), NewTelemetry("http"))
+
+	// A: request at t0/response at t1, B: t2/t3, C: t4/t5, added out-of-order.
+	buffer.Add(newResponse(404, at(5))) // C's response
+	buffer.Add(newRequest("/a", at(0)))
+	buffer.Add(newResponse(500, at(1))) // A's response
+	buffer.Add(newRequest("/c", at(4)))
+	buffer.Add(newRequest("/b", at(2)))
+	buffer.Add(newResponse(200, at(3))) // B's response
+
+	flushed := buffer.Flush()
+	require.Len(t, flushed, 3)
+
+	pathA, _ := flushed[0].Path(make([]byte, 256))
+	assert.Equal(t, "/a", string(pathA))
+	assert.Equal(t, uint16(500), flushed[0].StatusCode())
+
+	pathB, _ := flushed[1].Path(make([]byte, 256))
+	assert.Equal(t, "/b", string(pathB))
+	assert.Equal(t, uint16(200), flushed[1].StatusCode())
+
+	pathC, _ := flushed[2].Path(make([]byte, 256))
+	assert.Equal(t, "/c", string(pathC))
+	assert.Equal(t, uint16(404), flushed[2].StatusCode())
 }

@@ -79,7 +79,7 @@ network_devices:
 
 	// Keys are declared with a default, no warnings generated
 	warnings := conf.Warnings()
-	assert.Equal(t, 0, len(warnings.Errors))
+	assert.Equal(t, 0, len(warnings))
 
 	type simpleConfig struct {
 		Workers int `mapstructure:"workers"`

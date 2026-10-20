@@ -91,6 +91,10 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	return tr, nil
 }
 
+// PrepareStop does nothing here. Only the Windows tracer has a collection path
+// that shutdown can be left waiting on; see the Windows implementation.
+func (t *Tracer) PrepareStop() {}
+
 // Stop halts all network monitoring.
 func (t *Tracer) Stop() {
 	if t.connTracer != nil {
@@ -168,12 +172,24 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+// GetProcessCacheTags is not implemented on Darwin
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	return nil
+}
+
 // GetStats returns telemetry statistics
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
+	backendStatus := t.connectionTracerStatus()
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
 		"tracer": map[string]interface{}{
-			"type": "darwin_pcap",
+			"type":               t.connectionTracerType(),
+			"active_backend":     backendStatus.ActiveBackend,
+			"nstat_abi_revision": backendStatus.ABIRevision,
+			"source_healthy":     backendStatus.SourceHealthy,
+			"runtime_fallback":   backendStatus.RuntimeFallback,
+			"packet_enrichment":  backendStatus.PacketEnrichment,
+			"last_error":         backendStatus.LastError,
 		},
 	}
 
@@ -188,9 +204,26 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 // DebugNetworkState returns the current network state for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"state":       t.state.DumpState(clientID),
-		"tracer_type": "darwin_pcap",
+		"state":         t.state.DumpState(clientID),
+		"tracer_type":   t.connectionTracerType(),
+		"tracer_status": t.connectionTracerStatus(),
 	}, nil
+}
+
+func (t *Tracer) connectionTracerStatus() connection.DarwinTracerStatus {
+	return connection.GetDarwinTracerStatus(t.connTracer)
+}
+
+func (t *Tracer) connectionTracerType() string {
+	tracerType := t.connTracer.Type()
+	switch tracerType {
+	case connection.TracerTypeNStat:
+		return "darwin_nstat"
+	case connection.TracerTypeDarwin:
+		return "darwin_pcap"
+	default:
+		return fmt.Sprintf("darwin_unknown_%d", tracerType)
+	}
 }
 
 // DebugNetworkMaps returns connections for debugging (similar to GetActiveConnections but without delta)

@@ -39,7 +39,7 @@ func ValidateSocketAddress(sockAddress string) error {
 	return nil
 }
 
-// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+// eBPFMapPreallocationSupported returns false on non bpf systems.
 func eBPFMapPreallocationSupported() bool {
 	return false
 }
@@ -51,7 +51,7 @@ func ProcessEventDataStreamSupported() bool {
 
 // DirectSendSupported returns true if sending data CNM/USM directly from system-probe is supported
 func DirectSendSupported() bool {
-	return false
+	return true
 }
 
 // RedisMonitoringSupported returns false on windows as eBPF is not supported

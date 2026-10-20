@@ -32,17 +32,22 @@ func main() {
 }
 
 func generate(outputDir string) error {
-	for _, lay := range windowsProcmgrLayouts {
-		if err := lay.writeFilesToSubdir(outputDir); err != nil {
-			return err
-		}
-	}
-	for _, lay := range linuxProcmgrYAMLLayouts {
-		if err := lay.writeFilesToSubdir(outputDir); err != nil {
-			return err
-		}
-	}
 	for _, lay := range systemdEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
+	for _, lay := range procmgrEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
+	for _, lay := range windowsEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
+	for _, lay := range launchdEmbeddedLayouts {
 		if err := lay.writeFilesToSubdir(outputDir); err != nil {
 			return err
 		}
@@ -56,17 +61,48 @@ func generate(outputDir string) error {
 var embedded embed.FS
 
 type installerTemplateData struct {
-	InstallDir                   string
-	EtcDir                       string
-	FleetPoliciesDir             string
-	PIDDir                       string
-	Stable                       bool
-	AmbiantCapabilitiesSupported bool
+	InstallDir       string
+	EtcDir           string
+	FleetPoliciesDir string
+	PIDDir           string
+	Stable           bool
 }
 
 type templateData struct {
 	installerTemplateData
 	AmbiantCapabilitiesSupported bool
+	Procmgr                      bool
+}
+
+// launchdTemplateData parameterises a launchd job definition.
+//
+// The stable and the -exp job sets are rendered from the same templates, which is what keeps
+// them from drifting: a change to a job is one edit and both sets pick it up. They differ only
+// in the fields below.
+type launchdTemplateData struct {
+	// LabelSuffix is appended to the job label and to its log file name: empty for the stable
+	// set, "-exp" for the experiment set.
+	LabelSuffix string
+	// ProgramDir is the install root the job's program is resolved under. Both sets name the
+	// same root: a configuration experiment does not change which binaries run.
+	ProgramDir string
+	// EtcDir is the configuration directory the job reads. launchd cannot supply a
+	// configuration path at load time, so the definition names it itself.
+	EtcDir string
+	// Supervised reports whether launchd relaunches the job on an unsuccessful exit. The -exp
+	// set omits KeepAlive entirely, which is what makes an experiment's exit terminal rather
+	// than one iteration of a respawn loop.
+	Supervised bool
+	// Stable distinguishes the two sets for everything that is neither supervision nor a path,
+	// such as the experiment-only environment variables.
+	Stable bool
+
+	// The remaining fields are the fixed state root. State is singular: one pidfile, one run
+	// directory, one log directory, whichever job set is loaded.
+	RunDir     string
+	LogDir     string
+	AgentUser  string
+	AgentGroup string
 }
 
 type embeddedLayout struct {
@@ -88,7 +124,7 @@ func (l embeddedLayout) writeFilesToSubdir(root string) error {
 	return nil
 }
 
-func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
+func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool, procmgr bool) []byte {
 	tmpl, err := template.ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
@@ -97,50 +133,98 @@ func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabili
 	if err := tmpl.Execute(&buf, templateData{
 		installerTemplateData:        data,
 		AmbiantCapabilitiesSupported: ambiantCapabilitiesSupported,
+		Procmgr:                      procmgr,
 	}); err != nil {
 		panic(err)
 	}
 	return buf.Bytes()
 }
 
-func mustReadSystemdUnit(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
-	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
+func mustReadUnit(name string, data installerTemplateData, ambiantCapabilitiesSupported bool, procmgr bool) []byte {
+	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported, procmgr)
 }
 
 func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
-	return mustRenderTemplate(name+".tmpl", data, false)
+	return mustRenderTemplate(name+".tmpl", data, false, true)
 }
 
-func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
+	tmpl, err := template.ParseFS(embedded, name+".tmpl")
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// jobSetLaunchd renders both launchd job sets. The installer and procmgr daemons have no -exp variant.
+func jobSetLaunchd(stableData, expData launchdTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-installer-exp.service":  mustReadSystemdUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-data-plane.service":     mustReadSystemdUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-data-plane-exp.service": mustReadSystemdUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-trace.service":          mustReadSystemdUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-trace-exp.service":      mustReadSystemdUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-process.service":        mustReadSystemdUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-process-exp.service":    mustReadSystemdUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-security.service":       mustReadSystemdUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-security-exp.service":   mustReadSystemdUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-sysprobe.service":       mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-sysprobe-exp.service":   mustReadSystemdUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
+		"com.datadoghq.installer.plist":      mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),
+		"com.datadoghq.procmgr.plist":        mustRenderLaunchdJob("com.datadoghq.procmgr.plist", stableData),
+		"com.datadoghq.agent.plist":          mustRenderLaunchdJob("com.datadoghq.agent.plist", stableData),
+		"com.datadoghq.agent-exp.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", expData),
+		"com.datadoghq.sysprobe.plist":       mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", stableData),
+		"com.datadoghq.sysprobe-exp.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", expData),
+		"com.datadoghq.data-plane.plist":     mustRenderLaunchdJob("com.datadoghq.data-plane.plist", stableData),
+		"com.datadoghq.data-plane-exp.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", expData),
 	}
 }
 
-func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
+func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	units := map[string][]byte{
+		"datadog-agent.service":                mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-exp.service":            mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-installer.service":      mustReadUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-installer-exp.service":  mustReadUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-data-plane.service":     mustReadUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-data-plane-exp.service": mustReadUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-trace.service":          mustReadUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-trace-exp.service":      mustReadUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-process.service":        mustReadUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-process-exp.service":    mustReadUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-security.service":       mustReadUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-security-exp.service":   mustReadUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-sysprobe.service":       mustReadUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-sysprobe-exp.service":   mustReadUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-action.service":         mustReadUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-action-exp.service":     mustReadUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-ddot.service":           mustReadUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-ddot-exp.service":       mustReadUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported, false),
+	}
+	return units
+}
+
+func unitSetPrivilegedRshell(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml":        mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
-		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", stableData),
+		"datadog-agent-rshell-privileged.service":     mustReadUnit("datadog-agent-rshell-privileged.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged-exp.service": mustReadUnit("datadog-agent-rshell-privileged.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged.socket":      mustReadUnit("datadog-agent-rshell-privileged.socket", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged-exp.socket":  mustReadUnit("datadog-agent-rshell-privileged.socket", expData, ambiantCapabilitiesSupported, false),
+	}
+}
+
+// For memory efficiency, procmgr units only defines the units that are different from the systemd units.
+// Getting the procmgr units will fallback to the systemd units if not find.
+func unitSetProcmgr(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	units := map[string][]byte{
+		"datadog-agent.service":             mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-exp.service":         mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-procmgr.service":     mustReadUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-procmgr-exp.service": mustReadUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported, true),
+	}
+	return units
+}
+
+func yamlSet() map[string][]byte {
+	return map[string][]byte{
+		// The files are always the same, nothing to resolve from the template
+		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
+		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", installerTemplateData{}),
+		"datadog-agent-par-control.yaml":     mustRenderYAMLConfig("datadog-agent-par-control.yaml", installerTemplateData{}),
 	}
 }
 
@@ -199,22 +283,96 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
-	windowsProcmgrLayouts = []embeddedLayout{
+	windowsProcessCodegenData = installerTemplateData{
+		InstallDir:       "__PROCESS_INSTALL_ROOT__",
+		EtcDir:           "__PROCESS_ETC_ROOT__",
+		FleetPoliciesDir: "__PROCESS_FLEET_POLICIES_DIR__",
+		PIDDir:           "__PROCESS_INSTALL_ROOT__",
+		Stable:           true,
+	}
+	windowsSysprobeCodegenData = installerTemplateData{
+		InstallDir:       "__SYSPROBE_INSTALL_ROOT__",
+		EtcDir:           "__SYSPROBE_ETC_ROOT__",
+		FleetPoliciesDir: "__SYSPROBE_FLEET_POLICIES_DIR__",
+		PIDDir:           "__SYSPROBE_INSTALL_ROOT__",
+		Stable:           true,
+	}
+	windowsTraceCodegenData = installerTemplateData{
+		InstallDir:       "__TRACE_INSTALL_ROOT__",
+		EtcDir:           "__TRACE_ETC_ROOT__",
+		FleetPoliciesDir: "__TRACE_FLEET_POLICIES_DIR__",
+		PIDDir:           "__TRACE_INSTALL_ROOT__",
+		Stable:           true,
+	}
+	windowsSecurityCodegenData = installerTemplateData{
+		InstallDir:       "__SECURITY_INSTALL_ROOT__",
+		EtcDir:           "__SECURITY_ETC_ROOT__",
+		FleetPoliciesDir: "__SECURITY_FLEET_POLICIES_DIR__",
+		PIDDir:           "__SECURITY_INSTALL_ROOT__",
+		Stable:           true,
+	}
+
+	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
+	// and -nocap (instead of -nc)
+	// but windows has a limit of file path length, so we use shorter names
+	systemdEmbeddedLayouts = []embeddedLayout{
+		{subdir: "sd/oci", units: unitSetSystemd(stableDataOCI, expDataOCI, true)},
+		{subdir: "sd/debrpm", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "sd/oci-nc", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
+		{subdir: "sd/debrpm-nc", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
+		// The rshell-only paths are short enough for Windows checkouts without
+		// renaming the existing generated systemd fixture tree.
+		{subdir: "r/o", units: unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)},
+		{subdir: "r/d", units: unitSetPrivilegedRshell(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "r/on", units: unitSetPrivilegedRshell(stableDataOCI, expDataOCI, false)},
+		{subdir: "r/dn", units: unitSetPrivilegedRshell(stableDataDebRpm, expDataDebRpm, false)},
+	}
+	procmgrEmbeddedLayouts = []embeddedLayout{
+		{subdir: "pm/oci", units: unitSetProcmgr(stableDataOCI, expDataOCI, true)},
+		{subdir: "pm/debrpm", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "pm/oci-nc", units: unitSetProcmgr(stableDataOCI, expDataOCI, false)},
+		{subdir: "pm/debrpm-nc", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, false)},
+		{subdir: "pm/processes.d", units: yamlSet()},
+	}
+	// macOS has a single install root: /opt/datadog-agent holds the binaries alongside etc,
+	// etc-exp, run and logs. A configuration experiment changes only which configuration
+	// directory the Agent reads, so both job sets run the very same binaries and differ in
+	// EtcDir, the label suffix and whether launchd keeps them alive.
+	stableDataLaunchd = launchdTemplateData{
+		LabelSuffix: "",
+		ProgramDir:  "/opt/datadog-agent",
+		EtcDir:      "/opt/datadog-agent/etc",
+		Supervised:  true,
+		Stable:      true,
+		RunDir:      "/opt/datadog-agent/run",
+		LogDir:      "/opt/datadog-agent/logs",
+		AgentUser:   "_dd-agent",
+		AgentGroup:  "daemon",
+	}
+	expDataLaunchd = launchdTemplateData{
+		LabelSuffix: "-exp",
+		ProgramDir:  "/opt/datadog-agent",
+		EtcDir:      "/opt/datadog-agent/etc-exp",
+		Supervised:  false,
+		Stable:      false,
+		RunDir:      "/opt/datadog-agent/run",
+		LogDir:      "/opt/datadog-agent/logs",
+		AgentUser:   "_dd-agent",
+		AgentGroup:  "daemon",
+	}
+
+	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-sysprobe.yaml", "datadog-agent-sysprobe-windows.yaml", windowsSysprobeCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-trace.yaml", "datadog-agent-trace-windows.yaml", windowsTraceCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-security.yaml", "datadog-agent-security-windows.yaml", windowsSecurityCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},
 	}
-	linuxProcmgrYAMLLayouts = []embeddedLayout{
-		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
-		{subdir: "oci-nocap", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
-		{subdir: "debrpm", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
-		{subdir: "debrpm-nocap", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
-	}
-	systemdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "oci", units: systemdUnits(stableDataOCI, expDataOCI, true)},
-		{subdir: "debrpm", units: systemdUnits(stableDataDebRpm, expDataDebRpm, true)},
-		{subdir: "oci-nocap", units: systemdUnits(stableDataOCI, expDataOCI, false)},
-		{subdir: "debrpm-nocap", units: systemdUnits(stableDataDebRpm, expDataDebRpm, false)},
+	launchdEmbeddedLayouts = []embeddedLayout{
+		{subdir: "darwin", units: jobSetLaunchd(stableDataLaunchd, expDataLaunchd)},
 	}
 )

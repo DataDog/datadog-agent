@@ -7,9 +7,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"runtime"
 	"strconv"
 	"sync/atomic"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 var atomicCounter uint64
@@ -48,7 +51,10 @@ func returnGoroutineId() uint64 {
 
 //nolint:all
 //go:noinline
-func executeOther() {
+func executeOther(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.other")
+	defer span.Finish()
+
 	x := make(chan bool)
 	testChannel(x)
 	testAtomicAdd(1)

@@ -1,0 +1,390 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package benchmarkeks provisions an EKS cluster partitioned into dedicated node pools
+// so a baseline and a comparison version of the Agent can be compared side by side. What
+// it compares is the resource footprint of the two Agents — CPU, memory, goroutines,
+// uploaded profiles — while both monitor a strictly identical workload; the workload's
+// own performance is not measured. KWOK simulates a large number of nodes/objects and the
+// churn orchestrator continuously creates and deletes workloads.
+package benchmarkeks
+
+import (
+	_ "embed"
+	"maps"
+
+	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
+	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/churn"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/kwok"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	scenarioEks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+)
+
+const nbNode = 3
+
+//go:embed simple_check.py
+var simpleCheckPy string
+
+// internalProfilingEnv makes the Agents upload their profiles. The chart only passes
+// datadog.env[Dict] to the node Agent, so it is also set on the Cluster Agent and the
+// cluster checks runner. It goes in envDict because Helm replaces lists from a later
+// values file, which would drop the env entries of the e2e framework defaults.
+var internalProfilingEnv = map[string]string{
+	"DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE":           "10000",
+	"DD_INTERNAL_PROFILING_ENABLE_BLOCK_PROFILING":       "true",
+	"DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES": "true",
+	"DD_INTERNAL_PROFILING_ENABLE_MUTEX_PROFILING":       "true",
+	"DD_INTERNAL_PROFILING_ENABLED":                      "true",
+	"DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION":       "100",
+}
+
+// apmSocketDir is the host directory of the trace Agent socket of the node Agent
+// (datadog.apm.hostSocketPath and datadog.apm.socketPath chart defaults).
+const apmSocketDir = "/var/run/datadog"
+
+// Run is the entry point for the benchmarkeks scenario when run via Pulumi.
+func Run(ctx *pulumi.Context) error {
+	awsEnv, err := resourcesAws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+
+	cluster, err := scenarioEks.NewCluster(awsEnv, "eks")
+	if err != nil {
+		return err
+	}
+
+	if err := cluster.Export(ctx, nil); err != nil {
+		return err
+	}
+
+	for _, ng := range []struct {
+		role    string
+		variant string
+		nbNode  int
+	}{
+		{
+			role:    "node-agent",
+			variant: "baseline",
+			nbNode:  nbNode,
+		},
+		{
+			role:    "node-agent",
+			variant: "comparison",
+			nbNode:  nbNode,
+		},
+		{
+			role:    "cluster-agent",
+			variant: "baseline",
+			nbNode:  1,
+		},
+		{
+			role:    "cluster-agent",
+			variant: "comparison",
+			nbNode:  1,
+		},
+		{
+			role:    "cluster-checks",
+			variant: "baseline",
+			nbNode:  1,
+		},
+		{
+			role:    "cluster-checks",
+			variant: "comparison",
+			nbNode:  1,
+		},
+	} {
+		// The dependency on the cluster component makes the node groups wait for the
+		// CNI custom-networking setup (ENIConfig + aws-node patch) before joining: a
+		// dependsOn on a component resource extends to all of its children.
+		if _, err := eks.NewManagedNodeGroup(ctx, "ng-"+ng.role+"-"+ng.variant, &eks.ManagedNodeGroupArgs{
+			Cluster:             cluster.Cluster.Core,
+			InstanceTypes:       pulumi.ToStringArray([]string{awsEnv.DefaultInstanceType()}),
+			ForceUpdateVersion:  pulumi.BoolPtr(true),
+			NodeGroupNamePrefix: awsEnv.CommonNamer().DisplayName(37, pulumi.String("ng"), pulumi.String(ng.role), pulumi.String(ng.variant)),
+			ScalingConfig: awsEks.NodeGroupScalingConfigArgs{
+				DesiredSize: pulumi.Int(ng.nbNode),
+				MaxSize:     pulumi.Int(ng.nbNode),
+				MinSize:     pulumi.Int(ng.nbNode),
+			},
+			NodeRole: cluster.Cluster.InstanceRoles.Index(pulumi.Int(0)),
+			Labels: pulumi.StringMap{
+				"benchmark.datadoghq.com/role":    pulumi.String(ng.role),
+				"benchmark.datadoghq.com/variant": pulumi.String(ng.variant),
+			},
+			Taints: awsEks.NodeGroupTaintArray{
+				awsEks.NodeGroupTaintArgs{
+					Key:    pulumi.String("benchmark.datadoghq.com/role"),
+					Value:  pulumi.String(ng.role),
+					Effect: pulumi.String("NO_SCHEDULE"),
+				},
+				awsEks.NodeGroupTaintArgs{
+					Key:    pulumi.String("benchmark.datadoghq.com/variant"),
+					Value:  pulumi.String(ng.variant),
+					Effect: pulumi.String("NO_SCHEDULE"),
+				},
+			},
+			RemoteAccess: awsEks.NodeGroupRemoteAccessArgs{
+				Ec2SshKey:              pulumi.StringPtr(awsEnv.DefaultKeyPairName()),
+				SourceSecurityGroupIds: pulumi.ToStringArray(awsEnv.EKSAllowedInboundSecurityGroups()),
+			},
+		}, awsEnv.WithProviders(config.ProviderAWS, config.ProviderEKS), utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+	}
+
+	if _, err := kwok.K8sAppDefinition(&awsEnv, cluster.KubeProvider); err != nil {
+		return err
+	}
+
+	// The Agent installations and the churn orchestrator both require the Agent API
+	// key (via Helm and the churn Fargate sidecar), which is only configured when the
+	// Agent is deployed. Skip them when the Agent is disabled (--no-install-agent).
+	if !awsEnv.AgentDeploy() {
+		return nil
+	}
+
+	var agentDeps []pulumi.Resource
+
+	// The profiler uploads to a trace Agent on localhost:8126 by default, which only the
+	// node Agent pod runs. The Cluster Agent and the cluster checks runner upload instead
+	// to the trace Agent of the node Agent of their node, through its socket mounted from
+	// the host.
+	clusterProfilingEnv := maps.Clone(internalProfilingEnv)
+	clusterProfilingEnv["DD_INTERNAL_PROFILING_UNIX_SOCKET"] = apmSocketDir + "/apm.socket"
+	apmSocketVolumes := []map[string]any{
+		{
+			"name": "apmsocket",
+			"hostPath": map[string]any{
+				"path": apmSocketDir,
+				"type": "DirectoryOrCreate",
+			},
+		},
+	}
+	apmSocketVolumeMounts := []map[string]any{
+		{
+			"name":      "apmsocket",
+			"mountPath": apmSocketDir,
+			"readOnly":  true,
+		},
+	}
+
+	// The per-variant image keys live in the ddagent: config namespace and are specific
+	// to this scenario, so they are read here rather than through the shared config.Env
+	// interface — same pattern as scenarios/aws/integrations/{lustre,dell_powerflex}.
+	// The invoke task maps its --baseline-* / --comparison-* flags onto them (see
+	// tasks/e2e_framework/aws/benchmarkeks.py).
+	for _, param := range []struct {
+		variant               string
+		agentImagePath        string
+		clusterAgentImagePath string
+		agentVersion          string
+		clusterAgentVersion   string
+		deployCRDs            bool
+	}{
+		{
+			variant:               "baseline",
+			agentImagePath:        awsEnv.AgentConfig.Get("baselineFullImagePath"),
+			clusterAgentImagePath: awsEnv.AgentConfig.Get("baselineClusterAgentFullImagePath"),
+			agentVersion:          awsEnv.AgentConfig.Get("baselineVersion"),
+			clusterAgentVersion:   awsEnv.AgentConfig.Get("baselineClusterAgentVersion"),
+			deployCRDs:            true,
+		},
+		{
+			variant:               "comparison",
+			agentImagePath:        awsEnv.AgentConfig.Get("comparisonFullImagePath"),
+			clusterAgentImagePath: awsEnv.AgentConfig.Get("comparisonClusterAgentFullImagePath"),
+			agentVersion:          awsEnv.AgentConfig.Get("comparisonVersion"),
+			clusterAgentVersion:   awsEnv.AgentConfig.Get("comparisonClusterAgentVersion"),
+			deployCRDs:            false,
+		},
+	} {
+		kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent", param.variant), cluster.KubeProvider,
+			kubernetesagentparams.WithBaseName("dda-"+param.variant),
+			kubernetesagentparams.WithNamespace("datadog-"+param.variant),
+			kubernetesagentparams.WithClusterName(cluster.ClusterName),
+			kubernetesagentparams.WithAgentFullImagePath(param.agentImagePath),
+			kubernetesagentparams.WithClusterAgentFullImagePath(param.clusterAgentImagePath),
+			kubernetesagentparams.WithAgentVersion(param.agentVersion),
+			kubernetesagentparams.WithClusterAgentVersion(param.clusterAgentVersion),
+			kubernetesagentparams.WithHelmValues(utils.YAMLMustMarshal(map[string]any{
+				"datadog": map[string]any{
+					// Single Step Instrumentation requires the admission controller,
+					// which is disabled below, and the chart refuses to render otherwise.
+					"apm": map[string]any{
+						"instrumentation": map[string]any{
+							"enabled": false,
+						},
+					},
+					"nodeLabelsAsTags": map[string]any{
+						"benchmark.datadoghq.com/role":    "role",
+						"benchmark.datadoghq.com/variant": "variant",
+					},
+					"podLabelsAsTags": map[string]any{
+						"app": "app",
+					},
+					"envDict": internalProfilingEnv,
+					"checksd": map[string]string{
+						"simple_check.py": simpleCheckPy,
+					},
+					"operator": map[string]any{
+						"enabled": false,
+					},
+				},
+				"agents": map[string]any{
+					"nodeSelector": map[string]any{
+						"benchmark.datadoghq.com/variant": param.variant,
+					},
+					// The node Agent runs as a DaemonSet on every node of its variant
+					// (all role pools), so it tolerates any role taint.
+					"tolerations": benchmarkTolerations(map[string]any{
+						"key":      "benchmark.datadoghq.com/role",
+						"operator": "Exists",
+						"effect":   "NoSchedule",
+					}, param.variant),
+				},
+				"clusterAgent": map[string]any{
+					"replicas":     1,
+					"envDict":      clusterProfilingEnv,
+					"volumes":      apmSocketVolumes,
+					"volumeMounts": apmSocketVolumeMounts,
+					"nodeSelector": map[string]any{
+						"benchmark.datadoghq.com/role":    "cluster-agent",
+						"benchmark.datadoghq.com/variant": param.variant,
+					},
+					"tolerations": benchmarkTolerations(map[string]any{
+						"key":      "benchmark.datadoghq.com/role",
+						"operator": "Equal",
+						"value":    "cluster-agent",
+						"effect":   "NoSchedule",
+					}, param.variant),
+					// The e2e framework defaults throttle the CPU and would OOM-kill the
+					// Cluster Agent on a large simulated cluster. It has a dedicated node,
+					// so generous limits starve nothing and keep them out of the results.
+					"resources": map[string]any{
+						"requests": map[string]any{
+							"cpu":    "200m",
+							"memory": "256Mi",
+						},
+						"limits": map[string]any{
+							"cpu":    "1",
+							"memory": "1Gi",
+						},
+					},
+					"metricsProvider": map[string]any{
+						"registerAPIService": false,
+					},
+					"admissionController": map[string]any{
+						// Disabled by default: both installs would otherwise reconcile the
+						// same cluster-scoped datadog-webhook configurations and fight over
+						// them. It can be re-enabled with --helm-config (applied to both
+						// installs), preferably together with distinct webhookName values
+						// and datadog.apm.instrumentation.enabled if needed.
+						"enabled": false,
+						"agentSidecarInjection": map[string]any{
+							"clusterAgentCommunicationEnabled": false,
+						},
+					},
+				},
+				"clusterChecksRunner": map[string]any{
+					"replicas":     1,
+					"envDict":      clusterProfilingEnv,
+					"volumes":      apmSocketVolumes,
+					"volumeMounts": apmSocketVolumeMounts,
+					"nodeSelector": map[string]any{
+						"benchmark.datadoghq.com/role":    "cluster-checks",
+						"benchmark.datadoghq.com/variant": param.variant,
+					},
+					"tolerations": benchmarkTolerations(map[string]any{
+						"key":      "benchmark.datadoghq.com/role",
+						"operator": "Equal",
+						"value":    "cluster-checks",
+						"effect":   "NoSchedule",
+					}, param.variant),
+					// Same as for the Cluster Agent: the runner hosts the KSM check, whose
+					// memory grows with the number of objects in the cluster. Its CPU limit
+					// is above the node capacity, so it never throttles the bursts of KSM
+					// check runs. The limit of the e2e framework defaults can't be removed
+					// with a null instead: it reaches the manifest, read as a zero limit.
+					"resources": map[string]any{
+						"requests": map[string]any{
+							"cpu":    "1",
+							"memory": "512Mi",
+						},
+						"limits": map[string]any{
+							"cpu":    "64",
+							"memory": "2Gi",
+						},
+					},
+					// The CPU request takes half of the dedicated node, so the default
+					// surge of the chart can't schedule the new runner next to the old one
+					// and a Helm upgrade of the stack hangs. Replace the runner instead.
+					"strategy": map[string]any{
+						"rollingUpdate": map[string]any{
+							"maxSurge":       0,
+							"maxUnavailable": 1,
+						},
+					},
+				},
+				// The datadog-crds subchart renders cluster-scoped CRDs with Helm
+				// ownership annotations, so only one of the two releases may own them.
+				// This list must cover every CRD the subchart enables by default (see
+				// charts/datadog/values.yaml in DataDog/helm-charts), otherwise the
+				// second release fails with a "meta.helm.sh/release-name" error.
+				"datadog-crds": map[string]any{
+					"crds": map[string]any{
+						"datadogMetrics":                      param.deployCRDs,
+						"datadogPodAutoscalers":               param.deployCRDs,
+						"datadogPodAutoscalerClusterProfiles": param.deployCRDs,
+					},
+				},
+				// The DatadogInstrumentation CRD is rendered by a second alias of the
+				// datadog-crds subchart (enabled by datadog.instrumentationCrd.enabled).
+				// It must not also be enabled under datadog-crds above, or the release
+				// renders it twice and fails with an "already exists" error.
+				"datadog-instrumentation-crd": map[string]any{
+					"crds": map[string]any{
+						"datadogInstrumentations": param.deployCRDs,
+					},
+				},
+			})),
+		)
+		if err != nil {
+			return err
+		}
+		agentDeps = append(agentDeps, kubernetesAgent)
+	}
+
+	// The churn pods are labeled for Fargate sidecar injection, so when the admission
+	// controller is enabled they must wait for it to be ready, otherwise they would be
+	// admitted without the Datadog sidecar. The label also schedules them on Fargate.
+	if _, err := churn.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(agentDeps...)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// benchmarkTolerations builds the toleration list for a benchmark workload: the
+// caller-provided toleration for the role-pool taint, plus the shared per-variant
+// taint toleration that keeps baseline and comparison workloads isolated.
+func benchmarkTolerations(roleToleration map[string]any, variant string) []any {
+	return []any{
+		roleToleration,
+		map[string]any{
+			"key":      "benchmark.datadoghq.com/variant",
+			"operator": "Equal",
+			"value":    variant,
+			"effect":   "NoSchedule",
+		},
+	}
+}

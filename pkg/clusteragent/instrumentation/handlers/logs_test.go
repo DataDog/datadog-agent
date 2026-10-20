@@ -81,6 +81,7 @@ func TestLogsSupportsTarget(t *testing.T) {
 		{"CronJob", true},
 		{"Job", true},
 		{"Rollout", true},
+		{"StrimziPodSet", true},
 		{"Service", false},
 		{"ReplicaSet", false},
 		{"Pod", false},

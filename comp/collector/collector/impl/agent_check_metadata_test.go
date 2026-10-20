@@ -7,10 +7,15 @@ package collectorimpl
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,7 +25,10 @@ import (
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -116,6 +124,101 @@ level:
 			got, err := collectTags(test.config)
 			assert.NoError(t, err)
 			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestTruncateCheckError(t *testing.T) {
+	short := "short error"
+	assert.Equal(t, short, truncateCheckError(short))
+
+	exact := strings.Repeat("a", maxCheckErrorLength)
+	assert.Equal(t, exact, truncateCheckError(exact))
+
+	long := "Traceback (most recent call last):\n" +
+		strings.Repeat("x", maxCheckErrorLength) +
+		"psycopg.OperationalError: connection is bad"
+	got := truncateCheckError(long)
+	assert.LessOrEqual(t, len(got), maxCheckErrorLength)
+	assert.True(t, strings.HasPrefix(got, "Traceback (most recent call last):\n"))
+	assert.True(t, strings.HasSuffix(got, "psycopg.OperationalError: connection is bad"))
+	assert.Contains(t, got, " bytes truncated ...]")
+
+	// must not split a multi-byte character, at either end of the dropped part: try both offset parities
+	for _, prefix := range []string{"", "a"} {
+		multi := prefix + strings.Repeat("é", maxCheckErrorLength)
+		got := truncateCheckError(multi)
+		assert.LessOrEqual(t, len(got), maxCheckErrorLength)
+		assert.True(t, utf8.ValidString(got), "prefix %q", prefix)
+	}
+}
+
+func TestTruncateLoaderErrors(t *testing.T) {
+	longMsg := strings.Repeat("x", maxCheckErrorLength+1)
+	errs := map[string]string{"python": longMsg, "core": "check not found"}
+
+	got := truncateLoaderErrors(errs, truncateCheckError)
+	assert.Equal(t, "check not found", got["core"])
+	assert.LessOrEqual(t, len(got["python"]), maxCheckErrorLength)
+	assert.Equal(t, longMsg, errs["python"], "input map must not be modified")
+
+	jsonErrs, err := json.Marshal(got)
+	require.NoError(t, err)
+	var decoded map[string]string
+	require.NoError(t, json.Unmarshal(jsonErrs, &decoded))
+	assert.Equal(t, got, decoded)
+}
+
+func TestGetPayloadCheckMessageTruncation(t *testing.T) {
+	longMsg := strings.Repeat("x", maxCheckErrorLength+1)
+
+	tests := []struct {
+		name      string
+		overrides map[string]interface{}
+		truncated bool
+	}{
+		{name: "enabled by default", truncated: true},
+		{
+			name:      "disabled",
+			overrides: map[string]interface{}{"agent_checks_metadata_message_truncation_enabled": false},
+			truncated: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expvars.Reset()
+			t.Cleanup(expvars.Reset)
+
+			errCheck := &TestCheck{name: "error_check"}
+			warnCheck := &TestCheck{name: "warning_check"}
+			expvars.AddCheckStats(errCheck, 0, errors.New(longMsg), nil, checkstats.SenderStats{}, haagentmock.NewMockHaAgent())
+			expvars.AddCheckStats(warnCheck, 0, nil, []error{errors.New(longMsg)}, checkstats.SenderStats{}, haagentmock.NewMockHaAgent())
+
+			pl := newUnstartedTestCollector(t, test.overrides).GetPayload(context.Background())
+
+			statuses := map[checkid.ID][]interface{}{}
+			for _, entry := range pl.AgentChecks {
+				status := entry.([]interface{})
+				if id, ok := status[2].(checkid.ID); ok {
+					statuses[id] = status
+				}
+			}
+			require.Contains(t, statuses, errCheck.ID())
+			require.Contains(t, statuses, warnCheck.ID())
+
+			assert.Equal(t, "ERROR", statuses[errCheck.ID()][3])
+			assert.Equal(t, "WARNING", statuses[warnCheck.ID()][3])
+			warnings := statuses[warnCheck.ID()][4].([]string)
+			require.Len(t, warnings, 1)
+
+			for _, msg := range []string{statuses[errCheck.ID()][4].(string), warnings[0]} {
+				if test.truncated {
+					assert.LessOrEqual(t, len(msg), maxCheckErrorLength)
+				} else {
+					assert.Equal(t, longMsg, msg)
+				}
+			}
 		})
 	}
 }

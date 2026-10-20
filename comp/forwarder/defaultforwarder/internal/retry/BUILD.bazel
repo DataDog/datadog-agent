@@ -41,6 +41,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry",
     visibility = [
         "//comp/forwarder/defaultforwarder:__subpackages__",
+        "//tools/retry_file_dump:__pkg__",
         "@com_github_datadog_datadog_agent_comp_forwarder_defaultforwarder//:__subpackages__",
     ],
     deps = [

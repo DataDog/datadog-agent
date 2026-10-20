@@ -7,19 +7,13 @@
 package create
 
 import (
-	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/buildschema"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 // NewConfig returns a config with the given name.
 func NewConfig(name string) model.BuildableConfig {
-	if len(os.Args) >= 2 && os.Args[1] == "createschema" {
-		return buildschema.NewSchemaBuilder(name, "DD", strings.NewReplacer(".", "_"))
-	}
-
 	return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 }

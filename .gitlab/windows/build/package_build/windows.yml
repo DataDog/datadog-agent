@@ -1,10 +1,12 @@
 ---
 .windows_msi_base:
   stage: package_build
-  extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
-  needs: ["go_deps"]
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
+  needs: ["setup_agent_version", "go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
@@ -12,7 +14,6 @@
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e GITLAB_CI
       -e CI_JOB_ID
       -e CI_PIPELINE_ID
@@ -79,7 +80,7 @@ windows_msi_and_bosh_zip_x64-a7:
 windows_msi_and_bosh_zip_x64-a7-fips:
   extends: .windows_main_agent_base
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     ARCH: "x64"
@@ -89,22 +90,23 @@ windows_msi_and_bosh_zip_x64-a7-fips:
 .windows_zip_base:
   stage: package_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
-  extends: .windows_docker_default
-  needs: ["go_deps"]
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -e CI
       -e GITLAB_CI
       -e CI_COMMIT_BRANCH
       -e CI_PIPELINE_ID
@@ -163,14 +165,16 @@ windows_zip_ddot_x64:
 .windows_zip_bazel_base:
   stage: package_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     ARCH: "x64"
   script:
     - $ErrorActionPreference = "Stop"
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - !reference [.sanitize_goproxy_windows]
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
@@ -178,7 +182,6 @@ windows_zip_ddot_x64:
       .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e GITLAB_CI
       -e CI_JOB_ID
       -e CI_PIPELINE_ID

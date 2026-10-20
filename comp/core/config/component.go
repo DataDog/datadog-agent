@@ -27,9 +27,6 @@ import (
 type Component interface {
 	pkgconfigmodel.ReaderWriter
 
-	// Warnings returns config warnings collected during setup.
-	Warnings() *pkgconfigmodel.Warnings
-
 	// StartTime returns the time at which the agent process started.
 	StartTime() time.Time
 }

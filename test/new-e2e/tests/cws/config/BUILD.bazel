@@ -1,9 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+exports_files([
+    "e2e-security-agent.yaml",
+    "e2e-system-probe.yaml",
+])
+
 go_library(
     name = "config",
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config",
     visibility = ["//visibility:public"],
-    deps = ["@in_yaml_go_yaml_v2//:yaml"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
 )

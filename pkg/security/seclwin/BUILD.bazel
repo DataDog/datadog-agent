@@ -5,6 +5,7 @@ write_source_file(
     name = "sync",
     in_file = "//pkg/security/secl:doc.go",
     out_file = "doc.go",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 go_library(

@@ -16,6 +16,7 @@ stages:
 
 variables:
   SMP_ALLOW_FAILURE: "true"
+  GIT_DEPTH: 1
 
 .smp_config_only_job_submit:
   - |
@@ -298,7 +299,7 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.27.0
+    SMP_VERSION: v0.28.0
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sort"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -41,6 +41,21 @@ func newKSMShardingManager(enabled bool) *ksmShardingManager {
 // isEnabled returns whether KSM sharding is enabled
 func (m *ksmShardingManager) isEnabled() bool {
 	return m.enabled
+}
+
+// label satisfies shardingStrategy.
+func (m *ksmShardingManager) label() string {
+	return "resource-sharded KSM"
+}
+
+// shouldShard satisfies shardingStrategy; see shouldShardKSMCheck.
+func (m *ksmShardingManager) shouldShard(config integration.Config) bool {
+	return m.shouldShardKSMCheck(config)
+}
+
+// createShardedConfigs satisfies shardingStrategy; see createShardedKSMConfigs.
+func (m *ksmShardingManager) createShardedConfigs(config integration.Config) ([]integration.Config, error) {
+	return m.createShardedKSMConfigs(config)
 }
 
 // isKSMCheck returns true if the config is a KSM check

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
+	"go.uber.org/atomic"
 )
 
 // SourceType used for log line parsing logic.
@@ -48,7 +49,7 @@ type LogSource struct {
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
-	BytesRead        *status.CountInfo
+	BytesRead        atomic.Int64
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
 }
@@ -62,13 +63,11 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
-		BytesRead:        status.NewCountInfo("Bytes Read"),
 		ProcessingInfo:   status.NewProcessingInfo(),
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
-	source.RegisterInfo(source.BytesRead)
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
@@ -111,6 +110,30 @@ func (s *LogSource) Status() *status.LogStatus {
 func (s *LogSource) SetStatus(newStatus *status.LogStatus) {
 	s.lock.Lock()
 	s.status = newStatus
+	s.lock.Unlock()
+}
+
+// GetTailingMode returns the tailing mode configured for this source.
+func (s *LogSource) GetTailingMode() string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.Config.TailingMode
+}
+
+// PublicJSON returns the public JSON representation of the source's logs config.
+// The lock is held because Config.TailingMode can be mutated at runtime by
+// SetTailingMode on another goroutine.
+func (s *LogSource) PublicJSON() ([]byte, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.Config.PublicJSON()
+}
+
+// SetTailingMode sets the tailing mode configured for this source. This is mutated after
+// creation when a tailing mode is inferred at launch time, so it must go through the lock.
+func (s *LogSource) SetTailingMode(mode string) {
+	s.lock.Lock()
+	s.Config.TailingMode = mode
 	s.lock.Unlock()
 }
 
@@ -212,7 +235,8 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("info: %#v,"), s.info)
 	fmt.Fprintf(&b, ws("parentSource: %p,"), s.ParentSource)
 	fmt.Fprintf(&b, ws("LatencyStats: %#v,"), s.LatencyStats)
-	fmt.Fprintf(&b, ws("ProcessingInfo: %#v,"), s.ProcessingInfo)
+	// ProcessingInfo has its own locking; %#v would bypass it via reflection.
+	fmt.Fprintf(&b, ws("ProcessingInfo: %s,"), s.ProcessingInfo)
 	fmt.Fprintf(&b, ws("hiddenFromStatus: %t}"), s.hiddenFromStatus)
 	return b.String()
 }

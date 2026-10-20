@@ -9,10 +9,18 @@
 #   - tagsets: list of tagset names declared in tags.yaml
 #   - custom_tags (optional): additional dynamic tag names declared in tags.yaml (e.g., memory_location)
 #   - workload_only (optional): true when the metric is only guaranteed while a workload is active
+#   - optional (optional): true when the metric may be unavailable on individual supported devices
+#   - config_required (optional): named Agent configuration features required to emit the metric; all entries are required
+#       - system_probe_ebpf: system-probe GPU monitoring with eBPF probes enabled
+#       - system_probe_prm: system-probe GPU monitoring with the PRM endpoint enabled
+#   - validator (optional):
+#       - range or values: static value validation
+#       - nvidia_smi or calibrated_workload: validate against the named external source in real-GPU integration tests
+#       - value_tolerance: required with an external source; contains one or both of absolute and relative (percent) tolerances
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
-#       - capabilities_required (optional): {nvlink: <min_generation>, c2c: <bool>} (hardware capabilities required for the metric)
+#       - capabilities_required (optional): {nvlink: <min_generation>, max_nvlink: <max_generation>, c2c: <bool>} (hardware capabilities required for the metric; max_nvlink requires nvlink)
 metric_prefix: gpu
 metrics:
   clock.speed.graphics:
@@ -23,6 +31,10 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures: []
       device_modes:
@@ -51,6 +63,10 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 25
     support:
       unsupported_architectures: []
       device_modes:
@@ -338,6 +354,10 @@ metrics:
       aggregation: relative_activity
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures:
         - fermi
@@ -348,6 +368,7 @@ metrics:
   device.total:
     metadata:
       metric_type: gauge
+      unit: device
       description: Number of GPU devices found in the host
       used_in_dd_ui: true
       aggregation: absolute_usage
@@ -399,6 +420,10 @@ metrics:
       aggregation: relative_activity
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures:
         - fermi
@@ -555,7 +580,6 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
-        - turing
       device_modes:
         mig: false
         physical: true
@@ -570,7 +594,26 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
-        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  errors.xid:
+    metadata:
+      metric_type: counter
+      description: >-
+        XID errors received during the last collection interval. XID errors are
+        NVIDIA driver error codes that indicate GPU hardware or software issues
+        like thermal throttling to hardware defects. Investigate these errors
+        immediately as they often precede total GPU failures.
+      aggregation: interval_count
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
@@ -578,6 +621,7 @@ metrics:
   errors.xid.total:
     metadata:
       metric_type: gauge
+      unit: error
       used_in_dd_ui: true
       description: >-
         XID errors are NVIDIA driver error codes that indicate GPU hardware or
@@ -605,6 +649,9 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    custom_tags:
+      - fan_index
+    optional: true
     support:
       unsupported_architectures: []
       device_modes:
@@ -692,6 +739,10 @@ metrics:
       aggregation: relative_activity
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 15
     support:
       unsupported_architectures:
         - fermi
@@ -851,6 +902,11 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
+    optional: true
     support:
       unsupported_architectures:
         - fermi
@@ -864,6 +920,27 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  device.unavailable:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU is unavailable for the reason in the unavailable_reason
+        tag. The lost reason means NVML reports the GPU as inaccessible
+        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
+        0 means available, 1 means unavailable.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - unavailable_reason
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   device.needs_recovery:
     metadata:
       metric_type: gauge
@@ -895,7 +972,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.count.inactive:
@@ -910,7 +987,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.count.total:
@@ -925,13 +1002,16 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.ber.effective:
     metadata:
       metric_type: gauge
-      description: Per-link effective bit error rate for the NVLink port
+      description: >-
+        Per-link effective bit error rate for the NVLink port, decoded from NVML's
+        packed mantissa/exponent representation (mantissa * 10^-exponent). Healthy
+        links typically report a value close to zero.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -943,11 +1023,14 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
-      description: Per-link symbol bit error rate for the NVLink port
+      description: >-
+        Per-link symbol bit error rate for the NVLink port, decoded from NVML's
+        packed mantissa/exponent representation (mantissa * 10^-exponent). Healthy
+        links typically report a value close to zero.
     tagsets:
       - device
       - nvlink
@@ -958,7 +1041,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.crc.data:
     metadata:
       metric_type: gauge
@@ -980,6 +1063,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 4
   nvlink.errors.crc.flit:
     metadata:
       metric_type: gauge
@@ -1001,6 +1085,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.buffer.overrun:
     metadata:
       metric_type: gauge
@@ -1018,7 +1103,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.ecc:
     metadata:
       metric_type: gauge
@@ -1041,6 +1126,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.effective:
     metadata:
       metric_type: gauge
@@ -1058,7 +1144,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.local.link.integrity:
     metadata:
       metric_type: gauge
@@ -1075,7 +1161,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.malformed.packet:
     metadata:
       metric_type: gauge
@@ -1092,7 +1178,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.recovery:
     metadata:
       metric_type: gauge
@@ -1114,6 +1200,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.replay:
     metadata:
       metric_type: gauge
@@ -1136,6 +1223,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.rx:
     metadata:
       metric_type: gauge
@@ -1152,7 +1240,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.rx.general:
     metadata:
       metric_type: gauge
@@ -1169,7 +1257,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.rx.remote:
     metadata:
       metric_type: gauge
@@ -1186,7 +1274,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.symbol:
     metadata:
       metric_type: gauge
@@ -1203,7 +1291,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.nvswitch_connected:
     metadata:
       metric_type: gauge
@@ -1221,8 +1309,6 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-      capabilities_required:
-        nvlink: 3
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
@@ -1231,6 +1317,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1238,7 +1326,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.code_err:
     metadata:
       metric_type: gauge
@@ -1246,6 +1334,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1253,7 +1343,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.codes:
     metadata:
       metric_type: gauge
@@ -1261,6 +1351,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1268,7 +1360,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.uncorrectable_code:
     metadata:
       metric_type: gauge
@@ -1276,6 +1368,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1283,7 +1377,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.sync_events:
     metadata:
       metric_type: gauge
@@ -1291,6 +1385,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1298,7 +1394,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.codes:
     metadata:
       metric_type: gauge
@@ -1306,6 +1402,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1313,7 +1411,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_codes:
     metadata:
       metric_type: gauge
@@ -1321,6 +1419,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1328,7 +1428,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_events:
     metadata:
       metric_type: gauge
@@ -1336,6 +1436,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1343,7 +1445,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_events_within_t_sec_max:
     metadata:
       metric_type: gauge
@@ -1352,6 +1454,8 @@ metrics:
     tagsets:
       - device
       - nvlink
+    config_required:
+      - system_probe_prm
     support:
       unsupported_architectures: []
       device_modes:
@@ -1359,7 +1463,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec:
     metadata:
       metric_type: histogram
@@ -1377,7 +1481,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.heavy:
     metadata:
       metric_type: gauge
@@ -1395,7 +1499,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.light:
     metadata:
       metric_type: gauge
@@ -1413,7 +1517,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.none:
     metadata:
       metric_type: gauge
@@ -1428,7 +1532,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.speed:
     metadata:
       metric_type: gauge
@@ -1467,7 +1571,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.recovery.events.successful:
     metadata:
       metric_type: gauge
@@ -1485,7 +1589,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.rx.packets:
     metadata:
       metric_type: gauge
@@ -1500,7 +1604,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.throughput.data.rx:
     metadata:
       metric_type: gauge
@@ -1684,7 +1788,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.tx.packets:
     metadata:
       metric_type: gauge
@@ -1699,7 +1803,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge
@@ -1932,6 +2036,11 @@ metrics:
       aggregation: absolute_usage
     tagsets:
       - device
+    validator:
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 50000
+        relative: 5
     support:
       unsupported_architectures: []
       device_modes:
@@ -1951,6 +2060,8 @@ metrics:
       - device
       - process
       - container
+    config_required:
+      - system_probe_ebpf
     validator:
       range:
         min: 0
@@ -2158,6 +2269,36 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  retired_pages:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of GPU memory pages retired, or pending retirement, after a
+        double-bit ECC error or multiple single-bit ECC errors, as reported
+        by NVML. Pending retirements take effect after the next driver
+        reload. A growing count can indicate degrading GPU memory. Tagged
+        by retirement cause (multiple_single_bit or double_bit). Only for
+        datacenter GPUs from Kepler to Turing.
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - cause
+    validator:
+      range:
+        min: 0
+        max: 1000000
+    support:
+      unsupported_architectures:
+        - fermi
+        - ampere
+        - hopper
+        - ada
+        - blackwell
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   slowdown_temperature:
     metadata:
       metric_type: gauge
@@ -2186,6 +2327,10 @@ metrics:
       range:
         min: 0
         max: 100
+      nvidia_smi: true
+      calibrated_workload: true
+      value_tolerance:
+        absolute: 15
     support:
       unsupported_architectures: []
       device_modes:
@@ -2254,6 +2399,9 @@ metrics:
       range:
         min: 0
         max: 100
+      nvidia_smi: true
+      value_tolerance:
+        absolute: 5
     support:
       unsupported_architectures: []
       device_modes:
@@ -2301,3 +2449,27 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  vgpu.license_status:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the vGPU software license for the device's enabled product is
+        active (1) or inactive (0), as reported by NVML from inside the guest
+        VM. An inactive license exposes the workload to driver performance
+        limitations but does not by itself indicate that throttling is in
+        effect. Tagged with vgpu_product. Only emitted for vGPU devices that
+        support vGPU software licensing.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - vgpu_product
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: false
+        vgpu: true

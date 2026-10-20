@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   go_mod_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
     concurrency:
       group: deps-tidy-go-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -19,16 +19,12 @@ jobs:
       pull-requests: write # Required to auto-close PRs that bump the root go directive
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
-      - name: Install go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: ".go-version"
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
@@ -51,9 +47,7 @@ jobs:
           fi
       - name: Update LICENSE-3rdparty.csv
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
-        run: |
-          dda inv -- -e install-tools
-          dda inv -- -e generate-licenses
+        run: dda inv -- -e generate-licenses
       - name: Update mocks
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: dda inv -- -e security-agent.gen-mocks
@@ -63,7 +57,7 @@ jobs:
           commit-message: "[renovate skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
 
   cargo_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
     concurrency:
       group: deps-tidy-cargo-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -71,13 +65,13 @@ jobs:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
           toolchain: stable
       - name: Repin Bazel Rust lockfile
@@ -94,12 +88,12 @@ jobs:
           commit-message: "[renovate skip] Auto-repin Bazel Rust lockfile and regenerate Rust licenses"
 
   bazel_native_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
     permissions:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
@@ -119,7 +113,7 @@ jobs:
           commit-message: "[renovate skip] Auto-refresh http_archive sha256"
 
   bazel_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
     concurrency:
       group: deps-tidy-bazel-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -127,7 +121,7 @@ jobs:
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
       - uses: ./.github/actions/deps-tidy-setup

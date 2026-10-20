@@ -1,25 +1,17 @@
+# This script is embedded as EC2 user data with <persist>true</persist>, so it reruns on every
+# boot, not just the first -- see https://github.com/DataDog/test-infra-definitions/pull/1178,
+# which relies on that to let authorized_keys be reset on every boot for reused/custom AMIs. Every
+# step below must therefore either be safe to repeat unconditionally, or be guarded to only do real
+# work once. In particular, replacing OpenSSH via MSI stops sshd and takes a while; doing that on
+# every boot -- including the one triggered by domain controller promotion -- creates an extended
+# sshd outage that can overlap with whatever is trying to SSH in right after reboot. See WINA-2095.
+$sshInstallMarkerPath = "$env:ProgramData\ssh\.dd-openssh-installed"
+
 # function to test if the OS is Windows Server 2025
 function Is-WindowsServer2025 {
   $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
   $isWindowsServer2025 = $osInfo.Caption -like "*Windows Server 2025*"
   return $isWindowsServer2025
-}
-
-# function to test if the sshd service is running and if it needs to be replaced
-function Test-SshInstallationNeeded {
-  $service = Get-Service -Name sshd -ErrorAction SilentlyContinue
-
-  if ($service -ne $null) {
-    Write-Host "Stop sshd service"
-    Stop-Service sshd
-    if (Is-WindowsServer2025) {
-      # for Windows Server 2025, replace the service
-      return $true
-    }
-  } else {
-    return $true
-  }
-  return $false
 }
 
 # function to restore the auto inherited flag without affecting the DACL
@@ -64,7 +56,7 @@ function Set-SshFirewallConfiguration {
               -Profile Any `
               -RemoteAddress Any `
               -EdgeTraversalPolicy Allow
-                
+
       Write-Host "Universal SSH firewall rule created"
     } else {
         Write-Host "Universal SSH firewall rule already exists"
@@ -75,11 +67,18 @@ function Set-SshFirewallConfiguration {
 }
 
 # Main script execution
-if (Test-SshInstallationNeeded) {
-  Write-Host "sshd service not found or needs replacement, installing OpenSSH Server"
+# The marker indicates that either a previous boot installed OpenSSH, or the AMI shipped with it already
+if (-not (Test-Path $sshInstallMarkerPath)) {
+  Write-Host "OpenSSH not set up on this host yet, installing OpenSSH Server"
+  # Windows Server 2025 ships a preinstalled OpenSSH under System32 that's a different,
+  # inconsistent version; stop it so the pinned MSI below can replace it.
+  if (Get-Service -Name sshd -ErrorAction SilentlyContinue) {
+    Write-Host "Stop sshd service"
+    Stop-Service sshd
+  }
   # Add-WindowsCapability does NOT install a consistent version across Windows versions, this lead to
   # compatibility issues (different command line quoting rules).
-  # Prefer installing sshd via MSI  
+  # Prefer installing sshd via MSI
   $res = start-process -passthru -wait msiexec.exe -args '/i https://github.com/PowerShell/Win32-OpenSSH/releases/download/v9.5.0.0p1-Beta/OpenSSH-Win64-v9.5.0.0.msi /qn'
   if ($res.ExitCode -ne 0) {
     throw "SSH install failed: $($res.ExitCode)"
@@ -97,7 +96,7 @@ if (Test-SshInstallationNeeded) {
     Write-Output "Firewall Rule 'OpenSSH-Server-In-TCP' does not exist, creating it..."
     New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
     $retries++
-  } 
+  }
   Write-Output "Firewall rule 'OpenSSH-Server-In-TCP' created."
   $powershellPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
   $retries = 0
@@ -110,7 +109,7 @@ if (Test-SshInstallationNeeded) {
       Start-Sleep -Seconds 5
     }
     Write-Host "Set powershell as default shell for sshd"
-    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value $powershellPath -PropertyType String -Force 
+    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value $powershellPath -PropertyType String -Force
     $retries++
   }
   $retries = 0
@@ -134,6 +133,21 @@ if (Test-SshInstallationNeeded) {
     Set-Service -Name sshd -StartupType Automatic
     $retries++
   }
+
+  # Write sshd_config so LogLevel DEBUG3 is set so OpenSSH/Operational captures more detail if
+  # sshd fails to stay up after a later reboot (e.g. domain controller promotion, see WINA-2095).
+  Write-Host "Writing sshd_config"
+  $sshdConfigLines = @(
+    "LogLevel DEBUG3",
+    "AuthorizedKeysFile`t.ssh/authorized_keys",
+    "Subsystem`tsftp`tsftp-server.exe",
+    "",
+    "Match Group administrators",
+    "       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys"
+  )
+  Set-Content -Path "$env:ProgramData\ssh\sshd_config" -Value $sshdConfigLines
+
+  New-Item -Path $sshInstallMarkerPath -ItemType File -Force | Out-Null
 }
 
 Restore-AutoInheritedFlag
@@ -150,7 +164,7 @@ try {
 
 Write-Host "Resetting ssh authorized keys"
 $retries = 0
-while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) { 
+while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) {
   if ($retries -ge 10) {
     throw "Failed to remove existing administrators_authorized_keys file after 10 retries"
   }
@@ -163,7 +177,7 @@ while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) {
 }
 
 $retries = 0
-while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) { 
+while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) {
   if ($retries -ge 10) {
     throw "Failed to create administrators_authorized_keys file after 10 retries"
   }
@@ -176,6 +190,7 @@ while (-not (Test-Path $env:ProgramData\ssh\administrators_authorized_keys)) {
 }
 Add-Content -Path $env:ProgramData\ssh\administrators_authorized_keys -Value $authorizedKey
 icacls.exe ""$env:ProgramData\ssh\administrators_authorized_keys"" /inheritance:r /grant ""Administrators:F"" /grant ""SYSTEM:F""
+
 # Start sshd service
 $retries = 0
 while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Running") {
@@ -189,4 +204,3 @@ while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Runnin
   Start-Service sshd
   $retries++
 }
-

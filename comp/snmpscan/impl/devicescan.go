@@ -276,7 +276,6 @@ func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, emit func(*gosnmp.Snmp
 	return gosnmplib.ConditionalWalk(
 		ctx,
 		snmp,
-		"",
 		callInterval,
 		maxCallCount,
 		func(dataUnit gosnmp.SnmpPDU) (string, error) {
@@ -304,7 +303,8 @@ type bulkGetter interface {
 //
 // Adaptive max-repetitions: on GetBulk error the value is halved and the same
 // OID is retried, so a device that times out at a high value can still be
-// walked. On success the value grows back toward bulkMaxRep.
+// walked. If the initial request still fails at the minimum size, try the next
+// root in gosnmplib.RootOIDs. On success the value grows back toward bulkMaxRep.
 //
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
@@ -312,8 +312,9 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	emitted := 0
 	seenColumns := make(map[string]bool)
 
-	// Start from the beginning of the MIB tree.
-	oid := ".0.0"
+	rootOIDs := gosnmplib.RootOIDs
+	rootIndex := 0
+	oid := rootOIDs[rootIndex]
 	// prevInts is the parsed form of the last OID we accepted. SNMP walks are
 	// strictly increasing, so comparing each returned OID against it detects
 	// loops and non-advancing devices in O(1) memory - no need to remember
@@ -325,7 +326,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	requests := 0
 	// Name the optimizer after the device so its Debug logs are attributable
 	// when multiple devices are scanned concurrently.
-	maxRepOpt := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
+	maxRepOptimizer := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 
 	for {
 		select {
@@ -344,12 +345,23 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 		}
 
 		// Use GetBulk with REAL OIDs only (never fabricated).
-		maxRep := uint32(maxRepOpt.BatchSize())
+		maxRep := uint32(maxRepOptimizer.BatchSize())
 		response, err := snmp.GetBulk([]string{oid}, 0, maxRep)
 		if err != nil || response.Error != gosnmp.NoError {
 			// Both a transport error and a non-NoError SNMP status mean this
 			// request failed; back the batch size off and retry the same OID.
-			if maxRepOpt.OnFailure() {
+			if maxRepOptimizer.OnFailure() {
+				continue
+			}
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				prevInts, err = gosnmplib.OIDToInts(oid)
+				if err != nil {
+					return err
+				}
+				maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 				continue
 			}
 			if err != nil {
@@ -359,7 +371,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 			}
 			return fmt.Errorf("GetBulk returned SNMP error %s at OID %s (max-rep=%d)", response.Error, oid, maxRep)
 		}
-		maxRepOpt.OnSuccess()
+		maxRepOptimizer.OnSuccess()
 
 		if len(response.Variables) == 0 {
 			// No more data.

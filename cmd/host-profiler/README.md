@@ -2,7 +2,7 @@
 
 The `host-profiler` command is the entry point for the standalone Datadog Host Profiler binary, which collects system-wide, low-overhead profiling data from Linux hosts using eBPF technology.
 
-> **⚠️ Linux Only**: This binary is **only supported on Linux** systems with eBPF capabilities (kernel 4.15+). It will not compile or run on macOS, Windows, or other operating systems.
+> **⚠️ Linux Only**: This binary is **only supported on Linux** systems with eBPF capabilities (see the [supported Linux kernel versions](https://github.com/open-telemetry/opentelemetry-ebpf-profiler#supported-linux-kernel-version)). It will not compile or run on macOS, Windows, or other operating systems.
 
 ## High-Level Architecture
 
@@ -52,6 +52,13 @@ To build the host-profiler binary, use the following invoke task:
 dda inv host-profiler.build
 ```
 
+You can also cross-compile the binary for a different architecture using the following command:
+
+```bash
+GOARCH=amd64 dda inv host-profiler.build
+GOARCH=arm64 dda inv host-profiler.build
+```
+
 **Note**: This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
 
 ## Development
@@ -62,8 +69,8 @@ Create a `.env` file in `cmd/host-profiler` containing:
 
 ```
 DD_SITE=datad0g.com # optional, defaults to "datadoghq.com"
-UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
-GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
+UID=2000 # optional, defaults to 2000; set to the output of `id -u` if your uid differs
+GID=501 # optional, defaults to 501; set to the output of `id -g` if your gid differs
 DD_TAGS="key:value,key1:value2" # optional, defaults to workspace:${workspace-name} on a Datadog workspace
 DD_HOSTPROFILER_DEBUG='{"verbosity":"detailed"}' # optional, enable debug exporter (basic|normal|detailed|none)
 DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS='{"x-custom-header":"value"}' # optional, additional HTTP headers on OTLP exporter requests; defaults to workspace metadata on Datadog workspaces

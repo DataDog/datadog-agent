@@ -26,7 +26,10 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -41,6 +44,14 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
+	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
+	// selfident). Optional because only selfident's kubeapiserver build reads
+	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
+	// agent, serverless-init) selfident is a no-op that ignores it entirely, so
+	// requiring it would make those binaries depend on a component they have no
+	// use for. Every binary that wires this bundle happens to provide it today,
+	// so in practice it is non-nil wherever it is actually read.
+	Workloadmeta workloadmeta.Component `optional:"true"`
 }
 
 // Provides defines the output of the health-platform component
@@ -70,6 +81,7 @@ type healthPlatformImpl struct {
 	telemetry        telemetry.Component         // Telemetry component for metrics collection
 	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
 	agentFlavor      string                      // Agent flavor captured at construction time
+	selfIdent        *selfident.SelfIdent        // Resolves this agent's DaemonSet/cluster identity
 
 	// Issue tracking: dehydrated at ReportIssue, rehydrated on GetAllIssues/GetIssue.
 	issues       map[string]*storedIssue // IssueID → active issue (lean proto + raw JSON)
@@ -120,7 +132,7 @@ func issueStateFromString(s string) IssueState {
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
-// It is both the in-memory and on-disk representation; proto payload fields are
+// It is both the in-memory and on-disk representation; detailed proto payload fields are
 // intentionally omitted because IssueIDs are deterministic — when the agent
 // restarts, health checks re-run and call ReportIssue with the same ID, at which
 // point storeIssue picks up the existing firstSeen/state from this struct.
@@ -133,6 +145,7 @@ type PersistedIssue struct {
 	IssueID        string     `json:"issue_id"`
 	IssueType      string     `json:"issue_type"`
 	ProtoIssueType string     `json:"proto_issue_type,omitempty"`
+	Category       string     `json:"category,omitempty"`
 	State          IssueState `json:"state"`
 	FirstSeen      string     `json:"first_seen"`
 	LastSeen       string     `json:"last_seen"`
@@ -272,6 +285,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
+		selfIdent:        selfident.New(reqs.Workloadmeta),
 
 		issues:       make(map[string]*storedIssue),
 		issuesByName: make(map[string][]string),
@@ -292,7 +306,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
 			"issues_detected",
-			[]string{"issue_type"},
+			[]string{"issue_type", "severity"},
 			"Number of health issues detected",
 		),
 	}
@@ -371,6 +385,8 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue.IssueName == "" {
 		return errors.New("issue name cannot be empty")
 	}
+
+	h.enrichWithClusterIdentity(issue)
 
 	h.issuesMux.RLock()
 	var previousIssue *healthplatform.Issue
@@ -468,6 +484,7 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			Id:             issueID,
 			IssueName:      persisted.IssueType,
 			IssueType:      persisted.ProtoIssueType,
+			Category:       persisted.Category,
 			PersistedIssue: persistedIssueToProto(persisted),
 		}
 	}
@@ -500,6 +517,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 		}
@@ -532,6 +550,30 @@ func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []st
 	return result
 }
 
+// IssueDiscriminator returns the identifier issue ids should be scoped by;
+// see the Component interface doc for the collapse rationale. selfIdent only
+// reports this agent's DaemonSet uid, or "" when there is none, so the per-host
+// fallback lives in issuesmod.IssueDiscriminator — shared with the issue
+// modules that scope their own ids.
+func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
+	return issuesmod.IssueDiscriminator(h.selfIdent, hostID)
+}
+
+// ResourceIdentity returns the resource_type/resource_id describing the
+// entity this agent process represents; see the Component interface doc.
+func (h *healthPlatformImpl) ResourceIdentity(hostname string) (string, string) {
+	if h.agentFlavor == flavor.ClusterAgent {
+		if clusterID := h.selfIdent.ClusterID(); clusterID != "" {
+			return "cluster", clusterID
+		}
+		return "host", hostname
+	}
+	if deploymentID := h.selfIdent.DeploymentID(); deploymentID != "" {
+		return "deployment", deploymentID
+	}
+	return "host", hostname
+}
+
 // ============================================================================
 // Internal Helper Methods
 // ============================================================================
@@ -557,6 +599,34 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	}
 }
 
+// enrichWithClusterIdentity stamps deployment_id/cluster_id into the issue's
+// Extra and Tags, so that when a module keys issue.Id by deployment_id
+// (collapsing issues across a DaemonSet), the UI can still identify which
+// DaemonSet/cluster the collapsed issue came from. No-op on non-Kubernetes
+// agents, where both resolve to empty.
+func (h *healthPlatformImpl) enrichWithClusterIdentity(issue *healthplatform.Issue) {
+	deploymentID := h.selfIdent.DeploymentID()
+	clusterID := h.selfIdent.ClusterID()
+	if deploymentID == "" && clusterID == "" {
+		return
+	}
+
+	if issue.Extra == nil {
+		issue.Extra = &structpb.Struct{}
+	}
+	if issue.Extra.Fields == nil {
+		issue.Extra.Fields = make(map[string]*structpb.Value)
+	}
+	if deploymentID != "" {
+		issue.Extra.Fields["deployment_id"] = structpb.NewStringValue(deploymentID)
+		issue.Tags = appendUnique(issue.Tags, "deployment_id:"+deploymentID)
+	}
+	if clusterID != "" {
+		issue.Extra.Fields["cluster_id"] = structpb.NewStringValue(clusterID)
+		issue.Tags = appendUnique(issue.Tags, "cluster_id:"+clusterID)
+	}
+}
+
 // storeIssue stores an issue keyed by issue.Id (the unique instance key set by ReportIssue).
 // issueType is the template identifier, used for telemetry tagging and persistence.
 func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.Issue) {
@@ -565,7 +635,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	issueID := issue.Id
 	now := time.Now().Format(time.RFC3339)
 	issue.DetectedAt = now
-	h.metrics.issuesCounter.Add(1, issueType)
+	h.metrics.issuesCounter.Add(1, issueType, issue.Severity.String())
 
 	h.issuesByName[issueType] = appendUnique(h.issuesByName[issueType], issueID)
 
@@ -597,6 +667,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		existing.LastSeen = now
 	}
 	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
+	h.persistedIssues[issueID].Category = issue.Category
 
 	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
 	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
@@ -676,6 +747,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Id:             issueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 			continue
@@ -767,6 +839,7 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 	if err != nil {
 		hostname = "unknown"
 	}
+	resourceType, resourceID := h.ResourceIdentity(hostname)
 
 	agentVersion := version.AgentVersion
 	report := &healthplatform.HealthReport{
@@ -776,6 +849,8 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
 			AgentVersion: &agentVersion,
+			ResourceType: resourceType,
+			ResourceId:   resourceID,
 		},
 		Issues: issues,
 	}

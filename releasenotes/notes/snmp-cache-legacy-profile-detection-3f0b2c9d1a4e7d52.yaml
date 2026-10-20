@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    SNMP: Fix the detection of profiles using the legacy Python metric syntax. The
+    detection result is now cached along with the profiles, so every check instance
+    is consistently handed over to the Python loader instead of only the first
+    instance to be configured. Previously the remaining instances silently kept using
+    the Core loader.
+  - |
+    SNMP: The error reported when a legacy profile forces the fallback to the Python
+    loader now names the profiles using the legacy syntax.

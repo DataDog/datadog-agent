@@ -61,6 +61,7 @@ func TestProcessEvents(t *testing.T) {
 						OS:           "DOS",
 						OSVersion:    "6.22",
 						Architecture: "80486DX",
+						Created:      time.Unix(1000, 1001),
 						Layers: []workloadmeta.ContainerImageLayer{
 							{
 								MediaType: "media",
@@ -136,8 +137,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 				{
@@ -191,8 +192,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 				{
@@ -246,8 +247,112 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
+					},
+				},
+			},
+		},
+		{
+			// Registry hosts that include a port (e.g. `artifactory.local:443/...`)
+			// must not be split on the first colon, otherwise the registry host
+			// becomes the image name and the port becomes part of the tag.
+			name: "registry with port in repo tag",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						RepoTags: []string{
+							"artifactory.local:443/team/service:2.54.3",
+						},
+						RepoDigests: []string{
+							"artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						SizeBytes:    42,
+						OS:           "linux",
+						OSVersion:    "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					DdTags: []string{
+						"image_id:artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						"image_name:artifactory.local:443/team/service",
+						"short_image:service",
+						"image_tag:2.54.3",
+					},
+					Name:      "artifactory.local:443/team/service",
+					Registry:  "artifactory.local:443",
+					ShortName: "service",
+					RepoTags: []string{
+						"2.54.3",
+					},
+					Digest:      "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					Size:        42,
+					RepoDigests: []string{"artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Version:      "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+		},
+		{
+			// A registry host with a port followed by a single path component
+			// (e.g. `localhost:5000/service`) is still a registry, even though the
+			// repo name only has two slash-separated components.
+			name: "registry with port and single path component",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						RepoTags: []string{
+							"localhost:5000/service:1",
+						},
+						RepoDigests: []string{
+							"localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						SizeBytes:    42,
+						OS:           "linux",
+						OSVersion:    "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					DdTags: []string{
+						"image_id:localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						"image_name:localhost:5000/service",
+						"short_image:service",
+						"image_tag:1",
+					},
+					Name:      "localhost:5000/service",
+					Registry:  "localhost:5000",
+					ShortName: "service",
+					RepoTags: []string{
+						"1",
+					},
+					Digest:      "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					Size:        42,
+					RepoDigests: []string{"localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Version:      "1",
+						Architecture: "amd64",
 					},
 				},
 			},
@@ -280,6 +385,7 @@ func TestProcessEvents(t *testing.T) {
 						OS:           "DOS",
 						OSVersion:    "6.22",
 						Architecture: "80486DX",
+						Created:      time.Unix(1000, 1001),
 						Layers: []workloadmeta.ContainerImageLayer{
 							{
 								MediaType: "media",
@@ -353,8 +459,8 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
 					},
 				},
 				{
@@ -406,8 +512,61 @@ func TestProcessEvents(t *testing.T) {
 						},
 					},
 					BuiltAt: &timestamp.Timestamp{
-						Seconds: 43,
-						Nanos:   44,
+						Seconds: 1000,
+						Nanos:   1001,
+					},
+				},
+			},
+		},
+		{
+			// Tools built on go-containerregistry record an unset created as the
+			// zero time, as on the base layers of the Kubernetes control plane
+			// images.
+			name: "layer created at the zero time",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+						},
+						RepoDigests: []string{
+							"registry.k8s.io/kube-apiserver@sha256:b9d7c117f8ac52bed4b13aeed973dc5198f9d93a926e6fe9e0b384f155baa902",
+						},
+						OS:           "linux",
+						Architecture: "amd64",
+						Layers: []workloadmeta.ContainerImageLayer{
+							{
+								DiffID:  "sha256:f464af4b9b251ebe8a7c2f186aff656f0892f6cb159837a6ce8fd63842e83e35",
+								History: &v1.History{Created: &time.Time{}},
+							},
+						},
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "registry.k8s.io/kube-apiserver@sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+					DdTags: []string{
+						"image_id:registry.k8s.io/kube-apiserver@sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+						"image_name:registry.k8s.io/kube-apiserver",
+						"short_image:kube-apiserver",
+					},
+					Name:        "registry.k8s.io/kube-apiserver",
+					Registry:    "registry.k8s.io",
+					ShortName:   "kube-apiserver",
+					Digest:      "sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+					RepoDigests: []string{"registry.k8s.io/kube-apiserver@sha256:b9d7c117f8ac52bed4b13aeed973dc5198f9d93a926e6fe9e0b384f155baa902"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Architecture: "amd64",
+					},
+					Layers: []*model.ContainerImage_ContainerImageLayer{
+						{
+							Digest:  "sha256:f464af4b9b251ebe8a7c2f186aff656f0892f6cb159837a6ce8fd63842e83e35",
+							History: &model.ContainerImage_ContainerImageLayer_History{},
+						},
 					},
 				},
 			},

@@ -25,6 +25,7 @@ const (
 	UnknownFS = "unknown" // UnknownFS unknown filesystem
 
 	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
+	ErrPathMustBeClean    = "paths must be in canonical form"             // ErrPathMustBeClean tells when a path contains a trailing slash, `.` segments or duplicate slashes
 	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
 	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
 
@@ -53,11 +54,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 			return nil
 		}
 
-		if value != path.Clean(value) {
-			return errAbs
-		}
-
-		if value == "*" {
+		if value == "*" || value == "*/" {
 			return errAbs
 		}
 
@@ -81,6 +78,13 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 			if len(segment) > MaxSegmentLength {
 				return errSegment
 			}
+		}
+
+		if cleaned := path.Clean(value); cleaned != value {
+			if strings.TrimRight(value, "/") == cleaned {
+				return fmt.Errorf("invalid path `%s`, %s, trailing slashes are not allowed: use `%s` to match the directory itself or `%s/*` to match its content", value, ErrPathMustBeClean, cleaned, cleaned)
+			}
+			return fmt.Errorf("invalid path `%s`, %s, `.` segments and duplicate slashes are not allowed: use `%s` instead", value, ErrPathMustBeClean, cleaned)
 		}
 	}
 
@@ -149,16 +153,16 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpanContext attaches the captured APM correlation span context to the
-// process. Used by AddForkEntry to persist the parent's span across fork.
+// process. Used by ResolveSpanContext to persist the span a fork or an exec
+// captured onto the process it created.
 // Carries SpanID, TraceID, ExtraAttrsID and any extra Attributes.
 func (p *Process) SetSpanContext(sc SpanContext) {
 	p.Tracer.Trace = sc
 }
 
-// SetSpanContextAttributes updates only the Attributes field on the process's
-// already-populated SpanContext. Used when extra attributes are resolved after
-// the PCE was first stamped (i.e. after AddForkEntry / AddExecEntry, which only
-// had the event SpanContext to copy from).
+// SetSpanContextAttributes updates only the Attributes field of the process's
+// SpanContext: the OTel attributes are resolved after the fork or the exec that
+// stamped the rest of it.
 func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
 	p.Tracer.Trace.Attributes = attrs
 }
@@ -412,6 +416,9 @@ func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event, _ *Process
 // ResolveSyscallCtxArgs resolves syscall context
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
 
+// ResolveSpanContext resolves the span context of the event
+func (dfh *FakeFieldHandlers) ResolveSpanContext(ev *Event) *SpanContext { return &ev.SpanContext }
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -431,4 +438,5 @@ type ExtraFieldHandlers interface {
 	ResolveK8SUserSessionContext(event *Event, evtCtx *K8SSessionContext)
 	ResolveAWSSecurityCredentials(event *Event, process *Process) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
+	ResolveSpanContext(ev *Event) *SpanContext
 }

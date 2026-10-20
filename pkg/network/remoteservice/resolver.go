@@ -4,8 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package remoteservice provides shared logic for resolving remote service tags
-// on intra-host connections. It is used by both the process-agent (net.go) and
-// the system-probe direct sender to enrich connections with RemoteServiceTagsIdx.
+// on intra-host connections. It is used by the process-agent (net.go)
+// to enrich connections with RemoteServiceTagsIdx.
 package remoteservice
 
 import "strings"

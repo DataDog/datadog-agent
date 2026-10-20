@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/stretchr/testify/require"
 )
 
 func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
@@ -41,6 +44,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
+	storageCfg.TrackAnomalyHistory = true
 	obs.Reset(settings, storageCfg)
 
 	scorer := obs.engine.scorer
@@ -59,9 +63,7 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
 		anomalies: []observerdef.Anomaly{{
-			Title:       "spike",
-			Description: "detected spike",
-			Timestamp:   100,
+			Timestamp: 100,
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
@@ -81,9 +83,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
 		anomalies: []observerdef.Anomaly{{
-			Title:       "spike",
-			Description: "detected spike",
-			Timestamp:   100,
+			Timestamp: 100,
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
@@ -98,6 +98,80 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 	if len(afterReset.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly after reset, got %d", len(afterReset.Anomalies))
 	}
+}
+
+func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+	obs := &observerImpl{
+		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		catalog:      defaultCatalog(),
+		obsCh:        make(chan observation, 4),
+		telemetry:    newObserverTelemetry(telComp),
+		metricFilter: filter,
+	}
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+
+	// The first observation creates a series but does not advance analysis.
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 1},
+		hasMetric: true,
+	}
+	obs.Flush()
+	requireSeriesCountTelemetry(t, telComp, 0)
+
+	// A later observation advances analysis and publishes the current count.
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 2},
+		hasMetric: true,
+	}
+	obs.Flush()
+	requireSeriesCountTelemetry(t, telComp, 1)
+
+	// Replacing storage during reset clears the gauge immediately.
+	obs.Reset(ComponentSettings{}, DefaultStorageConfig())
+	requireSeriesCountTelemetry(t, telComp, 0)
+
+	// Replay publishes once at its completion, not when data is preloaded.
+	obs.engine.storage.Add("ns", "replayed", 1, 10, nil)
+	requireSeriesCountTelemetry(t, telComp, 0)
+	obs.ReplayStoredData()
+	requireSeriesCountTelemetry(t, telComp, 1)
+
+	// The final stream flush publishes even when no advance is needed.
+	obs.engine.storage.RemoveSeriesByMetricName("ns", "replayed")
+	obs.FinishReplayStream()
+	requireSeriesCountTelemetry(t, telComp, 0)
+}
+
+func requireSeriesCountTelemetry(t *testing.T, telemetryComp telemetry.Component, want float64) {
+	t.Helper()
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	for _, family := range metricFamilies {
+		if family.GetName() != "observer__"+telemetrySeriesCount {
+			continue
+		}
+		require.Len(t, family.GetMetric(), 1)
+		require.Equal(t, want, family.GetMetric()[0].GetGauge().GetValue())
+		return
+	}
+	if want == 0 {
+		return
+	}
+	t.Fatalf("series-count telemetry gauge was not registered")
 }
 
 func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplete(t *testing.T) {
@@ -117,7 +191,7 @@ func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplet
 	}
 
 	// The first detector finds a metric-backed anomaly. The final detector
-	// models a detector such as RRCF, which has no per-series source refs.
+	// finishes without finding any additional noisy series.
 	sink.onEngineEvent(engineEvent{
 		kind: eventBaselineCompleted,
 		baselineCompleted: &baselineCompletedEvent{

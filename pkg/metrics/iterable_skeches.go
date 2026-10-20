@@ -16,8 +16,10 @@ type IterableSketches struct {
 func NewIterableSketches(callback func(*SketchSeries), chanSize int, bufferSize int) *IterableSketches {
 	return &IterableSketches{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
-			sketchSeries := value.(*SketchSeries)
-			callback(sketchSeries)
+			// The callback only sees DDSketch series; other distributions pass through as is.
+			if sketchSeries, ok := value.(*SketchSeries); ok {
+				callback(sketchSeries)
+			}
 		}, chanSize, bufferSize),
 	}
 }
@@ -35,9 +37,14 @@ func (it *IterableSketches) Append(Sketches *SketchSeries) {
 	it.iterableMetrics.Append(Sketches)
 }
 
+// AppendDistribution appends a distribution of any flavor.
+func (it *IterableSketches) AppendDistribution(d Distribution) {
+	it.iterableMetrics.Append(d)
+}
+
 // Current returns the current sketches.
 func (it *IterableSketches) Current() Distribution {
-	return it.iterableMetrics.Current().(*SketchSeries)
+	return it.iterableMetrics.Current().(Distribution)
 }
 
 // SketchesSource is a source of sketches used by the serializer.

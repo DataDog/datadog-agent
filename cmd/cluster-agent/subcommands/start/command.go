@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -73,6 +74,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	kubeactionsbundle "github.com/DataDog/datadog-agent/comp/kubeactions"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactionscomp "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
@@ -104,6 +106,7 @@ import (
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -116,6 +119,7 @@ import (
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -201,9 +205,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
+					status.NewInformationProvider(workload.Provider{}),
 				),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
+				}),
+				fx.Provide(func(wmeta workloadmeta.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(kubeinfo.NewProvider(wmeta, hostname))
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
@@ -306,11 +314,14 @@ func start(log log.Component,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
 	refreshTaggerGlobalTags option.Option[func(context.Context)],
 	helmactions helmactions.Component,
+	kubeActions kubeactionscomp.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
 
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	// The leader engine can be created while registering other subcommands, so use the
+	// process-wide context shared by those commands.
+	mainCtx, mainCtxCancel := pkgcommon.GetMainCtxCancel()
 	defer mainCtxCancel()
 
 	signalCh := make(chan os.Signal, 1)
@@ -330,12 +341,19 @@ func start(log log.Component,
 		return errors.New("no API key configured, exiting")
 	}
 
-	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", telemetry.Handler())
+	// Expose the registered metrics via HTTP. /metrics must stay reachable on
+	// all interfaces so the node agent can scrape cluster-agent telemetry, but
+	// the pprof/expvar handlers that main.go registers on http.DefaultServeMux
+	// must not: gate everything under /debug/ to loopback callers only.
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", telemetry.Handler())
+	debugHandler := loopbackOnly(http.DefaultServeMux)
+	metricsMux.Handle("/debug", debugHandler)
+	metricsMux.Handle("/debug/", debugHandler)
 	metricsPort := config.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
-		Handler: http.DefaultServeMux,
+		Handler: metricsMux,
 	}
 
 	go func() {
@@ -383,6 +401,8 @@ func start(log log.Component,
 	}
 	pkglog.Infof("Got APIClient connection")
 
+	go kubeinfo.WarnOnUnsupportedVersion(mainCtx, wmeta)
+
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)
 	if err != nil {
@@ -402,9 +422,10 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
+	apmTargetStore := instrumentationhandlers.NewAPMTargetStore()
 	var instrHandlers []instrumentation.Handler
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
+		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore, apmTargetStore)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -422,6 +443,7 @@ func start(log log.Component,
 		StopCh:                      stopCh,
 		DatadogClient:               dc,
 		InstrumentationHandlers:     instrHandlers,
+		Telemetry:                   telemetry,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -507,6 +529,9 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
+		if config.GetBool("apm_config.instrumentation.on_demand") {
+			products = append(products, state.ProductApmPolicies)
+		}
 
 		var err error
 		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
@@ -522,20 +547,14 @@ func start(log log.Component,
 		}
 	}
 
-	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
-	// don't import cmd/agent
-
-	// create and setup the autoconfig instance
-	// The autoconfig instance setup happens in the workloadmeta start hook
-	// create and setup the Collector and others.
-	common.LoadComponents(ac, config)
-
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
-	ac.LoadAndRun(mainCtx)
+	if err := ac.LoadAndRun(mainCtx); err != nil {
+		return err
+	}
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
@@ -647,7 +666,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -674,8 +693,7 @@ func start(log log.Component,
 		}
 
 		var csiDriverWatcher libraryinjection.CSIDriverWatcher
-		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
-			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") {
 			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
 		}
 
@@ -692,6 +710,8 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
+			DDITargets:                   apmTargetStore,
+			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)
@@ -745,6 +765,7 @@ func start(log log.Component,
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
+	le.WaitForLeaderElection()
 
 	// If kubeactions are enabled, stop the config retriever
 	if kubeactionsRetriever != nil {
@@ -770,12 +791,32 @@ func start(log log.Component,
 	return nil
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
+// loopbackOnly serves h only for requests originating from a loopback address;
+// any other client receives a 404. The check uses the transport-level
+// RemoteAddr, not forwardable headers, so it cannot be spoofed by an off-host
+// caller. This keeps the pprof/expvar debug handlers reachable for local
+// tooling (e.g. the cluster-agent flare) while hiding them on the network.
+func loopbackOnly(h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	}
+}
+
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore, apmStore *instrumentationhandlers.APMTargetStore) []instrumentation.Handler {
 	checkStore := instrumentationhandlers.NewCheckStore()
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
 		ServiceCheckTemplateStore: serviceTemplateStore,
+		APMTargetStore:            apmStore,
 	})
 
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
@@ -817,6 +858,7 @@ func startPrivateActionRunner(
 	ipc ipc.Component,
 	demux demultiplexer.Component,
 	ha helmactions.Component,
+	ka kubeactionscomp.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -834,7 +876,7 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
 	if err != nil {
 		return nil, err
 	}

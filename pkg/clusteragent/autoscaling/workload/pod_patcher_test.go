@@ -179,6 +179,38 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 
+	// In ns5, autoscaler-apply and autoscaler-preview both target "mixed-mode-target".
+	item, _ = store.Get("ns5/autoscaler-apply")
+	item.Upsert(model.FakePodAutoscalerInternal{
+		Namespace: "ns5",
+		Name:      "autoscaler-apply",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "ReplicaSet",
+				APIVersion: "apps/v1",
+				Name:       "mixed-mode-target",
+			},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
+			},
+		},
+	}.Build(), "")
+	item, _ = store.Get("ns5/autoscaler-preview")
+	item.Upsert(model.FakePodAutoscalerInternal{
+		Namespace: "ns5",
+		Name:      "autoscaler-preview",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "ReplicaSet",
+				APIVersion: "apps/v1",
+				Name:       "mixed-mode-target",
+			},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+			},
+		},
+	}.Build(), "")
+
 	// ns1/autoscaler-burstable targets "burstable-deployment" in burstable mode.
 	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on CPU limit in the
 	// stored ScalingValues (so patchContainerResources will remove the CPU limit).
@@ -1095,6 +1127,24 @@ func TestFindAutoscaler(t *testing.T) {
 			expectedError:        errors.New("Multiple autoscaler found for POD ns2/pod2, ownerRef: ReplicaSet/duplicate-target, cannot update POD"),
 		},
 		{
+			name: "Pod with owner and multiple matching autoscalers with different apply policies should return the Apply autoscaler",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns5",
+					Name:      "pod5",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind:       "ReplicaSet",
+							Name:       "mixed-mode-target",
+							APIVersion: "apps/v1",
+						},
+					},
+				},
+			},
+			expectedAutoscalerID: "ns5/autoscaler-apply",
+			expectedError:        nil,
+		},
+		{
 			name: "Pod without owner",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1602,5 +1652,55 @@ func TestObservedPodCallback(t *testing.T) {
 
 		assert.Empty(t, fakeCl.Actions(), "expected no API calls when not leader")
 		assert.Empty(t, fakeRecorder.Events, "expected no events when not leader")
+	})
+}
+
+func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
+	reco := func(goMemLimit string) datadoghqcommon.DatadogPodAutoscalerContainerResources {
+		return datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			Name:    "app",
+			Runtime: &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: goMemLimit},
+		}
+	}
+
+	// GOMEMLIMIT absent: appended, other vars preserved, no ValueFrom on new entry.
+	t.Run("GOMEMLIMIT absent", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env:  []corev1.EnvVar{{Name: "MY_VAR", Value: "hello"}},
+		}
+		patched := patchContainerResources(reco("256MiB"), cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 2)
+		assert.Equal(t, "MY_VAR", cont.Env[0].Name)
+		assert.Equal(t, "GOMEMLIMIT", cont.Env[1].Name)
+		assert.Equal(t, "256MiB", cont.Env[1].Value)
+		assert.Nil(t, cont.Env[1].ValueFrom)
+	})
+
+	// GOMEMLIMIT present: value updated, ValueFrom cleared (Kubernetes rejects both set),
+	// other vars preserved. No patch when value already matches.
+	t.Run("GOMEMLIMIT present", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env: []corev1.EnvVar{
+				{Name: "MY_VAR", Value: "hello"},
+				{
+					Name:      "GOMEMLIMIT",
+					Value:     "128MiB",
+					ValueFrom: &corev1.EnvVarSource{ConfigMapKeyRef: &corev1.ConfigMapKeySelector{Key: "limit"}},
+				},
+			},
+		}
+		patched := patchContainerResources(reco("256MiB"), cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 2)
+		assert.Equal(t, "MY_VAR", cont.Env[0].Name)
+		assert.Equal(t, "256MiB", cont.Env[1].Value)
+		assert.Nil(t, cont.Env[1].ValueFrom, "ValueFrom must be cleared to avoid Kubernetes rejection")
+
+		// Already up to date: no second patch.
+		patched = patchContainerResources(reco("256MiB"), cont)
+		assert.False(t, patched)
 	})
 }

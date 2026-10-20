@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
@@ -114,13 +115,14 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
-				"health_platform", "issues_detected", []string{"issue_type"}, ""),
+				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
 		},
 	}
 }
@@ -254,13 +256,10 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
 }
 
-// TestResolveIssuePreservesIssueType guards that the resolved tombstone carries
-// the same IssueType as the active issue did — backend grouping/filtering by
-// issue_type must not break across a resolve transition.
-func TestResolveIssuePreservesIssueType(t *testing.T) {
+func TestResolveIssuePreservesIssueTypeAndCategory(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", IssueType: "custom_type",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 
 	ch := make(chan *healthplatformpayload.Issue, 1)
@@ -271,12 +270,13 @@ func TestResolveIssuePreservesIssueType(t *testing.T) {
 	require.Len(t, ch, 1)
 	got := <-ch
 	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Equal(t, "configuration", got.Category)
 }
 
-func TestResolveAllIssuesPreservesIssueType(t *testing.T) {
+func TestResolveAllIssuesPreservesIssueTypeAndCategory(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:1", IssueName: "t", IssueType: "custom_type",
+		Id: "t:1", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 
 	ch := make(chan *healthplatformpayload.Issue, 1)
@@ -287,6 +287,7 @@ func TestResolveAllIssuesPreservesIssueType(t *testing.T) {
 	require.Len(t, ch, 1)
 	got := <-ch
 	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Equal(t, "configuration", got.Category)
 }
 
 func TestResolveIssueUnknownIDIsNoop(t *testing.T) {
@@ -358,7 +359,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	h1 := newTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", IssueType: "custom_type", Title: "Test Issue", Source: "test-src",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration", Title: "Test Issue", Source: "test-src",
 	}))
 	firstSeen := h1.persistedIssues["t:id"].FirstSeen
 
@@ -366,7 +367,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	h2.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h2.loadFromDisk())
 
-	// Proto payload is not persisted — it is repopulated when the check re-runs.
+	// Detailed proto payload is not persisted — it is repopulated when the check re-runs.
 	// What must survive is the lifecycle state so that storeIssue can correctly
 	// resume firstSeen and state on the next ReportIssue call.
 	persisted := h2.persistedIssues["t:id"]
@@ -374,21 +375,20 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	assert.Equal(t, "t:id", persisted.IssueID)
 	assert.Equal(t, "t", persisted.IssueType)
 	assert.Equal(t, "custom_type", persisted.ProtoIssueType, "proto IssueType must survive persistence round-trip")
+	assert.Equal(t, "configuration", persisted.Category)
 	assert.Equal(t, firstSeen, persisted.FirstSeen)
 	assert.Equal(t, IssueStateActive, persisted.State)
 
 	// Re-reporting the same issue picks up the persisted firstSeen.
 	require.NoError(t, h2.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+		Id: "t:id", IssueName: "t", Category: "permissions", Title: "Test Issue", Source: "test-src",
 	}))
 	assert.Equal(t, firstSeen, h2.persistedIssues["t:id"].FirstSeen, "firstSeen must be preserved across restart")
 	assert.Equal(t, IssueStateActive, h2.persistedIssues["t:id"].State)
+	assert.Equal(t, "permissions", h2.persistedIssues["t:id"].Category, "category must reflect the latest report")
 }
 
-// TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone guards that a resolved
-// issue reconstructed from disk on restart (before its check re-runs) still
-// carries IssueType in the tombstone sent to observers.
-func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
+func TestLoadFromDiskPreservesIssueTypeAndCategoryOnResolvedTombstone(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "issues.json")
 	logger := logmock.New(t)
@@ -396,7 +396,7 @@ func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
 	h1 := newTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", IssueType: "custom_type",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 	h1.ResolveIssue("t:id")
 
@@ -409,6 +409,7 @@ func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
 	require.Len(t, ch, 1)
 	got := <-ch
 	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Equal(t, "configuration", got.Category)
 }
 
 func TestPersistenceVersionMismatch(t *testing.T) {
@@ -502,12 +503,13 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 
 func TestTelemetryCounterIncrements(t *testing.T) {
 	tel := telemetrymock.New(t)
-	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type"}, "")
+	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type", "severity"}, "")
 	h := &healthPlatformImpl{
 		log:              logmock.New(t),
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -517,7 +519,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	assert.Equal(t, 1.0, counter.WithValues("t").Get())
+	assert.Equal(t, 1.0, counter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
 }
 
 func TestGetActiveIssueIDsByIssueName(t *testing.T) {
@@ -551,4 +553,14 @@ func TestIssuesObserverResolvedNotification(t *testing.T) {
 	require.Len(t, obs.ResolvedCh, 1)
 	got := <-obs.ResolvedCh
 	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
+}
+
+// TestResourceIdentityHost verifies the default, non-Kubernetes fallback:
+// resource_type/resource_id describe the plain host agent process by hostname.
+func TestResourceIdentityHost(t *testing.T) {
+	h := newTestStore(t)
+
+	resourceType, resourceID := h.ResourceIdentity("test-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "test-host", resourceID)
 }

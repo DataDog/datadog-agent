@@ -19,11 +19,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
 const testAPIKey = "123"
@@ -457,6 +459,31 @@ func syncTest403ThrottlesRefresh(server *testServer) func(*testing.T) {
 	}
 }
 
+// TestIsEnabledConcurrent verifies that concurrent calls to isEnabled on an MRF
+// sender don't race on the enabled field. isEnabled is invoked concurrently in
+// production from multiple producers calling sendPayloads on the same *sender.
+func TestIsEnabledConcurrent(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+
+	s, err := newTestSender(server.URL)
+	assert.NoError(t, err)
+	defer s.Stop()
+
+	s.cfg.isMRF = true
+	failover := atomic.NewBool(false)
+	s.cfg.MRFFailoverAPM = failover.Load
+
+	var wg sync.WaitGroup
+	for i := range 50 {
+		wg.Go(func() {
+			failover.Store(i%2 == 0)
+			s.isEnabled()
+		})
+	}
+	wg.Wait()
+}
+
 func TestPayload(t *testing.T) {
 	expectBody := bytes.NewBufferString("body")
 	bodyLength := strconv.Itoa(expectBody.Len())
@@ -585,4 +612,43 @@ func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	rec := httptest.NewRecorder()
 	tr(rec, req)
 	return rec.Result(), nil
+}
+
+func TestNewSendersSkipMainEndpoint(t *testing.T) {
+	main := &config.Endpoint{Host: "https://main.example.com", APIKey: "main-key"}
+	additional := &config.Endpoint{Host: "https://additional.example.com", APIKey: "additional-key"}
+	mrf := &config.Endpoint{Host: "https://mrf.example.com", APIKey: "mrf-key", IsMRF: true}
+	newCfg := func(skipMain bool, endpoints ...*config.Endpoint) *config.AgentConfig {
+		cfg := config.New()
+		cfg.Endpoints = endpoints
+		cfg.SkipMainEndpoint = skipMain
+		return cfg
+	}
+	hosts := func(senders []*sender) []string {
+		out := make([]string, 0, len(senders))
+		for _, s := range senders {
+			out = append(out, s.cfg.url.Scheme+"://"+s.cfg.url.Host)
+		}
+		return out
+	}
+	build := func(t *testing.T, cfg *config.AgentConfig) []*sender {
+		t.Helper()
+		senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+		t.Cleanup(func() { stopSenders(senders) })
+		return senders
+	}
+
+	t.Run("default-sends-to-every-endpoint", func(t *testing.T) {
+		assert.Equal(t, []string{"https://main.example.com", "https://additional.example.com"}, hosts(build(t, newCfg(false, main, additional))))
+	})
+	t.Run("skip-main-keeps-additional", func(t *testing.T) {
+		assert.Equal(t, []string{"https://additional.example.com"}, hosts(build(t, newCfg(true, main, additional))))
+	})
+	t.Run("skip-main-keeps-mrf-and-additional", func(t *testing.T) {
+		assert.Equal(t, []string{"https://mrf.example.com", "https://additional.example.com"}, hosts(build(t, newCfg(true, main, mrf, additional))))
+	})
+	t.Run("skip-main-without-destination-panics", func(t *testing.T) {
+		assert.Panics(t, func() { build(t, newCfg(true, main)) })
+		assert.Panics(t, func() { build(t, newCfg(true, main, mrf)) })
+	})
 }

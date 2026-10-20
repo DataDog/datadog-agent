@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/orchestrator_explorer.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/orchestrator_explorer.yaml
 node_type: section
 type: object
 properties:
@@ -41,15 +41,15 @@ properties:
           gateway_api:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           ingress_controllers:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           service_mesh:
             node_type: setting
             type: boolean
-            default: false
+            default: true
   custom_sensitive_annotations_labels:
     node_type: setting
     type: array
@@ -128,14 +128,6 @@ properties:
     - DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
     - DD_ORCHESTRATOR_URL
   terminated_pods:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: true
-  terminated_pods_improved:
     node_type: section
     type: object
     properties:
