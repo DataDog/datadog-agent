@@ -54,10 +54,18 @@ type cgroupNotification struct {
 	cacheEntry *cgroupModel.CacheEntry
 }
 
+type cgroupNotificationBatch struct {
+	notifications []cgroupNotification
+	done          chan struct{}
+}
+
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.Mutex
+	notificationLock      sync.Mutex
+	notificationBatches   []*cgroupNotificationBatch
+	notifying             bool
 	cgroupFS              FSInterface
 	statsdClient          statsd.ClientInterface
 	cacheEntriesByPathKey *simplelru.LRU[uint64, *cgroupModel.CacheEntry]
@@ -84,10 +92,51 @@ func (cr *Resolver) queueNotification(event Event, cacheEntry *cgroupModel.Cache
 func (cr *Resolver) unlockAndNotify() {
 	notifications := cr.pendingNotifications
 	cr.pendingNotifications = nil
+
+	if len(notifications) == 0 {
+		cr.Unlock()
+		return
+	}
+
+	batch := &cgroupNotificationBatch{
+		notifications: notifications,
+		done:          make(chan struct{}),
+	}
+
+	cr.notificationLock.Lock()
+	cr.notificationBatches = append(cr.notificationBatches, batch)
+	drain := !cr.notifying
+	if drain {
+		cr.notifying = true
+	}
+	cr.notificationLock.Unlock()
 	cr.Unlock()
 
-	for _, n := range notifications {
-		cr.NotifyListeners(n.event, n.cacheEntry)
+	if drain {
+		cr.drainNotifications()
+	} else {
+		<-batch.done
+	}
+}
+
+func (cr *Resolver) drainNotifications() {
+	for {
+		cr.notificationLock.Lock()
+		if len(cr.notificationBatches) == 0 {
+			cr.notifying = false
+			cr.notificationLock.Unlock()
+			return
+		}
+
+		batch := cr.notificationBatches[0]
+		cr.notificationBatches[0] = nil
+		cr.notificationBatches = cr.notificationBatches[1:]
+		cr.notificationLock.Unlock()
+
+		for _, n := range batch.notifications {
+			cr.NotifyListeners(n.event, n.cacheEntry)
+		}
+		close(batch.done)
 	}
 }
 

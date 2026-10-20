@@ -8,13 +8,21 @@
 package tags
 
 import (
+	"context"
+	"errors"
 	"math"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/require"
 )
 
 // lateTagger returns the tags of a container from its readyAt-th lookup on, as
@@ -102,4 +110,125 @@ func TestTagsQueueKeepsNewWorkloads(t *testing.T) {
 	if len(queued) != 2 || queued[0] != "b" || queued[1] != "c" {
 		t.Errorf("queued workloads = %v, want [b c]", queued)
 	}
+}
+
+func TestCGroupLifecycleIgnoresStaleNotifications(t *testing.T) {
+	r := NewResolver(10, &lateTagger{
+		readyAt: 1,
+		tags:    []string{"image_name:nginx", "image_tag:1.27"},
+	}, nil, nil)
+
+	oldEntry := newContainerCGroup()
+	replacement := newContainerCGroup()
+	r.onCGroupCreated(oldEntry)
+	r.onCGroupCreated(replacement)
+	r.onCGroupDeleted(oldEntry)
+
+	r.workloadsLock.Lock()
+	workload := r.workloads[replacement.GetCGroupID()]
+	r.workloadsLock.Unlock()
+	if workload == nil || workload.GCroupCacheEntry != replacement {
+		t.Fatal("stale deletion removed the replacement workload")
+	}
+
+	staleCreation := newContainerCGroup()
+	staleCreation.SetAsDeleted()
+	r.onCGroupCreated(staleCreation)
+
+	r.workloadsLock.Lock()
+	workload = r.workloads[replacement.GetCGroupID()]
+	r.workloadsLock.Unlock()
+	if workload == nil || workload.GCroupCacheEntry != replacement {
+		t.Fatal("stale creation replaced the live workload")
+	}
+}
+
+type missingCGroupFS struct{}
+
+func (missingCGroupFS) FindCGroupContext(uint32, uint32) (containerutils.ContainerID, utils.CGroupContext, string, error) {
+	return "", utils.CGroupContext{}, "", errors.New("not found")
+}
+
+func (missingCGroupFS) GetCGroupPids(string) ([]uint32, error) {
+	return nil, nil
+}
+
+func TestCGroupLifecycleNotificationsPreserveOrder(t *testing.T) {
+	cgroupResolver, err := cgroup.NewResolver(&statsd.NoOpClient{}, missingCGroupFS{}, nil)
+	require.NoError(t, err)
+
+	deletionStarted := make(chan struct{})
+	releaseDeletion := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			close(releaseDeletion)
+		})
+	}
+	t.Cleanup(release)
+
+	require.NoError(t, cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(*cgroupModel.CacheEntry) {
+		close(deletionStarted)
+		<-releaseDeletion
+	}))
+
+	r := NewResolver(10, &lateTagger{readyAt: math.MaxInt}, cgroupResolver, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	require.NoError(t, r.Start(ctx))
+
+	cgroupID := containerutils.CGroupID("/system.slice/test.service")
+	oldEntry := cgroupResolver.AddPID(1001, model.CGroupContext{
+		CGroupID:      cgroupID,
+		CGroupPathKey: model.PathKey{MountID: 1, Inode: 1001},
+		CGroupSource:  model.CGroupSourceEvent,
+	})
+	require.NotNil(t, oldEntry)
+
+	deleteDone := make(chan struct{})
+	go func() {
+		defer close(deleteDone)
+		cgroupResolver.Delete(1001)
+	}()
+
+	select {
+	case <-deletionStarted:
+	case <-time.After(time.Second):
+		t.Fatal("deletion notification did not start")
+	}
+
+	replacementResult := make(chan *cgroupModel.CacheEntry, 1)
+	go func() {
+		replacementResult <- cgroupResolver.AddPID(1002, model.CGroupContext{
+			CGroupID:      cgroupID,
+			CGroupPathKey: model.PathKey{MountID: 1, Inode: 1002},
+			CGroupSource:  model.CGroupSourceEvent,
+		})
+	}()
+
+	require.Eventually(t, func() bool {
+		entry := cgroupResolver.GetCacheEntryByCgroupID(cgroupID)
+		return entry != nil && entry != oldEntry
+	}, time.Second, time.Millisecond)
+
+	release()
+
+	var replacement *cgroupModel.CacheEntry
+	select {
+	case replacement = <-replacementResult:
+	case <-time.After(time.Second):
+		t.Fatal("replacement creation did not complete")
+	}
+	select {
+	case <-deleteDone:
+	case <-time.After(time.Second):
+		t.Fatal("deletion did not complete")
+	}
+
+	r.workloadsLock.Lock()
+	workload := r.workloads[cgroupID]
+	r.workloadsLock.Unlock()
+	require.NotNil(t, workload)
+	require.Same(t, replacement, workload.GCroupCacheEntry)
+	require.False(t, workload.GCroupCacheEntry.IsDeleted())
 }

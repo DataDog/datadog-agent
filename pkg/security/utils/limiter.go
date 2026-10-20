@@ -7,6 +7,7 @@
 package utils
 
 import (
+	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -27,6 +28,7 @@ type LimiterStat struct {
 
 // Limiter defines a rate limiter which limits tokens to 'numAllowedTokensPerPeriod' per 'period'
 type Limiter[K comparable] struct {
+	lock                      sync.Mutex
 	cache                     *simplelru.LRU[K, *cacheEntry]
 	numAllowedTokensPerPeriod int
 	period                    time.Duration
@@ -54,12 +56,15 @@ func NewLimiter[K comparable](maxUniqueToken int, numAllowedTokensPerPeriod int,
 
 // Allow returns whether an entry is allowed or not
 func (l *Limiter[K]) Allow(k K) bool {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
 	if entry, ok := l.cache.Get(k); ok {
 		if time.Since(entry.timeFirstSeen) >= l.period {
 			// If time elapsed between now and the first cache entry is longer than allowed period, reset the count and allow
 			l.init(k)
 		} else if entry.count < l.numAllowedTokensPerPeriod {
-			l.Count(k)
+			l.count(k)
 		} else {
 			l.dropped.Inc()
 			return false
@@ -93,6 +98,13 @@ func (l *Limiter[K]) init(k K) {
 
 // Count marks the key as used and increments the count
 func (l *Limiter[K]) Count(k K) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	l.count(k)
+}
+
+func (l *Limiter[K]) count(k K) {
 	// use get to mark it as used so that it won't be evicted
 	if entry, ok := l.cache.Get(k); ok {
 		entry.count++

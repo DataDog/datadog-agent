@@ -77,18 +77,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
-		id := cgce.GetCGroupID()
-		t.workloadsLock.Lock()
-		workload, ok := t.workloads[id]
-		if ok {
-			delete(t.workloads, id)
-		}
-		t.workloadsLock.Unlock()
-		if ok {
-			t.NotifyListeners(WorkloadSelectorDeleted, workload)
-		}
-	}); err != nil {
+	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, t.onCGroupDeleted); err != nil {
 		return err
 	}
 
@@ -114,11 +103,34 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 // onCGroupCreated tracks the workload of a new cgroup and resolves its tags
 func (t *LinuxResolver) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	if cgce.IsDeleted() {
+		return
+	}
+
 	workload := &Workload{GCroupCacheEntry: cgce}
 	t.workloadsLock.Lock()
+	if cgce.IsDeleted() {
+		t.workloadsLock.Unlock()
+		return
+	}
 	t.workloads[cgce.GetCGroupContext().CGroupID] = workload
 	t.workloadsLock.Unlock()
 	t.checkTags(workload)
+}
+
+func (t *LinuxResolver) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
+	id := cgce.GetCGroupID()
+	t.workloadsLock.Lock()
+	workload, ok := t.workloads[id]
+	if ok && workload.GCroupCacheEntry == cgce {
+		delete(t.workloads, id)
+	} else {
+		ok = false
+	}
+	t.workloadsLock.Unlock()
+	if ok {
+		t.NotifyListeners(WorkloadSelectorDeleted, workload)
+	}
 }
 
 // retryWorkloadsWithoutTags checks again the tags of the workloads queued without them
