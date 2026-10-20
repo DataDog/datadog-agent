@@ -48,7 +48,7 @@ func (mc *MonotonicCount) addSample(sample *MetricSample, _ float64) {
 	if (mc.hasPreviousSample || mc.flushFirstValue) && diff >= 0. {
 		mc.value += diff
 	} else if mc.flushFirstValue {
-		mc.value = mc.currentSample
+		mc.value += mc.currentSample
 	}
 }
 
