@@ -106,6 +106,7 @@ import (
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -204,9 +205,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
+					status.NewInformationProvider(workload.Provider{}),
 				),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
+				}),
+				fx.Provide(func(wmeta workloadmeta.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(kubeinfo.NewProvider(wmeta, hostname))
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
@@ -395,6 +400,8 @@ func start(log log.Component,
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
 	pkglog.Infof("Got APIClient connection")
+
+	go kubeinfo.WarnOnUnsupportedVersion(mainCtx, wmeta)
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)

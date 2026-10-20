@@ -96,8 +96,10 @@ var agentJobs = []string{
 // halfway through.
 const installerJob = "com.datadoghq.installer"
 
+const procmgrJob = "com.datadoghq.procmgr"
+
 // stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = append(append([]string{}, agentJobs...), installerJob)
+var stableJobs = append(append([]string{procmgrJob}, agentJobs...), installerJob)
 
 // experimentJobs are the jobs an experiment runs under, by full label.
 var experimentJobs = experimentLabels()

@@ -432,7 +432,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
 			// apply the eviction mechanism right away
 			if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
-				p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), filepathsInProcessCache, selector.Image, selector.Tag)
+				p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), filepathsInProcessCache, selector.Image)
 			}
 
 			// insert the profile in the list of active profiles
@@ -460,7 +460,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
 				// apply the eviction mechanism right away
 				if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
-					p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), filepathsInProcessCache, selector.Image, selector.Tag)
+					p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), filepathsInProcessCache, selector.Image)
 				}
 
 				err = m.loadProfileMap(p)

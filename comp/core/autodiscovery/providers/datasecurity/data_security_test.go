@@ -170,8 +170,45 @@ func postgresIntegration() integration.Config {
 // RC client it subscribes through along with the provider.
 func newTestController(t *testing.T, adConfigs []integration.Config) (*mockedRcClient, types.ConfigProvider) {
 	rc := &mockedRcClient{}
-	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc)
+	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc, false)
 	return rc, provider
+}
+
+func TestPostgresSSLMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		instance   map[string]any
+		enforceSSL bool
+		want       string
+		wantErr    bool
+	}{
+		{name: "not enforcing keeps unset", instance: map[string]any{"host": "db"}, want: ""},
+		{name: "not enforcing keeps allow", instance: map[string]any{"host": "db", "ssl": "allow"}, want: "allow"},
+		{name: "unset is elevated", instance: map[string]any{"host": "db"}, enforceSSL: true, want: "require"},
+		{name: "empty is elevated", instance: map[string]any{"host": "db", "ssl": ""}, enforceSSL: true, want: "require"},
+		{name: "disable is elevated", instance: map[string]any{"host": "db", "ssl": "disable"}, enforceSSL: true, want: "require"},
+		{name: "allow is elevated", instance: map[string]any{"host": "db", "ssl": "allow"}, enforceSSL: true, want: "require"},
+		{name: "prefer is elevated", instance: map[string]any{"host": "db", "ssl": "prefer"}, enforceSSL: true, want: "require"},
+		{name: "invalid value is elevated", instance: map[string]any{"host": "db", "ssl": "bogus"}, enforceSSL: true, want: "require"},
+		{name: "non-string value is elevated", instance: map[string]any{"host": "db", "ssl": true}, enforceSSL: true, want: "require"},
+		{name: "require is kept", instance: map[string]any{"host": "db", "ssl": "require"}, enforceSSL: true, want: "require"},
+		{name: "verify-ca is kept", instance: map[string]any{"host": "db", "ssl": "verify-ca"}, enforceSSL: true, want: "verify-ca"},
+		{name: "verify-full is kept", instance: map[string]any{"host": "db", "ssl": "verify-full"}, enforceSSL: true, want: "verify-full"},
+		{name: "not enforcing accepts unix socket", instance: map[string]any{"host": "/var/run/postgresql", "ssl": "allow"}, want: "allow"},
+		{name: "enforcing rejects unix socket", instance: map[string]any{"host": "/var/run/postgresql", "ssl": "require"}, enforceSSL: true, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host := instanceString(tt.instance, "host")
+			got, err := postgresSSLMode(tt.instance, host, tt.enforceSSL)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // TestControllerDoesNotSubscribeWithoutPostgres asserts the controller does not subscribe to RC
