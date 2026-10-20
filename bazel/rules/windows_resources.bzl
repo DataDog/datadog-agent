@@ -9,6 +9,7 @@ which isn't in the MinGW-only PATH). We work around this with
 We still resolve the CC toolchain to get the correct PATH for gcc itself.
 """
 
+load("@bazel_lib//lib:copy_file.bzl", "COPY_FILE_TOOLCHAINS", "copy_file_action")
 load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
 load("@rules_cc//cc:defs.bzl", "cc_common")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
@@ -34,7 +35,7 @@ def _cc_env(ctx):
     )
     return env, cc_toolchain, feature_configuration
 
-def _syso_cc_info(ctx, name, syso_out, cc_toolchain, feature_configuration):
+def _syso_cc_info(ctx, syso_out, cc_toolchain, feature_configuration):
     """Wraps a .syso object file in a CcInfo so cc/rust link_deps can consume it.
 
     cc_common.create_library_to_link requires a prebuilt static/dynamic library
@@ -44,19 +45,20 @@ def _syso_cc_info(ctx, name, syso_out, cc_toolchain, feature_configuration):
 
     create_compilation_outputs only accepts objects named *.o/.obj/.opb/.bc, but
     the .syso extension is load-bearing for Go's build (it auto-links
-    *_windows.syso files), so we symlink a .o-suffixed alias for cc_common's sake
+    *_windows.syso files), so we copy it to a .o-suffixed alias for cc_common's sake
     rather than renaming the actual windres output.
 
     alwayslink is mandatory: the archived object defines no symbols, so a normal
     archive member is never pulled in by the linker and the resources silently
     vanish from the binary.
     """
-    obj_alias = ctx.actions.declare_file(name + "_syso_alias.o")
-    ctx.actions.symlink(output = obj_alias, target_file = syso_out)
-    compilation_outputs = cc_common.create_compilation_outputs(objects = depset([obj_alias]))
+    obj_alias = ctx.actions.declare_file(ctx.label.name + "_syso_alias.o")
+    copy_file_action(ctx, syso_out, obj_alias)
+    objects = depset([obj_alias])
+    compilation_outputs = cc_common.create_compilation_outputs(objects = objects, pic_objects = objects)
     linking_context, _linking_outputs = cc_common.create_linking_context_from_compilation_outputs(
         actions = ctx.actions,
-        name = name,
+        name = ctx.label.name,
         feature_configuration = feature_configuration,
         cc_toolchain = cc_toolchain,
         compilation_outputs = compilation_outputs,
@@ -64,6 +66,29 @@ def _syso_cc_info(ctx, name, syso_out, cc_toolchain, feature_configuration):
         alwayslink = True,
     )
     return CcInfo(linking_context = linking_context)
+
+def _windres(ctx, src, syso_out, inputs, args, progress_message):
+    env, cc_toolchain, feature_configuration = _cc_env(ctx)
+
+    windres_args = ctx.actions.args()
+    windres_args.add("--use-temp-file")
+    windres_args.add("--target", "pe-x86-64")
+    windres_args.add_all(args)
+    windres_args.add("-i", src)
+    windres_args.add("-O", "coff")
+    windres_args.add("-o", syso_out)
+
+    ctx.actions.run(
+        executable = ctx.executable._windres,
+        arguments = [windres_args],
+        env = env,
+        inputs = depset([src] + inputs, transitive = [cc_toolchain.all_files]),
+        outputs = [syso_out],
+        mnemonic = "WindRes",
+        progress_message = progress_message,
+    )
+
+    return _syso_cc_info(ctx, syso_out, cc_toolchain, feature_configuration)
 
 # --- win_messagetable ---------------------------------------------------------
 
@@ -93,28 +118,8 @@ def _win_messagetable_impl(ctx):
         progress_message = "Compiling message table %s" % src.short_path,
     )
 
-    syso_name = basename + ".syso"
-    syso_out = ctx.actions.declare_file(syso_name)
-    env, cc_toolchain, feature_configuration = _cc_env(ctx)
-
-    windres_args = ctx.actions.args()
-    windres_args.add("--use-temp-file")
-    windres_args.add("--target", "pe-x86-64")
-    windres_args.add("-i", rc_out.path)
-    windres_args.add("-o", syso_out.path)
-    windres_args.add("-O", "coff")
-
-    ctx.actions.run(
-        executable = ctx.executable._windres,
-        arguments = [windres_args],
-        env = env,
-        inputs = depset([rc_out, bin_out], transitive = [cc_toolchain.all_files]),
-        outputs = [syso_out],
-        mnemonic = "WindRes",
-        progress_message = "Linking message resource %s" % rc_out.short_path,
-    )
-
-    cc_info = _syso_cc_info(ctx, ctx.label.name, syso_out, cc_toolchain, feature_configuration)
+    syso_out = ctx.actions.declare_file(basename + ".syso")
+    cc_info = _windres(ctx, rc_out, syso_out, [bin_out], [], "Linking message resource {}".format(rc_out.short_path))
     return [DefaultInfo(files = depset([syso_out, h_out])), cc_info]
 
 _win_messagetable = rule(
@@ -125,7 +130,7 @@ _win_messagetable = rule(
         "_windmc": attr.label(default = _WINDMC, executable = True, cfg = "exec", allow_single_file = True),
         "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec", allow_single_file = True),
     } | CC_TOOLCHAIN_ATTRS,
-    toolchains = use_cc_toolchain(),
+    toolchains = use_cc_toolchain() + COPY_FILE_TOOLCHAINS,
     fragments = ["cpp"],
 )
 
@@ -149,38 +154,19 @@ win_messagetable = macro(
 
 def _win_resource_impl(ctx):
     src = ctx.file.src
-    syso_name = "%s.syso" % ctx.label.name
-    syso_out = ctx.actions.declare_file(syso_name)
+    syso_out = ctx.actions.declare_file("{}.syso".format(ctx.label.name))
 
-    env, cc_toolchain, feature_configuration = _cc_env(ctx)
-
-    windres_args = ctx.actions.args()
-    windres_args.add("--use-temp-file")
-    windres_args.add("--target", "pe-x86-64")
+    args = []
     for k, v in ctx.attr.defines.items():
-        windres_args.add("--define", "%s=%s" % (k, v))
+        args.extend(["--define", "{}={}".format(k, v)])
 
     include_dirs = {src.dirname: True}
     for dep in ctx.files.deps:
         include_dirs[dep.dirname] = True
     for d in include_dirs:
-        windres_args.add("-I", d)
+        args.extend(["-I", d])
 
-    windres_args.add("-i", src)
-    windres_args.add("-O", "coff")
-    windres_args.add("-o", syso_out.path)
-
-    ctx.actions.run(
-        executable = ctx.executable._windres,
-        arguments = [windres_args],
-        env = env,
-        inputs = depset([src] + ctx.files.deps, transitive = [cc_toolchain.all_files]),
-        outputs = [syso_out],
-        mnemonic = "WindRes",
-        progress_message = "Linking resource %s" % src.short_path,
-    )
-
-    cc_info = _syso_cc_info(ctx, ctx.label.name, syso_out, cc_toolchain, feature_configuration)
+    cc_info = _windres(ctx, src, syso_out, ctx.files.deps, args, "Linking resource {}".format(src.short_path))
     return [DefaultInfo(files = depset([syso_out])), cc_info]
 
 _win_resource = rule(
@@ -192,7 +178,7 @@ _win_resource = rule(
         "defines": attr.string_dict(),
         "_windres": attr.label(default = _WINDRES, executable = True, cfg = "exec", allow_single_file = True),
     } | CC_TOOLCHAIN_ATTRS,
-    toolchains = use_cc_toolchain(),
+    toolchains = use_cc_toolchain() + COPY_FILE_TOOLCHAINS,
     fragments = ["cpp"],
 )
 

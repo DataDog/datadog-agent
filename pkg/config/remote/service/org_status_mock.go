@@ -10,5 +10,5 @@ package service
 // MockPollOrgStatus performs one real status fetch without starting background
 // polling. It lets consumers test the status contract with a loopback backend.
 func MockPollOrgStatus(s *CoreAgentService) {
-	s.orgStatusPoller.poll(s.api, s.rcType)
+	s.orgStatusPoller.poll(s.api, s.rcType, s.status)
 }

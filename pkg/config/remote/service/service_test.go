@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -325,13 +326,13 @@ func TestFetchOrgStatus503And504IncrementsErrCount(t *testing.T) {
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
-	service.orgStatusPoller.poll(service.api, service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(1))
 
 	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
 
-	service.orgStatusPoller.poll(service.api, service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(2))
 }
 
@@ -352,7 +353,7 @@ func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
 	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
-	service.orgStatusPoller.poll(service.api, service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
 	assert.Equal(t, service.orgStatusPoller.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 }
 
@@ -1019,6 +1020,100 @@ func TestWithApiKeyUpdate(t *testing.T) {
 
 }
 
+// fakeStatusInstance captures what a service reports, without touching the
+// process-wide expvars.
+type fakeStatusInstance struct {
+	mu               sync.Mutex
+	orgEnabled       bool
+	apiKeyAuthorized bool
+	lastError        error
+}
+
+var _ StatusInstance = (*fakeStatusInstance)(nil)
+
+func (f *fakeStatusInstance) SetOrgEnabled(enabled bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.orgEnabled = enabled
+}
+
+func (f *fakeStatusInstance) SetAPIKeyAuthorized(authorized bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.apiKeyAuthorized = authorized
+}
+
+func (f *fakeStatusInstance) SetLastError(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastError = err
+}
+
+func (f *fakeStatusInstance) get() fakeStatusInstance {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return fakeStatusInstance{
+		orgEnabled:       f.orgEnabled,
+		apiKeyAuthorized: f.apiKeyAuthorized,
+		lastError:        f.lastError,
+	}
+}
+
+// TestDefaultStatusInstancePublishesLegacyKeys pins the exported shape of
+// "remoteConfigStatus" for a single-service process. The exact-map comparison is
+// the point: it fails if anyone adds a key.
+func TestDefaultStatusInstancePublishesLegacyKeys(t *testing.T) {
+	t.Cleanup(func() {
+		exportedStatusOrgEnabled.Set("")
+		exportedStatusKeyAuthorized.Set("")
+		exportedLastUpdateErr.Set("")
+	})
+
+	instance := expvarStatusInstance{}
+	instance.SetOrgEnabled(true)
+	instance.SetAPIKeyAuthorized(true)
+	instance.SetLastError(errors.New("boom"))
+
+	// map[string]string also fails loudly on a nested object.
+	var state map[string]string
+	require.NoError(t, json.Unmarshal([]byte(exportedMapStatus.String()), &state))
+	assert.Equal(t, map[string]string{
+		"orgEnabled":   "true",
+		"apiKeyScoped": "true",
+		"lastError":    "boom",
+	}, state)
+}
+
+// TestWithStatusInstanceDivertsUpdates guards that a second service's state does
+// not land in the variables the default service reports through.
+func TestWithStatusInstanceDivertsUpdates(t *testing.T) {
+	// Captured rather than asserted as "": other tests in this package mutate
+	// these process-wide variables, so a literal expectation is order-dependent.
+	orgEnabledBefore := exportedStatusOrgEnabled.Value()
+	apiKeyScopedBefore := exportedStatusKeyAuthorized.Value()
+
+	instance := &fakeStatusInstance{}
+	poller := newOrgStatusPoller(time.Minute)
+
+	api := &mockAPI{}
+	api.On("FetchOrgStatus", mock.Anything).Return(&pbgo.OrgStatusResponse{Enabled: true, Authorized: true}, nil)
+	poller.poll(api, "test-instance", instance)
+
+	got := instance.get()
+	assert.True(t, got.orgEnabled)
+	assert.True(t, got.apiKeyAuthorized)
+
+	assert.Equal(t, orgEnabledBefore, exportedStatusOrgEnabled.Value())
+	assert.Equal(t, apiKeyScopedBefore, exportedStatusKeyAuthorized.Value())
+}
+
+// TestWithStatusInstanceNilKeepsDefault guards the option against an untyped nil.
+func TestWithStatusInstanceNilKeepsDefault(t *testing.T) {
+	opts := defaultOptions
+	WithStatusInstance(nil)(&opts)
+	assert.Equal(t, expvarStatusInstance{}, opts.statusInstance)
+}
+
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
@@ -1235,7 +1330,7 @@ func TestGetOrgStatus(t *testing.T) {
 	require.Nil(t, service.GetOrgStatus())
 	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), errors.New("fetch failed")).Once()
-	service.orgStatusPoller.poll(service.api, service.rcType)
+	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
 	require.Nil(t, service.GetOrgStatus())
 	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
 
@@ -1247,7 +1342,7 @@ func TestGetOrgStatus(t *testing.T) {
 		{Enabled: true, Authorized: true},
 	} {
 		api.On("FetchOrgStatus", mock.Anything).Return(expected, nil).Once()
-		service.orgStatusPoller.poll(service.api, service.rcType)
+		service.orgStatusPoller.poll(service.api, service.rcType, service.status)
 		snapshot := service.GetOrgStatus()
 		require.Equal(t, expected, snapshot)
 		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus())
@@ -1259,7 +1354,7 @@ func TestGetOrgStatus(t *testing.T) {
 
 		for range 6 {
 			api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), httpapi.ErrServiceUnavailable).Once()
-			service.orgStatusPoller.poll(service.api, service.rcType)
+			service.orgStatusPoller.poll(service.api, service.rcType, service.status)
 		}
 		clock.Add(time.Hour)
 		require.Equal(t, expected, service.GetOrgStatus(), "failed polls and elapsed time retain the last success")

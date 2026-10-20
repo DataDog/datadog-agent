@@ -604,3 +604,26 @@ func TestApplyPostDispatchProcessUpdates(t *testing.T) {
 		})
 	}
 }
+
+func TestReadsFile(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		retval int64
+		flags  uint32
+		want   bool
+	}{
+		{"read", 3, unix.O_RDONLY, true},
+		{"read and write", 3, unix.O_RDWR, true},
+		{"write", 3, unix.O_WRONLY | unix.O_CREAT | unix.O_TRUNC, false},
+		{"path", 3, unix.O_PATH, false},
+		{"refused", -int64(unix.EACCES), unix.O_RDONLY, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			open := &model.OpenEvent{Flags: tc.flags}
+			open.Retval = tc.retval
+			if got := readsFile(open); got != tc.want {
+				t.Errorf("readsFile = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

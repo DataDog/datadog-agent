@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -473,7 +474,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
 	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
-		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+		if missing, err := ksyms.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
 			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
 		} else if len(missing) > 0 {
 			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
@@ -1236,7 +1237,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
-			} else if event.GetEventType() == model.FileOpenEventType {
+			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
 				// Resolve the path on a copy of the file, which keeps the error of a
 				// path the SBOM resolver fails to resolve off the event: the v1
 				// profiles skip an event carrying an error, and the probe monitor
@@ -1293,6 +1294,12 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	}
 
 	p.monitors.ProcessEvent(event, p.probe.scrubber)
+}
+
+// readsFile reports whether an open succeeded and opened its file for reading,
+// as a process opens the libraries and data files of a package it uses.
+func readsFile(open *model.OpenEvent) bool {
+	return open.Retval >= 0 && open.Flags&unix.O_PATH == 0 && open.Flags&unix.O_ACCMODE != unix.O_WRONLY
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -2832,6 +2839,9 @@ func (p *EBPFProbe) Stop() {
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
+	// the namespace resolver goroutines clone TC programs, they must be done before the manager stops
+	p.Resolvers.NamespaceResolver.Stop()
+
 	for i, col := range p.rawPacketFilterCollections {
 		if col != nil {
 			col.Close()
@@ -3967,7 +3977,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ksyms.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}

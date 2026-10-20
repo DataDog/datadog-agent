@@ -19,11 +19,13 @@ dd_agent_go_test(
     data = [
         "fixtures/custom_infra_mode_events.py",
         "fixtures/custom_mycheck.py",
+        "fixtures/eudm_hostname.ps1",
     ],
     embed = [":infra-mode"],
     embedsrcs = [
         "fixtures/custom_infra_mode_events.py",
         "fixtures/custom_mycheck.py",
+        "fixtures/eudm_hostname.ps1",
     ],
     tags = ["manual"],
     deps = [
