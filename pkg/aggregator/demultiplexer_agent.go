@@ -554,6 +554,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
+	serializationDone := make(chan struct{})
 	metrics.Serialize(
 		series,
 		sketches,
@@ -588,6 +589,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 			if d.aggregator != nil {
 				t := flushTrigger{
+					serializationDone: serializationDone,
 					trigger: trigger{
 						time:              start,
 						blockChan:         make(chan struct{}),
@@ -614,6 +616,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
 		})
+
+	close(serializationDone)
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)

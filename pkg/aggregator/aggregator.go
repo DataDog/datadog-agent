@@ -801,10 +801,20 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushMutex.Lock()
 	defer agg.flushMutex.Unlock()
+	if trigger.serializationDone != nil {
+		agg.mu.Lock()
+		for _, sampler := range agg.checkSamplers {
+			sampler.commit(float64(trigger.time.UnixNano())/1e9, &agg.flushFilterList)
+		}
+		agg.mu.Unlock()
+	}
 	agg.flushSeriesAndSketches(trigger)
 	// notify the triggerer that we're done flushing the series and sketches
 	if trigger.blockChan != nil {
 		trigger.blockChan <- struct{}{}
+	}
+	if trigger.serializationDone != nil {
+		<-trigger.serializationDone
 	}
 	agg.flushServiceChecks(trigger.time, trigger.waitForSerializer)
 	agg.flushEvents(trigger.time, trigger.waitForSerializer)
