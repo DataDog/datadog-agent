@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -630,6 +631,88 @@ func TestOnTaskChecksPolled_NextTaskStartsWhenTheCheckHasRun(t *testing.T) {
 	assert.Empty(t, changes.Unschedule, "a finished check stays scheduled until its config is removed")
 	assert.Equal(t, []string{testTaskID}, scheduledTaskIDs(t, changes.Schedule))
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses[secondPath].State, "reported through the latest RC callback")
+}
+
+func TestOnTaskChecksPolled_NextTaskStartsWhenTheRunningTaskIsPastItsBudget(t *testing.T) {
+	// The first task's check never reports completing its run, e.g. because it failed to load.
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	c.finishedTaskChecks = func() map[string]bool { return map[string]bool{} }
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+	statuses, _ := collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+	drainTaskChanges(c)
+	// The statements of buildTaskPayload time out after 300s and 30s.
+	budget := taskRunSlack + 330*time.Second
+	require.Equal(t, budget, taskRunBudget(c.tasks[taskConfigID(testOtherTaskID)].payload))
+
+	c.now = func() time.Time { return testNow.Add(budget - time.Second) }
+	c.onTaskChecksPolled()
+	assert.True(t, isEmpty(drainTaskChanges(c)), "nothing starts while the first task is within its budget")
+	assert.Equal(t, state.ApplyStateUnacknowledged, statuses[secondPath].State)
+
+	c.now = func() time.Time { return testNow.Add(budget) }
+	c.onTaskChecksPolled()
+
+	changes := drainTaskChanges(c)
+	assert.Empty(t, changes.Unschedule, "the first task's check stays scheduled until its config is removed")
+	assert.Equal(t, []string{testTaskID}, scheduledTaskIDs(t, changes.Schedule))
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[secondPath].State)
+}
+
+// assertStartQueuedUnderTasksMu runs start, which starts the task testTaskID, while the task queue is
+// blocked, and asserts that tasksMu is never free while the task is running but its Schedule is not
+// queued yet. In that window an RC update removing the task would queue its Unschedule ahead of its
+// Schedule, leaving its check scheduled with nothing tracking it.
+func assertStartQueuedUnderTasksMu(t *testing.T, c *component, start func()) {
+	t.Helper()
+	c.taskChanges.mu.Lock()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		start()
+	}()
+
+	for deadline := time.Now().Add(200 * time.Millisecond); time.Now().Before(deadline); {
+		if c.tasksMu.TryLock() {
+			tracked := c.tasks[taskConfigID(testTaskID)]
+			running := tracked != nil && tracked.phase == taskRunning
+			c.tasksMu.Unlock()
+			if running {
+				c.taskChanges.mu.Unlock()
+				<-done
+				require.Fail(t, "tasksMu was released before the started task's Schedule was queued")
+			}
+		}
+		runtime.Gosched()
+	}
+
+	c.taskChanges.mu.Unlock()
+	<-done
+	assert.Equal(t, []string{testTaskID}, scheduledTaskIDs(t, drainTaskChanges(c).Schedule))
+}
+
+func TestOnTaskChecksPolled_QueuesChangesBeforeReleasingTasksMu(t *testing.T) {
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+	_, _ = collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+	drainTaskChanges(c)
+	c.finishedTaskChecks = func() map[string]bool { return map[string]bool{taskConfigID(testOtherTaskID): true} }
+
+	assertStartQueuedUnderTasksMu(t, c, c.onTaskChecksPolled)
+}
+
+func TestOnTaskUpdate_QueuesChangesBeforeReleasingTasksMu(t *testing.T) {
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+	_, _ = collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+	drainTaskChanges(c)
+
+	// The first task's config leaves the snapshot, which starts the second task.
+	assertStartQueuedUnderTasksMu(t, c, func() {
+		_, _ = collectStatuses(c, map[string]state.RawConfig{secondPath: secondRaw})
+	})
 }
 
 func TestOnTaskUpdate_TasksForDifferentDatabasesRunTogether(t *testing.T) {

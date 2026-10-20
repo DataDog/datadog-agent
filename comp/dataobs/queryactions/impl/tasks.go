@@ -31,15 +31,18 @@ import (
 // user's DO-enabled instance. Monitor configs replace the user's instance in place; tasks never do,
 // so the user's check and the monitor checks are never restarted because of a task.
 //
-// Lifecycle: a task is scheduled at most once, after its config first appears in an RC snapshot. It is
-// left alone while it stays in the snapshot and unscheduled when the backend removes its config (the
-// task finished, was cancelled or expired). A task the agent cannot run fails immediately: the agent
-// sends a task-level do-query-results error event and reports RC apply state ERROR.
+// Lifecycle: a task is scheduled at most once per Agent run, after its config first appears in an RC
+// snapshot. It is left alone while it stays in the snapshot and unscheduled when the backend removes
+// its config (the task finished, was cancelled or expired). Which tasks have run is only kept in
+// memory, so after a restart a task whose config is still in the snapshot runs again. A task the
+// agent cannot run fails immediately: the agent sends a task-level do-query-results error event and
+// reports RC apply state ERROR.
 //
 // Tasks against the same database run at most data_observability.task_concurrency at a time (1 by
 // default), so a burst of tasks never opens a connection each to it. A task past the limit waits,
 // with RC apply state UNACKNOWLEDGED, until a running task is done: its check has completed its run,
-// or its config has left the snapshot. Waiting tasks start oldest first.
+// it has run past its statements' timeouts (see taskRunBudget), or its config has left the
+// snapshot. Waiting tasks start oldest first.
 
 // taskConfigIDPattern matches the RC config IDs of one-off tasks: do-<platform>-once-<task_id>.
 var taskConfigIDPattern = regexp.MustCompile(`^do-[a-z]+-once-`)
@@ -64,6 +67,9 @@ const (
 	// taskCheckPollInterval is how often the collector is asked whether running task checks have
 	// completed their run, which lets the next task for the same database start.
 	taskCheckPollInterval = time.Second
+	// taskRunSlack is added to a task's statement timeouts in taskRunBudget. It covers the time spent
+	// outside statements: waiting for a check runner, connecting, and streaming results.
+	taskRunSlack = time.Minute
 )
 
 // taskConnectionFields are the instance fields a task check copies from the matched user instance:
@@ -110,7 +116,11 @@ type trackedTask struct {
 	databaseKey string
 	// concurrency is how many tasks may run at once against databaseKey, read from the matched
 	// instance when the task arrived.
-	concurrency     int
+	concurrency int
+	// runDeadline is set when the task starts running. Past it, the task no longer counts against
+	// databaseKey's concurrency even if its check never reported completing its run; see
+	// taskRunBudget.
+	runDeadline     time.Time
 	payload         *DOTaskPayload
 	integrationName string
 }
@@ -152,10 +162,10 @@ func splitTaskUpdates(updates map[string]state.RawConfig) (map[string]state.RawC
 }
 
 // onTaskUpdate reconciles the task configs of an RC snapshot with the tasks already seen, and
-// returns the check configs to schedule (tasks that can start) and unschedule (tasks whose config
-// is gone). A task already seen is never rescheduled: its check may have run already, and a second
-// schedule would run its statements again.
-func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatus func(string, state.ApplyStatus)) integration.ConfigChanges {
+// queues the check configs to schedule (tasks that can start) and unschedule (tasks whose config is
+// gone) for the task provider. A task already seen is never rescheduled: its check may have run
+// already, and a second schedule would run its statements again.
+func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatus func(string, state.ApplyStatus)) {
 	changes := integration.ConfigChanges{}
 
 	c.tasksMu.Lock()
@@ -191,13 +201,14 @@ func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatu
 	}
 
 	c.startQueuedTasks(&changes)
+	// Under tasksMu, see taskChangesQueue.
+	c.taskChanges.push(changes)
 
 	// Re-report every outcome, in case RC reset a config's apply state.
 	for _, configID := range configIDs {
 		tracked := c.tasks[configID]
 		applyStatus(tracked.path, tracked.status)
 	}
-	return changes
 }
 
 // startQueuedTasks starts, oldest first, the queued tasks whose database has fewer running tasks
@@ -244,6 +255,7 @@ func (c *component) startQueuedTasks(changes *integration.ConfigChanges) []*trac
 		}
 		running[tracked.databaseKey]++
 		tracked.phase = taskRunning
+		tracked.runDeadline = c.now().Add(taskRunBudget(tracked.payload))
 		tracked.status = state.ApplyStatus{State: state.ApplyStateAcknowledged}
 		changes.Schedule = append(changes.Schedule, *tracked.checkConfig)
 		c.log.Infof("Scheduling one-off Data Observability task %s (%d statements)", configID, len(tracked.payload.Task.Statements))
@@ -287,14 +299,24 @@ func (c *component) onTaskChecksPolled() {
 	finished := c.finishedTaskChecks()
 
 	c.tasksMu.Lock()
-	for configID := range finished {
-		if tracked, ok := c.tasks[configID]; ok && tracked.checkConfig != nil && tracked.phase == taskRunning {
+	now := c.now()
+	for configID, tracked := range c.tasks {
+		if tracked.checkConfig == nil || tracked.phase != taskRunning {
+			continue
+		}
+		switch {
+		case finished[configID]:
 			tracked.phase = taskDone
 			c.log.Debugf("Check of task config %s has completed its run", configID)
+		case !now.Before(tracked.runDeadline):
+			tracked.phase = taskDone
+			c.log.Warnf("Check of task config %s has not reported completing its run by %s, past its statements' timeouts; letting the next task for its database start", configID, tracked.runDeadline.UTC().Format(time.RFC3339))
 		}
 	}
 	changes := integration.ConfigChanges{}
 	updated := c.startQueuedTasks(&changes)
+	// Under tasksMu, see taskChangesQueue.
+	c.taskChanges.push(changes)
 	applyStatus := c.taskApplyStatus
 	type statusUpdate struct {
 		path   string
@@ -306,7 +328,6 @@ func (c *component) onTaskChecksPolled() {
 	}
 	c.tasksMu.Unlock()
 
-	c.taskChanges.push(changes)
 	// Outside tasksMu, so the RC client's own locking never nests inside ours.
 	if applyStatus != nil {
 		for _, update := range statuses {
@@ -385,6 +406,20 @@ func taskDatabaseKey(integrationName string, instance map[string]any) string {
 		fmt.Fprintf(hash, "\x00%s=%v", key, instance[key])
 	}
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// taskRunBudget is how long a running task may hold its database's concurrency slot without its
+// check reporting a completed run. A run completes within its statements' timeouts plus
+// taskRunSlack, so a task past its budget has a check that will never report completing. That
+// happens when the check failed to load or configure, so it never reached the collector, or when
+// its run failed without committing any output. Its slot is released so the tasks queued behind
+// it can run; its check stays scheduled until the config leaves the snapshot.
+func taskRunBudget(payload *DOTaskPayload) time.Duration {
+	budget := taskRunSlack
+	for _, statement := range payload.Task.Statements {
+		budget += time.Duration(statement.TimeoutSeconds) * time.Second
+	}
+	return budget
 }
 
 // taskConcurrency returns the matched instance's data_observability.task_concurrency. A value that
@@ -618,6 +653,11 @@ func taskConfigIDOfInstance(instanceConfig string) string {
 // taskChangesQueue holds task config changes until autodiscovery consumes them. Unlike the monitor
 // channel, it never drops or merges changes: a lost schedule would lose the task, and merging a
 // schedule with a later unschedule of the same check could apply them in the wrong order.
+//
+// Changes are pushed while tasksMu is held, in the same critical section that decides them. The
+// queue order is then the order of those decisions, so an unschedule can never overtake the
+// schedule of the same check. That would leave the check scheduled with nothing tracking it. The
+// lock order is tasksMu, then mu; the provider's Stream goroutine only ever takes mu.
 type taskChangesQueue struct {
 	mu      sync.Mutex
 	pending []integration.ConfigChanges
