@@ -19,10 +19,6 @@ type Config struct {
 	// PersistMonitoring pins the probe to bpffs so that it keeps recording OOM kills after
 	// system-probe exits without a graceful shutdown
 	PersistMonitoring bool
-
-	// UseFentryPrograms instructs the oom-kill check to use the fentry attach type for ebpf programs,
-	// when the kernel supports it. Defaults to true.
-	UseFentryPrograms bool
 }
 
 // NewConfig creates a [Config] from the system-probe configuration
@@ -30,6 +26,5 @@ func NewConfig() *Config {
 	return &Config{
 		Config:            *ebpf.NewConfig(),
 		PersistMonitoring: pkgconfigsetup.SystemProbe().GetBool("oom_kill.persist_monitoring"),
-		UseFentryPrograms: pkgconfigsetup.SystemProbe().GetBool("oom_kill.use_fentry"),
 	}
 }

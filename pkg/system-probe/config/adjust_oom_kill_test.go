@@ -44,18 +44,3 @@ func TestAdjustOOMKill(t *testing.T) {
 		})
 	}
 }
-
-func TestOOMKillUseFentry(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
-		cfg := mock.NewSystemProbe(t)
-		Adjust(cfg)
-		assert.True(t, cfg.GetBool(oomKillNS("use_fentry")), "fentry should be used unless disabled")
-	})
-
-	t.Run("disabled", func(t *testing.T) {
-		cfg := mock.NewSystemProbe(t)
-		cfg.Set(oomKillNS("use_fentry"), false, model.SourceFile)
-		Adjust(cfg)
-		assert.False(t, cfg.GetBool(oomKillNS("use_fentry")))
-	})
-}

@@ -68,9 +68,10 @@ func TestOOMKillProbe(t *testing.T) {
 			t.Run(progName, func(t *testing.T) {
 				if progName == oomFentryName {
 					skipIfFentryUnsupported(t)
+				} else {
+					disableFentry(t)
 				}
 				cfg := testConfig(false)
-				cfg.UseFentryPrograms = progName == oomFentryName
 				testOOMKillProbe(t, cfg, progName)
 			})
 		}
@@ -317,6 +318,13 @@ func setOOMStatsVersion(t *testing.T, spec *bpflib.MapSpec, version string) {
 		return
 	}
 	require.FailNow(t, "version marker not found", "struct %s has no field %s", value.Name, oomStatsVersionField)
+}
+
+// disableFentry makes fentry detection fail for the duration of the test, so the kprobe program is used
+func disableFentry(t *testing.T) {
+	orig := supportsFentry
+	supportsFentry = func(string) error { return errors.New("fentry disabled by test") }
+	t.Cleanup(func() { supportsFentry = orig })
 }
 
 // skipIfFentryUnsupported skips the test unless the kernel supports fentry on oom_kill_process

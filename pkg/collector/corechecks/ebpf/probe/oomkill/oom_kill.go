@@ -144,7 +144,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 		return nil, fmt.Errorf("map '%s' not found", oomMapName)
 	}
 
-	progSpec, err := selectProgram(spec, cfg.UseFentryPrograms)
+	progSpec, err := selectProgram(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -356,14 +356,12 @@ func (k *Probe) attach() error {
 // and the kprobe program otherwise.
 // Both run the same logic; fentry is preferred because its link can be pinned from 5.7 instead of
 // 5.15 for the kprobe's perf event link.
-func selectProgram(spec *bpflib.CollectionSpec, useFentry bool) (*bpflib.ProgramSpec, error) {
+func selectProgram(spec *bpflib.CollectionSpec) (*bpflib.ProgramSpec, error) {
 	progName, unused := oomKprobeName, oomFentryName
-	if useFentry {
-		if err := supportsFentry(oomHookName); err == nil {
-			progName, unused = oomFentryName, oomKprobeName
-		} else {
-			log.Debugf("fentry is not supported on %s, using kprobe: %s", oomHookName, err)
-		}
+	if err := supportsFentry(oomHookName); err == nil {
+		progName, unused = oomFentryName, oomKprobeName
+	} else {
+		log.Debugf("fentry is not supported on %s, using kprobe: %s", oomHookName, err)
 	}
 
 	if s, ok := spec.Programs[progName]; ok {

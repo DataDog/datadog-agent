@@ -1851,13 +1851,6 @@ properties:
           Pins the OOM Kill eBPF probe to bpffs so it keeps recording OOM kills while
           system-probe is down (including when system-probe itself is OOM killed). The next
           system-probe takes over the pins and reports what was missed.
-      use_fentry:
-        node_type: setting
-        type: boolean
-        default: true
-        comment: |
-          Attaches the OOM Kill probe with fentry when the kernel supports it, which is required
-          to pin it. When false, or when fentry is not supported, a kprobe is used instead.
   privileged_logs:
     node_type: section
     type: object
