@@ -67,11 +67,13 @@ type Resolver struct {
 	config     *config.Config
 	manager    *manager.Manager
 
-	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
-	tcRequests        chan TcClassifierRequest
-	errorCounters     map[string]*atomic.Int64
-	ctx               context.Context
-	wg                sync.WaitGroup
+	networkNamespaces   *simplelru.LRU[uint32, *NetworkNamespace]
+	tcRequests          chan TcClassifierRequest
+	netnsHandleRequests chan networkNamespaceHandleRequest
+	errorCounters       map[string]*atomic.Int64
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	wg                  sync.WaitGroup
 }
 
 // NewResolver returns a new instance of Resolver
@@ -83,6 +85,8 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 		tcRequests: make(chan TcClassifierRequest, 16),
 		ctx:        context.Background(),
+
+		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
 
 		errorCounters: newErrorCounters(),
 	}
@@ -354,15 +358,23 @@ func (nr *Resolver) Start(ctx context.Context) error {
 		return nil
 	}
 
-	nr.ctx = ctx
+	nr.ctx, nr.cancel = context.WithCancel(ctx)
 	nr.startTcClassifierLoopGoroutine()
 
 	nr.wg.Add(1)
 	go func() {
 		defer nr.wg.Done()
-		nr.flushNamespaces(ctx)
+		nr.flushNamespaces(nr.ctx)
 	}()
 	return nil
+}
+
+// Stop stops the goroutines started by Start and waits for them to exit
+func (nr *Resolver) Stop() {
+	if nr.cancel != nil {
+		nr.cancel()
+	}
+	nr.wg.Wait()
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
@@ -450,6 +462,11 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 
 	// compute the list of network namespaces without any probe
 	for _, nsID := range nr.networkNamespaces.Keys() {
+		// snapshots clone TC programs that the manager tears down right after the resolver stops
+		if nr.ctx.Err() != nil {
+			return
+		}
+
 		netns, _ := nr.networkNamespaces.Peek(nsID)
 
 		netns.Lock()
@@ -522,9 +539,7 @@ func (nr *Resolver) SendStats() error {
 
 // Close closes this resolver and frees all the resources
 func (nr *Resolver) Close() {
-	close(nr.tcRequests)
-
-	nr.wg.Wait()
+	nr.Stop()
 
 	if nr.networkNamespaces != nil {
 		nr.Lock()

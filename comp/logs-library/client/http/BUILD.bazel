@@ -46,6 +46,7 @@ dd_agent_go_test(
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/logs/message",
         "//pkg/util/fxutil",
         "//pkg/util/log",

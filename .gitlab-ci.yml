@@ -307,25 +307,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v141311605-333887d1
+  CI_IMAGE_BTF_GEN: v145669147-3469096e
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v141311605-333887d1
+  CI_IMAGE_DOCKER_X64: v145669147-3469096e
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v141311605-333887d1
+  CI_IMAGE_DOCKER_ARM64: v145669147-3469096e
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v141311605-333887d1
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v145669147-3469096e
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v141311605-333887d1
+  CI_IMAGE_LINUX: v145669147-3469096e
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v141311605-333887d1
+  CI_IMAGE_RPM_X64: v145669147-3469096e
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v141311605-333887d1
+  CI_IMAGE_RPM_ARM64: v145669147-3469096e
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v141311605-333887d1
+  CI_IMAGE_RPM_ARMHF: v145669147-3469096e
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v141311605-333887d1
+  CI_IMAGE_WIN_LTSC2022_X64: v145669147-3469096e
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v141311605-333887d1
+  CI_IMAGE_WIN_LTSC2025_X64: v145669147-3469096e
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -927,8 +927,8 @@ workflow:
       - omnibus/lib/**/*
       - omnibus/config/projects/agent.rb
       - omnibus/config/software/**/*
-      - omnibus/config/templates/**/*
       - release.json
+      - packages/installer/README.md.in
       # dd-procmgr supervises Agent processes on Windows: the MSI writes their processes.d
       # entries, and the core Agent skips the legacy SCM service each one replaces.
       - pkg/procmgr/**/*
@@ -1168,6 +1168,7 @@ workflow:
         - cmd/security-agent/**/*
         - cmd/system-probe/**/*
         - cmd/trace-agent/**/*
+        - pkg/procmgr/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py

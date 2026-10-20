@@ -6,17 +6,19 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
+// set by approve_syscall, kept when the resolver flags are rebuilt
+#define RESOLVER_CARRY_OVER_FLAGS (RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP | SAMPLE_REFRESH_NEEDED | RESOLVER_FLAG_SAMPLED)
+
 // INTERNAL events are forwarded unconditionally (e.g. cgroup tracking) and ACCEPTED events are already approved,
-// so neither should be filtered by discarders. RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP is a carry-over flag set by
-// approve_syscall when a traced cgroup forces an otherwise-discarded event to be kept, so it must be
-// preserved when callers refresh the resolver flags after approval.
+// so neither should be filtered by discarders.
 static __always_inline int get_resolver_flags(struct syscall_cache_t *syscall, u8 apply_discarders) {
+    u32 carry_over = syscall->resolver.flags & RESOLVER_CARRY_OVER_FLAGS;
     if (!apply_discarders) {
-        return syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
+        return carry_over;
     }
 
     u32 flags = syscall->state != INTERNAL && syscall->state != ACCEPTED ? RESOLVER_FLAG_APPLY_DISCARDERS : 0;
-    return flags | (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP);
+    return flags | carry_over;
 }
 
 static __always_inline void apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
@@ -89,7 +91,7 @@ static __always_inline int resolve_dentry_tail_call(void *ctx, struct dentry_res
             params->discarder.is_leaf = i == 0;
 
             if (is_discarded_by_inode(params)) {
-                if (input->flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING) {
+                if (input->flags & (RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING | RESOLVER_FLAG_SAMPLED)) {
                     input->flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
                 } else {
                     return DENTRY_DISCARDED;
