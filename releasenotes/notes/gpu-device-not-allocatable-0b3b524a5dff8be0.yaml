@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    gpu: report ``gpu.device.unavailable`` with ``unavailable_reason:not_allocatable`` on Kubernetes nodes where the kubelet PodResources socket is reachable.
+    The value is 1 when the device plugin has marked a GPU, or one of its MIG slices, unhealthy so that Kubernetes can no longer allocate it to a new pod, and 0 otherwise.
+    Nothing is reported when the allocatable devices cannot be retrieved from the kubelet.

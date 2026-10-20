@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -1750,6 +1751,19 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		DeviceMetrics:  deviceMetrics,
 	})
 	check.spCache = spCache
+	// Report every device as allocatable, so gpu.device.unavailable{unavailable_reason:not_allocatable}
+	// is validated against the spec too.
+	check.allocatableIDsFn = func(context.Context) ([]string, error) {
+		devices, err := check.deviceCache.All()
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]string, 0, len(devices))
+		for _, device := range devices {
+			ids = append(ids, device.GetDeviceInfo().UUID)
+		}
+		return ids, nil
+	}
 	prmCache := &nvidia.PRMCache{}
 	check.prmCache = prmCache
 	check.gpuConfig.Enabled = true
