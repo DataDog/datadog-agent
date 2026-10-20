@@ -28,7 +28,7 @@ import (
 // NewControllerRevisionRolloutFactory returns a new ControllerRevision rollout factory that tracks ControllerRevision events for StatefulSet rollouts
 func NewControllerRevisionRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &controllerRevisionRolloutFactory{
-		client:         client.Cl,
+		client:         client.InformerCl,
 		rolloutTracker: rolloutTracker,
 	}
 }

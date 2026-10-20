@@ -19,7 +19,7 @@ package(
     ],
 )
 
-VERSION = "1.4.3"
+VERSION = "1.4.5"
 
 package_metadata(
     name = "package_metadata",
@@ -99,6 +99,7 @@ ENABLED_FEATURES = [
     "HAVE_SYS_XATTR_H",
     "HAVE_STRSEP",
     "HAVE_STRPTIME",
+    "HAVE_STRUCT_TM_TM_GMTOFF",
     # Beware of keeping the longest pattern first in order to avoid
     # broken results like
     # #define OPENSCAP_PROBE_INDEPENDENT_ENVIRONMENTVARIABLE 158
@@ -654,7 +655,7 @@ dd_cc_packaged(
         ":xccdf-resources",
         ":cpe_files",
     ],
-    version = "33.1.2",
+    version = "33.1.4",
     visibility = ["//visibility:public"],
 )
 
@@ -662,7 +663,7 @@ dd_cc_packaged(
     name = "openscap_sce_pkg",
     dest_dir = "embedded/lib",
     input = ":openscap_sce",
-    version = "33.1.2",
+    version = "33.1.4",
     visibility = ["//visibility:public"],
 )
 

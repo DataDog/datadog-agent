@@ -418,6 +418,7 @@ profiles:
         - status:disabled
     metrics:
       - name: gpu.device_total
+      - name: amd_gpu.device_total
       # GPU telemetry uses nested subsystems (e.g. "gpu__collectors"), and only the first
       # "__" of the Prometheus name is normalized, so the second one must be kept here.
       - name: gpu.collectors__created

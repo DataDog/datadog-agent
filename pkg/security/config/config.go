@@ -639,12 +639,17 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SBOMResolverEnabled bool
 
-	// description: SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
+	// description: SBOMResolverWorkloadsCacheSize defines the count of unused image scans to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
 	// visibility: private
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
 
-	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	// description: SBOMResolverUsageEnabled defines if the SBOM resolver should report the runtime usage of packages
+	// visibility: private
+	// default_value: false
+	SBOMResolverUsageEnabled bool
+
+	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM, which the runtime usage enrichment of the host SBOM needs too
 	// visibility: private
 	// default_value: false
 	SBOMResolverHostEnabled bool
@@ -1028,11 +1033,13 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverUsageEnabled:       pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
 		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
-		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
+		SBOMResolverHostEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled") ||
+			pkgconfigsetup.Datadog().GetBool("sbom.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.host.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
+		SBOMResolverGeneratePolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -1268,12 +1275,15 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
-// EventSamplingEnabledFor reports whether the V2 sampler for the given event type is active: its
-// per-type knob is on, security profile V2 is enabled, and the type is in the V2 event types.
+// EventSamplingEnabledFor reports whether the sampler of eventType runs: its knob is on, and
+// security profile V2 is on for the type or, for opens, the SBOM resolver reports runtime usage.
 func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventType) bool {
 	var enabled bool
 	switch eventType {
 	case model.FileOpenEventType:
+		if c.EventSamplingOpenEnabled && c.SBOMResolverUsageEnabled {
+			return true
+		}
 		enabled = c.EventSamplingOpenEnabled
 	case model.ConnectEventType:
 		enabled = c.EventSamplingConnectEnabled

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -1130,56 +1131,71 @@ func (suite *k8sSuite) TestKSM() {
 	// (this healthy nginx endpoint should include address_not_ready=0).
 	suite.testKSMEndpointAddressZeros("workload-nginx", "nginx")
 
-	// Test VPA metrics for nginx
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "kubernetes_state.vpa.count",
-			Tags: []string{
-				"^kube_namespace:workload-nginx$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^orch_cluster_id:`,
-				`^kube_namespace:workload-nginx$`,
+	// Test VPA, HPA and PDB metrics for nginx and redis.
+	// On Kubernetes < 1.23 (HPA, autoscaling/v2beta2) and < 1.21 (PDB, policy/v1beta1),
+	// HPA and PDB metrics are produced by the agent's replacement stores instead of
+	// the KSM built-in ones: both must yield the same metrics and tags. The kind 1.19
+	// and 1.22 CI jobs are what exercise those replacement stores.
+	for _, app := range []struct {
+		name          string
+		namespaceTags []string // Tags derived from the namespace labels and annotations
+	}{
+		{
+			name: "nginx",
+			namespaceTags: []string{
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
-				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			}),
-			Value: &testMetricExpectValueArgs{
-				Max: 1,
-				Min: 1,
 			},
 		},
-	})
+		{
+			name: "redis",
+		},
+	} {
+		nsTag := `^kube_namespace:workload-` + app.name + `$`
+		commonTags := append([]string{
+			`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^orch_cluster_id:`,
+			nsTag,
+			`^kube_instance_tag:static$`, // This is applied via KSM core check instance config
+			`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+		}, app.namespaceTags...)
 
-	// Test VPA metrics for redis
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "kubernetes_state.vpa.count",
-			Tags: []string{
-				"^kube_namespace:workload-redis$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^orch_cluster_id:`,
-				`^kube_namespace:workload-redis$`,
-				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			}),
-			Value: &testMetricExpectValueArgs{
-				Max: 1,
-				Min: 1,
-			},
-		},
-	})
+		for _, m := range []struct {
+			name      string
+			objTagKey string // Tag holding the object name, if any
+			min, max  float64
+		}{
+			{name: "kubernetes_state.vpa.count", min: 1, max: 1},
+			// The HPA is created with MinReplicas: 1 and MaxReplicas: 5
+			{name: "kubernetes_state.hpa.max_replicas", objTagKey: "horizontalpodautoscaler", min: 5, max: 5},
+			// The PDB selects the deployment pods, whose replica count is driven by the HPA
+			{name: "kubernetes_state.pdb.pods_total", objTagKey: "poddisruptionbudget", min: 1, max: 5},
+		} {
+			filterTags := []string{nsTag}
+			expectedTags := commonTags
+			if m.objTagKey != "" {
+				objTag := `^` + m.objTagKey + `:` + app.name + `$`
+				filterTags = append(filterTags, objTag)
+				expectedTags = append([]string{objTag}, commonTags...)
+			}
+
+			suite.testMetric(&testMetricArgs{
+				Filter: testMetricFilterArgs{
+					Name: m.name,
+					Tags: filterTags,
+				},
+				Expect: testMetricExpectArgs{
+					Tags: suite.testClusterTags(expectedTags),
+					Value: &testMetricExpectValueArgs{
+						Max: m.max,
+						Min: m.min,
+					},
+				},
+			})
+		}
+	}
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -2050,7 +2066,8 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 }
 
 func (suite *k8sSuite) combineTags(tags []string, sourceCodeIntegrationTags []string) *[]string {
-	combined := append(tags, sourceCodeIntegrationTags...)
+	// slices.Concat never writes into the spare capacity of tags, which callers may reuse.
+	combined := slices.Concat(tags, sourceCodeIntegrationTags)
 	return &combined
 }
 

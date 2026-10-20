@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment reports ``RunningAsRoot`` for a package run with a
+    real or an effective UID of 0. A setuid-root binary started by another user
+    ran with the privileges of root and reported ``false``.
