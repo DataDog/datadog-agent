@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add experimental, opt-in Private Action Runner enrollment-scope discovery in
+    the core Agent on Linux. Discovery waits for Remote Configuration enablement
+    and key authorization, backs off on failures, and stops after confirmed
+    identity persistence. Default behavior is unchanged.

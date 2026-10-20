@@ -49,13 +49,16 @@ func NewComponent(r Requires) Provides {
 		return Provides{Comp: c}
 	}
 	rc, _ := r.RC.Get()
-	source := engine.NewSource(r.Config, rc, nil)
+	discovery := engine.NewDiscovery(r.Config, rc)
+	source := engine.NewSource(r.Config, rc, discovery)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	r.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			go func() {
 				defer close(done)
+				discovery.Start()
+				defer discovery.Stop()
 				defer source.Demand(false)
 				host, err := r.Hostname.Get(ctx)
 				if err != nil {
