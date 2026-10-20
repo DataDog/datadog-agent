@@ -17,6 +17,23 @@ if [[ ! -x "$agent" ]]; then
     exit 1
 fi
 
+runtime_process_env=("PATH=/usr/sbin:/usr/bin:/sbin:/bin")
+if [[ "$(uname -s)" == "Linux" ]]; then
+    runtime_lib_dir="$stage/embedded/lib"
+    rtloader="$runtime_lib_dir/libdatadog-agent-rtloader.so"
+    if [[ ! -e "$rtloader" ]]; then
+        echo "missing packaged rtloader linker name: $rtloader" >&2
+        exit 1
+    fi
+
+    # Production Linux binaries intentionally use the absolute install rpath
+    # /opt/datadog-agent/embedded/lib. This test extracts the production package
+    # beneath TEST_TMPDIR instead, so point only this test process at the staged
+    # equivalent. macOS uses a relative rpath and must continue without a dyld
+    # environment override.
+    runtime_process_env+=("LD_LIBRARY_PATH=$runtime_lib_dir")
+fi
+
 python3_bin="$(command -v python3)"
 cmd_port="$($python3_bin -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
 config_dir="$stage/config"
@@ -70,7 +87,7 @@ dump_failure_diagnostics() {
     fi
     if command -v ldd >/dev/null 2>&1; then
         echo "----- dynamic loader dependencies -----" >&2
-        ldd "$agent" >&2 || true
+        env "${runtime_process_env[@]}" ldd "$agent" >&2 || true
     elif command -v otool >/dev/null 2>&1; then
         echo "----- dynamic loader dependencies -----" >&2
         otool -L "$agent" >&2 || true
@@ -139,7 +156,6 @@ cleanup() {
 trap cleanup EXIT
 
 env -i \
-    PATH=/usr/sbin:/usr/bin:/sbin:/bin \
     HOME="$home_dir" \
     TMPDIR="$tmp_dir" \
     TMP="$tmp_dir" \
@@ -151,6 +167,7 @@ env -i \
     HTTP_PROXY=http://127.0.0.1:1 \
     HTTPS_PROXY=http://127.0.0.1:1 \
     NO_PROXY=127.0.0.1,localhost \
+    "${runtime_process_env[@]}" \
     "$agent" -c "$config_dir" run --pidfile "$pid_file" >"$stdout_file" 2>&1 &
 agent_pid=$!
 
@@ -180,7 +197,7 @@ fi
 
 stopped=false
 for _ in $(seq 1 30); do
-    if "$agent" -c "$config_dir" stop >/dev/null 2>&1; then
+    if env "${runtime_process_env[@]}" "$agent" -c "$config_dir" stop >/dev/null 2>&1; then
         stopped=true
         break
     fi
