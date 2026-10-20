@@ -462,6 +462,11 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 
 	// compute the list of network namespaces without any probe
 	for _, nsID := range nr.networkNamespaces.Keys() {
+		// snapshots clone TC programs that the manager tears down right after the resolver stops
+		if nr.ctx.Err() != nil {
+			return
+		}
+
 		netns, _ := nr.networkNamespaces.Peek(nsID)
 
 		netns.Lock()
@@ -534,8 +539,6 @@ func (nr *Resolver) SendStats() error {
 
 // Close closes this resolver and frees all the resources
 func (nr *Resolver) Close() {
-	close(nr.tcRequests)
-
 	nr.Stop()
 
 	if nr.networkNamespaces != nil {
