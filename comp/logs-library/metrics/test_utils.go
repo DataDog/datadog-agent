@@ -38,8 +38,7 @@ func RegisterFakePipelineMonitorForTest(snaps []ComponentSnapshot) {
 	RegisterPipelineMonitor(&fakePipelineMonitor{snaps: snaps})
 }
 
-// SaturatedSnapshotForTest builds one component snapshot saturated for sat30m of the last 30
-// minutes, and optionally right now.
+// SaturatedSnapshotForTest builds a snapshot saturated for sat30m, and optionally now.
 func SaturatedSnapshotForTest(name, instance string, ratio float64, sat30m time.Duration, currently bool) ComponentSnapshot {
 	return ComponentSnapshot{
 		Name:     name,

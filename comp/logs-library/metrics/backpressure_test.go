@@ -149,8 +149,7 @@ func TestSelectBottleneck(t *testing.T) {
 	}
 }
 
-// A capacity-only component ("sender") has no utilization monitor, so its zero windows are
-// unobserved rather than saturation-free; including it would claim a healthy row.
+// sender is capacity-only, so its zero windows are unobserved rather than healthy.
 func TestDeriveBackpressureExcludesUnmeasured(t *testing.T) {
 	summary := DeriveBackpressure([]ComponentSnapshot{
 		{Name: SenderTlmName},
@@ -228,8 +227,7 @@ func TestDeriveBackpressureUnmeasuredIsUnknownNotHealthy(t *testing.T) {
 	}
 }
 
-// A component saturated right now with no 30m history sorts last on duration, so it only
-// survives a truncating caller if the bottleneck key outranks the duration key.
+// A component saturated now with no 30m history must still survive truncation.
 func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
 	snaps := []ComponentSnapshot{saturatedSnapshot("zzz_now", 0.99, 0, 0, true)}
 	for i := 0; i < 12; i++ {
@@ -248,8 +246,7 @@ func TestDeriveBackpressureKeepsBottleneckFirst(t *testing.T) {
 		"the bottleneck must be row 0 or a truncating caller drops it")
 }
 
-// useMockBottleneckClock drives registration and attribution time; windows are built from the
-// returned clock, advanced past registration.
+// useMockBottleneckClock swaps the clock used for registration and attribution.
 func useMockBottleneckClock(t *testing.T) *clock.Mock {
 	t.Helper()
 	clk := clock.NewMock()
@@ -315,8 +312,7 @@ func TestCurrentBottleneckComponentScopedToPipeline(t *testing.T) {
 	assert.Equal(t, "destination_reliable_0", currentBottleneckComponent("0", clk.Now().Add(-time.Minute)), "shared stages are kept")
 }
 
-// Only saturation inside the loss window is attributed, even when both samples are inside the
-// trailing-minute aggregate.
+// Only saturation inside the loss window is attributed.
 func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	clk := useMockBottleneckClock(t)
 	ResetPipelineMonitorForTest()
@@ -337,8 +333,7 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	assert.Equal(t, NoBottleneck, currentBottleneckComponent("", now.Add(-5*time.Second)),
 		"saturation that ended before the loss did not cause it")
 
-	// CurrentlySaturated is debounced and may remain true after the last saturated sample.
-	// The timestamp still wins when that sample predates the rotation.
+	// The sample timestamp wins over a debounced CurrentlySaturated.
 	snapshot.Windows.CurrentlySaturated = true
 	register()
 	assert.Empty(t, currentBottleneckComponent("", now.Add(-5*time.Second)))

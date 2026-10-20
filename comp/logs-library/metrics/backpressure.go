@@ -52,8 +52,7 @@ type BackpressureSummary struct {
 	Components []ComponentBackpressure `json:"components"`
 }
 
-// outranks reports whether candidate beats incumbent on value, breaking ties on component
-// then instance. Snapshots arrive in map order, so ties must not depend on it.
+// outranks compares on value, then component, then instance, so ties never depend on map order.
 func outranks[T int64 | float64](candidate, incumbent *ComponentBackpressure, candidateVal, incumbentVal T) bool {
 	if candidateVal != incumbentVal {
 		return candidateVal > incumbentVal
@@ -64,8 +63,7 @@ func outranks[T int64 | float64](candidate, incumbent *ComponentBackpressure, ca
 	return candidate.Instance < incumbent.Instance
 }
 
-// canBackpressure excludes destinations fed through NonBlockingSend: a full buffer drops
-// their payloads rather than blocking the worker and, ultimately, the file tailer.
+// canBackpressure excludes NonBlockingSend destinations, which drop rather than block when full.
 func canBackpressure(component string) bool {
 	return !strings.HasPrefix(component, "destination_unreliable_")
 }
@@ -125,8 +123,7 @@ func BackpressureComponents(snaps []ComponentSnapshot) []ComponentBackpressure {
 	return comps
 }
 
-// DeriveBackpressure summarises a pipeline monitor's snapshots, ranking only blocking components.
-// A monitor with no measurable component yields the zero value: measuring nothing is not healthy.
+// DeriveBackpressure ranks blocking components; with nothing measured it returns the zero value.
 func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 	comps := BackpressureComponents(snaps)
 
@@ -148,8 +145,7 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 		summary.Bottleneck = &b
 	}
 
-	// Bottleneck first: it is picked on recency and sorted on duration, so it does not
-	// otherwise survive a caller that truncates.
+	// Bottleneck first, so a truncating caller keeps it.
 	isBottleneck := func(c *ComponentBackpressure) bool {
 		return summary.Bottleneck != nil &&
 			c.Component == summary.Bottleneck.Component &&
@@ -203,8 +199,7 @@ func registeredPipelineMonitorSince() (PipelineMonitor, time.Time) {
 	return registeredMonitor.pm, registeredMonitor.at
 }
 
-// BackpressureSnapshot summarises the registered pipeline monitor, or returns the zero value
-// when none is registered. Callers must read that as "unknown", not as healthy.
+// BackpressureSnapshot summarises the registered monitor; the zero value means unknown, not healthy.
 func BackpressureSnapshot() BackpressureSummary {
 	pm := registeredPipelineMonitor()
 	if pm == nil {
@@ -213,8 +208,7 @@ func BackpressureSnapshot() BackpressureSummary {
 	return DeriveBackpressure(pm.Snapshots())
 }
 
-// bottleneckDuringLoss names a component that saturated inside the loss window, which brackets
-// the rotation. Saturation that ended before the window cannot have caused the loss.
+// bottleneckDuringLoss names a component that saturated inside the loss window.
 func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now time.Time) string {
 	if summary.State == "" || lossWindowStartedAt.IsZero() || lossWindowStartedAt.After(now) {
 		return ""
@@ -230,8 +224,7 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 		if !component.HasLastSaturated && (component.Saturated30mSeconds > 0 || component.Saturated1mSeconds > 0) {
 			untimed = true
 		}
-		// CurrentlySaturated is debounced, so it can stay true briefly after recovery. When a
-		// precise sample timestamp is available, it must still fall inside the loss window.
+		// CurrentlySaturated is debounced, so a timestamped sample must still fall inside the window.
 		saturatedDuringLoss := component.HasLastSaturated &&
 			!component.LastSaturatedAt.Before(lossWindowStartedAt)
 		switch {
@@ -255,17 +248,14 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 		return recovered.Component
 	}
 
-	// Saturation durations only cover the trailing 30 minutes, so a summary without in-window
-	// saturation proves nothing about a rotation older than that.
+	// Durations cover only the trailing 30m, so an older rotation cannot be cleared.
 	if (summary.State == BackpressureHealthy || summary.State == BackpressureWarning) && !untimed && now.Sub(lossWindowStartedAt) <= 30*time.Minute {
 		return NoBottleneck
 	}
 	return ""
 }
 
-// currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
-// when no blocking component was observed saturated in it, or "" when attribution is unknown.
-// A window that began before the monitor can be blamed on a stage but never cleared.
+// currentBottleneckComponent returns the blamed stage, NoBottleneck, or "" when unknown.
 func currentBottleneckComponent(pipeline string, lossWindowStartedAt time.Time) string {
 	pm, since := registeredPipelineMonitorSince()
 	if pm == nil {

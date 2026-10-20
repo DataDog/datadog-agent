@@ -178,8 +178,7 @@ func TestHostIssueID_StableAndHostScoped(t *testing.T) {
 	assert.NotEqual(t, base, hostIssueID("host-b"), "hostname must scope the id")
 }
 
-// An unmeasured pipeline must not be encoded as a healthy one, or the issue would claim the
-// pipeline was keeping up. The snapshot is enrichment, so the loss is still reported.
+// An unmeasured pipeline must not be encoded as healthy; the loss is still reported.
 func TestCheck_UnmeasuredPipelineOmitsBackpressure(t *testing.T) {
 	for name, registered := range map[string]bool{
 		"no monitor registered":               false,
@@ -234,8 +233,7 @@ func TestCheck_BackpressureCarriesBottleneck(t *testing.T) {
 	assert.Equal(t, int64(1), sources[0].BottleneckRotations)
 }
 
-// Worker is the host-wide winner even though it is the runner-up for both tuples, so the
-// count cannot come from each tuple's local winner.
+// Worker wins host-wide while being the runner-up in each tuple.
 func TestCheck_GlobalBottleneckUsesAllAttributions(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()

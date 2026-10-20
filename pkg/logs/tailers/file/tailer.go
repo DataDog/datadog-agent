@@ -357,8 +357,7 @@ func (t *Tailer) StopAfterFileRotationForHandoff() {
 func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 	t.handoffDrain = endWhenIdle
 	t.didFileRotate.Store(true)
-	// Starts before the rotation: the backlog that outran the close timeout accumulated
-	// while the tailer was still reading.
+	// Starts before the rotation, while the backlog that outran the close timeout built up.
 	lossWindowStartedAt := time.Now().Add(-t.closeTimeout)
 	bytesReadAtRotationTime := t.bytesRead.Get()
 	// Resolved before the goroutine, which first waits out the rotation drain, to

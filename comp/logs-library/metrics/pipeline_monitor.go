@@ -26,8 +26,7 @@ type ComponentSnapshot struct {
 	RawBytes int64
 	Windows  WindowStats
 
-	// Measured is false for a capacity-only component, whose zero Windows are unobserved
-	// rather than saturation-free.
+	// Measured is false for capacity-only components, whose zero Windows are unobserved.
 	Measured bool
 
 	// history is the live rolling history; Windows is recomputed from it at read time, and it is

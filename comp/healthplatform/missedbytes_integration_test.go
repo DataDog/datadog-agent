@@ -52,8 +52,7 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
 	t.Cleanup(logsmetrics.ResetPipelineMonitorForTest)
 
-	// Stands in for a running logs agent with a saturated destination, and two lossy
-	// rotations attributed to it.
+	// A running logs agent with a saturated destination and two rotations blamed on it.
 	logsmetrics.MarkLogsAgentRunning()
 	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
 		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.1, 0, false),

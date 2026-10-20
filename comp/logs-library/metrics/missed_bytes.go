@@ -91,9 +91,7 @@ func (e *missedBytesEntry) prune(cutoffNano int64) {
 	}
 }
 
-// pruneAndSum totals the buckets still overlapping the window ending at cutoffNano.
-// bottlenecks is nil when nothing was attributed. Its size is bounded by the bucket
-// count and each bucket's label cap; capping again would discard counts in map order.
+// pruneAndSum totals the buckets still in the window; bottlenecks is nil when nothing was attributed.
 func (e *missedBytesEntry) pruneAndSum(cutoffNano int64) (bytes, rotations int64, bottlenecks map[string]int64) {
 	e.prune(cutoffNano)
 	for _, bucket := range e.buckets {
@@ -226,9 +224,7 @@ var missedBytes = newMissedBytesTracker(clock.New())
 // not read as a resolution.
 var logsAgentRunning atomic.Bool
 
-// RecordMissedBytes records bytes lost when a rotation closed a file early and correlates the
-// loss with saturation observed since lossWindowStartedAt in the tailer's pipeline ("" if unknown).
-// Never reached on Windows, where the tailer holds no os.File to size the loss with.
+// RecordMissedBytes records rotation loss, blaming a stage saturated in the tailer's pipeline ("" if unknown).
 func RecordMissedBytes(source, service, pipeline string, bytes int64, lossWindowStartedAt time.Time) {
 	missedBytes.record(source, service, bytes, currentBottleneckComponent(pipeline, lossWindowStartedAt))
 }

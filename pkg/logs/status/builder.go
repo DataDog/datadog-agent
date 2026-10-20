@@ -109,8 +109,7 @@ func (b *Builder) getComponentUtilization(snaps []logsMetrics.ComponentSnapshot)
 	}
 	result := make([]ComponentUtilization, 0, len(snaps))
 	for _, s := range snaps {
-		// A capacity-only aggregation point ("sender", between the strategy and the workers)
-		// has no utilization monitor, so it carries no signal for this table.
+		// sender is capacity-only and has no utilization signal.
 		if !s.Measured {
 			continue
 		}

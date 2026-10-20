@@ -68,8 +68,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 			lastLossAt = s.LastLossAt
 		}
 		for component, count := range s.Bottlenecks {
-			// The tracker bounds tuples, buckets and labels. Keep all recorded counts
-			// here so report-size caps cannot hide the host-wide winner.
+			// Count every rotation so report-size caps cannot hide the host-wide winner.
 			bottleneckCounts[component] += count
 		}
 	}
@@ -107,8 +106,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	}}, nil
 }
 
-// encodeBackpressure ranks, caps and rounds the snapshot for the wire. Reports false when no
-// monitor answered, which is not the same as a healthy pipeline.
+// encodeBackpressure ranks, caps and rounds the snapshot; false means no monitor answered.
 func encodeBackpressure(summary logsmetrics.BackpressureSummary) (string, bool) {
 	if summary.State == "" {
 		return "", false

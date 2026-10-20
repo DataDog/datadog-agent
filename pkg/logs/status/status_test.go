@@ -247,8 +247,6 @@ func TestStatusEndpoints(t *testing.T) {
 	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com. on port 10516 (API Key: ********)", status.Endpoints[0])
 }
 
-// Tests for getBackpressureStatus, called directly with crafted snapshots (no agent infra).
-
 func TestGetBackpressureStatus_Healthy(t *testing.T) {
 	b := &Builder{}
 	snaps := []metrics.ComponentSnapshot{

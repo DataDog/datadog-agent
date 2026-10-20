@@ -273,7 +273,6 @@ func decodeBackpressure(encoded string) *backpressureWire {
 	if bp.State == "" {
 		return nil
 	}
-	// Keep decoded context bounded too.
 	if len(bp.Components) > maxBackpressureComponents {
 		bp.ComponentsOmitted += len(bp.Components) - maxBackpressureComponents
 		bp.Components = bp.Components[:maxBackpressureComponents]
@@ -287,8 +286,7 @@ func decodeBackpressure(encoded string) *backpressureWire {
 	return &bp
 }
 
-// sanitizeComponent bounds a decoded component: the names reach Description unescaped and
-// the numbers reach it as ratios and durations.
+// sanitizeComponent bounds a decoded component before it reaches Description.
 func sanitizeComponent(c *logsmetrics.ComponentBackpressure) {
 	c.Component = sanitizeName(c.Component)
 	c.Instance = sanitizeIfSet(c.Instance)
@@ -332,8 +330,7 @@ func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
 	}
 }
 
-// describeCause names the stage responsible, preferring the one sampled at loss time: the
-// loss window is 24h and the check runs every 15m, so the two can disagree.
+// describeCause names the responsible stage, preferring the one sampled at loss time.
 func describeCause(bp *backpressureWire, atLoss string, rotations int64) string {
 	if atLoss != "" {
 		if atLoss == logsmetrics.NoBottleneck {
