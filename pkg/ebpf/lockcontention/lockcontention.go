@@ -26,10 +26,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -358,6 +360,16 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		// by the kernel, however verifier constraints force us to choose a smaller
 		// value. This value has been experimentally determined to pass the verifier.
 		collectionSpec.Maps["tstamp"].MaxEntries = 16384
+
+		if modifiers.NoPreallocOverrideSupported() {
+			for _, spec := range collectionSpec.Maps {
+				if !modifiers.NoPreallocSupportedForMapType(spec) {
+					continue
+				}
+
+				spec.Flags |= features.BPF_F_NO_PREALLOC
+			}
+		}
 
 		constants["num_cpus"] = uint64(cpus)
 		for ksym, addr := range kaddrs {

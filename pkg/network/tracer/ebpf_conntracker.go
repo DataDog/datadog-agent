@@ -27,6 +27,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -506,11 +507,16 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 		)
 	}
 
+	mgrModifiers := []ddebpf.Modifier{&ebpftelemetry.ErrorsTelemetryModifier{}}
+	if cfg.ForceNoPreallocHash.CNM {
+		mgrModifiers = append(mgrModifiers, &modifiers.HashMapNoPreallocModifier{})
+	}
+
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps:     conntrackMaps,
 		PerfMaps: []*manager.PerfMap{},
 		Probes:   conntrackProbes,
-	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{})
+	}, "conntrack", mgrModifiers...)
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
