@@ -9,6 +9,7 @@ go_library(
     srcs = [
         "debug_ping.go",
         "factory.go",
+        "factory_testbuild.go",
         "rcx509client.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/impl",

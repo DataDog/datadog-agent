@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !test
+
 package rcx509clientimpl
 
 import (
@@ -12,6 +14,8 @@ import (
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
 	"github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509"
 )
+
+const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/Ping"
 
 // NewClientFactory returns the production adapter for the public libdd-rc Go
 // client. Keeping this boundary injectable lets the component test lifecycle

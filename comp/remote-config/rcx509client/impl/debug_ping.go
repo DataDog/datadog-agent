@@ -15,8 +15,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/Ping"
-
 func newDebugPingHandler(logger log.Component) func(context.Context, uint64, []byte) ([]byte, error) {
 	return func(_ context.Context, correlationID uint64, payload []byte) ([]byte, error) {
 		var request remoteconfigv1.PingRequest
