@@ -10,6 +10,7 @@ package aggregator
 import (
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -869,4 +870,36 @@ func TestComparisonFinalFlushIncludesAcceptedCheckInput(t *testing.T) {
 		}
 	}
 	require.Equal(t, float64(n), total, "accepted samples must reach the final payload before shutdown")
+}
+
+func TestComparisonFinalFlushIncludesCurrentSecondSketch(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("accepted-sketch")
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		agg.handleSenderBucket(senderHistogramBucket{id: "accepted-sketch", bucket: &metrics.HistogramBucket{Name: "accepted.distribution", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: float64(now.Unix())}})
+		agg.handleSenderSample(senderMetricSample{id: "accepted-sketch", commit: true})
+		var series metrics.Series
+		var sketches metrics.SketchSeriesList
+		done := make(chan struct{})
+		close(done)
+		trigger := flushTrigger{trigger: trigger{time: now, waitForSerializer: true}, seriesSink: &series, sketchesSink: &sketches}
+
+		trigger.serializationDone = done
+		agg.Flush(trigger)
+		require.Empty(t, sketches, "ordinary flush must leave the current bucket open")
+		trigger.finalFlush = true
+		agg.Flush(trigger)
+		count := int64(0)
+		for _, s := range sketches {
+			if s.Name == "accepted.distribution" {
+				for _, p := range s.Points {
+					count += p.Sketch.Basic.Cnt
+				}
+			}
+		}
+		require.Equal(t, int64(7), count, "a stopped Agent cannot depend on another check run to flush its last sketch")
+	})
 }

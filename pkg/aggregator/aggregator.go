@@ -814,6 +814,16 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 		}
 		agg.mu.Unlock()
 	}
+	if trigger.finalFlush {
+		agg.mu.Lock()
+		// Include the current second only at shutdown. Sketch timestamps stay
+		// unchanged; ordinary flushes retain the open bucket for more samples.
+		before := float64(time.Now().Unix() + 1)
+		for _, sampler := range agg.checkSamplers {
+			sampler.commitSketches(before, &agg.flushFilterList)
+		}
+		agg.mu.Unlock()
+	}
 	agg.flushSeriesAndSketches(trigger)
 	// notify the triggerer that we're done flushing the series and sketches
 	if trigger.blockChan != nil {

@@ -90,6 +90,9 @@ type trigger struct {
 type flushTrigger struct {
 	trigger
 
+	// Only Agent shutdown may flush the current check sketch bucket.
+	finalFlush bool
+
 	// Keeps check ingestion paused until the existing serializer returns.
 	serializationDone <-chan struct{}
 
