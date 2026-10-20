@@ -127,7 +127,7 @@ pkg_tar(
 sh_test(
     name = "packaged_client_lifecycle_test",
     srcs = ["packaged_client_lifecycle_test.sh"],
-    args = ["$(location :packaged_client_lifecycle_archive)"],
+    args = ["$(rootpath :packaged_client_lifecycle_archive)"],
     data = [":packaged_client_lifecycle_archive"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:macos"],
