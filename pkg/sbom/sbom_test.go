@@ -6,14 +6,20 @@
 package sbom
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func component(name string, properties ...*cyclonedx_v1_4.Property) *cyclonedx_v1_4.Component {
@@ -115,5 +121,44 @@ func TestUsageEnrichmentEnabled(t *testing.T) {
 		// system-probe reports usage on Linux alone.
 		want := usage && runtime.GOOS == "linux"
 		assert.Equal(t, want, UsageEnrichmentEnabled(agentConfig), "sbom.enrichment.usage.enabled: %t", usage)
+	}
+}
+
+func TestConvertScanResultToSBOMErrorLogging(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantErrLog bool
+	}{
+		{name: "unsupported", err: ErrScanNotSupported},
+		{
+			// Mirrors the layer count mismatch chain in pkg/util/trivy.
+			name: "unsupported wrapped twice",
+			err:  fmt.Errorf("unable to pair layer paths: %w", fmt.Errorf("%w: layer count mismatch", ErrScanNotSupported)),
+		},
+		{name: "other failure", err: errors.New("unable to get mounts"), wantErrLog: true},
+		{
+			// Only the sentinel itself silences the log, not its text.
+			name:       "unsupported text without wrapping",
+			err:        fmt.Errorf("scan failed: %v", ErrScanNotSupported),
+			wantErrLog: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logs, log.DebugLvl)
+			require.NoError(t, err)
+			log.SetupLogger(logger, "debug")
+			t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+
+			result := &ScanResult{Error: tt.err}
+			sbom := result.ConvertScanResultToSBOM()
+			log.Flush()
+
+			assert.Equal(t, workloadmeta.Failed, sbom.Status)
+			assert.Equal(t, tt.err.Error(), sbom.Error)
+			assert.Equal(t, tt.wantErrLog, bytes.Contains(logs.Bytes(), []byte("[ERROR]")), "logs: %s", logs.String())
+		})
 	}
 }
