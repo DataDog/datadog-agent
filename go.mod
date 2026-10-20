@@ -325,7 +325,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/judwhite/go-svc v1.2.1
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
-	github.com/klauspost/compress v1.20.1
+	github.com/klauspost/compress v1.20.3
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
 	github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
@@ -349,7 +349,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.8
 	github.com/oliveagle/jsonpath v0.1.4
-	github.com/open-policy-agent/opa v1.21.1
+	github.com/open-policy-agent/opa v1.21.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.159.0
@@ -395,9 +395,9 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.79
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.5
-	github.com/twmb/franz-go v1.22.1
+	github.com/twmb/franz-go v1.22.2
 	github.com/twmb/franz-go/pkg/kadm v1.19.0
-	github.com/twmb/franz-go/pkg/kmsg v1.14.0
+	github.com/twmb/franz-go/pkg/kmsg v1.15.0
 	github.com/twmb/murmur3 v1.2.1
 	github.com/uptrace/bun v1.3.0
 	github.com/uptrace/bun/dialect/pgdialect v1.3.0
@@ -412,7 +412,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.17.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.18.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.34
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -463,7 +463,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0
 	go.opentelemetry.io/proto/slim/otlp v1.11.0
 	go.opentelemetry.io/proto/slim/otlp/processcontext/v1development v0.4.0
-	go.temporal.io/api v1.63.6
+	go.temporal.io/api v1.63.7
 	go.temporal.io/sdk v1.49.0
 	go.uber.org/atomic v1.12.0
 	go.uber.org/automaxprocs v1.6.0
@@ -886,7 +886,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.29 // indirect
 	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
-	github.com/mdlayher/socket v0.7.0 // indirect
+	github.com/mdlayher/socket v0.8.0 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect

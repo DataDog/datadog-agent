@@ -9,5 +9,5 @@ import (
 )
 
 func TestCgoAlignment_oomStats(t *testing.T) {
-	ebpftest.TestCgoAlignment[oomStats](t)
+	ebpftest.AssertCgoAlignment[oomStats](t)
 }
