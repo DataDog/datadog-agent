@@ -545,7 +545,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 		})
 	}
 	for _, meta := range storage.ListSeries(observerdef.WorkloadSeriesFilter()) {
-		storage.AddWithKeyAndHostComposite(meta.Namespace, meta.Name, meta.Host, 1, 1_002, meta.Tags, testStorageKeyForMetric(meta.Namespace, &metricObs{name: meta.Name, host: meta.Host, tags: meta.Tags}))
+		storage.AddWithKeyAndHostComposite(meta.Namespace, meta.Name, meta.Host, 1, 1_002, meta.Tags, testStorageKeyForMetric(meta.Namespace, &metricObs{name: meta.Name, host: meta.Host, tags: meta.Tags}), meta.MetricType)
 	}
 
 	// Drive Detect() so the detectors observe the series and populate their

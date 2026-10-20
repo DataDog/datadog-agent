@@ -3,7 +3,8 @@
 		"pkg/security": {
 			"exclude": false,
 			"run-only": [
-				"TestWorkloadProfile"			]
+				"TestWorkloadProfileDedicated"
+			]
 		}
 	},
 	"additional_env_vars": [

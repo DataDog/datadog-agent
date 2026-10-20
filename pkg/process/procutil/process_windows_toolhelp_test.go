@@ -35,16 +35,27 @@ func TestProcessesByPIDReusedPID(t *testing.T) {
 	wp, ok := probe.(*windowsToolhelpProbe)
 	require.True(t, ok, "probe must be *windowsToolhelpProbe")
 
-	// Pre-populate cache with wrong createTime to run the reused PID logic.
 	// createTime 1 will never equal the real process's createTime.
 	const wrongCreateTime = 1
-	wp.cachedProcesses[pid] = &cachedProcess{createTime: wrongCreateTime}
+	expectedCmdline := []string{"powershell.exe", "-c", `"sleep 60; foo bar baz"`}
 
-	procs, err := probe.ProcessesByPID(time.Now(), true)
-	require.NoError(t, err)
+	// cmd.Start can return before the child has finished initializing, in which
+	// case its command line is not readable yet and the probe falls back to the
+	// exe name (or an empty string). Retry until the full command line is read,
+	// pre-populating the cache with the wrong createTime on every attempt so each
+	// call runs the reused PID logic instead of returning the cached entry.
+	var p *Process
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		wp.cachedProcesses[pid] = &cachedProcess{createTime: wrongCreateTime}
 
-	p, found := procs[int32(pid)]
-	require.True(t, found, "process with reused PID should be in result")
+		procs, err := probe.ProcessesByPID(time.Now(), true)
+		require.NoError(c, err)
+
+		proc, found := procs[int32(pid)]
+		require.True(c, found, "process with reused PID should be in result")
+		require.Equal(c, expectedCmdline, proc.Cmdline)
+		p = proc
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Reuse path should have replaced the cache and filled with real createTime.
 	assert.NotEqual(t, wrongCreateTime, p.Stats.CreateTime,
@@ -52,7 +63,7 @@ func TestProcessesByPIDReusedPID(t *testing.T) {
 
 	// Sanity: process metadata should match the process we started.
 	assert.True(t, strings.HasSuffix(p.Exe, "powershell.exe"), "Exe should be powershell.exe")
-	assert.Equal(t, []string{"powershell.exe", "-c", `"sleep 60; foo bar baz"`}, p.Cmdline)
+	assert.Equal(t, expectedCmdline, p.Cmdline)
 	assert.Equal(t, int32(os.Getpid()), p.Ppid)
 	assert.Equal(t, int32(pid), p.Pid)
 	assert.Equal(t, "Windows PowerShell", p.Comm)

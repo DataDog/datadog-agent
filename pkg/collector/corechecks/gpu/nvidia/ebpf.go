@@ -252,7 +252,7 @@ func (c *ebpfCollector) Collect() ([]Sample, error) {
 
 	deviceSamples = append(deviceSamples,
 		&Metric{
-			baseSample: baseSample{priority: Low},
+			baseSample: baseSample{priority: MediumLow},
 			Name:       "sm_active",
 			Value:      activeTimePct,
 			Type:       ddmetrics.GaugeType,

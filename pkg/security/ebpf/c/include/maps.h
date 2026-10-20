@@ -35,6 +35,7 @@ BPF_ARRAY_MAP(splice_exit_flags_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(bpf_cmd_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(sysctl_action_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(connect_addr_family_approvers, struct u64_flags_filter_t, 1)
+BPF_ARRAY_MAP(bind_addr_family_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(prctl_option_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(setsockopt_level_or_optname_approvers, struct u64_flags_filter_t, 2)
 BPF_ARRAY_MAP(socket_field_approvers, struct u64_flags_filter_t, 3)
@@ -46,7 +47,7 @@ BPF_ARRAY_MAP(go_labels_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(go_labels_ctx, struct go_labels_ctx_entry_t, GO_LABELS_CTX_MAX_ENTRIES)
 BPF_ARRAY_MAP(otel_attrs_gen_id, u32, 1)
 BPF_ARRAY_MAP(otel_span_attrs, struct otel_span_attrs_t, OTEL_SPAN_ATTRS_MAX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 5)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 6)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 
@@ -113,6 +114,7 @@ BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(syscall_samples, struct syscall_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 

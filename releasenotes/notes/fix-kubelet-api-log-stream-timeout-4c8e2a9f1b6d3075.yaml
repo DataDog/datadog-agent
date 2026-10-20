@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    When collecting container logs through the kubelet API
+    (``logs_config.k8s_container_use_kubelet_api``), such as with the Agent
+    sidecar on EKS Fargate, the Agent no longer restarts each container log
+    stream every 30 seconds with a ``Could not tail logs for container`` error.
+    When a container log stream does reconnect, the Agent now resumes after the
+    last line it read, so it no longer sends some log lines twice.
