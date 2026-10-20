@@ -1200,6 +1200,8 @@ func IsWriteOutcomeUnknown(err error) bool {
 // callers know they must not race a restore against the unresolved writer.
 // The caller must bound ctx and call only once per outcome: the result is consumed.
 // Passing an error for which IsWriteOutcomeUnknown is false panics.
+//
+//nolint:revive // Preserve the public API return order.
 func WaitForWriteOutcome(ctx context.Context, err error) (mutated bool, resultErr error, resolved bool) {
 	var e *writeOutcomeUnknownError
 	if !errors.As(err, &e) {

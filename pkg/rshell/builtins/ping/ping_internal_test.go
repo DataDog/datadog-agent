@@ -63,7 +63,7 @@ func TestIsPermissionErrStringFallback(t *testing.T) {
 	assert.True(t, isPermissionErr(errors.New("protocol not supported")))
 	// Windows WSAEPROTONOSUPPORT (10043): returned by pro-bing when unprivileged
 	// raw socket creation fails; privileged retry should be attempted.
-	assert.True(t, isPermissionErr(errors.New("The requested protocol has not been configured into the system, or no implementation for it exists.")))
+	assert.True(t, isPermissionErr(errors.New("The requested protocol has not been configured into the system, or no implementation for it exists."))) //nolint:revive // Exact Windows error text.
 }
 
 func TestIsPermissionErrUnrelated(t *testing.T) {

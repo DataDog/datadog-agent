@@ -22,7 +22,7 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 )
 
-func runLogicOpsVulnHunt(t *testing.T, ctx context.Context, script, dir string, stdin io.Reader, configure func(*Runner)) (string, string, error) {
+func runLogicOpsVulnHunt(ctx context.Context, t *testing.T, script, dir string, stdin io.Reader, configure func(*Runner)) (string, string, error) {
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer
@@ -57,7 +57,7 @@ func TestVulnHuntShellFeatureRedirectionChain_LogicSkippedOutputRedirectDoesNotC
 	dir := t.TempDir()
 	created := filepath.Join(dir, "created.txt")
 
-	stdout, stderr, err := runLogicOpsVulnHunt(t, context.Background(), "false && echo hidden > created.txt\n", dir, nil, nil)
+	stdout, stderr, err := runLogicOpsVulnHunt(context.Background(), t, "false && echo hidden > created.txt\n", dir, nil, nil)
 
 	assert.Equal(t, "", stdout)
 	assert.Equal(t, "> file redirection is not supported\n", stderr)
@@ -70,7 +70,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_LogicSkippedBranchDoesNotMutateReado
 	dir := t.TempDir()
 	var runner *Runner
 
-	stdout, stderr, err := runLogicOpsVulnHunt(t, context.Background(), "false && RO_VAR=hacked echo hidden\n", dir, nil, func(r *Runner) {
+	stdout, stderr, err := runLogicOpsVulnHunt(context.Background(), t, "false && RO_VAR=hacked echo hidden\n", dir, nil, func(r *Runner) {
 		runner = r
 		setReadonlyVulnHuntVar(t, r)
 	})
@@ -87,7 +87,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_LogicExecutedBranchPreservesReadonly
 	dir := t.TempDir()
 	var runner *Runner
 
-	stdout, stderr, err := runLogicOpsVulnHunt(t, context.Background(), "RO_VAR=hacked true && echo hidden\n", dir, nil, func(r *Runner) {
+	stdout, stderr, err := runLogicOpsVulnHunt(context.Background(), t, "RO_VAR=hacked true && echo hidden\n", dir, nil, func(r *Runner) {
 		runner = r
 		setReadonlyVulnHuntVar(t, r)
 	})
@@ -142,7 +142,7 @@ func TestVulnHuntShellFeatureSignalContext_LogicCanceledLongChainStops(t *testin
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	stdout, _, err := runLogicOpsVulnHunt(t, ctx, script, dir, nil, nil)
+	stdout, _, err := runLogicOpsVulnHunt(ctx, t, script, dir, nil, nil)
 
 	assert.Equal(t, "", stdout)
 	assert.True(t, errors.Is(err, context.Canceled), "canceled context should stop before executing the chain, got %v", err)

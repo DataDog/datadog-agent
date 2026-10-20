@@ -48,6 +48,7 @@ var internalPerPackageSymbols = map[string][]string{
 		"strings.TrimSpace", // 🟢 trims whitespace between the colon and the value; pure function, no I/O.
 	},
 	"procinfo": {
+		"strconv.FormatUint",           // 🟢 formats process counters; pure function, no I/O.
 		"bufio.NewScanner",             // 🟢 line-by-line reading of /proc files; no write capability.
 		"bytes.NewReader",              // 🟢 wraps a byte slice as an in-memory io.Reader; no I/O side effects.
 		"encoding/binary.LittleEndian", // 🟢 decodes fields from Darwin's fixed-size proc_taskinfo buffer; pure byte conversion, no I/O.
@@ -438,117 +439,117 @@ var internalAllowedSymbols = []string{
 	"bufio.ErrTooLong", // 🟢 diskstats: sentinel error for scanner buffer overflow; pure constant.
 	"bufio.NewScanner", // 🟢 procinfo/diskstats: line-by-line reading of /proc files; no write capability.
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/procpath.Default", // 🟢 procinfo/procnet: canonical /proc filesystem root path constant; pure constant, no I/O.
-	"bytes.NewReader",                        // 🟢 procinfo: wraps a byte slice as an in-memory io.Reader; no I/O side effects.
-	"context.Context",                        // 🟢 procinfo: deadline/cancellation interface; no side effects.
-	"encoding/binary.BigEndian",              // 🟢 winnet: reads big-endian IPv6 group values from DLL buffer; pure value, no I/O.
-	"encoding/binary.LittleEndian",           // 🟢 winnet/procinfo: reads fixed-layout little-endian kernel/DLL buffer fields; pure value, no I/O.
-	"errors.Is",                              // 🟢 procinfo: checks whether an error in a chain matches a target; pure function, no I/O.
-	"errors.New",                             // 🟢 creates a sentinel error; pure function, no I/O.
-	"github.com/spf13/pflag.ContinueOnError", // 🟢 flagparser: pflag parsing-mode constant; pure constant, no I/O.
-	"github.com/spf13/pflag.FlagSet",         // 🟢 flagparser: pflag FlagSet type used to trial-parse argv prefixes; pure type, no I/O.
-	"github.com/spf13/pflag.NewFlagSet",      // 🟢 flagparser: constructs a throw-away FlagSet for trial-parsing; pure constructor, no I/O.
-	"io.Discard",                             // 🟢 flagparser: silences trial.SetOutput so trial-parse failures don't leak to stderr; pure no-op writer.
-	"io.LimitReader",                         // 🟢 procinfo/procmaps/procsyskernel: caps kernel pseudo-file reads before buffering; pure wrapper.
-	"io.ReadAll",                             // 🟠 procinfo/procmaps/procsyskernel: buffers only readers already capped by io.LimitReader.
-	"math.MaxUint32",                         // 🟢 procmaps: upper bound for a valid PID before the uint32(pid) OpenProcess cast; pure constant.
-	"math/bits.Div64",                        // 🟢 procinfo (darwin): overflow-safe division for CPU tick conversion; pure arithmetic.
-	"math/bits.Mul64",                        // 🟢 procinfo (darwin): overflow-safe multiplication for CPU tick conversion; pure arithmetic.
-	"math/bits.OnesCount32",                  // 🟢 procnet: counts set bits in a uint32 (popcount for prefix length); pure function, no I/O.
-	"math/bits.ReverseBytes32",               // 🟢 procnet: byte-swaps a uint32 to convert little-endian /proc mask to network byte order for CIDR validation; pure function, no I/O.
-	"fmt.Errorf",                             // 🟢 error formatting; pure function, no I/O.
-	"os.ErrNotExist",                         // 🟢 procinfo: sentinel error value indicating a file or directory does not exist; read-only constant, no I/O.
-	"fmt.Sprintf",                            // 🟢 string formatting; pure function, no I/O.
-	"io.Reader",                              // 🟢 diskstats: interface type used to feed parseMountInfo from arbitrary readers; pure type, no I/O.
-	"os.Getpid",                              // 🟠 procinfo: returns the current process ID; read-only, no side effects.
-	"os.ModeCharDevice",                      // 🟢 procsyskernel: file mode constant for char device detection; pure constant.
-	"os.O_RDONLY",                            // 🟢 procsyskernel: read-only open flag; pure constant.
-	"os.Open",                                // 🟠 procinfo: opens a file read-only; needed to stream /proc/stat line-by-line.
-	"os.OpenFile",                            // 🟠 procsyskernel: opens kernel pseudo-files with O_NONBLOCK; bypasses AllowedPaths by design.
-	"os.ReadDir",                             // 🟠 procinfo/procfd: reads a directory listing; needed to enumerate /proc entries.
-	"os.ReadFile",                            // 🟠 procinfo/procfd: reads a whole file; needed to read /proc/[pid]/{stat,status}.
-	"os.Readlink",                            // 🟠 procfd: resolves an fd/cwd/root/exe magic symlink's kernel-reported target; read-only, no write capability.
-	"os.Stat",                                // 🟠 procinfo: validates that the proc path exists before enumeration; read-only metadata, no write capability.
-	"path/filepath.Base",                     // 🟢 procsyskernel: returns the last element of a path; validates name is a plain basename.
-	"path/filepath.Clean",                    // 🟢 procnetroute/procnetsocket: normalises procPath before ".." safety check; pure function, no I/O.
-	"path/filepath.Join",                     // 🟢 procinfo/procfd: joins path elements to construct /proc/<pid>/... paths; pure function, no I/O.
-	"runtime.KeepAlive",                      // 🟠 procinfo (windows): pins Go buffers across read-only syscall/DLL ABI calls; no I/O itself.
-	"slices.Sort",                            // 🟢 procfd: sorts the scanned PID list ascending; pure function, no I/O.
-	"slices.SortFunc",                        // 🟢 procfd: sorts numeric fds ascending by their parsed int value; pure function, no I/O.
-	"strconv.QuoteToGraphic",                 // 🟢 flagparser: escapes control, format, and malformed bytes in option diagnostics; pure conversion.
-	"strconv.Atoi",                           // 🟢 string-to-int conversion; pure function, no I/O.
-	"strconv.Itoa",                           // 🟢 procinfo/procfd: int-to-string conversion for PID directory names; pure function, no I/O.
-	"strconv.ParseFloat",                     // 🟢 sysinfo/vmstat (linux): parses uptime and load-average floats from /proc; pure function, no I/O.
-	"strconv.ParseInt",                       // 🟢 procinfo: string to int64 with base/bit-size; pure function, no I/O.
-	"strconv.FormatInt",                      // 🟢 procfd: formats a file size as a decimal string; pure function, no I/O.
-	"strconv.FormatUint",                     // 🟢 procnetsocket/procfd: uint-to-string conversion for port/inode formatting; pure function, no I/O.
-	"strconv.ParseUint",                      // 🟢 procinfo/procnetroute/procnetsocket: parses unsigned procfs counters and fields; pure function, no I/O.
-	"strings.Builder",                        // 🟢 procnetsocket/diskstats: efficient string concatenation; pure in-memory buffer, no I/O.
-	"strings.Contains",                       // 🟢 procnetroute/diskstats: substring check; pure function, no I/O.
-	"strings.ContainsRune",                   // 🟢 diskstats: fast-path check for backslash before unescape; pure function, no I/O.
-	"strings.Cut",                            // 🟢 diskstats: splits a string at the first separator; pure function, no I/O.
-	"strings.Fields",                         // 🟢 procinfo/procnetroute/procnetsocket/diskstats: splits a string on whitespace; pure function, no I/O.
-	"strings.Join",                           // 🟢 procnetsocket: reconstructs space-containing Unix socket paths from Fields tokens; pure function, no I/O.
-	"strings.Split",                          // 🟢 procnetsocket: splits address:port fields on ":"; pure function, no I/O.
-	"strings.ToUpper",                        // 🟢 procnetsocket: normalises hex state field to uppercase for map lookup; pure function, no I/O.
-	"strings.CutPrefix",                      // 🟢 flagparser: trims known pflag error prefixes before rewriting; pure function, no I/O.
-	"strings.CutSuffix",                      // 🟢 meminfo/procfd: strips the trailing " kB" unit / " (deleted)" marker before further parsing; pure function, no I/O.
-	"strings.HasPrefix",                      // 🟢 procinfo/diskstats: checks string prefix; pure function, no I/O.
-	"strings.HasSuffix",                      // 🟢 flagparser: matches pflag error suffixes (e.g. "flag does not allow an argument"); pure function, no I/O.
-	"strings.Index",                          // 🟢 procinfo: finds first occurrence of a substring; pure function, no I/O.
-	"strings.IndexByte",                      // 🟢 procmaps: finds the '-' separator in a /proc/pid/maps address range; pure function, no I/O.
-	"strings.LastIndex",                      // 🟢 procinfo: finds last occurrence of a substring; pure function, no I/O.
-	"strings.TrimRight",                      // 🟢 procinfo: trims trailing characters; pure function, no I/O.
-	"strings.TrimSpace",                      // 🟢 procinfo: removes leading/trailing whitespace; pure function, no I/O.
-	"syscall.EPERM",                          // 🟢 procmaps (darwin): sentinel errno distinguishing "caller lacks privilege" from "end of region walk"; pure constant.
-	"syscall.Errno",                          // 🟢 winnet: wraps DLL return code as an error type; pure type, no I/O.
-	"syscall.Getsid",                         // 🟠 procinfo: returns the session ID of a process; read-only syscall, no write/exec.
-	"syscall.O_NONBLOCK",                     // 🟢 procsyskernel: non-blocking open flag to prevent FIFO hang; pure constant.
-	"syscall.MustLoadDLL",                    // 🔴 winnet: loads iphlpapi.dll once at program init; read-only OS loader call.
-	"syscall.Proc",                           // 🟢 winnet: DLL procedure handle type used in function signature; pure type, no I/O.
-	"syscall.SYS_PROC_INFO",                  // 🟢 procmaps/procinfo (darwin): raw trap number for read-only proc_pidinfo queries; pure constant.
-	"syscall.Syscall6",                       // 🟠 procmaps/procinfo (darwin): invokes fixed read-only proc_pidinfo region/task queries; no exec or write capability.
-	"time.Duration",                          // 🟢 procinfo: duration type for CPU and elapsed metrics; pure integer alias, no I/O.
-	"time.Now",                               // 🟠 procinfo: returns the current wall-clock time; read-only, no side effects.
-	"time.ParseDuration",                     // 🟢 procinfo: parses Linux uptime text into a duration; pure function, no I/O.
-	"time.Second",                            // 🟢 procinfo: duration constant for CPU tick/time conversions; no side effects.
-	"time.Time",                              // 🟢 procinfo: process start-time value type; pure data, no side effects.
-	"time.Unix",                              // 🟢 procinfo: constructs a Time from Unix seconds; pure function, no I/O.
-	"unicode.IsGraphic",                      // 🟢 procinfo: reports whether a process-name rune is printable; pure function, no I/O.
-	"unicode/utf8.DecodeRuneInString",        // 🟢 procinfo: decodes process names without splitting UTF-8 sequences; pure function, no I/O.
-	"unicode/utf8.RuneError",                 // 🟢 procinfo: replacement rune constant used to detect malformed UTF-8; no side effects.
-	"unsafe.Alignof",                         // 🟢 procinfo (windows): reports kernel ABI record alignment; compile-time layout query.
-	"unsafe.Pointer",                         // 🔴 winnet/procmaps/procinfo: passes fixed or bounded buffers through read-only syscall/DLL ABIs; see the audit note above.
-	"unsafe.Sizeof",                          // 🟢 procinfo (windows): reports fixed ABI structure sizes; compile-time layout query.
-	"golang.org/x/sys/unix.ByteSliceToString",                // 🟢 diskstats (darwin): converts a NUL-terminated kernel byte buffer to a Go string; pure function, no I/O.
-	"golang.org/x/sys/unix.Getfsstat",                        // 🟠 diskstats (darwin): read-only enumeration of mounted filesystems via getfsstat(2); no exec or write capability.
-	"golang.org/x/sys/unix.KinfoProc",                        // 🟢 procinfo (darwin): struct type carrying per-process kinfo_proc data from sysctl; read-only data, no exec capability.
-	"golang.org/x/sys/unix.Major",                            // 🟢 procfd (linux): extracts the major device number from a raw dev_t; pure function, no I/O.
-	"golang.org/x/sys/unix.Minor",                            // 🟢 procfd (linux): extracts the minor device number from a raw dev_t; pure function, no I/O.
-	"golang.org/x/sys/unix.MNT_LOCAL",                        // 🟢 diskstats (darwin): flag constant indicating a local-only filesystem; pure constant.
-	"golang.org/x/sys/unix.MNT_NOWAIT",                       // 🟢 diskstats (darwin): flag constant: do not block on remote FS for getfsstat; pure constant.
-	"golang.org/x/sys/unix.S_IFBLK",                          // 🟢 procfd (linux): file-type bitmask constant for block devices; pure constant.
-	"golang.org/x/sys/unix.S_IFCHR",                          // 🟢 procfd (linux): file-type bitmask constant for character devices; pure constant.
-	"golang.org/x/sys/unix.S_IFDIR",                          // 🟢 procfd (linux): file-type bitmask constant for directories; pure constant.
-	"golang.org/x/sys/unix.S_IFIFO",                          // 🟢 procfd (linux): file-type bitmask constant for FIFOs; pure constant.
-	"golang.org/x/sys/unix.S_IFLNK",                          // 🟢 procfd (linux): file-type bitmask constant for symlinks; pure constant.
-	"golang.org/x/sys/unix.S_IFMT",                           // 🟢 procfd (linux): file-type bitmask mask constant; pure constant.
-	"golang.org/x/sys/unix.S_IFREG",                          // 🟢 procfd (linux): file-type bitmask constant for regular files; pure constant.
-	"golang.org/x/sys/unix.S_IFSOCK",                         // 🟢 procfd (linux): file-type bitmask constant for sockets; pure constant.
-	"golang.org/x/sys/unix.Stat",                             // 🟠 procfd (linux): stats an fd's magic symlink path to get Type/Device/Size/Node, including for deleted-but-open files; read-only, no write capability.
-	"golang.org/x/sys/unix.Stat_t",                           // 🟢 procfd (linux): struct type carrying stat(2) data; pure data type.
-	"golang.org/x/sys/unix.Statfs",                           // 🟠 diskstats (linux): read-only filesystem usage syscall; no exec or write capability.
-	"golang.org/x/sys/unix.Statfs_t",                         // 🟢 diskstats: struct type carrying filesystem usage data from statfs/getfsstat; pure data type.
-	"golang.org/x/sys/unix.SysctlKinfoProc",                  // 🟠 procinfo (darwin): reads a single process's kinfo_proc via kern.proc.pid sysctl; read-only, no exec or write capability.
-	"golang.org/x/sys/unix.SysctlKinfoProcSlice",             // 🟠 procinfo (darwin): reads all processes' kinfo_proc via kern.proc.all sysctl; read-only, no exec or write capability.
-	"golang.org/x/sys/unix.SysctlRaw",                        // 🟠 sysinfo/vmstat (darwin): reads kern.boottime, vm.swapusage, and vm.loadavg via read-only sysctl; no exec or write capability.
-	"golang.org/x/sys/windows.CloseHandle",                   // 🟠 procinfo (windows): closes a process-snapshot handle after enumeration; no data read or exec capability.
-	"io.EOF",                                                 // 🟢 vmstat: sentinel error value returned by bufio.Scanner at end of file; pure constant.
-	"math.IsInf",                                             // 🟢 vmstat: rejects infinite load-average/uptime values; pure function, no I/O.
-	"math.IsNaN",                                             // 🟢 vmstat: rejects NaN load-average/uptime values; pure function, no I/O.
-	"math.MaxUint64",                                         // 🟢 vmstat: integer constant; bounds the /proc/meminfo KiB-to-bytes conversion against overflow; no side effects.
-	"os.Getpagesize",                                         // 🟢 procinfo/vmstat: returns the host's memory page size; read-only, no I/O.
-	"golang.org/x/sys/unix.Getpagesize",                      // 🟢 vmstat (darwin): returns the host's memory page size; read-only, no I/O.
-	"golang.org/x/sys/unix.SysctlUint64",                     // 🟠 procinfo/vmstat (darwin): reads hw.memsize/hw.tbfrequency counters; read-only sysctl.
+	"bytes.NewReader",                            // 🟢 procinfo: wraps a byte slice as an in-memory io.Reader; no I/O side effects.
+	"context.Context",                            // 🟢 procinfo: deadline/cancellation interface; no side effects.
+	"encoding/binary.BigEndian",                  // 🟢 winnet: reads big-endian IPv6 group values from DLL buffer; pure value, no I/O.
+	"encoding/binary.LittleEndian",               // 🟢 winnet/procinfo: reads fixed-layout little-endian kernel/DLL buffer fields; pure value, no I/O.
+	"errors.Is",                                  // 🟢 procinfo: checks whether an error in a chain matches a target; pure function, no I/O.
+	"errors.New",                                 // 🟢 creates a sentinel error; pure function, no I/O.
+	"github.com/spf13/pflag.ContinueOnError",     // 🟢 flagparser: pflag parsing-mode constant; pure constant, no I/O.
+	"github.com/spf13/pflag.FlagSet",             // 🟢 flagparser: pflag FlagSet type used to trial-parse argv prefixes; pure type, no I/O.
+	"github.com/spf13/pflag.NewFlagSet",          // 🟢 flagparser: constructs a throw-away FlagSet for trial-parsing; pure constructor, no I/O.
+	"io.Discard",                                 // 🟢 flagparser: silences trial.SetOutput so trial-parse failures don't leak to stderr; pure no-op writer.
+	"io.LimitReader",                             // 🟢 procinfo/procmaps/procsyskernel: caps kernel pseudo-file reads before buffering; pure wrapper.
+	"io.ReadAll",                                 // 🟠 procinfo/procmaps/procsyskernel: buffers only readers already capped by io.LimitReader.
+	"math.MaxUint32",                             // 🟢 procmaps: upper bound for a valid PID before the uint32(pid) OpenProcess cast; pure constant.
+	"math/bits.Div64",                            // 🟢 procinfo (darwin): overflow-safe division for CPU tick conversion; pure arithmetic.
+	"math/bits.Mul64",                            // 🟢 procinfo (darwin): overflow-safe multiplication for CPU tick conversion; pure arithmetic.
+	"math/bits.OnesCount32",                      // 🟢 procnet: counts set bits in a uint32 (popcount for prefix length); pure function, no I/O.
+	"math/bits.ReverseBytes32",                   // 🟢 procnet: byte-swaps a uint32 to convert little-endian /proc mask to network byte order for CIDR validation; pure function, no I/O.
+	"fmt.Errorf",                                 // 🟢 error formatting; pure function, no I/O.
+	"os.ErrNotExist",                             // 🟢 procinfo: sentinel error value indicating a file or directory does not exist; read-only constant, no I/O.
+	"fmt.Sprintf",                                // 🟢 string formatting; pure function, no I/O.
+	"io.Reader",                                  // 🟢 diskstats: interface type used to feed parseMountInfo from arbitrary readers; pure type, no I/O.
+	"os.Getpid",                                  // 🟠 procinfo: returns the current process ID; read-only, no side effects.
+	"os.ModeCharDevice",                          // 🟢 procsyskernel: file mode constant for char device detection; pure constant.
+	"os.O_RDONLY",                                // 🟢 procsyskernel: read-only open flag; pure constant.
+	"os.Open",                                    // 🟠 procinfo: opens a file read-only; needed to stream /proc/stat line-by-line.
+	"os.OpenFile",                                // 🟠 procsyskernel: opens kernel pseudo-files with O_NONBLOCK; bypasses AllowedPaths by design.
+	"os.ReadDir",                                 // 🟠 procinfo/procfd: reads a directory listing; needed to enumerate /proc entries.
+	"os.ReadFile",                                // 🟠 procinfo/procfd: reads a whole file; needed to read /proc/[pid]/{stat,status}.
+	"os.Readlink",                                // 🟠 procfd: resolves an fd/cwd/root/exe magic symlink's kernel-reported target; read-only, no write capability.
+	"os.Stat",                                    // 🟠 procinfo: validates that the proc path exists before enumeration; read-only metadata, no write capability.
+	"path/filepath.Base",                         // 🟢 procsyskernel: returns the last element of a path; validates name is a plain basename.
+	"path/filepath.Clean",                        // 🟢 procnetroute/procnetsocket: normalises procPath before ".." safety check; pure function, no I/O.
+	"path/filepath.Join",                         // 🟢 procinfo/procfd: joins path elements to construct /proc/<pid>/... paths; pure function, no I/O.
+	"runtime.KeepAlive",                          // 🟠 procinfo (windows): pins Go buffers across read-only syscall/DLL ABI calls; no I/O itself.
+	"slices.Sort",                                // 🟢 procfd: sorts the scanned PID list ascending; pure function, no I/O.
+	"slices.SortFunc",                            // 🟢 procfd: sorts numeric fds ascending by their parsed int value; pure function, no I/O.
+	"strconv.QuoteToGraphic",                     // 🟢 flagparser: escapes control, format, and malformed bytes in option diagnostics; pure conversion.
+	"strconv.Atoi",                               // 🟢 string-to-int conversion; pure function, no I/O.
+	"strconv.Itoa",                               // 🟢 procinfo/procfd: int-to-string conversion for PID directory names; pure function, no I/O.
+	"strconv.ParseFloat",                         // 🟢 sysinfo/vmstat (linux): parses uptime and load-average floats from /proc; pure function, no I/O.
+	"strconv.ParseInt",                           // 🟢 procinfo: string to int64 with base/bit-size; pure function, no I/O.
+	"strconv.FormatInt",                          // 🟢 procfd: formats a file size as a decimal string; pure function, no I/O.
+	"strconv.FormatUint",                         // 🟢 procnetsocket/procfd: uint-to-string conversion for port/inode formatting; pure function, no I/O.
+	"strconv.ParseUint",                          // 🟢 procinfo/procnetroute/procnetsocket: parses unsigned procfs counters and fields; pure function, no I/O.
+	"strings.Builder",                            // 🟢 procnetsocket/diskstats: efficient string concatenation; pure in-memory buffer, no I/O.
+	"strings.Contains",                           // 🟢 procnetroute/diskstats: substring check; pure function, no I/O.
+	"strings.ContainsRune",                       // 🟢 diskstats: fast-path check for backslash before unescape; pure function, no I/O.
+	"strings.Cut",                                // 🟢 diskstats: splits a string at the first separator; pure function, no I/O.
+	"strings.Fields",                             // 🟢 procinfo/procnetroute/procnetsocket/diskstats: splits a string on whitespace; pure function, no I/O.
+	"strings.Join",                               // 🟢 procnetsocket: reconstructs space-containing Unix socket paths from Fields tokens; pure function, no I/O.
+	"strings.Split",                              // 🟢 procnetsocket: splits address:port fields on ":"; pure function, no I/O.
+	"strings.ToUpper",                            // 🟢 procnetsocket: normalises hex state field to uppercase for map lookup; pure function, no I/O.
+	"strings.CutPrefix",                          // 🟢 flagparser: trims known pflag error prefixes before rewriting; pure function, no I/O.
+	"strings.CutSuffix",                          // 🟢 meminfo/procfd: strips the trailing " kB" unit / " (deleted)" marker before further parsing; pure function, no I/O.
+	"strings.HasPrefix",                          // 🟢 procinfo/diskstats: checks string prefix; pure function, no I/O.
+	"strings.HasSuffix",                          // 🟢 flagparser: matches pflag error suffixes (e.g. "flag does not allow an argument"); pure function, no I/O.
+	"strings.Index",                              // 🟢 procinfo: finds first occurrence of a substring; pure function, no I/O.
+	"strings.IndexByte",                          // 🟢 procmaps: finds the '-' separator in a /proc/pid/maps address range; pure function, no I/O.
+	"strings.LastIndex",                          // 🟢 procinfo: finds last occurrence of a substring; pure function, no I/O.
+	"strings.TrimRight",                          // 🟢 procinfo: trims trailing characters; pure function, no I/O.
+	"strings.TrimSpace",                          // 🟢 procinfo: removes leading/trailing whitespace; pure function, no I/O.
+	"syscall.EPERM",                              // 🟢 procmaps (darwin): sentinel errno distinguishing "caller lacks privilege" from "end of region walk"; pure constant.
+	"syscall.Errno",                              // 🟢 winnet: wraps DLL return code as an error type; pure type, no I/O.
+	"syscall.Getsid",                             // 🟠 procinfo: returns the session ID of a process; read-only syscall, no write/exec.
+	"syscall.O_NONBLOCK",                         // 🟢 procsyskernel: non-blocking open flag to prevent FIFO hang; pure constant.
+	"syscall.MustLoadDLL",                        // 🔴 winnet: loads iphlpapi.dll once at program init; read-only OS loader call.
+	"syscall.Proc",                               // 🟢 winnet: DLL procedure handle type used in function signature; pure type, no I/O.
+	"syscall.SYS_PROC_INFO",                      // 🟢 procmaps/procinfo (darwin): raw trap number for read-only proc_pidinfo queries; pure constant.
+	"syscall.Syscall6",                           // 🟠 procmaps/procinfo (darwin): invokes fixed read-only proc_pidinfo region/task queries; no exec or write capability.
+	"time.Duration",                              // 🟢 procinfo: duration type for CPU and elapsed metrics; pure integer alias, no I/O.
+	"time.Now",                                   // 🟠 procinfo: returns the current wall-clock time; read-only, no side effects.
+	"time.ParseDuration",                         // 🟢 procinfo: parses Linux uptime text into a duration; pure function, no I/O.
+	"time.Second",                                // 🟢 procinfo: duration constant for CPU tick/time conversions; no side effects.
+	"time.Time",                                  // 🟢 procinfo: process start-time value type; pure data, no side effects.
+	"time.Unix",                                  // 🟢 procinfo: constructs a Time from Unix seconds; pure function, no I/O.
+	"unicode.IsGraphic",                          // 🟢 procinfo: reports whether a process-name rune is printable; pure function, no I/O.
+	"unicode/utf8.DecodeRuneInString",            // 🟢 procinfo: decodes process names without splitting UTF-8 sequences; pure function, no I/O.
+	"unicode/utf8.RuneError",                     // 🟢 procinfo: replacement rune constant used to detect malformed UTF-8; no side effects.
+	"unsafe.Alignof",                             // 🟢 procinfo (windows): reports kernel ABI record alignment; compile-time layout query.
+	"unsafe.Pointer",                             // 🔴 winnet/procmaps/procinfo: passes fixed or bounded buffers through read-only syscall/DLL ABIs; see the audit note above.
+	"unsafe.Sizeof",                              // 🟢 procinfo (windows): reports fixed ABI structure sizes; compile-time layout query.
+	"golang.org/x/sys/unix.ByteSliceToString",    // 🟢 diskstats (darwin): converts a NUL-terminated kernel byte buffer to a Go string; pure function, no I/O.
+	"golang.org/x/sys/unix.Getfsstat",            // 🟠 diskstats (darwin): read-only enumeration of mounted filesystems via getfsstat(2); no exec or write capability.
+	"golang.org/x/sys/unix.KinfoProc",            // 🟢 procinfo (darwin): struct type carrying per-process kinfo_proc data from sysctl; read-only data, no exec capability.
+	"golang.org/x/sys/unix.Major",                // 🟢 procfd (linux): extracts the major device number from a raw dev_t; pure function, no I/O.
+	"golang.org/x/sys/unix.Minor",                // 🟢 procfd (linux): extracts the minor device number from a raw dev_t; pure function, no I/O.
+	"golang.org/x/sys/unix.MNT_LOCAL",            // 🟢 diskstats (darwin): flag constant indicating a local-only filesystem; pure constant.
+	"golang.org/x/sys/unix.MNT_NOWAIT",           // 🟢 diskstats (darwin): flag constant: do not block on remote FS for getfsstat; pure constant.
+	"golang.org/x/sys/unix.S_IFBLK",              // 🟢 procfd (linux): file-type bitmask constant for block devices; pure constant.
+	"golang.org/x/sys/unix.S_IFCHR",              // 🟢 procfd (linux): file-type bitmask constant for character devices; pure constant.
+	"golang.org/x/sys/unix.S_IFDIR",              // 🟢 procfd (linux): file-type bitmask constant for directories; pure constant.
+	"golang.org/x/sys/unix.S_IFIFO",              // 🟢 procfd (linux): file-type bitmask constant for FIFOs; pure constant.
+	"golang.org/x/sys/unix.S_IFLNK",              // 🟢 procfd (linux): file-type bitmask constant for symlinks; pure constant.
+	"golang.org/x/sys/unix.S_IFMT",               // 🟢 procfd (linux): file-type bitmask mask constant; pure constant.
+	"golang.org/x/sys/unix.S_IFREG",              // 🟢 procfd (linux): file-type bitmask constant for regular files; pure constant.
+	"golang.org/x/sys/unix.S_IFSOCK",             // 🟢 procfd (linux): file-type bitmask constant for sockets; pure constant.
+	"golang.org/x/sys/unix.Stat",                 // 🟠 procfd (linux): stats an fd's magic symlink path to get Type/Device/Size/Node, including for deleted-but-open files; read-only, no write capability.
+	"golang.org/x/sys/unix.Stat_t",               // 🟢 procfd (linux): struct type carrying stat(2) data; pure data type.
+	"golang.org/x/sys/unix.Statfs",               // 🟠 diskstats (linux): read-only filesystem usage syscall; no exec or write capability.
+	"golang.org/x/sys/unix.Statfs_t",             // 🟢 diskstats: struct type carrying filesystem usage data from statfs/getfsstat; pure data type.
+	"golang.org/x/sys/unix.SysctlKinfoProc",      // 🟠 procinfo (darwin): reads a single process's kinfo_proc via kern.proc.pid sysctl; read-only, no exec or write capability.
+	"golang.org/x/sys/unix.SysctlKinfoProcSlice", // 🟠 procinfo (darwin): reads all processes' kinfo_proc via kern.proc.all sysctl; read-only, no exec or write capability.
+	"golang.org/x/sys/unix.SysctlRaw",            // 🟠 sysinfo/vmstat (darwin): reads kern.boottime, vm.swapusage, and vm.loadavg via read-only sysctl; no exec or write capability.
+	"golang.org/x/sys/windows.CloseHandle",       // 🟠 procinfo (windows): closes a process-snapshot handle after enumeration; no data read or exec capability.
+	"io.EOF",                                     // 🟢 vmstat: sentinel error value returned by bufio.Scanner at end of file; pure constant.
+	"math.IsInf",                                 // 🟢 vmstat: rejects infinite load-average/uptime values; pure function, no I/O.
+	"math.IsNaN",                                 // 🟢 vmstat: rejects NaN load-average/uptime values; pure function, no I/O.
+	"math.MaxUint64",                             // 🟢 vmstat: integer constant; bounds the /proc/meminfo KiB-to-bytes conversion against overflow; no side effects.
+	"os.Getpagesize",                             // 🟢 procinfo/vmstat: returns the host's memory page size; read-only, no I/O.
+	"golang.org/x/sys/unix.Getpagesize",          // 🟢 vmstat (darwin): returns the host's memory page size; read-only, no I/O.
+	"golang.org/x/sys/unix.SysctlUint64",         // 🟠 procinfo/vmstat (darwin): reads hw.memsize/hw.tbfrequency counters; read-only sysctl.
 	"golang.org/x/sys/windows.CreateToolhelp32Snapshot",      // 🟠 procinfo (windows): creates a read-only snapshot of the process table; no exec or write capability.
 	"golang.org/x/sys/windows.ERROR_BROKEN_PIPE",             // 🟢 winpoll (windows): sentinel error from PeekNamedPipe when the writer end has closed — used to recognize EOF-ready pipes; pure constant.
 	"golang.org/x/sys/windows.ERROR_INVALID_PARAMETER",       // 🟢 procmaps (windows): sentinel error from OpenProcess when the PID does not name a running process; pure constant.

@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -23,7 +24,7 @@ func (c *Client) dialJournalControl(ctx context.Context, path string) (net.Conn,
 		return nil, fmt.Errorf("inspect journal control socket: %w", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 || info.Mode()&os.ModeSocket == 0 {
-		return nil, fmt.Errorf("journal control endpoint is not a Unix socket")
+		return nil, errors.New("journal control endpoint is not a Unix socket")
 	}
-	return nil, fmt.Errorf("journal control connections require Linux")
+	return nil, errors.New("journal control connections require Linux")
 }

@@ -13,6 +13,6 @@ package winpoll
 // PollNonConsuming returns supported=false on non-Windows platforms.
 // Callers should not depend on this stub for readiness checking — Unix
 // builds use the poll(2) path in builtins/read/poll_unix.go directly.
-func PollNonConsuming(fd uintptr) (available, supported bool) {
+func PollNonConsuming(_ uintptr) (available, supported bool) {
 	return false, false
 }

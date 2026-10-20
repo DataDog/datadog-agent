@@ -156,7 +156,7 @@ func FuzzPingHostname(f *testing.F) {
 		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 		defer cancel()
 
-		script := fmt.Sprintf("ping -c 1 -W 500ms -- %s", hostname)
+		script := "ping -c 1 -W 500ms -- " + hostname
 		_, _, code := cmdRunCtxFuzz(ctx, t, script)
 		if t.Context().Err() != nil {
 			return

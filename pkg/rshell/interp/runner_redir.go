@@ -8,6 +8,7 @@ package interp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -235,10 +236,10 @@ func (r *Runner) redirectWord(ctx context.Context, word *syntax.Word) (string, e
 
 	collector := r.newFieldCollector(MaxExpandedArgumentsPerCommand)
 	if !collector.add(word) {
-		return "", fmt.Errorf("redirect expansion failed")
+		return "", errors.New("redirect expansion failed")
 	}
 	if len(collector.fields) != 1 {
-		err := fmt.Errorf("ambiguous redirect")
+		err := errors.New("ambiguous redirect")
 		r.errf("%v\n", err)
 		return "", err
 	}
@@ -293,7 +294,7 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 	case syntax.RdrIn:
 		// done further below
 
-	case syntax.RdrOut, syntax.ClbOut, syntax.AppOut:
+	case syntax.RdrOut, syntax.RdrClob, syntax.AppOut:
 		// /dev/null is short-circuited to io.Discard in all modes.
 		if isDevNull(arg) {
 			*orig = io.Discard

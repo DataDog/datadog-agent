@@ -8,6 +8,7 @@ package systemd
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -98,7 +99,7 @@ func (c *boundedDBusConn) Read(output []byte) (int, error) {
 	}
 	n, err := c.ReadWriteCloser.Read(output[:limit])
 	if uint64(n) > c.remaining {
-		return 0, fmt.Errorf("systemd manager D-Bus reader crossed a message boundary")
+		return 0, errors.New("systemd manager D-Bus reader crossed a message boundary")
 	}
 	c.remaining -= uint64(n)
 	if c.remaining == 0 {
@@ -118,7 +119,7 @@ func boundedDBusMessageSize(header []byte) (uint64, error) {
 	case 'B':
 		order = binary.BigEndian
 	default:
-		return 0, fmt.Errorf("systemd manager D-Bus message has invalid byte order")
+		return 0, errors.New("systemd manager D-Bus message has invalid byte order")
 	}
 	bodySize := uint64(order.Uint32(header[4:8]))
 	headerFieldsSize := uint64(order.Uint32(header[12:16]))

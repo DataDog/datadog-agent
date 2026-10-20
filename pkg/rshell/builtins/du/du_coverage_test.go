@@ -33,7 +33,7 @@ func TestDuDedupsHardlinks(t *testing.T) {
 	stdout, _, code := cmdRun(t, "du -c -b primary.bin alias.bin", dir)
 	assert.Equal(t, 0, code)
 	// GNU du silently drops the second link from output and the grand
-	// total when a hardlinked inode has already been counted in this
+	// total when a hard-linked inode has already been counted in this
 	// invocation. Confirmed against `du (GNU coreutils) 9.10`.
 	assert.Equal(t, "4096\tprimary.bin\n4096\ttotal\n", stdout)
 }

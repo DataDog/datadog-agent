@@ -104,15 +104,6 @@ const (
 	nsWin32       = 0x01
 	nsDOS         = 0x02
 	nsWin32AndDOS = 0x03
-
-	// Records 0–15 are NTFS metafiles ($MFT, $MFTMirr, $LogFile, $Volume,
-	// $AttrDef, root, $Bitmap, $Boot, $BadClus, $Secure, $UpCase, $Extend,
-	// reserved 12–15). Real user-actionable system files (pagefile.sys,
-	// hiberfil.sys, swapfile.sys) have idx >= 16.
-	maxMetafileMFTIndex = 15
-
-	// Root directory MFT index (always 5 on NTFS).
-	rootDirMFTIndex = 5
 )
 
 // errBadSignature indicates the record does not start with "FILE".
@@ -210,10 +201,6 @@ func (d *dataSummary) add(named bool, apparent, allocated int64) {
 	}
 	d.unnamed.apparent = saturatingAdd(d.unnamed.apparent, apparent)
 	d.unnamed.allocated = saturatingAdd(d.unnamed.allocated, allocated)
-}
-
-func (d dataSummary) empty() bool {
-	return d.unnamedStarts == 0 && d.named.apparent == 0 && d.named.allocated == 0
 }
 
 func (d dataSummary) size(apparent bool, named bool) int64 {

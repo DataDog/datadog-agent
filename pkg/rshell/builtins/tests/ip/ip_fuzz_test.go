@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -116,8 +115,8 @@ func FuzzIPSubcommand(f *testing.F) {
 	f.Add("addr show dev \"lo\"")
 
 	// Source B: very long interface names
-	f.Add(fmt.Sprintf("addr show dev %s", strings.Repeat("a", 256)))
-	f.Add(fmt.Sprintf("addr show dev %s", strings.Repeat("a", 1024)))
+	f.Add("addr show dev " + strings.Repeat("a", 256))
+	f.Add("addr show dev " + strings.Repeat("a", 1024))
 
 	// Source B: null bytes in subcommand
 	f.Add("addr\x00show")

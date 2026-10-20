@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -734,7 +735,7 @@ func readAllChunkedCancellable(ctx context.Context, r io.Reader, maxBytes int) (
 		}
 		read, err := r.Read(chunk[:n])
 		if read > 0 {
-			buf.Write(chunk[:read])
+			_, _ = buf.Write(chunk[:read])
 			if buf.overflow {
 				return nil, fmt.Errorf("file too large to edit in place safely (original content exceeded %d bytes)", maxBytes)
 			}
@@ -1094,7 +1095,7 @@ func (eng *engine) execCmds(ctx context.Context, cmds []*sedCmd, startIdx int, l
 			return actionDelete, nil
 
 		case cmdLineNum:
-			eng.writeLine(fmt.Sprintf("%d", eng.lineNum), true)
+			eng.writeLine(strconv.FormatInt(eng.lineNum, 10), true)
 
 		case cmdPrintUnambig:
 			eng.printUnambiguous()
@@ -1577,9 +1578,11 @@ func (eng *engine) printUnambiguous() {
 		default:
 			if r > 127 {
 				// Output non-ASCII bytes as octal escapes like GNU sed.
+				var octal strings.Builder
 				for _, b := range []byte(string(r)) {
-					s += fmt.Sprintf("\\%03o", b)
+					octal.WriteString(fmt.Sprintf("\\%03o", b))
 				}
+				s = octal.String()
 			} else {
 				s = string(r)
 			}

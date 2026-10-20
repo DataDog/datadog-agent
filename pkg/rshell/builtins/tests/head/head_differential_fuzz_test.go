@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -93,7 +94,7 @@ func FuzzHeadDifferentialLines(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		nStr := fmt.Sprintf("%d", n)
+		nStr := strconv.FormatInt(n, 10)
 
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel() // safety net if t.Fatal fires before explicit cancel
@@ -157,7 +158,7 @@ func FuzzHeadDifferentialBytes(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		nStr := fmt.Sprintf("%d", n)
+		nStr := strconv.FormatInt(n, 10)
 
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel() // safety net if t.Fatal fires before explicit cancel

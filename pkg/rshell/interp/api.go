@@ -350,7 +350,7 @@ func New(opts ...RunnerOption) (*Runner, error) {
 		}
 	}
 	if r.stdout == nil || r.stderr == nil {
-		StdIO(r.stdin, r.stdout, r.stderr)(r)
+		_ = StdIO(r.stdin, r.stdout, r.stderr)(r)
 	}
 	// Default warnings to r.stderr so today's behaviour is
 	// preserved for callers who do not opt in to a dedicated sink.
@@ -371,7 +371,7 @@ func New(opts ...RunnerOption) (*Runner, error) {
 	// Flush buffered warnings now that the warnings sink is guaranteed to be
 	// set. The buffer is retained so callers can retrieve it via [Runner.Warnings].
 	if len(r.sandboxWarnings) > 0 {
-		r.warningsWriter.Write(r.sandboxWarnings)
+		_, _ = r.warningsWriter.Write(r.sandboxWarnings)
 	}
 	if !r.systemdTargetConfigured {
 		r.systemdTarget = internalsystemd.LocalTarget()
@@ -497,7 +497,7 @@ func StdIO(in io.Reader, out, err io.Writer) RunnerOption {
 func MaxExecutionTime(d time.Duration) RunnerOption {
 	return func(r *Runner) error {
 		if d < 0 {
-			return fmt.Errorf("MaxExecutionTime: duration must be >= 0")
+			return errors.New("MaxExecutionTime: duration must be >= 0")
 		}
 		r.maxExecutionTime = d
 		return nil
@@ -513,7 +513,7 @@ func MaxExecutionTime(d time.Duration) RunnerOption {
 // current directory.
 func (r *Runner) Reset() {
 	if !r.usedNew {
-		r.exit.fatal(fmt.Errorf("use interp.New to construct a Runner"))
+		r.exit.fatal(errors.New("use interp.New to construct a Runner"))
 		return
 	}
 	if !r.didReset {
@@ -580,10 +580,10 @@ func (r *Runner) Reset() {
 // ErrOutputLimitExceeded is returned by Run when a script produces more stdout
 // than maxStdoutBytes. Partial output up to the limit is still delivered to the
 // caller's writer. Use errors.Is to check for this condition.
-var ErrOutputLimitExceeded = errors.New(fmt.Sprintf(
+var ErrOutputLimitExceeded = fmt.Errorf(
 	"stdout limit exceeded: script produced more than %d MiB of output",
 	maxStdoutBytes/(1024*1024),
-))
+)
 
 // ErrStderrLimitExceeded is returned by Run when a script produces more stderr
 // than maxStderrBytes. Partial output up to the limit is still delivered to the
@@ -591,10 +591,10 @@ var ErrOutputLimitExceeded = errors.New(fmt.Sprintf(
 // returns a bothLimitsExceededError whose Is method matches either sentinel,
 // so callers can write errors.Is(err, ErrOutputLimitExceeded) or
 // errors.Is(err, ErrStderrLimitExceeded) without caring which fired.
-var ErrStderrLimitExceeded = errors.New(fmt.Sprintf(
+var ErrStderrLimitExceeded = fmt.Errorf(
 	"stderr limit exceeded: script produced more than %d MiB of output",
 	maxStderrBytes/(1024*1024),
-))
+)
 
 // bothLimitsExceededError is returned by Run when a single invocation exceeds
 // both the stdout and stderr caps. Its Is method satisfies errors.Is for
@@ -660,10 +660,10 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) (retErr error) {
 				panicOut = r.stderr
 			}
 			func() {
-				defer func() { recover() }()
+				defer func() { _ = recover() }()
 				fmt.Fprintf(panicOut, "rshell: internal panic: %v\n", rec)
 			}()
-			retErr = fmt.Errorf("internal error")
+			retErr = errors.New("internal error")
 		}
 	}()
 	if r.maxExecutionTime > 0 {
@@ -836,7 +836,7 @@ func (r *Runner) Close() error {
 func WarningsWriter(w io.Writer) RunnerOption {
 	return func(r *Runner) error {
 		if w == nil {
-			return fmt.Errorf("WarningsWriter: writer must not be nil")
+			return errors.New("WarningsWriter: writer must not be nil")
 		}
 		r.warningsWriter = w
 		return nil
@@ -856,9 +856,7 @@ func (r *Runner) Warnings() []string {
 	s := string(r.sandboxWarnings)
 	// Each warning is terminated with "\n". Strip a single trailing newline
 	// before splitting so the result does not end in a stray empty string.
-	if strings.HasSuffix(s, "\n") {
-		s = s[:len(s)-1]
-	}
+	s = strings.TrimSuffix(s, "\n")
 	return strings.Split(s, "\n")
 }
 
@@ -931,7 +929,7 @@ func parseAllowedCommands(names []string) (map[string]bool, error) {
 	m := make(map[string]bool, len(names))
 	for _, n := range names {
 		if n == "" {
-			return nil, fmt.Errorf("AllowedCommands: empty command name")
+			return nil, errors.New("AllowedCommands: empty command name")
 		}
 		idx := strings.Index(n, ":")
 		if idx < 0 {
@@ -939,7 +937,7 @@ func parseAllowedCommands(names []string) (map[string]bool, error) {
 		}
 		ns := n[:idx]
 		cmd := n[idx+1:]
-		if strings.Index(cmd, ":") >= 0 {
+		if strings.Contains(cmd, ":") {
 			return nil, fmt.Errorf("AllowedCommands: %q contains multiple colons; expected format \"rshell:<command>\"", n)
 		}
 		if ns != "rshell" {
@@ -958,12 +956,12 @@ func parseAllowedCommands(names []string) (map[string]bool, error) {
 func SelectiveElevation(names []string, elevate ElevateFunc) RunnerOption {
 	return func(r *Runner) error {
 		if elevate == nil {
-			return fmt.Errorf("SelectiveElevation: elevate callback is required")
+			return errors.New("SelectiveElevation: elevate callback is required")
 		}
 		m := make(map[string]bool, len(names))
 		for _, n := range names {
 			separator := strings.Index(n, ":")
-			if separator != len("rshell") || strings.Index(n[separator+1:], ":") >= 0 || len(n) == len("rshell:") {
+			if separator != len("rshell") || strings.Contains(n[separator+1:], ":") || len(n) == len("rshell:") {
 				return fmt.Errorf("SelectiveElevation: invalid command %q", n)
 			}
 			m[n[separator+1:]] = true

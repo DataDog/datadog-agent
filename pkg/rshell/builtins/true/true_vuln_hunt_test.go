@@ -8,7 +8,6 @@ package truecmd
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -28,7 +27,7 @@ type panicWriter struct {
 }
 
 func (w panicWriter) Write([]byte) (int, error) {
-	panic(fmt.Sprintf("true must not write %s", w.name))
+	panic("true must not write " + w.name)
 }
 
 func TestVulnHuntBuiltinResourceExhaustion_InertInputs(t *testing.T) {

@@ -42,7 +42,7 @@ func FuzzParseIPv4Proc(f *testing.F) {
 	f.Add("0x0100007F")       // C-style hex prefix
 	f.Add("0100007F0100007F") // double length
 
-	f.Fuzz(func(t *testing.T, s string) {
+	f.Fuzz(func(_ *testing.T, s string) {
 		// Must never panic; error return is fine.
 		_, _ = parseIPv4Proc(s)
 	})
@@ -66,7 +66,7 @@ func FuzzParseIPv6Proc(f *testing.F) {
 	f.Add(string(bytes.Repeat([]byte("F"), 32))) // valid all-F
 	f.Add(string(bytes.Repeat([]byte("G"), 32))) // invalid
 
-	f.Fuzz(func(t *testing.T, s string) {
+	f.Fuzz(func(_ *testing.T, s string) {
 		_, _ = parseIPv6Proc(s)
 	})
 }
@@ -112,7 +112,7 @@ func FuzzParsePortProc(f *testing.F) {
 	f.Add("\x00000") // null byte
 	f.Add("0001")    // port 1
 
-	f.Fuzz(func(t *testing.T, s string) {
+	f.Fuzz(func(_ *testing.T, s string) {
 		_, _ = parsePortProc(s)
 	})
 }

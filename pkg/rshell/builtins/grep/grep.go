@@ -579,7 +579,7 @@ func grepFile(ctx context.Context, callCtx *builtins.CallContext, file string, o
 	var reader io.Reader = rc
 	if !opts.textMode {
 		probeBuf := make([]byte, binaryProbeSize)
-		n, _ := rc.Read(probeBuf) //nolint:errcheck — EOF is fine; err handled by scanner
+		n, _ := rc.Read(probeBuf) // EOF is fine; err is handled by the scanner.
 		probeBuf = probeBuf[:n]
 		if containsNUL(probeBuf) {
 			isBinary = true
@@ -665,10 +665,7 @@ func grepFile(ctx context.Context, callCtx *builtins.CallContext, file string, o
 			afterGroupBytes = 0
 
 			// Print the match.
-			if opts.onlyMatching && opts.invertMatch {
-				// -o -v: line was selected by inversion (doesn't contain
-				// pattern), so there are no matching parts to print.
-			} else if opts.onlyMatching {
+			if opts.onlyMatching && !opts.invertMatch {
 				indices := opts.re.FindAllIndex(lineBytes, -1)
 				for _, idx := range indices {
 					if idx[0] == idx[1] {
@@ -676,7 +673,7 @@ func grepFile(ctx context.Context, callCtx *builtins.CallContext, file string, o
 					}
 					printMatchLine(callCtx, displayName, lineNum, lineBytes[idx[0]:idx[1]], opts)
 				}
-			} else {
+			} else if !opts.onlyMatching {
 				printMatchLine(callCtx, displayName, lineNum, lineBytes, opts)
 			}
 			lastPrintedLine = lineNum

@@ -183,7 +183,6 @@ func (e *evaluator) evalIndex(n *node, input value, optional bool) ([]value, err
 			}
 		}
 		clear(bases)
-		bases = nil
 		indexes[i] = value{}
 		e.retention.release(index)
 		if baseErr != nil {
@@ -283,7 +282,6 @@ func (e *evaluator) eval(n *node, input value) ([]value, error) {
 				return results.values, addErr
 			}
 			clear(right)
-			right = nil
 			left[i] = value{}
 			e.retention.release(item)
 			if err != nil {
@@ -333,7 +331,6 @@ func (e *evaluator) eval(n *node, input value) ([]value, error) {
 			return results.values, nil
 		}
 		clear(left)
-		left = nil
 		results = nil
 		return e.eval(n.right, input)
 	case nodeBinary:
@@ -416,7 +413,6 @@ func (e *evaluator) evalBinary(n *node, input value) ([]value, error) {
 			}
 		}
 		clear(right)
-		right = nil
 		left[i] = value{}
 		e.retention.release(leftValue)
 		if rightErr != nil {
@@ -443,7 +439,6 @@ func (e *evaluator) evalOrdinaryBinary(n *node, input value) ([]value, error) {
 			return results.values, applyErr
 		}
 		clear(left)
-		left = nil
 		right[i] = value{}
 		e.retention.release(rightValue)
 		if err != nil {
@@ -752,7 +747,7 @@ func (e *evaluator) evalCall(n *node, input value) ([]value, error) {
 			e.retention.releaseSize(retainedNodes, retainedBytes)
 		}()
 		for i := 0; i < itemCount; i++ {
-			item := value{}
+			var item value
 			if input.kind == valueArray {
 				item = input.array[i]
 			} else {
@@ -781,7 +776,6 @@ func (e *evaluator) evalCall(n *node, input value) ([]value, error) {
 				mapped = append(mapped, output)
 			}
 			clear(outputs)
-			outputs = nil
 		}
 		v, err := arrayValue(mapped)
 		if err != nil {

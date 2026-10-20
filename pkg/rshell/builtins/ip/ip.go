@@ -99,6 +99,7 @@ package ip
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -225,7 +226,7 @@ func parseShowArgs(object string, args []string) (string, error) {
 		switch args[0] {
 		case "dev":
 			if len(args) < 2 {
-				return "", fmt.Errorf("'dev' requires an interface name argument")
+				return "", errors.New("'dev' requires an interface name argument")
 			}
 			devFilter = args[1]
 			args = args[2:]

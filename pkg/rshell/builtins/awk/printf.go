@@ -6,6 +6,7 @@
 package awk
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -112,7 +113,7 @@ func formatPrintfRuntime(rt *runtime, format string, args []value) (string, erro
 			}
 		}
 		if i >= len(format) {
-			return "", fmt.Errorf("unterminated printf format")
+			return "", errors.New("unterminated printf format")
 		}
 		verb := format[i]
 		if precision == "" && (verb == 'g' || verb == 'G') {
@@ -158,7 +159,7 @@ func formatPrintfRuntime(rt *runtime, format string, args []value) (string, erro
 
 func nextPrintfArg(args []value, arg *int) (value, error) {
 	if *arg >= len(args) {
-		return value{}, fmt.Errorf("fatal: not enough arguments for printf")
+		return value{}, errors.New("fatal: not enough arguments for printf")
 	}
 	v := args[*arg]
 	(*arg)++

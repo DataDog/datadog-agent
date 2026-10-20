@@ -365,20 +365,14 @@ func countReader(ctx context.Context, r io.Reader) (counts, error) {
 						inWord = true
 					}
 					lineLen += int64(runeWidth(ch))
-				} else {
-					// Non-printable, non-whitespace, non-control chars
-					// (e.g. unassigned Cn codepoints) are transparent
-					// to both word counting and line length — they
-					// neither start nor end words, and GNU wc treats
-					// them as non-printable (wcwidth=-1, width 0).
 				}
+				// Other non-printable characters do not affect words or line length.
 			}
 		}
 		if err == io.EOF {
 			if carryN > 0 {
 				// Incomplete UTF-8 sequence at EOF: counts as bytes but not chars.
 				c.bytes += int64(carryN)
-				carryN = 0
 			}
 			break
 		}

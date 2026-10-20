@@ -52,10 +52,10 @@ func verifySystemdManagerMachineID(ctx context.Context, bus managerBus, expected
 		return fmt.Errorf("systemd manager peer returned an invalid machine ID reply: %w", err)
 	}
 	if len(actualMachineID) != 32 || !validID128(actualMachineID) {
-		return fmt.Errorf("systemd manager peer returned an invalid machine ID")
+		return errors.New("systemd manager peer returned an invalid machine ID")
 	}
 	if !strings.EqualFold(actualMachineID, expectedMachineID) {
-		return fmt.Errorf("systemd manager peer machine ID does not match the configured target")
+		return errors.New("systemd manager peer machine ID does not match the configured target")
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func listSystemServicesWithBus(ctx context.Context, bus managerBus, request buil
 		}
 	}
 	if len(states) > len(request.Services) {
-		return nil, fmt.Errorf("systemd manager returned more units than requested")
+		return nil, errors.New("systemd manager returned more units than requested")
 	}
 	return states, nil
 }
@@ -112,7 +112,7 @@ func inspectSystemServicesWithBus(ctx context.Context, bus managerBus, units []s
 		states = append(states, state)
 	}
 	if len(states) != len(units) {
-		return nil, fmt.Errorf("systemd manager returned an unexpected unit count")
+		return nil, errors.New("systemd manager returned an unexpected unit count")
 	}
 	return states, nil
 }
@@ -167,7 +167,7 @@ func inspectSystemUnit(ctx context.Context, bus managerBus, selector string, loa
 		state.JobID = job.ID
 		if job.ID == 0 {
 			if job.Path != "/" {
-				return builtins.SystemServiceState{}, false, fmt.Errorf("systemd manager returned a zero job with an unexpected object path")
+				return builtins.SystemServiceState{}, false, errors.New("systemd manager returned a zero job with an unexpected object path")
 			}
 		} else if err := validateManagerJobPath(job.Path, job.ID); err != nil {
 			return builtins.SystemServiceState{}, false, err
@@ -371,7 +371,7 @@ func waitSystemdJob(ctx context.Context, signals <-chan *dbus.Signal, overflow <
 				return fmt.Errorf("systemd manager connection closed while waiting for %q", selector)
 			}
 			if signal == nil {
-				return fmt.Errorf("systemd manager returned a nil job signal")
+				return errors.New("systemd manager returned a nil job signal")
 			}
 			if signal.Name != systemdManagerIface+".JobRemoved" || signal.Path != systemdManagerPath {
 				continue
@@ -461,7 +461,7 @@ func storeManagerReply(body []any, destinations ...any) error {
 
 func validateManagerUnits(units []string, allowEmpty bool) error {
 	if len(units) == 0 && !allowEmpty {
-		return fmt.Errorf("at least one systemd unit is required")
+		return errors.New("at least one systemd unit is required")
 	}
 	if len(units) > builtins.MaxSystemServiceOperands {
 		return fmt.Errorf("systemd manager request has too many units (maximum %d)", builtins.MaxSystemServiceOperands)
@@ -481,13 +481,13 @@ func validateManagerUnits(units []string, allowEmpty bool) error {
 
 func validateManagerUnit(unit string) error {
 	if unit == "" {
-		return fmt.Errorf("systemd unit name must not be empty")
+		return errors.New("systemd unit name must not be empty")
 	}
 	if len(unit) > builtins.MaxSystemServiceNameBytes {
 		return fmt.Errorf("systemd unit name exceeds %d bytes", builtins.MaxSystemServiceNameBytes)
 	}
 	if !utf8.ValidString(unit) {
-		return fmt.Errorf("systemd unit name must be valid UTF-8")
+		return errors.New("systemd unit name must be valid UTF-8")
 	}
 	separator := strings.LastIndexByte(unit, '.')
 	if separator <= 0 || separator == len(unit)-1 || !builtins.IsSupportedSystemdUnitType(unit[separator+1:]) {
@@ -512,13 +512,13 @@ func validateManagerUnit(unit string) error {
 
 func validateManagerCanonicalUnit(unit string) error {
 	if unit == "" {
-		return fmt.Errorf("systemd unit name must not be empty")
+		return errors.New("systemd unit name must not be empty")
 	}
 	if len(unit) > builtins.MaxSystemServiceNameBytes {
 		return fmt.Errorf("systemd unit name exceeds %d bytes", builtins.MaxSystemServiceNameBytes)
 	}
 	if !utf8.ValidString(unit) {
-		return fmt.Errorf("systemd unit name must be valid UTF-8")
+		return errors.New("systemd unit name must be valid UTF-8")
 	}
 	separator := strings.LastIndexByte(unit, '.')
 	if separator <= 0 || separator == len(unit)-1 || !builtins.IsSupportedSystemdUnitType(unit[separator+1:]) {
@@ -588,7 +588,7 @@ func validateManagerJobPath(path dbus.ObjectPath, id uint32) error {
 	}
 	parsed, err := strconv.ParseUint(strings.TrimPrefix(string(path), systemdJobPathPrefix), 10, 32)
 	if err != nil || uint32(parsed) != id || id == 0 {
-		return fmt.Errorf("systemd manager returned an invalid job object path")
+		return errors.New("systemd manager returned an invalid job object path")
 	}
 	return nil
 }
@@ -599,7 +599,7 @@ func validateReturnedManagerJobPath(path dbus.ObjectPath) error {
 	}
 	parsed, err := strconv.ParseUint(strings.TrimPrefix(string(path), systemdJobPathPrefix), 10, 32)
 	if err != nil || parsed == 0 {
-		return fmt.Errorf("systemd manager returned an invalid job object path")
+		return errors.New("systemd manager returned an invalid job object path")
 	}
 	return nil
 }
@@ -611,7 +611,7 @@ func validateUnitFileChanges(changes []unitFileChange) error {
 	seen := make(map[unitFileChange]struct{}, len(changes))
 	for _, change := range changes {
 		if change.Type != "symlink" && change.Type != "unlink" {
-			return fmt.Errorf("systemd manager returned an unsupported unit-file change type")
+			return errors.New("systemd manager returned an unsupported unit-file change type")
 		}
 		if err := validateManagerString("unit-file change destination", change.Destination, false); err != nil {
 			return err
@@ -620,7 +620,7 @@ func validateUnitFileChanges(changes []unitFileChange) error {
 			return err
 		}
 		if _, exists := seen[change]; exists {
-			return fmt.Errorf("systemd manager returned a duplicate unit-file change")
+			return errors.New("systemd manager returned a duplicate unit-file change")
 		}
 		seen[change] = struct{}{}
 	}

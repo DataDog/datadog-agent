@@ -516,7 +516,7 @@ func TestRevalidateVacuumCandidateRejectsChangedArchive(t *testing.T) {
 			message: "archived journal identity changed before deletion",
 		},
 		{
-			name: "hardlinked after collection",
+			name: "hard-linked after collection",
 			mutate: func(t *testing.T, directory, path string) {
 				require.NoError(t, os.Link(path, filepath.Join(directory, archivedJournalName(2))))
 				require.NoError(t, os.Chtimes(path, modTime, modTime))

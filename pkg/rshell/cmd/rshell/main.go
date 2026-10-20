@@ -72,17 +72,17 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		// Reject the hidden --command long form: -c is short-only (bash convention).
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return rejectLongCommand(args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			commandSet := cmd.Flags().Changed("command")
 			if commandSet && len(args) > 0 {
-				return fmt.Errorf("cannot use -c with file arguments")
+				return errors.New("cannot use -c with file arguments")
 			}
 
 			if timeout < 0 {
-				return fmt.Errorf("--timeout must be >= 0")
+				return errors.New("--timeout must be >= 0")
 			}
 
 			runCtx := cmd.Context()
@@ -105,7 +105,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 			serviceGrants := parseAllowedServices(allowedServices)
 			parsedMode := interp.Mode(mode)
 			if parsedMode != interp.ModeReadOnly && parsedMode != interp.ModeRemediation {
-				return fmt.Errorf("--mode must be one of: read-only, remediation")
+				return errors.New("--mode must be one of: read-only, remediation")
 			}
 
 			var configuredJournalDirs []string
@@ -245,7 +245,7 @@ func rejectLongCommand(rawArgs []string) error {
 			break // everything after "--" is a positional arg
 		}
 		if a == "--command" || strings.HasPrefix(a, "--command=") {
-			return fmt.Errorf("unknown flag: --command")
+			return errors.New("unknown flag: --command")
 		}
 	}
 	return nil

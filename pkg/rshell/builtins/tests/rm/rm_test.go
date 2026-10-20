@@ -282,12 +282,5 @@ func TestRmCapExceededRejectsWholeInvocation(t *testing.T) {
 }
 
 func join(names []string) string {
-	out := ""
-	for i, n := range names {
-		if i > 0 {
-			out += " "
-		}
-		out += n
-	}
-	return out
+	return strings.Join(names, " ")
 }

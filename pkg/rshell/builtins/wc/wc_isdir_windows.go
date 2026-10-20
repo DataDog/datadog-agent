@@ -12,16 +12,16 @@ import (
 	"syscall"
 )
 
-// errnoERROR_INVALID_FUNCTION is the Windows errno for ERROR_INVALID_FUNCTION.
+// errnoERRORINVALIDFUNCTION is the Windows errno for ERROR_INVALID_FUNCTION.
 // Go's syscall package does not export this constant, so we define it here.
-const errnoERROR_INVALID_FUNCTION = syscall.Errno(1)
+const errnoERRORINVALIDFUNCTION = syscall.Errno(1)
 
 // isErrIsDir reports whether err wraps the Windows equivalent of EISDIR.
 // On Windows, reading a directory handle returns ERROR_INVALID_FUNCTION (errno 1).
 func isErrIsDir(err error) bool {
 	var errno syscall.Errno
 	if errors.As(err, &errno) {
-		return errno == errnoERROR_INVALID_FUNCTION
+		return errno == errnoERRORINVALIDFUNCTION
 	}
 	return false
 }

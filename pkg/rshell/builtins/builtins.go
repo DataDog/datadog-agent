@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+// Package builtins defines restricted shell commands and their capabilities.
 package builtins
 
 import (
@@ -679,7 +680,7 @@ func Meta(name string) (CommandMeta, bool) {
 //
 // valueFlags lists the flags that consume the next argument as a value
 // (e.g. []string{"-n", "-c", "--lines", "--bytes"}).
-func NormalizeBareNumberArg(args []string, valueFlags []string) []string {
+func NormalizeBareNumberArg(args []string, _ []string) []string {
 	if len(args) == 0 {
 		return args
 	}

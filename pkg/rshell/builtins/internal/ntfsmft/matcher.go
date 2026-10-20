@@ -156,7 +156,7 @@ func (m *matchSet) consider(idx uint64, e *mftEntry, sz int64) {
 	getExt := func() ([]byte, bool) {
 		if !extEvaluated {
 			extEvaluated = true
-			extN = extractAsciiExtension(e.nameBytes, extBuf[:])
+			extN = extractASCIIExtension(e.nameBytes, extBuf[:])
 		}
 		if extN <= 0 {
 			return nil, false

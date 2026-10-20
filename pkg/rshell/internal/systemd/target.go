@@ -8,6 +8,7 @@
 package systemd
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -48,7 +49,7 @@ func ResolveTarget(target Target) (Target, error) {
 		return Target{}, fmt.Errorf("systemd target has %d journal directories; maximum is %d", len(target.JournalDirs), MaxJournalDirs)
 	}
 	if target.MachineIDPath == "" {
-		return Target{}, fmt.Errorf("systemd target machine ID path is required with explicit paths")
+		return Target{}, errors.New("systemd target machine ID path is required with explicit paths")
 	}
 
 	resolved := Target{JournalDirs: make([]string, 0, len(target.JournalDirs))}

@@ -7,6 +7,7 @@ package awk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -224,7 +225,7 @@ func validateProgramNestingContext(ctx context.Context, prog *program) error {
 			}
 		case *nextStmt, *breakStmt, *continueStmt, *numberExpr, *stringExpr, *regexExpr, *varExpr:
 		default:
-			return fmt.Errorf("unknown syntax node")
+			return errors.New("unknown syntax node")
 		}
 	}
 	return nil
@@ -289,7 +290,7 @@ func parseProgramContext(ctx context.Context, src string) (*program, error) {
 func (p *parser) parseFunctionDefinition() (*functionDef, error) {
 	p.advance()
 	if p.cur().kind != tokIdent {
-		return nil, fmt.Errorf("expected function name")
+		return nil, errors.New("expected function name")
 	}
 	name := p.cur().lit
 	if err := validateFunctionName(name); err != nil {
@@ -297,14 +298,14 @@ func (p *parser) parseFunctionDefinition() (*functionDef, error) {
 	}
 	p.advance()
 	if !p.match(tokLParen) {
-		return nil, fmt.Errorf("expected ( after function name")
+		return nil, errors.New("expected ( after function name")
 	}
 	params := []string{}
 	seen := make(map[string]int)
 	if !p.match(tokRParen) {
 		for {
 			if p.cur().kind != tokIdent {
-				return nil, fmt.Errorf("expected function parameter")
+				return nil, errors.New("expected function parameter")
 			}
 			if len(params) >= maxFunctionParameters {
 				return nil, fmt.Errorf("function %q has too many parameters (maximum %d)", name, maxFunctionParameters)
@@ -323,7 +324,7 @@ func (p *parser) parseFunctionDefinition() (*functionDef, error) {
 				break
 			}
 			if !p.match(tokComma) {
-				return nil, fmt.Errorf("expected , or ) in function parameter list")
+				return nil, errors.New("expected , or ) in function parameter list")
 			}
 			p.skipNewlines()
 		}
@@ -375,7 +376,7 @@ func (p *parser) parseRule() (rule, error) {
 
 func (p *parser) parseAction() ([]stmt, error) {
 	if !p.match(tokLBrace) {
-		return nil, fmt.Errorf("expected action")
+		return nil, errors.New("expected action")
 	}
 	return p.parseStatementList()
 }
@@ -385,7 +386,7 @@ func (p *parser) parseStatementList() ([]stmt, error) {
 	p.skipSeparators()
 	for !p.at(tokRBrace) {
 		if p.at(tokEOF) {
-			return nil, fmt.Errorf("unterminated action")
+			return nil, errors.New("unterminated action")
 		}
 		st, err := p.parseStatement()
 		if err != nil {
@@ -393,7 +394,7 @@ func (p *parser) parseStatementList() ([]stmt, error) {
 		}
 		stmts = append(stmts, st)
 		if !p.at(tokRBrace) && !p.at(tokEOF) && !isSeparator(p.cur().kind) && !statementEndsBlock(st) {
-			return nil, fmt.Errorf("expected statement separator")
+			return nil, errors.New("expected statement separator")
 		}
 		p.skipSeparators()
 	}
@@ -456,7 +457,7 @@ func (p *parser) parseStatement() (stmt, error) {
 		return p.parsePrintf()
 	}
 	if p.atIdent("nextfile") {
-		return nil, fmt.Errorf("control flow statements are not supported")
+		return nil, errors.New("control flow statements are not supported")
 	}
 	if p.atIdent("delete") {
 		return p.parseDelete()
@@ -482,7 +483,7 @@ func (p *parser) parseExit() (stmt, error) {
 
 func (p *parser) parseReturn() (stmt, error) {
 	if !p.inFunction {
-		return nil, fmt.Errorf("return is not allowed outside a function")
+		return nil, errors.New("return is not allowed outside a function")
 	}
 	p.advance()
 	if p.at(tokRBrace) || p.at(tokEOF) || isSeparator(p.cur().kind) {
@@ -498,7 +499,7 @@ func (p *parser) parseReturn() (stmt, error) {
 func (p *parser) parseFor() (stmt, error) {
 	p.advance()
 	if !p.match(tokLParen) {
-		return nil, fmt.Errorf("expected ( after for")
+		return nil, errors.New("expected ( after for")
 	}
 	if p.cur().kind == tokIdent && p.peek(1).kind == tokIdent && p.peek(1).lit == "in" {
 		varName := p.cur().lit
@@ -508,7 +509,7 @@ func (p *parser) parseFor() (stmt, error) {
 		p.advance()
 		p.advance()
 		if p.cur().kind != tokIdent {
-			return nil, fmt.Errorf("expected array name in for loop")
+			return nil, errors.New("expected array name in for loop")
 		}
 		arrayName := p.cur().lit
 		if err := validateIdentifierReference(arrayName); err != nil {
@@ -516,7 +517,7 @@ func (p *parser) parseFor() (stmt, error) {
 		}
 		p.advance()
 		if !p.match(tokRParen) {
-			return nil, fmt.Errorf("expected ) after for loop")
+			return nil, errors.New("expected ) after for loop")
 		}
 		body, braced, err := p.parseStatementGroup()
 		if err != nil {
@@ -529,7 +530,7 @@ func (p *parser) parseFor() (stmt, error) {
 		return nil, err
 	}
 	if !p.match(tokSemicolon) {
-		return nil, fmt.Errorf("expected ; in for loop")
+		return nil, errors.New("expected ; in for loop")
 	}
 	p.skipNewlines()
 	cond, err := p.parseOptionalForExpr(tokSemicolon)
@@ -537,7 +538,7 @@ func (p *parser) parseFor() (stmt, error) {
 		return nil, err
 	}
 	if !p.match(tokSemicolon) {
-		return nil, fmt.Errorf("expected ; in for loop")
+		return nil, errors.New("expected ; in for loop")
 	}
 	p.skipNewlines()
 	post, err := p.parseOptionalForExpr(tokRParen)
@@ -545,7 +546,7 @@ func (p *parser) parseFor() (stmt, error) {
 		return nil, err
 	}
 	if !p.match(tokRParen) {
-		return nil, fmt.Errorf("expected ) after for loop")
+		return nil, errors.New("expected ) after for loop")
 	}
 	body, braced, err := p.parseStatementGroup()
 	if err != nil {
@@ -568,14 +569,14 @@ func (p *parser) parseOptionalForExpr(end tokenKind) (expr, error) {
 func (p *parser) parseWhile() (stmt, error) {
 	p.advance()
 	if !p.match(tokLParen) {
-		return nil, fmt.Errorf("expected ( after while")
+		return nil, errors.New("expected ( after while")
 	}
 	cond, err := p.parseExpression(0)
 	if err != nil {
 		return nil, err
 	}
 	if !p.match(tokRParen) {
-		return nil, fmt.Errorf("expected ) after while condition")
+		return nil, errors.New("expected ) after while condition")
 	}
 	body, braced, err := p.parseStatementGroup()
 	if err != nil {
@@ -587,14 +588,14 @@ func (p *parser) parseWhile() (stmt, error) {
 func (p *parser) parseIf() (stmt, error) {
 	p.advance()
 	if !p.match(tokLParen) {
-		return nil, fmt.Errorf("expected ( after if")
+		return nil, errors.New("expected ( after if")
 	}
 	cond, err := p.parseExpression(0)
 	if err != nil {
 		return nil, err
 	}
 	if !p.match(tokRParen) {
-		return nil, fmt.Errorf("expected ) after if condition")
+		return nil, errors.New("expected ) after if condition")
 	}
 	thenStmts, thenBraced, err := p.parseStatementGroup()
 	if err != nil {
@@ -646,7 +647,7 @@ func (p *parser) parseStatementGroup() ([]stmt, bool, error) {
 func (p *parser) parseDelete() (stmt, error) {
 	p.advance()
 	if p.cur().kind != tokIdent {
-		return nil, fmt.Errorf("delete requires an array name")
+		return nil, errors.New("delete requires an array name")
 	}
 	name := p.cur().lit
 	if err := validateIdentifierReference(name); err != nil {
@@ -681,14 +682,14 @@ func (p *parser) parsePrint() (stmt, error) {
 		if args, ok := x.(*compositeExpr); parenthesizedArgs && ok {
 			ps.args = append(ps.args, args.parts...)
 			if p.at(tokComma) {
-				return nil, fmt.Errorf("unexpected comma after parenthesized print arguments")
+				return nil, errors.New("unexpected comma after parenthesized print arguments")
 			}
 		} else {
 			ps.args = append(ps.args, x)
 		}
 		parenthesizedArgs = false
 		if p.at(tokGT) || p.at(tokAppend) {
-			return nil, fmt.Errorf("print redirection is not supported")
+			return nil, errors.New("print redirection is not supported")
 		}
 		if !p.match(tokComma) {
 			break
@@ -703,7 +704,7 @@ func (p *parser) parsePrintf() (stmt, error) {
 	ps := &printfStmt{}
 	parenthesized := p.match(tokLParen)
 	if p.at(tokRBrace) || p.at(tokEOF) || isSeparator(p.cur().kind) || p.at(tokRParen) {
-		return nil, fmt.Errorf("printf requires a format expression")
+		return nil, errors.New("printf requires a format expression")
 	}
 	old := p.stopPrintRedirect
 	p.stopPrintRedirect = true
@@ -715,7 +716,7 @@ func (p *parser) parsePrintf() (stmt, error) {
 		}
 		ps.args = append(ps.args, x)
 		if p.at(tokGT) || p.at(tokAppend) {
-			return nil, fmt.Errorf("print redirection is not supported")
+			return nil, errors.New("print redirection is not supported")
 		}
 		if parenthesized {
 			if p.match(tokRParen) {
@@ -727,7 +728,7 @@ func (p *parser) parsePrintf() (stmt, error) {
 				break
 			}
 			if !p.match(tokComma) {
-				return nil, fmt.Errorf("expected , or ) in printf")
+				return nil, errors.New("expected , or ) in printf")
 			}
 			p.skipNewlines()
 			continue
@@ -738,7 +739,7 @@ func (p *parser) parsePrintf() (stmt, error) {
 		p.skipNewlines()
 	}
 	if p.at(tokGT) || p.at(tokAppend) {
-		return nil, fmt.Errorf("print redirection is not supported")
+		return nil, errors.New("print redirection is not supported")
 	}
 	return ps, nil
 }
@@ -768,7 +769,7 @@ func (p *parser) parseExpressionWithBareComposite(minPrec int, allowBareComposit
 			if allowBareComposite {
 				break
 			}
-			return nil, fmt.Errorf("composite expression is not valid in this context")
+			return nil, errors.New("composite expression is not valid in this context")
 		}
 		if p.at(tokQuestion) {
 			if precTernary < minPrec {
@@ -781,7 +782,7 @@ func (p *parser) parseExpressionWithBareComposite(minPrec int, allowBareComposit
 				return nil, err
 			}
 			if !p.match(tokColon) {
-				return nil, fmt.Errorf("expected : in conditional expression")
+				return nil, errors.New("expected : in conditional expression")
 			}
 			p.skipNewlines()
 			elseExpr, err := p.parseExpression(precAssign)
@@ -811,7 +812,7 @@ func (p *parser) parseExpressionWithBareComposite(minPrec int, allowBareComposit
 			}
 			p.advance()
 			if p.cur().kind != tokIdent {
-				return nil, fmt.Errorf("right side of in requires an array variable")
+				return nil, errors.New("right side of in requires an array variable")
 			}
 			array := p.cur()
 			p.advance()
@@ -839,18 +840,18 @@ func (p *parser) parseExpressionWithBareComposite(minPrec int, allowBareComposit
 			}
 			if (op == "/" || op == "%") && isLiteralZeroDivisor(right) {
 				if op == "%" {
-					return nil, fmt.Errorf("division by zero attempted in `%%'")
+					return nil, errors.New("division by zero attempted in `%'")
 				}
-				return nil, fmt.Errorf("division by zero attempted")
+				return nil, errors.New("division by zero attempted")
 			}
 			if isComparisonOp(op) {
 				if b, ok := left.(*binaryExpr); ok && isComparisonOp(b.op) {
-					return nil, fmt.Errorf("chained comparisons are not supported")
+					return nil, errors.New("chained comparisons are not supported")
 				}
 			}
 			if isAssignOp(op) {
 				if !isAssignableExpr(left) {
-					return nil, fmt.Errorf("assignment requires a variable")
+					return nil, errors.New("assignment requires a variable")
 				}
 				left = &assignExpr{op: op, left: left, right: right}
 			} else {
@@ -953,12 +954,12 @@ func (p *parser) parsePrefix() (expr, error) {
 					return &compositeExpr{parts: parts}, nil
 				}
 				if !p.match(tokComma) {
-					return nil, fmt.Errorf("expected , or ) in expression list")
+					return nil, errors.New("expected , or ) in expression list")
 				}
 			}
 		}
 		if !p.match(tokRParen) {
-			return nil, fmt.Errorf("expected )")
+			return nil, errors.New("expected )")
 		}
 		return &groupedExpr{x: x}, nil
 	case tokPlus, tokMinus, tokBang:
@@ -975,11 +976,11 @@ func (p *parser) parsePrefix() (expr, error) {
 			return nil, err
 		}
 		if !isAssignableExpr(x) {
-			return nil, fmt.Errorf("increment and decrement require variables")
+			return nil, errors.New("increment and decrement require variables")
 		}
 		return &incDecExpr{op: tok.lit, x: x, prefix: true}, nil
 	default:
-		return nil, fmt.Errorf("expected expression")
+		return nil, errors.New("expected expression")
 	}
 }
 
@@ -1019,7 +1020,7 @@ func (p *parser) parseArrayIndices() ([]expr, error) {
 			return indices, nil
 		}
 		if !p.match(tokComma) {
-			return nil, fmt.Errorf("expected , or ] after array index")
+			return nil, errors.New("expected , or ] after array index")
 		}
 		p.skipNewlines()
 	}
@@ -1030,7 +1031,7 @@ func (p *parser) parseFunctionCall(name string) (expr, error) {
 		return nil, fmt.Errorf("%s", msg)
 	}
 	if name == "system" {
-		return nil, fmt.Errorf("system() is not supported")
+		return nil, errors.New("system() is not supported")
 	}
 	_, supportedBuiltin := supportedBuiltinFunctions[name]
 	if _, ok := unsupportedBuiltinFunctions[name]; ok {
@@ -1061,7 +1062,7 @@ func (p *parser) parseFunctionCall(name string) (expr, error) {
 			break
 		}
 		if !p.match(tokComma) {
-			return nil, fmt.Errorf("expected , or ) in function call")
+			return nil, errors.New("expected , or ) in function call")
 		}
 		p.skipNewlines()
 	}
@@ -1163,15 +1164,15 @@ func validateStmtLoopControl(ctx context.Context, st stmt, loopDepth int, allowN
 		return validateStmtListLoopControl(ctx, s.body, loopDepth+1, allowNext)
 	case *breakStmt:
 		if loopDepth == 0 {
-			return fmt.Errorf("break is not allowed outside a loop")
+			return errors.New("break is not allowed outside a loop")
 		}
 	case *continueStmt:
 		if loopDepth == 0 {
-			return fmt.Errorf("continue is not allowed outside a loop")
+			return errors.New("continue is not allowed outside a loop")
 		}
 	case *nextStmt:
 		if !allowNext {
-			return fmt.Errorf("next is not allowed in BEGIN or END")
+			return errors.New("next is not allowed in BEGIN or END")
 		}
 	}
 	return nil
@@ -1355,19 +1356,19 @@ func validateBuiltinCallArity(name string, argc int) error {
 	switch name {
 	case "length":
 		if argc > 1 {
-			return fmt.Errorf("length expects at most 1 argument")
+			return errors.New("length expects at most 1 argument")
 		}
 	case "substr":
 		if argc != 2 && argc != 3 {
-			return fmt.Errorf("substr expects 2 or 3 arguments")
+			return errors.New("substr expects 2 or 3 arguments")
 		}
 	case "index":
 		if argc != 2 {
-			return fmt.Errorf("index expects 2 arguments")
+			return errors.New("index expects 2 arguments")
 		}
 	case "split":
 		if argc != 2 && argc != 3 {
-			return fmt.Errorf("split expects 2 or 3 arguments")
+			return errors.New("split expects 2 or 3 arguments")
 		}
 	case "sub", "gsub":
 		if argc != 2 && argc != 3 {
@@ -1375,11 +1376,11 @@ func validateBuiltinCallArity(name string, argc int) error {
 		}
 	case "match":
 		if argc != 2 {
-			return fmt.Errorf("match expects 2 arguments")
+			return errors.New("match expects 2 arguments")
 		}
 	case "sprintf":
 		if argc < 1 {
-			return fmt.Errorf("sprintf expects at least 1 argument")
+			return errors.New("sprintf expects at least 1 argument")
 		}
 	case "tolower", "toupper", "int":
 		if argc != 1 {
@@ -1403,10 +1404,10 @@ func validateIdentifierReference(name string) error {
 		return fmt.Errorf("%s", msg)
 	}
 	if name == "system" {
-		return fmt.Errorf("system() is not supported")
+		return errors.New("system() is not supported")
 	}
 	if _, ok := supportedBuiltinFunctions[name]; ok {
-		return fmt.Errorf("function calls are not supported")
+		return errors.New("function calls are not supported")
 	}
 	if _, ok := unsupportedBuiltinFunctions[name]; ok {
 		return fmt.Errorf("%s() is not supported", name)
@@ -1423,7 +1424,7 @@ func unsupportedExpressionKeyword(name string) (string, bool) {
 	case "if", "while", "for", "next", "nextfile", "exit", "break", "continue", "return", "function":
 		return "control flow statements are not supported", true
 	case "do", "else", "func", "getline", "in":
-		return fmt.Sprintf("%s is a reserved awk keyword", name), true
+		return name + " is a reserved awk keyword", true
 	case "delete":
 		return "arrays are not supported", true
 	case "printf":
@@ -1506,7 +1507,7 @@ func (p *parser) parseFieldRef() (expr, error) {
 	case tokNumber, tokString, tokRegex, tokIdent, tokDollar, tokLParen,
 		tokPlus, tokMinus, tokBang, tokInc, tokDec:
 	default:
-		return nil, fmt.Errorf("expected field reference")
+		return nil, errors.New("expected field reference")
 	}
 	x, err := p.parseExpression(precPostfix + 1)
 	if err != nil {

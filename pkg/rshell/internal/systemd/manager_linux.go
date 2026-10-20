@@ -116,14 +116,14 @@ func (c *Client) withManagerBus(ctx context.Context, operation func(context.Cont
 
 func (c *Client) openManagerBus(ctx context.Context) (*dbusManagerBus, error) {
 	if c.target.MachineIDPath == "" {
-		return nil, fmt.Errorf("systemd target machine ID path is unavailable")
+		return nil, errors.New("systemd target machine ID path is unavailable")
 	}
 	expectedMachineID, err := c.readMachineID()
 	if err != nil {
 		return nil, fmt.Errorf("validate systemd target machine ID: %w", err)
 	}
 	if c.target.ManagerBusSocket == "" {
-		return nil, fmt.Errorf("systemd target manager bus socket is unavailable")
+		return nil, errors.New("systemd target manager bus socket is unavailable")
 	}
 
 	networkConnection, err := c.dialManagerBus(ctx, c.target.ManagerBusSocket)
@@ -198,7 +198,7 @@ func (c *Client) openManagerBusSocket(path string) (*os.File, error) {
 	}
 	if info.Mode()&os.ModeSocket == 0 {
 		_ = socket.Close()
-		return nil, fmt.Errorf("systemd manager bus endpoint is not a Unix socket")
+		return nil, errors.New("systemd manager bus endpoint is not a Unix socket")
 	}
 	return socket, nil
 }
@@ -244,4 +244,8 @@ func (b *dbusManagerBus) registerSignals(channel chan<- *dbus.Signal) <-chan str
 
 func (b *dbusManagerBus) removeSignals(channel chan<- *dbus.Signal) {
 	b.connection.RemoveSignal(channel)
+}
+
+func (*Client) openTargetFileFlags(path string, flag int) (*os.File, error) {
+	return os.OpenFile(path, flag, 0)
 }

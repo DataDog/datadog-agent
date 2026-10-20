@@ -18,7 +18,7 @@ func FuzzJQFilterParser(f *testing.F) {
 	} {
 		f.Add(seed)
 	}
-	f.Fuzz(func(t *testing.T, filter string) {
+	f.Fuzz(func(_ *testing.T, filter string) {
 		if len(filter) > MaxFilterBytes {
 			return
 		}
@@ -73,7 +73,7 @@ func FuzzJQJSONDecoder(f *testing.F) {
 	} {
 		f.Add(seed)
 	}
-	f.Fuzz(func(t *testing.T, input string) {
+	f.Fuzz(func(_ *testing.T, input string) {
 		if len(input) > 1<<20 {
 			return
 		}

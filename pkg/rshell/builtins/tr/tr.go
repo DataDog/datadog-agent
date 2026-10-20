@@ -699,7 +699,7 @@ func parseOctal(data []byte, start int) (byte, int, string) {
 		origEscape := string(data[start : start+count])
 		val = val / 8
 		count--
-		resultEscape := fmt.Sprintf("\\0%s", string(data[start:start+count]))
+		resultEscape := "\\0" + string(data[start:start+count])
 		// Safe: the loop consumed exactly 3 digits within data, so after
 		// decrementing count to 2, start+count+1 == start+3 <= len(data).
 		// Defensive check guards against future refactors breaking this invariant.

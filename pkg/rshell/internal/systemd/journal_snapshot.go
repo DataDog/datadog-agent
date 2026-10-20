@@ -60,34 +60,34 @@ func (c *Client) openJournalSnapshot() (*journalSnapshot, error) {
 	for _, path := range paths {
 		opened, err := c.openJournalSnapshotFile(path)
 		if err != nil {
-			snapshot.close()
+			_ = snapshot.close()
 			return nil, err
 		}
 		if opened.view.header.machineID != machineID {
 			opened.file.Close()
-			snapshot.close()
+			_ = snapshot.close()
 			return nil, journalCorrupt(path, 40, "journal machine ID %s does not match configured machine %s", opened.view.header.machineID, machineID)
 		}
 		if opened.view.header.fileID.zero() {
 			opened.file.Close()
-			snapshot.close()
+			_ = snapshot.close()
 			return nil, journalCorrupt(path, 24, "journal file ID is zero")
 		}
 		if opened.view.header.seqnumID.zero() {
 			opened.file.Close()
-			snapshot.close()
+			_ = snapshot.close()
 			return nil, journalCorrupt(path, 72, "journal sequence ID is zero")
 		}
 		if previous, exists := fileIDs[opened.view.header.fileID]; exists {
 			opened.file.Close()
-			snapshot.close()
+			_ = snapshot.close()
 			return nil, journalCorrupt(path, 24, "journal file ID duplicates %q", previous)
 		}
 		fileIDs[opened.view.header.fileID] = path
 		snapshot.files = append(snapshot.files, opened)
 	}
 	if err := snapshot.stable(c); err != nil {
-		snapshot.close()
+		_ = snapshot.close()
 		return nil, err
 	}
 	return snapshot, nil

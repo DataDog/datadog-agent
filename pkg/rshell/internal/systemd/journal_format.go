@@ -124,7 +124,7 @@ type journalFileView struct {
 
 func newJournalFileView(name string, reader io.ReaderAt, size uint64) (*journalFileView, error) {
 	if reader == nil {
-		return nil, fmt.Errorf("journal reader is nil")
+		return nil, errors.New("journal reader is nil")
 	}
 	if size > math.MaxInt64 {
 		return nil, journalUnsupported(name, "file is larger than the supported reader offset range")

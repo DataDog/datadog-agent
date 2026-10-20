@@ -368,7 +368,6 @@ func wrapNames(names []string, lineWidth int) string {
 			b.WriteString("\n  ")
 			col = 2
 			lineStart = true
-			needed = len(token)
 		}
 		if !lineStart {
 			b.WriteByte(' ')

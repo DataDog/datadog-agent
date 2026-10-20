@@ -76,10 +76,9 @@ func (f *fakeController) DisableSystemServices(_ context.Context, units []string
 }
 
 type invocation struct {
-	result     builtins.Result
-	stdout     string
-	stderr     string
-	authorized []builtins.SystemdOperation
+	result builtins.Result
+	stdout string
+	stderr string
 }
 
 func runSystemctl(t *testing.T, args []string, callCtx *builtins.CallContext) invocation {

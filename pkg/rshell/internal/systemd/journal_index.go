@@ -8,6 +8,7 @@ package systemd
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -25,7 +26,7 @@ func (f *journalFileView) dataHash(payload []byte) uint64 {
 
 func (f *journalFileView) findDataObject(payload []byte) (journalDataObject, bool, error) {
 	if len(payload) == 0 {
-		return journalDataObject{}, false, fmt.Errorf("journal DATA lookup payload is empty")
+		return journalDataObject{}, false, errors.New("journal DATA lookup payload is empty")
 	}
 	if len(payload) > maxJournalPayloadRead {
 		return journalDataObject{}, false, fmt.Errorf("journal DATA lookup payload exceeds %d bytes", maxJournalPayloadRead)

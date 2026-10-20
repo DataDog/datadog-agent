@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+// Package loopctl bounds command iteration and checks cancellation.
 package loopctl
 
 import (

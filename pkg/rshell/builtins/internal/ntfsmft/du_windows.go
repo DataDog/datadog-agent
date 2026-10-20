@@ -32,7 +32,7 @@ type Result struct {
 	Target string
 
 	// Subtree is the deduplicated total of all bytes attributed to Target's
-	// subtree. A file hardlinked into multiple directories counts once toward
+	// subtree. A file hard-linked into multiple directories counts once toward
 	// Subtree, but contributes to each directory it is linked into.
 	Subtree int64
 
@@ -570,9 +570,8 @@ func (s *scanState) runPass1(ctx context.Context) error {
 func (s *scanState) mapDirsToSizeAccumulators(ctx context.Context) error {
 	if s.opts.TreeDepth <= 1 {
 		return s.mapDirsToSizeAccumulatorsFast(ctx)
-	} else {
-		return s.mapDirsToSizeAccumulatorsTree(ctx)
 	}
+	return s.mapDirsToSizeAccumulatorsTree(ctx)
 }
 
 // mapDirsToSizeAccumulatorsFast is the TreeDepth <= 1 mapping. It resolves every
@@ -1674,3 +1673,14 @@ func enumerateImmediateChildren(ctx context.Context, targetDir string) ([]childI
 	}
 	return out, nil
 }
+
+const (
+	// Records 0–15 are NTFS metafiles ($MFT, $MFTMirr, $LogFile, $Volume,
+	// $AttrDef, root, $Bitmap, $Boot, $BadClus, $Secure, $UpCase, $Extend,
+	// reserved 12–15). Real user-actionable system files (pagefile.sys,
+	// hiberfil.sys, swapfile.sys) have idx >= 16.
+	maxMetafileMFTIndex = 15
+
+	// Root directory MFT index (always 5 on NTFS).
+	rootDirMFTIndex = 5
+)

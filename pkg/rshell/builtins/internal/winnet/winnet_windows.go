@@ -5,6 +5,8 @@
 
 //go:build windows
 
+// Package winnet reads Windows network tables.
+//
 // This file contains a narrow unsafe exception: unsafe.Pointer is used solely
 // to pass &buf[0] and &size to GetExtendedTcpTable / GetExtendedUdpTable via
 // iphlpapi.dll. No other unsafe operations are performed. The returned buffer
@@ -14,6 +16,7 @@ package winnet
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"syscall"
 	"unsafe"
@@ -40,8 +43,8 @@ const (
 
 var (
 	iphlpapi            = syscall.MustLoadDLL("iphlpapi.dll")
-	getExtendedTcpTable = iphlpapi.MustFindProc("GetExtendedTcpTable")
-	getExtendedUdpTable = iphlpapi.MustFindProc("GetExtendedUdpTable")
+	getExtendedTCPTable = iphlpapi.MustFindProc("GetExtendedTcpTable")
+	getExtendedUDPTable = iphlpapi.MustFindProc("GetExtendedUdpTable")
 )
 
 // tcpStateNames maps Windows MIB_TCP_STATE values to ss state strings.
@@ -104,7 +107,7 @@ func callExtendedTable(proc *syscall.Proc, af, tableClass uintptr) ([]byte, erro
 	size := uint32(4096)
 	for {
 		if int(size) > MaxBufSize {
-			return nil, fmt.Errorf("buffer size limit exceeded")
+			return nil, errors.New("buffer size limit exceeded")
 		}
 		buf := make([]byte, size)
 		prevSize := size
@@ -127,7 +130,7 @@ func callExtendedTable(proc *syscall.Proc, af, tableClass uintptr) ([]byte, erro
 			// size was updated by the call; retry with larger buffer.
 			// Guard against a misbehaving DLL that doesn't increase size.
 			if size <= prevSize {
-				return nil, fmt.Errorf("DLL did not increase buffer size on retry")
+				return nil, errors.New("DLL did not increase buffer size on retry")
 			}
 			continue
 		default:
@@ -173,7 +176,7 @@ func winPortToHost(raw uint32) uint16 {
 //	[48..51] dwState            (LE uint32)
 //	[52..55] dwOwningPid        (not used)
 func collectTCP(af uintptr) ([]SocketEntry, error) {
-	data, err := callExtendedTable(getExtendedTcpTable, af, tcpTableOwnerPidAll)
+	data, err := callExtendedTable(getExtendedTCPTable, af, tcpTableOwnerPidAll)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +257,7 @@ func collectTCP(af uintptr) ([]SocketEntry, error) {
 //	[20..23] dwLocalPort     (network byte order uint16 in LE DWORD)
 //	[24..27] dwOwningPid     (not used)
 func collectUDP(af uintptr) ([]SocketEntry, error) {
-	data, err := callExtendedTable(getExtendedUdpTable, af, udpTableOwnerPid)
+	data, err := callExtendedTable(getExtendedUDPTable, af, udpTableOwnerPid)
 	if err != nil {
 		return nil, err
 	}

@@ -17,11 +17,3 @@ func (*Client) lstatTargetPath(path string) (fs.FileInfo, error) {
 func (*Client) openTargetFile(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_RDONLY, 0)
 }
-
-func (*Client) openTargetFileFlags(path string, flag int) (*os.File, error) {
-	return os.OpenFile(path, flag, 0)
-}
-
-func (*Client) openTargetDirectory(path string) (*os.Root, error) {
-	return os.OpenRoot(path)
-}

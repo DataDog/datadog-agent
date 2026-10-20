@@ -76,7 +76,7 @@ func TestScan_CountsTreeRollup(t *testing.T) {
 	}
 }
 
-// A hardlinked file within a single directory is counted once for that child,
+// A hard-linked file within a single directory is counted once for that child,
 // mirroring the byte-total dedup.
 func TestScan_CountsHardlinkSameChild(t *testing.T) {
 	root := scanTempDir(t)
@@ -90,7 +90,7 @@ func TestScan_CountsHardlinkSameChild(t *testing.T) {
 	}
 }
 
-// A file hardlinked across two children counts once in each, mirroring how its
+// A file hard-linked across two children counts once in each, mirroring how its
 // bytes are attributed to both.
 func TestScan_CountsHardlinkAcrossChildren(t *testing.T) {
 	root := scanTempDir(t)

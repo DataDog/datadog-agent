@@ -205,7 +205,7 @@ func (c *scriptChecker) arguments(entry *CommandCheck, args []string, state *che
 		if len(operands) > 0 {
 			name = operands[0]
 		}
-		if flags.Changed("replace") && strings.Index(name, flags.Lookup("replace").Value.String()) >= 0 {
+		if flags.Changed("replace") && strings.Contains(name, flags.Lookup("replace").Value.String()) {
 			entry.issue(CheckRequiresExecution, "xargs command name depends on input")
 		} else {
 			child := &CommandCheck{Command: name, Status: CheckAllowed}

@@ -8,6 +8,7 @@ package sed
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,7 +43,7 @@ func callInPlace(t *testing.T, args []string, dir string, writeRegularFile func(
 		AllowedPathsList: func() []builtins.AllowedPath {
 			return []builtins.AllowedPath{{Path: dir, Access: builtins.AllowedPathReadWrite}}
 		},
-		OpenRegularFile: func(ctx context.Context, path string) (io.ReadCloser, error) {
+		OpenRegularFile: func(_ context.Context, path string) (io.ReadCloser, error) {
 			return os.Open(path)
 		},
 		WriteRegularFile: writeRegularFile,
@@ -72,7 +73,7 @@ func TestInPlaceOperandLoopStopsAfterUnresolvedRestore(t *testing.T) {
 
 	unresolvedErr := fmt.Errorf("write outcome unknown, restore skipped to avoid racing the still-in-progress write: %w", builtins.ErrWriteOutcomeUnknown)
 	var writeCalls int
-	writeRegularFile := func(ctx context.Context, path string, data []byte, expectedIdentity os.FileInfo) (bool, error) {
+	writeRegularFile := func(_ context.Context, _ string, _ []byte, _ os.FileInfo) (bool, error) {
 		writeCalls++
 		return true, unresolvedErr
 	}
@@ -104,8 +105,8 @@ func TestInPlaceOperandLoopContinuesAfterOrdinaryFailure(t *testing.T) {
 	other := filepath.Join(dir, "other.txt")
 	require.NoError(t, os.WriteFile(other, []byte("hello\n"), 0644))
 
-	ordinaryErr := fmt.Errorf("no space left on device")
-	writeRegularFile := func(ctx context.Context, path string, data []byte, expectedIdentity os.FileInfo) (bool, error) {
+	ordinaryErr := errors.New("no space left on device")
+	writeRegularFile := func(_ context.Context, _ string, _ []byte, _ os.FileInfo) (bool, error) {
 		return false, ordinaryErr
 	}
 

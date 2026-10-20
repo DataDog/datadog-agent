@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -153,7 +154,7 @@ func (rt *runtime) execStatements(ctx context.Context, stmts []stmt) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("unknown statement")
+			return errors.New("unknown statement")
 		}
 	}
 	return nil
@@ -384,7 +385,7 @@ func (rt *runtime) evalPrintArgs(args []expr) (string, error) {
 
 func (rt *runtime) evalPrintfArgs(args []expr) (string, error) {
 	if len(args) == 0 {
-		return "", fmt.Errorf("printf requires a format expression")
+		return "", errors.New("printf requires a format expression")
 	}
 	budget := callArgumentBudget{rt: rt}
 	defer budget.release()
@@ -503,7 +504,7 @@ func (rt *runtime) evalNode(x expr) (value, error) {
 		}
 		n := int(v.Number())
 		if n < 0 {
-			return value{}, fmt.Errorf("fatal: invalid field index")
+			return value{}, errors.New("fatal: invalid field index")
 		}
 		return rt.field(n), nil
 	case *groupedExpr:
@@ -544,7 +545,7 @@ func (rt *runtime) evalNode(x expr) (value, error) {
 	case *callExpr:
 		return rt.evalCall(e)
 	default:
-		return value{}, fmt.Errorf("unknown expression")
+		return value{}, errors.New("unknown expression")
 	}
 }
 
@@ -581,7 +582,7 @@ func (rt *runtime) evalCall(e *callExpr) (value, error) {
 	}
 	if _, ok := supportedBuiltinFunctions[e.name]; !ok {
 		if _, unsupported := unsupportedBuiltinFunctions[e.name]; unsupported {
-			return value{}, fmt.Errorf("function calls are not supported")
+			return value{}, errors.New("function calls are not supported")
 		}
 		return value{}, fmt.Errorf("function %q not defined", e.name)
 	}
@@ -767,7 +768,7 @@ func (rt *runtime) evalUserFunction(fn *functionDef, args []expr) (value, error)
 	callArgs = nil
 	budget.release()
 	if rt.ctx == nil {
-		return value{}, fmt.Errorf("missing evaluation context")
+		return value{}, errors.New("missing evaluation context")
 	}
 	err := rt.execStatements(rt.ctx, fn.body)
 	if ret, ok := err.(*returnError); ok {
@@ -1089,7 +1090,7 @@ func (rt *runtime) evalSplit(e *callExpr) (value, error) {
 	defer budget.release()
 	target, ok := e.args[1].(*varExpr)
 	if !ok {
-		return value{}, fmt.Errorf("split destination must be an array variable")
+		return value{}, errors.New("split destination must be an array variable")
 	}
 	input, err := rt.eval(e.args[0])
 	if err != nil {
@@ -1148,7 +1149,7 @@ func (rt *runtime) evalSplit(e *callExpr) (value, error) {
 				return value{}, err
 			}
 		}
-		elems[fmt.Sprintf("%d", i+1)] = inputStringValue(part)
+		elems[strconv.Itoa(i+1)] = inputStringValue(part)
 	}
 	if err := rt.replaceArray(target.name, elems); err != nil {
 		return value{}, err
@@ -1215,7 +1216,7 @@ func (rt *runtime) evalBinary(e *binaryExpr) (value, error) {
 	case "in":
 		arrayName, ok := e.right.(*varExpr)
 		if !ok {
-			return value{}, fmt.Errorf("right side of in requires an array variable")
+			return value{}, errors.New("right side of in requires an array variable")
 		}
 		key, err := rt.conversionString(left, "CONVFMT")
 		if err != nil {
@@ -1264,12 +1265,12 @@ func (rt *runtime) evalBinary(e *binaryExpr) (value, error) {
 		return numberValue(left.Number() * right.Number()), nil
 	case "/":
 		if right.Number() == 0 {
-			return value{}, fmt.Errorf("fatal: division by zero attempted")
+			return value{}, errors.New("fatal: division by zero attempted")
 		}
 		return numberValue(left.Number() / right.Number()), nil
 	case "%":
 		if right.Number() == 0 {
-			return value{}, fmt.Errorf("fatal: division by zero attempted")
+			return value{}, errors.New("fatal: division by zero attempted")
 		}
 		return numberValue(math.Mod(left.Number(), right.Number())), nil
 	case "^":
@@ -1345,12 +1346,12 @@ func (rt *runtime) evalAssign(e *assignExpr) (value, error) {
 			right = numberValue(left.Number() * right.Number())
 		case "/=":
 			if right.Number() == 0 {
-				return value{}, fmt.Errorf("fatal: division by zero attempted")
+				return value{}, errors.New("fatal: division by zero attempted")
 			}
 			right = numberValue(left.Number() / right.Number())
 		case "%=":
 			if right.Number() == 0 {
-				return value{}, fmt.Errorf("fatal: division by zero attempted")
+				return value{}, errors.New("fatal: division by zero attempted")
 			}
 			right = numberValue(math.Mod(left.Number(), right.Number()))
 		case "^=":
@@ -1422,11 +1423,11 @@ func (rt *runtime) resolveAssignable(x expr) (assignTarget, value, error) {
 		}
 		n := int(index.Number())
 		if n < 0 {
-			return assignTarget{}, value{}, fmt.Errorf("fatal: invalid field index")
+			return assignTarget{}, value{}, errors.New("fatal: invalid field index")
 		}
 		return assignTarget{field: true, fieldIndex: n}, rt.field(n), nil
 	default:
-		return assignTarget{}, value{}, fmt.Errorf("expected variable")
+		return assignTarget{}, value{}, errors.New("expected variable")
 	}
 }
 
@@ -1450,7 +1451,7 @@ func (rt *runtime) evalArrayRef(ref *arrayRefExpr) (value, error) {
 
 func (rt *runtime) evalArrayKey(indices []expr) (string, error) {
 	if len(indices) == 0 {
-		return "", fmt.Errorf("array index is required")
+		return "", errors.New("array index is required")
 	}
 	budget := expressionTemporaryBudget{rt: rt}
 	defer budget.release()

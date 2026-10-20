@@ -350,7 +350,7 @@ func FuzzTestNesting(f *testing.F) {
 
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel() // safety net if t.Fatal fires before explicit cancel
-		script := fmt.Sprintf("test %s", expr)
+		script := "test " + expr
 		_, _, code := cmdRunCtx(ctx, t, script, baseDir)
 		cancel()
 		if t.Context().Err() != nil {

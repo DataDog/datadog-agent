@@ -343,7 +343,7 @@ func procBootTime(procPath string) (int64, error) {
 			}
 		}
 	}
-	return 0, fmt.Errorf("ps: btime not found in /proc/stat")
+	return 0, errors.New("ps: btime not found in /proc/stat")
 }
 
 func procUptime(procPath string) (time.Duration, error) {
@@ -353,11 +353,11 @@ func procUptime(procPath string) (time.Duration, error) {
 	}
 	fields := strings.Fields(string(data))
 	if len(fields) == 0 {
-		return 0, fmt.Errorf("ps: uptime not found in /proc/uptime")
+		return 0, errors.New("ps: uptime not found in /proc/uptime")
 	}
 	uptime, err := time.ParseDuration(fields[0] + "s")
 	if err != nil || uptime < 0 {
-		return 0, fmt.Errorf("ps: malformed /proc/uptime")
+		return 0, errors.New("ps: malformed /proc/uptime")
 	}
 	return uptime, nil
 }
@@ -400,7 +400,7 @@ func procMemTotalKiB(procPath string) (uint64, error) {
 	if err := scanner.Err(); err != nil {
 		return 0, err
 	}
-	return 0, fmt.Errorf("ps: MemTotal not found in /proc/meminfo")
+	return 0, errors.New("ps: MemTotal not found in /proc/meminfo")
 }
 
 func ticksToDuration(ticks int64) (time.Duration, bool) {

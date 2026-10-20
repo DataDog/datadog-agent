@@ -88,11 +88,3 @@ var ErrNotSupported = errors.New("not supported on this platform")
 func Read(ctx context.Context) (Info, error) {
 	return readImpl(ctx)
 }
-
-// saturatingAdd returns a + b, clamped to uint64 max on overflow.
-func saturatingAdd(a, b uint64) uint64 {
-	if a > ^uint64(0)-b {
-		return ^uint64(0)
-	}
-	return a + b
-}

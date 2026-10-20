@@ -12,6 +12,6 @@ package builtins
 // and the Windows-specific numeric errno values (109, 232) must never be
 // checked here — errno 109 is ETOOMANYREFS on Linux, a real, unrelated
 // error that must not be misreported as a closed pipe.
-func isBrokenPipePlatform(err error) bool {
+func isBrokenPipePlatform(_ error) bool {
 	return false
 }

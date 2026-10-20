@@ -214,7 +214,7 @@ func checkPerBuiltinAllowedSymbols(t *testing.T, cfg perBuiltinConfig) {
 		checkAllowedSymbols(t, allowedSymbolsConfig{
 			Symbols:   symbols,
 			TargetDir: filepath.Join(cfg.TargetDir, cmd),
-			CollectFiles: func(dir string) ([]string, error) {
+			CollectFiles: func(_ string) ([]string, error) {
 				return goFiles, nil
 			},
 			ExemptImport:     cfg.ExemptImport,

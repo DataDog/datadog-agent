@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -78,7 +79,7 @@ func TestLineReaderTotalReadAccumulation(t *testing.T) {
 
 func TestBoundedBufferCapacityNeverExceedsLimit(t *testing.T) {
 	for _, limit := range []int{0, 5, 65, 1001, 2*readChunkBytes + 3} {
-		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+		t.Run(strconv.Itoa(limit), func(t *testing.T) {
 			b := &boundedBuffer{maxBytes: limit}
 			for i := 0; i < limit; i++ {
 				_, err := b.Write([]byte("x"))
@@ -97,7 +98,7 @@ func TestBoundedBufferCapacityNeverExceedsLimit(t *testing.T) {
 
 func TestStatAndReadSyncRejectsOversizedOrGrowingFile(t *testing.T) {
 	for _, size := range []int64{0, 33} {
-		t.Run(fmt.Sprint(size), func(t *testing.T) {
+		t.Run(strconv.FormatInt(size, 10), func(t *testing.T) {
 			f := &sizedStatCloser{
 				trackedCloser: &trackedCloser{ReadCloser: io.NopCloser(strings.NewReader(strings.Repeat("x", 33)))},
 				size:          size,

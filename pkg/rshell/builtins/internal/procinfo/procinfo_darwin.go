@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/bits"
 	"os"
+	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
@@ -136,7 +137,7 @@ func getByPIDs(ctx context.Context, _ string, pids []int, metrics Metrics) ([]Pr
 func kinfoToProc(kp *unix.KinfoProc) ProcInfo {
 	pid := int(kp.Proc.P_pid)
 	ppid := int(kp.Eproc.Ppid)
-	uid := fmt.Sprintf("%d", kp.Eproc.Ucred.Uid)
+	uid := strconv.FormatUint(uint64(kp.Eproc.Ucred.Uid), 10)
 	state := string([]byte{statByte(kp.Proc.P_stat)})
 	tty := resolveTTY(kp.Eproc.Tdev)
 
@@ -329,5 +330,5 @@ func resolveTTY(tdev int32) string {
 		return "?"
 	}
 	// Major/minor encoding differs on macOS. Return numeric form.
-	return fmt.Sprintf("%d", tdev)
+	return strconv.Itoa(int(tdev))
 }

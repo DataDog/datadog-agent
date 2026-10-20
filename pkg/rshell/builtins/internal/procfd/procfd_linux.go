@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -318,7 +319,7 @@ func parseComm(statData []byte) (string, error) {
 	openParen := strings.Index(s, "(")
 	closeParen := strings.LastIndex(s, ")")
 	if openParen < 0 || closeParen < 0 || closeParen <= openParen {
-		return "", fmt.Errorf("lsof: malformed stat data")
+		return "", errors.New("lsof: malformed stat data")
 	}
 	return s[openParen+1 : closeParen], nil
 }

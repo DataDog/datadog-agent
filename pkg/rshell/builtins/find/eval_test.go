@@ -332,14 +332,6 @@ func TestEvalEmpty(t *testing.T) {
 	})
 }
 
-// fakeDirEntry implements a minimal fs.DirEntry for testing.
-type fakeDirEntry struct{}
-
-func (fakeDirEntry) Name() string                 { return "file.txt" }
-func (fakeDirEntry) IsDir() bool                  { return false }
-func (fakeDirEntry) Type() iofs.FileMode          { return 0 }
-func (fakeDirEntry) Info() (iofs.FileInfo, error) { return nil, nil }
-
 // fakeFileInfo implements the minimal fs.FileInfo interface for testing.
 type fakeFileInfo struct {
 	modTime time.Time

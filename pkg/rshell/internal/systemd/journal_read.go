@@ -7,7 +7,7 @@ package systemd
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
 )
@@ -20,7 +20,7 @@ func (c *Client) ReadJournal(ctx context.Context, query builtins.JournalQuery, y
 		return err
 	}
 	if yield == nil {
-		return fmt.Errorf("journal entry yield function is nil")
+		return errors.New("journal entry yield function is nil")
 	}
 	entries, err := c.queryJournalEntries(ctx, query)
 	if err != nil {

@@ -121,7 +121,7 @@ func TestVulnHuntSubsystemSignalHandling_PipelineLeftPanicRecovered(t *testing.T
 	t.Cleanup(func() { _ = r.Close() })
 
 	r.Reset()
-	r.execHandler = func(ctx context.Context, args []string) error {
+	r.execHandler = func(_ context.Context, args []string) error {
 		if len(args) > 0 && args[0] == "paniccmd" {
 			panic("left pipeline panic sentinel")
 		}

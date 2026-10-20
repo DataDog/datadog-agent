@@ -304,7 +304,7 @@ type trackedInt struct {
 	t   *batchTracker
 }
 
-func (b *trackedInt) String() string { return fmt.Sprintf("%d", *b.p) }
+func (b *trackedInt) String() string { return strconv.Itoa(*b.p) }
 func (b *trackedInt) Set(s string) error {
 	v, err := strconv.Atoi(s)
 	if err != nil {
@@ -1110,7 +1110,7 @@ func (t *tokenizer) nextLine(ctx context.Context) (string, bool, bool, error) {
 				if len(t.buf) == 0 {
 					return "", false, false, nil
 				}
-				if isEofMarker(t.o, t.buf) {
+				if isEOFMarker(t.o, t.buf) {
 					t.eof = true
 					return "", false, false, nil
 				}
@@ -1153,7 +1153,7 @@ func (t *tokenizer) nextLine(ctx context.Context) (string, bool, bool, error) {
 			}
 			continue
 		case '\n':
-			if isEofMarker(t.o, t.buf) {
+			if isEOFMarker(t.o, t.buf) {
 				t.eof = true
 				return "", false, false, nil
 			}
@@ -1168,7 +1168,7 @@ func (t *tokenizer) nextLine(ctx context.Context) (string, bool, bool, error) {
 			if err := t.skipToNewline(ctx); err != nil {
 				return "", false, false, err
 			}
-			if isEofMarker(t.o, t.buf) {
+			if isEOFMarker(t.o, t.buf) {
 				t.eof = true
 				return "", false, false, nil
 			}
@@ -1317,7 +1317,7 @@ func (t *tokenizer) nextWhitespace(ctx context.Context) (string, bool, bool, err
 				// line (matches GNU). A trailing token that shares its
 				// line with prior content (e.g. `a STOP` with no newline)
 				// is treated as a literal item.
-				if isEofMarker(t.o, t.buf) && tokenStartsLine {
+				if isEOFMarker(t.o, t.buf) && tokenStartsLine {
 					t.eof = true
 					return "", false, false, nil
 				}
@@ -1376,7 +1376,7 @@ func (t *tokenizer) nextWhitespace(ctx context.Context) (string, bool, bool, err
 			if sawNewline {
 				endedLine = true
 			}
-			if isEofMarker(t.o, t.buf) {
+			if isEOFMarker(t.o, t.buf) {
 				t.eof = true
 				return "", false, false, nil
 			}
@@ -1390,7 +1390,7 @@ func (t *tokenizer) nextWhitespace(ctx context.Context) (string, bool, bool, err
 			} else {
 				t.atLineStart = false
 			}
-			if isEofMarker(t.o, t.buf) {
+			if isEOFMarker(t.o, t.buf) {
 				t.eof = true
 				return "", false, false, nil
 			}
@@ -1407,9 +1407,9 @@ func (t *tokenizer) nextWhitespace(ctx context.Context) (string, bool, bool, err
 	}
 }
 
-// isEofMarker reports whether buf equals the configured EOF-STR. Returns
+// isEOFMarker reports whether buf equals the configured EOF-STR. Returns
 // false when -E was not set or was cleared (e.g. -0/-d disable -E).
-func isEofMarker(o options, buf []byte) bool {
+func isEOFMarker(o options, buf []byte) bool {
 	if o.eofStr == "" {
 		return false
 	}

@@ -84,6 +84,7 @@ import (
 	iofs "io/fs"
 	"runtime"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
@@ -543,7 +544,7 @@ func computeColWidths[T any](entries []T, getInfo func(T) iofs.FileInfo, getOwne
 		if opts.humanReadable {
 			sizeStr = humanSize(getInfo(e).Size())
 		} else {
-			sizeStr = fmt.Sprintf("%d", getInfo(e).Size())
+			sizeStr = strconv.FormatInt(getInfo(e).Size(), 10)
 		}
 		if n := len(sizeStr); n > w.size {
 			w.size = n
@@ -562,7 +563,7 @@ func printEntry(callCtx *builtins.CallContext, name string, info iofs.FileInfo, 
 		if opts.humanReadable {
 			sizeStr = humanSize(size)
 		} else {
-			sizeStr = fmt.Sprintf("%d", size)
+			sizeStr = strconv.FormatInt(size, 10)
 		}
 
 		suffix := indicator(info, opts)
@@ -755,7 +756,7 @@ func joinPath(dir, name string) string {
 
 func humanSize(size int64) string {
 	if size < 1024 {
-		return fmt.Sprintf("%d", size)
+		return strconv.FormatInt(size, 10)
 	}
 	units := []string{"K", "M", "G", "T", "P"}
 	val := float64(size)

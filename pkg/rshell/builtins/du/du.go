@@ -685,9 +685,9 @@ func saturatingAdd(a, b int64) int64 {
 func formatSize(rawBytes int64, opts options) string {
 	switch opts.unit {
 	case unitBytes:
-		return fmt.Sprintf("%d", rawBytes)
+		return strconv.FormatInt(rawBytes, 10)
 	case unitMega:
-		return fmt.Sprintf("%d", divCeil(rawBytes, 1024*1024))
+		return strconv.FormatInt(divCeil(rawBytes, 1024*1024), 10)
 	case unitHuman:
 		return humanSize(rawBytes, 1024, []string{"B", "K", "M", "G", "T", "P", "E"})
 	case unitSI:
@@ -695,7 +695,7 @@ func formatSize(rawBytes int64, opts options) string {
 	case unitKilo:
 		fallthrough
 	default:
-		return fmt.Sprintf("%d", divCeil(rawBytes, 1024))
+		return strconv.FormatInt(divCeil(rawBytes, 1024), 10)
 	}
 }
 
@@ -727,7 +727,7 @@ func humanSize(rawBytes int64, base int64, units []string) string {
 		rawBytes = 0
 	}
 	if rawBytes < base {
-		return fmt.Sprintf("%d", rawBytes)
+		return strconv.FormatInt(rawBytes, 10)
 	}
 	val := float64(rawBytes)
 	div := float64(base)

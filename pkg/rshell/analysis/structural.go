@@ -147,9 +147,9 @@ func checkFileOpenFileClose(f *ast.File, report func(pos token.Pos, format strin
 					}
 					// Detect: rc = f (hand-off from OpenFile result to another var).
 					// Works for both := and = assignments.
-					if rhsId, ok := rhs.(*ast.Ident); ok && i < len(node.Lhs) {
-						if lhsId, ok := node.Lhs[i].(*ast.Ident); ok && lhsId.Name != "_" {
-							handOff[lhsId.Name] = rhsId.Name
+					if rhsID, ok := rhs.(*ast.Ident); ok && i < len(node.Lhs) {
+						if lhsID, ok := node.Lhs[i].(*ast.Ident); ok && lhsID.Name != "_" {
+							handOff[lhsID.Name] = rhsID.Name
 						}
 					}
 				}

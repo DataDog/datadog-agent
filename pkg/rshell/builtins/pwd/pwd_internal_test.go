@@ -304,7 +304,7 @@ func TestResolveSymlinksReadlinkFails(t *testing.T) {
 func TestResolveSymlinksDotInTarget(t *testing.T) {
 	calls := 0
 	cc := &builtins.CallContext{
-		LstatFile: func(_ context.Context, p string) (iofs.FileInfo, error) {
+		LstatFile: func(_ context.Context, _ string) (iofs.FileInfo, error) {
 			calls++
 			// First call: /lnk is a symlink. After splicing "./real", the
 			// next component "." is short-circuited before any new lstat.

@@ -24,9 +24,9 @@ import (
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
 	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/protobuf/proto"
 )
 

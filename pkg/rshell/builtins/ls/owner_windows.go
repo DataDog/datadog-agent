@@ -7,9 +7,9 @@ package ls
 
 import (
 	"context"
-	"fmt"
 	iofs "io/fs"
 	"os"
+	"strconv"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
@@ -24,7 +24,7 @@ func fileOwner(ctx context.Context, callCtx *builtins.CallContext, path string, 
 	group = "?"
 	nlink = "?"
 	if n, ok := getNlink(ctx, callCtx, path); ok {
-		nlink = fmt.Sprintf("%d", n)
+		nlink = strconv.FormatUint(n, 10)
 	}
 	return owner, group, nlink
 }

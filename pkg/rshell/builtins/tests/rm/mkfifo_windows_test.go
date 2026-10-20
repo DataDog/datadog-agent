@@ -10,6 +10,6 @@ package rm_test
 import "errors"
 
 // mkfifo is unavailable on Windows; the caller skips before invoking it.
-func mkfifo(path string) error {
+func mkfifo(_ string) error {
 	return errors.New("mkfifo not supported on windows")
 }

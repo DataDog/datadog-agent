@@ -100,10 +100,6 @@ const (
 	noWritableRootHint = "truncate: no writable path is configured (remediation mode requires an AllowedPaths entry with :rw)\n"
 )
 
-// errInvalidSize is returned by parseSize for any non-numeric, malformed,
-// or out-of-range input.
-var errInvalidSize = sizeparse.ErrInvalid
-
 // errRelativeSize is returned by parseSize when the size value carries a
 // leading +/-/<>//%/% modifier. We surface a dedicated error so the handler
 // can hint that these forms are intentionally not supported.
@@ -223,7 +219,7 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 //
 // Leading +/-/<>//% modifiers (the GNU relative-size syntax) are rejected
 // with errRelativeSize so the caller can surface a hint. Any other malformed
-// input, or any value whose product overflows int64, returns errInvalidSize.
+// input, or any value whose product overflows int64, returns sizeparse.ErrInvalid.
 func parseSize(s string) (int64, error) {
 	return sizeparse.Parse(s)
 }

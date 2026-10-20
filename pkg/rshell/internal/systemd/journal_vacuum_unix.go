@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -38,16 +39,16 @@ type vacuumCandidate struct {
 // configured target while honoring the requested size and time thresholds.
 func (c *Client) VacuumJournal(ctx context.Context, request builtins.JournalVacuumRequest) (builtins.JournalVacuumResult, error) {
 	if request.Now.IsZero() {
-		return builtins.JournalVacuumResult{}, fmt.Errorf("journal vacuum reference time is required")
+		return builtins.JournalVacuumResult{}, errors.New("journal vacuum reference time is required")
 	}
 	if request.MaxBytes == 0 && request.Before.IsZero() {
-		return builtins.JournalVacuumResult{}, fmt.Errorf("journal vacuum requires a size or time limit")
+		return builtins.JournalVacuumResult{}, errors.New("journal vacuum requires a size or time limit")
 	}
 	if request.MaxBytes > 0 && request.Before.IsZero() {
-		return builtins.JournalVacuumResult{}, fmt.Errorf("journal size vacuum requires a time cutoff")
+		return builtins.JournalVacuumResult{}, errors.New("journal size vacuum requires a time cutoff")
 	}
 	if !request.Before.IsZero() && request.Before.After(request.Now) {
-		return builtins.JournalVacuumResult{}, fmt.Errorf("journal vacuum time cutoff cannot be in the future")
+		return builtins.JournalVacuumResult{}, errors.New("journal vacuum time cutoff cannot be in the future")
 	}
 
 	directories, err := c.openVacuumDirectories()
@@ -99,10 +100,10 @@ func (c *Client) VacuumJournal(ctx context.Context, request builtins.JournalVacu
 
 func (c *Client) openVacuumDirectories() ([]*vacuumDirectory, error) {
 	if c.target.MachineIDPath == "" {
-		return nil, fmt.Errorf("systemd target machine ID path is not configured")
+		return nil, errors.New("systemd target machine ID path is not configured")
 	}
 	if len(c.target.JournalDirs) == 0 {
-		return nil, fmt.Errorf("systemd target journal directories are not configured")
+		return nil, errors.New("systemd target journal directories are not configured")
 	}
 	machineID, err := c.readMachineID()
 	if err != nil {
@@ -131,7 +132,7 @@ func (c *Client) openVacuumDirectories() ([]*vacuumDirectory, error) {
 		if !before.IsDir() || before.Mode()&fs.ModeSymlink != 0 {
 			baseRoot.Close()
 			closeVacuumDirectories(directories)
-			return nil, fmt.Errorf("journal machine directory is not a real directory")
+			return nil, errors.New("journal machine directory is not a real directory")
 		}
 		beforeStat, err := journalStat(before)
 		if err != nil {
@@ -155,7 +156,7 @@ func (c *Client) openVacuumDirectories() ([]*vacuumDirectory, error) {
 		if err != nil || beforeStat.dev != afterStat.dev || beforeStat.ino != afterStat.ino {
 			machineRoot.Close()
 			closeVacuumDirectories(directories)
-			return nil, fmt.Errorf("journal machine directory changed while opening")
+			return nil, errors.New("journal machine directory changed while opening")
 		}
 		directories = append(directories, &vacuumDirectory{path: basePath, root: machineRoot})
 	}
@@ -205,7 +206,7 @@ func collectVacuumCandidates(directories []*vacuumDirectory) ([]vacuumCandidate,
 				return nil, 0, fmt.Errorf("inspect archived journal allocation: %w", err)
 			}
 			if allocatedBytes > math.MaxUint64-stat.allocated {
-				return nil, 0, fmt.Errorf("journal allocation total overflow")
+				return nil, 0, errors.New("journal allocation total overflow")
 			}
 			allocatedBytes += stat.allocated
 			if !archived || stat.nlink != 1 {
@@ -241,14 +242,14 @@ func revalidateVacuumCandidate(candidate vacuumCandidate) error {
 		return fmt.Errorf("revalidate archived journal: %w", err)
 	}
 	if !info.Mode().IsRegular() || info.Mode()&fs.ModeSymlink != 0 || info.Size() != candidate.size || !info.ModTime().Equal(candidate.modTime) {
-		return fmt.Errorf("archived journal changed before deletion")
+		return errors.New("archived journal changed before deletion")
 	}
 	stat, err := journalStat(info)
 	if err != nil {
 		return fmt.Errorf("revalidate archived journal allocation: %w", err)
 	}
 	if stat.dev != candidate.stat.dev || stat.ino != candidate.stat.ino || stat.nlink != 1 || stat.blocks != candidate.stat.blocks {
-		return fmt.Errorf("archived journal identity changed before deletion")
+		return errors.New("archived journal identity changed before deletion")
 	}
 	return nil
 }
@@ -264,4 +265,8 @@ func vacuumPartialError(result builtins.JournalVacuumResult, err error) error {
 		return err
 	}
 	return fmt.Errorf("journal vacuum stopped after deleting %d files (%d bytes): %w", result.Files, result.Bytes, err)
+}
+
+func (*Client) openTargetDirectory(path string) (*os.Root, error) {
+	return os.OpenRoot(path)
 }

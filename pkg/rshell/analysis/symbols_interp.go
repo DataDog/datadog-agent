@@ -76,6 +76,8 @@ var interpAllowedSymbols = []string{
 	"strings.IndexByte",           // 🟢 finds byte in string; pure function, no I/O.
 	"strings.HasPrefix",           // 🟢 pure function for prefix matching; no I/O.
 	"strings.HasSuffix",           // 🟢 pure function for suffix matching; no I/O.
+	"strings.Contains",            // 🟢 checks for a substring; pure function, no I/O.
+	"strings.TrimSuffix",          // 🟢 removes a suffix; pure function, no I/O.
 	"strings.Join",                // 🟢 joins string slices; pure function, no I/O.
 	"strings.Split",               // 🟢 splits a string by separator; pure function, no I/O.
 	"strings.ToUpper",             // 🟢 converts string to uppercase; pure function, no I/O.
@@ -126,7 +128,7 @@ var interpAllowedSymbols = []string{
 	"mvdan.cc/sh/v3/syntax.BraceExp",      // 🟢 AST node for brace expansion; pure type.
 	"mvdan.cc/sh/v3/syntax.CallExpr",      // 🟢 AST node for simple command call; pure type.
 	"mvdan.cc/sh/v3/syntax.CaseClause",    // 🟢 AST node for case statement; pure type.
-	"mvdan.cc/sh/v3/syntax.ClbOut",        // 🟢 redirect operator constant (>|); pure constant.
+	"mvdan.cc/sh/v3/syntax.RdrClob",       // 🟢 redirect operator constant (>|); pure constant.
 	"mvdan.cc/sh/v3/syntax.CmdSubst",      // 🟢 AST node for $() command substitution; pure type.
 	"mvdan.cc/sh/v3/syntax.Command",       // 🟢 AST interface for all command types; pure interface.
 	"mvdan.cc/sh/v3/syntax.CoprocClause",  // 🟢 AST node for coproc command; pure type.
@@ -238,6 +240,8 @@ var interpPerModeSymbols = map[string][]string{
 		"strings.IndexByte",           // 🟢 finds byte in string; pure function, no I/O.
 		"strings.HasPrefix",           // 🟢 pure function for prefix matching; no I/O.
 		"strings.HasSuffix",           // 🟢 pure function for suffix matching; no I/O.
+		"strings.Contains",            // 🟢 checks for a substring; pure function, no I/O.
+		"strings.TrimSuffix",          // 🟢 removes a suffix; pure function, no I/O.
 		"strings.Join",                // 🟢 joins string slices; pure function, no I/O.
 		"strings.Split",               // 🟢 splits a string by separator; pure function, no I/O.
 		"strings.ToUpper",             // 🟢 converts string to uppercase; pure function, no I/O.
@@ -288,7 +292,7 @@ var interpPerModeSymbols = map[string][]string{
 		"mvdan.cc/sh/v3/syntax.BraceExp",     // 🟢 AST node for brace expansion; pure type.
 		"mvdan.cc/sh/v3/syntax.CallExpr",     // 🟢 AST node for simple command call; pure type.
 		"mvdan.cc/sh/v3/syntax.CaseClause",   // 🟢 AST node for case statement; pure type.
-		"mvdan.cc/sh/v3/syntax.ClbOut",       // 🟢 redirect operator constant (>|); pure constant.
+		"mvdan.cc/sh/v3/syntax.RdrClob",      // 🟢 redirect operator constant (>|); pure constant.
 		"mvdan.cc/sh/v3/syntax.CmdSubst",     // 🟢 AST node for $() command substitution; pure type.
 		"mvdan.cc/sh/v3/syntax.Command",      // 🟢 AST interface for all command types; pure interface.
 		"mvdan.cc/sh/v3/syntax.CoprocClause", // 🟢 AST node for coproc command; pure type.

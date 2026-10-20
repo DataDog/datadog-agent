@@ -8,6 +8,7 @@ package awk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -190,7 +191,7 @@ func loadProgram(ctx context.Context, callCtx *builtins.CallContext, args []stri
 		files = args
 	} else {
 		if len(args) == 0 {
-			return "", nil, fmt.Errorf("missing program")
+			return "", nil, errors.New("missing program")
 		}
 		total += len(args[0])
 		if total > MaxProgramBytes {
@@ -200,7 +201,7 @@ func loadProgram(ctx context.Context, callCtx *builtins.CallContext, args []stri
 		files = args[1:]
 	}
 	if len(parts) == 0 {
-		return "", nil, fmt.Errorf("missing program")
+		return "", nil, errors.New("missing program")
 	}
 	return strings.Join(parts, "\n"), files, nil
 }

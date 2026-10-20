@@ -7,6 +7,7 @@ package interp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -92,7 +93,7 @@ type ExecHandlerFunc func(ctx context.Context, args []string) error
 func noExecHandler(helpAvailable bool) ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		if len(args) == 0 {
-			return fmt.Errorf("exec handler called with no arguments")
+			return errors.New("exec handler called with no arguments")
 		}
 		hc := HandlerCtx(ctx)
 		fmt.Fprintf(hc.Stderr, "rshell: %s: unknown command\n", args[0])

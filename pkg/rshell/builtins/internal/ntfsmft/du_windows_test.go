@@ -1653,7 +1653,7 @@ func TestStreamPipelinedReportsReadErrors(t *testing.T) {
 		extents,
 		recordSize,
 		modeAll,
-		func(idx uint64, e *mftEntry, baseRef uint64) { called++ },
+		func(_ uint64, _ *mftEntry, _ uint64) { called++ },
 	)
 	if readErrs != 2 {
 		t.Errorf("readErrs = %d, want 2 (both chunks unreadable)", readErrs)
@@ -1686,7 +1686,7 @@ func TestStreamPipelinedUnmappedExtentsAreNotReadErrors(t *testing.T) {
 		extents,
 		recordSize,
 		modeAll,
-		func(idx uint64, e *mftEntry, baseRef uint64) { called++ },
+		func(_ uint64, _ *mftEntry, _ uint64) { called++ },
 	)
 	if readErrs != 0 {
 		t.Errorf("readErrs = %d, want 0 (an unmapped range is not an I/O failure)", readErrs)

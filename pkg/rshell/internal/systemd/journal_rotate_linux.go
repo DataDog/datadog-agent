@@ -20,13 +20,13 @@ const journalRotationTimeout = 30 * time.Second
 // daemon to report completion.
 func (c *Client) RotateJournal(ctx context.Context) error {
 	if c.target.MachineIDPath == "" {
-		return fmt.Errorf("systemd target machine ID path is unavailable")
+		return errors.New("systemd target machine ID path is unavailable")
 	}
 	if _, err := c.readMachineID(); err != nil {
 		return fmt.Errorf("validate systemd target machine ID: %w", err)
 	}
 	if c.target.JournalControlSocket == "" {
-		return fmt.Errorf("systemd target journal control socket is unavailable")
+		return errors.New("systemd target journal control socket is unavailable")
 	}
 
 	rotationCtx, cancel := context.WithTimeout(ctx, journalRotationTimeout)

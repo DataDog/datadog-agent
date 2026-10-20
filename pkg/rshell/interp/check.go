@@ -7,7 +7,7 @@ package interp
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"io/fs"
 	"path/filepath"
@@ -108,7 +108,7 @@ const maxCheckDepth = 128
 // call concurrently with other methods on the same Runner.
 func (r *Runner) Check(ctx context.Context, script string) (*CheckResult, error) {
 	if r == nil || !r.usedNew {
-		return nil, fmt.Errorf("use interp.New to construct a Runner")
+		return nil, errors.New("use interp.New to construct a Runner")
 	}
 	if r.maxExecutionTime > 0 {
 		var cancel context.CancelFunc
@@ -263,7 +263,7 @@ func (s *checkState) Get(name string) expand.Variable {
 	return expand.Variable{Set: true, Kind: expand.String, Str: value.value}
 }
 
-func (s *checkState) Each(fn func(string, expand.Variable) bool) {
+func (s *checkState) Each(_ func(string, expand.Variable) bool) {
 	// Expansion only uses Get. Keep the environment interface complete without
 	// exposing a partially known environment to an accidental enumeration.
 }
@@ -335,7 +335,7 @@ func (s *checkState) boundWord(word *syntax.Word, quoted bool, maxBytes int) boo
 
 func (s *checkState) expansionConfig() *expand.Config {
 	return &expand.Config{Env: s, ReadDir2: func(string) ([]fs.DirEntry, error) {
-		return nil, fmt.Errorf("glob expansion requires execution")
+		return nil, errors.New("glob expansion requires execution")
 	}}
 }
 
@@ -644,7 +644,7 @@ func (c *scriptChecker) redirects(entry *CommandCheck, redirects []*syntax.Redir
 		op := allowedpaths.PathRead
 		switch redirect.Op {
 		case syntax.RdrIn:
-		case syntax.RdrOut, syntax.AppOut, syntax.ClbOut, syntax.RdrAll, syntax.AppAll:
+		case syntax.RdrOut, syntax.AppOut, syntax.RdrClob, syntax.RdrAll, syntax.AppAll:
 			op = allowedpaths.PathWrite
 		default:
 			continue

@@ -149,7 +149,7 @@ func TestMatchClassEdgeCases(t *testing.T) {
 	assert.Equal(t, 5, width)
 
 	// Escaped multi-byte range endpoints: [\é-\ü]
-	matched, width = matchClass(`[\é-\ü]`, 'ö') // ö is between é and ü
+	matched, _ = matchClass(`[\é-\ü]`, 'ö') // ö is between é and ü
 	assert.True(t, matched)
 
 	matched, _ = matchClass(`[\é-\ü]`, 'a')

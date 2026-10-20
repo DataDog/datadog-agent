@@ -9,7 +9,7 @@ package fsstat
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"unsafe"
@@ -119,7 +119,7 @@ func readHandle(handle windows.Handle) (Info, error) {
 		fullSize.ActualAvailableAllocationUnits < 0 ||
 		fullSize.SectorsPerAllocationUnit == 0 ||
 		fullSize.BytesPerSector == 0 {
-		return Info{}, fmt.Errorf("invalid filesystem size information")
+		return Info{}, errors.New("invalid filesystem size information")
 	}
 
 	id, idAvailable := queryVolumeID(handle)
@@ -205,7 +205,7 @@ func queryFullSize(handle windows.Handle) (fileFsFullSizeInfo, error) {
 		return fileFsFullSizeInfo{}, err
 	}
 	if bytesReturned < unsafe.Sizeof(fullSize) {
-		return fileFsFullSizeInfo{}, fmt.Errorf("short filesystem size information")
+		return fileFsFullSizeInfo{}, errors.New("short filesystem size information")
 	}
 	return fullSize, nil
 }

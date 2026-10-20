@@ -283,7 +283,7 @@ func serveRawManagerDBus(listener *net.UnixListener, machineID string) error {
 	if err != nil {
 		return fmt.Errorf("wait for manager D-Bus client cleanup: %w", err)
 	}
-	return fmt.Errorf("manager D-Bus client sent unexpected data before closing")
+	return errors.New("manager D-Bus client sent unexpected data before closing")
 }
 
 func authenticateRawManagerDBus(reader *bufio.Reader, writer io.Writer) error {
@@ -304,7 +304,7 @@ func authenticateRawManagerDBus(reader *bufio.Reader, writer io.Writer) error {
 	if len(fields) == 3 {
 		identity, err := hex.DecodeString(fields[2])
 		if err != nil || string(identity) != strconv.Itoa(os.Geteuid()) {
-			return fmt.Errorf("manager D-Bus EXTERNAL authentication used an unexpected identity")
+			return errors.New("manager D-Bus EXTERNAL authentication used an unexpected identity")
 		}
 	}
 	if err := writeAll(writer, []byte("OK "+testManagerBusGUID+"\r\n")); err != nil {
@@ -326,7 +326,7 @@ func readInitialManagerAuth(reader *bufio.Reader) error {
 		return fmt.Errorf("read manager D-Bus authentication prefix: %w", err)
 	}
 	if initial != 0 {
-		return fmt.Errorf("manager D-Bus authentication omitted the initial NUL byte")
+		return errors.New("manager D-Bus authentication omitted the initial NUL byte")
 	}
 	line, err := readManagerAuthLine(reader)
 	if err != nil {
@@ -344,7 +344,7 @@ func readManagerAuthLine(reader *bufio.Reader) (string, error) {
 		return "", fmt.Errorf("read manager D-Bus authentication line: %w", err)
 	}
 	if !strings.HasSuffix(line, "\r\n") {
-		return "", fmt.Errorf("manager D-Bus authentication line is not CRLF terminated")
+		return "", errors.New("manager D-Bus authentication line is not CRLF terminated")
 	}
 	return strings.TrimSuffix(line, "\r\n"), nil
 }
@@ -357,10 +357,10 @@ func validateRawManagerCall(message *dbus.Message, flags dbus.Flags, destination
 		return fmt.Errorf("message flags are %v, expected %v", message.Flags, flags)
 	}
 	if message.Serial() == 0 {
-		return fmt.Errorf("message serial is zero")
+		return errors.New("message serial is zero")
 	}
 	if len(message.Body) != 0 {
-		return fmt.Errorf("message body is not empty")
+		return errors.New("message body is not empty")
 	}
 	expected := map[dbus.HeaderField]any{
 		dbus.FieldDestination: destination,
@@ -394,7 +394,7 @@ func writeRawManagerReply(writer io.Writer, request *dbus.Message, serial uint32
 	}
 	frame := encoded.Bytes()
 	if len(frame) < 12 {
-		return fmt.Errorf("encoded manager D-Bus reply is truncated")
+		return errors.New("encoded manager D-Bus reply is truncated")
 	}
 	binary.LittleEndian.PutUint32(frame[8:12], serial)
 	return writeAll(writer, frame)
@@ -433,7 +433,7 @@ func startStalledManagerAuthServer(listener *net.UnixListener, authStarted chan<
 			done <- fmt.Errorf("wait for stalled manager D-Bus client cleanup: %w", err)
 			return
 		}
-		done <- fmt.Errorf("stalled manager D-Bus client sent unexpected data")
+		done <- errors.New("stalled manager D-Bus client sent unexpected data")
 	}()
 	return done
 }

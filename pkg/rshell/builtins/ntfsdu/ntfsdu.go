@@ -97,6 +97,7 @@ package ntfsdu
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -293,7 +294,7 @@ func parseSize(s string) (int64, error) {
 	s = strings.TrimSuffix(s, "b")
 	s = strings.TrimSuffix(s, "i")
 	if s == "" {
-		return 0, fmt.Errorf("empty size")
+		return 0, errors.New("empty size")
 	}
 	mult := int64(1)
 	switch s[len(s)-1] {
@@ -315,10 +316,10 @@ func parseSize(s string) (int64, error) {
 		return 0, fmt.Errorf("parse %q: %w", s, err)
 	}
 	if n < 0 {
-		return 0, fmt.Errorf("negative size")
+		return 0, errors.New("negative size")
 	}
 	if n > (1<<63-1)/mult {
-		return 0, fmt.Errorf("size overflow")
+		return 0, errors.New("size overflow")
 	}
 	return n * mult, nil
 }

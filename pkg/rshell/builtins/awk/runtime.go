@@ -389,7 +389,6 @@ func (rt *runtime) run(ctx context.Context, files []string) builtins.Result {
 			if err != nil {
 				if code, ok := exitCodeFromError(err); ok {
 					rt.exitCode = code
-					exited = true
 					break
 				}
 				return rt.errorResult(ctx, err)
@@ -406,7 +405,6 @@ func (rt *runtime) run(ctx context.Context, files []string) builtins.Result {
 				}
 				if code, ok := exitCodeFromError(err); ok {
 					rt.exitCode = code
-					exited = true
 					break
 				}
 				return rt.errorResult(ctx, err)
@@ -918,7 +916,7 @@ func (rt *runtime) runRules(ctx context.Context, kind ruleKind) error {
 				if kind == ruleNormal {
 					return err
 				}
-				return fmt.Errorf("fatal: next is not allowed in BEGIN or END")
+				return errors.New("fatal: next is not allowed in BEGIN or END")
 			}
 			return err
 		}
@@ -979,7 +977,7 @@ func (rt *runtime) setRecord(rec string) error {
 	fields, err := rt.splitAwkRecordFields(rec, fs)
 	if err != nil {
 		if errors.Is(err, errTooManyFields) {
-			return fmt.Errorf("record has too many fields")
+			return errors.New("record has too many fields")
 		}
 		return err
 	}
@@ -988,7 +986,7 @@ func (rt *runtime) setRecord(rec string) error {
 	}
 	rt.fields = fields
 	if len(rt.fields) > MaxFields {
-		return fmt.Errorf("record has too many fields")
+		return errors.New("record has too many fields")
 	}
 	rt.setComputedNF(len(rt.fields))
 	return nil
@@ -1035,10 +1033,10 @@ func (rt *runtime) rebuildRecordFromFields() {
 
 func (rt *runtime) setField(n int, v value) error {
 	if n < 0 {
-		return fmt.Errorf("invalid field index")
+		return errors.New("invalid field index")
 	}
 	if n > MaxFields {
-		return fmt.Errorf("record has too many fields")
+		return errors.New("record has too many fields")
 	}
 	s, err := rt.conversionString(v, "CONVFMT")
 	if err != nil {
@@ -1070,10 +1068,10 @@ func (rt *runtime) setField(n int, v value) error {
 func (rt *runtime) setNF(v value) error {
 	n := int(v.Number())
 	if n < 0 {
-		return fmt.Errorf("fatal: invalid NF value")
+		return errors.New("fatal: invalid NF value")
 	}
 	if n > MaxFields {
-		return fmt.Errorf("record has too many fields")
+		return errors.New("record has too many fields")
 	}
 	recordSize, err := validateRebuiltRecordSize(rt.fields, n, 0, "", rt.getVar("OFS").String())
 	if err != nil {
@@ -1847,7 +1845,7 @@ func (rt *runtime) validateFS(fs string) error {
 		return nil
 	}
 	if fs == "" {
-		return fmt.Errorf("empty FS is not supported")
+		return errors.New("empty FS is not supported")
 	}
 	if isSingleRune(fs) {
 		return nil
@@ -1861,7 +1859,7 @@ func (rt *runtime) validateFS(fs string) error {
 
 func validateRS(rs string) error {
 	if rs != "" && !isSingleRune(rs) {
-		return fmt.Errorf("multi-character RS is not supported")
+		return errors.New("multi-character RS is not supported")
 	}
 	return nil
 }

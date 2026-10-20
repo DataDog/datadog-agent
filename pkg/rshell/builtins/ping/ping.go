@@ -276,7 +276,7 @@ func execPing(ctx context.Context, callCtx *builtins.CallContext, host string, c
 // non-context net.ResolveIPAddr.
 func buildPinger(ctx context.Context, host string, count int, wait, interval time.Duration, ipv4, ipv6 bool) (*probing.Pinger, error) {
 	if ipv4 && ipv6 {
-		return nil, fmt.Errorf("-4 and -6 are mutually exclusive")
+		return nil, errors.New("-4 and -6 are mutually exclusive")
 	}
 
 	// When a family flag is given and the host is a hostname (not a numeric

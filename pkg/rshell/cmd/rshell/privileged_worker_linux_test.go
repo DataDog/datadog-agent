@@ -261,7 +261,7 @@ func newTestWorkerCommand(ctx context.Context) (*exec.Cmd, error) {
 	return command, nil
 }
 
-func TestPrivilegedWorkerFixture(t *testing.T) {
+func TestPrivilegedWorkerFixture(_ *testing.T) {
 	if os.Getenv("RSHELL_PRIVILEGED_WORKER_FIXTURE") != "1" {
 		return
 	}

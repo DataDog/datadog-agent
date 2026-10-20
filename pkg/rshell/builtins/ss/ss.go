@@ -184,7 +184,7 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 	showOpts := fs.BoolP("options", "o", false, "show timer information")
 	extended := fs.BoolP("extended", "e", false, "show extended socket info (uid, inode)")
 
-	return func(ctx context.Context, callCtx *builtins.CallContext, args []string) builtins.Result {
+	return func(ctx context.Context, callCtx *builtins.CallContext, _ []string) builtins.Result {
 		if *help {
 			callCtx.Out("Usage: ss [OPTION]...\n")
 			callCtx.Out("Display information about network sockets.\n\n")

@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -42,7 +43,7 @@ func (c *Client) openJournalControlSocket(path string) (*os.File, error) {
 	}
 	if info.Mode()&os.ModeSocket == 0 {
 		_ = socket.Close()
-		return nil, fmt.Errorf("journal control endpoint is not a Unix socket")
+		return nil, errors.New("journal control endpoint is not a Unix socket")
 	}
 	return socket, nil
 }

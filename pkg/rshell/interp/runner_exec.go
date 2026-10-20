@@ -370,10 +370,10 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 							panicOut = rLeft.stderr
 						}
 						func() {
-							defer func() { recover() }()
+							defer func() { _ = recover() }()
 							fmt.Fprintf(panicOut, "rshell: internal panic: %v\n", rec)
 						}()
-						rLeft.exit.fatal(fmt.Errorf("internal error"))
+						rLeft.exit.fatal(errors.New("internal error"))
 					}
 					pw.Close()
 					wg.Done()
@@ -919,32 +919,32 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 					}
 					return allowedpaths.WithContextClose(ctx, f), nil
 				},
-				ReadDir: func(ctx context.Context, path string) ([]fs.DirEntry, error) {
+				ReadDir: func(_ context.Context, path string) ([]fs.DirEntry, error) {
 					return r.sandbox.ReadDir(path, dir)
 				},
-				OpenDir: func(ctx context.Context, path string) (fs.ReadDirFile, error) {
+				OpenDir: func(_ context.Context, path string) (fs.ReadDirFile, error) {
 					return r.sandbox.OpenDir(path, dir)
 				},
-				IsDirEmpty: func(ctx context.Context, path string) (bool, error) {
+				IsDirEmpty: func(_ context.Context, path string) (bool, error) {
 					return r.sandbox.IsDirEmpty(path, dir)
 				},
-				ReadDirLimited: func(ctx context.Context, path string, offset, maxRead int) ([]fs.DirEntry, bool, error) {
+				ReadDirLimited: func(_ context.Context, path string, offset, maxRead int) ([]fs.DirEntry, bool, error) {
 					return r.sandbox.ReadDirLimited(path, dir, offset, maxRead)
 				},
-				StatFile: func(ctx context.Context, path string) (fs.FileInfo, error) {
+				StatFile: func(_ context.Context, path string) (fs.FileInfo, error) {
 					return r.sandbox.Stat(path, dir)
 				},
-				FileSystemStat: func(ctx context.Context, path string) (builtins.FileSystemInfo, error) {
+				FileSystemStat: func(_ context.Context, path string) (builtins.FileSystemInfo, error) {
 					info, err := r.sandbox.StatFS(path, dir)
 					return builtins.FileSystemInfo(info), err
 				},
-				LstatFile: func(ctx context.Context, path string) (fs.FileInfo, error) {
+				LstatFile: func(_ context.Context, path string) (fs.FileInfo, error) {
 					return r.sandbox.Lstat(path, dir)
 				},
-				ReadlinkFile: func(ctx context.Context, path string) (string, error) {
+				ReadlinkFile: func(_ context.Context, path string) (string, error) {
 					return r.sandbox.Readlink(path, dir)
 				},
-				AccessFile: func(ctx context.Context, path string, mode uint32) error {
+				AccessFile: func(_ context.Context, path string, mode uint32) error {
 					return r.sandbox.Access(path, dir, mode)
 				},
 				PortableErr: allowedpaths.PortableErrMsg,
@@ -1007,13 +1007,13 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 				RemediationMode: r.remediationMode,
 			}
 			if r.remediationMode && r.sandbox != nil {
-				child.Truncate = func(ctx context.Context, path string, size int64, create bool) error {
+				child.Truncate = func(_ context.Context, path string, size int64, create bool) error {
 					return r.sandbox.Truncate(path, dir, size, create)
 				}
-				child.TruncateToZeroIfAtLeast = func(ctx context.Context, path string, minSize int64, dryRun bool) (int64, bool, error) {
+				child.TruncateToZeroIfAtLeast = func(_ context.Context, path string, minSize int64, dryRun bool) (int64, bool, error) {
 					return r.sandbox.TruncateToZeroIfAtLeast(path, dir, minSize, dryRun)
 				}
-				child.Remove = func(ctx context.Context, path string) error {
+				child.Remove = func(_ context.Context, path string) error {
 					return r.removeWithBudget(dir, path)
 				}
 				child.WriteRegularFile = func(ctx context.Context, path string, data []byte, expectedIdentity fs.FileInfo) (bool, error) {
@@ -1155,13 +1155,13 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 			RemediationMode: r.remediationMode,
 		}
 		if r.remediationMode && r.sandbox != nil {
-			call.Truncate = func(ctx context.Context, path string, size int64, create bool) error {
+			call.Truncate = func(_ context.Context, path string, size int64, create bool) error {
 				return r.sandbox.Truncate(path, r.Dir, size, create)
 			}
-			call.TruncateToZeroIfAtLeast = func(ctx context.Context, path string, minSize int64, dryRun bool) (int64, bool, error) {
+			call.TruncateToZeroIfAtLeast = func(_ context.Context, path string, minSize int64, dryRun bool) (int64, bool, error) {
 				return r.sandbox.TruncateToZeroIfAtLeast(path, r.Dir, minSize, dryRun)
 			}
-			call.Remove = func(ctx context.Context, path string) error {
+			call.Remove = func(_ context.Context, path string) error {
 				return r.removeWithBudget(r.Dir, path)
 			}
 			call.WriteRegularFile = func(ctx context.Context, path string, data []byte, expectedIdentity fs.FileInfo) (bool, error) {
@@ -1255,7 +1255,7 @@ func countPipelineStages(cm *syntax.BinaryCmd) int {
 	if inner, ok := cm.X.Cmd.(*syntax.BinaryCmd); ok && inner.Op == syntax.Pipe {
 		n += countPipelineStages(inner)
 	} else {
-		n += 1
+		n++
 	}
 	return n
 }

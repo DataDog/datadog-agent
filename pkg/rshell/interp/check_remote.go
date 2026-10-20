@@ -7,6 +7,7 @@ package interp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -76,7 +77,7 @@ func CheckRemote(ctx context.Context, script string, policy RemotePolicy) (*Chec
 		return nil, err
 	}
 	if policy.Timeout < 0 {
-		return nil, fmt.Errorf("CheckRemote: Timeout must be >= 0")
+		return nil, errors.New("CheckRemote: Timeout must be >= 0")
 	}
 	timeout := policy.Timeout
 	if timeout == 0 {
@@ -88,7 +89,7 @@ func CheckRemote(ctx context.Context, script string, policy RemotePolicy) (*Chec
 		return nil, fmt.Errorf("CheckRemote: unrecognised execution mode %q", policy.Mode)
 	}
 	if policy.Dir != "" && (!filepath.IsAbs(policy.Dir) || strings.ContainsRune(policy.Dir, 0)) {
-		return nil, fmt.Errorf("CheckRemote: Dir must be an absolute remote path without NUL bytes")
+		return nil, errors.New("CheckRemote: Dir must be an absolute remote path without NUL bytes")
 	}
 	commands, err := parseAllowedCommands(policy.AllowedCommands)
 	if err != nil {
@@ -117,7 +118,7 @@ func CheckRemote(ctx context.Context, script string, policy RemotePolicy) (*Chec
 	services, _ := parseSystemServiceGrants(policy.AllowedSystemServices)
 	for _, pair := range policy.Env {
 		if strings.IndexByte(pair, '=') <= 0 || strings.ContainsRune(pair, 0) {
-			return nil, fmt.Errorf("CheckRemote: Env must contain KEY=value pairs without NUL bytes")
+			return nil, errors.New("CheckRemote: Env must contain KEY=value pairs without NUL bytes")
 		}
 	}
 	env := &overlayEnviron{parent: expand.ListEnviron(append([]string(nil), policy.Env...)...)}

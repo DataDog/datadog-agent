@@ -270,7 +270,7 @@ func (p *parser) parseUnary() (*expr, error) {
 	if tok == "(" {
 		p.advance()
 		if p.peek() == ")" {
-			return nil, errors.New("find: invalid expression; empty parentheses are not allowed.")
+			return nil, errors.New("find: invalid expression; empty parentheses are not allowed.") //nolint:revive // Match GNU find diagnostics.
 		}
 		p.depth++
 		if p.depth > maxExprDepth {
@@ -542,7 +542,7 @@ func parseSymbolicMode(s string) (uint64, error) {
 	var mode uint64
 	for _, clause := range strings.Split(s, ",") {
 		if len(clause) == 0 {
-			return 0, fmt.Errorf("empty clause")
+			return 0, errors.New("empty clause")
 		}
 		// Parse who: u, g, o, a (default: a)
 		i := 0
@@ -567,7 +567,7 @@ func parseSymbolicMode(s string) (uint64, error) {
 			who = 7 // default: a (all)
 		}
 		if i >= len(clause) {
-			return 0, fmt.Errorf("missing operator")
+			return 0, errors.New("missing operator")
 		}
 		op := clause[i]
 		if op != '=' && op != '+' && op != '-' {

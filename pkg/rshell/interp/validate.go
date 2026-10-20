@@ -6,6 +6,7 @@
 package interp
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,10 +30,10 @@ func validateNode(node syntax.Node, remediationMode bool) error {
 		switch n := n.(type) {
 		// Blocked expression-level nodes.
 		case *syntax.ArithmExp:
-			err = fmt.Errorf("arithmetic expansion is not supported")
+			err = errors.New("arithmetic expansion is not supported")
 			return false
 		case *syntax.ProcSubst:
-			err = fmt.Errorf("process substitution is not supported")
+			err = errors.New("process substitution is not supported")
 			return false
 		case *syntax.ParamExp:
 			err = validateParamExp(n)
@@ -47,56 +48,56 @@ func validateNode(node syntax.Node, remediationMode bool) error {
 
 		// Blocked command-level nodes.
 		case *syntax.CaseClause:
-			err = fmt.Errorf("case statements are not supported")
+			err = errors.New("case statements are not supported")
 			return false
 		case *syntax.FuncDecl:
-			err = fmt.Errorf("function declarations are not supported")
+			err = errors.New("function declarations are not supported")
 			return false
 		case *syntax.ArithmCmd:
-			err = fmt.Errorf("arithmetic commands are not supported")
+			err = errors.New("arithmetic commands are not supported")
 			return false
 		case *syntax.TestClause:
-			err = fmt.Errorf("test expressions are not supported")
+			err = errors.New("test expressions are not supported")
 			return false
 		case *syntax.DeclClause:
 			err = fmt.Errorf("%s is not supported", n.Variant.Value)
 			return false
 		case *syntax.LetClause:
-			err = fmt.Errorf("let is not supported")
+			err = errors.New("let is not supported")
 			return false
 		case *syntax.TimeClause:
-			err = fmt.Errorf("time is not supported")
+			err = errors.New("time is not supported")
 			return false
 		case *syntax.CoprocClause:
-			err = fmt.Errorf("coprocesses are not supported")
+			err = errors.New("coprocesses are not supported")
 			return false
 		case *syntax.TestDecl:
-			err = fmt.Errorf("test declarations are not supported")
+			err = errors.New("test declarations are not supported")
 			return false
 		case *syntax.ForClause:
 			if n.Select {
-				err = fmt.Errorf("select statements are not supported")
+				err = errors.New("select statements are not supported")
 				return false
 			}
 			if _, ok := n.Loop.(*syntax.WordIter); !ok {
-				err = fmt.Errorf("c-style for loops are not supported")
+				err = errors.New("c-style for loops are not supported")
 				return false
 			}
 		case *syntax.ExtGlob:
-			err = fmt.Errorf("extended globbing is not supported")
+			err = errors.New("extended globbing is not supported")
 			return false
 
 		// Blocked statement-level features.
 		case *syntax.Stmt:
 			if n.Background {
-				err = fmt.Errorf("background execution (&) is not supported")
+				err = errors.New("background execution (&) is not supported")
 				return false
 			}
 
 		// Blocked pipe operators.
 		case *syntax.BinaryCmd:
 			if n.Op == syntax.PipeAll {
-				err = fmt.Errorf("|& is not supported")
+				err = errors.New("|& is not supported")
 				return false
 			}
 
@@ -116,7 +117,7 @@ func validateNode(node syntax.Node, remediationMode bool) error {
 			if !hdocWords[n] && len(n.Parts) > 0 {
 				if lit, ok := n.Parts[0].(*syntax.Lit); ok {
 					if strings.HasPrefix(lit.Value, "~") {
-						err = fmt.Errorf("tilde expansion is not supported")
+						err = errors.New("tilde expansion is not supported")
 						return false
 					}
 				}
@@ -157,45 +158,45 @@ var blockedSpecialParams = map[string]bool{
 
 func validateParamExp(pe *syntax.ParamExp) error {
 	if pe.Length {
-		return fmt.Errorf("${#var} is not supported")
+		return errors.New("${#var} is not supported")
 	}
 	if pe.Slice != nil {
-		return fmt.Errorf("${var:offset} is not supported")
+		return errors.New("${var:offset} is not supported")
 	}
 	if pe.Repl != nil {
-		return fmt.Errorf("${var/pattern/replacement} is not supported")
+		return errors.New("${var/pattern/replacement} is not supported")
 	}
 	if pe.Excl {
-		return fmt.Errorf("${!var} is not supported")
+		return errors.New("${!var} is not supported")
 	}
 	if pe.Index != nil {
-		return fmt.Errorf("array indexing is not supported")
+		return errors.New("array indexing is not supported")
 	}
 	if pe.Names != 0 {
-		return fmt.Errorf("${!prefix*} is not supported")
+		return errors.New("${!prefix*} is not supported")
 	}
 	if pe.Exp != nil {
-		return fmt.Errorf("${var} operations (defaults, pattern removal, case conversion) are not supported")
+		return errors.New("${var} operations (defaults, pattern removal, case conversion) are not supported")
 	}
 	// Block special parameters like $#, $0, $1-$9, $@, $*
 	if pe.Param != nil && blockedSpecialParams[pe.Param.Value] {
 		return fmt.Errorf("$%s is not supported", pe.Param.Value)
 	}
 	if pe.Param != nil && pe.Param.Value == "LINENO" {
-		return fmt.Errorf("$LINENO is not supported")
+		return errors.New("$LINENO is not supported")
 	}
 	return nil
 }
 
 func validateAssign(as *syntax.Assign) error {
 	if as.Append {
-		return fmt.Errorf("+= is not supported")
+		return errors.New("+= is not supported")
 	}
 	if as.Array != nil {
-		return fmt.Errorf("array assignment is not supported")
+		return errors.New("array assignment is not supported")
 	}
 	if as.Index != nil {
-		return fmt.Errorf("array index assignment is not supported")
+		return errors.New("array index assignment is not supported")
 	}
 	return nil
 }
@@ -262,7 +263,7 @@ func redirectTargetIsStaticLiteral(rd *syntax.Redirect) bool {
 func validateRedirect(rd *syntax.Redirect, remediationMode bool) error {
 	switch rd.Op {
 	case syntax.WordHdoc:
-		return fmt.Errorf("<<< (herestring) is not supported")
+		return errors.New("<<< (herestring) is not supported")
 	case syntax.RdrIn:
 		// Input redirection: only fd 0 (stdin) is supported.
 		// rd.N is nil when no explicit fd is given (defaults to 0).
@@ -270,7 +271,7 @@ func validateRedirect(rd *syntax.Redirect, remediationMode bool) error {
 			return fmt.Errorf("%s< input fd redirection is not supported", rd.N.Value)
 		}
 		return nil
-	case syntax.RdrOut, syntax.ClbOut:
+	case syntax.RdrOut, syntax.RdrClob:
 		// Only stdout (fd 1) and stderr (fd 2) are supported; rd.N is nil
 		// when no explicit fd is given (defaults to 1).  Reject unsupported
 		// fds here — before redirectAllowed — so that a command substitution
@@ -281,7 +282,7 @@ func validateRedirect(rd *syntax.Redirect, remediationMode bool) error {
 		if redirectAllowed(rd, remediationMode) {
 			return nil
 		}
-		return fmt.Errorf("> file redirection is not supported")
+		return errors.New("> file redirection is not supported")
 	case syntax.AppOut:
 		if rd.N != nil && rd.N.Value != "1" && rd.N.Value != "2" {
 			return fmt.Errorf("%s>> fd redirection is not supported", rd.N.Value)
@@ -289,27 +290,27 @@ func validateRedirect(rd *syntax.Redirect, remediationMode bool) error {
 		if redirectAllowed(rd, remediationMode) {
 			return nil
 		}
-		return fmt.Errorf(">> file redirection is not supported")
+		return errors.New(">> file redirection is not supported")
 	case syntax.RdrAll:
 		if redirectAllowed(rd, remediationMode) {
 			return nil
 		}
-		return fmt.Errorf("&> file redirection is not supported")
+		return errors.New("&> file redirection is not supported")
 	case syntax.AppAll:
 		if redirectAllowed(rd, remediationMode) {
 			return nil
 		}
-		return fmt.Errorf("&>> file redirection is not supported")
+		return errors.New("&>> file redirection is not supported")
 	case syntax.RdrInOut:
 		// <> (read-write open) is blocked in all modes.
-		return fmt.Errorf("<> file redirection is not supported")
+		return errors.New("<> file redirection is not supported")
 	case syntax.DplOut:
 		if redirectTargetIsFD(rd) {
 			return nil
 		}
-		return fmt.Errorf(">&N fd duplication is not supported")
+		return errors.New(">&N fd duplication is not supported")
 	case syntax.DplIn:
-		return fmt.Errorf("<&N fd duplication is not supported")
+		return errors.New("<&N fd duplication is not supported")
 	}
 	return nil
 }

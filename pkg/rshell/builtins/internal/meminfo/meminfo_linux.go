@@ -134,3 +134,11 @@ func mulSat(a, b uint64) uint64 {
 	}
 	return a * b
 }
+
+// saturatingAdd returns a + b, clamped to uint64 max on overflow.
+func saturatingAdd(a, b uint64) uint64 {
+	if a > ^uint64(0)-b {
+		return ^uint64(0)
+	}
+	return a + b
+}

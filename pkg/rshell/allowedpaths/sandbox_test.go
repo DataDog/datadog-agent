@@ -29,7 +29,7 @@ type fakeDirEntry struct {
 func (f fakeDirEntry) Name() string               { return f.name }
 func (f fakeDirEntry) IsDir() bool                { return false }
 func (f fakeDirEntry) Type() fs.FileMode          { return 0 }
-func (f fakeDirEntry) Info() (fs.FileInfo, error) { return fakeFileInfo{name: f.name}, nil }
+func (f fakeDirEntry) Info() (fs.FileInfo, error) { return fakeFileInfo(f), nil }
 
 type fakeFileInfo struct{ name string }
 
@@ -1677,7 +1677,7 @@ func TestCollectDirEntries(t *testing.T) {
 	t.Run("error in same batch as truncation is preserved", func(t *testing.T) {
 		ioErr := errors.New("disk I/O error")
 		callCount := 0
-		reader := func(n int) ([]fs.DirEntry, error) {
+		reader := func(_ int) ([]fs.DirEntry, error) {
 			callCount++
 			if callCount == 1 {
 				return makeEntries("f01", "f02", "f03", "f04", "f05"), nil
@@ -1693,7 +1693,7 @@ func TestCollectDirEntries(t *testing.T) {
 
 	t.Run("EOF is not returned as error", func(t *testing.T) {
 		callCount := 0
-		reader := func(n int) ([]fs.DirEntry, error) {
+		reader := func(_ int) ([]fs.DirEntry, error) {
 			callCount++
 			if callCount == 1 {
 				return makeEntries("f01", "f02"), io.EOF
@@ -1709,7 +1709,7 @@ func TestCollectDirEntries(t *testing.T) {
 
 	t.Run("offset skips entries across batches", func(t *testing.T) {
 		callCount := 0
-		reader := func(n int) ([]fs.DirEntry, error) {
+		reader := func(_ int) ([]fs.DirEntry, error) {
 			callCount++
 			if callCount == 1 {
 				return makeEntries("f01", "f02", "f03"), nil
@@ -1731,7 +1731,7 @@ func TestCollectDirEntries(t *testing.T) {
 
 	t.Run("error without truncation is preserved", func(t *testing.T) {
 		ioErr := errors.New("permission denied")
-		reader := func(n int) ([]fs.DirEntry, error) {
+		reader := func(_ int) ([]fs.DirEntry, error) {
 			return makeEntries("f01", "f02"), ioErr
 		}
 
@@ -1742,7 +1742,7 @@ func TestCollectDirEntries(t *testing.T) {
 	})
 
 	t.Run("entries are sorted by name", func(t *testing.T) {
-		reader := func(n int) ([]fs.DirEntry, error) {
+		reader := func(_ int) ([]fs.DirEntry, error) {
 			return makeEntries("cherry", "apple", "banana"), io.EOF
 		}
 

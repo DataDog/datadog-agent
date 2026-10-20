@@ -435,7 +435,7 @@ func TestWaitSystemdJobClassifiesTerminalPaths(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var ctx context.Context = context.Background()
+			var ctx = context.Background()
 			if test.cancelContext {
 				canceled, cancel := context.WithCancel(ctx)
 				cancel()

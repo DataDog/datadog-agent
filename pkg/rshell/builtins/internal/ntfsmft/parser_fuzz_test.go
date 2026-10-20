@@ -148,7 +148,7 @@ func fuzzParserSeeds(f *testing.F) {
 // parseNonResidentData, so this one fuzzer covers the whole attribute walk.
 func FuzzParseInto(f *testing.F) {
 	fuzzParserSeeds(f)
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		if len(data) > 1<<20 { // cap at 1 MiB
 			return
 		}
@@ -176,7 +176,7 @@ func TestParseFuzzModesUsesIndependentRecords(t *testing.T) {
 // offsets and counts.
 func FuzzApplyFixups(f *testing.F) {
 	fuzzParserSeeds(f)
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		if len(data) > 1<<20 {
 			return
 		}

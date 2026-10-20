@@ -35,7 +35,7 @@ func TestExtractAsciiExtensionScansFullName(t *testing.T) {
 		strings.Repeat("C", 254),
 	} {
 		var buf [255]byte
-		n := extractAsciiExtension(utf16NameBytes(t, "file."+ext), buf[:])
+		n := extractASCIIExtension(utf16NameBytes(t, "file."+ext), buf[:])
 		if n != len(ext) {
 			t.Fatalf("extension length for %d chars = %d, want %d", len(ext), n, len(ext))
 		}
@@ -49,7 +49,7 @@ func TestDotfilesDoNotHaveExtensions(t *testing.T) {
 	for _, name := range []string{".claude", ".agents", "..config", ".claude.json"} {
 		t.Run(name, func(t *testing.T) {
 			var buf [255]byte
-			got := extractAsciiExtension(utf16NameBytes(t, name), buf[:])
+			got := extractASCIIExtension(utf16NameBytes(t, name), buf[:])
 			if name == ".claude.json" {
 				if got != len("json") || string(buf[:got]) != "json" {
 					t.Fatalf("extension = %q (%d), want json", string(buf[:max(got, 0)]), got)
@@ -107,8 +107,8 @@ func TestNonASCIIExtensionsDecodeForAggregationAndFind(t *testing.T) {
 		t.Run(ext, func(t *testing.T) {
 			nameBytes := utf16NameBytes(t, "file."+ext)
 			var buf [255]byte
-			if got := extractAsciiExtension(nameBytes, buf[:]); got != nonASCIIExtension {
-				t.Fatalf("extractAsciiExtension = %d, want nonASCIIExtension", got)
+			if got := extractASCIIExtension(nameBytes, buf[:]); got != nonASCIIExtension {
+				t.Fatalf("extractASCIIExtension = %d, want nonASCIIExtension", got)
 			}
 
 			agg := newExtAggregator(true)

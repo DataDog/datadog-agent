@@ -49,7 +49,7 @@ func FuzzGetMFTExtents(f *testing.F) {
 	}
 	f.Add(allFF)
 
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		if len(data) > 1<<20 { // cap at 1 MiB
 			return
 		}
@@ -67,7 +67,7 @@ func FuzzDecodeDataRuns(f *testing.F) {
 	f.Add([]byte{})
 	f.Add([]byte{0xFF, 0xFF, 0xFF})
 
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		if len(data) > 1<<16 {
 			return
 		}
@@ -83,7 +83,7 @@ func FuzzParseAttributeList(f *testing.F) {
 	f.Add(attrListEntryBytes(attrData, 7))
 	f.Add([]byte{})
 
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		if len(data) > 1<<16 {
 			return
 		}

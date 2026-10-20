@@ -11,7 +11,7 @@ package uptime_test
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -93,7 +93,7 @@ func TestUptimeSinceBeatsP(t *testing.T) {
 }
 
 func TestUptimeProviderError(t *testing.T) {
-	fail := func() (sysinfo.Info, error) { return sysinfo.Info{}, fmt.Errorf("kernel read failed") }
+	fail := func() (sysinfo.Info, error) { return sysinfo.Info{}, errors.New("kernel read failed") }
 	stdout, stderr, code := runHandler(t, fail)
 	assert.Empty(t, stdout)
 	assert.Equal(t, "uptime: kernel read failed\n", stderr)

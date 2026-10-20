@@ -6,6 +6,7 @@
 package systemd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,17 +20,17 @@ func validateJournalQuery(query builtins.JournalQuery) error {
 		return fmt.Errorf("journal query entry limit must be between 0 and %d", builtins.MaxJournalQueryEntries)
 	}
 	if query.Kernel && len(query.Units) > 0 {
-		return fmt.Errorf("journal query cannot combine kernel and unit scopes")
+		return errors.New("journal query cannot combine kernel and unit scopes")
 	}
 	if !query.Kernel && len(query.Units) == 0 {
-		return fmt.Errorf("journal query requires a kernel or unit scope")
+		return errors.New("journal query requires a kernel or unit scope")
 	}
 	if len(query.Units) > builtins.MaxJournalQueryUnits {
 		return fmt.Errorf("journal query has too many units (maximum %d)", builtins.MaxJournalQueryUnits)
 	}
 	for _, unit := range query.Units {
 		if unit == "" || len(unit) > 256 || strings.IndexByte(unit, 0) >= 0 {
-			return fmt.Errorf("journal query contains an invalid unit name")
+			return errors.New("journal query contains an invalid unit name")
 		}
 	}
 	return nil

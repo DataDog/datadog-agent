@@ -25,7 +25,7 @@ func FuzzJournalLZ4Prefix(f *testing.F) {
 	f.Add(append([]byte{0x90}, []byte("MESSAGE=x")...), uint64(9), uint16(4))
 	f.Add([]byte{0x1f, 'a', 0x01, 0x00, 12}, uint64(32), uint16(8))
 
-	f.Fuzz(func(t *testing.T, compressed []byte, rawDecodedSize uint64, rawLimit uint16) {
+	f.Fuzz(func(_ *testing.T, compressed []byte, rawDecodedSize uint64, rawLimit uint16) {
 		if len(compressed) == 0 || len(compressed) > maxJournalFuzzEncodedData {
 			return
 		}
@@ -44,7 +44,7 @@ func FuzzJournalObjects(f *testing.F) {
 	f.Add(buildJournalFuzzSeed(f, false), []byte("_SYSTEMD_UNIT=api.service"), uint64(journalHeaderCurrentSize))
 	f.Add(buildJournalFuzzSeed(f, true), []byte("MESSAGE=ready"), uint64(journalHeaderCurrentSize))
 
-	f.Fuzz(func(t *testing.T, contents, selector []byte, rawOffset uint64) {
+	f.Fuzz(func(_ *testing.T, contents, selector []byte, rawOffset uint64) {
 		if len(contents) > maxJournalFuzzInput || len(selector) == 0 || len(selector) > 512 {
 			return
 		}

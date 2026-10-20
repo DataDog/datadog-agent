@@ -78,7 +78,7 @@ func FuzzPathWithinRoots(f *testing.F) {
 	f.Add("/allowed/../../etc/passwd", "/allowed")
 	f.Add("///allowed//x", "/allowed")
 
-	f.Fuzz(func(t *testing.T, target, root string) {
+	f.Fuzz(func(_ *testing.T, target, root string) {
 		if len(target) > 1<<16 || len(root) > 1<<16 {
 			return
 		}

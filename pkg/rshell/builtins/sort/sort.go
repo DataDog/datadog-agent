@@ -166,7 +166,7 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 	// --check with no value means diagnose mode.
 	fs.Lookup("check").NoOptDefVal = "diagnose"
 	// Hide internal flag.
-	fs.MarkHidden("check-silent-short")
+	_ = fs.MarkHidden("check-silent-short")
 
 	// Rejected flags — declare them so pflag parses them, then reject in handler.
 	fs.StringP("output", "o", "", "")
@@ -174,9 +174,9 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 	fs.String("compress-program", "", "")
 
 	// Hide rejected flags from help.
-	fs.MarkHidden("output")
-	fs.MarkHidden("temporary-directory")
-	fs.MarkHidden("compress-program")
+	_ = fs.MarkHidden("output")
+	_ = fs.MarkHidden("temporary-directory")
+	_ = fs.MarkHidden("compress-program")
 
 	return func(ctx context.Context, callCtx *builtins.CallContext, files []string) builtins.Result {
 		// === GNU-style validations: must run BEFORE the --help short-

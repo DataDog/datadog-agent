@@ -175,6 +175,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"strconv.FormatBool", // 🟢 bool→string conversion for pflag.Value; pure function.
 		"strconv.ParseBool",  // 🟢 string→bool conversion for pflag.Value; pure function.
 		"syscall.Stat_t",     // 🟢 Unix file stat struct for extracting Blocks/Nlink; read-only type, no I/O.
+		"strconv.FormatInt",  // 🟢 formats byte counts; pure function, no I/O.
 	},
 	"find": {
 		"context.Context",                 // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -354,6 +355,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"strings.ToValidUTF8",      // 🟢 replaces malformed manager output before display; pure string transformation.
 		"unicode.IsGraphic",        // 🟢 identifies non-graphic manager output that must be sanitized; pure lookup.
 		"unicode/utf8.ValidString", // 🟢 validates exact unit selectors before authorization or backend access; pure inspection.
+		"errors.New",               // 🟢 constructs an error value; no I/O.
 	},
 	"logrotate": {
 		"context.Context", // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -406,6 +408,8 @@ var builtinPerCommandSymbols = map[string][]string{
 		"syscall.Handle",                     // 🟢 Windows file handle type; pure type alias, no I/O.
 		"syscall.Stat_t",                     // 🟢 Unix file stat struct for extracting UID/GID/nlink; read-only type, no I/O.
 		"time.Time",                          // 🟢 time value type; pure data, no side effects.
+		"strconv.FormatUint",                 // 🟢 formats numeric user/group IDs and link counts; pure function, no I/O.
+		"strconv.FormatInt",                  // 🟢 formats file sizes; pure function, no I/O.
 	},
 	"ntfsdu": {
 		"context.Context",             // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -420,6 +424,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"time.Time",                   // 🟢 created/modified timestamp type carried from the engine into JSON; pure data type, no I/O.
 		// Note: builtins/internal/ntfsmft symbols are exempt from this allowlist
 		// (internal packages are not checked by the builtinAllowedSymbols test).
+		"errors.New", // 🟢 constructs an error value; no I/O.
 	},
 	"pmap": {
 		"context.Context", // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -576,6 +581,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"time.After",          // 🟢 bounds -i's cancellation-independent identity-pin open (openPinBounded) so a stalled open(2) on the pin's context.Background() call can't hang forever; races against, does not perform, filesystem I/O itself.
 		"time.Duration",       // 🟢 duration type; parameter type for openPinBoundedWithTimeout's explicit timeout (test-only override of the pinOpenTimeout constant); pure integer alias, no I/O.
 		"time.Second",         // 🟢 constant representing one second; used to build restoreTimeout/pinOpenTimeout; no side effects.
+		"strconv.FormatInt",   // 🟢 formats line numbers; pure function, no I/O.
 	},
 	"stat": {
 		"context.Context",    // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -674,6 +680,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"strconv.NumError",  // 🟢 error type for numeric conversion failures; pure type.
 		"strconv.ParseInt",  // 🟢 string-to-int conversion with base/bit-size; pure function, no I/O.
 		"strings.HasPrefix", // 🟢 pure function for prefix matching; no I/O.
+		"strings.Builder",   // 🟢 builds output strings in memory; no I/O.
 	},
 	"uptime": {
 		"context.Context", // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -790,6 +797,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"strconv.ParseUint",   // 🟢 parses hex/octal -d delimiter escapes (\xNN, \NNN); pure parsing, no I/O.
 		"strings.Builder",     // 🟢 efficient string concatenation; pure in-memory buffer, no I/O.
 		"strings.ReplaceAll",  // 🟢 replaces all occurrences of REPLSTR in -I templates; pure function, no I/O.
+		"strconv.Itoa",        // 🟢 formats integer argument counts; pure function, no I/O.
 	},
 	"ping": {
 		"context.Context",         // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -819,6 +827,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"github.com/prometheus-community/pro-bing.Packet",     // 🟢 ICMP packet descriptor struct (received packet data); pure data type, no I/O.
 		"github.com/prometheus-community/pro-bing.Pinger",     // 🔴 ICMP pinger struct; network I/O is the explicit purpose of this builtin.
 		"github.com/prometheus-community/pro-bing.Statistics", // 🟢 ping round-trip statistics struct; pure data type, no I/O.
+		"errors.New", // 🟢 constructs an error value; no I/O.
 	},
 	"ip": {
 		"context.Context",      // 🟢 deadline/cancellation plumbing; pure interface, no side effects.
@@ -843,6 +852,7 @@ var builtinPerCommandSymbols = map[string][]string{
 		"strings.Split",        // 🟢 splits a string by separator; pure function, no I/O.
 		// Note: builtins/internal/procnetroute symbols are exempt from this allowlist
 		// (internal packages are not checked by the builtinAllowedSymbols test).
+		"errors.New", // 🟢 constructs an error value; no I/O.
 	},
 }
 

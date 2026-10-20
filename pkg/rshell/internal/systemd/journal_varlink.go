@@ -66,7 +66,7 @@ func callJournalRotateVarlink(ctx context.Context, conn net.Conn) error {
 	}
 	trimmed := bytes.TrimSpace(message)
 	if len(trimmed) < 2 || trimmed[0] != '{' || trimmed[len(trimmed)-1] != '}' {
-		return fmt.Errorf("journal control returned a malformed response")
+		return errors.New("journal control returned a malformed response")
 	}
 
 	var reply varlinkReply
@@ -74,21 +74,21 @@ func callJournalRotateVarlink(ctx context.Context, conn net.Conn) error {
 		return fmt.Errorf("decode journal rotation response: %w", err)
 	}
 	if reply.Continues {
-		return fmt.Errorf("journal control returned an unexpected streaming response")
+		return errors.New("journal control returned an unexpected streaming response")
 	}
 	if reply.Error != "" {
 		if !validVarlinkIdentifier(reply.Error) {
-			return fmt.Errorf("journald rejected journal rotation with an invalid protocol error")
+			return errors.New("journald rejected journal rotation with an invalid protocol error")
 		}
 		return fmt.Errorf("journald rejected journal rotation: %s", reply.Error)
 	}
 	if len(reply.Parameters) > 0 {
 		var parameters map[string]json.RawMessage
 		if err := json.Unmarshal(reply.Parameters, &parameters); err != nil || parameters == nil {
-			return fmt.Errorf("journal control returned malformed response parameters")
+			return errors.New("journal control returned malformed response parameters")
 		}
 		if len(parameters) != 0 {
-			return fmt.Errorf("journal control returned unexpected response parameters")
+			return errors.New("journal control returned unexpected response parameters")
 		}
 	}
 	return nil
@@ -121,10 +121,10 @@ func readVarlinkMessage(reader io.Reader) ([]byte, error) {
 				}
 				message = append(message, chunk[:terminator]...)
 				if len(chunk[terminator+1:]) > 0 {
-					return nil, fmt.Errorf("Varlink response contains trailing data")
+					return nil, errors.New("Varlink response contains trailing data")
 				}
 				if len(message) == 0 {
-					return nil, fmt.Errorf("Varlink response is empty")
+					return nil, errors.New("Varlink response is empty")
 				}
 				return message, nil
 			}
@@ -135,7 +135,7 @@ func readVarlinkMessage(reader io.Reader) ([]byte, error) {
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil, fmt.Errorf("Varlink response ended without a terminator")
+				return nil, errors.New("Varlink response ended without a terminator")
 			}
 			return nil, err
 		}

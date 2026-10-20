@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -40,9 +41,17 @@ func (c *Client) JournalDiskUsage(ctx context.Context) (builtins.JournalUsage, e
 			return builtins.JournalUsage{}, fmt.Errorf("journal file %q: %w", path, err)
 		}
 		if usage.Bytes > math.MaxUint64-stat.allocated {
-			return builtins.JournalUsage{}, fmt.Errorf("journal allocation total overflow")
+			return builtins.JournalUsage{}, errors.New("journal allocation total overflow")
 		}
 		usage.Bytes += stat.allocated
 	}
 	return usage, nil
+}
+
+// journalAllocationFiles returns the machine ID and the paths of every file
+// that counts toward reported journal disk usage, matching the file set
+// collectVacuumCandidates sums allocated bytes over: readable ".journal"
+// files plus recognized ".journal~" corruption archives.
+func (c *Client) journalAllocationFiles() (string, []string, error) {
+	return c.journalFilesFiltered(true)
 }

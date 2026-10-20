@@ -453,7 +453,7 @@ func processInputs(
 	reportValueError func(error),
 ) (bool, error) {
 	source := &sequentialInput{ctx: ctx, callCtx: callCtx, stdin: callCtx.Stdin, files: files}
-	defer source.closeCurrent()
+	defer func() { _ = source.closeCurrent() }()
 	reader := &budgetReader{ctx: ctx, reader: source}
 	if raw && slurp {
 		var text strings.Builder

@@ -32,7 +32,7 @@ func FuzzParseComm(f *testing.F) {
 	f.Add([]byte("\xff\xfe(bad utf8)\n"))
 	f.Add([]byte(")("))
 
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		if len(data) > 1<<16 {
 			return
 		}

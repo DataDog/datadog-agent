@@ -8,7 +8,7 @@ package systemd
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"math"
 	"strings"
 	"time"
@@ -121,7 +121,7 @@ func newJournalFileQueryIterator(file *journalFileView, query builtins.JournalQu
 	iterator := &journalFileQueryIterator{file: file}
 	if query.CurrentBoot {
 		if currentBoot == nil {
-			return nil, fmt.Errorf("current journal boot is not available")
+			return nil, errors.New("current journal boot is not available")
 		}
 		iterator.bootID = *currentBoot
 		iterator.filterBoot = true

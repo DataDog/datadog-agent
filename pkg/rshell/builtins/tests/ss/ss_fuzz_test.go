@@ -18,7 +18,6 @@ package ss_test
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -128,7 +127,7 @@ func FuzzSSFlags(f *testing.F) {
 			}
 		}
 
-		script := fmt.Sprintf("ss %s", flags)
+		script := "ss " + flags
 
 		// Skip inputs that produce invalid shell syntax — we are fuzzing ss flag
 		// parsing, not the shell parser. Inputs with unmatched quotes produce

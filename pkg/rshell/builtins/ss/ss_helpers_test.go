@@ -157,17 +157,6 @@ func TestFilterEntryShowAll(t *testing.T) {
 	assert.True(t, filterEntry(opts, socketEntry{kind: sockUDP4, state: "UNCONN"}))
 }
 
-// --- printSummary counts ---
-
-// capturingCallCtx wraps a CallContext substitute that collects output.
-type capturingWriter struct {
-	out string
-}
-
-func (c *capturingWriter) Out(s string) {
-	c.out += s
-}
-
 func TestFilterEntryShowAllVsListenOnly(t *testing.T) {
 	// showAll and listenOnly are mutually exclusive in practice but we verify
 	// showAll takes precedence (it is checked first in filterEntry).

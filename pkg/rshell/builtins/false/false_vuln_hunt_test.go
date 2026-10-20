@@ -8,7 +8,6 @@ package falsecmd
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -28,7 +27,7 @@ type panicWriter struct {
 }
 
 func (w panicWriter) Write([]byte) (int, error) {
-	panic(fmt.Sprintf("false must not write %s", w.name))
+	panic("false must not write " + w.name)
 }
 
 func TestVulnHuntBuiltinResourceExhaustion_InertFailureInputs(t *testing.T) {

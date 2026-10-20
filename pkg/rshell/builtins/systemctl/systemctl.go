@@ -14,6 +14,7 @@ package systemctl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -174,7 +175,7 @@ func (options flags) runList(ctx context.Context, callCtx *builtins.CallContext,
 		return commandError(callCtx, err)
 	}
 	if callCtx.ReadableSystemServices == nil {
-		return commandError(callCtx, fmt.Errorf("readable systemd unit capability is not available"))
+		return commandError(callCtx, errors.New("readable systemd unit capability is not available"))
 	}
 	units := readableSystemctlUnits(callCtx.ReadableSystemServices(), unitTypes)
 	if len(units) > builtins.MaxSystemServiceOperands {
@@ -197,7 +198,7 @@ func (options flags) runList(ctx context.Context, callCtx *builtins.CallContext,
 		return result
 	}
 	if callCtx.Systemd == nil || callCtx.Systemd.ServiceState == nil {
-		return commandError(callCtx, fmt.Errorf("systemd unit state capability is not available"))
+		return commandError(callCtx, errors.New("systemd unit state capability is not available"))
 	}
 
 	listed, err := callCtx.Systemd.ServiceState.ListSystemServices(ctx, builtins.SystemServiceListRequest{
@@ -274,7 +275,7 @@ func runJobWithFlags(ctx context.Context, callCtx *builtins.CallContext, fs *bui
 		return result
 	}
 	if callCtx.Systemd == nil || callCtx.Systemd.ServiceControl == nil {
-		return commandError(callCtx, fmt.Errorf("systemd unit control capability is not available"))
+		return commandError(callCtx, errors.New("systemd unit control capability is not available"))
 	}
 	if err := callCtx.Systemd.ServiceControl.RunSystemServiceJobs(ctx, job, append([]string(nil), units...)); err != nil {
 		return backendError(ctx, callCtx, err)
@@ -295,7 +296,7 @@ func runEnableDisable(ctx context.Context, callCtx *builtins.CallContext, verb s
 		return result
 	}
 	if callCtx.Systemd == nil || callCtx.Systemd.ServiceControl == nil {
-		return commandError(callCtx, fmt.Errorf("systemd unit control capability is not available"))
+		return commandError(callCtx, errors.New("systemd unit control capability is not available"))
 	}
 	controller := callCtx.Systemd.ServiceControl
 	if verb == "enable" {
@@ -314,7 +315,7 @@ func inspectAuthorized(ctx context.Context, callCtx *builtins.CallContext, units
 		return nil, result
 	}
 	if callCtx.Systemd == nil || callCtx.Systemd.ServiceState == nil {
-		return nil, commandError(callCtx, fmt.Errorf("systemd unit state capability is not available"))
+		return nil, commandError(callCtx, errors.New("systemd unit state capability is not available"))
 	}
 	states, err := callCtx.Systemd.ServiceState.InspectSystemServices(ctx, append([]string(nil), units...))
 	if err != nil {
@@ -329,7 +330,7 @@ func inspectAuthorized(ctx context.Context, callCtx *builtins.CallContext, units
 
 func authorize(callCtx *builtins.CallContext, units []string, actions ...builtins.SystemServiceAction) builtins.Result {
 	if callCtx.AuthorizeSystemd == nil {
-		return commandError(callCtx, fmt.Errorf("systemd authorization capability is not available"))
+		return commandError(callCtx, errors.New("systemd authorization capability is not available"))
 	}
 	operations := make([]builtins.SystemdOperation, 0, len(units)*len(actions))
 	for _, unit := range units {
@@ -345,7 +346,7 @@ func authorize(callCtx *builtins.CallContext, units []string, actions ...builtin
 
 func validateUnits(raw []string, allowEmpty bool) ([]string, error) {
 	if len(raw) == 0 && !allowEmpty {
-		return nil, fmt.Errorf("at least one exact unit is required")
+		return nil, errors.New("at least one exact unit is required")
 	}
 	if len(raw) > builtins.MaxSystemServiceOperands {
 		return nil, fmt.Errorf("too many unit operands (maximum %d)", builtins.MaxSystemServiceOperands)
@@ -398,13 +399,13 @@ func readableSystemctlUnits(raw []string, unitTypes map[string]struct{}) []strin
 
 func validateUnitName(unit string) error {
 	if unit == "" {
-		return fmt.Errorf("unit name must not be empty")
+		return errors.New("unit name must not be empty")
 	}
 	if len(unit) > builtins.MaxSystemServiceNameBytes {
 		return fmt.Errorf("unit name %q exceeds %d bytes", safeText(unit[:builtins.MaxSystemServiceNameBytes]), builtins.MaxSystemServiceNameBytes)
 	}
 	if !utf8.ValidString(unit) {
-		return fmt.Errorf("unit name contains invalid UTF-8")
+		return errors.New("unit name contains invalid UTF-8")
 	}
 	dot := strings.LastIndexByte(unit, '.')
 	if dot <= 0 || dot == len(unit)-1 {
@@ -435,7 +436,7 @@ func validateUnitName(unit string) error {
 
 func validateCanonicalUnitName(unit string) error {
 	if unit == "" || len(unit) > builtins.MaxSystemServiceNameBytes || !utf8.ValidString(unit) {
-		return fmt.Errorf("invalid canonical unit name")
+		return errors.New("invalid canonical unit name")
 	}
 	dot := strings.LastIndexByte(unit, '.')
 	if dot <= 0 || dot == len(unit)-1 {

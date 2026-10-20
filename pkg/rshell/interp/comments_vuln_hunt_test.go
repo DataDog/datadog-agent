@@ -103,7 +103,7 @@ func TestVulnHuntShellFeatureSignalContext_CommentsDoNotConsumeCancellation(t *t
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	stdout, stderr, _, err := runSimpleCommandScriptCtx(t, ctx, "# comment only\necho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())
+	stdout, stderr, _, err := runSimpleCommandScriptCtx(ctx, t, "# comment only\necho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got err=%v stdout=%q stderr=%q", err, stdout, stderr)
 	}

@@ -360,11 +360,6 @@ func (r *Runner) fields(words ...*syntax.Word) []string {
 	return collector.fields
 }
 
-func (r *Runner) literal(word *syntax.Word) string {
-	return r.literalBounded(word, MaxExpandedBytesPerCommand,
-		fmt.Sprintf("expansion exceeds maximum size (%d bytes)", MaxExpandedBytesPerCommand))
-}
-
 func (r *Runner) assignmentLiteral(name string, word *syntax.Word) string {
 	return r.literalBounded(word, MaxVarBytes,
 		fmt.Sprintf("%s: value too large (limit %d bytes)", name, MaxVarBytes))
@@ -471,7 +466,7 @@ func (r *Runner) wordPartsExpansionSize(parts []syntax.WordPart) (wordExpansionS
 			}
 		case *syntax.ParamExp:
 			if part.Param == nil {
-				return wordExpansionSize{}, fmt.Errorf("unsupported parameter expansion")
+				return wordExpansionSize{}, errors.New("unsupported parameter expansion")
 			}
 			size.known = int64(len(r.lookupVar(part.Param.Value).String()))
 			size.maximum = size.known

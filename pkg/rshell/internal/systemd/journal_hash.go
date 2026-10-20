@@ -38,7 +38,7 @@ func journalJenkinsHash64(data []byte) uint64 {
 			c += uint32(value) << shift
 		}
 	}
-	a, b, c = journalJenkinsFinal(a, b, c)
+	_, b, c = journalJenkinsFinal(a, b, c)
 	return uint64(c)<<32 | uint64(b)
 }
 

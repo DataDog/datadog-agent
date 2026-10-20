@@ -149,7 +149,7 @@ func normalizeUTF8(s string) string {
 }
 
 func invalidUTF8UnitSize(s string) int {
-	expected := 1
+	var expected int
 	switch {
 	case s[0] >= 0xc2 && s[0] <= 0xdf:
 		expected = 2
@@ -960,7 +960,6 @@ func (r *jsonStreamReader) drainNextJQToken(ctx context.Context) error {
 			readErr := err
 			if i+1 < n {
 				r.prependPending(buf[i+1:n], err)
-				err = nil
 			}
 			if readErr != nil && !errors.Is(readErr, io.EOF) {
 				return readErr

@@ -381,9 +381,7 @@ func processInput(ctx context.Context, callCtx *builtins.CallContext, r io.Reade
 					return err
 				}
 				groupNum++
-			} else if cfg.useAllRepeated {
-				// Nothing to do — non-repeated last group is simply dropped.
-			} else {
+			} else if !cfg.useAllRepeated {
 				if err := reportWrite(emitStandard(w, cfg, prevLine, lineCount)); err != nil {
 					return err
 				}
@@ -571,9 +569,11 @@ type invalidArgError struct {
 
 func (e *invalidArgError) Error() string {
 	msg := "invalid argument '" + e.arg + "' for '" + e.flag + "'\nValid arguments are:\n"
+	var arguments strings.Builder
 	for _, v := range e.valid {
-		msg += "  - '" + v + "'\n"
+		arguments.WriteString("  - '" + v + "'\n")
 	}
+	msg += arguments.String()
 	return msg
 }
 

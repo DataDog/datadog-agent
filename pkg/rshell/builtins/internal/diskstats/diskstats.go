@@ -40,15 +40,6 @@ import (
 // it in user-facing truncation warnings.
 const MaxMounts = 100_000
 
-// maxMountInfoLine caps the per-line buffer size when scanning
-// /proc/self/mountinfo. Lines longer than this cause the scan to fail.
-const maxMountInfoLine = 1 << 20 // 1 MiB
-
-// maxTotalLines caps the total number of lines scanned in
-// /proc/self/mountinfo. This bounds CPU time on pathological inputs that
-// might present many short malformed lines.
-const maxTotalLines = MaxMounts * 10
-
 // Mount describes a single mounted filesystem.
 type Mount struct {
 	// Source is the device path or pseudo-source (e.g. "/dev/disk1s5",
@@ -114,10 +105,6 @@ var ErrNotSupported = errors.New("not supported on this platform")
 // ErrMaxMounts is returned when the mount table exceeds MaxMounts entries.
 // The returned slice is truncated to MaxMounts entries.
 var ErrMaxMounts = errors.New("mount table truncated: too many mounts")
-
-// errLineTooLong is returned when a /proc/self/mountinfo line exceeds
-// maxMountInfoLine bytes. Surfaced from List as a generic error.
-var errLineTooLong = errors.New("mountinfo line exceeds maximum length")
 
 // FilterFunc decides, before per-mount statfs(2) is called, whether to
 // keep a mount in the listing. The argument has Source / MountPoint /

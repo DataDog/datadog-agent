@@ -8,9 +8,9 @@ package grep_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -365,10 +365,10 @@ func FuzzGrepFlags(f *testing.F) {
 			flags += " -q"
 		}
 		if afterCtx > 0 {
-			flags += " -A " + fmt.Sprintf("%d", afterCtx)
+			flags += " -A " + strconv.FormatInt(afterCtx, 10)
 		}
 		if beforeCtx > 0 {
-			flags += " -B " + fmt.Sprintf("%d", beforeCtx)
+			flags += " -B " + strconv.FormatInt(beforeCtx, 10)
 		}
 
 		script := "grep" + flags + " 'a' input.txt"

@@ -63,7 +63,7 @@ func makeFlags(fs *builtins.FlagSet, getInfo func() (sysinfo.Info, error)) built
 	pretty := fs.BoolP("pretty", "p", false, "show uptime in pretty format")
 	since := fs.BoolP("since", "s", false, "system up since, in yyyy-mm-dd HH:MM:SS format")
 
-	return func(ctx context.Context, callCtx *builtins.CallContext, args []string) builtins.Result {
+	return func(_ context.Context, callCtx *builtins.CallContext, args []string) builtins.Result {
 		if *help {
 			callCtx.Outf("Usage: uptime [OPTION]...\n")
 			callCtx.Outf("Tell how long the system has been running.\n\n")

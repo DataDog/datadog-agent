@@ -19,7 +19,7 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 )
 
-func runGlobbingVulnHunt(t *testing.T, script, dir string, configure func(*Runner), opts ...RunnerOption) (string, string, error, *Runner) {
+func runGlobbingVulnHunt(t *testing.T, script, dir string, configure func(*Runner), opts ...RunnerOption) (string, string, *Runner, error) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	allOpts := append([]RunnerOption{StdIO(nil, &stdout, &stderr), allowAllCommandsOpt()}, opts...)
@@ -37,14 +37,14 @@ func runGlobbingVulnHunt(t *testing.T, script, dir string, configure func(*Runne
 	require.NoError(t, err)
 
 	runErr := r.Run(context.Background(), prog)
-	return stdout.String(), stderr.String(), runErr, r
+	return stdout.String(), stderr.String(), r, runErr
 }
 
 func TestVulnHuntShellFeatureRedirectionChain_GlobDefaultNoAllowedPathsBlocked(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("secret\n"), 0644))
 
-	stdout, stderr, err, _ := runGlobbingVulnHunt(t, "echo *\n", dir, nil)
+	stdout, stderr, _, err := runGlobbingVulnHunt(t, "echo *\n", dir, nil)
 
 	assert.Equal(t, "", stdout)
 	assert.Contains(t, stderr, "permission denied")
@@ -56,7 +56,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_ForLoopGlobDoesNotMutateReadonly(t *
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\n"), 0644))
 
-	stdout, stderr, err, runner := runGlobbingVulnHunt(t, "for RO_VAR in *.txt; do echo \"$RO_VAR\"; done\n", dir, func(r *Runner) {
+	stdout, stderr, runner, err := runGlobbingVulnHunt(t, "for RO_VAR in *.txt; do echo \"$RO_VAR\"; done\n", dir, func(r *Runner) {
 		require.NoError(t, r.writeEnv.Set("RO_VAR", expand.Variable{
 			Set:      true,
 			Kind:     expand.String,
@@ -77,7 +77,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_InlineAssignmentGlobDoesNotMutateRea
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a\n"), 0644))
 
-	stdout, stderr, err, runner := runGlobbingVulnHunt(t, "RO_VAR=*.txt echo hidden\n", dir, func(r *Runner) {
+	stdout, stderr, runner, err := runGlobbingVulnHunt(t, "RO_VAR=*.txt echo hidden\n", dir, func(r *Runner) {
 		require.NoError(t, r.writeEnv.Set("RO_VAR", expand.Variable{
 			Set:      true,
 			Kind:     expand.String,

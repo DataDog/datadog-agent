@@ -11,6 +11,6 @@ package sysinfo
 // (amd64, arm64 — the only windows/GOARCH targets Go supports beyond 386).
 // lo already holds the full 64-bit value; hi is the XMM0 floating-point
 // register (unspecified for integer-returning functions) and must not be used.
-func ticksToMs(lo, hi uintptr) uint64 {
+func ticksToMs(lo, _ uintptr) uint64 {
 	return uint64(lo)
 }

@@ -30,18 +30,6 @@ import (
 	"testing"
 )
 
-// signalRelatedSymbols is the closed set of os/signal exports that, if
-// allowed, would re-introduce in-process signal handling and the trap-
-// handler attack surface called out in the vuln-hunt threat model.
-var signalRelatedSymbols = []string{
-	"os/signal.Notify",
-	"os/signal.NotifyContext",
-	"os/signal.Stop",
-	"os/signal.Reset",
-	"os/signal.Ignore",
-	"os/signal.Ignored",
-}
-
 // TestVulnHuntSubsystemSignalHandling_NoOsSignalSymbolsInAllowlists asserts
 // that no os/signal export is reachable from the interpreter core or any
 // builtin via the symbol allowlists. The test is intentionally explicit

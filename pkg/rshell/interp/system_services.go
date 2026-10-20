@@ -6,6 +6,7 @@
 package interp
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -167,13 +168,13 @@ func (r *Runner) readableSystemServices() []string {
 
 func validateSystemServiceName(service string) error {
 	if service == "" {
-		return fmt.Errorf("system service name must not be empty")
+		return errors.New("system service name must not be empty")
 	}
 	if len(service) > builtins.MaxSystemServiceNameBytes {
 		return fmt.Errorf("system service name exceeds %d bytes", builtins.MaxSystemServiceNameBytes)
 	}
 	if !utf8.ValidString(service) {
-		return fmt.Errorf("system service name must be valid UTF-8")
+		return errors.New("system service name must be valid UTF-8")
 	}
 	if strings.ContainsRune(service, '/') || strings.ContainsRune(service, '\\') {
 		return fmt.Errorf("system service name %q must not contain a path separator", service)
@@ -199,7 +200,7 @@ func (r *Runner) authorizeSystemd(operations ...SystemdOperation) error {
 
 func (grants systemdGrants) authorize(remediation bool, operations ...SystemdOperation) error {
 	if len(operations) == 0 {
-		return fmt.Errorf("at least one systemd operation is required")
+		return errors.New("at least one systemd operation is required")
 	}
 
 	for _, operation := range operations {
@@ -222,7 +223,7 @@ func (grants systemdGrants) authorize(remediation bool, operations ...SystemdOpe
 
 func (r *Runner) authorizeSystemServices(action SystemServiceAction, services ...string) error {
 	if len(services) == 0 {
-		return fmt.Errorf("at least one system service is required")
+		return errors.New("at least one system service is required")
 	}
 	operations := make([]SystemdOperation, len(services))
 	for i, service := range services {

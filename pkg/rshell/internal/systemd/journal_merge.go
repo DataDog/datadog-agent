@@ -151,7 +151,7 @@ func newestJournalBoot(snapshot *journalSnapshot) (journalID, error) {
 		}
 	}
 	if newest == nil {
-		return journalID{}, fmt.Errorf("could not determine the current boot from the selected journal")
+		return journalID{}, errors.New("could not determine the current boot from the selected journal")
 	}
 	return newest.bootID, nil
 }

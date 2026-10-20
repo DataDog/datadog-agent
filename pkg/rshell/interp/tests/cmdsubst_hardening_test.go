@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -399,7 +398,7 @@ func TestSubshellWithRedirection(t *testing.T) {
 
 func TestSubshellStderrToDevNull(t *testing.T) {
 	dir := t.TempDir()
-	stdout, stderr, code := subshellRun(t, fmt.Sprintf(`(echo out; echo err >&2) 2>%s`, os.DevNull), dir)
+	stdout, stderr, code := subshellRun(t, "(echo out; echo err >&2) 2>"+os.DevNull, dir)
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "out\n", stdout)
 	assert.Equal(t, "", stderr)

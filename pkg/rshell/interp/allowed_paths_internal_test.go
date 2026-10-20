@@ -159,7 +159,7 @@ func TestRunRecoversPanic(t *testing.T) {
 	runner.Reset()
 
 	// Install an exec handler that panics.
-	runner.execHandler = func(ctx context.Context, args []string) error {
+	runner.execHandler = func(_ context.Context, _ []string) error {
 		panic("deliberate test panic")
 	}
 

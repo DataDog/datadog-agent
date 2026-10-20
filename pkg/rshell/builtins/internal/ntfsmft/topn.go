@@ -150,7 +150,7 @@ func (a *extAggregator) addFromName(nameBytes []byte, size int64) {
 	// separating dot). Keep the entire legal ASCII extension on the stack
 	// instead of imposing an arbitrary classification limit.
 	var buf [255]byte
-	n := extractAsciiExtension(nameBytes, buf[:])
+	n := extractASCIIExtension(nameBytes, buf[:])
 	if n == nonASCIIExtension {
 		ext := decodedExtension(nameBytes)
 		if ext != "" {
@@ -226,7 +226,7 @@ const (
 	extensionTooLong  = -3
 )
 
-// extractAsciiExtension finds the lowercased ASCII extension in a raw UTF-16
+// extractASCIIExtension finds the lowercased ASCII extension in a raw UTF-16
 // name (no leading dot returned). A leading run of dots is part of a dotfile
 // name, not an extension separator: .claude and ..claude have no extension,
 // while .claude.json has extension json. It scans the complete suffix, so every
@@ -234,7 +234,7 @@ const (
 // returns its byte count; it returns noExtension for no/empty extension,
 // nonASCIIExtension when the suffix needs a complete UTF-16 decode, or
 // extensionTooLong when out cannot hold the ASCII result.
-func extractAsciiExtension(nameUTF16, out []byte) int {
+func extractASCIIExtension(nameUTF16, out []byte) int {
 	if len(nameUTF16) < 4 {
 		return noExtension
 	}

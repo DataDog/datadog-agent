@@ -17,7 +17,6 @@ var fsstatAllowedSymbols = []string{
 	"encoding/binary.LittleEndian", // 🟢 decodes bounded little-endian fields returned by Windows volume-information queries; pure value.
 	"errors.Is",                    // 🟢 compares the Darwin open error with EACCES; pure error-chain inspection.
 	"errors.New",                   // 🟢 constructs package sentinel errors; pure function, no I/O.
-	"fmt.Errorf",                   // 🟢 constructs validation errors for malformed filesystem size data; pure formatting.
 	"fmt.Sprintf",                  // 🟢 formats the fallback Linux filesystem magic name; pure formatting.
 	"os.ErrInvalid",                // 🟢 sentinel used to reject a non-local Windows path before native calls; pure value.
 	"os.FileInfo",                  // 🟢 metadata interface used for descriptor/path identity validation; no I/O by itself.

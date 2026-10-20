@@ -319,3 +319,16 @@ func unescapeMountField(s string) string {
 }
 
 func isOctal(b byte) bool { return b >= '0' && b <= '7' }
+
+// maxMountInfoLine caps the per-line buffer size when scanning
+// /proc/self/mountinfo. Lines longer than this cause the scan to fail.
+const maxMountInfoLine = 1 << 20 // 1 MiB
+
+// maxTotalLines caps the total number of lines scanned in
+// /proc/self/mountinfo. This bounds CPU time on pathological inputs that
+// might present many short malformed lines.
+const maxTotalLines = MaxMounts * 10
+
+// errLineTooLong is returned when a /proc/self/mountinfo line exceeds
+// maxMountInfoLine bytes. Surfaced from List as a generic error.
+var errLineTooLong = errors.New("mountinfo line exceeds maximum length")

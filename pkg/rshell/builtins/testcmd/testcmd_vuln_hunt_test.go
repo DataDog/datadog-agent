@@ -24,7 +24,7 @@ import (
 
 // Vulnerability-hunt regression coverage for campaign 2026-05-19-codex.
 
-func runTestcmdScriptErr(t *testing.T, ctx context.Context, script, dir string, opts ...interp.RunnerOption) (stdout, stderr string, exitCode int, runErr error) {
+func runTestcmdScriptErr(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (stdout, stderr string, exitCode int, runErr error) {
 	t.Helper()
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(script), "")
@@ -166,7 +166,7 @@ func TestVulnHuntSignalContext_PreCanceledTestcmdDoesNotDispatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	stdout, stderr, _, err := runTestcmdScriptErr(t, ctx, "test -n SHOULD_NOT_RUN\n", "", interpoption.AllowAllCommands().(interp.RunnerOption))
+	stdout, stderr, _, err := runTestcmdScriptErr(ctx, t, "test -n SHOULD_NOT_RUN\n", "", interpoption.AllowAllCommands().(interp.RunnerOption))
 	assert.True(t, errors.Is(err, context.Canceled), "expected context.Canceled, got %v", err)
 	assert.Empty(t, stdout)
 	assert.Empty(t, stderr)

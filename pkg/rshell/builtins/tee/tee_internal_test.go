@@ -217,10 +217,10 @@ func TestFilesLoopChecksCancellationBeforeEachOperand(t *testing.T) {
 		AllowedPathsList: func() []builtins.AllowedPath {
 			return []builtins.AllowedPath{{Path: dir, Access: builtins.AllowedPathReadWrite}}
 		},
-		StatFile: func(ctx context.Context, path string) (iofs.FileInfo, error) {
+		StatFile: func(_ context.Context, _ string) (iofs.FileInfo, error) {
 			return nil, os.ErrNotExist
 		},
-		OpenFile: func(ctx context.Context, path string, flags int, mode os.FileMode) (io.ReadWriteCloser, error) {
+		OpenFile: func(_ context.Context, _ string, _ int, _ os.FileMode) (io.ReadWriteCloser, error) {
 			openCalls++
 			return nil, os.ErrPermission
 		},

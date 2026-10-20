@@ -6,6 +6,7 @@
 package systemd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -27,20 +28,12 @@ func (c *Client) journalFiles() (string, []string, error) {
 	return c.journalFilesFiltered(false)
 }
 
-// journalAllocationFiles returns the machine ID and the paths of every file
-// that counts toward reported journal disk usage, matching the file set
-// collectVacuumCandidates sums allocated bytes over: readable ".journal"
-// files plus recognized ".journal~" corruption archives.
-func (c *Client) journalAllocationFiles() (string, []string, error) {
-	return c.journalFilesFiltered(true)
-}
-
 func (c *Client) journalFilesFiltered(includeArchived bool) (string, []string, error) {
 	if c.target.MachineIDPath == "" {
-		return "", nil, fmt.Errorf("systemd target machine ID path is not configured")
+		return "", nil, errors.New("systemd target machine ID path is not configured")
 	}
 	if len(c.target.JournalDirs) == 0 {
-		return "", nil, fmt.Errorf("systemd target journal directories are not configured")
+		return "", nil, errors.New("systemd target journal directories are not configured")
 	}
 
 	machineID, err := c.readMachineID()

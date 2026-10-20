@@ -20,7 +20,7 @@ type mockRWC struct {
 	closeErr   error
 }
 
-func (m *mockRWC) Read(p []byte) (int, error)  { return 0, io.EOF }
+func (m *mockRWC) Read(_ []byte) (int, error)  { return 0, io.EOF }
 func (m *mockRWC) Write(p []byte) (int, error) { return len(p), nil }
 func (m *mockRWC) Close() error {
 	m.closeCount.Add(1)

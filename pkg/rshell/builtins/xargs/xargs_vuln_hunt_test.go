@@ -10,7 +10,6 @@ package xargs_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,7 +89,7 @@ func TestVulnHuntBuiltinIntegerOverflow_LRangeEdges(t *testing.T) {
 		{"9999999999999999999999999", true}, // overflow at parse
 	}
 	for _, tc := range cases {
-		t.Run(fmt.Sprintf("L=%s", tc.val), func(t *testing.T) {
+		t.Run("L="+tc.val, func(t *testing.T) {
 			_, stderr, code := cmdRun(t,
 				"printf 'a\\nb\\n' | xargs -L "+tc.val+" echo > /dev/null", dir)
 			if tc.shouldFail {

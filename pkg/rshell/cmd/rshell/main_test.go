@@ -24,10 +24,10 @@ import (
 
 func runCLI(t *testing.T, args ...string) (exitCode int, stdout, stderr string) {
 	t.Helper()
-	return runCLIContext(t, context.Background(), args...)
+	return runCLIContext(context.Background(), t, args...)
 }
 
-func runCLIContext(t *testing.T, ctx context.Context, args ...string) (exitCode int, stdout, stderr string) {
+func runCLIContext(ctx context.Context, t *testing.T, args ...string) (exitCode int, stdout, stderr string) {
 	t.Helper()
 	var out, errBuf bytes.Buffer
 	code := run(ctx, args, strings.NewReader(""), &out, &errBuf)
@@ -466,7 +466,7 @@ func TestTimeoutFlagTimesOutExecution(t *testing.T) {
 func TestCanceledContextExitsWithTimeoutCode(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before execution starts
-	code, _, stderr := runCLIContext(t, ctx, "--allow-all-commands", "-c", `echo hello`)
+	code, _, stderr := runCLIContext(ctx, t, "--allow-all-commands", "-c", `echo hello`)
 	assert.Equal(t, exitCodeTimeout, code)
 	assert.Contains(t, stderr, "execution canceled")
 }

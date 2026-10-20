@@ -13,7 +13,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/klauspost/compress/zstd"
+	"github.com/klauspost/compress/zstd" //nolint:depguard // The Agent wrapper lacks the decoder memory and window limits required here.
 	"github.com/ulikunitz/xz"
 )
 
@@ -114,10 +114,10 @@ func (f *journalFileView) dataObjectAt(offset uint64) (journalDataObject, error)
 
 func (f *journalFileView) readDataPayload(data journalDataObject, limit int) ([]byte, bool, error) {
 	if limit <= 0 {
-		return nil, false, fmt.Errorf("journal DATA payload limit must be positive")
+		return nil, false, errors.New("journal DATA payload limit must be positive")
 	}
 	if limit == math.MaxInt {
-		return nil, false, fmt.Errorf("journal DATA payload limit is too large")
+		return nil, false, errors.New("journal DATA payload limit is too large")
 	}
 	if limit > maxJournalPayloadRead {
 		return nil, false, fmt.Errorf("journal DATA payload limit %d exceeds maximum %d", limit, maxJournalPayloadRead)
@@ -254,7 +254,7 @@ func decodeJournalLZ4Prefix(reader io.Reader, compressedSize, decodedSize uint64
 		outputSize = uint64(limit) + 1
 	}
 	if outputSize > uint64(math.MaxInt) {
-		return nil, false, fmt.Errorf("decoded prefix exceeds the platform allocation range")
+		return nil, false, errors.New("decoded prefix exceeds the platform allocation range")
 	}
 
 	output := make([]byte, int(outputSize))

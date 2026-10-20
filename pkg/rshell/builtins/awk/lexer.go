@@ -7,6 +7,7 @@ package awk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -240,7 +241,7 @@ func (l *lexer) next() (token, error) {
 		if l.match('|') {
 			return token{kind: tokOr, lit: "||", pos: start}, nil
 		}
-		return token{}, fmt.Errorf("command pipes are not supported")
+		return token{}, errors.New("command pipes are not supported")
 	case '"':
 		return l.scanString(start)
 	}
@@ -322,7 +323,7 @@ func (l *lexer) scanIdent(start int) (token, error) {
 func (l *lexer) scanNumber(start int) (token, error) {
 	if l.src[start] == '0' {
 		if ch, ok := l.peek(); ok && (ch == 'x' || ch == 'X') {
-			return token{}, fmt.Errorf("non-decimal numeric literals are not supported")
+			return token{}, errors.New("non-decimal numeric literals are not supported")
 		}
 	}
 	if l.src[start] == '.' {
@@ -402,12 +403,12 @@ func (l *lexer) scanString(start int) (token, error) {
 			return token{kind: tokString, lit: b.String(), pos: start}, nil
 		}
 		if ch == '\n' {
-			return token{}, fmt.Errorf("unterminated string")
+			return token{}, errors.New("unterminated string")
 		}
 		if ch == '\\' {
 			next, ok := l.peek()
 			if !ok {
-				return token{}, fmt.Errorf("unterminated string escape")
+				return token{}, errors.New("unterminated string escape")
 			}
 			if isOctalDigit(rune(next)) {
 				value := 0
@@ -438,7 +439,7 @@ func (l *lexer) scanString(start int) (token, error) {
 		}
 		b.WriteByte(ch)
 	}
-	return token{}, fmt.Errorf("unterminated string")
+	return token{}, errors.New("unterminated string")
 }
 
 func (l *lexer) scanRegex(start int) (token, error) {
@@ -462,12 +463,12 @@ func (l *lexer) scanRegex(start int) (token, error) {
 			return token{kind: tokRegex, lit: b.String(), pos: start}, nil
 		}
 		if ch == '\n' {
-			return token{}, fmt.Errorf("unterminated regular expression")
+			return token{}, errors.New("unterminated regular expression")
 		}
 		if ch == '\\' {
 			next, ok := l.peek()
 			if !ok {
-				return token{}, fmt.Errorf("unterminated regular expression escape")
+				return token{}, errors.New("unterminated regular expression escape")
 			}
 			l.pos++
 			b.WriteByte('\\')
@@ -510,7 +511,7 @@ func (l *lexer) scanRegex(start int) (token, error) {
 		}
 		b.WriteByte(ch)
 	}
-	return token{}, fmt.Errorf("unterminated regular expression")
+	return token{}, errors.New("unterminated regular expression")
 }
 
 func canStartRegex(prev tokenKind, prevLit string) bool {

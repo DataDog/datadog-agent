@@ -20,7 +20,7 @@ import (
 
 // Vulnerability-hunt regression coverage for campaign 2026-05-19-codex.
 
-func runSimpleCommandScriptCtx(t *testing.T, ctx context.Context, script, dir string, opts ...RunnerOption) (stdout, stderr string, exitCode int, runErr error) {
+func runSimpleCommandScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...RunnerOption) (stdout, stderr string, exitCode int, runErr error) {
 	t.Helper()
 
 	parser := syntax.NewParser()
@@ -54,7 +54,7 @@ func runSimpleCommandScriptCtx(t *testing.T, ctx context.Context, script, dir st
 
 func runSimpleCommandScript(t *testing.T, script, dir string, opts ...RunnerOption) (stdout, stderr string, exitCode int) {
 	t.Helper()
-	stdout, stderr, exitCode, err := runSimpleCommandScriptCtx(t, context.Background(), script, dir, opts...)
+	stdout, stderr, exitCode, err := runSimpleCommandScriptCtx(context.Background(), t, script, dir, opts...)
 	if err != nil {
 		var es ExitStatus
 		if !errors.As(err, &es) {
@@ -66,7 +66,7 @@ func runSimpleCommandScript(t *testing.T, script, dir string, opts ...RunnerOpti
 
 func runSimpleCommandValidationFailure(t *testing.T, script string) string {
 	t.Helper()
-	stdout, stderr, code, err := runSimpleCommandScriptCtx(t, context.Background(), script, "", allowAllCommandsOpt())
+	stdout, stderr, code, err := runSimpleCommandScriptCtx(context.Background(), t, script, "", allowAllCommandsOpt())
 	if err == nil {
 		t.Fatalf("expected validation error for %q", script)
 	}
@@ -242,7 +242,7 @@ func TestVulnHuntShellFeatureSignalContext_PreCanceledSimpleCommandDoesNotMutate
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	stdout, stderr, _, err := runSimpleCommandScriptCtx(t, ctx, "X=leak\necho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())
+	stdout, stderr, _, err := runSimpleCommandScriptCtx(ctx, t, "X=leak\necho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got err=%v stdout=%q stderr=%q", err, stdout, stderr)
 	}
@@ -252,8 +252,7 @@ func TestVulnHuntShellFeatureSignalContext_PreCanceledSimpleCommandDoesNotMutate
 }
 
 func TestVulnHuntShellFeatureSignalContext_CommandSubstitutionTimeoutIsFatal(t *testing.T) {
-	stdout, stderr, _, err := runSimpleCommandScriptCtx(t,
-		context.Background(),
+	stdout, stderr, _, err := runSimpleCommandScriptCtx(context.Background(), t,
 		"X=$(while true; do true; done)\necho after\n",
 		"",
 		allowAllCommandsOpt(),

@@ -8,7 +8,7 @@
 package systemd
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"os"
 	"syscall"
@@ -27,11 +27,11 @@ type journalFileStat struct {
 func journalStat(info os.FileInfo) (journalFileStat, error) {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || stat.Blocks < 0 {
-		return journalFileStat{}, fmt.Errorf("allocation metadata is unavailable")
+		return journalFileStat{}, errors.New("allocation metadata is unavailable")
 	}
 	blocks := uint64(stat.Blocks)
 	if blocks > math.MaxUint64/journalBlockSize {
-		return journalFileStat{}, fmt.Errorf("allocation metadata overflows")
+		return journalFileStat{}, errors.New("allocation metadata overflows")
 	}
 	return journalFileStat{
 		dev:       uint64(stat.Dev),

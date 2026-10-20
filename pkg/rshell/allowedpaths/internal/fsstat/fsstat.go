@@ -56,7 +56,3 @@ var ErrNotDirectory = errors.New("not a directory")
 func Read(root *os.Root, relPath string, requireDirectory bool) (Info, error) {
 	return read(root, relPath, requireDirectory)
 }
-
-func fsid(high, low int32) uint64 {
-	return uint64(uint32(high))<<32 | uint64(uint32(low))
-}
