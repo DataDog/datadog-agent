@@ -154,7 +154,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 	pinning := pinningFeaturesSupported(progSpec) && cfg.PersistMonitoring
 
 	if !pinning && cfg.PersistMonitoring {
-		log.Warnf("pinning unsupported. cannot respect the 'persist_monitoring' configuration")
+		log.Warnf("pinning unsupported. cannot respect the 'oom_kill.persist_monitoring' configuration")
 	}
 
 	// Reuse the map of the previous probe, so that the OOM kills recorded while no system-probe
@@ -339,10 +339,12 @@ func (k *Probe) attach() error {
 
 	var l link.Link
 	var err error
-	if k.progName == oomFentryName {
+	if prog.Type() == bpflib.Tracing {
 		l, err = link.AttachTracing(link.TracingOptions{Program: prog})
 	} else {
-		l, err = link.Kprobe(oomHookName, prog, nil)
+		l, err = link.Kprobe(oomHookName, prog, &link.KprobeOptions{
+			TraceFSPrefix: "ddoom",
+		})
 	}
 	if err != nil {
 		return fmt.Errorf("failed to attach %s to %s: %w", k.progName, oomHookName, err)
@@ -395,7 +397,7 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	it := k.oomMap.Iterate()
 	for it.Next(&ts, &stat) {
 		if out, err := convertStats(stat); err != nil {
-			log.Errorf("%v", err)
+			log.Error(err)
 		} else {
 			results = append(results, out)
 		}
