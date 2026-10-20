@@ -2550,8 +2550,8 @@ github.com/DataDog/datadog-traceroute v1.0.20 h1:GqDf+MmbFzCGhqIRCTrCZV1pOaVuG/3
 github.com/DataDog/datadog-traceroute v1.0.20/go.mod h1:gtDOEd1qCVGULNYdHULzFBbdDLJwpP+nJMKSXiuVi78=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b2wcIaW6NXauhcA/ZoH012oRVEiqu8dBEd0gAMsgU=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
-github.com/DataDog/dd-trace-go/v2 v2.11.1 h1:AlBLIbMrv1NL0uGbPwtdxX5+81DEDrr2Nh6bHs/VYXI=
-github.com/DataDog/dd-trace-go/v2 v2.11.1/go.mod h1:U2XxPE/PYvjhMbY7/2UGgG4M0b5SdLnf1n/ulEYFMNo=
+github.com/DataDog/dd-trace-go/v2 v2.11.2 h1:HbANttl9UJGen/tRb+pX3nPNa4IQy2vXvUDlhZaQHeI=
+github.com/DataDog/dd-trace-go/v2 v2.11.2/go.mod h1:V/CeQWG3+2fzAgZReAYfDRNjUXjHKOOW4KtEnV/yk2g=
 github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7 h1:N9Ufc+tRU6BaVpxw0D60bvhqwsJ90r5ygXNIbx/kucg=
 github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7/go.mod h1:cy6fMTy/g9yD4GxWUXTTDzKKJE9ZbONxcwiQfpPrv/M=
 github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
