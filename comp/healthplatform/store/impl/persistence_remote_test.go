@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -163,6 +165,49 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	assert.Equal(t, IssueStateResolved, resolved.PersistedIssue.State)
 }
 
+func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
+	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{
+			{IssueID: "duplicate", IssueName: "Old", IssueType: "old", Category: "configuration"},
+			{IssueID: "duplicate", IssueName: "New"},
+			{IssueName: "Empty ID", IssueType: "empty_id", Category: "configuration"},
+			{IssueID: "empty-name", IssueType: "empty_name", Category: "configuration"},
+			{IssueID: "empty-type", IssueName: "Empty Type", Category: "configuration"},
+			{IssueID: "empty-category", IssueName: "Empty Category", IssueType: "empty_category"},
+		}))
+	})
+	remote := newTestStore(t)
+	remote.remoteLoader = loader
+	require.NoError(t, remote.loadFromRemote(context.Background()))
+
+	path := filepath.Join(t.TempDir(), "issues.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"version":2,"issues":{
+		"duplicate":{"issue_type":"Old","proto_issue_type":"old","category":"configuration","state":"active"},
+		"duplicate":{"issue_type":"New","state":"active"},
+		"":{"issue_type":"Empty ID","proto_issue_type":"empty_id","category":"configuration","state":"active"},
+		"empty-name":{"proto_issue_type":"empty_name","category":"configuration","state":"active"},
+		"empty-type":{"issue_type":"Empty Type","category":"configuration","state":"active"},
+		"empty-category":{"issue_type":"Empty Category","proto_issue_type":"empty_category","state":"active"}
+	}}`), 0600))
+	disk := newTestStore(t)
+	disk.persistence = newDiskPersistence(path, disk.log)
+	require.NoError(t, disk.loadFromDisk())
+
+	require.Len(t, remote.persistedIssues, 5)
+	assert.Equal(t, []string{"duplicate"}, remote.GetActiveIssueIDsByIssueName("New"))
+	assert.Equal(t, disk.issuesByName, remote.issuesByName)
+	require.Len(t, disk.persistedIssues, len(remote.persistedIssues))
+	for id, want := range disk.persistedIssues {
+		got := remote.persistedIssues[id]
+		require.NotNil(t, got, "issue %q", id)
+		assert.Equal(t, want.IssueID, got.IssueID)
+		assert.Equal(t, want.IssueType, got.IssueType)
+		assert.Equal(t, want.ProtoIssueType, got.ProtoIssueType)
+		assert.Equal(t, want.Category, got.Category)
+		assert.Equal(t, want.State, got.State)
+	}
+}
+
 func TestRemoteIssueLoaderLoadClusterAgent(t *testing.T) {
 	requestURI := make(chan string, 1)
 	loader := newTestRemoteIssueLoader(t, "cluster-uuid", remoteIssuesClusterAgentType, func(w http.ResponseWriter, r *http.Request) {
@@ -256,36 +301,6 @@ func TestRemoteIssueLoaderLoadResponseErrors(t *testing.T) {
 			statusCode: http.StatusOK,
 			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{}}}`,
 			wantError:  "no issues",
-		},
-		{
-			name:       "empty issue ID",
-			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"","issue_name":"First Issue","issue_type":"first_issue","category":"configuration"}]}}}`,
-			wantError:  "empty issue ID",
-		},
-		{
-			name:       "empty issue name",
-			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"","issue_type":"first_issue","category":"configuration"}]}}}`,
-			wantError:  "no issue_name",
-		},
-		{
-			name:       "empty issue type",
-			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"","category":"configuration"}]}}}`,
-			wantError:  "no issue_type",
-		},
-		{
-			name:       "empty category",
-			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue","category":""}]}}}`,
-			wantError:  "no category",
-		},
-		{
-			name:       "duplicate issue ID",
-			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue","category":"configuration"},{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue","category":"configuration"}]}}}`,
-			wantError:  "duplicate issue ID",
 		},
 	}
 
