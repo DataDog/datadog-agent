@@ -31,6 +31,7 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
             "//pkg/security/probe/procfs",
+            "//pkg/security/probe/procfs/procmaps",
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/process",
@@ -52,6 +53,7 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
             "//pkg/security/probe/procfs",
+            "//pkg/security/probe/procfs/procmaps",
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/process",
@@ -88,7 +90,7 @@ dd_agent_go_test(
     embed = [":activity_tree"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/security/probe/procfs",
+            "//pkg/security/probe/procfs/procmaps",
             "//pkg/security/secl/model",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",
@@ -96,7 +98,7 @@ dd_agent_go_test(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/security/probe/procfs",
+            "//pkg/security/probe/procfs/procmaps",
             "//pkg/security/secl/model",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",

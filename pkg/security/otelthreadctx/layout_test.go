@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package process
+package otelthreadctx
 
 import (
 	"testing"
@@ -43,10 +43,9 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 func BenchmarkTLSCandidateObjects(b *testing.B) {
 	pid := uint32(2)
 	procfs := kernel.CreateFakeProcFS(b, []kernel.FakeProcFSEntry{{Pid: pid, Maps: mapsFileSample}})
-	kernel.WithFakeProcFS(b, procfs)
 
-	load := func(b *testing.B, p *otelTargetProcess) {
-		p.reset(pid)
+	load := func(b *testing.B, p *Target) {
+		p.Reset(pid)
 		objects, err := p.tlsCandidateObjects()
 		if err != nil {
 			b.Fatal(err)
@@ -62,12 +61,12 @@ func BenchmarkTLSCandidateObjects(b *testing.B) {
 	b.Run("fresh", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			load(b, new(otelTargetProcess))
+			load(b, NewTarget(procfs))
 		}
 	})
 
 	b.Run("reused", func(b *testing.B) {
-		p := new(otelTargetProcess)
+		p := NewTarget(procfs)
 		b.ReportAllocs()
 		for b.Loop() {
 			load(b, p)
@@ -82,16 +81,15 @@ func BenchmarkTLSCandidateObjects(b *testing.B) {
 func TestResetKeepsBackingArray(t *testing.T) {
 	pid := uint32(2)
 	procfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Maps: mapsFileSample}})
-	kernel.WithFakeProcFS(t, procfs)
 
-	p := new(otelTargetProcess)
-	p.reset(pid)
+	p := NewTarget(procfs)
+	p.Reset(pid)
 	_, err := p.tlsCandidateObjects()
 	require.NoError(t, err)
 	require.NotEmpty(t, p.mapsObjects)
 	first := &p.mapsObjects[0]
 
-	p.reset(pid)
+	p.Reset(pid)
 	_, err = p.tlsCandidateObjects()
 	require.NoError(t, err)
 	require.NotEmpty(t, p.mapsObjects)
@@ -101,10 +99,9 @@ func TestResetKeepsBackingArray(t *testing.T) {
 func TestTLSCandidateObjects(t *testing.T) {
 	pid := uint32(2)
 	procfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Maps: mapsFileSample}})
-	kernel.WithFakeProcFS(t, procfs)
 
-	p := new(otelTargetProcess)
-	p.reset(pid)
+	p := NewTarget(procfs)
+	p.Reset(pid)
 	objects, err := p.tlsCandidateObjects()
 	require.NoError(t, err)
 
@@ -143,21 +140,20 @@ func TestTLSCandidateObjects(t *testing.T) {
 	require.Equal(t, uint64(0x08047000), p.procCtxAddr)
 }
 
-// TestOTelTargetProcessReset pins the reset of every memoized field, since a
+// TestTargetReset pins the reset of every memoized field, since a
 // reused target that keeps one silently reports the previous process's state.
-func TestOTelTargetProcessReset(t *testing.T) {
+func TestTargetReset(t *testing.T) {
 	pid := uint32(2)
 	procfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Maps: mapsFileSample}})
-	kernel.WithFakeProcFS(t, procfs)
 
-	p := new(otelTargetProcess)
-	p.reset(pid)
+	p := NewTarget(procfs)
+	p.Reset(pid)
 	_, err := p.tlsCandidateObjects()
 	require.NoError(t, err)
 	_, _ = p.exe()
 	require.NotEmpty(t, p.mapsObjects)
 
-	p.reset(3)
+	p.Reset(3)
 	require.Equal(t, uint32(3), p.pid)
 	require.Equal(t, "3", p.pidStr)
 	require.Empty(t, p.mapsObjects)
