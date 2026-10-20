@@ -8,6 +8,7 @@ package helpers
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -28,6 +29,65 @@ import (
 func TestMkURL(t *testing.T) {
 	assert.Equal(t, "https://example.com/support/flare/999", mkURL("https://example.com", "999"))
 	assert.Equal(t, "https://example.com/support/flare", mkURL("https://example.com", ""))
+}
+
+func TestBuildFlareBaseURL(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetInTest("convert_dd_site_fqdn.enabled", true)
+	v, err := version.Agent()
+	require.NoError(t, err)
+	prefix := fmt.Sprintf("https://%d-%d-%d-flare.agent.", v.Major, v.Minor, v.Patch)
+
+	tests := []struct {
+		rawURL   string
+		expected string
+	}{
+		{"https://app.datadoghq.com", prefix + "datadoghq.com"},
+		{"https://app.mrf.datadoghq.com", prefix + "mrf.datadoghq.com"},
+		{"https://org.mrf.datadoghq.com", prefix + "datadoghq.com."},
+		{"https://org.mrf.us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"https://org.mrf.ap1.datadoghq.com", prefix + "ap1.datadoghq.com."},
+		{"https://custom.datadoghq.com", prefix + "datadoghq.com."},
+		{"https://custom.agent.datadoghq.com", prefix + "datadoghq.com."},
+		{"https://app.custom.datadoghq.com", prefix + "datadoghq.com."},
+		{"https://app.datadoghq.internal", "https://app.datadoghq.internal"},
+		{"https://app.myproxy.com", "https://app.myproxy.com"},
+		{"https://datadog.corp.example.com", "https://datadog.corp.example.com"},
+		{"https://my-proxy.notdatadoghq.com", "https://my-proxy.notdatadoghq.com"},
+		{"https://evil.datadoghq.com.attacker.net", "https://evil.datadoghq.com.attacker.net"},
+		{"https://org.mrf.us5.datadoghq.com", prefix + "us5.datadoghq.com."},
+		{"https://org.mrf.datadoghq.eu", prefix + "datadoghq.eu."},
+		{"https://org.mrf.ddog-gov.com", prefix + "ddog-gov.com."},
+		{"https://org.mrf.datad0g.com", prefix + "datad0g.com."},
+		{"https://ORG.MRF.US3.DATADOGHQ.COM", prefix + "us3.datadoghq.com."},
+		{"https://org.mrf.datadoghq.com.", prefix + "datadoghq.com."},
+		{"https://app.datadoghq.com.", prefix + "datadoghq.com."},
+		{"http://org.mrf.us3.datadoghq.com:8080/intake?foo=bar", prefix + "us3.datadoghq.com."},
+		{"http://app.myproxy.com:8080/intake?foo=bar", "http://app.myproxy.com:8080/intake?foo=bar"},
+		{"", ""},
+		{"not-a-url", "not-a-url"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.rawURL, func(t *testing.T) {
+			actual, err := buildFlareBaseURL(tt.rawURL)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+
+	t.Run("invalid URL", func(t *testing.T) {
+		actual, err := buildFlareBaseURL("http://\x7f")
+		require.Error(t, err)
+		assert.Empty(t, actual)
+	})
+
+	t.Run("FQDN conversion disabled", func(t *testing.T) {
+		cfg.SetInTest("convert_dd_site_fqdn.enabled", false)
+		actual, err := buildFlareBaseURL("https://org.mrf.us3.datadoghq.com")
+		require.NoError(t, err)
+		assert.Equal(t, prefix+"us3.datadoghq.com", actual)
+	})
 }
 
 func TestFlareHasRightForm(t *testing.T) {

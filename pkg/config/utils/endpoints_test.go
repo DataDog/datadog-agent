@@ -566,6 +566,35 @@ func TestAPIEndpointFromURL(t *testing.T) {
 	}
 }
 
+func TestAddAgentVersionToSite(t *testing.T) {
+	tests := []struct {
+		site          string
+		app           string
+		convertToFQDN bool
+		expectedSite  string
+	}{
+		{"datadoghq.com", "flare", true, "datadoghq.com."},
+		{"us3.datadoghq.com", "flare", true, "us3.datadoghq.com."},
+		{"us5.datadoghq.com", "flare", true, "us5.datadoghq.com."},
+		{"ap1.datadoghq.com", "flare", true, "ap1.datadoghq.com."},
+		{"datadoghq.eu", "flare", true, "datadoghq.eu."},
+		{"ddog-gov.com", "flare", true, "ddog-gov.com."},
+		{"datad0g.com", "flare", true, "datad0g.com."},
+		{"datadoghq.com.", "flare", true, "datadoghq.com."},
+		{"datadoghq.com", "app", true, "datadoghq.com."},
+		{"datadoghq.com", "flare", false, "datadoghq.com"},
+		{"us3.datadoghq.com", "flare", false, "us3.datadoghq.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/%s/fqdn=%t", tt.site, tt.app, tt.convertToFQDN), func(t *testing.T) {
+			cfg := mock.New(t)
+			cfg.SetInTest("convert_dd_site_fqdn.enabled", tt.convertToFQDN)
+			assert.Equal(t, "https://"+getDomainPrefix(tt.app)+"."+tt.expectedSite, AddAgentVersionToSite(tt.site, tt.app))
+		})
+	}
+}
+
 func TestAddAgentVersionToDomain(t *testing.T) {
 	appVersionPrefix := getDomainPrefix("app")
 	flareVersionPrefix := getDomainPrefix("flare")

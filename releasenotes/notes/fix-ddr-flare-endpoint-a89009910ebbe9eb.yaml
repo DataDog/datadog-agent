@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix flare uploads failing when ``dd_url`` uses a Datadog Disaster Recovery
+    endpoint. Flares sent to custom hostnames under a recognized Datadog site now
+    use that site's flare endpoint. Telemetry intake destinations and third-party
+    proxy URLs are unchanged.

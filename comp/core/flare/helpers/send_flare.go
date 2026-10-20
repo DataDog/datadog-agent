@@ -335,10 +335,20 @@ func isRetryableFlareError(err error) bool {
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.
-// It is used by both GetFlareEndpoint and SendTo to avoid duplicating the
-// AddAgentVersionToDomain call.
 func buildFlareBaseURL(rawURL string) (string, error) {
-	return configUtils.AddAgentVersionToDomain(rawURL, "flare")
+	flareURL, err := configUtils.AddAgentVersionToDomain(rawURL, "flare")
+	if err != nil || flareURL != rawURL {
+		return flareURL, err
+	}
+
+	// Unlike telemetry, flares have one destination per site, independent of the
+	// customer-chosen intake URL (including DDR delegated domains). Keep this
+	// fallback here: AddAgentVersionToDomain is shared with the metrics forwarder,
+	// where rewriting custom intake domains would bypass DDR failover.
+	if site := configUtils.ExtractSiteFromURL(rawURL); site != "" {
+		return configUtils.AddAgentVersionToSite(site, "flare"), nil
+	}
+	return rawURL, nil
 }
 
 // GetFlareEndpoint creates the flare endpoint URL

@@ -420,6 +420,11 @@ func getDomainPrefix(app string) string {
 	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
 }
 
+// AddAgentVersionToSite builds the versioned Agent host URL for a site and app.
+func AddAgentVersionToSite(site, app string) string {
+	return BuildURLWithPrefix("https://"+getDomainPrefix(app)+".", site)
+}
+
 // AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
 func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 	u, err := url.Parse(DDURL)
