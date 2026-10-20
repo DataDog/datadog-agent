@@ -42,8 +42,7 @@ type Builder struct {
 	lossSignals     func() (missedRecently, delivering bool)
 }
 
-// NewBuilder returns a new builder. pipelineMonitor and cfg may be nil (e.g. in
-// tests), in which case the backpressure and performance-profile sections are empty.
+// NewBuilder returns a new builder; pipelineMonitor and cfg may be nil.
 func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sourcesPkg.LogSources, tracker *tailers.TailerTracker, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map, pipelineMonitor logsMetrics.PipelineMonitor, cfg model.Reader) *Builder {
 	return &Builder{
 		isRunning:       isRunning,
@@ -58,7 +57,7 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 	}
 }
 
-// getPerformanceProfile returns the active profile, with each setting's effective value and source when verbose.
+// getPerformanceProfile returns the active profile, with its settings when verbose.
 func (b *Builder) getPerformanceProfile(verbose bool) *PerformanceProfile {
 	if b.config == nil {
 		return nil

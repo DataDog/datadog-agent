@@ -32,10 +32,10 @@ const (
 	ReasonPipelineSaturated             = "pipeline_saturated"
 )
 
-// SenderLatencyHighThresholdMs is the intake round-trip latency above which a send bottleneck is treated as latency-bound.
+// SenderLatencyHighThresholdMs is the intake latency above which a send bottleneck is latency-bound.
 const SenderLatencyHighThresholdMs = 250
 
-// LossRecencyWindow is how long after the last observed loss the pipeline still counts as actively losing logs.
+// LossRecencyWindow is how long a loss counts as recent.
 const LossRecencyWindow = 5 * time.Minute
 
 // Stage is the minimal per-component view the recommender needs.
@@ -81,7 +81,7 @@ var componentSortOrder = map[string]int{
 	"worker":    2,
 }
 
-// ComponentRank orders pipeline components upstream to downstream; destinations and unknown components come last.
+// ComponentRank orders components upstream to downstream; destinations and unknown ones come last.
 func ComponentRank(name string) int {
 	if r, ok := componentSortOrder[name]; ok {
 		return r
@@ -89,12 +89,12 @@ func ComponentRank(name string) int {
 	return 10
 }
 
-// IsSendStage reports whether the component is part of the network send stage (workers, the sender, or a destination).
+// IsSendStage reports whether the component is a worker, the sender, or a destination.
 func IsSendStage(component string) bool {
 	return component == "worker" || component == logsmetrics.SenderTlmName || strings.HasPrefix(component, "destination_")
 }
 
-// Bottleneck returns the most-downstream currently-saturated stage, falling back to recent (1m/30m) saturation, or "" if none.
+// Bottleneck returns the deepest currently saturated stage, else the deepest recently saturated one.
 func Bottleneck(stages []Stage) string {
 	if c := mostDownstreamSaturated(stages, func(s Stage) bool { return s.CurrentlySaturated }); c != "" {
 		return c
@@ -104,8 +104,7 @@ func Bottleneck(stages []Stage) string {
 	})
 }
 
-// mostDownstreamSaturated returns the deepest stage for which sat() is true, or "".
-// Backpressure propagates upstream, so the deepest saturated stage is the true bottleneck.
+// mostDownstreamSaturated returns the deepest stage for which sat is true; backpressure propagates upstream.
 func mostDownstreamSaturated(stages []Stage, sat func(Stage) bool) string {
 	best := ""
 	bestRank := -1
@@ -121,7 +120,7 @@ func mostDownstreamSaturated(stages []Stage, sat func(Stage) bool) string {
 	return best
 }
 
-// ForBottleneck maps the bottleneck component to a profile, a stable reason code and a one-line diagnosis.
+// ForBottleneck maps a bottleneck to a profile, reason code and diagnosis.
 func ForBottleneck(component string, latencyMs int64) (profile, reasonCode, reason string) {
 	switch {
 	case component == "processor":
@@ -138,9 +137,7 @@ func ForBottleneck(component string, latencyMs int64) (profile, reasonCode, reas
 	}
 }
 
-// Recommend suggests a profile only when bytes were recently missed; saturation merely localizes the bottleneck.
-// Destination drops are not a signal: they count permanent send errors, which no profile fixes.
-// It returns nil when nothing is being lost, when no profile would help, or when activeProfile already covers the suggestion.
+// Recommend suggests a profile when bytes were recently missed, or returns nil.
 func Recommend(stages []Stage, activeProfile string, s Signals) *Recommendation {
 	if !s.MissedRecently {
 		return nil
@@ -152,8 +149,6 @@ func Recommend(stages []Stage, activeProfile string, s Signals) *Recommendation 
 	}
 
 	profile, code, reason := ForBottleneck(bottleneck, s.SenderLatencyMs)
-	// The coverage check compares catalog profiles by name; an explicit override always wins over a profile,
-	// so the only way effective coverage breaks is one where switching would not change that knob anyway.
 	if profile == "" || profile == activeProfile || pkgconfigsetup.LogsPerformanceProfileCovers(activeProfile, profile) {
 		return nil
 	}
@@ -170,7 +165,7 @@ type Counters struct {
 	Dropped, Missed, Processed, Sent, Errors, SenderLatencyMs int64
 }
 
-// ReadCounters reads the counters from an expvar map shaped like logsmetrics.LogsExpvars; a nil map yields zeros.
+// ReadCounters reads logsmetrics.LogsExpvars-shaped counters; a nil map yields zeros.
 func ReadCounters(m *expvar.Map) Counters {
 	if m == nil {
 		return Counters{}
@@ -218,8 +213,7 @@ type LossWindow struct {
 	delivering              bool
 }
 
-// Observe reports whether bytes were missed within LossRecencyWindow and whether the intake is delivering.
-// The first call only seeds the baseline.
+// Observe reports recent missed bytes and whether the intake is delivering; the first call seeds the baseline.
 func (w *LossWindow) Observe(c Counters, now time.Time) (missedRecently, delivering bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -232,7 +226,7 @@ func (w *LossWindow) Observe(c Counters, now time.Time) (missedRecently, deliver
 	if c.Missed > w.lastMissed {
 		w.missedAt = now
 	}
-	// An interval where nothing moved keeps the previous answer: a stalled pipeline and an idle one look alike.
+	// An idle interval keeps the previous answer: stalled and idle look alike.
 	switch {
 	case c.Sent > w.lastSent:
 		w.delivering = true
@@ -303,7 +297,7 @@ func (s *Sampler) Signals() (missedRecently, delivering bool) {
 	return s.missed, s.delivering
 }
 
-// Stop ends sampling. It is safe to call on a nil or already stopped Sampler.
+// Stop ends sampling; it is safe on a nil or stopped Sampler.
 func (s *Sampler) Stop() {
 	if s == nil || s.ticker == nil {
 		return

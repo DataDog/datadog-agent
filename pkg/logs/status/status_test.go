@@ -388,7 +388,6 @@ func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 
 func TestProfileRecommendation_ProcessorBottleneckIsCPUBound(t *testing.T) {
 	b := &Builder{}
-	// Read-side loss is occurring; processor saturated, downstream keeping up: CPU-bound.
 	utils := []ComponentUtilization{
 		{Name: "processor", Instance: "0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
 		{Name: "strategy", Instance: "0", AvgRatio: 0.20},
@@ -405,8 +404,6 @@ func TestProfileRecommendation_ProcessorBottleneckIsCPUBound(t *testing.T) {
 
 func TestProfileRecommendation_DownstreamBottleneckIsNetworkBound(t *testing.T) {
 	b := &Builder{}
-	// Destination saturated; upstream also lights up from propagation. The
-	// most-downstream saturated stage (destination) is the true bottleneck.
 	utils := []ComponentUtilization{
 		{Name: "processor", Instance: "0", AvgRatio: 0.92, CurrentlySaturated: true, Saturated30mSeconds: 100},
 		{Name: "strategy", Instance: "0", AvgRatio: 0.93, CurrentlySaturated: true, Saturated30mSeconds: 100},
@@ -428,7 +425,6 @@ func TestProfileRecommendation_DownstreamHighLatencyCitesLatency(t *testing.T) {
 		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
 	}
 
-	// High intake latency: the recommendation should cite it.
 	rec := b.getProfileRecommendation(utils, "", 400, true, true)
 
 	require.NotNil(t, rec)
@@ -443,7 +439,6 @@ func TestProfileRecommendation_DownstreamLowLatencyNoLatencyMention(t *testing.T
 		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
 	}
 
-	// Normal latency: still high-concurrency, but no latency claim in the reason.
 	rec := b.getProfileRecommendation(utils, "", 10, true, true)
 
 	require.NotNil(t, rec)
@@ -453,8 +448,6 @@ func TestProfileRecommendation_DownstreamLowLatencyNoLatencyMention(t *testing.T
 
 func TestProfileRecommendation_StrategyBottleneckIsCPUBound(t *testing.T) {
 	b := &Builder{}
-	// Strategy and processor saturated (propagation), worker keeping up:
-	// compression/batching is the bottleneck.
 	utils := []ComponentUtilization{
 		{Name: "processor", Instance: "0", AvgRatio: 0.93, CurrentlySaturated: true, Saturated30mSeconds: 100},
 		{Name: "strategy", Instance: "0", AvgRatio: 0.96, CurrentlySaturated: true, Saturated30mSeconds: 110},
@@ -482,7 +475,6 @@ func TestProfileRecommendation_LossStatedInReason(t *testing.T) {
 
 func TestProfileRecommendation_NoLossIsSilent(t *testing.T) {
 	b := &Builder{}
-	// Send stage saturated, but no logs lost: saturation alone must NOT recommend.
 	utils := []ComponentUtilization{
 		{Name: "strategy", Instance: "0", AvgRatio: 0.96, CurrentlySaturated: true, Saturated30mSeconds: 110},
 		{Name: "worker", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 110},
@@ -493,8 +485,7 @@ func TestProfileRecommendation_NoLossIsSilent(t *testing.T) {
 
 func TestProfileRecommendation_MissedButNothingSaturatedIsSilent(t *testing.T) {
 	b := &Builder{}
-	// Bytes missed (rotation outran an idle reader) but no stage is saturated:
-	// the fix is close_timeout, not a performance profile.
+	// With nothing saturated the fix is close_timeout, not a profile.
 	utils := []ComponentUtilization{
 		{Name: "processor", Instance: "0", AvgRatio: 0.10},
 		{Name: "worker", Instance: "q0s0", AvgRatio: 0.05},
@@ -505,8 +496,6 @@ func TestProfileRecommendation_MissedButNothingSaturatedIsSilent(t *testing.T) {
 
 func TestProfileRecommendation_SendStageNotDeliveringIsSilent(t *testing.T) {
 	b := &Builder{}
-	// Loss is occurring and the send stage is saturated, but the intake is not
-	// delivering (rejecting/unreachable): high-concurrency would be misleading.
 	utils := []ComponentUtilization{
 		{Name: "strategy", Instance: "0", AvgRatio: 0.96, CurrentlySaturated: true, Saturated30mSeconds: 110},
 		{Name: "worker", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 110},
@@ -521,15 +510,11 @@ func TestProfileRecommendation_AlreadyOnRecommendedProfile(t *testing.T) {
 		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
 	}
 
-	// Already running the profile we'd recommend (high-concurrency for a
-	// downstream bottleneck): no point recommending it again.
 	assert.Nil(t, b.getProfileRecommendation(utils, "high-concurrency", 0, true, true))
 }
 
 func TestProfileRecommendation_RecentSaturationLocalizes(t *testing.T) {
 	b := &Builder{}
-	// No stage is currently saturated, but strategy was saturated recently and
-	// loss occurred: fall back to recent saturation to localize the bottleneck.
 	utils := []ComponentUtilization{
 		{Name: "strategy", Instance: "0", AvgRatio: 0.6, Saturated1mSeconds: 30, Saturated30mSeconds: 90},
 	}
@@ -541,9 +526,7 @@ func TestProfileRecommendation_RecentSaturationLocalizes(t *testing.T) {
 
 func TestProfileRecommendation_ActiveProfileCoversRecommendedIsSilent(t *testing.T) {
 	b := &Builder{}
-	// A send-stage bottleneck maps to high-concurrency, but the agent is already
-	// on high-throughput, which is a superset of high-concurrency. Switching would
-	// only lower pipeline/buffer settings, so suppress the recommendation.
+	// high-throughput already covers high-concurrency.
 	utils := []ComponentUtilization{
 		{Name: "worker", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 110},
 	}
