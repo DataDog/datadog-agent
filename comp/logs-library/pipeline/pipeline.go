@@ -24,7 +24,7 @@ import (
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
 	InputChan       chan *message.Message
-	flushChan       chan struct{}
+	flushChan       chan chan struct{}
 	processor       *processor.Processor
 	strategy        sender.Strategy
 	pipelineMonitor metrics.PipelineMonitor
@@ -43,7 +43,7 @@ func NewPipeline(
 	instanceID string,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 
 	useContainerTimestamp := cfg.GetBool("logs_config.use_container_timestamp")
 
@@ -86,15 +86,32 @@ func (p *Pipeline) Stop() {
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
+// The strategy ack is closed only after the batch buffer has been queued, which
+// is when the serverless wait group is incremented.
 func (p *Pipeline) Flush(ctx context.Context) {
-	p.flushChan <- struct{}{}
-	p.processor.Flush(ctx) // flush messages in the processor into the sender
+	// Drain the processor before signaling the strategy, so lines already in
+	// the processor are in the strategy input when the flush runs.
+	p.processor.Flush(ctx)
+	if ctx.Err() != nil {
+		return
+	}
+	ack := make(chan struct{})
+	select {
+	case <-ctx.Done():
+		return
+	case p.flushChan <- ack:
+	}
+	select {
+	case <-ctx.Done():
+		return
+	case <-ack:
+	}
 }
 
 func getStrategy(
 	inputChan chan *message.Message,
 	outputChan chan *message.Payload,
-	flushChan chan struct{},
+	flushChan chan chan struct{},
 	endpoints *config.Endpoints,
 	serverlessMeta sender.ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,

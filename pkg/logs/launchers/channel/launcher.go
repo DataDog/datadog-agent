@@ -65,6 +65,13 @@ func (l *Launcher) run() {
 	}
 }
 
+// Drain flushes every channel tailer into the pipeline. Later Stop calls
+func (l *Launcher) Drain() {
+	for _, tailer := range l.tailers {
+		tailer.WaitFlush()
+	}
+}
+
 // Stop waits for any running tailer to be flushed.
 func (l *Launcher) Stop() {
 	l.stopOnce.Do(func() {

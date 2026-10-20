@@ -394,7 +394,7 @@ func newHTTPPassthroughPipeline(
 		strategy = sender.NewBatchStrategy(
 			inputChan,
 			senderImpl.In(),
-			make(chan struct{}),
+			make(chan chan struct{}),
 			serverlessMeta,
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,

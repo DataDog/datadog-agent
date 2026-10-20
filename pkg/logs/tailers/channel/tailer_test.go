@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestComputeServiceNameOrderOfPrecedent(t *testing.T) {
@@ -23,6 +24,32 @@ func TestComputeServiceNameOrderOfPrecedent(t *testing.T) {
 	assert.Equal(t, "cloud-run-service-name", getServiceName())
 	t.Setenv("DD_SERVICE", "DD-service-name")
 	assert.Equal(t, "dd-service-name", getServiceName())
+}
+
+func TestWaitFlushForwardsQueuedLinesAndIsIdempotent(t *testing.T) {
+	input := make(chan *config.ChannelMessage, 1)
+	output := make(chan *message.Message, 1)
+	source := sources.NewLogSource("test", &config.LogsConfig{})
+	tailer := NewTailer(source, input, output)
+	tailer.Start()
+
+	input <- &config.ChannelMessage{Content: []byte("line")}
+	tailer.WaitFlush()
+	tailer.WaitFlush()
+
+	select {
+	case msg := <-output:
+		assert.Equal(t, "line", string(msg.GetContent()))
+	case <-time.After(time.Second):
+		t.Fatal("queued line was not forwarded")
+	}
+}
+
+func TestComputeServiceNameContainerAppJob(t *testing.T) {
+	t.Setenv("CONTAINER_APP_JOB_NAME", "JOB-name")
+	assert.Equal(t, "job-name", getServiceName())
+	t.Setenv("CONTAINER_APP_NAME", "APP-name")
+	assert.Equal(t, "app-name", getServiceName())
 }
 
 func TestBuildMessage(t *testing.T) {

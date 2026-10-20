@@ -59,8 +59,10 @@ func execute(logConfig *serverlessLog.Config, args []string, hooks *ProcessHooks
 	cmd.Stdout = io.Writer(os.Stdout)
 	cmd.Stderr = io.Writer(os.Stderr)
 
+	var stdoutWriter *serverlessLog.ChannelWriter
 	if logConfig.IsEnabled {
-		cmd.Stdout = io.MultiWriter(os.Stdout, serverlessLog.NewChannelWriter(logConfig.Channel, false))
+		stdoutWriter = serverlessLog.NewChannelWriter(logConfig.Channel, false)
+		cmd.Stdout = io.MultiWriter(os.Stdout, stdoutWriter)
 		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
 	}
 
@@ -78,7 +80,12 @@ func execute(logConfig *serverlessLog.Config, args []string, hooks *ProcessHooks
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
 	go forwardSignals(cmd.Process, sigs)
-	return cmd.Wait()
+	err := cmd.Wait()
+	// The child has exited. Push a trailing partial stdout line before the writer is dropped.
+	if stdoutWriter != nil {
+		stdoutWriter.Flush()
+	}
+	return err
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {

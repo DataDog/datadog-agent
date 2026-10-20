@@ -9,6 +9,7 @@ package channel
 import (
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -25,6 +26,9 @@ const cloudRunServiceName = "K_SERVICE"
 // containerAppName is the environment variable of the container app name (this is used only for the serverless agent)
 const containerAppName = "CONTAINER_APP_NAME"
 
+// containerAppJobName is the environment variable of the container app job name
+const containerAppJobName = "CONTAINER_APP_JOB_NAME"
+
 // Tailer consumes and processes a channel of strings, and sends them to a
 // stream of log messages.
 //
@@ -35,6 +39,7 @@ type Tailer struct {
 	inputChan  chan *config.ChannelMessage
 	outputChan chan *message.Message
 	done       chan interface{}
+	flushOnce  sync.Once
 }
 
 // NewTailer returns a new Tailer
@@ -54,10 +59,12 @@ func (t *Tailer) Start() {
 
 // WaitFlush waits for all items in the input channel to be processed.  In the
 // process, this closes the input channel.  Any subsequent sends to the channel
-// will fail.
+// will fail. A second call waits for the first to finish and does not close again.
 func (t *Tailer) WaitFlush() {
-	close(t.inputChan)
-	<-t.done
+	t.flushOnce.Do(func() {
+		close(t.inputChan)
+		<-t.done
+	})
 }
 
 func (t *Tailer) run() {
@@ -104,6 +111,9 @@ func getServiceName() string {
 	}
 	if containerAppName := os.Getenv(containerAppName); containerAppName != "" {
 		return strings.ToLower(containerAppName)
+	}
+	if jobName := os.Getenv(containerAppJobName); jobName != "" {
+		return strings.ToLower(jobName)
 	}
 	return "agent"
 }

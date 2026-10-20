@@ -300,6 +300,15 @@ func (a *logAgent) startSchedulers() {
 	})
 }
 
+// flushes channel tailers into the pipeline. It is used by
+// serverless-init at final shutdown 
+func (a *logAgent) DrainChannelInputs() {
+	if a.launchers == nil {
+		return
+	}
+	a.launchers.DrainChannels()
+}
+
 func (a *logAgent) stop(context.Context) error {
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()

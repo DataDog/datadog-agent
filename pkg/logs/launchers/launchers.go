@@ -68,6 +68,20 @@ func (ls *Launchers) Start() {
 	ls.started = true
 }
 
+// channelDrainer is implemented by the channel launcher. Other launchers are skipped.
+type channelDrainer interface {
+	Drain()
+}
+
+// DrainChannels flushes channel tailers so queued lines reach the pipeline.
+func (ls *Launchers) DrainChannels() {
+	for _, launcher := range ls.launchers {
+		if drainer, ok := launcher.(channelDrainer); ok {
+			drainer.Drain()
+		}
+	}
+}
+
 // Stop all launchers and wait until they are complete.
 func (ls *Launchers) Stop() {
 	var wg sync.WaitGroup
