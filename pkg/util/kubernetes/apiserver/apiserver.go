@@ -453,13 +453,14 @@ func (c *APIClient) connect() error {
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
+		// needed to watch HPAs on clusters that don't serve autoscaling/v2 (Kubernetes < 1.23)
+		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
 		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 

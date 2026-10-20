@@ -172,7 +172,6 @@ go_library(
         "debug_handlers.go",
         "debuglog_dumper.go",
         "ebpf.go",
-        "ksyms.go",
         "ksyms_bpf.go",
         "manager.go",
         "map_cleaner.go",
@@ -193,7 +192,6 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/ebpf/bytecode",
-        "//pkg/process/util",
         "//pkg/system-probe/config",
         "//pkg/util/kernel",
     ] + select({
@@ -203,6 +201,7 @@ go_library(
             "//comp/core/telemetry/impl/noops",
             "//comp/remote-config/rcclient/def",
             "//pkg/ebpf/btf",
+            "//pkg/ebpf/ksyms",
             "//pkg/ebpf/maps",
             "//pkg/ebpf/names",
             "//pkg/remoteconfig/state",
@@ -228,6 +227,7 @@ go_library(
             "//comp/core/telemetry/impl/noops",
             "//comp/remote-config/rcclient/def",
             "//pkg/ebpf/btf",
+            "//pkg/ebpf/ksyms",
             "//pkg/ebpf/maps",
             "//pkg/ebpf/names",
             "//pkg/remoteconfig/state",
@@ -258,7 +258,6 @@ dd_agent_go_test(
         "co_re_telemetry_test.go",
         "feature_test.go",
         "ksyms_bpf_test.go",
-        "ksyms_test.go",
         "manager_test.go",
         "map_cleaner_test.go",
         "preprocess_test.go",
@@ -270,9 +269,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":ebpf"],
     gotags_sets = [["bpf"]],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-    ] + select({
+    deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/telemetry/impl/noops",
             "//pkg/config/remote/data",
@@ -290,6 +287,7 @@ dd_agent_go_test(
             "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
         ],
@@ -310,6 +308,7 @@ dd_agent_go_test(
             "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
         ],

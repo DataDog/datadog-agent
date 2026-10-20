@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"go.uber.org/atomic"
@@ -218,6 +219,8 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
+	o.refreshInfraTags()
+
 	if ok, err := o.IsLeader(); !ok {
 		// Disable terminated resource bundle if not leader so we don't buffer terminated resources by informer DeleteFunc
 		o.collectorBundle.GetTerminatedResourceBundle().Disable()
@@ -242,6 +245,34 @@ func (o *OrchestratorCheck) Run() error {
 	o.collectorBundle.Run(sender)
 
 	return nil
+}
+
+// refreshInfraTags adds the infrastructure mode tags to the payload tags when
+// they were not available at Configure time. On a Cluster Check Runner they come
+// from the Cluster Agent's tagger stream, which can connect after the check is
+// configured.
+//
+// Other goroutines read the tags in two places: the manifest buffer, which only
+// runs inside a collector bundle run and so never overlaps this call, and the
+// terminated resource flush that Cancel triggers, which the bundle lock covers.
+func (o *OrchestratorCheck) refreshInfraTags() {
+	infraTags := o.tagger.GetInfraTags()
+	missing := slices.ContainsFunc(infraTags, func(tag string) bool {
+		return !slices.Contains(o.orchestratorConfig.ExtraTags, tag)
+	})
+	if !missing {
+		return
+	}
+
+	update := func() {
+		o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
+	}
+	if o.collectorBundle != nil {
+		o.collectorBundle.GetTerminatedResourceBundle().withLock(update)
+	} else {
+		update()
+	}
+	log.Infoc(fmt.Sprintf("Adding infrastructure mode tags %v to orchestrator payloads", infraTags), orchestrator.ExtraLogContext...)
 }
 
 // Cancel cancels the orchestrator check

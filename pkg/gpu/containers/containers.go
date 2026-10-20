@@ -377,3 +377,36 @@ func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadme
 	// in different places
 	return runningContainer.Owner != nil && container.Owner != nil && *runningContainer.Owner == *container.Owner
 }
+
+const (
+	// kaiReservationGPUAnnotation holds the UUID of the GPU a KAI Scheduler
+	// reservation pod reserves. The reservation pod writes it itself shortly
+	// after it starts.
+	kaiReservationGPUAnnotation = "run.ai/reserve_for_gpu_index"
+	// kaiGPUGroupLabel is the GPU group label KAI puts on reservation pods and
+	// on the fractional pods sharing their GPU.
+	kaiGPUGroupLabel = "runai-gpu-group"
+	// kaiReservationPodPrefix prefixes every reservation pod name, as checked
+	// by KAI's own IsGPUReservationPod.
+	kaiReservationPodPrefix = "gpu-reservation"
+)
+
+// IsKAIReservationContainer reports whether the container belongs to a KAI
+// Scheduler reservation pod. KAI creates one per shared GPU, requesting the
+// whole GPU only to hold it for the fractional pods: it runs no GPU work, so
+// it must not be reported as the GPU's user. The namespace and app label are
+// configurable in KAI, so neither is used.
+func IsKAIReservationContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
+	pod, err := wmeta.GetKubernetesPodForContainer(container.ID)
+	if err != nil {
+		return false
+	}
+	if pod.Annotations[kaiReservationGPUAnnotation] != "" {
+		return true
+	}
+	// Until the reservation pod writes its annotation, recognize it the way KAI
+	// does, by its name. The group label keeps an unrelated pod that happens to
+	// share the prefix out.
+	_, hasGPUGroup := pod.Labels[kaiGPUGroupLabel]
+	return hasGPUGroup && strings.HasPrefix(pod.Name, kaiReservationPodPrefix)
+}
