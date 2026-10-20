@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add an Agent Health issue, ``Cluster Agent Unreachable``, reported when a
+    node Agent or Cluster Checks Runner cannot connect to the Datadog Cluster
+    Agent for more than one minute, for example because the connection is
+    refused, times out, or fails the TLS handshake. The issue resolves once the
+    Cluster Agent answers again.

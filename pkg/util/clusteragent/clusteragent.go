@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -327,6 +328,9 @@ func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Re
 	client := c.httpClient(useLeaderClient)
 	resp, err := client.Do(req)
 	if err != nil {
+		if !nativeerrors.Is(err, context.Canceled) {
+			connectivity.ReportFailure(err)
+		}
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			err = errors.NewTimeoutError(url, err)
 		}
@@ -334,6 +338,7 @@ func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Re
 		return nil, errors.NewRemoteServiceError(url, err.Error())
 	}
 	defer resp.Body.Close()
+	connectivity.ReportSuccess()
 
 	if readResponseBody && resp.StatusCode == http.StatusOK {
 		respBody, err := io.ReadAll(resp.Body)

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -431,6 +433,35 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 			}
 		})
 	}
+}
+
+func (suite *clusterAgentSuite) TestConnectivityReporting() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+
+	ts, p, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	ipcmock.New(suite.T())
+
+	ca, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	connectivity.ReportFailure(stderrors.New("stale failure"))
+	_, err = ca.GetNodeLabels("fake")
+	require.Error(suite.T(), err)
+	_, failing := connectivity.Default.FailingFor(0)
+	assert.False(suite.T(), failing, "an HTTP error response proves the Cluster Agent is reachable")
+
+	ts.Close()
+	_, err = ca.GetNodeLabels("node1")
+	require.Error(suite.T(), err)
+	failure, failing := connectivity.Default.FailingFor(0)
+	require.True(suite.T(), failing, "a transport error is a connectivity failure")
+	assert.Contains(suite.T(), failure.LastError, "127.0.0.1")
+
+	connectivity.ReportSuccess()
 }
 
 func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {

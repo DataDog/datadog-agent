@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "connectivity",
+    srcs = ["connectivity.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/clusteragent/connectivity",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/scrubber"],
+)
+
+dd_agent_go_test(
+    name = "connectivity_test",
+    srcs = ["connectivity_test.go"],
+    embed = [":connectivity"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
