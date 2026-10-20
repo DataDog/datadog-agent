@@ -274,6 +274,8 @@ modules:
     used_by_otel: true
   pkg/remoteflags:
     used_by_otel: true
+  pkg/rshell:
+    should_test_condition: not_aix
   pkg/security/resolvers/process/testdata: ignored
   pkg/security/secl: default
   pkg/security/seclwin:

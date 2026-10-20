@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "false",
+    srcs = ["false.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/false",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "false_test",
+    srcs = ["false_vuln_hunt_test.go"],
+    embed = [":false"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

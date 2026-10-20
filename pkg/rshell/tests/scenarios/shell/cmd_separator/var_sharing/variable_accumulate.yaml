@@ -1,0 +1,10 @@
+description: Variables accumulate state across semicolons and newlines.
+input:
+  script: |+
+    a=1; b=2
+    c=3; echo "$a $b $c"
+expect:
+  stdout: |+
+    1 2 3
+  stderr: ""
+  exit_code: 0

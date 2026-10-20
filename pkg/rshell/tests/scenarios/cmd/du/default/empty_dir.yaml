@@ -1,0 +1,13 @@
+description: du --apparent-size on an empty directory reports a small total for the dir entry only.
+setup:
+  files:
+    - path: empty/.keep
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --apparent-size empty
+expect:
+  stdout_contains: ["\tempty\n"]
+  stderr: |+
+  exit_code: 0

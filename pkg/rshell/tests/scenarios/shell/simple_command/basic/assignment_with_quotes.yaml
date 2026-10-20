@@ -1,0 +1,13 @@
+description: Assignment values can use quotes.
+input:
+  script: |+
+    a="hello world"
+    b='foo bar'
+    echo $a
+    echo $b
+expect:
+  stdout: |+
+    hello world
+    foo bar
+  stderr: ""
+  exit_code: 0

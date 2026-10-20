@@ -1,0 +1,17 @@
+description: find -L -type l matches nothing because links are resolved.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/target.txt
+      content: "target"
+      chmod: 0644
+    - path: dir/link.txt
+      symlink: target.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -type l
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

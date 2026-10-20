@@ -1,0 +1,13 @@
+description: -a creates a missing file rather than failing, same as GNU tee.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "content\n" | tee -a newfile.txt
+    cat newfile.txt
+expect:
+  stdout: |+
+    content
+    content
+  stderr: |+
+  exit_code: 0

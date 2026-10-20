@@ -1,0 +1,9 @@
+description: Elif branch executes when if condition fails.
+input:
+  script: |+
+    if false; then echo 1; elif true; then echo 2; fi
+expect:
+  stdout: |+
+    2
+  stderr: ""
+  exit_code: 0

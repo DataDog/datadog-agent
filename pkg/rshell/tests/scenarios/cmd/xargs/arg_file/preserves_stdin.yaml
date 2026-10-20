@@ -1,0 +1,14 @@
+description: xargs -a reads items from FILE, leaving the parent's stdin available to the child (POSIX). With an empty arg-file, finishEmpty runs the child once and `cat` reads the piped stdin.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf 'payload\n' | xargs -a empty.txt cat
+expect:
+  stdout: |+
+    payload
+  stderr: |+
+  exit_code: 0

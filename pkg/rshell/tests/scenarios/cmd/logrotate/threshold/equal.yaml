@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate --size truncates files whose size equals the threshold.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --verbose --size 5 app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    logrotate: app.log: truncated 5 bytes
+    0
+  stderr: |+
+  exit_code: 0

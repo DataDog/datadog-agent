@@ -1,0 +1,13 @@
+description: sort on an empty file produces no output.
+setup:
+  files:
+    - path: file.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

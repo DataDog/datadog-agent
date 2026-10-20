@@ -1,0 +1,17 @@
+description: A temporary PWD assignment in front of a *failed* cd is reverted normally — only successful cd preserves PWD.
+setup:
+  files:
+    - path: parent/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd parent
+    saved=$(pwd)
+    PWD=/bogus cd no-such-dir 2>/dev/null
+    if [ "$PWD" = "$saved" ]; then echo reverted; else echo "not_reverted: $PWD"; fi
+expect:
+  stdout: |+
+    reverted
+  stderr: ""
+  exit_code: 0

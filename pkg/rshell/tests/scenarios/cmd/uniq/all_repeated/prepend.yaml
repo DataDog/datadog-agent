@@ -1,0 +1,13 @@
+description: uniq --all-repeated=prepend adds blank line before first group.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --all-repeated=prepend input.txt
+expect:
+  stdout: "\na\na\n"
+  stderr: ""
+  exit_code: 0

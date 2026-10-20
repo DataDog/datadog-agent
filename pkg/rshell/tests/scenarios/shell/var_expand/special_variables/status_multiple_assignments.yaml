@@ -1,0 +1,13 @@
+description: Multiple variable assignments on one line set $? to 0.
+input:
+  script: |+
+    false
+    echo $?
+    a=1 b=2
+    echo $?
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

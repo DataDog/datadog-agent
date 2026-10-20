@@ -1,0 +1,27 @@
+description: ls -a --limit does not count . and .. against the limit.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: f01
+      content: ""
+      chmod: 0644
+    - path: f02
+      content: ""
+      chmod: 0644
+    - path: f03
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -a --limit 3
+expect:
+  stdout: |+
+    .
+    ..
+    f01
+    f02
+    f03
+  stderr: ""
+  exit_code: 0

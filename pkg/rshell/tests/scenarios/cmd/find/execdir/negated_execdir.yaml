@@ -1,0 +1,21 @@
+description: find ! -execdir false {} \; — negation inverts false to true, but -execdir as an action suppresses implicit -print so no output.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:false
+  script: |+
+    find dir -type f ! -execdir false {} \;
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

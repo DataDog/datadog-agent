@@ -1,0 +1,13 @@
+description: The N command appends next line to pattern space with embedded newline.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'N; s/\n/ /' input.txt
+expect:
+  stdout: "line1 line2\nline3\n"
+  stderr: ""
+  exit_code: 0

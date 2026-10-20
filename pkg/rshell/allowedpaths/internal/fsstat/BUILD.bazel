@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "fsstat",
+    srcs = [
+        "fsstat.go",
+        "fsstat_darwin.go",
+        "fsstat_linux.go",
+        "fsstat_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths/internal/fsstat",
+    visibility = ["//pkg/rshell/allowedpaths:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "fsstat_test",
+    srcs = [
+        "fsstat_darwin_test.go",
+        "fsstat_linux_test.go",
+        "fsstat_test.go",
+        "fsstat_windows_test.go",
+    ],
+    embed = [":fsstat"],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

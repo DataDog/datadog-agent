@@ -1,0 +1,13 @@
+description: The -n flag suppresses auto-print and p command prints explicitly.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '2p' input.txt
+expect:
+  stdout: "line2\n"
+  stderr: ""
+  exit_code: 0

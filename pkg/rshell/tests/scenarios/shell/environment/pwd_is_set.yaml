@@ -1,0 +1,10 @@
+description: "PWD is set to the working directory"
+input:
+  script: |
+    echo "$PWD"
+expect:
+  stdout_contains:
+    - "/"
+  stdout_contains_windows:
+    - "\\"
+  exit_code: 0

@@ -1,0 +1,14 @@
+# -c values below minimum (1) are clamped with a stderr warning.
+# DNS fails immediately on the unresolvable host so the test exits fast.
+description: "ping -c 0 emits clamping warning and exits 1"
+input:
+  script: |+
+    ping -c 0 no-such-host-xyzzy.invalid
+expect:
+  stdout: ""
+  # stderr_contains is used instead of stderr because the DNS error message
+  # that follows the warning is platform-variable (resolver error text differs
+  # across Linux, macOS, and Windows).
+  stderr_contains: ["ping: warning: -c 0 out of range"]
+  exit_code: 1
+skip_assert_against_bash: true

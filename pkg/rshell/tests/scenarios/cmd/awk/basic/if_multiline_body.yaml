@@ -1,0 +1,27 @@
+description: awk accepts valid if/else newlines and rejects intervening empty statements.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a
+        skip
+        b
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{
+      if ($1 == "skip")
+        next
+      else
+        print $1
+    }' input.txt
+    awk 'BEGIN { print "unreachable"; if (1) { print "yes" }; else print "no" }' 2>/dev/null || printf 'braced semicolon rejected\n'
+    awk 'BEGIN { print "unreachable"; if (1) print "yes";; else print "no" }' 2>/dev/null || printf 'extra semicolon rejected\n'
+expect:
+  stdout: |+
+    a
+    b
+    braced semicolon rejected
+    extra semicolon rejected
+  stderr: |+
+  exit_code: 0

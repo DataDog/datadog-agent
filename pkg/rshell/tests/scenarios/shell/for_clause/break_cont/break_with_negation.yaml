@@ -1,0 +1,11 @@
+description: Break with negation prefix breaks the loop with inverted exit code.
+input:
+  script: |+
+    for i in 1; do
+      ! break
+      echo not reached
+    done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

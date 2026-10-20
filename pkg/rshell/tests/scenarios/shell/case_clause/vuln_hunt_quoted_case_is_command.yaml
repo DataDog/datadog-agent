@@ -1,0 +1,10 @@
+# skip: rshell reports unknown commands differently from bash.
+skip_assert_against_bash: true
+description: Quoting the word case keeps it a regular command name rather than reparsing it as a case keyword.
+input:
+  script: |+
+    'case'
+expect:
+  stdout: ""
+  stderr_contains: ["unknown command"]
+  exit_code: 127

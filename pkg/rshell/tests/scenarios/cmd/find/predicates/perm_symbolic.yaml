@@ -1,0 +1,19 @@
+description: find -perm with symbolic mode u=rw,g=r,o=r matches 0644 files.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.sh
+      content: "b"
+      chmod: 0755
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -perm u=rw,g=r,o=r
+expect:
+  stdout: |+
+    dir/a.txt
+  stdout_windows: ""
+  stderr: ""
+  exit_code: 0

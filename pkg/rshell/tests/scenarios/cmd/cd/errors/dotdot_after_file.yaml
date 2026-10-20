@@ -1,0 +1,15 @@
+description: cd through a regular-file intermediate component fails — bash refuses `cd file/..` because the prefix must be a directory before .. can be processed.
+setup:
+  files:
+    - path: notadir.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd notadir.txt/..
+expect:
+  stdout: ""
+  # bash: "bash: line 1: cd: notadir.txt/..: Not a directory"
+  # ours: "cd: notadir.txt/..: not a directory"
+  stderr_contains: ["cd:", "notadir.txt"]
+  exit_code: 1

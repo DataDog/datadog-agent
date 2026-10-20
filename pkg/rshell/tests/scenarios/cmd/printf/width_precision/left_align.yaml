@@ -1,0 +1,9 @@
+description: Printf left-aligns a string within a specified width using the minus flag.
+input:
+  script: |+
+    printf "%-10s|\n" hi
+expect:
+  stdout: |+
+    hi        |
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: Command substitution inside double quotes preserves spaces.
+input:
+  script: |+
+    echo "$(echo "hello   world")"
+expect:
+  stdout: |+
+    hello   world
+  stderr: ""
+  exit_code: 0

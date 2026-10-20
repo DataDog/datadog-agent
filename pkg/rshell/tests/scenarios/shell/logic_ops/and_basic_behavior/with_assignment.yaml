@@ -1,0 +1,9 @@
+description: Variable set in an assignment command is visible on the right side of &&.
+input:
+  script: |+
+    X=hello && echo $X
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

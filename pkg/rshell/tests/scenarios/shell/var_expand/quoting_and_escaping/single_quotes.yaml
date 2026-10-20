@@ -1,0 +1,9 @@
+description: Single quotes preserve everything literally.
+input:
+  script: |+
+    echo 'abc' 'a\\b'
+expect:
+  stdout: |+
+    abc a\\b
+  stderr: ""
+  exit_code: 0

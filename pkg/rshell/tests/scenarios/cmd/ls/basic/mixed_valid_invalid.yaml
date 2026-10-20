@@ -1,0 +1,19 @@
+description: ls with a mix of valid and invalid args lists valid ones and reports errors.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: exists.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls exists.txt nonexistent.txt
+expect:
+  stdout: |+
+    exists.txt
+  stderr_contains:
+    - "ls: cannot access 'nonexistent.txt':"
+    - "no such file or directory"
+  exit_code: 1

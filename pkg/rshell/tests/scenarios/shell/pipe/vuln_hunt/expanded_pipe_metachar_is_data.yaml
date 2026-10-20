@@ -1,0 +1,11 @@
+# vuln-hunt 2026-05-19-codex / pipe.
+description: Expanded pipe metacharacters remain data inside a pipeline stage.
+input:
+  script: |+
+    PAYLOAD='alpha | cat'
+    printf '%s\n' "$PAYLOAD" | cat
+expect:
+  stdout: |+
+    alpha | cat
+  stderr: ""
+  exit_code: 0

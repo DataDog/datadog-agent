@@ -1,0 +1,20 @@
+description: |
+  vuln-hunt E2 (2026-05-18-initial-audit): IFS supplied as an inline
+  assignment to `read` is scoped to that single command — afterwards IFS is
+  restored to its original (default whitespace) value, so later commands
+  see the prior IFS.
+input:
+  script: |+
+    IFS=':' read -r f1 f2 <<EOF
+    a:b
+    EOF
+    echo "f1=[$f1] f2=[$f2]"
+    # Confirm IFS was reverted: re-read with no inline IFS uses the default
+    # (whitespace-separated, so 'c:d' should NOT split on ':').
+    echo "c:d" | { read -r g1 g2; echo "g1=[$g1] g2=[$g2]"; }
+expect:
+  stdout: |+
+    f1=[a] f2=[b]
+    g1=[c:d] g2=[]
+  stderr: ""
+  exit_code: 0

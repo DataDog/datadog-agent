@@ -1,0 +1,13 @@
+description: Global substitution flag replaces all occurrences on each line.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa bbb aaa\naaa ccc aaa\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/aaa/XXX/g' input.txt
+expect:
+  stdout: "XXX bbb XXX\nXXX ccc XXX\n"
+  stderr: ""
+  exit_code: 0

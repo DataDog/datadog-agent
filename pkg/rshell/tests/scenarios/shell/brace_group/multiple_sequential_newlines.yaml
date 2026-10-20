@@ -1,0 +1,19 @@
+description: Multiple sequential brace groups on separate lines.
+input:
+  script: |+
+    {
+      echo first
+    }
+    {
+      echo second
+    }
+    {
+      echo third
+    }
+expect:
+  stdout: |+
+    first
+    second
+    third
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: The p flag in substitution prints the line if a substitution was made.
+setup:
+  files:
+    - path: input.txt
+      content: "foo\nbar\nfoo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 's/foo/FOO/p' input.txt
+expect:
+  stdout: "FOO\nFOO\n"
+  stderr: ""
+  exit_code: 0

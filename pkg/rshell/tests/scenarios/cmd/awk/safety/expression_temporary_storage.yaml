@@ -1,0 +1,17 @@
+# skip: rshell intentionally bounds aggregate live expression intermediates.
+skip_assert_against_bash: true
+description: awk bounds strings retained by right-deep expression evaluation.
+input:
+  script: |+
+    awk 'BEGIN { print sprintf("%900000s", "") + (sprintf("%900000s", "") + (sprintf("%900000s", "") + (sprintf("%900000s", "") + (sprintf("%900000s", "") + (sprintf("%900000s", "") + sprintf("%900000s", "")))))) }'
+    awk 'BEGIN { x = sprintf("%1048576s", ""); print a[x, x, x, x, x, x] }'
+    awk 'BEGIN { x = sprintf("%1048576s", ""); a[x, x, x, x, x] = x }'
+    awk 'BEGIN { print (sprintf("%900000s", "") sprintf("%900000s", "") sprintf("%900000s", "") sprintf("%900000s", "") sprintf("%900000s", "")) + sprintf("%1000000s", "") }'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: expression temporary storage exceeds 5242880 bytes
+    awk: expression temporary storage exceeds 5242880 bytes
+    awk: expression temporary storage exceeds 5242880 bytes
+    awk: expression temporary storage exceeds 5242880 bytes
+  exit_code: 1

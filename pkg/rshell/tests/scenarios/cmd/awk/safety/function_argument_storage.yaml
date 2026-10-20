@@ -1,0 +1,13 @@
+# skip: rshell intentionally bounds retained function argument values.
+skip_assert_against_bash: true
+description: awk bounds aggregate function argument storage across nested evaluations.
+input:
+  script: |+
+    awk 'function f(value) { return length(value) } BEGIN { f(sprintf("%600000s", "")); f(sprintf("%600000s", "")); print "released" }'
+    awk 'function f(n, pad, nested) { if (n > 0) return f(n - 1, sprintf("%600000s", ""), f(n - 1)); return 0 } BEGIN { f(2) }'
+expect:
+  stdout: |+
+    released
+  stderr: |+
+    awk: function argument storage limit exceeded (maximum 1048576 bytes)
+  exit_code: 1

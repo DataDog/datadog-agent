@@ -1,0 +1,14 @@
+# rshell wording uses an integer ("0") where GNU strings uses different phrasing;
+# both exit non-zero and neither prints help, which is the property we lock in.
+description: '`strings -n 0 --help --bogus` exits 1 with "invalid minimum string length" rather than printing help. The -n bounds check in builtins/strings_cmd/strings.go runs BEFORE the `--help` short-circuit so the shared args-trim in builtins/builtins.go can safely honour `--help` after value-taking flags without masking the earlier validation error.'
+skip_assert_against_bash: true
+input:
+  script: |+
+    strings -n 0 --help --bogus; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr_contains:
+    - "strings:"
+    - "invalid minimum string length"
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: '`tail -n 5 --help --bogus` prints help and exits 0, matching GNU. Mirrors the head scenario; both rely on the trial-parse trim plus value-validation-before-help ordering.'
+input:
+  script: |+
+    tail -n 5 --help --bogus
+expect:
+  stdout_contains:
+    - "Usage:"
+  stderr: ""
+  exit_code: 0

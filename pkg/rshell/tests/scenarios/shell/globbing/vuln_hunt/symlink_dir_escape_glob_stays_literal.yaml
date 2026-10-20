@@ -1,0 +1,20 @@
+# skip: AllowedPaths sandbox restrictions are rshell-specific.
+skip_assert_against_bash: true
+description: Globbing through an allowed symlink to an outside directory is blocked.
+setup:
+  files:
+    - path: allowed/link
+      symlink: ../secret
+    - path: secret/a.txt
+      content: "secret-a\n"
+    - path: secret/b.txt
+      content: "secret-b\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    echo allowed/link/*.txt
+expect:
+  stdout: |+
+    allowed/link/*.txt
+  stderr: ""
+  exit_code: 0

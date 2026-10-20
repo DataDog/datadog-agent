@@ -1,0 +1,10 @@
+# vuln-hunt 2026-05-19-codex / pipe.
+skip_assert_against_bash: true
+description: Pipe-all stderr operator is rejected instead of becoming a supported pipeline.
+input:
+  script: |+
+    printf 'err\n' >&2 |& cat
+expect:
+  stdout: ""
+  stderr: "|& is not supported\n"
+  exit_code: 2

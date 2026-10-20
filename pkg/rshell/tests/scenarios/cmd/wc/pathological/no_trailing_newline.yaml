@@ -1,0 +1,13 @@
+description: wc -l on input with no trailing newline counts 0 lines (GNU behavior).
+setup:
+  files:
+    - path: file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l file.txt
+expect:
+  stdout: "0 file.txt\n"
+  stderr: ""
+  exit_code: 0

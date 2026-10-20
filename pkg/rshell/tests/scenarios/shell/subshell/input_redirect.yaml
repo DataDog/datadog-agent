@@ -1,0 +1,16 @@
+description: Subshell construct accepts an input redirection from a file.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    (cat) < input.txt
+expect:
+  stdout: |+
+    line1
+    line2
+    line3
+  stderr: ""
+  exit_code: 0

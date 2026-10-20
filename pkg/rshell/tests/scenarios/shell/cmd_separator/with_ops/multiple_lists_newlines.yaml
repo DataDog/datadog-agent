@@ -1,0 +1,16 @@
+description: Multiple statements each with their own and-or operators separated by newlines.
+input:
+  script: |+
+    echo one && echo two
+    false || echo three
+    true && false || echo four
+    echo five
+expect:
+  stdout: |+
+    one
+    two
+    three
+    four
+    five
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: "sort -k with -b skips leading blanks before computing char offset."
+setup:
+  files:
+    - path: data.txt
+      content: " aa\n  ba\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1.2b data.txt
+expect:
+  stdout: "  ba\n aa\n"
+  stderr: ""
+  exit_code: 0

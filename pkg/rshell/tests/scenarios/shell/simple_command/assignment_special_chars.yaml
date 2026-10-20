@@ -1,0 +1,18 @@
+description: Assignment values can contain special characters when quoted.
+input:
+  script: |+
+    a="hello world"
+    b='tab	here'
+    c="line
+    break"
+    echo "$a"
+    echo "$b"
+    printf "%s\n" "$c"
+expect:
+  stdout: |+
+    hello world
+    tab	here
+    line
+    break
+  stderr: ""
+  exit_code: 0

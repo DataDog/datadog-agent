@@ -1,0 +1,11 @@
+description: rm in remediation mode with no AllowedPaths configured blames the missing writable root, not the mode.
+input:
+  mode: "remediation"
+  script: |+
+    rm f.txt
+expect:
+  stdout: |+
+  stderr: |+
+    rm: no writable path is configured (remediation mode requires an AllowedPaths entry with :rw)
+  exit_code: 1
+skip_assert_against_bash: true

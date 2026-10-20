@@ -1,0 +1,13 @@
+description: cat -ns numbers lines while squeezing consecutive blank lines.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\n\n\n\nline2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -ns input.txt
+expect:
+  stdout: "     1\tline1\n     2\t\n     3\tline2\n"
+  stderr: ""
+  exit_code: 0

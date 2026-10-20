@@ -1,0 +1,9 @@
+description: The word "do" can be used as a for loop item.
+input:
+  script: |+
+    for i in do; do echo $i; done
+expect:
+  stdout: |+
+    do
+  stderr: ""
+  exit_code: 0

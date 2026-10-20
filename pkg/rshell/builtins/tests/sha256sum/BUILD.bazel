@@ -1,0 +1,24 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "sha256sum_test",
+    srcs = [
+        "helpers_test.go",
+        "sha256sum_fuzz_test.go",
+        "sha256sum_pentest_linux_test.go",
+        "sha256sum_pentest_test.go",
+        "sha256sum_pentest_unix_test.go",
+    ],
+    deps = [
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

@@ -1,0 +1,16 @@
+description: The $? variable captures exit codes greater than 1.
+input:
+  script: |+
+    true | exit 2
+    echo $?
+    true | exit 42
+    echo $?
+    true | exit 255
+    echo $?
+expect:
+  stdout: |+
+    2
+    42
+    255
+  stderr: ""
+  exit_code: 0

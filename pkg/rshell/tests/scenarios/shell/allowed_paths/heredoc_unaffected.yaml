@@ -1,0 +1,12 @@
+description: "Heredocs work regardless of AllowedPaths since they do not access the filesystem"
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+input:
+  script: |
+    cat <<EOF
+    hello from heredoc
+    EOF
+  allowed_paths: []
+expect:
+  stdout: "hello from heredoc\n"
+  exit_code: 0

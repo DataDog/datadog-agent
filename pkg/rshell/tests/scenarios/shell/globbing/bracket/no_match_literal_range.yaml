@@ -1,0 +1,14 @@
+description: Bracket expression that matches no files is treated as a literal string.
+setup:
+  files:
+    - path: x.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo [abc].log
+expect:
+  stdout: |+
+    [abc].log
+  stderr: ""
+  exit_code: 0

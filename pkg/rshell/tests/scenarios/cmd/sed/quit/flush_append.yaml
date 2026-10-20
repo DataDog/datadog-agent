@@ -1,0 +1,13 @@
+description: The q command flushes pending append text before quitting.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -e 'a\appended' -e 'q' input.txt
+expect:
+  stdout: "a\nappended\n"
+  stderr: ""
+  exit_code: 0

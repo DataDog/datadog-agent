@@ -1,0 +1,10 @@
+description: '`head -c bad -n nope` reports the FIRST invalid mode flag in argv order. Even though linesFlag is checked first in the handler, the modeFlag.invalidPos tracking lets `reportLinesInvalidFirst` pick whichever flag failed earlier (bytesFlag here). Matches GNU''s left-to-right option processing.'
+input:
+  script: |+
+    head -c bad -n nope; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    head: invalid number of bytes: 'bad'
+  exit_code: 0

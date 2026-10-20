@@ -1,0 +1,18 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate works through find -exec child command dispatch.
+setup:
+  files:
+    - path: app.log
+      content: "log data\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    find . -name "*.log" -exec logrotate --force {} \;
+    wc -c < app.log
+expect:
+  stdout: |+
+    0
+  stderr: |+
+  exit_code: 0

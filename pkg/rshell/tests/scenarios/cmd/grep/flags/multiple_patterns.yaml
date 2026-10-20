@@ -1,0 +1,19 @@
+description: grep -e allows multiple patterns.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+        baz
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -e foo -e baz file.txt
+expect:
+  stdout: |+
+    foo
+    baz
+  stderr: ""
+  exit_code: 0

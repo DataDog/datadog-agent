@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/rshell/interp"
-	"github.com/DataDog/rshell/privilegedhelper"
+	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 	"google.golang.org/protobuf/proto"
 )
 

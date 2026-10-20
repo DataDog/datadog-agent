@@ -1,0 +1,14 @@
+description: empty parentheses are rejected with an error.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir "(" ")"
+expect:
+  stdout: ""
+  stderr_contains: ["empty parentheses are not allowed"]
+  exit_code: 1

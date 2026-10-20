@@ -1,0 +1,11 @@
+description: "Env option with PATH-like value containing colons"
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+input:
+  interpreter_env:
+    MY_PATH: "/usr/bin:/usr/local/bin:/bin"
+  script: |
+    echo "$MY_PATH"
+expect:
+  stdout: "/usr/bin:/usr/local/bin:/bin\n"
+  exit_code: 0

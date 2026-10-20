@@ -1,0 +1,11 @@
+description: Echo -e with out-of-range Unicode \UFFFFFFFF silently drops the codepoint (intentional divergence from bash).
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo -e '\UFFFFFFFF'
+expect:
+  stdout: |+
+
+  stderr: ""
+  exit_code: 0

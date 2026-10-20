@@ -1,0 +1,11 @@
+description: Hash after redirection operator is part of filename, not a comment.
+input:
+  script: |+
+    echo foo # everything after space-hash is comment
+    echo bar
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command after a successful echo still fails.
+input:
+  script: |+
+    echo hello
+    foo
+expect:
+  stdout: |+
+    hello
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 127

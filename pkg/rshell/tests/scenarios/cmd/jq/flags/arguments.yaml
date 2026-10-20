@@ -1,0 +1,9 @@
+description: jq binds string and JSON values with --arg and --argjson.
+input:
+  script: |+
+    jq -nrc --arg name Ada --argjson count 2 '{name:$name,count:$count,next:($count+1)}'
+expect:
+  stdout: |+
+    {"name":"Ada","count":2,"next":3}
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: Shell reserved words used as for loop item values are treated as plain strings.
+input:
+  script: |+
+    for w in for do done in; do echo "$w"; done
+expect:
+  stdout: |+
+    for
+    do
+    done
+    in
+  stderr: ""
+  exit_code: 0

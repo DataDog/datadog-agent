@@ -1,0 +1,20 @@
+description: ls -d --limit lists directories themselves without entering them.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: sub/f01
+      content: ""
+      chmod: 0644
+    - path: sub/f02
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -d --limit 1 sub
+expect:
+  stdout: |+
+    sub
+  stderr: ""
+  exit_code: 0

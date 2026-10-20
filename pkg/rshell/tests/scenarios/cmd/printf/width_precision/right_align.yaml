@@ -1,0 +1,8 @@
+description: Printf right-aligns a string within a specified width.
+input:
+  script: |+
+    printf "%10s\n" hi
+expect:
+  stdout: "        hi\n"
+  stderr: ""
+  exit_code: 0

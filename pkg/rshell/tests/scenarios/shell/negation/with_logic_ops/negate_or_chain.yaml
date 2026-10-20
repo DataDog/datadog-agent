@@ -1,0 +1,8 @@
+description: Negation applies only to the pipeline, so (! false) succeeds and || skips the fallback.
+input:
+  script: |+
+    ! false || echo fallback
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

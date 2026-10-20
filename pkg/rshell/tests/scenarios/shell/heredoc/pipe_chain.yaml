@@ -1,0 +1,11 @@
+description: Heredoc piped through a multi-stage pipeline.
+input:
+  script: |+
+    cat <<EOF | cat | cat
+    chained
+    EOF
+expect:
+  stdout: |+
+    chained
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: -H flag is rejected as unsupported.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -H dir
+expect:
+  stdout: ""
+  stderr_contains: ["-H is not supported"]
+  exit_code: 1

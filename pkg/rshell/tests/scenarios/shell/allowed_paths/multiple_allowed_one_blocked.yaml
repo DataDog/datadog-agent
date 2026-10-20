@@ -1,0 +1,21 @@
+description: "Multiple allowed directories still block access outside them"
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: "data/info.txt"
+      content: "data content\n"
+    - path: "config/settings.txt"
+      content: "config content\n"
+    - path: "secret/hidden.txt"
+      content: "secret\n"
+input:
+  script: |
+    cat secret/hidden.txt
+  allowed_paths:
+    - "data"
+    - "config"
+expect:
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

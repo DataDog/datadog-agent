@@ -1,0 +1,13 @@
+description: wc -m counts characters (bytes for ASCII).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -m file.txt
+expect:
+  stdout: "6 file.txt\n"
+  stderr: ""
+  exit_code: 0

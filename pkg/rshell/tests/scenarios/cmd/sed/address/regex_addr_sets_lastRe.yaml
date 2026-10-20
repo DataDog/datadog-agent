@@ -1,0 +1,13 @@
+description: "Regex address updates lastRe even when it does not match."
+setup:
+  files:
+    - path: input.txt
+      content: "baz\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n -e '/foo/ p' -e 's//REPLACED/p' input.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

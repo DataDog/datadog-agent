@@ -1,0 +1,11 @@
+description: ss --help prints usage information and exits with code 0.
+# skip: rshell builtin help output differs from the real ss(8) utility
+skip_assert_against_bash: true
+input:
+  script: |+
+    ss --help
+expect:
+  stdout_contains:
+    - "Usage: ss"
+  stderr: ""
+  exit_code: 0

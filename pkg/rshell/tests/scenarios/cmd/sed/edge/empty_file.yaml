@@ -1,0 +1,13 @@
+description: Sed handles an empty input file without error.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/a/b/' empty.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

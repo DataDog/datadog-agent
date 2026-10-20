@@ -1,0 +1,13 @@
+description: Multiple commands targeting the same address are applied in sequence.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nbbb\nccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2s/bbb/BBB/; 2s/BBB/xxx/' input.txt
+expect:
+  stdout: "aaa\nxxx\nccc\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,25 @@
+description: Break 3 in triple nested for loops breaks all three.
+input:
+  script: |+
+    for i in 1 2 3; do
+      echo in $i
+      for j in a b c; do
+        echo in $i $j
+        for k in + -; do
+          echo in $i $j $k
+          break 3
+          echo out $i $j $k
+        done
+        echo out $i $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a
+    in 1 a +
+    done 0
+  stderr: ""
+  exit_code: 0

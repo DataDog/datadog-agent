@@ -1,0 +1,14 @@
+description: head preserves a file's missing trailing newline exactly.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: file.txt
+      content: "no newline at end"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 1 file.txt
+expect:
+  stdout: "no newline at end"
+  stderr: ""
+  exit_code: 0

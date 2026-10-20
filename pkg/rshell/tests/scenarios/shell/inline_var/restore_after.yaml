@@ -1,0 +1,12 @@
+description: Inline variable assignment restores the previous value after the command completes.
+input:
+  script: |+
+    VAR=original
+    VAR=temporary echo anything
+    echo $VAR
+expect:
+  stdout: |+
+    anything
+    original
+  stderr: ""
+  exit_code: 0

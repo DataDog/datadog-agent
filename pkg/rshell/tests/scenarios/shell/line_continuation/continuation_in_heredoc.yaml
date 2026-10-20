@@ -1,0 +1,11 @@
+description: Unquoted heredoc processes line continuation (backslash-newline consumed).
+input:
+  script: |+
+    cat <<EOF
+    hello \
+    world
+    EOF
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

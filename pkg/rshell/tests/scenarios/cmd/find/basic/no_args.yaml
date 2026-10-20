@@ -1,0 +1,20 @@
+description: find with no args searches current directory.
+setup:
+  files:
+    - path: a.txt
+      content: "hello"
+      chmod: 0644
+    - path: b.txt
+      content: "world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find
+expect:
+  stdout_unordered: |+
+    .
+    ./a.txt
+    ./b.txt
+  stderr: ""
+  exit_code: 0

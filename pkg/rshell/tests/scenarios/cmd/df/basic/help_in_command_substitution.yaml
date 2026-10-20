@@ -1,0 +1,11 @@
+description: "$(df --help) captures the help text. Verifies that df --help works as the inner command of a command substitution and that 'Usage: df' survives the round-trip through the shell's stdout buffer (1 MiB cap)."
+skip_assert_against_bash: true
+input:
+  script: |+
+    out=$(df --help)
+    echo "$out" | head -n 1
+expect:
+  stdout: |+
+    Usage: df [OPTION]...
+  stderr: ""
+  exit_code: 0

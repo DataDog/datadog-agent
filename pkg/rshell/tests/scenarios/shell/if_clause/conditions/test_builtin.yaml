@@ -1,0 +1,9 @@
+description: If condition using test builtin with string equality.
+input:
+  script: |+
+    if [ "hello" = "hello" ]; then echo match; else echo nomatch; fi
+expect:
+  stdout: |+
+    match
+  stderr: ""
+  exit_code: 0

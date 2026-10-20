@@ -1,0 +1,12 @@
+description: Quoted heredoc delimiter prevents all expansions.
+input:
+  script: |+
+    foo=bar
+    cat <<'END'
+    parameter ${foo}
+    END
+expect:
+  stdout: |+
+    parameter ${foo}
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: Inline assignment value can reference existing variables.
+input:
+  script: |+
+    A=hello
+    B=$A echo test
+    echo "[$B]"
+expect:
+  stdout: |+
+    test
+    []
+  stderr: ""
+  exit_code: 0

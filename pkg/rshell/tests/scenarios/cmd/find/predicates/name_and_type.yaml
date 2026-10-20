@@ -1,0 +1,22 @@
+description: find -name combined with -type (implicit AND).
+setup:
+  files:
+    - path: src/main.go
+      content: "package main"
+      chmod: 0644
+    - path: src/util.go
+      content: "package util"
+      chmod: 0644
+    - path: src/readme.md
+      content: "# Readme"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find src -name '*.go' -type f
+expect:
+  stdout_unordered: |+
+    src/main.go
+    src/util.go
+  stderr: ""
+  exit_code: 0

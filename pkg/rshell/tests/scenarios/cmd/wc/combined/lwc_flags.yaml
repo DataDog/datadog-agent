@@ -1,0 +1,13 @@
+description: wc -lwc shows lines, words, and bytes (same as default).
+setup:
+  files:
+    - path: file.txt
+      content: "hello world\nfoo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -lwc file.txt
+expect:
+  stdout: " 2  3 16 file.txt\n"
+  stderr: ""
+  exit_code: 0

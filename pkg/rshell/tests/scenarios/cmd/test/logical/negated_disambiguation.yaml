@@ -1,0 +1,26 @@
+# POSIX 3-arg disambiguation inside negated subexpressions.
+# After ! consumes one arg, the remaining 3 tokens should apply
+# the 3-arg rule for binary operators, -a/-o, and ( as literal.
+description: "test POSIX 3-arg disambiguation inside ! negation"
+input:
+  script: |+
+    # ! negates inner 3-arg binary "!" = "!" → !(true) → exit 1
+    test ! '!' = '!'
+    echo "negate-bang-eq: $?"
+    # ! negates inner 3-arg binary "!" = "x" → !(false) → exit 0
+    test ! '!' = x
+    echo "negate-bang-neq: $?"
+    # ! negates inner 3-arg binary "(" = "(" → !(true) → exit 1
+    test ! '(' = '('
+    echo "negate-paren-eq: $?"
+    # ! negates inner 3-arg form "-f -a -d": -f AND -d as strings → !(true) → exit 1
+    test ! -f -a -d
+    echo "negate-a-binary: $?"
+expect:
+  stdout: |
+    negate-bang-eq: 1
+    negate-bang-neq: 0
+    negate-paren-eq: 1
+    negate-a-binary: 1
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+# skip: special variable is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: The $! variable is blocked.
+input:
+  script: |+
+    echo "[$!]"
+expect:
+  stdout: ""
+  stderr: |+
+    $! is not supported
+  exit_code: 2

@@ -1,0 +1,19 @@
+description: A flag-shaped token appearing after the DIRECTORY operand is treated as a second operand and rejected — bash 5.2 does the same.
+# bash exit code is 1; ours is 1 — both reject "too many arguments". Format:
+#   bash:    "bash: line N: cd: too many arguments"
+#   ours:    "cd: too many arguments"
+# bash treats `cd /tmp -P` as a "too many arguments" error; pflag's default
+# interspersed parsing would silently consume the trailing -P. Verifying with
+# bash 5.2 (debian:bookworm-slim): exit 1, "too many arguments" on stderr.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child -P
+expect:
+  stdout: ""
+  stderr_contains: ["cd:", "too many arguments"]
+  exit_code: 1

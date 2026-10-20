@@ -1,0 +1,14 @@
+# skip: function declarations and readonly enforcement are intentionally rshell-specific here
+skip_assert_against_bash: true
+description: A blocked function body cannot mutate a readonly variable.
+input:
+  script: |+
+    readonly RO=safe
+    mutate() { RO=pwned; echo body; }
+    mutate
+    echo "$RO"
+expect:
+  stdout: ""
+  stderr: |+
+    readonly is not supported
+  exit_code: 2

@@ -1,0 +1,10 @@
+description: Line continuation in the middle of the echo command name itself.
+input:
+  script: |+
+    ec\
+    ho hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

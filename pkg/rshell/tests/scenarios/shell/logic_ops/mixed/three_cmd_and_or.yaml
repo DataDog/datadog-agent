@@ -1,0 +1,11 @@
+description: Three-command mixed and-or list.
+input:
+  script: |+
+    false && echo foo || echo bar
+    true || echo foo && echo bar
+expect:
+  stdout: |+
+    bar
+    bar
+  stderr: ""
+  exit_code: 0

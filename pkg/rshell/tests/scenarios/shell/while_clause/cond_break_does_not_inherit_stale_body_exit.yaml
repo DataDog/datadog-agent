@@ -1,0 +1,14 @@
+description: When a previous body iteration's last command was non-zero and a later condition triggers `break`, the loop's exit status is the break's (0), not the stale body status. Matches bash 5.2.
+input:
+  script: |+
+    i=
+    while [ "$i" != a ] || break; do
+      i=a
+      false
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

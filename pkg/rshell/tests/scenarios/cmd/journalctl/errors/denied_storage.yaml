@@ -1,0 +1,11 @@
+# Scenario runners do not grant systemd capabilities by default.
+skip_assert_against_bash: true
+description: journalctl disk usage enforces the journald service allowlist
+input:
+  script: |+
+    journalctl --disk-usage
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: system service "systemd-journald.service" is not allowed for action "read"
+  exit_code: 1

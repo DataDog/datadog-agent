@@ -1,0 +1,8 @@
+description: The && operator preserves the failing left exit code.
+input:
+  script: |+
+    exit 42 && echo skipped
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 42

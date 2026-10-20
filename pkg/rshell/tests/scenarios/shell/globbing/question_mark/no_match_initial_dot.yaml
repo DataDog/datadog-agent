@@ -1,0 +1,18 @@
+description: Question mark matches files in subdirectory.
+setup:
+  files:
+    - path: d/ax
+      content: ""
+    - path: d/bx
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo d/?x
+expect:
+  stdout: |+
+    d/ax d/bx
+  stdout_windows: |+
+    d\ax d\bx
+  stderr: ""
+  exit_code: 0

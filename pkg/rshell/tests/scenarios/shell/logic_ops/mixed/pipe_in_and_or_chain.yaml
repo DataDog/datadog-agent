@@ -1,0 +1,12 @@
+description: Pipelines used within and-or chains propagate exit status correctly.
+input:
+  script: |+
+    echo hello | cat && echo ok
+    echo hello | false || echo recovered
+expect:
+  stdout: |+
+    hello
+    ok
+    recovered
+  stderr: ""
+  exit_code: 0

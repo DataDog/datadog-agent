@@ -1,0 +1,14 @@
+description: The $? variable can be used in an if condition with the test command.
+input:
+  script: |+
+    false
+    if [ $? -eq 1 ]; then
+      echo yes
+    else
+      echo no
+    fi
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,18 @@
+description: awk -f dash reads the program from standard input.
+setup:
+  files:
+    - path: prog.awk
+      content: |+
+        { print $1 + 1 }
+    - path: input.txt
+      content: |+
+        123abc
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -f - input.txt < prog.awk
+expect:
+  stdout: |+
+    124
+  stderr: |+
+  exit_code: 0

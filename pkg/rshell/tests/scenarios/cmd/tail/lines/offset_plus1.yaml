@@ -1,0 +1,13 @@
+description: tail -n +1 outputs all lines (starting from line 1 = no skip).
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n +1 file.txt
+expect:
+  stdout: "alpha\nbeta\ngamma\n"
+  stderr: ""
+  exit_code: 0

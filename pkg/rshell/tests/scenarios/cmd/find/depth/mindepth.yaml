@@ -1,0 +1,18 @@
+description: find -mindepth skips shallow entries.
+setup:
+  files:
+    - path: a/b/deep.txt
+      content: "deep"
+      chmod: 0644
+    - path: a/top.txt
+      content: "top"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -mindepth 2
+expect:
+  stdout: |+
+    a/b/deep.txt
+  stderr: ""
+  exit_code: 0

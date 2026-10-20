@@ -1,0 +1,14 @@
+description: grep on a binary file where a matching line appears before the NUL byte line produces no stdout output and emits the "binary file matches" message to stderr.
+setup:
+  files:
+    - path: file.txt
+      content: "match_here\nnul_line\x00here\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep match file.txt
+expect:
+  stdout: ""
+  stderr: "grep: file.txt: binary file matches\n"
+  exit_code: 0

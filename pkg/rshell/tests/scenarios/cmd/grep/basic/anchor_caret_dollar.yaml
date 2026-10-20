@@ -1,0 +1,18 @@
+description: grep matches with ^ and $ anchors correctly.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foobar
+        barfoo
+        foo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep '^foo$' file.txt
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

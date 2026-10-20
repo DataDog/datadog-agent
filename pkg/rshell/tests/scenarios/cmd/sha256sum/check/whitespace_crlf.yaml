@@ -1,0 +1,16 @@
+description: sha256sum --check accepts GNU horizontal whitespace and CRLF manifests.
+setup:
+  files:
+    - path: config
+      content: "abc"
+    - path: checksums
+      content: " \tba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\tconfig\r\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sha256sum --check checksums
+expect:
+  stdout: |+
+    config: OK
+  stderr: |+
+  exit_code: 0

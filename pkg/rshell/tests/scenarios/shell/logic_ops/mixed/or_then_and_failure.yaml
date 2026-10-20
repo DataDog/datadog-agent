@@ -1,0 +1,10 @@
+description: Failed || fallback result feeds into &&.
+input:
+  script: |+
+    false || echo recovered && echo continued
+expect:
+  stdout: |+
+    recovered
+    continued
+  stderr: ""
+  exit_code: 0

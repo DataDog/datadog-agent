@@ -1,0 +1,22 @@
+# Security test: rm invoked as xargs's target command must stay gated behind
+# remediation mode. xargs dispatches sub-commands through the same
+# CallContext.RunCommand path as top-level dispatch (see xargs.go), so this
+# proves the gate is not bypassable by routing rm through xargs.
+description: rm invoked via xargs without remediation mode fails with "capability not available" and leaves the file untouched.
+setup:
+  files:
+    - path: f.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf 'f.txt\n' | xargs rm
+    code=$?
+    cat f.txt
+    exit $code
+expect:
+  stdout: "data"
+  stderr: |+
+    rm: filesystem capability not available (remediation mode required)
+  exit_code: 123
+skip_assert_against_bash: true

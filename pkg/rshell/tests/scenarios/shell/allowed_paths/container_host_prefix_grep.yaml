@@ -1,0 +1,22 @@
+description: grep works through container symlinks with host-absolute targets
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/var/log/pods/app/0.log
+      content: |
+        INFO starting up
+        ERROR something broke
+        INFO recovered
+    - path: host/var/log/containers/app.log
+      symlink: /var/log/pods/app/0.log
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    grep ERROR host/var/log/containers/app.log
+expect:
+  stdout: |+
+    ERROR something broke
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,16 @@
+# skip: rshell intentionally bounds printf width and precision.
+skip_assert_against_bash: true
+description: awk printf and sprintf support bounded dynamic width and precision.
+input:
+  script: |+
+    awk 'BEGIN { printf "[%*s][%.*s][%*.*f]\n", 5.9, "x", 3.9, "abcdef", 8.9, 2.9, 1.25; print sprintf("[%*s][%.*s][%*.*f]", -5.9, "x", -3.9, "abcdef", -10.9, -2.9, 1.25) }'
+    awk 'BEGIN { printf "%*s", 1e999, "" }'
+    awk 'BEGIN { printf "%.*s", 1048577, "" }'
+expect:
+  stdout: |+
+    [    x][abc][    1.25]
+    [x    ][abcdef][1.250000  ]
+  stderr: |+
+    awk: printf width exceeds 1048576
+    awk: printf precision exceeds 1048576
+  exit_code: 1

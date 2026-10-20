@@ -1,0 +1,10 @@
+description: xargs -n / -L / -I are mutually exclusive; the last one specified wins. The earlier flag is ignored and a GNU-style "options X and Y are mutually exclusive" warning is emitted to stderr (matches GNU bash behavior byte-for-byte).
+input:
+  script: |+
+    printf 'a\nb\nc\n' | xargs -L1 -n3 echo
+expect:
+  stdout: |+
+    a b c
+  stderr: |+
+    xargs: warning: options --max-lines and --max-args/-n are mutually exclusive, ignoring previous --max-lines value
+  exit_code: 0

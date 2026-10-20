@@ -1,0 +1,9 @@
+description: Exit --help displays usage information without exiting the shell.
+input:
+  script: |+
+    exit --help
+    echo "still running"
+expect:
+  stdout: "exit: exit [n]\n    Exit the shell.\n    \n    Exits the shell with a status of N.  If N is omitted, the exit status\n    is that of the last command executed.\nstill running\n"
+  stderr: ""
+  exit_code: 0

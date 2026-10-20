@@ -1,0 +1,13 @@
+description: tail -c +N outputs from byte N to end of file.
+setup:
+  files:
+    - path: input.txt
+      content: "abcdef\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c +4 input.txt
+expect:
+  stdout: "def\n"
+  stderr: ""
+  exit_code: 0

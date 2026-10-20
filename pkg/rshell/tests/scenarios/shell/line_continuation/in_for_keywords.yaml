@@ -1,0 +1,17 @@
+description: Line continuation works across for loop keywords.
+input:
+  script: |+
+    f\
+    or i in 1 2
+    d\
+    o echo $i
+    d\
+    o\
+    n\
+    e
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: until loop with break exits before the next iteration.
+input:
+  script: |+
+    until false; do
+      break
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: awk treats flag-like operands after the program as file names.
+setup:
+  files:
+    - path: "-F,"
+      content: |+
+        a,b c
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ print $1 }' -F,
+expect:
+  stdout: |+
+    a,b
+  stderr: |+
+  exit_code: 0

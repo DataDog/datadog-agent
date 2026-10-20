@@ -1,0 +1,13 @@
+description: Basic sed substitution replaces first occurrence on each line.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/hello/goodbye/' input.txt
+expect:
+  stdout: "goodbye world hello\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,26 @@
+description: |+
+  For `read -t 0`, bash performs only a readiness probe and does NOT
+  validate or assign NAME arguments — even an invalid identifier in
+  the leading position is accepted (poll runs, no error, no
+  consumption). Scripts that pass `-t 0` with a dynamically supplied
+  placeholder name rely on this. Verified empirically against bash
+  5.2.0: `read -t 0 1bad < file` returns rc=0 with no error.
+setup:
+  files:
+    - path: data.txt
+      content: |
+        a
+        b
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read -t 0 1bad < data.txt
+    echo "rc=$?"
+    read rest < data.txt
+    echo "rest=[$rest]"
+expect:
+  stdout: |+
+    rc=0
+    rest=[a]
+  stderr: ""
+  exit_code: 0

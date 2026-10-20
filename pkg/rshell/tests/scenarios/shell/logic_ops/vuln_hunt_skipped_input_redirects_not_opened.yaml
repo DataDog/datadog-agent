@@ -1,0 +1,18 @@
+description: Input redirects in short-circuited branches are not opened.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    false && cat < secret/data.txt
+    true || cat < secret/data.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

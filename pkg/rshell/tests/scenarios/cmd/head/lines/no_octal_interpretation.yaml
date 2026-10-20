@@ -1,0 +1,13 @@
+description: head -n 08 and -n 010 are interpreted as decimal 8 and 10, not octal.
+setup:
+  files:
+    - path: file.txt
+      content: "line01\nline02\nline03\nline04\nline05\nline06\nline07\nline08\nline09\nline10\nline11\nline12\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 08 file.txt
+expect:
+  stdout: "line01\nline02\nline03\nline04\nline05\nline06\nline07\nline08\n"
+  stderr: ""
+  exit_code: 0

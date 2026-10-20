@@ -1,0 +1,23 @@
+# h/H/g/G/x move content between the pattern space and the hold space, and
+# the destination's newline-termination state must move with that content.
+# Verified against real GNU sed 4.9: on a file whose last line has no
+# trailing newline, `sed -i '1h;2g' file` still produces a properly
+# newline-terminated final line, because line 2's pattern space is
+# entirely replaced by line 1's (terminated) content via g.
+description: sed -i's g command carries the hold space's own newline-termination state into the pattern space.
+setup:
+  files:
+    - path: file.txt
+      content: "a\nb"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i '1h;2g' file.txt
+    printf '%s' "$(cat file.txt)"; echo "|END"
+expect:
+  stdout: |+
+    a
+    a|END
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Redirect stdout to /dev/null with space after >.
+input:
+  script: |+
+    echo hello > /dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

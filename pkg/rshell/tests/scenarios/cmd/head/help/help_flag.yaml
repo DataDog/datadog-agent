@@ -1,0 +1,10 @@
+description: head --help prints usage to stdout and exits 0.
+# skip: rshell builtin help output differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    head --help
+expect:
+  stdout_contains: ["Usage: head"]
+  stderr: ""
+  exit_code: 0

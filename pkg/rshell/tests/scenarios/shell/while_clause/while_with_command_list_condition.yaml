@@ -1,0 +1,13 @@
+description: while loop with a multi-statement condition uses only the trailing exit status to decide entry.
+input:
+  script: |+
+    i=
+    while i="${i}a"; [ "$i" != aaa ]; do
+      echo "$i"
+    done
+expect:
+  stdout: |+
+    a
+    aa
+  stderr: |+
+  exit_code: 0

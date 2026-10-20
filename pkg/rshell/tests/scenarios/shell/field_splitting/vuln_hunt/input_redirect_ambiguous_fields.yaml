@@ -1,0 +1,22 @@
+description: Input redirects reject variables that expand to multiple fields.
+setup:
+  files:
+    - path: allowed/one.txt
+      content: |+
+        one
+    - path: allowed/two.txt
+      content: |+
+        two
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    TARGET='allowed/one.txt allowed/two.txt'
+    cat 2>/dev/null < $TARGET
+    echo $?
+    echo after
+expect:
+  stdout: |+
+    1
+    after
+  stderr: |+
+  exit_code: 0

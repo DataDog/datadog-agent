@@ -1,0 +1,11 @@
+description: Backslash-backslash inside double quotes produces a single literal backslash.
+input:
+  script: |+
+    echo "a\\b"
+    echo "a\\\\b"
+expect:
+  stdout: |+
+    a\b
+    a\\b
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: sort -u suppresses duplicate lines.
+setup:
+  files:
+    - path: file.txt
+      content: "b\na\nb\na\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -u file.txt
+expect:
+  stdout: "a\nb\nc\n"
+  stderr: ""
+  exit_code: 0

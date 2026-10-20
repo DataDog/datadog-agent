@@ -1,0 +1,14 @@
+description: du -k --apparent-size matches du --apparent-size since 1024-byte blocks are the default.
+setup:
+  files:
+    - path: f.txt
+      content: "0123456789"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -k --apparent-size f.txt
+expect:
+  stdout: |+
+    1	f.txt
+  stderr: |+
+  exit_code: 0

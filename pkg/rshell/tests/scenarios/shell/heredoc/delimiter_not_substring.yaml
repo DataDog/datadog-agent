@@ -1,0 +1,13 @@
+description: Content that starts with the delimiter text but continues is not treated as the closing delimiter.
+input:
+  script: |+
+    cat <<EOF
+    EOFMORE
+    content
+    EOF
+expect:
+  stdout: |+
+    EOFMORE
+    content
+  stderr: ""
+  exit_code: 0

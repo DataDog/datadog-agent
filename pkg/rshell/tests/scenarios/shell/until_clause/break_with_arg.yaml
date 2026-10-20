@@ -1,0 +1,14 @@
+description: break with an explicit argument of 1 exits the innermost until loop.
+input:
+  script: |+
+    until false; do
+      echo body
+      break 1
+    done
+    echo done
+expect:
+  stdout: |+
+    body
+    done
+  stderr: |+
+  exit_code: 0

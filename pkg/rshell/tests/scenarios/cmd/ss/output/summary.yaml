@@ -1,0 +1,16 @@
+description: ss -s prints a summary with Total, TCP, UDP, and Unix counts.
+# skip: output depends on live kernel socket state which differs between hosts.
+skip_assert_against_bash: true
+input:
+  # /proc/net is required on Linux; on macOS/Windows ss uses sysctl/iphlpapi.
+  allowed_paths: ["/proc/net"]
+  script: |+
+    ss -s
+expect:
+  stdout_contains:
+    - "Total:"
+    - "TCP:"
+    - "UDP:"
+    - "Unix:"
+  stderr: ""
+  exit_code: 0

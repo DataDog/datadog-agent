@@ -1,0 +1,21 @@
+description: grep prefixes output with filenames when multiple files are given.
+setup:
+  files:
+    - path: a.txt
+      content: |+
+        foo
+      chmod: 0644
+    - path: b.txt
+      content: |+
+        foo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep foo a.txt b.txt
+expect:
+  stdout: |+
+    a.txt:foo
+    b.txt:foo
+  stderr: ""
+  exit_code: 0

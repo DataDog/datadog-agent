@@ -1,0 +1,27 @@
+# Unlike the hold space, GNU sed's -s/--separate (which -i always implies)
+# does NOT reset the last-used regex (for an empty // address/pattern)
+# across files. Verified against real GNU sed 4.9:
+# `sed -s '/foo/ s//bar/' a.txt b.txt` (each file containing just "foo")
+# still reuses a.txt's last regex (/foo/) when b.txt's s//bar/ runs.
+description: sed -i preserves the last-used regex across files (matches GNU sed -s semantics).
+setup:
+  files:
+    - path: a.txt
+      content: |+
+        foo
+    - path: b.txt
+      content: |+
+        foo
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i '/foo/ s//bar/' a.txt b.txt
+    cat a.txt
+    cat b.txt
+expect:
+  stdout: |+
+    bar
+    bar
+  stderr: |+
+  exit_code: 0

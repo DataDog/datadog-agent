@@ -1,0 +1,13 @@
+description: Redirect stderr to /dev/null combined with pipe.
+setup:
+  files:
+    - path: data.txt
+      content: "hello world\nfoo bar\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat data.txt 2>/dev/null | grep hello
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

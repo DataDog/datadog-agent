@@ -1,0 +1,13 @@
+description: uniq preserves different adjacent lines.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq input.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

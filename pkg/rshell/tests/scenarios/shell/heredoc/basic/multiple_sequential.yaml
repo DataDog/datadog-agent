@@ -1,0 +1,15 @@
+description: Multiple sequential commands each with their own heredoc.
+input:
+  script: |+
+    cat <<END1; echo ---; cat <<END2
+    first
+    END1
+    second
+    END2
+expect:
+  stdout: |+
+    first
+    ---
+    second
+  stderr: ""
+  exit_code: 0

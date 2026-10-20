@@ -1,0 +1,9 @@
+description: Compact if-elif-else on a single line with semicolons.
+input:
+  script: |+
+    if false; then echo a; elif false; then echo b; elif true; then echo c; else echo d; fi
+expect:
+  stdout: |+
+    c
+  stderr: ""
+  exit_code: 0

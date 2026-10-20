@@ -1,0 +1,10 @@
+# Test unknown flag rejection
+description: uniq rejects unknown flags with exit code 1.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    uniq --definitely-invalid
+expect:
+  stderr_contains: ["unrecognized option"]
+  exit_code: 1

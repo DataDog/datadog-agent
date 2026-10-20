@@ -1,0 +1,9 @@
+description: Inline comment after a command is ignored.
+input:
+  script: |+
+    echo hello # this is a comment
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

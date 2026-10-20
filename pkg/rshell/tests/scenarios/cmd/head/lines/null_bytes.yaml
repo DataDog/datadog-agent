@@ -1,0 +1,13 @@
+description: head handles null bytes in file content without crashing.
+setup:
+  files:
+    - path: file.txt
+      content: "a\x00a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 1 file.txt
+expect:
+  stdout: "a\x00a\n"
+  stderr: ""
+  exit_code: 0

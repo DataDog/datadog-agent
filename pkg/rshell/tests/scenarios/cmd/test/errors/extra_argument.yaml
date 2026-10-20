@@ -1,0 +1,7 @@
+description: "test reports error for unconsumed extra arguments"
+input:
+  script: |+
+    test "a" "b" "c" "d" "e"
+expect:
+  stderr_contains: ["too many arguments"]
+  exit_code: 2

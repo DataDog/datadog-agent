@@ -1,0 +1,18 @@
+description: find -L detects symlink loops by file identity across different paths.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: dir/a/link_to_dir
+      symlink: ../../dir
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -maxdepth 10 -type f
+expect:
+  stdout: |+
+    dir/a/file.txt
+  stderr_contains: ["find: File system loop detected"]
+  exit_code: 1

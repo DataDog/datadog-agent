@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command with a variable-expanded argument still prints "unknown command".
+input:
+  script: |+
+    MY_VAR=hello
+    foo $MY_VAR
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 127

@@ -1,0 +1,14 @@
+description: du -b prints bytes exactly.
+setup:
+  files:
+    - path: data.bin
+      content: "0123456789"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -b data.bin
+expect:
+  stdout: |+
+    10	data.bin
+  stderr: |+
+  exit_code: 0

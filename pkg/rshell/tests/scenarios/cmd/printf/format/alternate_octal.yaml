@@ -1,0 +1,8 @@
+description: printf %#o outputs octal with 0 prefix.
+input:
+  script: |+
+    printf "%#o\n" 8
+expect:
+  stdout: "010\n"
+  stderr: ""
+  exit_code: 0

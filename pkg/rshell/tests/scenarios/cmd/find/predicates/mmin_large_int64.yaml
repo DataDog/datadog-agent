@@ -1,0 +1,27 @@
+description: -mmin with values exceeding int32 but valid int64 behaves correctly.
+skip_assert_against_bash: true # bash comparison tests cannot set mod_time
+setup:
+  files:
+    - path: dir/old.txt
+      content: "ancient"
+      mod_time: "1800-01-01T00:00:00Z"
+    - path: dir/new.txt
+      content: "fresh"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    # 100000000 minutes (~190 years) exceeds int32 max (2147483647) in
+    # nanosecond representation. old.txt (year 1800) is >200 years old,
+    # so it should match +100000000. new.txt was just created, so it
+    # should not match.
+    find dir -mmin +100000000 -type f
+
+    # -100000000: new.txt is newer than 190 years, so it matches.
+    # old.txt is older, so it does not match.
+    find dir -mmin -100000000 -type f
+expect:
+  stdout_unordered: |+
+    dir/old.txt
+    dir/new.txt
+  stderr: ""
+  exit_code: 0

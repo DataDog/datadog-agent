@@ -1,0 +1,16 @@
+description: cd -P -L picks -L (last flag wins).
+setup:
+  files:
+    - path: a/b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a/b
+    cd -P -L ..
+    pwd
+expect:
+  stdout_contains: ["/a"]
+  stdout_contains_windows: ["\\a"]
+  stderr: ""
+  exit_code: 0

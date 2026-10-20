@@ -1,0 +1,14 @@
+description: In remediation mode, 2>> appends stderr to a file within AllowedPaths.
+input:
+  script: |+
+    echo first 2>>err.txt >&2
+    echo second 2>>err.txt >&2
+    cat err.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    first
+    second
+  stderr: |+
+  exit_code: 0

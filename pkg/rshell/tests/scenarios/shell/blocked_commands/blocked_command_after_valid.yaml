@@ -1,0 +1,12 @@
+# skip: eval/select are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Blocked command after valid command still produces error.
+input:
+  script: |+
+    echo before
+    select x in a b; do echo "$x"; done
+expect:
+  stdout: ""
+  stderr: |+
+    select statements are not supported
+  exit_code: 2

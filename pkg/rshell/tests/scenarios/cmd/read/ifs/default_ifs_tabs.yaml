@@ -1,0 +1,9 @@
+description: Default IFS splits on space, tab, and newline.
+input:
+  script: |+
+    printf 'a\tb c\n' | { read X Y Z; echo "[$X][$Y][$Z]"; }
+expect:
+  stdout: |+
+    [a][b][c]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: awk supports paragraph records and their newline field semantics.
+input:
+  script: |+
+    printf '\n\nalpha one\nbeta two\n\n\n\ngamma three\n\n\n' | awk 'BEGIN { RS="" } { text=$0; gsub(/\n/, "|", text); print NR, NF, "[" text "]", $1, $NF }'
+    printf '\nA:B\nC:D\n\n' | awk 'BEGIN { RS=""; FS=":" } { print NF, $1, $2, $3, $4 }'
+    awk 'BEGIN { RS=""; FS=":"; n=split("a\nb:c", a); gsub(/\n/, "|", a[1]); print n, a[1], a[2] }'
+expect:
+  stdout: |+
+    1 4 [alpha one|beta two] alpha two
+    2 2 [gamma three] gamma three
+    4 A B C D
+    2 a|b c
+  stderr: |+
+  exit_code: 0

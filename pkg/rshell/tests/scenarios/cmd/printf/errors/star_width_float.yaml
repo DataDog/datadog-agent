@@ -1,0 +1,8 @@
+description: Float argument for star width uses numeric prefix (bash compat).
+input:
+  script: |+
+    printf "%*s\n" 3.14 hello
+expect:
+  stdout: "hello\n"
+  stderr_contains: ["printf:"]
+  exit_code: 1

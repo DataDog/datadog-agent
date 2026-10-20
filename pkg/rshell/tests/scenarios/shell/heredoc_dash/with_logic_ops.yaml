@@ -1,0 +1,9 @@
+description: Heredoc-dash combined with && runs the next command on success.
+input:
+  script: "cat <<-EOF && echo ok\n\thello\nEOF\n"
+expect:
+  stdout: |+
+    hello
+    ok
+  stderr: ""
+  exit_code: 0

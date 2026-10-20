@@ -1,0 +1,10 @@
+description: jq raw mode defaults an omitted filter to identity.
+input:
+  script: |+
+    printf 'one\ntwo\n' | jq -Rr
+expect:
+  stdout: |+
+    one
+    two
+  stderr: |+
+  exit_code: 0

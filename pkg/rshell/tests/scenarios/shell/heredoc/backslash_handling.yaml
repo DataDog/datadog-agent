@@ -1,0 +1,15 @@
+description: Backslash handling in unquoted heredoc content.
+input:
+  script: |+
+    cat <<END
+    \a
+    \$foo
+    \\
+    END
+expect:
+  stdout: |+
+    \a
+    $foo
+    \
+  stderr: ""
+  exit_code: 0

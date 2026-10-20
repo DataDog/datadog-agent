@@ -1,0 +1,8 @@
+description: printf %#x outputs hexadecimal with 0x prefix.
+input:
+  script: |+
+    printf "%#x\n" 255
+expect:
+  stdout: "0xff\n"
+  stderr: ""
+  exit_code: 0

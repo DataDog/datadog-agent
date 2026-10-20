@@ -1,0 +1,17 @@
+description: Script with only comments produces no output.
+input:
+  script: |+
+    #
+
+    # foo
+
+    #	bar
+     #
+    	#
+
+    ##foo
+    ###
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

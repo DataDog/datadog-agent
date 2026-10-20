@@ -1,0 +1,19 @@
+description: An empty-target cd still refreshes $OLDPWD so a subsequent `cd -` stays in place (matches bash).
+setup:
+  files:
+    - path: parent/child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd parent/child
+    cd ""
+    cd -
+    echo "PWD=$PWD"
+expect:
+  # cd - prints the OLDPWD (which is the same dir since cd "" was a
+  # no-op refresh), so the visible output is the child dir followed by
+  # the PWD= line. Both lines contain `child` on Unix.
+  stdout_contains: ["child", "PWD="]
+  stderr: ""
+  exit_code: 0

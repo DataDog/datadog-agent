@@ -1,0 +1,13 @@
+# skip: rshell intentionally bounds user-function depth and aggregate calls.
+skip_assert_against_bash: true
+description: awk limits user-function depth and aggregate calls.
+input:
+  script: |+
+    awk 'function f(n) { if (n > 0) return f(n - 1); return 1 } BEGIN { print f(256) }'
+    awk 'function f() {} BEGIN { for (;;) x = f() + f() + f() + f() + f(); print "unreachable" }'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: function call depth limit exceeded (maximum 256)
+    awk: function call limit exceeded (maximum 1048576)
+  exit_code: 1

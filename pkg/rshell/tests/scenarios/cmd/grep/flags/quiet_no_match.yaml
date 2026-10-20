@@ -1,0 +1,16 @@
+description: grep -q exits 1 with no output when pattern does not match.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        hello
+        world
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -q nonexistent file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

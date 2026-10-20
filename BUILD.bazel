@@ -301,6 +301,7 @@ write_source_files(
         "//pkg/proto/pbgo/trace:trace_gen",
         "//pkg/proto/pbgo/trace:tracer_payload_gen",
         "//pkg/proto/pbgo/trace:write_pb_go",
+        "//pkg/rshell/privilegedhelper:write_pb_go",
         "//pkg/security/proto/api:write_pb_go",
     ],
 )

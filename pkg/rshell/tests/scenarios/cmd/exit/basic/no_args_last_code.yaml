@@ -1,0 +1,9 @@
+description: Exit with no arguments returns the last command's exit code.
+input:
+  script: |+
+    false
+    exit
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

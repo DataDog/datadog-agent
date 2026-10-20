@@ -1,0 +1,10 @@
+# Unknown flags must be rejected with exit 1.
+description: "ping with unknown flag exits 1"
+input:
+  script: |+
+    ping --no-such-flag localhost
+expect:
+  stdout: ""
+  stderr: "ping: unrecognized option '--no-such-flag'\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

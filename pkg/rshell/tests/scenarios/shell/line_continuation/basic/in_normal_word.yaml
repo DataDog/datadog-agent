@@ -1,0 +1,10 @@
+description: Backslash-newline joins adjacent lines into a single word.
+input:
+  script: |+
+    echo 123\
+    456
+expect:
+  stdout: |+
+    123456
+  stderr: ""
+  exit_code: 0

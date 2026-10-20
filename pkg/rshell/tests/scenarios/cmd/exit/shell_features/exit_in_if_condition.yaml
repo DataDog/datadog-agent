@@ -1,0 +1,13 @@
+description: Exit in the then-branch of an if statement terminates the script.
+input:
+  script: |+
+    if true; then
+      echo reached
+      exit 7
+    fi
+    echo unreachable
+expect:
+  stdout: |+
+    reached
+  stderr: ""
+  exit_code: 7

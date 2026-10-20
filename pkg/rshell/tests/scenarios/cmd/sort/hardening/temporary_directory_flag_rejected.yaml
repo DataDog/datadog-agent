@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-18-initial-audit / sort.
+# `sort --temporary-directory=...` would let the builtin write external
+# temp files outside `AllowedPaths`. The implementation explicitly rejects
+# the flag at `builtins/sort/sort.go:315-317`. This scenario pins that
+# rejection so a regression that re-enabled the flag can't ship silently.
+description: sort --temporary-directory is rejected (writes temp files).
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf 'b\na\n' | sort --temporary-directory=/tmp
+expect:
+  stdout: ""
+  stderr: "sort: --temporary-directory is not supported (writes temp files)\n"
+  exit_code: 1
+skip_assert_against_bash: true

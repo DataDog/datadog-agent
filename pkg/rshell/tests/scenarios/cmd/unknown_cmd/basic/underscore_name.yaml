@@ -1,0 +1,10 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: An unknown command with underscores in the name prints "unknown command".
+input:
+  script: |+
+    my_unknown_command
+expect:
+  stdout: ""
+  stderr_contains: ["my_unknown_command", "unknown command"]
+  exit_code: 127

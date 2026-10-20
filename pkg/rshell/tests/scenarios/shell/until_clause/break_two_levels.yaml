@@ -1,0 +1,17 @@
+description: break 2 exits two nested until loops at once.
+input:
+  script: |+
+    until false; do
+      until false; do
+        echo inner
+        break 2
+      done
+      echo unreachable
+    done
+    echo done
+expect:
+  stdout: |+
+    inner
+    done
+  stderr: |+
+  exit_code: 0

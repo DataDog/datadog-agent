@@ -1,0 +1,10 @@
+description: The true builtin keeps flag-shaped operands inert.
+input:
+  script: |+
+    true --help --unknown -- 999999999999999999999999999999999999999999
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

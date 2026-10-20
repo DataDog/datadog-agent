@@ -1,0 +1,12 @@
+description: Identity substitution (s/a/a/p) prints when matching with -n.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 's/a/a/p' input.txt
+expect:
+  stdout: "abc\n"
+  exit_code: 0

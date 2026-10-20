@@ -1,0 +1,25 @@
+description: "test string equality and inequality"
+input:
+  script: |+
+    test "t" = "t"
+    echo "eq-same: $?"
+    test "t" = "f"
+    echo "eq-diff: $?"
+    test "t" != "t"
+    echo "ne-same: $?"
+    test "t" != "f"
+    echo "ne-diff: $?"
+    test "t" == "t"
+    echo "eq-double: $?"
+    test "t" == "f"
+    echo "eq-double-diff: $?"
+expect:
+  stdout: |
+    eq-same: 0
+    eq-diff: 1
+    ne-same: 1
+    ne-diff: 0
+    eq-double: 0
+    eq-double-diff: 1
+  stderr: ""
+  exit_code: 0

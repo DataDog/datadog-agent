@@ -1,0 +1,15 @@
+description: cd accepts -- as the end-of-flags separator.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd -- child
+    pwd
+expect:
+  stdout_contains: ["/child"]
+  stdout_contains_windows: ["\\child"]
+  stderr: ""
+  exit_code: 0

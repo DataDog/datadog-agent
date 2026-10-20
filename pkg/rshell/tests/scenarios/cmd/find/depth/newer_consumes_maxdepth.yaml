@@ -1,0 +1,14 @@
+description: "-newer consumes -maxdepth as its ref file, leaving '3' as unknown predicate."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -newer -maxdepth 3 -type f
+expect:
+  stderr_contains: ["find: unknown predicate '3'"]
+  exit_code: 1

@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "analysis",
+    srcs = [
+        "analyzer.go",
+        "structural.go",
+        "symbols_allowedpaths.go",
+        "symbols_builtins.go",
+        "symbols_common.go",
+        "symbols_fsstat.go",
+        "symbols_internal.go",
+        "symbols_interp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/analysis",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_tools//go/analysis"],
+)
+
+dd_agent_go_test(
+    name = "analysis_test",
+    srcs = [
+        "analyzer_test.go",
+        "callctx_openfile_vuln_hunt_test.go",
+        "ntfsmft_raw_volume_policy_test.go",
+        "signal_handling_vuln_hunt_test.go",
+        "structural_test.go",
+        "symbols_allowedpaths_test.go",
+        "symbols_allowedpaths_verification_test.go",
+        "symbols_builtins_test.go",
+        "symbols_builtins_verification_test.go",
+        "symbols_dllprocs_test.go",
+        "symbols_fsstat_test.go",
+        "symbols_fsstat_verification_test.go",
+        "symbols_interp_test.go",
+        "symbols_interp_verification_test.go",
+        "symbols_test.go",
+        "symbols_verification_test.go",
+    ],
+    data = ["//pkg/rshell:source_files"] + glob(["testdata/**"]),
+    embed = [":analysis"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_tools//go/analysis/analysistest",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

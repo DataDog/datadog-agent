@@ -1,0 +1,13 @@
+description: "sort accepts -C with --check=silent (equivalent forms)."
+setup:
+  files:
+    - path: data.txt
+      content: "a\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -C --check=silent data.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

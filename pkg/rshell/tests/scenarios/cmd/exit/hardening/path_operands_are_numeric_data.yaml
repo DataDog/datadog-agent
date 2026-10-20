@@ -1,0 +1,10 @@
+description: exit treats path-like operands as numeric data and never opens them.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    exit /etc/passwd
+    echo after
+expect:
+  stdout: ""
+  stderr_contains: ["numeric argument required"]
+  exit_code: 2

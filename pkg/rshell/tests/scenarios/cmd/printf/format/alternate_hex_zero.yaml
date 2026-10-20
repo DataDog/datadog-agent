@@ -1,0 +1,10 @@
+# skip: Go's fmt package always includes 0x prefix for %#x with 0; bash omits it
+skip_assert_against_bash: true
+description: printf %#x with zero includes 0x prefix.
+input:
+  script: |+
+    printf "%#x\n" 0
+expect:
+  stdout: "0x0\n"
+  stderr: ""
+  exit_code: 0

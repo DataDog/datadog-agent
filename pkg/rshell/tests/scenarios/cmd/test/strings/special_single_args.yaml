@@ -1,0 +1,22 @@
+description: "test treats various special tokens as non-empty strings"
+input:
+  script: |+
+    test "-"
+    echo "dash: $?"
+    test "--"
+    echo "ddash: $?"
+    test "-0"
+    echo "zero: $?"
+    test "-f"
+    echo "flag-f: $?"
+    test "("
+    echo "paren: $?"
+expect:
+  stdout: |
+    dash: 0
+    ddash: 0
+    zero: 0
+    flag-f: 0
+    paren: 0
+  stderr: ""
+  exit_code: 0

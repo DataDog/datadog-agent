@@ -1,0 +1,35 @@
+# skip: these GNU awk features are intentionally outside rshell's profile.
+skip_assert_against_bash: true
+description: awk clearly rejects command execution and omitted GNU extensions.
+input:
+  script: |+
+    awk 'BEGIN { getline x }' 2>/dev/null || printf 'getline rejected\n'
+    awk 'BEGIN { print "x" | "cat" }' 2>/dev/null || printf 'command pipe rejected\n'
+    awk 'BEGIN { print close("x") }' 2>/dev/null || printf 'close rejected\n'
+    awk 'BEGIN { print gensub(/x/, "y", 1, "x") }' 2>/dev/null || printf 'gensub rejected\n'
+    awk 'BEGIN { print asorti(a, b) }' 2>/dev/null || printf 'asorti rejected\n'
+    awk 'BEGIN { print strtonum("10") }' 2>/dev/null || printf 'strtonum rejected\n'
+    awk 'BEGIN { print match("x", /(x)/, captures) }' 2>/dev/null || printf 'match captures rejected\n'
+    awk 'BEGIN { IGNORECASE = 1 }' 2>/dev/null || printf 'IGNORECASE rejected\n'
+    awk 'BEGIN { print 0x10 }' 2>/dev/null || printf 'nondecimal literal rejected\n'
+    awk 'BEGIN { print ("x" ~ /\y/) }' 2>/dev/null || printf 'GNU boundary rejected\n'
+    awk 'BEGIN { print ("x" ~ /\B/) }' 2>/dev/null || printf 'Perl boundary rejected\n'
+    awk 'BEGIN { print ("x" ~ /\<x/) }' 2>/dev/null || printf 'word-start boundary rejected\n'
+    awk 'BEGIN { print ("x" ~ /x\>/) }' 2>/dev/null || printf 'word-end boundary rejected\n'
+expect:
+  stdout: |+
+    getline rejected
+    command pipe rejected
+    close rejected
+    gensub rejected
+    asorti rejected
+    strtonum rejected
+    match captures rejected
+    IGNORECASE rejected
+    nondecimal literal rejected
+    GNU boundary rejected
+    Perl boundary rejected
+    word-start boundary rejected
+    word-end boundary rejected
+  stderr: |+
+  exit_code: 0

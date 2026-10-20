@@ -1,0 +1,11 @@
+description: help systemctl returns exit code 1 outside remediation mode — the RemediationOnly dispatch gate in help.go fires before the dynamic-dispatch branch that would otherwise discard the nested handler's Result and always return Result{}.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help systemctl; echo $?
+expect:
+  stdout: |+
+    1
+  stderr: |+
+    systemctl: remediation mode required
+  exit_code: 0

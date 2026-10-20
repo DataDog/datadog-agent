@@ -1,0 +1,25 @@
+description: ls -S sorts by file size, largest first.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: small.txt
+      content: "x"
+      chmod: 0644
+    - path: large.txt
+      content: "xxxxxxxxxxxxxxxxxxxxx"
+      chmod: 0644
+    - path: medium.txt
+      content: "xxxxxxxxxx"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -S
+expect:
+  stdout: |+
+    large.txt
+    medium.txt
+    small.txt
+  stderr: ""
+  exit_code: 0

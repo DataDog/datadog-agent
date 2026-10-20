@@ -1,0 +1,22 @@
+# Flags that existed only for removed commands or compound mutations are no longer accepted.
+skip_assert_against_bash: true
+description: systemctl rejects flags outside its reduced surface
+input:
+  mode: remediation
+  script: |+
+    systemctl enable api.service --now
+    systemctl status api.service --property
+    systemctl status api.service --value
+    systemctl status api.service --quiet
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: unrecognized option '--now'
+    Try 'systemctl --help' for more information.
+    systemctl: unrecognized option '--property'
+    Try 'systemctl --help' for more information.
+    systemctl: unrecognized option '--value'
+    Try 'systemctl --help' for more information.
+    systemctl: unrecognized option '--quiet'
+    Try 'systemctl --help' for more information.
+  exit_code: 1

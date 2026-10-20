@@ -1,0 +1,32 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "vmstat_test",
+    srcs = [
+        "helpers_test.go",
+        "vmstat_linux_test.go",
+    ],
+    deps = [
+        "//pkg/rshell/internal/interpoption",
+        "//pkg/rshell/interp",
+        "@cc_mvdan_sh_v3//syntax",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/rshell/builtins/vmstat",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/rshell/builtins/vmstat",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

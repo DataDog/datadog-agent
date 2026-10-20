@@ -1,0 +1,11 @@
+description: Subshells work with && and || operators.
+input:
+  script: |+
+    (true) && echo "and works"
+    (false) || echo "or works"
+expect:
+  stdout: |+
+    and works
+    or works
+  stderr: ""
+  exit_code: 0

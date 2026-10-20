@@ -1,0 +1,9 @@
+description: Backslash before backtick in double quotes escapes it to a literal backtick.
+input:
+  script: |+
+    echo "a\`b\`c"
+expect:
+  stdout: |+
+    a`b`c
+  stderr: ""
+  exit_code: 0

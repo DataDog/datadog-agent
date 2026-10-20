@@ -1,0 +1,16 @@
+description: cd sets OLDPWD to the previous working directory.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    start=$(pwd)
+    cd child
+    if [ "$OLDPWD" = "$start" ]; then echo match; else echo mismatch; fi
+expect:
+  stdout: |+
+    match
+  stderr: ""
+  exit_code: 0

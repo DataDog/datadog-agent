@@ -1,0 +1,13 @@
+description: sort on a single-line file outputs that line.
+setup:
+  files:
+    - path: file.txt
+      content: "only\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort file.txt
+expect:
+  stdout: "only\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: df with multiple positional operands names the first one in the "extra operand" error (matches GNU df, which surfaces only the first extra operand).
+skip_assert_against_bash: true
+input:
+  script: |+
+    df /tmp /var; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "extra operand"
+    - "/tmp"
+  exit_code: 0

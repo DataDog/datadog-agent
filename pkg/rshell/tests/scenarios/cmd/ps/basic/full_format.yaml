@@ -1,0 +1,11 @@
+description: ps -f shows full format with PPID and UID columns.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -ef
+expect:
+  stdout_contains:
+    - "UID"
+    - "PPID"
+    - "CMD"
+  exit_code: 0

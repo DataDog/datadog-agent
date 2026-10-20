@@ -1,0 +1,11 @@
+description: Semicolon can separate the word list from do.
+input:
+  script: |+
+    for i in 1 2 3; do echo $i; done
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: ""
+  exit_code: 0

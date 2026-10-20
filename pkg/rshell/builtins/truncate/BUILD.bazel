@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "truncate",
+    srcs = ["truncate.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/truncate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/sizeparse",
+    ],
+)
+
+dd_agent_go_test(
+    name = "truncate_test",
+    srcs = ["truncate_test.go"],
+    embed = [":truncate"],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

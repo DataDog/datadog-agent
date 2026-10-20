@@ -1,0 +1,11 @@
+description: df rejects --output (deferred to v2)
+skip_assert_against_bash: true
+input:
+  script: |+
+    df --output=source,fstype; echo "exit:$?"
+expect:
+  stdout_contains:
+    - "exit:1"
+  stderr_contains:
+    - "df:"
+  exit_code: 0

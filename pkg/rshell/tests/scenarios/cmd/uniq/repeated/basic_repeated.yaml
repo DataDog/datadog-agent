@@ -1,0 +1,13 @@
+description: uniq -d prints only repeated lines.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -d input.txt
+expect:
+  stdout: "a\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: Cut with -s selects multiple fields from a delimited line.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -s -d: -f2,3 input.txt
+expect:
+  stdout: "b:c\n"
+  stderr: ""
+  exit_code: 0

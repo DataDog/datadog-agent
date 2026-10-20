@@ -1,0 +1,28 @@
+description: -mmin with values exceeding int64 range behaves like GNU find.
+skip_assert_against_bash: true # GNU find uses internal bignum; we clamp to MaxInt64
+setup:
+  files:
+    - path: dir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    # +N with a value far beyond int64 max: nothing should match
+    find dir -mmin +99999999999999999999999 -type f
+    echo "plus_exit: $?"
+
+    # -N with a value far beyond int64 max: everything should match
+    find dir -mmin -99999999999999999999999 -type f
+    echo "minus_exit: $?"
+
+    # Exact match with a value beyond int64: nothing should match
+    find dir -mmin 99999999999999999999999 -type f
+    echo "exact_exit: $?"
+expect:
+  stdout: |+
+    plus_exit: 0
+    dir/file.txt
+    minus_exit: 0
+    exact_exit: 0
+  stderr: ""
+  exit_code: 0

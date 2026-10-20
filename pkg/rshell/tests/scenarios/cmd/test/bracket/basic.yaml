@@ -1,0 +1,16 @@
+description: "[ ] bracket syntax with closing bracket requirement"
+input:
+  script: |+
+    [ "hello" ]
+    echo "basic: $?"
+    [ 1 -eq 1 ]
+    echo "eq: $?"
+    [ 1 -eq 2 ]
+    echo "ne: $?"
+expect:
+  stdout: |
+    basic: 0
+    eq: 0
+    ne: 1
+  stderr: ""
+  exit_code: 0

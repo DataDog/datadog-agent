@@ -1,0 +1,20 @@
+description: find -execdir echo {} \; -print — both the execdir echo and -print run for each file.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -name '*.txt' -execdir echo {} \; -print
+expect:
+  stdout: |+
+    ./a.txt
+    dir/a.txt
+  stderr: ""
+  exit_code: 0

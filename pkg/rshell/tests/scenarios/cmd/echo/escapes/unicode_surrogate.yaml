@@ -1,0 +1,10 @@
+description: Echo -e with surrogate codepoint replaces with U+FFFD (intentional security divergence from bash).
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo -e '\uD800'
+expect:
+  stdout: "\uFFFD\n"
+  stderr: ""
+  exit_code: 0

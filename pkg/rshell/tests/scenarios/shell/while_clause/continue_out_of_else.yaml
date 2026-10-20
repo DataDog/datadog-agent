@@ -1,0 +1,19 @@
+description: continue inside an else-branch jumps to the next iteration of the enclosing while.
+input:
+  script: |+
+    i=
+    while [ "$i" != aa ]; do
+      i="${i}a"
+      if false; then
+        :
+      else
+        continue
+      fi
+      echo unreachable
+    done
+    echo "i=$i"
+expect:
+  stdout: |+
+    i=aa
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,12 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: Unknown command returns exit code 127.
+input:
+  script: |+
+    no_such_command_xyz
+expect:
+  stdout: ""
+  stderr_contains:
+    - "no_such_command_xyz"
+    - "unknown command"
+  exit_code: 127

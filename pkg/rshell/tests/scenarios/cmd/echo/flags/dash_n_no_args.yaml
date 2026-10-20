@@ -1,0 +1,8 @@
+description: Echo -n with no arguments produces empty output (no newline).
+input:
+  script: |+
+    echo -n
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

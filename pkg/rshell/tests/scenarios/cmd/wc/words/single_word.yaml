@@ -1,0 +1,13 @@
+description: wc -w counts 1 word for a single non-whitespace token.
+setup:
+  files:
+    - path: file.txt
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -w file.txt
+expect:
+  stdout: "1 file.txt\n"
+  stderr: ""
+  exit_code: 0

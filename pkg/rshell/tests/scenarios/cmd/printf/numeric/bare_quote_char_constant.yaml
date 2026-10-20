@@ -1,0 +1,8 @@
+description: Printf treats a bare single-quote character constant as value 0.
+input:
+  script: |+
+    printf '%d\n' "'"
+expect:
+  stdout: |+
+    0
+  exit_code: 0

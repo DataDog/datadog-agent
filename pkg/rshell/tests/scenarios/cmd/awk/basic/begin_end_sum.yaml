@@ -1,0 +1,17 @@
+description: awk runs BEGIN, per-record actions, and END.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a 2
+        b 3
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk 'BEGIN { print "start" } { sum += $2 } END { print "sum", sum }' input.txt
+expect:
+  stdout: |+
+    start
+    sum 5
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: stat rejects unknown flags.
+input:
+  script: |+
+    stat --bogus
+expect:
+  stdout: |+
+  stderr: |+
+    stat: unrecognized option '--bogus'
+    Try 'stat --help' for more information.
+  exit_code: 1

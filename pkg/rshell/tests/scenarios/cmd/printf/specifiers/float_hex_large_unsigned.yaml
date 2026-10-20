@@ -1,0 +1,9 @@
+description: "%f handles large unsigned hex values like 0xffffffffffffffff."
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # Go float64 rounds 2^64-1 to 2^64; C printf preserves exact value
+input:
+  script: |+
+    printf "%f\n" 0xffffffffffffffff
+expect:
+  stdout: "18446744073709551616.000000\n"
+  exit_code: 0

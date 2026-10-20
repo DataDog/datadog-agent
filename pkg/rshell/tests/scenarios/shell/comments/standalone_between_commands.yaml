@@ -1,0 +1,13 @@
+description: Standalone comment lines between commands are ignored.
+input:
+  script: |+
+    echo first
+    # this is a standalone comment
+    # another standalone comment
+    echo second
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

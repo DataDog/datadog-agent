@@ -1,0 +1,14 @@
+description: In remediation mode, >> appends to a file within AllowedPaths.
+input:
+  script: |+
+    echo line1 > out.txt
+    echo line2 >> out.txt
+    cat out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    line1
+    line2
+  stderr: |+
+  exit_code: 0

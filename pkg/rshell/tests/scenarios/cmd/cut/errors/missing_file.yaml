@@ -1,0 +1,9 @@
+description: Cut reports error when input file does not exist.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -b1 nonexistent
+expect:
+  stdout: ""
+  stderr_contains: ["cut:"]
+  exit_code: 1

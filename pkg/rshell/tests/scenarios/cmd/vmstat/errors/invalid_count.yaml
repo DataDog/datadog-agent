@@ -1,0 +1,10 @@
+description: vmstat with a zero count operand exits 1 with an "invalid count" error.
+skip_assert_against_bash: true
+input:
+  script: |+
+    vmstat 1 0
+expect:
+  stdout: |+
+  stderr: |+
+    vmstat: invalid count '0'
+  exit_code: 1

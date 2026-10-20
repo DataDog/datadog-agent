@@ -1,0 +1,175 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "allowedpaths",
+    srcs = [
+        "check.go",
+        "context_file.go",
+        "fifo_ready_darwin.go",
+        "fifo_ready_poll_unix.go",
+        "hardlink_unix.go",
+        "hardlink_windows.go",
+        "lexical.go",
+        "path_match.go",
+        "path_mode.go",
+        "path_mode_nonwindows.go",
+        "path_mode_windows.go",
+        "portable.go",
+        "portable_unix.go",
+        "portable_windows.go",
+        "read_open_unix.go",
+        "read_open_windows.go",
+        "sandbox.go",
+        "statfs.go",
+        "write_open.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/allowedpaths/internal/fsstat",
+        "//pkg/rshell/allowedpaths/internal/writeopen",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "allowedpaths_test",
+    srcs = [
+        "check_test.go",
+        "context_file_linux_test.go",
+        "context_file_test.go",
+        "hardlink_unix_test.go",
+        "lexical_test.go",
+        "path_mode_nonwindows_test.go",
+        "path_mode_windows_test.go",
+        "sandbox_darwin_test.go",
+        "sandbox_linux_test.go",
+        "sandbox_test.go",
+        "sandbox_unix_test.go",
+        "sandbox_windows_test.go",
+        "statfs_test.go",
+        "statfs_unix_test.go",
+        "statfs_windows_test.go",
+    ],
+    embed = [":allowedpaths"],
+    deps = [
+        "//pkg/rshell/allowedpaths/internal/fsstat",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/rshell/allowedpaths/internal/writeopen",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

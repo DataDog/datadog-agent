@@ -1,0 +1,12 @@
+description: Multiple inline vars where second references the first expand before assignments take effect.
+input:
+  script: |+
+    A=original
+    A=new B=$A printf "%s\n" "$B"
+    echo "$A"
+expect:
+  stdout: |+
+
+    original
+  stderr: ""
+  exit_code: 0

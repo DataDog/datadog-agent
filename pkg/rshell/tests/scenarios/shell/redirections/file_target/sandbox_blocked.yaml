@@ -1,0 +1,16 @@
+# skip: sandbox rejection is an rshell-specific security feature
+skip_assert_against_bash: true
+description: In remediation mode, redirecting to a path outside AllowedPaths fails with permission denied.
+input:
+  script: |+
+    echo hello > /tmp/evil.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+  stderr_contains: ["permission denied"]
+  # On Windows, Go's filepath treats /tmp/evil.txt as the relative path tmp\evil.txt
+  # (not an absolute path), so the open fails with "no such file or directory" before
+  # the sandbox can reject it. The redirect still fails with exit 1.
+  stderr_contains_windows: ["no such file or directory"]
+  exit_code: 1

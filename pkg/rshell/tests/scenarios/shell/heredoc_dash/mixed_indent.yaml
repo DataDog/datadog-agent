@@ -1,0 +1,7 @@
+description: Dash heredoc strips leading tabs but preserves spaces after tabs.
+input:
+  script: "cat <<-EOF\n\t  indented with spaces after tab\nEOF\n"
+expect:
+  stdout: "  indented with spaces after tab\n"
+  stderr: ""
+  exit_code: 0

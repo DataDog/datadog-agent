@@ -1,0 +1,10 @@
+description: The w command is blocked for safety.
+# skip: feature is intentionally blocked in rshell for security
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo "test" | sed 's/test/replaced/w output.txt'
+expect:
+  stdout: ""
+  stderr: "sed: 'w' flag in 's' command is blocked: file writing is not allowed\n"
+  exit_code: 1

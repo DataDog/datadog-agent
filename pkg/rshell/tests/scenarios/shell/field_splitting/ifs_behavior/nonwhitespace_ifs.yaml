@@ -1,0 +1,13 @@
+description: Non-whitespace IFS characters split fields.
+input:
+  script: |+
+    a="one-two-three"
+    IFS=-
+    for word in $a; do echo "[$word]"; done
+expect:
+  stdout: |+
+    [one]
+    [two]
+    [three]
+  stderr: ""
+  exit_code: 0

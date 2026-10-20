@@ -1,0 +1,13 @@
+description: Shell comment lines are ignored and do not affect execution.
+input:
+  script: |+
+    # this is a comment
+    echo hello
+    # another comment
+    echo world
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

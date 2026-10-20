@@ -1,0 +1,9 @@
+description: ps -p 0 exits with code 1 because PID 0 is not a valid process identifier.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -p 0
+expect:
+  stderr_contains:
+    - "invalid PID"
+  exit_code: 1

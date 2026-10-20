@@ -1,0 +1,16 @@
+description: Unquoted command substitution output containing glob metacharacters is glob-expanded.
+setup:
+  files:
+    - path: a.txt
+      content: "a\n"
+    - path: b.txt
+      content: "b\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo $(echo '*.txt')
+expect:
+  stdout: |+
+    a.txt b.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Glob characters in double-quoted expansion are not expanded.
+input:
+  script: |+
+    a="*"
+    echo "$a"
+expect:
+  stdout: |+
+    *
+  stderr: ""
+  exit_code: 0

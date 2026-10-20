@@ -1,0 +1,7 @@
+description: A whitespace-only script produces no output and exits successfully.
+input:
+  script: "   \t  \n  "
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

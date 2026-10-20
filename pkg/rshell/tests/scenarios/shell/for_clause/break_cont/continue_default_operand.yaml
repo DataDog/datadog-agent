@@ -1,0 +1,24 @@
+description: Continue without operand defaults to 1.
+input:
+  script: |+
+    for i in 1; do
+      for j in a; do
+        for k in + -; do
+          echo in $i $j $k
+          continue
+          echo out
+        done
+        echo out $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1 a +
+    in 1 a -
+    out a
+    out 1
+    done 0
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,19 @@
+description: ls -F appends / to directories.
+setup:
+  files:
+    - path: mydir/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: plain.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -F
+expect:
+  stdout: |+
+    mydir/
+    plain.txt
+  stderr: ""
+  exit_code: 0

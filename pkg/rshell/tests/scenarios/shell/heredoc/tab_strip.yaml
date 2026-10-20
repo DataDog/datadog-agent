@@ -1,0 +1,9 @@
+description: Heredoc with <<- strips leading tabs from content and delimiter.
+input:
+  script: "cat <<-EOF\n\t\tindented line\n\t\tanother line\n\tEOF\n"
+expect:
+  stdout: |+
+    indented line
+    another line
+  stderr: ""
+  exit_code: 0

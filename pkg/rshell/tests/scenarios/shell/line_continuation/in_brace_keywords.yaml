@@ -1,0 +1,14 @@
+description: Line continuation works in brace group delimiters.
+input:
+  script: |+
+    \
+    {\
+     echo 1
+    \
+    }\
+
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

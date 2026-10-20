@@ -1,0 +1,17 @@
+description: awk supports composite array keys, ternary expressions, and exit status.
+input:
+  script: |+
+    awk 'BEGIN { a=0; b=0; print 0 ? a=2 : b=3; print a,b; print 1 ? a=4 : b=5; print a,b }'
+    printf 'a x 1\na y 2\na x 3\nb x 4\n' | awk '{ count[$1, $2] += $3; label = ($3 > 2 ? "big" : "small"); classes[$1, label]++ } END { print count["a", "x"], count["a", "y"], count["b", "x"]; print classes["a", "small"], classes["a", "big"]; print count["a" SUBSEP "x"], count["a\034x"], classes["a\034small"]; delete count["a", "x"]; print (("a", "x") in count), (("b", "x") in count), length(SUBSEP); exit 7 }'
+expect:
+  stdout: |+
+    3
+    0 3
+    4
+    4 3
+    4 2 4
+    2 1
+    4 4 2
+    0 1 1
+  stderr: |+
+  exit_code: 7

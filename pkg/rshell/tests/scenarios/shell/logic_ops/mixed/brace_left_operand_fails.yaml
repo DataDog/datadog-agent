@@ -1,0 +1,10 @@
+description: Brace group as the left operand of && fails, right side is skipped.
+input:
+  script: |+
+    { false; } && echo skipped
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: For loop inside if body.
+input:
+  script: |+
+    if true; then
+      for i in x y z; do
+        echo $i
+      done
+    fi
+expect:
+  stdout: |+
+    x
+    y
+    z
+  stderr: ""
+  exit_code: 0

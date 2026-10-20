@@ -1,0 +1,8 @@
+description: xargs rejects multi-byte delimiters that are not the documented escape forms.
+input:
+  script: |+
+    echo a | xargs -d ab echo
+expect:
+  stdout: |+
+  stderr_contains: ["delimiter"]
+  exit_code: 1

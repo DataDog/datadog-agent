@@ -1,0 +1,16 @@
+description: cd .. moves up one directory, capped at the AllowedPaths root.
+setup:
+  files:
+    - path: a/b/c/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a/b/c
+    cd ..
+    pwd
+expect:
+  stdout_contains: ["/a/b"]
+  stdout_contains_windows: ["\\a\\b"]
+  stderr: ""
+  exit_code: 0

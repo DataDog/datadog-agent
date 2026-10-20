@@ -1,0 +1,13 @@
+description: Exit status propagates through complex and-or chain.
+input:
+  script: |+
+    true && false || true && true
+    echo $?
+    true && false || false
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0

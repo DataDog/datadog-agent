@@ -1,0 +1,16 @@
+description: grep -q produces no output but exits 0 on match.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -q foo file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

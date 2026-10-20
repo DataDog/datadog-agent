@@ -1,0 +1,8 @@
+description: Echo -e with \c as the only content produces empty output.
+input:
+  script: |+
+    echo -e '\c'
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: exit -1 wraps to 255.
+input:
+  script: |+
+    exit -1
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 255

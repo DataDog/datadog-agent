@@ -1,0 +1,20 @@
+description: Bracket pattern matches exactly one character from the set.
+setup:
+  files:
+    - path: a1.txt
+      content: ""
+    - path: b2.txt
+      content: ""
+    - path: c3.txt
+      content: ""
+    - path: d4.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo [ac][13].txt
+expect:
+  stdout: |+
+    a1.txt c3.txt
+  stderr: ""
+  exit_code: 0

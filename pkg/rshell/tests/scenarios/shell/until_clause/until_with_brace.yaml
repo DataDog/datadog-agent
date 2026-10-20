@@ -1,0 +1,9 @@
+description: until loop with a brace-group body runs the group and exits via break.
+input:
+  script: |+
+    until false; do { echo foo; break; } done
+expect:
+  stdout: |+
+    foo
+  stderr: |+
+  exit_code: 0

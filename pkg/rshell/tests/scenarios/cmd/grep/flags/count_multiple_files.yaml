@@ -1,0 +1,24 @@
+description: grep -c with multiple files prints per-file counts with filename prefixes.
+setup:
+  files:
+    - path: a.txt
+      content: |+
+        foo
+        bar
+        foo
+      chmod: 0644
+    - path: b.txt
+      content: |+
+        baz
+        foo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c foo a.txt b.txt
+expect:
+  stdout: |+
+    a.txt:2
+    b.txt:1
+  stderr: ""
+  exit_code: 0

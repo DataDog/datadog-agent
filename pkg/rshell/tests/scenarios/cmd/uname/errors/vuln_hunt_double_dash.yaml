@@ -1,0 +1,13 @@
+# vuln-hunt 2026-05-18-initial-audit: `uname -- -a` should treat `-a` as an
+# extra operand (after `--` end-of-flags), not as the all flag. If `-a` were
+# silently processed despite `--`, that would indicate manual flag parsing
+# bypassing the pflag end-of-flags marker.
+description: uname respects `--` end-of-flags separator
+input:
+  script: |+
+    uname -- -a
+expect:
+  stdout: ""
+  stderr_contains:
+    - "uname: extra operand '-a'"
+  exit_code: 1

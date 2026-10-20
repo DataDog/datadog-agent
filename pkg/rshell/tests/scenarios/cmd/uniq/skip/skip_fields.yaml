@@ -1,0 +1,13 @@
+description: uniq -f 1 skips first field when comparing.
+setup:
+  files:
+    - path: input.txt
+      content: "a a\nb a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -f 1 input.txt
+expect:
+  stdout: "a a\n"
+  stderr: ""
+  exit_code: 0

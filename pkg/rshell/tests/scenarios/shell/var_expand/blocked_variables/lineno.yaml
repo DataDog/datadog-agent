@@ -1,0 +1,11 @@
+# skip: special variable is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: The $LINENO variable is not supported.
+input:
+  script: |+
+    echo $LINENO
+expect:
+  stdout: ""
+  stderr: |+
+    $LINENO is not supported
+  exit_code: 2

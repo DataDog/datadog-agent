@@ -1,0 +1,19 @@
+description: find invoked via -execdir receives RunCommand and can itself use -execdir.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/file.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -type d -execdir find dir -name 'file.txt' -print \;
+expect:
+  stdout: |+
+    dir/file.txt
+  stderr: ""
+  exit_code: 0

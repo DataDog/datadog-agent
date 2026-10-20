@@ -1,0 +1,19 @@
+description: find -not keyword is equivalent to ! for negation.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.go
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -not -name '*.txt'
+expect:
+  stdout: |+
+    dir/b.go
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true

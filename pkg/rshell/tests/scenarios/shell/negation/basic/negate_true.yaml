@@ -1,0 +1,8 @@
+description: Negating true produces exit code 1.
+input:
+  script: |+
+    ! true
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

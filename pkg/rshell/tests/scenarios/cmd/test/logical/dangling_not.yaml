@@ -1,0 +1,23 @@
+description: "test rejects dangling ! after -a/-o (bash compat)"
+input:
+  script: |+
+    # 4-arg: -n x is true, then -a, then ! is negation needing operand
+    test -n x -a !
+    echo "n-x-a-bang: $?"
+    # 4-arg: same with -o
+    test -n x -o !
+    echo "n-x-o-bang: $?"
+    # 3-arg: POSIX 3-arg rule treats -a as binary operator
+    test x -a !
+    echo "x-a-bang: $?"
+    # 3-arg: POSIX 3-arg rule treats -o as binary operator
+    test x -o !
+    echo "x-o-bang: $?"
+expect:
+  stdout: |
+    n-x-a-bang: 2
+    n-x-o-bang: 2
+    x-a-bang: 0
+    x-o-bang: 0
+  stderr_contains: ["argument"]
+  exit_code: 0

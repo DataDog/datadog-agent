@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "loopctl",
+    srcs = ["loopctl.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/loopctl",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

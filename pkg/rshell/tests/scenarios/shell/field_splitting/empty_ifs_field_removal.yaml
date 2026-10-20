@@ -1,0 +1,11 @@
+description: Empty field removal with empty IFS.
+input:
+  script: |+
+    IFS=
+    a=
+    echo $a - end
+expect:
+  stdout: |+
+    - end
+  stderr: ""
+  exit_code: 0

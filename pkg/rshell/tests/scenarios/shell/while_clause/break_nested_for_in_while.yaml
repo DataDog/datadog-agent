@@ -1,0 +1,19 @@
+description: break inside a for nested in a while exits only the for; the while keeps iterating.
+input:
+  script: |+
+    i=
+    while [ "$i" != aa ]; do
+      i="${i}a"
+      for j in 1 2; do
+        echo "$i $j"
+        break
+      done
+    done
+    echo done
+expect:
+  stdout: |+
+    a 1
+    aa 1
+    done
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,13 @@
+# vuln-hunt 2026-05-19-codex / pipe.
+description: Pipeline stage assignments stay isolated from the parent shell and sibling stages.
+input:
+  script: |+
+    X=parent
+    { X=left; printf '%s\n' "$X"; } | { read X; printf 'right=%s\n' "$X"; X=right; }
+    printf 'parent=%s\n' "$X"
+expect:
+  stdout: |+
+    right=left
+    parent=parent
+  stderr: ""
+  exit_code: 0

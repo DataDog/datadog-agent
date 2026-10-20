@@ -1,0 +1,13 @@
+description: "Empty pattern in s/// reuses the last regex from an address or previous s command."
+setup:
+  files:
+    - path: input.txt
+      content: "test\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/test/s//replaced/' input.txt
+expect:
+  stdout: "replaced\n"
+  stderr: ""
+  exit_code: 0

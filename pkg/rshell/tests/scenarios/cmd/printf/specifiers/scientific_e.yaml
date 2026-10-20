@@ -1,0 +1,9 @@
+description: Printf %e specifier outputs a number in scientific notation.
+input:
+  script: |+
+    printf "%e\n" 3.14
+expect:
+  stdout: |+
+    3.140000e+00
+  stderr: ""
+  exit_code: 0

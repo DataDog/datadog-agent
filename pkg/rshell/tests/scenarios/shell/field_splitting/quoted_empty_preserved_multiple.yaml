@@ -1,0 +1,9 @@
+description: "Quoted double expansion preserves empty fields in for loop"
+input:
+  script: |
+    A=""
+    B=""
+    for w in "$A" "$B"; do echo "[$w]"; done
+expect:
+  stdout: "[]\n[]\n"
+  exit_code: 0

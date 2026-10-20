@@ -1,0 +1,13 @@
+description: When -q and -v are both given, the last flag wins; here -v comes last so headers are printed.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -q -v file.txt
+expect:
+  stdout: "==> file.txt <==\nhello\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+# --no-legend drops both the header row and the trailing restriction summary.
+skip_assert_against_bash: true
+description: systemctl --no-legend suppresses the list-units header and count
+input:
+  mode: remediation
+  script: |+
+    systemctl list-units --no-legend
+    systemctl --no-legend --all
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: |+
+  exit_code: 0

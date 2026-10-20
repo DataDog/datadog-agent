@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "uniq",
+    srcs = ["uniq.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/uniq",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "uniq_test",
+    srcs = [
+        "uniq_bench_test.go",
+        "uniq_gnu_compat_test.go",
+        "uniq_pentest_test.go",
+        "uniq_test.go",
+    ],
+    deps = [
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

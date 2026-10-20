@@ -1,0 +1,15 @@
+description: A for loop with an empty word list sets $? to 0 regardless of previous status.
+input:
+  script: |+
+    true
+    for i in; do false; done
+    echo $?
+    false
+    for i in; do true; done
+    echo $?
+expect:
+  stdout: |+
+    0
+    0
+  stderr: ""
+  exit_code: 0

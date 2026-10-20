@@ -1,0 +1,117 @@
+name: Restricted Shell
+
+on:
+  push:
+    branches: [main, "[0-9]+.[0-9]+.x"]
+    paths:
+      - "pkg/rshell/**"
+      - ".github/workflows/rshell.yml"
+      - "tasks/fuzz.py"
+      - "go.mod"
+      - "go.work"
+      - ".go-version"
+  pull_request:
+    paths:
+      - "pkg/rshell/**"
+      - ".github/workflows/rshell.yml"
+      - "tasks/fuzz.py"
+      - "go.mod"
+      - "go.work"
+      - ".go-version"
+
+permissions:
+  contents: read
+
+jobs:
+  # The regular Agent Bazel jobs run unit tests and race tests on all platforms.
+  integration:
+    name: Bash comparison and Linux sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/bazel-cache
+      - uses: ./.github/actions/install-dda
+      - name: Verify source-scanning tests include every package
+        run: |
+          bazel query 'kind("source file", deps(//pkg/rshell:source_files))' --output=label > "$RUNNER_TEMP/rshell-source-labels"
+          python3 - <<'PY'
+          import os
+          import pathlib
+
+          labels = pathlib.Path(os.environ["RUNNER_TEMP"], "rshell-source-labels").read_text().splitlines()
+          declared = {label.removeprefix("//").replace(":", "/") for label in labels}
+          expected = {
+              str(path) for path in pathlib.Path("pkg/rshell").rglob("*.go")
+              if "testdata" not in path.parts
+          }
+          missing = sorted(expected - declared)
+          assert not missing, f"Add these files to //pkg/rshell:source_files: {missing}"
+          PY
+      - name: Check Docker availability
+        run: |
+          docker info
+          docker pull debian:bookworm-slim
+      - name: Compare scenarios with Bash
+        run: make -C pkg/rshell test_against_bash
+      - name: Check module compliance
+        run: make -C pkg/rshell compliance
+      - name: Test Linux sandbox without cgo
+        run: >-
+          dda inv test --module=pkg/rshell
+          --targets=internal/sandbox/landlock,internal/sandbox/seccomp
+          --bazel-args=--@rules_go//go/config:pure
+
+  fuzz-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.discover.outputs.packages }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: discover
+        name: Discover fuzz packages
+        shell: python
+        run: |
+          import json
+          import os
+          import pathlib
+          import re
+
+          root = pathlib.Path("pkg/rshell")
+          packages = sorted({
+              str(path.parent.relative_to(root))
+              for path in root.rglob("*_test.go")
+              if re.search(r"^func Fuzz\w+\(\w+ \*testing\.F\)", path.read_text(), re.MULTILINE)
+          })
+          assert packages, "No rshell fuzz targets found"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"packages={json.dumps(packages)}\n")
+
+  fuzz:
+    name: Fuzz (${{ matrix.package }})
+    needs: fuzz-packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.fuzz-packages.outputs.packages) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: pkg/rshell/go.sum
+      - uses: ./.github/actions/bazel-cache
+      - uses: ./.github/actions/install-dda
+      - name: Fuzz including GNU differential targets
+        env:
+          FUZZ_PACKAGE: ${{ matrix.package }}
+          RSHELL_BASH_TEST: "1"
+        run: dda inv fuzz --targets="pkg/rshell/$FUZZ_PACKAGE" --fuzztime=30s

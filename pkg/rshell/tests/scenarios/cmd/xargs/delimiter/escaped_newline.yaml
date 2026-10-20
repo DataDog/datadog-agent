@@ -1,0 +1,9 @@
+description: xargs -d '\n' accepts the GNU escape form for newline.
+input:
+  script: |+
+    printf 'a\nb\nc' | xargs -d '\n' echo
+expect:
+  stdout: |+
+    a b c
+  stderr: |+
+  exit_code: 0

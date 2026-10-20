@@ -1,0 +1,9 @@
+description: xargs silently consumes a trailing backslash at EOF (matches GNU xargs).
+input:
+  script: |+
+    printf 'a\\' | xargs echo
+expect:
+  stdout: |+
+    a
+  stderr: |+
+  exit_code: 0

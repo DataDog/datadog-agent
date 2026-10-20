@@ -1,0 +1,13 @@
+description: Combined Nth occurrence and print flags.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa aaa aaa\nbbb\naaa aaa\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 's/aaa/XXX/2p' input.txt
+expect:
+  stdout: "aaa XXX aaa\naaa XXX\n"
+  stderr: ""
+  exit_code: 0

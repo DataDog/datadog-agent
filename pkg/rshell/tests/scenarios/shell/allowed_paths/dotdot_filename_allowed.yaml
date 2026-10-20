@@ -1,0 +1,15 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: Files with names starting with .. (e.g. ..hidden) are accessible inside allowed paths
+setup:
+  files:
+    - path: allowed/..hidden
+      content: "dotdot content"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat allowed/..hidden
+expect:
+  stdout: "dotdot content"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "vmstat",
+    srcs = ["vmstat.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/vmstat",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/procpath",
+        "//pkg/rshell/builtins/internal/vmstat",
+    ],
+)
+
+dd_agent_go_test(
+    name = "vmstat_test",
+    srcs = ["vmstat_test.go"],
+    embed = [":vmstat"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/vmstat",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

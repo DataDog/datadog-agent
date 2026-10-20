@@ -1,0 +1,9 @@
+description: uptime -p prints pretty format starting with "up "
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime -p
+expect:
+  stdout_contains: ["up "]
+  stderr: ""
+  exit_code: 0

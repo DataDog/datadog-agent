@@ -1,0 +1,13 @@
+description: Field splitting with non-whitespace IFS delimiter splits correctly.
+input:
+  script: |+
+    IFS='-'
+    a='1-2-3'
+    for x in $a; do echo "[$x]"; done
+expect:
+  stdout: |+
+    [1]
+    [2]
+    [3]
+  stderr: ""
+  exit_code: 0

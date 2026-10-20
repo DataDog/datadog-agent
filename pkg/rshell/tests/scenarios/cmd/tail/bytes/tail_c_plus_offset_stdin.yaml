@@ -1,0 +1,8 @@
+description: tail -c +N on stdin outputs bytes starting from position N.
+input:
+  script: |+
+    printf 'abcdefghij' | tail -c +4
+expect:
+  stdout: "defghij"
+  stderr: ""
+  exit_code: 0

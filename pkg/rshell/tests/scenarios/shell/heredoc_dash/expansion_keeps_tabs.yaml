@@ -1,0 +1,17 @@
+# vuln-hunt 2026-05-18-initial-audit / heredoc_dash H2.
+# Tab-stripping in `<<-` operates on the raw Lit parts of the heredoc body,
+# NOT on bytes produced by variable expansion. A value whose content begins
+# with a literal tab is preserved verbatim. A regression that re-applied
+# TrimLeft after expansion would corrupt user-supplied data (e.g. tab-
+# indented JSON).
+description: Variable expansion inside <<- preserves leading tabs in the value.
+input:
+  script: |+
+    LINE=$'\thello\tworld'
+    cat <<-EOF
+    	$LINE
+    	EOF
+expect:
+  stdout: "\thello\tworld\n"
+  stderr: ""
+  exit_code: 0

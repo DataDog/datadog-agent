@@ -1,0 +1,12 @@
+# skip: redirect restrictions are an rshell-specific security feature
+skip_assert_against_bash: true
+description: Without remediation mode, > is blocked at validation even when AllowedPaths would permit the write.
+input:
+  script: |+
+    echo hello > out.txt
+  allowed_paths: ["$DIR"]
+expect:
+  stdout: |+
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

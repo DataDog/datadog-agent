@@ -1,0 +1,23 @@
+description: ls -F appends / to directories and nothing to regular files, combined with -a.
+setup:
+  files:
+    - path: subdir/inner.txt
+      content: "hello"
+      chmod: 0644
+    - path: file.txt
+      content: "world"
+      chmod: 0644
+    - path: .hidden
+      content: "secret"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -FA
+expect:
+  stdout: |+
+    .hidden
+    file.txt
+    subdir/
+  stderr: ""
+  exit_code: 0

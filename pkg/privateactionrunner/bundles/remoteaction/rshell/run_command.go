@@ -24,8 +24,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/DataDog/rshell/interp"
-	"github.com/DataDog/rshell/privilegedhelper"
+	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"

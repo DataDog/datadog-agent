@@ -1,0 +1,16 @@
+description: Many repeated star arguments each expand independently.
+setup:
+  files:
+    - path: x
+      content: ""
+    - path: y
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo * * * * * * * * * *
+expect:
+  stdout: |+
+    x y x y x y x y x y x y x y x y x y x y
+  stderr: ""
+  exit_code: 0

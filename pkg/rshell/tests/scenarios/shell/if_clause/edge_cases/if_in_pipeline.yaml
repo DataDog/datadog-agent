@@ -1,0 +1,9 @@
+description: If statement as part of a pipeline.
+input:
+  script: |+
+    echo hello | if true; then cat; fi
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

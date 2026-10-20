@@ -1,0 +1,17 @@
+# Security test: -r/--recursive is intentionally not implemented; directories
+# can never be removed by this shell's rm.
+description: rm -r is rejected as an unrecognized flag.
+setup:
+  files:
+    - path: subdir/file.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm -r subdir
+expect:
+  stdout: |+
+  stderr_contains: ["invalid option -- 'r'"]
+  exit_code: 1
+skip_assert_against_bash: true

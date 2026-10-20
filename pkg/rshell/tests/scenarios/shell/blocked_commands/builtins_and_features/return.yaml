@@ -1,0 +1,12 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Return builtin is intentionally blocked in the restricted shell.
+input:
+  script: |+
+    return 0
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: return: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

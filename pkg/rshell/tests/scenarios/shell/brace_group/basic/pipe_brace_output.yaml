@@ -1,0 +1,9 @@
+description: Brace group output can be piped.
+input:
+  script: |+
+    { echo 1; echo 2; echo 3; } | tail -n 1
+expect:
+  stdout: |+
+    3
+  stderr: ""
+  exit_code: 0

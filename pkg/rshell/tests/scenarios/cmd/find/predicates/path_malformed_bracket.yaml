@@ -1,0 +1,17 @@
+description: malformed bracket pattern in -path matches literal path.
+setup:
+  files:
+    - path: "dir/[sub/file.txt"
+      content: "x"
+      chmod: 0644
+    - path: dir/other/file.txt
+      content: "y"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -path 'dir/[sub/file.txt'
+expect:
+  stdout: |+
+    dir/[sub/file.txt
+  exit_code: 0

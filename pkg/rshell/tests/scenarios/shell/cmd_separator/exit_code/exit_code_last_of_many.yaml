@@ -1,0 +1,8 @@
+description: Exit code of last command in a long chain is preserved.
+input:
+  script: |+
+    true; true; true; true; false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

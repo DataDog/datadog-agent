@@ -1,0 +1,13 @@
+description: After --, all arguments are treated as file names even if they look like flags.
+setup:
+  files:
+    - path: "-n"
+      content: "flag-looking-name\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -- -n
+expect:
+  stdout: "flag-looking-name\n"
+  stderr: ""
+  exit_code: 0

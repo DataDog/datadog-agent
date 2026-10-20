@@ -1,0 +1,12 @@
+description: A comment after && or || is ignored and the list continues.
+input:
+  script: |+
+    echo foo &&# comment after &&
+    echo bar ||# comment after ||
+    echo baz
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

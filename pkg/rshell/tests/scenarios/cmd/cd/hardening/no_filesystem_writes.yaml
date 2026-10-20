@@ -1,0 +1,22 @@
+description: cd does not create or remove any files in the working directory.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    before=$(ls)
+    cd child
+    cd ..
+    cd -L child
+    cd ..
+    cd -P child
+    cd ..
+    after=$(ls)
+    if [ "$before" = "$after" ]; then echo unchanged; else echo changed; fi
+expect:
+  stdout: |+
+    unchanged
+  stderr: ""
+  exit_code: 0

@@ -7,11 +7,12 @@ import os
 from invoke import task
 
 from tasks.fuzz_infra import get_fuzz_build_tags
+from tasks.libs.common.utils import join_command
 from tasks.schema.generate import schema_codegen
 
 
 @task
-def fuzz(ctx, fuzztime="10s"):
+def fuzz(ctx, fuzztime="10s", targets="."):
     """
     Run fuzz tests sequentially (default fuzztime is 10s for each target).
     This is a temporary approach until Go supports fuzzing multiple targets.
@@ -20,11 +21,14 @@ def fuzz(ctx, fuzztime="10s"):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    for directory, func in search_fuzz_tests(os.getcwd()):
+    for directory, func in search_fuzz_tests(targets):
         with ctx.cd(directory):
             tags = ",".join(get_fuzz_build_tags())
-            cmd = f'go test -tags {tags} -v . -run={func} -fuzz={func}$ -fuzztime={fuzztime}'
-            ctx.run(cmd)
+            ctx.run(
+                join_command(
+                    ["go", "test", "-tags", tags, "-v", ".", f"-run={func}", f"-fuzz={func}$", f"-fuzztime={fuzztime}"]
+                )
+            )
 
 
 def search_fuzz_tests(directory):

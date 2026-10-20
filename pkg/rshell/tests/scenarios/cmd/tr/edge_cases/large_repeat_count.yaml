@@ -1,0 +1,13 @@
+description: tr handles large explicit repeat count in set2.
+setup:
+  files:
+    - path: input.txt
+      content: "abcdef"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat input.txt | tr 'abcdef' '[x*6]'
+expect:
+  stdout: "xxxxxx"
+  stderr: ""
+  exit_code: 0

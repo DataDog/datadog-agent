@@ -1,0 +1,17 @@
+description: ls -l shows symlink target with -> arrow
+setup:
+  files:
+    - path: file.txt
+      content: "hello"
+      chmod: 0644
+    - path: link.txt
+      symlink: file.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -l link.txt
+expect:
+  stdout_contains:
+    - "link.txt -> file.txt"
+  stderr: ""
+  exit_code: 0

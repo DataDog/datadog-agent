@@ -1,0 +1,17 @@
+description: $(<file) shortcut works when rshell:cat is explicitly in allowed_commands (inverse of blocked_redirects/cat_shortcut_bypass).
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: data.txt
+      content: "hello from file"
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands: ["rshell:cat", "rshell:echo"]
+  script: |+
+    x=$(<data.txt)
+    echo "[$x]"
+expect:
+  stdout: |+
+    [hello from file]
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: $(<file) shortcut resets exit status after prior failed substitution.
+setup:
+  files:
+    - path: ok.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    a=$(false) b=$(<ok.txt)
+    echo "$?"
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

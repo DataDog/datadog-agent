@@ -1,0 +1,8 @@
+description: Printf interprets backslash-r as a carriage return.
+input:
+  script: |+
+    printf "hello\rworld\n"
+expect:
+  stdout: "hello\rworld\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Bracket glob with no matches expands to the literal pattern.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo [abc].xyz
+expect:
+  stdout: |+
+    [abc].xyz
+  stderr: ""
+  exit_code: 0

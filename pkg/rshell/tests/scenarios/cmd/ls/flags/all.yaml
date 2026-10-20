@@ -1,0 +1,23 @@
+description: ls -a shows hidden files including . and ..
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: .hidden
+      content: "secret"
+      chmod: 0644
+    - path: visible.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -a
+expect:
+  stdout_contains:
+    - "."
+    - ".."
+    - ".hidden"
+    - "visible.txt"
+  stderr: ""
+  exit_code: 0

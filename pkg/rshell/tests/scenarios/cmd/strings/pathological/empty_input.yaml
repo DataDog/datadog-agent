@@ -1,0 +1,14 @@
+description: strings on an empty file produces no output and exits 0.
+setup:
+  files:
+    - path: empty.bin
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings empty.bin
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

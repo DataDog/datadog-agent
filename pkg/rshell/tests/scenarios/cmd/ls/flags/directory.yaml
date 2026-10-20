@@ -1,0 +1,15 @@
+description: ls -d lists directory itself, not its contents.
+setup:
+  files:
+    - path: mydir/file.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -d mydir
+expect:
+  stdout: |+
+    mydir
+  stderr: ""
+  exit_code: 0

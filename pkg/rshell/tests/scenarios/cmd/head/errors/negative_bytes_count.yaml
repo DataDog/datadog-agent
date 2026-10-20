@@ -1,0 +1,16 @@
+# We intentionally reject negative byte counts (we do not implement -c -N elide-tail mode)
+description: head exits 1 when -c is given a negative count.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -c -1 file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["head:"]
+  exit_code: 1

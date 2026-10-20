@@ -1,0 +1,15 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: Unknown command in logical OR chain falls through to the next command.
+input:
+  script: |+
+    nonexistent_cmd || echo "recovered"
+    echo $?
+expect:
+  stdout: |+
+    recovered
+    0
+  stderr_contains:
+    - "nonexistent_cmd"
+    - "unknown command"
+  exit_code: 0

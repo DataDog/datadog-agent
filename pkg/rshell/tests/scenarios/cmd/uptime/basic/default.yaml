@@ -1,0 +1,9 @@
+description: uptime default output includes the "up" duration segment
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime
+expect:
+  stdout_contains: ["up "]
+  stderr: ""
+  exit_code: 0

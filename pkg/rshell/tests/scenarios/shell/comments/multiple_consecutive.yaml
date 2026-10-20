@@ -1,0 +1,14 @@
+description: Multiple consecutive comment lines are all ignored.
+input:
+  script: |+
+    # comment 1
+    # comment 2
+    # comment 3
+    echo ok
+    # comment 4
+    # comment 5
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

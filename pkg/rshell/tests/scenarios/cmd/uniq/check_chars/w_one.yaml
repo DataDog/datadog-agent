@@ -1,0 +1,13 @@
+description: uniq -w 1 compares only first character.
+setup:
+  files:
+    - path: input.txt
+      content: "a a\nb a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -w 1 input.txt
+expect:
+  stdout: "a a\nb a\n"
+  stderr: ""
+  exit_code: 0

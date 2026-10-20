@@ -1,0 +1,9 @@
+description: Single quotes preserve tabs and multiple spaces literally.
+input:
+  script: |+
+    echo 'a   b'
+    echo 'a	b'
+expect:
+  stdout: "a   b\na\tb\n"
+  stderr: ""
+  exit_code: 0

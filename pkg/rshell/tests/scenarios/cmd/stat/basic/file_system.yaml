@@ -1,0 +1,14 @@
+description: stat -f reports the filesystem containing an allowed path.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f .
+expect:
+  stdout_contains:
+    - "  File: \".\"\n"
+    - "Namelen:"
+    - "Block size:"
+    - "Blocks: Total:"
+    - "Inodes: Total:"
+  stderr: |+
+  exit_code: 0

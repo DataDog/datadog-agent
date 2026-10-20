@@ -1,0 +1,8 @@
+description: tr rejects a descending range where start > end.
+input:
+  script: |+
+    echo hello | tr z-a A-Z
+expect:
+  stdout: ""
+  stderr: "tr: range-endpoints of 'z-a' are in reverse collating sequence order\n"
+  exit_code: 1

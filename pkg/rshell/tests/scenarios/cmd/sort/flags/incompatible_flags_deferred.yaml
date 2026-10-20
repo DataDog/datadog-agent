@@ -1,0 +1,13 @@
+description: "sort -d -n accepted when all keys have per-key opts that override globals."
+setup:
+  files:
+    - path: data.txt
+      content: "b\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -d -n -k1,1n data.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

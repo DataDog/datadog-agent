@@ -1,0 +1,19 @@
+description: The $? variable is updated after each command in a for loop body.
+input:
+  script: |+
+    for x in a b c; do
+      true
+      echo "$x:$?"
+    done
+    false
+    for x in d; do
+      echo "$x:$?"
+    done
+expect:
+  stdout: |+
+    a:0
+    b:0
+    c:0
+    d:1
+  stderr: ""
+  exit_code: 0

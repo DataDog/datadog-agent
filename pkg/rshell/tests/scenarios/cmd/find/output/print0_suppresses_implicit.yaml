@@ -1,0 +1,22 @@
+description: "-print0 in one OR branch suppresses implicit -print globally."
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.log
+      content: "b"
+      chmod: 0644
+    - path: dir/c.txt
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name '*.txt' -print0 -o -name '*.log'
+expect:
+  stdout_contains:
+    - "dir/a.txt"
+    - "dir/c.txt"
+  stderr: ""
+  exit_code: 0

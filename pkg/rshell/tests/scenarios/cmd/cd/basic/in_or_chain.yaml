@@ -1,0 +1,15 @@
+description: cd a || cd b takes the first if it succeeds.
+setup:
+  files:
+    - path: real/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd real || cd nope
+    pwd
+expect:
+  stdout_contains: ["/real"]
+  stdout_contains_windows: ["\\real"]
+  stderr: ""
+  exit_code: 0

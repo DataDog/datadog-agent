@@ -1,0 +1,8 @@
+description: Cut -c selects single character positions (alias for -b with single-byte chars).
+input:
+  script: |+
+    printf "abcdef\n" | cut -c3
+expect:
+  stdout: "c\n"
+  stderr: ""
+  exit_code: 0

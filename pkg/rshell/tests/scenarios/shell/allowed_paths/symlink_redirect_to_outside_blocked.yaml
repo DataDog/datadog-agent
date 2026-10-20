@@ -1,0 +1,18 @@
+description: Symlink within allowed dir pointing to directory outside is blocked.
+# skip: uses allowed_paths which the bash harness does not support
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: outside/secret.txt
+      content: "secret"
+    - path: allowed/link_to_dir
+      symlink: ../outside
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat allowed/link_to_dir/secret.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "path escapes from parent"
+  exit_code: 1

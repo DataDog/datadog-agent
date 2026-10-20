@@ -1,0 +1,18 @@
+description: grep with empty pattern matches every line.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep '' file.txt
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

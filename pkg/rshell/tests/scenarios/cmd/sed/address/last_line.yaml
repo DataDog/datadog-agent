@@ -1,0 +1,13 @@
+description: The $ address matches the last line of input.
+setup:
+  files:
+    - path: input.txt
+      content: "first\nmiddle\nlast\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '$s/last/LAST/' input.txt
+expect:
+  stdout: "first\nmiddle\nLAST\n"
+  stderr: ""
+  exit_code: 0

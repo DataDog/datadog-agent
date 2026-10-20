@@ -1,0 +1,7 @@
+description: Heredoc-dash strips only leading tabs, not spaces.
+input:
+  script: "cat <<-EOF\n\ttab-indented\n  space-indented\n\tEOF\n"
+expect:
+  stdout: "tab-indented\n  space-indented\n"
+  stderr: ""
+  exit_code: 0

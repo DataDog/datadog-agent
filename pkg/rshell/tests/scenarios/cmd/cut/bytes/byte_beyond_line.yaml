@@ -1,0 +1,14 @@
+description: Cut outputs empty line when byte position is beyond line length.
+setup:
+  files:
+    - path: input.txt
+      content: "123\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -c4 input.txt
+expect:
+  stdout: "\n"
+  stderr: ""
+  exit_code: 0

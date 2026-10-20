@@ -1,0 +1,13 @@
+description: sort reports error for a nonexistent file.
+setup:
+  files: []
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains: ["sort:"]
+  exit_code: 1
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # error message format differs

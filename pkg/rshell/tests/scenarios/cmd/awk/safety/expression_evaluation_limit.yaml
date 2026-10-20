@@ -1,0 +1,11 @@
+# skip: rshell intentionally bounds aggregate expression-node evaluations.
+skip_assert_against_bash: true
+description: awk bounds recursive expression work across main-input records.
+input:
+  script: |+
+    awk 'BEGIN { printf "%100000s", ""; printf " " }' | awk -v RS=' ' '(1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1) && 0'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: expression evaluation limit exceeded (maximum 4194304)
+  exit_code: 1

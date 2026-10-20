@@ -1,0 +1,11 @@
+description: Heredoc combined with || does not run the fallback when cat succeeds.
+input:
+  script: |+
+    cat <<EOF || echo fail
+    hello
+    EOF
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

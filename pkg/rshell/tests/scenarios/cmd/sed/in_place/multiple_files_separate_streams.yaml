@@ -1,0 +1,28 @@
+description: sed -i treats each file as a separate stream so line numbers and $ restart per file.
+setup:
+  files:
+    - path: a.txt
+      content: |+
+        1a
+        2a
+        3a
+    - path: b.txt
+      content: |+
+        1b
+        2b
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i '$s/$/-LAST/' a.txt b.txt
+    cat a.txt
+    cat b.txt
+expect:
+  stdout: |+
+    1a
+    2a
+    3a-LAST
+    1b
+    2b-LAST
+  stderr: |+
+  exit_code: 0

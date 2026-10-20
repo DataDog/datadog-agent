@@ -1,0 +1,11 @@
+# skip: write redirects are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Echo cannot be used as a file-write primitive through output redirection.
+input:
+  script: |+
+    echo payload > output.txt
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

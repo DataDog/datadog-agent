@@ -49,6 +49,7 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/rshell/privilegedhelper",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agentparams",
@@ -68,7 +69,6 @@ dd_agent_go_test(
         "//test/new-e2e/tests/agent-platform/common",
         "//test/new-e2e/tests/agent-platform/common/process",
         "//test/new-e2e/tests/windows/common/agent",
-        "@com_github_datadog_rshell//privilegedhelper",
         "@com_github_google_uuid//:uuid",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",

@@ -1,0 +1,11 @@
+description: Empty single-quoted string is a valid argument (not removed by field splitting).
+input:
+  script: |+
+    for w in '' 'a' ''; do echo "[$w]"; done
+expect:
+  stdout: |+
+    []
+    [a]
+    []
+  stderr: ""
+  exit_code: 0

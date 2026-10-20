@@ -1,0 +1,13 @@
+description: strings -n 6 -t d combines minimum length filter with decimal offset.
+setup:
+  files:
+    - path: data.bin
+      content: "hi\nhello_world\nfoo\ntesting123\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -n 6 -t d data.bin
+expect:
+  stdout: "      3 hello_world\n     19 testing123\n"
+  stderr: ""
+  exit_code: 0

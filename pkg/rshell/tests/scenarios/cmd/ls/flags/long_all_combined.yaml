@@ -1,0 +1,19 @@
+description: ls -la combines long format with all entries including dot dirs.
+setup:
+  files:
+    - path: .hidden
+      content: "secret"
+    - path: visible
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -la
+expect:
+  stdout_contains:
+    - "."
+    - ".."
+    - ".hidden"
+    - "visible"
+  stderr: ""
+  exit_code: 0

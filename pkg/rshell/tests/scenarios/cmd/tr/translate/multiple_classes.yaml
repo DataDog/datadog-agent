@@ -1,0 +1,13 @@
+description: tr translates with multiple character class mappings.
+setup:
+  files:
+    - path: input.txt
+      content: "Hello World 123\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat input.txt | tr '[:upper:]' '[:lower:]'
+expect:
+  stdout: "hello world 123\n"
+  stderr: ""
+  exit_code: 0

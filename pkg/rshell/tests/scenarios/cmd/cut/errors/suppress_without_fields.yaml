@@ -1,0 +1,14 @@
+description: Cut rejects -s flag when used with byte mode instead of field mode.
+setup:
+  files:
+    - path: input.txt
+      content: ":\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -s -b4 input.txt
+expect:
+  stdout: ""
+  stderr_contains: ["cut:"]
+  exit_code: 1

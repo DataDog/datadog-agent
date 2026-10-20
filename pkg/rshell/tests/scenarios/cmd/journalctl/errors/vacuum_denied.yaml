@@ -1,0 +1,12 @@
+# Remediation mode alone does not bypass the shared systemd allowlist.
+skip_assert_against_bash: true
+description: journalctl vacuum requires a journald clean grant
+input:
+  mode: remediation
+  script: |+
+    journalctl --vacuum-size=64M --vacuum-time=168h
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: system service "systemd-journald.service" is not allowed for action "clean"
+  exit_code: 1

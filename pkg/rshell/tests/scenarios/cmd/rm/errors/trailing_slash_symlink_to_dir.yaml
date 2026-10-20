@@ -1,0 +1,17 @@
+description: rm LINK/ where LINK is a symlink to a directory fails with "Is a directory", dereferencing the symlink because of the trailing slash.
+setup:
+  files:
+    - path: subdir/placeholder
+      content: ""
+    - path: linkdir
+      symlink: subdir
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm linkdir/
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove 'linkdir/': Is a directory
+  exit_code: 1

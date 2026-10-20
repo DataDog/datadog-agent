@@ -1,0 +1,17 @@
+description: Deep 8-way elif chain with only the seventh condition true exercises the iterative chain walk.
+input:
+  script: |+
+    if false; then echo 1
+    elif false; then echo 2
+    elif false; then echo 3
+    elif false; then echo 4
+    elif false; then echo 5
+    elif false; then echo 6
+    elif true; then echo 7
+    else echo 8
+    fi
+expect:
+  stdout: |+
+    7
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: jq reaches later operands while finishing an unterminated string.
+setup:
+  files:
+    - path: data/bad.json
+      content: '{"x":"\qbad'
+    - path: data/after.json
+      content: |+
+        {"id":2}
+input:
+  allowed_paths: ["data"]
+  script: |+
+    jq -c . data/bad.json data/missing.json data/after.json
+expect:
+  stdout: |+
+  stderr_contains: ["data/missing.json", "parse error"]
+  exit_code: 2

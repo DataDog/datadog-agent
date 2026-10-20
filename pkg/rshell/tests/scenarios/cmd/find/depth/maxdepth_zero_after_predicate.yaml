@@ -1,0 +1,16 @@
+description: "-maxdepth 0 after a predicate only processes the starting point."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: a/b/file.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -type d -maxdepth 0
+expect:
+  stdout: |+
+    a
+  stderr: ""
+  exit_code: 0

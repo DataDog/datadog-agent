@@ -1,0 +1,18 @@
+description: grep can be chained in a pipeline.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        apple pie
+        banana split
+        cherry pie
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt | grep pie | grep -v cherry
+expect:
+  stdout: |+
+    apple pie
+  stderr: ""
+  exit_code: 0

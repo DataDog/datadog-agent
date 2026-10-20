@@ -1,0 +1,14 @@
+# skip: case statements are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Case with variable expansion in subject is blocked.
+input:
+  script: |+
+    x=hello
+    case "$x" in
+      hello) echo matched;;
+      *) echo no;;
+    esac
+expect:
+  stdout: ""
+  stderr: "case statements are not supported\n"
+  exit_code: 2

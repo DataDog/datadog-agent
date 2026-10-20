@@ -1,0 +1,16 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+# skip: parameter assignment expansions are intentionally blocked in rshell.
+skip_assert_against_bash: true
+description: Parameter assignment expansion inside an unquoted heredoc body is rejected.
+input:
+  script: |+
+    X=outer
+    cat <<EOF
+    ${X:=mutated}
+    EOF
+    echo "$X"
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

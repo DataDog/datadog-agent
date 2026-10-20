@@ -1,0 +1,28 @@
+description: awk supports sub, gsub, match, RSTART, RLENGTH, and sprintf.
+input:
+  script: |+
+    awk 'BEGIN { print RSTART, RLENGTH; s = "abc123def"; print match(s, /[0-9]+/), RSTART, RLENGTH, substr(s, RSTART, RLENGTH); sub(/[0-9]+/, "<&>", s); print s; gsub(/[a-z]+/, "X", s); print s; print sprintf("%s:%03d", "id", 7) }'
+    awk 'BEGIN { b=sprintf("%c",92); s="x"; gsub(/x/,b b,s); print s==b b; s="x"; gsub(/x/,b b "&",s); print s==b "x" }'
+    awk 'BEGIN { CONVFMT="%.2f"; x=1.234; print length(x), substr(x,1), (x ~ /^1[.]23$/), (x == "1.23") }'
+    awk 'BEGIN { OFMT="%.2f"; CONVFMT="%.3f"; x=1.236; a[x]=1; print x, x "", ("1.236" in a) }'
+    awk 'BEGIN { print match("a\nb", /a.b/) }'
+    awk 'BEGIN { print match("å", /$/), RSTART, RLENGTH }'
+    awk 'BEGIN { print "unreachable"; if (0) sub(/a/, "b", x + 1) }' 2>/dev/null || printf 'invalid sub target rejected\n'
+    awk 'BEGIN { print "unreachable"; if (0) gsub(/a/, "b", x + 1) }' 2>/dev/null || printf 'invalid gsub target rejected\n'
+expect:
+  stdout: |+
+    0 0
+    4 4 3 123
+    abc<123>def
+    X<123>X
+    id:007
+    1
+    1
+    4 1.23 1 1
+    1.24 1.236 1
+    1
+    2 2 0
+    invalid sub target rejected
+    invalid gsub target rejected
+  stderr: |+
+  exit_code: 0

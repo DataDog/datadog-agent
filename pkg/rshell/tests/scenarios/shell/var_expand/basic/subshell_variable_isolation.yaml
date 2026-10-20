@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-18-initial-audit / var_expand H5.
+# A variable assigned inside (...) does not leak back to the parent. This
+# replaces the original audit's "manual" verdict line with a checked-in
+# artifact.
+description: A variable set inside a subshell does not leak to the parent.
+input:
+  script: |+
+    ( VAR=inside; echo "inside=[$VAR]" )
+    echo "outside=[$VAR]"
+expect:
+  stdout: |+
+    inside=[inside]
+    outside=[]
+  stderr: ""
+  exit_code: 0

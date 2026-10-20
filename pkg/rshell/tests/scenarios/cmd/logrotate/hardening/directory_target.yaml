@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: a directory operand is rejected; logrotate only ever truncates regular files.
+setup:
+  files:
+    - path: logs/app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --force logs
+    wc -c < logs/app.log
+expect:
+  stdout: |+
+    5
+  stderr: |+
+    logrotate: "logs": is a directory
+  exit_code: 0

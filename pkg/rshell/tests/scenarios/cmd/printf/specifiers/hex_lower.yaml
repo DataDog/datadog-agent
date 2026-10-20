@@ -1,0 +1,9 @@
+description: Printf %x specifier outputs lowercase hexadecimal.
+input:
+  script: |+
+    printf "%x\n" 255
+expect:
+  stdout: |+
+    ff
+  stderr: ""
+  exit_code: 0

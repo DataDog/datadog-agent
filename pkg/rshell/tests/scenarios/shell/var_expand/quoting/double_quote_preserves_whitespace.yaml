@@ -1,0 +1,10 @@
+description: Double quotes preserve embedded tabs and multiple spaces.
+input:
+  script: |+
+    echo "a   b"
+    echo "a	b"
+    echo "a  	  b"
+expect:
+  stdout: "a   b\na\tb\na  \t  b\n"
+  stderr: ""
+  exit_code: 0

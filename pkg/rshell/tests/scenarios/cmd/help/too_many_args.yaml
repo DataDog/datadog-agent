@@ -1,0 +1,9 @@
+description: Help prints an error for an unknown topic.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help foo
+expect:
+  stdout: ""
+  stderr: "help: no help topics match 'foo'\n"
+  exit_code: 1

@@ -1,0 +1,20 @@
+description: grep -E uses extended regular expressions.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        cat
+        bat
+        hat
+        dog
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -E '(c|b)at' file.txt
+expect:
+  stdout: |+
+    cat
+    bat
+  stderr: ""
+  exit_code: 0

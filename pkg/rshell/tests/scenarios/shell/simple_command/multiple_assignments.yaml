@@ -1,0 +1,15 @@
+description: Multiple assignments on a single line.
+input:
+  script: |+
+    a= b=bar
+    c=$b d=X e=$a
+    echo "$c"
+    echo "$d"
+    echo "$e"
+expect:
+  stdout: |+
+    bar
+    X
+
+  stderr: ""
+  exit_code: 0

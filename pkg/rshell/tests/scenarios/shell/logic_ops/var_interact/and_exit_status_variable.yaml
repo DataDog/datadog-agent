@@ -1,0 +1,9 @@
+description: The $? variable reflects exit status within && chains.
+input:
+  script: |+
+    true && echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

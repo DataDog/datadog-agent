@@ -1,0 +1,13 @@
+description: tail -n 1 on input with no trailing newline outputs the last line verbatim without adding a newline.
+setup:
+  files:
+    - path: file.txt
+      content: "line1\nno newline at end"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 1 file.txt
+expect:
+  stdout: "no newline at end"
+  stderr: ""
+  exit_code: 0

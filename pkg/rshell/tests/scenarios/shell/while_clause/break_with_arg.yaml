@@ -1,0 +1,14 @@
+description: break with an explicit argument of 1 exits the innermost while loop.
+input:
+  script: |+
+    while true; do
+      echo body
+      break 1
+    done
+    echo done
+expect:
+  stdout: |+
+    body
+    done
+  stderr: |+
+  exit_code: 0

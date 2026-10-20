@@ -1,0 +1,9 @@
+description: Printf %o specifier outputs an octal representation.
+input:
+  script: |+
+    printf "%o\n" 255
+expect:
+  stdout: |+
+    377
+  stderr: ""
+  exit_code: 0

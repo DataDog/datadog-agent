@@ -1,0 +1,14 @@
+description: ls on a directory with only a dotfile shows nothing by default.
+setup:
+  files:
+    - path: emptydir/.gitkeep
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls emptydir
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

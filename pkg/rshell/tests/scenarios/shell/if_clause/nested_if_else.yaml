@@ -1,0 +1,17 @@
+description: Nested if-else inside else branch.
+input:
+  script: |+
+    if false; then
+      echo a
+    else
+      if true; then
+        echo b
+      else
+        echo c
+      fi
+    fi
+expect:
+  stdout: |+
+    b
+  stderr: ""
+  exit_code: 0

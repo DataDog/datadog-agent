@@ -1,0 +1,26 @@
+description: "When -maxdepth is specified multiple times, the last value wins."
+setup:
+  files:
+    - path: a/b/c/deep.txt
+      content: "deep"
+      chmod: 0644
+    - path: a/b/mid.txt
+      content: "mid"
+      chmod: 0644
+    - path: a/top.txt
+      content: "top"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -maxdepth 1 -maxdepth 3
+expect:
+  stdout_unordered: |+
+    a
+    a/b
+    a/b/c
+    a/b/c/deep.txt
+    a/b/mid.txt
+    a/top.txt
+  stderr: ""
+  exit_code: 0

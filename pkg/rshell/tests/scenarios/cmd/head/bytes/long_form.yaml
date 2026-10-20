@@ -1,0 +1,13 @@
+description: head --bytes=N long form is equivalent to -c N.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head --bytes=5 file.txt
+expect:
+  stdout: "alpha"
+  stderr: ""
+  exit_code: 0

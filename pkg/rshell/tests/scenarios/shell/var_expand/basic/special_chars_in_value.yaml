@@ -1,0 +1,13 @@
+description: Assignment values can contain special characters when quoted.
+input:
+  script: |+
+    A="hello!world"
+    B='@#$%^'
+    echo "$A"
+    echo "$B"
+expect:
+  stdout: |+
+    hello!world
+    @#$%^
+  stderr: ""
+  exit_code: 0

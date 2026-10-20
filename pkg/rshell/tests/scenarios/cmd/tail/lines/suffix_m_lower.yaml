@@ -1,0 +1,13 @@
+description: tail -n 1m outputs the last 1048576 lines (lowercase m is a GNU alias for M).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 1m file.txt
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: echo --help is not recognised as a flag and is printed as literal text.
+input:
+  script: |+
+    echo --help
+expect:
+  stdout: |+
+    --help
+  stderr: ""
+  exit_code: 0

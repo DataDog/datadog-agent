@@ -1,0 +1,27 @@
+description: ls -l prints a total line in 1024-byte block units matching GNU ls.
+# skip_assert_against_bash: rshell displays numeric UID/GID (sandbox safety)
+# while GNU ls resolves to usernames, so long-format output will always differ.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: a.txt
+      content: "hello"
+      chmod: 0644
+    - path: b.txt
+      content: "world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -l
+expect:
+  stdout_contains:
+    - "total "
+    - "a.txt"
+    - "b.txt"
+  # On Windows, block allocation is unavailable so the total line is suppressed.
+  stdout_contains_windows:
+    - "a.txt"
+    - "b.txt"
+  stderr: ""
+  exit_code: 0

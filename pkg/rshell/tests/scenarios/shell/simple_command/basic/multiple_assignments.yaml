@@ -1,0 +1,10 @@
+description: Multiple variable assignments on one line.
+input:
+  script: |+
+    a=1 b=2
+    echo $a $b
+expect:
+  stdout: |+
+    1 2
+  stderr: ""
+  exit_code: 0

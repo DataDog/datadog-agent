@@ -1,0 +1,12 @@
+description: while loop's condition can be a pipeline; only the trailing exit status matters.
+input:
+  script: |+
+    while echo test | grep -q test; do
+      echo body
+      break
+    done
+expect:
+  stdout: |+
+    body
+  stderr: |+
+  exit_code: 0

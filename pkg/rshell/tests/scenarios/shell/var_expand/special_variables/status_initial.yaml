@@ -1,0 +1,9 @@
+description: The $? variable is 0 at the start of a script.
+input:
+  script: |+
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

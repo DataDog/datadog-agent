@@ -1,0 +1,21 @@
+description: Mixing absolute and relative cd in sequence still tracks the latest dir.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: a/sub/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a
+    abs=$(pwd)
+    cd ..
+    cd "$abs"
+    cd sub
+    pwd
+expect:
+  stdout_contains: ["/a/sub"]
+  stdout_contains_windows: ["\\a\\sub"]
+  stderr: ""
+  exit_code: 0

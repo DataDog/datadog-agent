@@ -1,0 +1,15 @@
+description: Multiple variables are expanded within double quotes.
+input:
+  script: |+
+    A=hello
+    B=world
+    echo "$A $B"
+    echo "${A}_${B}"
+    echo "$A$B"
+expect:
+  stdout: |+
+    hello world
+    hello_world
+    helloworld
+  stderr: ""
+  exit_code: 0

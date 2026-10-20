@@ -1,0 +1,17 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: Comment-only payload text is data and does not expand, redirect, or execute.
+setup:
+  files:
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: []
+  script: |+
+    # $(cat secret/data.txt)
+    # $((1+1)) ${HOME} > /tmp/evil
+    # readonly RO=pwned
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

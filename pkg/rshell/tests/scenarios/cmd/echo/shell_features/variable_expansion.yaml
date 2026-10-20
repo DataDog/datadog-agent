@@ -1,0 +1,10 @@
+description: Echo outputs the value of expanded shell variables.
+input:
+  script: |+
+    MY_VAR=hello
+    echo $MY_VAR world
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

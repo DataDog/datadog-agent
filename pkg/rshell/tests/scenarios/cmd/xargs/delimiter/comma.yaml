@@ -1,0 +1,9 @@
+description: xargs -d , uses a custom single-byte delimiter for tokenisation.
+input:
+  script: |+
+    printf 'a,b,c' | xargs -d , echo
+expect:
+  stdout: |+
+    a b c
+  stderr: |+
+  exit_code: 0

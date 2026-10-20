@@ -1,0 +1,44 @@
+Component,Origin,License,Copyright
+github.com/DataDog/datadog-agent/pkg/fleet/installer,https://github.com/DataDog/datadog-agent,Apache-2.0,"Copyright 2016-present Datadog, Inc."
+github.com/DataDog/datadog-agent/pkg/remoteconfig/state,https://github.com/DataDog/datadog-agent,Apache-2.0,"Copyright 2016-present Datadog, Inc."
+github.com/DataDog/datadog-agent/pkg/template,https://github.com/DataDog/datadog-agent,Apache-2.0,"Copyright 2016-present Datadog, Inc."
+github.com/DataDog/datadog-agent/pkg/util/log,https://github.com/DataDog/datadog-agent,Apache-2.0,"Copyright 2016-present Datadog, Inc."
+github.com/DataDog/datadog-agent/pkg/util/scrubber,https://github.com/DataDog/datadog-agent,Apache-2.0,"Copyright 2016-present Datadog, Inc."
+github.com/DataDog/datadog-agent/pkg/version,https://github.com/DataDog/datadog-agent,Apache-2.0,"Copyright 2016-present Datadog, Inc."
+github.com/DataDog/go-tuf,https://github.com/DataDog/go-tuf,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc."
+github.com/davecgh/go-spew,https://github.com/davecgh/go-spew,ISC,Copyright (c) 2012-2016 Dave Collins
+github.com/ebitengine/purego,https://github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Authors
+github.com/elastic/go-seccomp-bpf,https://github.com/elastic/go-seccomp-bpf,Apache-2.0,Copyright 2022 Elasticsearch B.V.
+github.com/go-ole/go-ole,https://github.com/go-ole/go-ole,MIT,"Copyright (c) 2013-2017 Yasuhiro Matsumoto"
+github.com/godbus/dbus/v5,https://github.com/godbus/dbus,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke, Google"
+github.com/google/uuid,https://github.com/google/uuid,BSD-3-Clause,Copyright (c) 2018 Google Inc.
+github.com/inconshreveable/mousetrap,https://github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2014 Alan Shreve
+github.com/klauspost/compress,https://github.com/klauspost/compress,BSD-3-Clause,"Copyright (c) 2012 The Go Authors; Copyright (c) 2019 Klaus Post"
+github.com/landlock-lsm/go-landlock,https://github.com/landlock-lsm/go-landlock,MIT,Copyright (c) 2021 Günther Noack
+github.com/lufia/plan9stats,https://github.com/lufia/plan9stats,BSD-3-Clause,"Copyright (c) 2019, KADOTA, Kyohei"
+github.com/pierrec/lz4/v4,https://github.com/pierrec/lz4,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
+github.com/pmezard/go-difflib,https://github.com/pmezard/go-difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
+github.com/power-devops/perfstat,https://github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
+github.com/prometheus-community/pro-bing,https://github.com/prometheus-community/pro-bing,MIT,"Copyright 2022 The Prometheus Authors; Copyright 2016 Cameron Sparr and contributors"
+github.com/secure-systems-lab/go-securesystemslib,https://github.com/secure-systems-lab/go-securesystemslib,MIT,Copyright (c) 2021 NYU Secure Systems Lab
+github.com/shirou/gopsutil/v4,https://github.com/shirou/gopsutil,BSD-3-Clause,"Copyright (c) 2014, WAKAYAMA Shirou"
+github.com/spf13/cobra,https://github.com/spf13/cobra,Apache-2.0,Copyright 2013-2023 The Cobra Authors
+github.com/spf13/pflag,https://github.com/spf13/pflag,BSD-3-Clause,"Copyright (c) 2012 Alex Ogier, The Go Authors"
+github.com/stretchr/testify,https://github.com/stretchr/testify,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+github.com/tklauser/go-sysconf,https://github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2022, Tobias Klauser"
+github.com/tklauser/numcpus,https://github.com/tklauser/numcpus,Apache-2.0,"Copyright (c) 2018-2022, Tobias Klauser"
+github.com/ulikunitz/xz,https://github.com/ulikunitz/xz,BSD-3-Clause,"Copyright (c) 2014-2022, Ulrich Kunitz"
+github.com/yusufpapurcu/wmi,https://github.com/yusufpapurcu/wmi,MIT,Copyright (c) 2013 Stack Exchange
+go.uber.org/atomic,https://github.com/uber-go/atomic,MIT,"Copyright (c) 2016 Uber Technologies, Inc."
+go.yaml.in/yaml/v3,https://github.com/yaml/go-yaml,MIT AND Apache-2.0,"Copyright (c) 2006-2011 Kirill Simonov, 2011-2019 Canonical Ltd"
+golang.org/x/mod,https://github.com/golang/mod,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+golang.org/x/net,https://github.com/golang/net,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+golang.org/x/sync,https://github.com/golang/sync,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+golang.org/x/sys,https://github.com/golang/sys,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+golang.org/x/term,https://github.com/golang/term,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+golang.org/x/time,https://github.com/golang/time,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+golang.org/x/tools,https://github.com/golang/tools,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+gopkg.in/yaml.v3,https://github.com/go-yaml/yaml,MIT AND Apache-2.0,"Copyright (c) 2006-2011 Kirill Simonov, 2011-2019 Canonical Ltd"
+google.golang.org/protobuf,https://github.com/protocolbuffers/protobuf-go,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved.
+kernel.org/pub/linux/libs/security/libcap/psx,https://git.kernel.org/pub/scm/libs/libcap/libcap.git,BSD-3-Clause,"Copyright (c) 2019,20,24 Andrew G. Morgan <morgan@kernel.org>"
+mvdan.cc/sh/v3,https://github.com/mvdan/sh,BSD-3-Clause,"Copyright (c) 2016, Daniel Marti"

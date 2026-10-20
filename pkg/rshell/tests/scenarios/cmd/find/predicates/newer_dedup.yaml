@@ -1,0 +1,15 @@
+description: duplicate -newer refs produce error and exit code 1.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -newer nonexist -o -newer nonexist
+expect:
+  stdout: ""
+  stderr_contains: ["find: 'nonexist'"]
+  exit_code: 1

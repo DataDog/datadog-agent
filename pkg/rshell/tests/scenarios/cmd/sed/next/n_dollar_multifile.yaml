@@ -1,0 +1,15 @@
+description: "n command with $ address only matches last line of last file."
+setup:
+  files:
+    - path: a.txt
+      content: "a\nb\n"
+    - path: b.txt
+      content: "c\nd\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'n;$s/./LAST/' a.txt b.txt
+expect:
+  stdout: "a\nb\nc\nLAST\n"
+  stderr: ""
+  exit_code: 0

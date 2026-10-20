@@ -1,0 +1,13 @@
+description: wc -l on empty file outputs 0.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l empty.txt
+expect:
+  stdout: "0 empty.txt\n"
+  stderr: ""
+  exit_code: 0

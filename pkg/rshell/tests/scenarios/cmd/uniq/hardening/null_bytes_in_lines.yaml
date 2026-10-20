@@ -1,0 +1,13 @@
+description: uniq preserves null bytes within lines.
+setup:
+  files:
+    - path: input.txt
+      content: "a\x00a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq input.txt
+expect:
+  stdout: "a\x00a\na\n"
+  stderr: ""
+  exit_code: 0

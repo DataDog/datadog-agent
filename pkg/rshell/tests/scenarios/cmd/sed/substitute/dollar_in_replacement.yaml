@@ -1,0 +1,12 @@
+description: Literal dollar sign in replacement is treated literally.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/b/$1/' input.txt
+expect:
+  stdout: "a$1c\n"
+  exit_code: 0

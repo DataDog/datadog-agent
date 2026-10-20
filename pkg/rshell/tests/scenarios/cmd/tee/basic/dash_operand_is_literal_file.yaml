@@ -1,0 +1,17 @@
+# GNU tee treats "-" as a literal filename, not a stdout alias. Coreutils
+# 5.3.0 through 8.23 special-cased "-" to duplicate stdout, but that
+# behavior was removed in 8.24 as mandated by POSIX; current GNU tee opens
+# "-" as a real file through the normal path.
+description: A "-" FILE operand is opened as a literal file named "-", not a stdout alias.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "viadash\n" | tee -
+    cat ./-
+expect:
+  stdout: |+
+    viadash
+    viadash
+  stderr: |+
+  exit_code: 0

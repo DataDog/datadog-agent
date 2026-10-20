@@ -1,0 +1,17 @@
+description: "Variable-expanded file path inside allowed path is accessible"
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: "data/report.txt"
+      content: "report content\n"
+input:
+  script: |
+    DIR=data
+    FILE=report.txt
+    cat "$DIR/$FILE"
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "report content\n"
+  exit_code: 0

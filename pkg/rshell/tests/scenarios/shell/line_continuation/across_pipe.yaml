@@ -1,0 +1,10 @@
+description: Line continuation across a pipe operator joins the pipeline correctly.
+input:
+  script: |+
+    echo hello \
+    | cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

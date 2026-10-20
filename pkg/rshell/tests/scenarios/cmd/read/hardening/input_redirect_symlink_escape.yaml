@@ -1,0 +1,22 @@
+# vuln-hunt 2026-05-19-codex / read.
+skip_assert_against_bash: true
+description: read input redirection through a symlink must not escape AllowedPaths.
+setup:
+  files:
+    - path: outside/secret.txt
+      content: |+
+        secret
+    - path: allowed/link.txt
+      symlink: ../outside/secret.txt
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    read X < allowed/link.txt
+    echo "rc=$?"
+    echo "X=[$X]"
+expect:
+  stdout: |+
+    rc=1
+    X=[]
+  stderr_contains: ["path escapes"]
+  exit_code: 0

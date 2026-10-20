@@ -1,0 +1,11 @@
+description: For loop output can be piped to another command.
+input:
+  script: |+
+    for i in a b c; do echo $i; done | cat
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

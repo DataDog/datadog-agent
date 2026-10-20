@@ -1,0 +1,8 @@
+description: "test -z on empty string returns true"
+input:
+  script: |+
+    test -z ""
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: Continue with argument 1 continues one level (same as simple continue).
+input:
+  script: |+
+    for i in a b c; do
+      continue 1
+      echo $i
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

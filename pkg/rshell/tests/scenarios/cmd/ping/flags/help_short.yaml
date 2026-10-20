@@ -1,0 +1,10 @@
+# -h is the short form of --help.
+description: "ping -h prints usage to stdout and exits 0"
+input:
+  script: |+
+    ping -h
+expect:
+  stdout_contains: ["Usage: ping"]
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true

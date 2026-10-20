@@ -1,0 +1,14 @@
+description: grep -l on a binary file (containing NUL bytes) prints the filename to stdout without emitting the "binary file matches" message to stderr.
+setup:
+  files:
+    - path: file.txt
+      content: "found\x00here\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -l found file.txt
+expect:
+  stdout: "file.txt\n"
+  stderr: ""
+  exit_code: 0

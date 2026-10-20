@@ -1,0 +1,17 @@
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+description: grep with invalid regex exits 2.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -E '[invalid' file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["grep:"]
+  exit_code: 2

@@ -1,0 +1,9 @@
+description: '`tail -n nope` fails with GNU''s exact wording (`tail: invalid number of lines: ''nope''`). Validation lives in the bound handler in builtins/tail/tail.go and runs before the `--help` short-circuit, mirroring head''s ordering.'
+input:
+  script: |+
+    tail -n nope
+expect:
+  stdout: ""
+  stderr: |+
+    tail: invalid number of lines: 'nope'
+  exit_code: 1

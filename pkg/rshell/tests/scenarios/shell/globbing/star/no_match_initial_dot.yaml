@@ -1,0 +1,18 @@
+description: Star does not match initial dot in filenames.
+setup:
+  files:
+    - path: testdir/.hidden
+      content: ""
+    - path: testdir/visible
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo testdir/*
+expect:
+  stdout: |+
+    testdir/visible
+  stdout_windows: |+
+    testdir\visible
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,24 @@
+# --type narrows the read-granted candidate set before the manager is consulted.
+skip_assert_against_bash: true
+description: systemctl --type excludes read-granted units of other types
+input:
+  mode: remediation
+  allowed_system_services:
+    - service: api.service
+      actions: [read]
+    - service: backup.timer
+      actions: [read]
+  script: |+
+    systemctl list-units --type=path
+    systemctl --type=mount,swap
+    systemctl -t socket
+expect:
+  stdout: |+
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+  stderr: |+
+  exit_code: 0

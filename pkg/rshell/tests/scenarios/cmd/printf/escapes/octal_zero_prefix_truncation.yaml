@@ -1,0 +1,7 @@
+description: Octal \0 prefix consumes at most 2 more digits (3 total including the leading 0).
+input:
+  script: |+
+    printf '\077end'
+expect:
+  stdout: "?end"
+  exit_code: 0

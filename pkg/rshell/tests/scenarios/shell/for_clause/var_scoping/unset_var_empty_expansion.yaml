@@ -1,0 +1,12 @@
+description: Expanding an unset variable in for loop items produces an empty list.
+input:
+  script: |+
+    for i in $UNDEFINED_VAR; do
+      echo "got: $i"
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

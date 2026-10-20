@@ -1,0 +1,15 @@
+description: ls with parent traversal outside sandbox returns permission denied.
+# skip: sandbox path restrictions are an rshell-specific feature
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: inside.txt
+      content: "ok"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls ../../..
+expect:
+  stdout: ""
+  stderr: "ls: cannot access '../../..': permission denied\n"
+  exit_code: 1

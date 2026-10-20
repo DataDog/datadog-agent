@@ -1,0 +1,19 @@
+description: find -size 1 with no suffix uses 512-byte blocks.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/small.txt
+      content: "hi"
+      chmod: 0644
+    - path: dir/empty.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -size 1
+expect:
+  stdout: |+
+    dir/small.txt
+  stderr: ""
+  exit_code: 0

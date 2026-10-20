@@ -1,0 +1,12 @@
+# list-units is enumeration-only; unit operands must never narrow or widen it.
+skip_assert_against_bash: true
+description: systemctl list-units rejects unit operands
+input:
+  mode: remediation
+  script: |+
+    systemctl list-units api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: list-units does not accept unit operands
+  exit_code: 1

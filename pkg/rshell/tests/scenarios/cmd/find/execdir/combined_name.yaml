@@ -1,0 +1,26 @@
+description: find -name filter combined with -execdir only runs echo on matching files.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.go
+      content: "b"
+      chmod: 0644
+    - path: dir/c.txt
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -name '*.txt' -execdir echo {} \;
+expect:
+  stdout_unordered: |+
+    ./a.txt
+    ./c.txt
+  stderr: ""
+  exit_code: 0

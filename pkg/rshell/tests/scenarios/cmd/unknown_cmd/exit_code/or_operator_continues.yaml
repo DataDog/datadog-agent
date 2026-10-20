@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: The || operator runs the next command after an unknown command.
+input:
+  script: |+
+    foo || echo fallback
+expect:
+  stdout: |+
+    fallback
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 0

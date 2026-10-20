@@ -1,0 +1,7 @@
+description: Heredoc-dash strips varying numbers of leading tabs from each line.
+input:
+  script: "cat <<-EOF\n\t\ttab indented\n\t  tab then space\n\tEOF\n"
+expect:
+  stdout: "tab indented\n  tab then space\n"
+  stderr: ""
+  exit_code: 0

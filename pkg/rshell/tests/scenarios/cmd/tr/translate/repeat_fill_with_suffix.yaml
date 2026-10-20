@@ -1,0 +1,8 @@
+description: tr fill repeats leave room for later string2 bytes.
+input:
+  script: |+
+    echo abc | tr abc '[x*]y'
+expect:
+  stdout: "xxy\n"
+  stderr: ""
+  exit_code: 0

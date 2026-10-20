@@ -1,0 +1,22 @@
+description: ls -l right-aligns the size column across entries of different magnitudes.
+# skip_assert_against_bash: rshell displays numeric UID/GID (sandbox safety)
+# while GNU ls resolves to usernames, so long-format output will always differ.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: small.txt
+      content: "x"
+      chmod: 0644
+    - path: medium.txt
+      content: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -l
+expect:
+  stdout_contains:
+    - "  1 "
+    - "100 "
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: Exit with non-zero code stops execution and propagates the exit code.
+input:
+  script: |+
+    echo before; exit 7; echo after
+expect:
+  stdout: |+
+    before
+  stderr: ""
+  exit_code: 7

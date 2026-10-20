@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Arithmetic expansion is intentionally blocked in the restricted shell.
+input:
+  script: |+
+    echo $((1+2))
+expect:
+  stdout: ""
+  stderr: |+
+    arithmetic expansion is not supported
+  exit_code: 2

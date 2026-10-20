@@ -1,0 +1,12 @@
+# Remediation mode alone does not bypass the exact unit/action allowlist.
+skip_assert_against_bash: true
+description: systemctl enable requires an exact enable grant
+input:
+  mode: remediation
+  script: |+
+    systemctl enable api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "enable"
+  exit_code: 1

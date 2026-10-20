@@ -1,0 +1,8 @@
+description: exit with large number wraps modulo 256.
+input:
+  script: |+
+    exit 300
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 44

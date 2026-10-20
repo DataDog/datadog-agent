@@ -1,0 +1,68 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "diskstats",
+    srcs = [
+        "diskstats.go",
+        "diskstats_darwin.go",
+        "diskstats_linux.go",
+        "diskstats_other.go",
+        "diskstats_unix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/diskstats",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "diskstats_test",
+    srcs = [
+        "diskstats_darwin_test.go",
+        "diskstats_hardening_test.go",
+        "diskstats_linux_fuzz_test.go",
+        "diskstats_linux_parse_test.go",
+        "diskstats_linux_vuln_hunt_test.go",
+        "diskstats_unix_test.go",
+    ],
+    embed = [":diskstats"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

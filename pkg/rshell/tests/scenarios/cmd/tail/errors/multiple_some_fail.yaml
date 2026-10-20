@@ -1,0 +1,13 @@
+description: When some files fail and some succeed, exit code is 1 and successful files still produce output.
+setup:
+  files:
+    - path: good.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 1 good.txt nonexistent.txt
+expect:
+  stdout_contains: ["hello"]
+  stderr_contains: ["tail:"]
+  exit_code: 1

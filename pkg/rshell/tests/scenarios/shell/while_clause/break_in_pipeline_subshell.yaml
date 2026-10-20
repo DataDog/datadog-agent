@@ -1,0 +1,12 @@
+description: A break in a pipeline stage (which runs in a subshell) inside a while condition does not print a diagnostic. The pipeline subshell inherits the loop context, matching bash.
+input:
+  script: |+
+    while break | cat; do
+      echo body
+      break
+    done
+expect:
+  stdout: |+
+    body
+  stderr: |+
+  exit_code: 0

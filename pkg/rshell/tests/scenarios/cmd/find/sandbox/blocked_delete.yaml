@@ -1,0 +1,14 @@
+description: find -delete is blocked for sandbox safety.
+skip_assert_against_bash: true  # intentional: bash allows -delete; rshell blocks it
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -delete
+expect:
+  stderr_contains: ["blocked"]
+  exit_code: 1

@@ -56,14 +56,6 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:go_visibility @@//pkg/privateactionrunner/rshell:__pkg__",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
-    ],
-    path = "github.com/DataDog/rshell",
-)
 use_repo(
     go_deps,
     "cat_dario_mergo",
@@ -135,7 +127,6 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
-    "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
     "com_github_datadog_zstd",
@@ -350,6 +341,7 @@ use_repo(
     "com_github_twmb_franz_go_pkg_kmsg",
     "com_github_twmb_murmur3",
     "com_github_uber_go_gopatch",
+    "com_github_ulikunitz_xz",
     "com_github_uptrace_bun",
     "com_github_uptrace_bun_dialect_pgdialect",
     "com_github_uptrace_bun_driver_pgdriver",
@@ -372,6 +364,7 @@ use_repo(
     "dev_cel_cel_go",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
+    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",

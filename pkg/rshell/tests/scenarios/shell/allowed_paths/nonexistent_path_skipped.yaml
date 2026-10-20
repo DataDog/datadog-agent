@@ -1,0 +1,17 @@
+description: Nonexistent paths in AllowedPaths are skipped, existing paths still work
+# skip: AllowedPaths skip logic is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: allowed/data.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["nonexistent_dir", "allowed"]
+  script: |+
+    cat allowed/data.txt
+expect:
+  stdout: |+
+    hello
+  stderr_contains:
+    - "AllowedPaths: skipping"
+  exit_code: 0

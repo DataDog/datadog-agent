@@ -1,0 +1,21 @@
+description: grep -A prints lines after each match.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        aaa
+        bbb
+        ccc
+        ddd
+        eee
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -A 1 bbb file.txt
+expect:
+  stdout: |+
+    bbb
+    ccc
+  stderr: ""
+  exit_code: 0

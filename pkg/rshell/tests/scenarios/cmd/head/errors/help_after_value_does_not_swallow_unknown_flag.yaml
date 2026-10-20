@@ -1,0 +1,10 @@
+description: '`head -n nope --help --bogus` surfaces the invalid `-n` value rather than silently printing help. head''s handler validates -n/-c values before checking `--help` (in builtins/head/head.go), and the trial-parse trim in builtins/builtins.go discards `--bogus` only after confirming the prefix parses cleanly. The net effect matches GNU byte-for-byte: `head: invalid number of lines: ''nope''` and exit 1.'
+input:
+  script: |+
+    head -n nope --help --bogus; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    head: invalid number of lines: 'nope'
+  exit_code: 0

@@ -1,0 +1,26 @@
+description: awk limits composite expressions to parenthesized print arguments and array membership.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        1
+        2
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk 'BEGIN { OFS=":"; a[1,2]=1; print (1,2); print (1,2) in a }'
+    awk '{ print ($1 > 1) }' input.txt
+    awk 'BEGIN { print ((1,2)) }' 2>/dev/null; grouped=$?
+    awk 'BEGIN { x=(1,2); print x }' 2>/dev/null; assignment=$?
+    awk 'BEGIN { if ((1,2)) print 1 }' 2>/dev/null; condition=$?
+    awk 'BEGIN { print 0,(1,2) }' 2>/dev/null; later=$?
+    printf 'invalid=%s %s %s %s\n' "$grouped" "$assignment" "$condition" "$later"
+expect:
+  stdout: |+
+    1:2
+    1
+    0
+    1
+    invalid=1 1 1 1
+  stderr: |+
+  exit_code: 0

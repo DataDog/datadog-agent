@@ -1,0 +1,9 @@
+description: Printf interprets hex escape sequences in the format string.
+input:
+  script: |+
+    printf "\x41\n"
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

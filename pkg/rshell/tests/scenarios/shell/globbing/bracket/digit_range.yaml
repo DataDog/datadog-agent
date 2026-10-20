@@ -1,0 +1,22 @@
+description: Bracket pattern with digit range matches numeric characters.
+setup:
+  files:
+    - path: file0.txt
+      content: ""
+    - path: file1.txt
+      content: ""
+    - path: file5.txt
+      content: ""
+    - path: file9.txt
+      content: ""
+    - path: filea.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo file[0-4].txt
+expect:
+  stdout: |+
+    file0.txt file1.txt
+  stderr: ""
+  exit_code: 0

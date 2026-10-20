@@ -1,0 +1,13 @@
+description: tr -d removes all digits from input.
+setup:
+  files:
+    - path: input.txt
+      content: "abc123def456\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat input.txt | tr -d '[:digit:]'
+expect:
+  stdout: "abcdef\n"
+  stderr: ""
+  exit_code: 0

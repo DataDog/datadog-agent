@@ -1,0 +1,8 @@
+description: Cut -c with open-ended range selects from position to end of line.
+input:
+  script: |+
+    printf "hello world\n" | cut -c7-
+expect:
+  stdout: "world\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: "IFS with equals sign splits correctly"
+input:
+  script: |
+    IFS==
+    A="key=value=extra"
+    for w in $A; do echo "$w"; done
+expect:
+  stdout: "key\nvalue\nextra\n"
+  exit_code: 0

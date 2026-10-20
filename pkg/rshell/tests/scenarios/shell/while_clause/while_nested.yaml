@@ -1,0 +1,15 @@
+description: A while loop nested inside another while runs to completion on each outer iteration.
+input:
+  script: |+
+    i=
+    while [ "$i" != aa ]; do
+      i="${i}a"
+      while false; do echo inner; done
+      echo "outer $i"
+    done
+expect:
+  stdout: |+
+    outer a
+    outer aa
+  stderr: |+
+  exit_code: 0

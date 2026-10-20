@@ -1,0 +1,10 @@
+description: Brace group executes contained commands sequentially.
+input:
+  script: |+
+    { echo hello; echo world; }
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

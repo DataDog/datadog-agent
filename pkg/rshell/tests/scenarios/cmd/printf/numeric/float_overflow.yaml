@@ -1,0 +1,10 @@
+description: Float range overflow outputs inf with warning and exit 0 (Go uses +Inf for overflow).
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # Go's strconv.ParseFloat returns +Inf; C's strtod + printf outputs the actual number
+input:
+  script: |+
+    printf "%f\n" 1e999
+expect:
+  stdout: "inf\n"
+  stderr_contains: ["Numerical result out of range"]
+  exit_code: 0

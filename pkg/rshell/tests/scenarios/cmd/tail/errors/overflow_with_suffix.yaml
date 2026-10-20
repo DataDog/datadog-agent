@@ -1,0 +1,9 @@
+description: tail -n 9223372036854775808K (int64-overflow numeric part + suffix) exits 1 — GNU tail rejects this form.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 9223372036854775808K /dev/null
+expect:
+  stdout: ""
+  stderr_contains: ["invalid"]
+  exit_code: 1

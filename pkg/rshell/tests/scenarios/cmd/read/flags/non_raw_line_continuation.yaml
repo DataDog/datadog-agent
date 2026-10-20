@@ -1,0 +1,9 @@
+description: Without -r, a backslash-newline pair is a line continuation.
+input:
+  script: |+
+    printf 'foo\\\nbar\n' | { read X; echo "$X"; }
+expect:
+  stdout: |+
+    foobar
+  stderr: ""
+  exit_code: 0

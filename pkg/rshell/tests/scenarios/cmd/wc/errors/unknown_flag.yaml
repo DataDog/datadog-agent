@@ -1,0 +1,9 @@
+description: wc rejects unknown flags with exit code 1.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc --definitely-invalid
+expect:
+  stdout: ""
+  stderr_contains: ["wc:"]
+  exit_code: 1

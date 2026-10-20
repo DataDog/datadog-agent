@@ -1,0 +1,18 @@
+description: du -c -b on multiple files appends a "total" line.
+setup:
+  files:
+    - path: a.txt
+      content: "12345"
+    - path: b.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -c -b a.txt b.txt
+expect:
+  stdout: |+
+    5	a.txt
+    3	b.txt
+    8	total
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Echo -e with \t and \\ escape sequences.
+input:
+  script: |+
+    echo -e 'a\tb\\\tc'
+expect:
+  stdout: "a\tb\\\tc\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+# Per RULES.md: error paths must be tested
+skip_assert_against_bash: true
+description: tr -d with extra operand fails.
+input:
+  script: |+
+    tr -d a p
+expect:
+  stdout: ""
+  stderr: "tr: extra operand 'p'\nOnly one string may be given when deleting without squeezing repeats.\n"
+  exit_code: 1

@@ -1,0 +1,13 @@
+description: "sort -k with -b does not double-trim extracted keys during comparison."
+setup:
+  files:
+    - path: data.txt
+      content: "0\t\t\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1.3b,4 data.txt
+expect:
+  stdout: "a\n0\t\t\n"
+  stderr: ""
+  exit_code: 0

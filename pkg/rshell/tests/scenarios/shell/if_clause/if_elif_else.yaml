@@ -1,0 +1,9 @@
+description: If-elif-else falls through to else when all conditions fail.
+input:
+  script: |+
+    if false; then echo a; elif false; then echo b; else echo c; fi
+expect:
+  stdout: |+
+    c
+  stderr: ""
+  exit_code: 0

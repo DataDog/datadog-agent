@@ -1,0 +1,10 @@
+# ping with no arguments must exit 1 with a clear error.
+description: "ping without a host argument exits 1 with usage hint"
+input:
+  script: |+
+    ping
+expect:
+  stdout: ""
+  stderr: "ping: missing host operand\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

@@ -1,0 +1,9 @@
+description: uptime rejects unknown flags
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime -z
+expect:
+  stdout: ""
+  stderr_contains: ["uptime:"]
+  exit_code: 1

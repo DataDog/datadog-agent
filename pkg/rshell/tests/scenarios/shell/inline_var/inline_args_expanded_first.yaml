@@ -1,0 +1,10 @@
+description: Command arguments are expanded before inline assignments take effect (POSIX order).
+input:
+  script: |+
+    A=old
+    A=new echo $A
+expect:
+  stdout: |+
+    old
+  stderr: ""
+  exit_code: 0

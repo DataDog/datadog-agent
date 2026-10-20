@@ -1,0 +1,18 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate --force truncates a log file to zero bytes.
+setup:
+  files:
+    - path: app.log
+      content: "0123456789\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --force app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    0
+  stderr: |+
+  exit_code: 0

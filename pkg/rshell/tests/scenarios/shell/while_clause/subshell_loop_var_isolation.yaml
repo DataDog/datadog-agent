@@ -1,0 +1,14 @@
+description: |
+  vuln-hunt SI1 (2026-05-18-initial-audit): variables assigned inside a while
+  loop that runs in a subshell do not leak to the parent.
+input:
+  script: |+
+    i=outer
+    ( i=inner; while [ "$i" != innerdone ]; do i=innerdone; done; echo sub=$i )
+    echo parent=$i
+expect:
+  stdout: |+
+    sub=innerdone
+    parent=outer
+  stderr: |+
+  exit_code: 0

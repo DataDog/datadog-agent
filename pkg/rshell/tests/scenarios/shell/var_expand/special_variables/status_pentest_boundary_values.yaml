@@ -1,0 +1,22 @@
+description: "Pentest: $? correctly handles boundary exit code values (0, 1, 127, 128, 255)."
+input:
+  script: |+
+    true | exit 0
+    echo $?
+    true | exit 1
+    echo $?
+    true | exit 127
+    echo $?
+    true | exit 128
+    echo $?
+    true | exit 255
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+    127
+    128
+    255
+  stderr: ""
+  exit_code: 0

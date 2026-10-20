@@ -1,0 +1,13 @@
+# vuln-hunt 2026-05-18-initial-audit: `uname --help` short-circuits and prints
+# help even with junk args after it. This documents intentional behavior —
+# matches GNU coreutils — but ensures help-flag parsing doesn't crash on
+# adversarial arg combinations.
+description: uname --help short-circuits cleanly even with trailing junk
+input:
+  script: |+
+    uname --help foo --bar
+expect:
+  stdout_contains:
+    - "Usage: uname"
+  stderr: ""
+  exit_code: 0

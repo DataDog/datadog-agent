@@ -1,0 +1,15 @@
+description: wc prints a total line when given multiple files.
+setup:
+  files:
+    - path: a.txt
+      content: "hello\n"
+    - path: b.txt
+      content: "world foo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc a.txt b.txt
+expect:
+  stdout: " 1  1  6 a.txt\n 1  2 10 b.txt\n 2  3 16 total\n"
+  stderr: ""
+  exit_code: 0

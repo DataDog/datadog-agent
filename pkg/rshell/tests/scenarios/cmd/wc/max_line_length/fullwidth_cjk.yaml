@@ -1,0 +1,15 @@
+description: wc -L counts display columns, CJK characters are width 2.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # display width depends on locale; we always use Unicode width
+setup:
+  files:
+    - path: file.txt
+      content: "你好\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -L file.txt
+expect:
+  stdout: "4 file.txt\n"
+  stderr: ""
+  exit_code: 0

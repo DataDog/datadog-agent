@@ -1,0 +1,13 @@
+# Security: even with zero FILE operands (pure passthrough would otherwise
+# look harmless), tee must still be refused outside remediation mode.
+description: tee with no FILE operands is still refused outside remediation mode.
+input:
+  allowed_paths: ["$DIR:rw"]
+  script: |+
+    printf "hi\n" | tee
+expect:
+  stdout: |+
+  stderr: |+
+    tee: filesystem capability not available (remediation mode required)
+  exit_code: 1
+skip_assert_against_bash: true

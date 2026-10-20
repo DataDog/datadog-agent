@@ -1,0 +1,16 @@
+description: find with -quit in OR stops after the quit-triggering match.
+setup:
+  files:
+    - path: dir/target.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -name 'target.txt' -print -quit -o -type d -print
+expect:
+  stdout: |+
+    dir
+    dir/target.txt
+  stderr: ""
+  exit_code: 0

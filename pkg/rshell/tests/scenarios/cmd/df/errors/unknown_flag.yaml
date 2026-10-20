@@ -1,0 +1,10 @@
+description: df rejects unknown flags with exit 1. Matches GNU's "unrecognized option" wording byte-for-byte after the pflag-error rewriter in builtins/builtins.go.
+input:
+  script: |+
+    df --no-such-flag
+expect:
+  stdout: ""
+  stderr: |+
+    df: unrecognized option '--no-such-flag'
+    Try 'df --help' for more information.
+  exit_code: 1

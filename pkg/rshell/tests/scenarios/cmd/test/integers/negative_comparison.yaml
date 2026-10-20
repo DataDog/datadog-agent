@@ -1,0 +1,8 @@
+description: test compares negative integers correctly.
+input:
+  script: |+
+    if [ -5 -lt -3 ]; then echo yes; else echo no; fi
+expect:
+  stdout: "yes\n"
+  stderr: ""
+  exit_code: 0

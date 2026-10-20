@@ -1,0 +1,10 @@
+description: Negating true produces exit code 1 visible via $?.
+input:
+  script: |+
+    ! true
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

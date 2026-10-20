@@ -1,0 +1,11 @@
+# Raw fields could bypass the resource capability model and are rejected.
+skip_assert_against_bash: true
+description: journalctl rejects arbitrary field matches
+input:
+  script: |+
+    journalctl -u api.service _PID=1
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: unexpected argument "_PID=1"; arbitrary journal matches are not supported
+  exit_code: 1

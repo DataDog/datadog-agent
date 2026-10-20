@@ -1,0 +1,11 @@
+description: Exit with no arguments after a failed command propagates the failure code.
+input:
+  script: |+
+    echo before
+    false
+    exit
+expect:
+  stdout: |+
+    before
+  stderr: ""
+  exit_code: 1

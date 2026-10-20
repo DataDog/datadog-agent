@@ -1,0 +1,16 @@
+description: truncate -s 0 empties a file without removing its inode.
+setup:
+  files:
+    - path: log.txt
+      content: "lots of data here"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 0 log.txt
+    wc -c < log.txt
+expect:
+  stdout: |+
+    0
+  stderr: |+
+  exit_code: 0

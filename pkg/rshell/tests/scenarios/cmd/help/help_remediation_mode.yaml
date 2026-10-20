@@ -1,0 +1,11 @@
+description: help in remediation mode shows the mode in the header.
+skip_assert_against_bash: true
+input:
+  mode: "remediation"
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "remediation mode"
+  stderr: |+
+  exit_code: 0

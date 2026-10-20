@@ -1,0 +1,19 @@
+description: ls -r -d with multiple arguments reverses the sort order of arguments.
+setup:
+  files:
+    - path: aaa/file.txt
+      content: "a"
+      chmod: 0644
+    - path: zzz/file.txt
+      content: "z"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -r -d aaa zzz
+expect:
+  stdout: |+
+    zzz
+    aaa
+  stderr: ""
+  exit_code: 0

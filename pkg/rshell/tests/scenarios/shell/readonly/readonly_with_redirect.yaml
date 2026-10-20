@@ -1,0 +1,10 @@
+# skip: readonly is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: readonly combined with a redirection is still blocked at parse validation.
+input:
+  script: |+
+    readonly X=5 > /dev/null
+expect:
+  stdout: ""
+  stderr: "readonly is not supported\n"
+  exit_code: 2

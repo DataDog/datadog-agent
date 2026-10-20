@@ -1,0 +1,13 @@
+description: Specific line number address applies command to that line only.
+setup:
+  files:
+    - path: input.txt
+      content: "one\ntwo\nthree\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2s/two/TWO/' input.txt
+expect:
+  stdout: "one\nTWO\nthree\n"
+  stderr: ""
+  exit_code: 0

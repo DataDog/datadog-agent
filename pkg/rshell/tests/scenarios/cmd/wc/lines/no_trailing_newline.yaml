@@ -1,0 +1,13 @@
+description: wc -l counts newline bytes; text with no newline counts as 0 lines.
+setup:
+  files:
+    - path: file.txt
+      content: "x y"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l file.txt
+expect:
+  stdout: "0 file.txt\n"
+  stderr: ""
+  exit_code: 0

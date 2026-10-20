@@ -1,0 +1,11 @@
+description: stat requires file-system mode in the initial narrow implementation.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat .
+expect:
+  stdout: |+
+  stderr: |+
+    stat: file status mode is not supported; use 'stat -f FILE...'
+  exit_code: 1

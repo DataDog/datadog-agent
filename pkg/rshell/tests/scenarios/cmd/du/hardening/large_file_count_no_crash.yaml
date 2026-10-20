@@ -1,0 +1,32 @@
+description: du -s -b on a directory with many files completes within the global timeout.
+setup:
+  files:
+    - path: many/f001
+      content: "x"
+    - path: many/f002
+      content: "x"
+    - path: many/f003
+      content: "x"
+    - path: many/f004
+      content: "x"
+    - path: many/f005
+      content: "x"
+    - path: many/f006
+      content: "x"
+    - path: many/f007
+      content: "x"
+    - path: many/f008
+      content: "x"
+    - path: many/f009
+      content: "x"
+    - path: many/f010
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -s -b many
+expect:
+  # Directory inode bytes vary by filesystem; just assert the operand line.
+  stdout_contains: ["\tmany\n"]
+  stderr: |+
+  exit_code: 0

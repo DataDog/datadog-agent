@@ -1,0 +1,15 @@
+description: cd through a non-existent intermediate component fails — bash refuses `cd no-such/..` because the prefix must exist before .. can be processed.
+setup:
+  files:
+    - path: real/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd no-such/..
+expect:
+  stdout: ""
+  # bash: "bash: line 1: cd: no-such/..: No such file or directory"
+  # ours: "cd: no-such/..: no such file or directory"
+  stderr_contains: ["cd:", "no-such"]
+  exit_code: 1

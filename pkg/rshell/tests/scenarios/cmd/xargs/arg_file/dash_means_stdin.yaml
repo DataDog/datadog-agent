@@ -1,0 +1,9 @@
+description: xargs -a - reads items from stdin (GNU convention), instead of opening a file literally named "-".
+input:
+  script: |+
+    printf 'a b' | xargs -a - echo
+expect:
+  stdout: |+
+    a b
+  stderr: |+
+  exit_code: 0

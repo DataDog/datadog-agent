@@ -1,0 +1,17 @@
+description: cd a/../b resolves the dot-dot lexically and lands in b.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a/../b
+    pwd
+expect:
+  stdout_contains: ["/b"]
+  stdout_contains_windows: ["\\b"]
+  stderr: ""
+  exit_code: 0

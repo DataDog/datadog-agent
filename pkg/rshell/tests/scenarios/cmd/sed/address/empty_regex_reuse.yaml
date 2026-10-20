@@ -1,0 +1,12 @@
+description: "Empty // address reuses the last regex."
+setup:
+  files:
+    - path: input.txt
+      content: "abc\ndef\nabc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '/abc/p;//p' input.txt
+expect:
+  stdout: "abc\nabc\nabc\nabc\n"
+  exit_code: 0

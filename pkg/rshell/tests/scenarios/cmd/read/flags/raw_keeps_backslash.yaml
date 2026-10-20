@@ -1,0 +1,9 @@
+description: read -r keeps backslashes literal.
+input:
+  script: |+
+    printf 'a\\b\n' | { read -r X; echo "$X"; }
+expect:
+  stdout: |+
+    a\b
+  stderr: ""
+  exit_code: 0

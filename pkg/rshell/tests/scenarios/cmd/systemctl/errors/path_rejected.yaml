@@ -1,0 +1,14 @@
+# Unit operands cannot use path syntax to escape exact systemd selectors.
+skip_assert_against_bash: true
+description: systemctl rejects path-shaped unit operands before authorization
+input:
+  mode: remediation
+  script: |+
+    systemctl status '../../etc/passwd.service'
+    systemctl status 'foo/bar.service'
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: invalid character in exact unit name "../../etc/passwd.service"
+    systemctl: invalid character in exact unit name "foo/bar.service"
+  exit_code: 1

@@ -1,0 +1,14 @@
+description: |
+  vuln-hunt 2026-05-18-initial-audit: materialising a function definition
+  string through variable expansion does not re-enter the parser as a
+  FuncDecl — the expansion becomes a command argument vector, and unknown
+  commands fail rather than defining or executing the function body.
+skip_assert_against_bash: true
+input:
+  script: |+
+    KW='hello() { echo world; }'
+    $KW
+expect:
+  stdout: |+
+  stderr_contains: ["unknown command"]
+  exit_code: 127

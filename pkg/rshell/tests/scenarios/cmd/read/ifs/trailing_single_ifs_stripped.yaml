@@ -1,0 +1,15 @@
+description: A single trailing non-ws IFS character is stripped from the last variable's value (matches bash).
+input:
+  script: |+
+    printf 'a:b:\n' | { IFS=: read a b; echo "[$a][$b]"; }
+    printf 'a:b::\n' | { IFS=: read a b; echo "[$a][$b]"; }
+    printf 'a:\n'    | { IFS=: read x;   echo "[$x]"; }
+    printf ':\n'     | { IFS=: read x;   echo "[$x]"; }
+expect:
+  stdout: |+
+    [a][b]
+    [a][b::]
+    [a]
+    []
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Expanded words containing logic operators remain arguments and are not reparsed as control operators.
+input:
+  script: |+
+    OP='&&'
+    echo left $OP echo right
+expect:
+  stdout: |+
+    left && echo right
+  stderr: ""
+  exit_code: 0

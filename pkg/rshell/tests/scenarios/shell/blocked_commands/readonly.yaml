@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: readonly is not supported.
+input:
+  script: |+
+    readonly X=42
+expect:
+  stdout: ""
+  stderr: |+
+    readonly is not supported
+  exit_code: 2

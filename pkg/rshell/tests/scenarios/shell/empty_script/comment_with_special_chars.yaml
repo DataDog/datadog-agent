@@ -1,0 +1,9 @@
+description: Script with only comments containing special characters exits cleanly.
+input:
+  script: |+
+    # comment with $variable and "quotes" and 'single quotes'
+    # comment with $(command) and `backticks`
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

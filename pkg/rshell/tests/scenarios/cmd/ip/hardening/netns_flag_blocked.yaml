@@ -1,0 +1,11 @@
+# GTFOBins: ip -n NETNS / ip --netns NETNS switches to a network namespace.
+# These flags must be rejected; pflag will reject them as unknown flags.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip -n (netns switch flag) is rejected as unknown flag"
+input:
+  script: |+
+    ip -n mynamespace addr show
+expect:
+  stderr: "ip: invalid option -- 'n'\nTry 'ip --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

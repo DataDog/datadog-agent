@@ -1,0 +1,18 @@
+description: find . -execdir cat {} \; resolves files in nested subdirectories correctly.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: sub/deep.txt
+      content: "nested"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:cat
+  script: |+
+    find . -path '*/deep.txt' -execdir cat {} \;
+expect:
+  stdout: "nested"
+  stderr: ""
+  exit_code: 0

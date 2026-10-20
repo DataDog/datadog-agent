@@ -1,0 +1,11 @@
+description: xargs -d accepts hex (\xNN) and octal (\NNN) escapes for the delimiter byte (matches GNU; useful for non-printable separators).
+input:
+  script: |+
+    printf 'a:b:c' | xargs -d '\x3a' echo
+    printf 'a:b:c' | xargs -d '\072' echo
+expect:
+  stdout: |+
+    a b c
+    a b c
+  stderr: |+
+  exit_code: 0

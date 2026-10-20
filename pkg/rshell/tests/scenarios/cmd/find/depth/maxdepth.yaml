@@ -1,0 +1,20 @@
+description: find -maxdepth limits traversal depth.
+setup:
+  files:
+    - path: a/b/c/deep.txt
+      content: "deep"
+      chmod: 0644
+    - path: a/top.txt
+      content: "top"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -maxdepth 1
+expect:
+  stdout_unordered: |+
+    a
+    a/b
+    a/top.txt
+  stderr: ""
+  exit_code: 0

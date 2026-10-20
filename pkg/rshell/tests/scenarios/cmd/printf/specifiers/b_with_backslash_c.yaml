@@ -1,0 +1,8 @@
+description: Printf %b with backslash-c in argument stops output immediately.
+input:
+  script: |+
+    printf "%b" 'hello\cworld'
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0

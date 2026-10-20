@@ -1,0 +1,13 @@
+description: A break in a non-rightmost stage of a nested (3+ stage) pipeline inside a while loop body does not print a diagnostic. The intermediate pipeline node inherits the loop context recursively, matching bash.
+input:
+  script: |+
+    while true; do
+      break | cat | cat
+      echo after
+      break
+    done
+expect:
+  stdout: |+
+    after
+  stderr: |+
+  exit_code: 0

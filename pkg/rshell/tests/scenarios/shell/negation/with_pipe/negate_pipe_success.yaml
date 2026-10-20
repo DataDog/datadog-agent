@@ -1,0 +1,9 @@
+description: Negating a successful pipeline produces exit code 1.
+input:
+  script: |+
+    ! echo hello | cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 1

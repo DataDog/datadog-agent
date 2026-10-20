@@ -1,0 +1,13 @@
+description: A variable assigned in an if condition is visible in the matched branch body and after the if.
+input:
+  script: |+
+    if x=42; then
+      echo inside=$x
+    fi
+    echo after=$x
+expect:
+  stdout: |+
+    inside=42
+    after=42
+  stderr: ""
+  exit_code: 0

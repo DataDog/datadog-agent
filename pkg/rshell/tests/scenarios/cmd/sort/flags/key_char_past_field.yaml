@@ -1,0 +1,13 @@
+description: "sort -k with startChar past field end continues into the line."
+setup:
+  files:
+    - path: data.txt
+      content: "abc\n: c3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1.3 data.txt
+expect:
+  stdout: "abc\n: c3\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+description: grep rejects conflicting matcher flags with exit code 2.
+input:
+  script: |+
+    grep -E -G foo
+expect:
+  stdout: ""
+  stderr_contains: ["grep: conflicting matchers specified"]
+  exit_code: 2

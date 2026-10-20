@@ -1,0 +1,14 @@
+description: trailing slash on path does not break -name matching.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir/ -maxdepth 0 -name dir
+expect:
+  stdout: |+
+    dir/
+  exit_code: 0

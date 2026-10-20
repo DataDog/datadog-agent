@@ -1,0 +1,10 @@
+description: The false builtin ignores a mix of flags and positional arguments.
+input:
+  script: |+
+    false -v --verbose foo bar
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

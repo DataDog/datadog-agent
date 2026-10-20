@@ -1,0 +1,11 @@
+description: For loops can appear on both sides of a pipeline.
+input:
+  script: |+
+    for i in a b c; do echo $i; done | for w in x; do cat; done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

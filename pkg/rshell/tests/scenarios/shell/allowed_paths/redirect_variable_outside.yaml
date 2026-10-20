@@ -1,0 +1,19 @@
+description: "Input redirect using a variable-expanded path outside allowed path is blocked"
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: "allowed/ok.txt"
+      content: "ok\n"
+    - path: "secret/data.txt"
+      content: "secret\n"
+input:
+  script: |
+    F=secret/data.txt
+    cat < "$F"
+  allowed_paths:
+    - "allowed"
+expect:
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

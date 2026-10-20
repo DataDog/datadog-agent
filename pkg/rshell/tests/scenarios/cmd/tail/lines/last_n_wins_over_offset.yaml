@@ -1,0 +1,13 @@
+description: GNU tail sticky offset — once any -n uses '+', offset mode is retained even if a later plain value overwrites the count. tail -n +2 -n 2 outputs from line 2 (count 2 is applied as offset, not tail).
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n +2 -n 2 file.txt
+expect:
+  stdout: "beta\ngamma\ndelta\nepsilon\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: The T command resets the substitution flag after evaluation.
+setup:
+  files:
+    - path: input.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 's/a/b/;T end;p;:end' input.txt
+expect:
+  stdout: "b\n"
+  exit_code: 0

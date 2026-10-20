@@ -1,0 +1,11 @@
+description: wc rejects --files0-from flag (security risk).
+# skip: feature is intentionally blocked in rshell for security
+skip_assert_against_bash: true  # intentionally rejects --files0-from (GTFOBins mitigation)
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc --files0-from=foo
+expect:
+  stdout: ""
+  stderr_contains: ["wc:"]
+  exit_code: 1

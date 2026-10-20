@@ -1,0 +1,19 @@
+# vuln-hunt 2026-05-19-codex / cut.
+# skip: rshell intentionally rejects the GTFOBins empty delimiter probe before reading the operand.
+skip_assert_against_bash: true
+description: cut rejects the GTFOBins empty delimiter probe before reading the operand.
+setup:
+  files:
+    - path: allowed/data.txt
+      content: |+
+        secret
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cut -d "" --output-delimiter=$'\n' -f1 allowed/data.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["delimiter"]
+  exit_code: 0

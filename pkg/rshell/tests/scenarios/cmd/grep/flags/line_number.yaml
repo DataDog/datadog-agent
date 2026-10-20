@@ -1,0 +1,20 @@
+description: grep -n prefixes output with line numbers.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        aaa
+        bbb
+        ccc
+        bbb
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -n bbb file.txt
+expect:
+  stdout: |+
+    2:bbb
+    4:bbb
+  stderr: ""
+  exit_code: 0

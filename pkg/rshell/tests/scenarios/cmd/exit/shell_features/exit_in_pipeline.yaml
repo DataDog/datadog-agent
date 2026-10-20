@@ -1,0 +1,11 @@
+description: Exit in a subshell pipeline does not prevent the main script from continuing.
+input:
+  script: |+
+    echo hello | cat
+    exit 4
+    echo unreachable
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 4

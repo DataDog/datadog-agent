@@ -1,0 +1,12 @@
+description: find treats '-1' as an expression token (unknown predicate), not a path.
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find "-1" -maxdepth 0
+expect:
+  stderr_contains: ["find:"]
+  exit_code: 1

@@ -1,0 +1,9 @@
+description: Backslash escapes dollar sign and ampersand outside quotes.
+input:
+  script: |+
+    echo \$ \& \\
+expect:
+  stdout: |+
+    $ & \
+  stderr: ""
+  exit_code: 0

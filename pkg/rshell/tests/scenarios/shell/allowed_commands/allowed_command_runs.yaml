@@ -1,0 +1,13 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+description: A command listed in allowed_commands can be executed.
+skip_assert_against_bash: true
+input:
+  allowed_commands:
+    - rshell:echo
+  script: |+
+    echo hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

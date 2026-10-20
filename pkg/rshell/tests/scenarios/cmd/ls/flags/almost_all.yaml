@@ -1,0 +1,19 @@
+description: ls -A shows hidden files but not . and ..
+setup:
+  files:
+    - path: .hidden
+      content: "secret"
+      chmod: 0644
+    - path: visible.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -A
+expect:
+  stdout: |+
+    .hidden
+    visible.txt
+  stderr: ""
+  exit_code: 0

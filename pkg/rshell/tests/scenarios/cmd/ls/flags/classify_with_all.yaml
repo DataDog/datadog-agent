@@ -1,0 +1,17 @@
+description: ls -Fa combines classify indicators with hidden entries.
+setup:
+  files:
+    - path: dir1/file.txt
+      content: "hello"
+    - path: .hidden
+      content: "secret"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -FA
+expect:
+  stdout_contains:
+    - ".hidden"
+    - "dir1/"
+  stderr: ""
+  exit_code: 0

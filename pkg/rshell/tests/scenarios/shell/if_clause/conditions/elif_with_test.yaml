@@ -1,0 +1,18 @@
+description: Elif chain with test builtin string matching.
+input:
+  script: |+
+    VAL=banana
+    if [ "$VAL" = "apple" ]; then
+      echo fruit_a
+    elif [ "$VAL" = "banana" ]; then
+      echo fruit_b
+    elif [ "$VAL" = "cherry" ]; then
+      echo fruit_c
+    else
+      echo unknown
+    fi
+expect:
+  stdout: |+
+    fruit_b
+  stderr: ""
+  exit_code: 0

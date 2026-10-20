@@ -1,0 +1,9 @@
+description: du exits 1 with a "cannot access" error for a missing operand.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du nope
+expect:
+  stdout: |+
+  stderr_contains: ["du: cannot access 'nope':"]
+  exit_code: 1

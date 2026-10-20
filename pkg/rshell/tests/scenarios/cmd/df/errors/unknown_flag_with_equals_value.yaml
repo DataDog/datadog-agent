@@ -1,0 +1,10 @@
+description: Unknown long flags written as `--foo=value` preserve the full token in the error, matching GNU getopt. pflag's error string only carries the bare flag name (`--no-such`); `recoverLongFlagToken` in builtins/builtins.go scans argv to recover the original `=value` suffix.
+input:
+  script: |+
+    df --no-such=value
+expect:
+  stdout: ""
+  stderr: |+
+    df: unrecognized option '--no-such=value'
+    Try 'df --help' for more information.
+  exit_code: 1

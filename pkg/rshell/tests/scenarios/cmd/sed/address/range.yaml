@@ -1,0 +1,13 @@
+description: Address range applies command from first to second address inclusive.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\nline4\nline5\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2,4s/line/LINE/' input.txt
+expect:
+  stdout: "line1\nLINE2\nLINE3\nLINE4\nline5\n"
+  stderr: ""
+  exit_code: 0

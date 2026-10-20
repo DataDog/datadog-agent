@@ -1,0 +1,11 @@
+description: Multiple sequential brace groups separated by semicolons execute independently.
+input:
+  script: |+
+    { echo a; }; { echo b; }; { echo c; }
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

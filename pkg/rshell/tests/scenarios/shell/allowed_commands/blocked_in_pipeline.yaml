@@ -1,0 +1,13 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+description: A blocked command inside a pipeline is rejected and the pipeline exit code is 127.
+skip_assert_against_bash: true
+input:
+  allowed_commands:
+    - rshell:echo
+  script: |+
+    echo hello | cat
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: cat: command not allowed
+  exit_code: 127

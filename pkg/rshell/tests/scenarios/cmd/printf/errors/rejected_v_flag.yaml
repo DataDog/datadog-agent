@@ -1,0 +1,10 @@
+# skip: feature is intentionally blocked in rshell for security
+skip_assert_against_bash: true
+description: Printf rejects the -v flag which assigns to a variable in bash.
+input:
+  script: |+
+    printf -v var "%s" hello
+expect:
+  stdout: ""
+  stderr_contains: ["printf:"]
+  exit_code: 1

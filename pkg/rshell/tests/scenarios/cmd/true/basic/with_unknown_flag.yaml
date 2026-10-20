@@ -1,0 +1,16 @@
+description: The true builtin ignores unknown flags and still exits 0.
+input:
+  script: |+
+    true -x
+    echo $?
+    true --help
+    echo $?
+    true --unknown-flag
+    echo $?
+expect:
+  stdout: |+
+    0
+    0
+    0
+  stderr: ""
+  exit_code: 0

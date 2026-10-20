@@ -1,0 +1,13 @@
+description: strings outputs entire file when all content is printable.
+setup:
+  files:
+    - path: text.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings text.txt
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

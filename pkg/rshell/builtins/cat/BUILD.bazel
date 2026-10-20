@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "cat",
+    srcs = ["cat.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/cat",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "cat_test",
+    srcs = [
+        "builtin_cat_pentest_test.go",
+        "cat_bench_test.go",
+        "cat_gnu_compat_test.go",
+        "cat_test.go",
+    ],
+    deps = [
+        ":cat",
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

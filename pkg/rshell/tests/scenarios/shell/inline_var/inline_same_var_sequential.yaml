@@ -1,0 +1,16 @@
+description: The same variable can be used as inline assignment on sequential commands and is always restored.
+input:
+  script: |+
+    A=original
+    A=temp1 echo one
+    echo $A
+    A=temp2 echo two
+    echo $A
+expect:
+  stdout: |+
+    one
+    original
+    two
+    original
+  stderr: ""
+  exit_code: 0

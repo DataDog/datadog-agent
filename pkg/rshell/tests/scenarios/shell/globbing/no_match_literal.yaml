@@ -1,0 +1,13 @@
+description: Glob pattern with no matches passes pattern literally.
+setup:
+  files:
+    - path: file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *.xyz
+expect:
+  stdout: "*.xyz\n"
+  stderr: ""
+  exit_code: 0

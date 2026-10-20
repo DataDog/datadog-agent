@@ -1,0 +1,7 @@
+description: Star precision of 0 on float suppresses decimals.
+input:
+  script: |+
+    printf "%.*f\n" 0 3.14159
+expect:
+  stdout: "3\n"
+  exit_code: 0

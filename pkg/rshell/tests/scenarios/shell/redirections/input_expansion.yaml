@@ -1,0 +1,35 @@
+description: Input redirects expand single-match globs and preserve quoted or escaped whitespace.
+setup:
+  files:
+    - path: only.txt
+      content: |+
+        glob
+    - path: spaced file
+      content: |+
+        quoted
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < *.txt
+    target=' *.txt '
+    cat < $target
+    target='spaced file'
+    cat < "$target"
+    cat < spaced\ file
+    cat < $(printf only.txt)
+    target=
+    cat 2>/dev/null < $target
+    echo $?
+    cat 2>/dev/null < {only.txt,missing}
+    echo $?
+expect:
+  stdout: |+
+    glob
+    glob
+    quoted
+    quoted
+    glob
+    1
+    1
+  stderr: |+
+  exit_code: 0

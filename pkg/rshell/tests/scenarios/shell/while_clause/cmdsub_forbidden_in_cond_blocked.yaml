@@ -1,0 +1,21 @@
+# skip: AllowedPaths sandbox restriction is an rshell-specific feature.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt E1 (2026-05-18-initial-audit): a command substitution placed in
+  the while-loop condition that reads a file outside AllowedPaths is denied —
+  the sandbox does not skip cond evaluation.
+setup:
+  files:
+    - path: allowed/keep.txt
+      content: "ok"
+    - path: secret/forbidden.txt
+      content: "secret-contents"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    while [ -n "$(cat secret/forbidden.txt)" ]; do echo body; break; done
+    echo done
+expect:
+  stdout_contains: ["done"]
+  stderr_contains: ["permission denied"]
+  exit_code: 0

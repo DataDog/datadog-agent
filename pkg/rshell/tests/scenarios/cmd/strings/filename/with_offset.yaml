@@ -1,0 +1,13 @@
+description: strings -f combined with -t d prints filename and decimal offset before each string.
+setup:
+  files:
+    - path: data.bin
+      content: "hello_here\nworld_too\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -f -t d data.bin
+expect:
+  stdout: "data.bin:       0 hello_here\ndata.bin:      11 world_too\n"
+  stderr: ""
+  exit_code: 0

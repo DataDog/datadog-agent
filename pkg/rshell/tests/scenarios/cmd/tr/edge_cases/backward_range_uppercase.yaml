@@ -1,0 +1,16 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: tr rejects backward range Z-A.
+setup:
+  files:
+    - path: input.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat input.txt | tr 'Z-A' 'x'
+expect:
+  stdout: ""
+  stderr_contains:
+    - "range"
+  exit_code: 1
