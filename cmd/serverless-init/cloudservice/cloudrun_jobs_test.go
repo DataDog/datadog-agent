@@ -31,10 +31,10 @@ import (
 // mockTraceProcessor is a mock implementation of the TraceAgent interface for testing
 type mockTraceProcessor struct {
 	processCalled bool
-	lastPayload   *api.Payload
+	lastPayload   *api.PayloadV1
 }
 
-func (m *mockTraceProcessor) Process(p *api.Payload) {
+func (m *mockTraceProcessor) Process(p *api.PayloadV1) {
 	m.processCalled = true
 	m.lastPayload = p
 }
@@ -313,7 +313,24 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
-	assert.NotNil(t, mockAgent.lastPayload)
+	require.NotNil(t, mockAgent.lastPayload)
+	require.NotNil(t, mockAgent.lastPayload.TracerPayload)
+	require.Len(t, mockAgent.lastPayload.TracerPayload.Chunks, 1)
+
+	// Verify the submitted payload is a v1 payload carrying the job span with
+	// its error information converted to span attributes.
+	chunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
+	assert.Equal(t, CloudRunJobsOrigin, chunk.Origin())
+	require.Len(t, chunk.Spans, 1)
+	submitted := chunk.Spans[0]
+	assert.Equal(t, jobs.jobSpan.SpanID, submitted.SpanID())
+	errMsg, ok := submitted.GetAttributeAsString("error.msg")
+	assert.True(t, ok)
+	assert.Equal(t, "task failed", errMsg)
+	exitCode, ok := submitted.GetAttributeAsString("exit_code")
+	assert.True(t, ok)
+	assert.Equal(t, "1", exitCode)
+	assert.True(t, submitted.Error())
 
 	// Verify span has error information
 	require.NotNil(t, jobs.jobSpan)
@@ -343,7 +360,14 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
-	assert.NotNil(t, mockAgent.lastPayload)
+	require.NotNil(t, mockAgent.lastPayload)
+	require.NotNil(t, mockAgent.lastPayload.TracerPayload)
+	require.Len(t, mockAgent.lastPayload.TracerPayload.Chunks, 1)
+	chunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
+	assert.Equal(t, CloudRunJobsOrigin, chunk.Origin())
+	require.Len(t, chunk.Spans, 1)
+	_, ok := chunk.Spans[0].GetAttributeAsString("error.msg")
+	assert.False(t, ok, "success span must not carry error.msg")
 
 	// Verify span has no error
 	require.NotNil(t, jobs.jobSpan)

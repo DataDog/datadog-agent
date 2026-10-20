@@ -47,9 +47,9 @@ func testLifecycleServerStarter(started *bool) *lifecycleServerStarter {
 // a cycle).
 type noopTraceAgent struct{}
 
-func (n *noopTraceAgent) Process(_ *api.Payload) {}
-func (n *noopTraceAgent) Flush()                 {}
-func (n *noopTraceAgent) Stop()                  {}
+func (n *noopTraceAgent) Process(_ *api.PayloadV1) {}
+func (n *noopTraceAgent) Flush()                   {}
+func (n *noopTraceAgent) Stop()                    {}
 
 const testImageARN = "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image"
 const testImageVersion = "v1.2.3"

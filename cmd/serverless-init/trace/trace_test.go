@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -18,10 +19,10 @@ import (
 // mockProcessor is a mock implementation of the Processor interface for testing
 type mockProcessor struct {
 	processCalled bool
-	lastPayload   *api.Payload
+	lastPayload   *api.PayloadV1
 }
 
-func (m *mockProcessor) Process(p *api.Payload) {
+func (m *mockProcessor) Process(p *api.PayloadV1) {
 	m.processCalled = true
 	m.lastPayload = p
 }
@@ -78,22 +79,69 @@ func TestSubmitSpanWithNilTraceAgent(_ *testing.T) {
 
 func TestSubmitSpanWithValidProcessor(t *testing.T) {
 	startTime := time.Now().UnixNano()
-	tags := map[string]string{"env": "test"}
+	tags := map[string]string{
+		"env":      "test",
+		"job_name": "my-job",
+	}
 	span := InitSpan("test-service", "test.operation", "test-resource", "web", startTime, tags)
 	span.Duration = 1000000 // 1ms
+	span.Metrics = map[string]float64{"_dd.measured": 1}
 
 	mockAgent := &mockProcessor{}
 
 	SubmitSpan(span, "test-origin", mockAgent)
 
 	assert.True(t, mockAgent.processCalled)
-	assert.NotNil(t, mockAgent.lastPayload)
-	assert.NotNil(t, mockAgent.lastPayload.TracerPayload)
-	assert.Len(t, mockAgent.lastPayload.TracerPayload.Chunks, 1)
+	require.NotNil(t, mockAgent.lastPayload)
+	require.NotNil(t, mockAgent.lastPayload.TracerPayload)
+	require.Len(t, mockAgent.lastPayload.TracerPayload.Chunks, 1)
 
 	chunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
-	assert.Equal(t, "test-origin", chunk.Origin)
+	assert.Equal(t, "test-origin", chunk.Origin())
 	assert.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
-	assert.Len(t, chunk.Spans, 1)
-	assert.Equal(t, span, chunk.Spans[0])
+	require.Len(t, chunk.Spans, 1)
+
+	converted := chunk.Spans[0]
+	assert.Equal(t, span.Service, converted.Service())
+	assert.Equal(t, span.Name, converted.Name())
+	assert.Equal(t, span.Resource, converted.Resource())
+	assert.Equal(t, span.Type, converted.Type())
+	assert.Equal(t, span.SpanID, converted.SpanID())
+	assert.Equal(t, span.ParentID, converted.ParentID())
+	assert.Equal(t, uint64(span.Start), converted.Start())
+	assert.Equal(t, uint64(span.Duration), converted.Duration())
+
+	// Non-promoted meta tags become string attributes.
+	got, ok := converted.GetAttributeAsString("job_name")
+	assert.True(t, ok)
+	assert.Equal(t, "my-job", got)
+	// Metrics become float64 attributes.
+	measured, ok := converted.GetAttributeAsFloat64("_dd.measured")
+	assert.True(t, ok)
+	assert.Equal(t, float64(1), measured)
+	// Promoted tags are lifted to span fields instead of attributes: env comes
+	// back via the promoted field (GetAttributeAsString("env") also resolves to
+	// it through a back-compat fallback).
+	assert.Equal(t, "test", converted.Env())
+	// The payload was generated in-process, not converted from a wire payload,
+	// so it must not carry the conversion debug attribute.
+	_, ok = converted.GetAttributeAsString("_dd.convertedv1")
+	assert.False(t, ok, "inferred spans must not be tagged _dd.convertedv1")
+}
+
+// TestSubmitSpanSubmitsV1PayloadType guards the regression where SubmitSpan
+// submitted the legacy api.Payload instead of the v1 payload processed by the
+// default convert-traces path.
+func TestSubmitSpanSubmitsV1PayloadType(t *testing.T) {
+	span := InitSpan("svc", "op", "res", "web", time.Now().UnixNano(), nil)
+	span.Duration = 100
+
+	mockAgent := &mockProcessor{}
+	SubmitSpan(span, "test-origin", mockAgent)
+
+	assert.True(t, mockAgent.processCalled)
+	// The v1 payload is identifiable by its string-indexed tracer payload.
+	require.NotNil(t, mockAgent.lastPayload)
+	require.NotNil(t, mockAgent.lastPayload.TracerPayload)
+	assert.NotNil(t, mockAgent.lastPayload.TracerPayload.Strings)
 }
