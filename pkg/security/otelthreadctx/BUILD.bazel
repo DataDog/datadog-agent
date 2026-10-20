@@ -7,6 +7,7 @@ go_library(
         "attributes.go",
         "errors.go",
         "layout.go",
+        "reader.go",
         "resolve.go",
         "upstream_access.go",
         "upstream_pfelf.go",
@@ -17,6 +18,7 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/security/otelprocessctx",
             "//pkg/security/probe/procfs/procmaps",
+            "//pkg/security/secl/model/utils",
             "//pkg/util/safeelf",
             "@io_opentelemetry_go_ebpf_profiler//libc",
             "@io_opentelemetry_go_ebpf_profiler//libpf",
@@ -27,6 +29,7 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//pkg/security/otelprocessctx",
             "//pkg/security/probe/procfs/procmaps",
+            "//pkg/security/secl/model/utils",
             "//pkg/util/safeelf",
             "@io_opentelemetry_go_ebpf_profiler//libc",
             "@io_opentelemetry_go_ebpf_profiler//libpf",

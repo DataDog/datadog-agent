@@ -305,6 +305,8 @@ type UnloadModuleSyscallMsg struct {
 type SpanContext struct {
 	SpanID  uint64
 	TraceID utils.TraceID
+	// Named by the ptracer: system-probe has no key list on this path.
+	Attributes map[string]string `json:",omitempty"`
 }
 
 // MountSyscallMsg defines a mount message

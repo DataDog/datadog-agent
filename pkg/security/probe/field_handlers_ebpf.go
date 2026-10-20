@@ -759,13 +759,7 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
 	fh.resolveGoLabelsSpanContext(ev)
 	fh.resolveOTelSpanAttrs(ev)
-
-	// fork and exec carry the span context over to the process they create.
-	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
-		if ev.ProcessCacheEntry != nil {
-			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
-		}
-	}
+	propagateSpanContext(ev)
 
 	return &ev.SpanContext
 }

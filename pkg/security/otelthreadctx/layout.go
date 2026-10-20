@@ -7,8 +7,10 @@
 
 // Package otelthreadctx resolves and reads the OpenTelemetry thread context a
 // process publishes per thread (OTEP 4947), once its process context (OTEP 4719)
-// told how. The eBPF probe resolves the layout here and reads records in eBPF.
-// It stays free of agent dependencies so that cws-instrumentation can link it.
+// told how. It is shared by the eBPF probe, which resolves the layout here and
+// reads records in eBPF, and by the ptracer, which does both here. It stays free
+// of agent dependencies so that the ptracer, which ships in cws-instrumentation,
+// can link it.
 package otelthreadctx
 
 import (
@@ -140,7 +142,7 @@ type otelDTVInfo struct {
 
 // Layout is everything a reader needs to read otel_thread_ctx_v1 for one
 // process at trace time: the eBPF probe gets it serialized as struct
-// otel_tls_t.
+// otel_tls_t, the ptracer reads through it with ReadRecord.
 type Layout struct {
 	// runtimeLang is the otel_runtime_language enum: Go processes use the
 	// pprof-labels reader rather than TLS.
