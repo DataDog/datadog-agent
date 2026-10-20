@@ -100,11 +100,10 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 	snapshot, err := loader.load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
-	assert.Len(t, snapshot.issues, 2)
-	assert.True(t, snapshot.contains(agentIssueID))
-	assert.True(t, snapshot.contains("another-id"))
-	assert.False(t, snapshot.contains("different-issue"))
-	assert.Equal(t, "configuration", snapshot.issues[agentIssueID].Category)
+	assert.Len(t, snapshot, 2)
+	assert.Contains(t, snapshot, agentIssueID)
+	assert.Contains(t, snapshot, "another-id")
+	assert.Equal(t, "configuration", snapshot[agentIssueID].Category)
 
 	request := <-requestCh
 	assert.Equal(t, http.MethodGet, request.method)
@@ -124,7 +123,7 @@ func TestRemoteIssueLoaderLoadEmpty(t *testing.T) {
 	snapshot, err := loader.load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
-	assert.Empty(t, snapshot.issues)
+	assert.Empty(t, snapshot)
 }
 
 func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
@@ -135,20 +134,14 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 		}))
 	})
 
-	h := &healthPlatformImpl{
-		log:             logmock.New(t),
-		issues:          make(map[string]*storedIssue),
-		issuesByName:    make(map[string][]string),
-		persistedIssues: make(map[string]*PersistedIssue),
-		persistence:     &noopPersistence{},
-		remoteLoader:    loader,
-	}
+	h := newTestStore(t)
+	h.persistence = &noopPersistence{}
+	h.remoteLoader = loader
 	resolvedCh := make(chan *healthplatformpayload.Issue, 1)
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: resolvedCh})
 
-	require.NoError(t, h.loadFromRemote(context.Background()))
+	require.NoError(t, h.start(context.Background()))
 	assert.Equal(t, []string{issueID}, h.GetActiveIssueIDsByIssueName("Invalid Agent Configuration"))
-	assert.True(t, h.remoteSnapshot.contains(issueID))
 
 	persisted := h.persistedIssues[issueID]
 	require.NotNil(t, persisted)
@@ -341,80 +334,34 @@ func TestRemoteIssueLoaderLoadDoesNotFollowRedirects(t *testing.T) {
 
 func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {
 	tests := []struct {
-		name              string
-		agentFlavor       string
-		remoteEnabled     bool
-		apiKey            string
-		fipsEnabled       bool
-		skipSSLValidation bool
-		clcRunner         bool
-		want              bool
-		wantAgentType     string
-		wantResourceID    string
+		name           string
+		agentFlavor    string
+		remoteEnabled  bool
+		overrides      map[string]interface{}
+		wantAgentType  string
+		wantResourceID string
 	}{
+		{name: "without long-running marker", agentFlavor: flavor.DefaultAgent},
+		{name: "node Agent", agentFlavor: flavor.DefaultAgent, remoteEnabled: true, wantAgentType: "node", wantResourceID: "daemonset-uid"},
+		{name: "Cluster Agent", agentFlavor: flavor.ClusterAgent, remoteEnabled: true, wantAgentType: "cluster", wantResourceID: "cluster-uuid"},
+		{name: "missing API key", agentFlavor: flavor.DefaultAgent, remoteEnabled: true, overrides: map[string]interface{}{"api_key": ""}},
+		{name: "FIPS proxy", agentFlavor: flavor.DefaultAgent, remoteEnabled: true, overrides: map[string]interface{}{"fips.enabled": true}},
+		{name: "TLS verification disabled", agentFlavor: flavor.DefaultAgent, remoteEnabled: true, overrides: map[string]interface{}{"skip_ssl_validation": true}},
 		{
-			name:        "without long-running marker",
-			agentFlavor: flavor.DefaultAgent,
-			apiKey:      "api-key",
-		},
-		{
-			name:           "node Agent with API key",
-			agentFlavor:    flavor.DefaultAgent,
-			remoteEnabled:  true,
-			apiKey:         "api-key",
-			want:           true,
-			wantAgentType:  remoteIssuesNodeAgentType,
-			wantResourceID: "daemonset-uid",
-		},
-		{
-			name:          "node Agent missing API key",
-			agentFlavor:   flavor.DefaultAgent,
-			remoteEnabled: true,
-		},
-		{
-			name:          "node Agent using the FIPS proxy",
-			agentFlavor:   flavor.DefaultAgent,
-			remoteEnabled: true,
-			apiKey:        "api-key",
-			fipsEnabled:   true,
-		},
-		{
-			name:              "node Agent without TLS verification",
-			agentFlavor:       flavor.DefaultAgent,
-			remoteEnabled:     true,
-			apiKey:            "api-key",
-			skipSSLValidation: true,
-		},
-		{
-			name:           "Cluster Agent",
-			agentFlavor:    flavor.ClusterAgent,
-			remoteEnabled:  true,
-			apiKey:         "api-key",
-			want:           true,
-			wantAgentType:  remoteIssuesClusterAgentType,
-			wantResourceID: "cluster-uuid",
-		},
-		{
-			name:          "Cluster Check Runner",
-			agentFlavor:   flavor.DefaultAgent,
-			remoteEnabled: true,
-			apiKey:        "api-key",
-			clcRunner:     true,
+			name: "Cluster Check Runner", agentFlavor: flavor.DefaultAgent, remoteEnabled: true,
+			overrides: map[string]interface{}{
+				"clc_runner_enabled": true,
+				"config_providers":   []map[string]interface{}{{"name": "clusterchecks"}},
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			overrides := map[string]interface{}{
-				"api_key":             test.apiKey,
-				"fips.enabled":        test.fipsEnabled,
-				"skip_ssl_validation": test.skipSSLValidation,
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{"api_key": "api-key"})
+			for key, value := range test.overrides {
+				cfg.SetInTest(key, value)
 			}
-			if test.clcRunner {
-				overrides["clc_runner_enabled"] = true
-				overrides["config_providers"] = []map[string]interface{}{{"name": "clusterchecks"}}
-			}
-			cfg := config.NewMockWithOverrides(t, overrides)
 			reqs := Requires{
 				Config: cfg,
 				Log:    logmock.New(t),
@@ -425,7 +372,7 @@ func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {
 
 			identity := &remoteTestIdentity{deploymentID: "daemonset-uid", clusterID: "cluster-uuid"}
 			loader := newRemoteIssueLoaderIfEnabled(reqs, test.agentFlavor, identity)
-			if test.want {
+			if test.wantAgentType != "" {
 				require.NotNil(t, loader)
 				assert.Equal(t, test.wantAgentType, loader.agentType)
 				assert.Equal(t, test.wantResourceID, loader.resourceID())

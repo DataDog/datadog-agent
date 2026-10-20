@@ -65,10 +65,6 @@ type remoteIssue struct {
 	Category  string `json:"category"`
 }
 
-type remoteIssueSnapshot struct {
-	issues map[string]remoteIssue
-}
-
 type remoteResourceIdentity interface {
 	DeploymentID() string
 	ClusterID() string
@@ -87,10 +83,6 @@ func newRemoteIssueLoader(cfg config.Component, agentType string, resourceID fun
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
-}
-
-func hasRemoteRestorationCredential(cfg config.Component) bool {
-	return configutils.SanitizeAPIKey(cfg.GetString("api_key")) != ""
 }
 
 func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string, identity remoteResourceIdentity) *remoteIssueLoader {
@@ -113,7 +105,7 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string, identity r
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires TLS certificate verification")
 		return nil
 	}
-	if !hasRemoteRestorationCredential(reqs.Config) {
+	if configutils.SanitizeAPIKey(reqs.Config.GetString("api_key")) == "" {
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires api_key")
 		return nil
 	}
@@ -125,7 +117,7 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string, identity r
 	return newRemoteIssueLoader(reqs.Config, remoteIssuesNodeAgentType, identity.DeploymentID)
 }
 
-func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, error) {
+func (r *remoteIssueLoader) load(ctx context.Context) (map[string]remoteIssue, error) {
 	apiKey := configutils.SanitizeAPIKey(r.config.GetString("api_key"))
 	if apiKey == "" {
 		return nil, errors.New("API key is required for remote issue restoration")
@@ -191,9 +183,7 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, err
 		return nil, errors.New("remote issue response has no issues")
 	}
 
-	snapshot := &remoteIssueSnapshot{
-		issues: make(map[string]remoteIssue, len(*resource.Attributes.Issues)),
-	}
+	issues := make(map[string]remoteIssue, len(*resource.Attributes.Issues))
 	for _, issue := range *resource.Attributes.Issues {
 		if strings.TrimSpace(issue.IssueID) == "" {
 			return nil, errors.New("remote issue response contains an empty issue ID")
@@ -207,19 +197,11 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, err
 		if strings.TrimSpace(issue.Category) == "" {
 			return nil, fmt.Errorf("remote issue response contains no category for issue %q", issue.IssueID)
 		}
-		if _, exists := snapshot.issues[issue.IssueID]; exists {
+		if _, exists := issues[issue.IssueID]; exists {
 			return nil, fmt.Errorf("remote issue response contains duplicate issue ID %q", issue.IssueID)
 		}
-		snapshot.issues[issue.IssueID] = issue
+		issues[issue.IssueID] = issue
 	}
 
-	return snapshot, nil
-}
-
-func (s *remoteIssueSnapshot) contains(agentIssueID string) bool {
-	if s == nil {
-		return false
-	}
-	_, ok := s.issues[agentIssueID]
-	return ok
+	return issues, nil
 }
