@@ -185,21 +185,6 @@ func (r *remoteIssueLoader) load(ctx context.Context) (map[string]remoteIssue, e
 
 	issues := make(map[string]remoteIssue, len(*resource.Attributes.Issues))
 	for _, issue := range *resource.Attributes.Issues {
-		if strings.TrimSpace(issue.IssueID) == "" {
-			return nil, errors.New("remote issue response contains an empty issue ID")
-		}
-		if strings.TrimSpace(issue.IssueName) == "" {
-			return nil, fmt.Errorf("remote issue response contains no issue_name for issue %q", issue.IssueID)
-		}
-		if strings.TrimSpace(issue.IssueType) == "" {
-			return nil, fmt.Errorf("remote issue response contains no issue_type for issue %q", issue.IssueID)
-		}
-		if strings.TrimSpace(issue.Category) == "" {
-			return nil, fmt.Errorf("remote issue response contains no category for issue %q", issue.IssueID)
-		}
-		if _, exists := issues[issue.IssueID]; exists {
-			return nil, fmt.Errorf("remote issue response contains duplicate issue ID %q", issue.IssueID)
-		}
 		issues[issue.IssueID] = issue
 	}
 
