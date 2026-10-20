@@ -405,24 +405,25 @@ type objectTypeDetail struct {
 }
 
 type tableDetails struct {
-	Comment        string
-	ColumnComments map[string]string
-	ColumnDefaults map[string]string
-	Indexes        []*indexInfo
-	Constraints    []*constraintInfo
-	External       *externalDetail
-	Mview          *mviewDetail
-	Temporary      *temporaryDetail
-	Partitioned    *partitionDetail
-	Blockchain     *retentionDetail
-	Immutable      *retentionDetail
+	Comment              string
+	ColumnComments       map[string]string
+	ColumnDefaults       map[string]string
+	Indexes              []*indexInfo
+	Constraints          []*constraintInfo
+	External             *externalDetail
+	Mview                *mviewDetail
+	Temporary            *temporaryDetail
+	Partitioned          *partitionDetail
+	Blockchain           *retentionDetail
+	Immutable            *retentionDetail
+	PropertiesIncomplete bool
 }
 
 type schemaTable struct {
 	Name        string            `json:"name"`
 	Owner       string            `json:"owner"`
 	TableType   string            `json:"table_type"`
-	Properties  []string          `json:"table_properties,omitempty"`
+	Properties  []string          `json:"table_properties,omitzero"`
 	Temporary   *temporaryDetail  `json:"temporary_details,omitempty"`
 	Partitioned *partitionDetail  `json:"partitioned_details,omitempty"`
 	Blockchain  *retentionDetail  `json:"blockchain_details,omitempty"`
@@ -432,7 +433,7 @@ type schemaTable struct {
 	External    *externalDetail   `json:"external_details,omitempty"`
 	Mview       *mviewDetail      `json:"materialized_view_details,omitempty"`
 	Indexes     []*indexInfo      `json:"indexes,omitempty"`
-	Constraints []*constraintInfo `json:"constraints,omitempty"`
+	Constraints []*constraintInfo `json:"constraints,omitzero"`
 	Columns     []schemaColumn    `json:"columns"`
 }
 
@@ -818,6 +819,9 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			if d.Immutable != nil {
 				t.Properties = append(t.Properties, "immutable")
 			}
+			if d.PropertiesIncomplete {
+				t.Properties = nil
+			}
 		}
 		s.currentTable = t
 		s.currentSchema.Tables = append(s.currentSchema.Tables, s.currentTable)
@@ -936,7 +940,7 @@ func tableType(r schemaRowDB) string {
 }
 
 func tableProperties(r schemaRowDB) []string {
-	var props []string
+	props := []string{}
 	if r.Temporary == "Y" {
 		props = append(props, "temporary")
 	}
@@ -1261,29 +1265,30 @@ func truncateLongValue(s string) string {
 	return string(r[:4000])
 }
 
-func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []schemaSQL, scan func(*sqlx.Rows) error) {
+func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []schemaSQL, scan func(*sqlx.Rows) error) error {
 	queries := make([]schemaSQL, len(filters))
 	for i, filter := range filters {
 		queries[i] = schemaSQL{text: strings.Replace(template, "/*RELATIONS*/", filter.text, 1), args: filter.args}
 	}
-	c.queryDetailQueries(ctx, name, queries, scan)
+	return c.queryDetailQueries(ctx, name, queries, scan)
 }
 
-func (c *Check) queryDetailQueries(ctx context.Context, name string, queries []schemaSQL, scan func(*sqlx.Rows) error) {
+func (c *Check) queryDetailQueries(ctx context.Context, name string, queries []schemaSQL, scan func(*sqlx.Rows) error) error {
 	for _, query := range queries {
 		if err := c.queryMetadata(ctx, query.text, scan, query.args...); err != nil {
 			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
 				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
-				return
+				return err
 			}
 			log.Warnf("%s failed to collect table detail %q: %s", c.logPrompt, name, err)
-			return
+			return err
 		}
 	}
+	return nil
 }
 
-func (c *Check) queryDetails(ctx context.Context, name, template string, allowed map[tableKey]struct{}, columns relationColumnNames, scan func(*sqlx.Rows) error) {
-	c.queryDetailFilters(ctx, name, template, relationFilterChunks(allowed, columns), scan)
+func (c *Check) queryDetails(ctx context.Context, name, template string, allowed map[tableKey]struct{}, columns relationColumnNames, scan func(*sqlx.Rows) error) error {
+	return c.queryDetailFilters(ctx, name, template, relationFilterChunks(allowed, columns), scan)
 }
 
 func constraintType(t string) string {
@@ -1399,10 +1404,13 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		}
 	}
 
-	c.queryDetails(ctx, "blockchain", blockchainTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
-	c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
+	blockchainErr := c.queryDetails(ctx, "blockchain", blockchainTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
+	immutableErr := c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
+	for key := range allowed {
+		at(key.conID, key.owner, key.table).PropertiesIncomplete = blockchainErr != nil || immutableErr != nil
+	}
 
-	c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "mview_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "mview_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, mode, method, staleness string
 		var lastRefresh sql.NullTime
@@ -1426,7 +1434,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		return nil
 	})
 
-	c.queryDetails(ctx, "table comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "table comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, comment string
 		if err := rows.Scan(&conID, &owner, &table, &comment); err != nil {
@@ -1438,7 +1446,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 
 	commentFilters := columnFilterChunks(allowedColumns,
 		relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, "column_name")
-	c.queryDetailFilters(ctx, "column comments", columnCommentsQuery, commentFilters, func(rows *sqlx.Rows) error {
+	_ = c.queryDetailFilters(ctx, "column comments", columnCommentsQuery, commentFilters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, column, comment string
 		if err := rows.Scan(&conID, &owner, &table, &column, &comment); err != nil {
@@ -1456,7 +1464,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	defaultFilters := columnFilterChunks(allowedColumns,
 		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
 	if c.defaultValueColumn() == "c.data_default_vc" {
-		c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
+		_ = c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
 			var conID int64
 			var owner, table, column string
 			var value sql.NullString
@@ -1474,7 +1482,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		})
 	}
 
-	c.queryDetailQueries(ctx, "indexes", schemaIndexQueries(allowed), func(rows *sqlx.Rows) error {
+	_ = c.queryDetailQueries(ctx, "indexes", schemaIndexQueries(allowed), func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, indexOwner, name, uniqueness, indexType, column string
 		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column); err != nil {
@@ -1499,7 +1507,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	constraintFilters := relationFilterChunks(allowed,
 		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"},
 		relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.table_name"})
-	c.queryDetailFilters(ctx, "constraints", constraintsQueryResolved, constraintFilters, func(rows *sqlx.Rows) error {
+	constraintsErr := c.queryDetailFilters(ctx, "constraints", constraintsQueryResolved, constraintFilters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, name, ctype, rOwner, rName, column string
 		var condition sql.NullString
@@ -1533,6 +1541,14 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		}
 		return nil
 	})
+	for key := range allowed {
+		d := at(key.conID, key.owner, key.table)
+		if constraintsErr != nil {
+			d.Constraints = nil
+		} else if d.Constraints == nil {
+			d.Constraints = []*constraintInfo{}
+		}
+	}
 	for _, d := range details {
 		for _, con := range d.Constraints {
 			if con.referencedKey == nil {
@@ -1562,7 +1578,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	filters := relationFilterChunks(referencedKeys,
 		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.constraint_name"},
 		relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.constraint_name"})
-	c.queryDetailFilters(ctx, "referenced constraints", referencedConstraintsQuery, filters, func(rows *sqlx.Rows) error {
+	_ = c.queryDetailFilters(ctx, "referenced constraints", referencedConstraintsQuery, filters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, table, column string
 		if err := rows.Scan(&conID, &owner, &name, &table, &column); err != nil {
@@ -1583,7 +1599,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		return nil
 	})
 
-	c.queryDetails(ctx, "external tables", externalTablesQuery, allowed, relationColumnNames{conID: "et.con_id", owner: "et.owner", relation: "et.table_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "external tables", externalTablesQuery, allowed, relationColumnNames{conID: "et.con_id", owner: "et.owner", relation: "et.table_name"}, func(rows *sqlx.Rows) error {
 		var (
 			conID                  int64
 			owner, table, driver   string
@@ -1612,7 +1628,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	})
 
 	keys := make(map[tableKey][]string)
-	c.queryDetails(ctx, "partitioning", partTablesQuery, allowed, relationColumnNames{conID: "pt.con_id", owner: "pt.owner", relation: "pt.table_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "partitioning", partTablesQuery, allowed, relationColumnNames{conID: "pt.con_id", owner: "pt.owner", relation: "pt.table_name"}, func(rows *sqlx.Rows) error {
 		var (
 			conID          int64
 			owner, table   string
@@ -1820,7 +1836,7 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		}
 		return details[key]
 	}
-	c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "view_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "view_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
 		var value sql.NullString
@@ -1830,7 +1846,7 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		at(conID, owner, name).Definition = value.String
 		return nil
 	})
-	c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
 		var created, modified sql.NullTime
@@ -1846,7 +1862,7 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		}
 		return nil
 	})
-	c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, comment string
 		if err := rows.Scan(&conID, &owner, &name, &comment); err != nil {

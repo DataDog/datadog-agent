@@ -99,7 +99,7 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 		filters := columnFilterChunks(selected, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
 		query := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", "c.data_default_vc", 1)
 		query += " AND " + schemaIndexExpressionColumn
-		c.queryDetailFilters(ctx, "index expressions", query, filters, scan)
+		_ = c.queryDetailFilters(ctx, "index expressions", query, filters, scan)
 		return
 	}
 	byContainer := make(map[int64]map[columnKey]struct{})

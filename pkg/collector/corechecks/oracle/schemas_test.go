@@ -1149,6 +1149,144 @@ func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 		"the plain column and the expression column must both survive, in position order")
 }
 
+func TestTableDetailsCollectionPresence(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		constraints     []string
+		constraintErr   error
+		partial         bool
+		blockchainErr   error
+		immutableErr    error
+		readOnly        bool
+		wantConstraints string
+		wantProperties  string
+	}{
+		{
+			name:            "empty",
+			wantConstraints: `[]`,
+			wantProperties:  `[]`,
+		},
+		{
+			name:            "populated",
+			constraints:     []string{"ORDERS_PK", "ORDERS_UK"},
+			readOnly:        true,
+			wantConstraints: `[{"name":"ORDERS_PK","type":"unique","columns":["ID"]},{"name":"ORDERS_UK","type":"unique","columns":["ID"]}]`,
+			wantProperties:  `["read_only"]`,
+		},
+		{
+			name:            "one constraint removed",
+			constraints:     []string{"ORDERS_PK"},
+			wantConstraints: `[{"name":"ORDERS_PK","type":"unique","columns":["ID"]}]`,
+			wantProperties:  `[]`,
+		},
+		{
+			name:           "constraints unavailable",
+			constraintErr:  errors.New("ORA-00942: table or view does not exist"),
+			wantProperties: `[]`,
+		},
+		{
+			name:           "constraint query failed",
+			constraintErr:  errors.New("ORA-01031: insufficient privileges"),
+			wantProperties: `[]`,
+		},
+		{
+			name:           "constraint rows failed after one constraint",
+			constraints:    []string{"ORDERS_PK", "ORDERS_UK"},
+			partial:        true,
+			wantProperties: `[]`,
+		},
+		{
+			name:            "blockchain unavailable",
+			blockchainErr:   errors.New("ORA-00942: table or view does not exist"),
+			readOnly:        true,
+			wantConstraints: `[]`,
+		},
+		{
+			name:            "immutable query failed",
+			immutableErr:    errors.New("ORA-01031: insufficient privileges"),
+			readOnly:        true,
+			wantConstraints: `[]`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, dbMock, closeDB := newSchemaCheck(t)
+			defer closeDB()
+			dbMock.MatchExpectationsInOrder(false)
+
+			for _, query := range []struct {
+				view string
+				err  error
+			}{
+				{"cdb_blockchain_tables", tc.blockchainErr},
+				{"cdb_immutable_tables", tc.immutableErr},
+				{"cdb_mviews", nil},
+				{"cdb_tab_comments", nil},
+				{"cdb_indexes", nil},
+				{"cdb_external_tables", nil},
+				{"cdb_part_tables", nil},
+			} {
+				expected := dbMock.ExpectQuery("FROM " + query.view)
+				if query.err != nil {
+					expected.WillReturnError(query.err)
+				} else {
+					expected.WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+				}
+			}
+			rows := sqlmock.NewRows([]string{
+				"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
+				"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
+			})
+			for _, name := range tc.constraints {
+				rows.AddRow(3, "APP", "ORDERS", name, "U", "-", "-", "ID", nil)
+			}
+			if tc.partial {
+				rows.RowError(1, errors.New("connection lost during fetch"))
+			}
+			expected := dbMock.ExpectQuery("FROM cdb_constraints")
+			if tc.constraintErr != nil {
+				expected.WillReturnError(tc.constraintErr)
+			} else {
+				expected.WillReturnRows(rows)
+			}
+
+			allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
+			details := c.tableDetails(context.Background(), allowed, nil)
+			require.NoError(t, dbMock.ExpectationsWereMet())
+			var payload []byte
+			collector := newSchemaCollector(&c, func(value []byte) { payload = value }, details,
+				map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
+			row := schemaRowDB{ConID: 3, Owner: "APP", TableName: "ORDERS", IotType: "-", ClusterName: "-"}
+			if tc.readOnly {
+				row.ReadOnly = "YES"
+			}
+			collector.add(row)
+			collector.finish()
+
+			var event struct {
+				Metadata []struct {
+					Schemas []struct {
+						Tables []map[string]json.RawMessage `json:"tables"`
+					} `json:"schemas"`
+				} `json:"metadata"`
+			}
+			require.NoError(t, json.Unmarshal(payload, &event))
+			require.Len(t, event.Metadata, 1)
+			require.Len(t, event.Metadata[0].Schemas, 1)
+			require.Len(t, event.Metadata[0].Schemas[0].Tables, 1)
+			table := event.Metadata[0].Schemas[0].Tables[0]
+			for field, want := range map[string]string{
+				"constraints": tc.wantConstraints, "table_properties": tc.wantProperties,
+			} {
+				if want == "" {
+					assert.NotContains(t, table, field)
+				} else {
+					assert.JSONEq(t, want, string(table[field]), field)
+				}
+			}
+		})
+	}
+}
+
 func TestTableDetailsConstraintsResolveForeignKey(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
