@@ -46,15 +46,16 @@ var (
 
 // Opts defines ptracer options
 type Opts struct {
-	Creds            Creds
-	Verbose          bool
-	Debug            bool
-	Async            bool
-	StatsDisabled    bool
-	ProcScanDisabled bool
-	ScanProcEvery    time.Duration
-	SeccompDisabled  bool
-	AttachedCb       func()
+	Creds               Creds
+	Verbose             bool
+	Debug               bool
+	Async               bool
+	StatsDisabled       bool
+	ProcScanDisabled    bool
+	ScanProcEvery       time.Duration
+	SeccompDisabled     bool
+	SpanContextDisabled bool
+	AttachedCb          func()
 
 	// internal
 	mode ebpfless.Mode
