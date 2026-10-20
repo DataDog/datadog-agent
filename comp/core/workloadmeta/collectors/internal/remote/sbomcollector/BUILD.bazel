@@ -47,6 +47,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/proto/pbgo/sbom",
         "//pkg/sbom",
         "//pkg/util/fxutil",
