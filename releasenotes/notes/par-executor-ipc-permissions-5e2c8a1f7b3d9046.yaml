@@ -4,5 +4,6 @@ security:
     In split mode, the private action runner executor now restricts its local
     endpoint to the account that runs it. On Unix the socket is created with
     mode 0600. On Windows the named pipe is limited to Local System,
-    Administrators, and the Agent service account. par-control no longer logs
-    the error messages of failed actions.
+    Administrators, and the Agent service account. The private action runner
+    no longer logs the error messages of failed actions, in split or
+    monolithic mode; it logs the task ID and error code instead.
