@@ -47,6 +47,9 @@ go_library(
 
 dd_agent_go_test(
     name = "os_test",
-    srcs = ["generic_packagemanager_test.go"],
+    srcs = [
+        "generic_packagemanager_test.go",
+        "os_test.go",
+    ],
     embed = [":os"],
 )

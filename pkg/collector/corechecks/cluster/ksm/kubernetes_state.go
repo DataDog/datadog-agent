@@ -764,13 +764,15 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		collectors = lo.Uniq(append(collectors, draCollectors(draRequested, draAPIVersion, draTaintAPIVersion)...))
 	}
 
-	factories = manageResourcesReplacement(c, factories, resources)
+	collectors, replacementFactories := manageResourcesReplacement(c, collectors, resources)
+	factories = append(factories, replacementFactories...)
 
 	// hpav2Factory (registered above via manageResourcesReplacement) only
-	// runs when autoscaling/v2 isn't served by the cluster. On clusters that
-	// do serve it, the upstream KSM generator handles HPAs directly and
-	// never gets the ownerRef enrichment, so add it here as an always-on
-	// extended collector, mirroring NewExtendedPodFactory.
+	// runs when the cluster serves autoscaling/v2beta2 but not
+	// autoscaling/v2. On clusters that serve autoscaling/v2, the upstream
+	// KSM generator handles HPAs directly and never gets the ownerRef
+	// enrichment, so add it here as an always-on extended collector,
+	// mirroring NewExtendedPodFactory.
 	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
 		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
 		collectors = lo.Uniq(append(collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended"))
@@ -800,43 +802,42 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	}
 }
 
-func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
-	// backwards/forwards compatibility resource factories are only
-	// registered if they're needed, otherwise they'd overwrite the default
-	// ones that ship with ksm
-	resourceReplacements := map[string]map[string]func(c *apiserver.APIClient) customresource.RegistryFactory{
-		// support for older k8s versions where the resources are no
-		// longer supported in KSM
-		"batch/v1": {
-			"CronJob": customresources.NewCronJobV1Beta1Factory,
-		},
-		"policy/v1": {
-			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
-		},
-		"autoscaling/v2": {
-			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Beta2Factory,
-		},
+// manageResourcesReplacement supports older k8s versions that only serve
+// resources at an API version that is no longer supported in KSM. It returns
+// the factories of the stores replacing the KSM built-in ones for those
+// resources, and collectors with the built-in store names replaced by the
+// replacement store keys.
+func manageResourcesReplacement(c *apiserver.APIClient, collectors []string, resources []*v1.APIResourceList) ([]string, []customresource.RegistryFactory) {
+	resourceReplacements := []struct {
+		kind               string
+		groupVersion       string // served version supported by KSM
+		legacyGroupVersion string // served version supported by the replacement factory
+		newFactory         func(c *apiserver.APIClient) customresource.RegistryFactory
+	}{
+		{"CronJob", "batch/v1", "batch/v1beta1", customresources.NewCronJobV1Beta1Factory},
+		{"PodDisruptionBudget", "policy/v1", "policy/v1beta1", customresources.NewPodDisruptionBudgetV1Beta1Factory},
+		{"HorizontalPodAutoscaler", "autoscaling/v2", "autoscaling/v2beta2", customresources.NewHorizontalPodAutoscalerV2Beta2Factory},
 	}
 
-	for gv, resourceReplacement := range resourceReplacements {
-		for _, resource := range resources {
-			if resource.GroupVersion != gv {
-				continue
-			}
-
-			for _, apiResource := range resource.APIResources {
-				delete(resourceReplacement, apiResource.Kind)
-			}
+	var factories []customresource.RegistryFactory
+	for _, r := range resourceReplacements {
+		if apiResourceAvailable(resources, r.groupVersion, r.kind) || !apiResourceAvailable(resources, r.legacyGroupVersion, r.kind) {
+			// either the KSM built-in store supports this resource, or the
+			// replacement store wouldn't support it either
+			continue
 		}
+
+		factory := r.newFactory(c)
+		factories = append(factories, factory)
+		// The replacement store is registered under its group/version
+		// qualified key (see util.GVRFromType), not under the name of the
+		// built-in store, which is the factory name. It must be enabled under
+		// that key, otherwise KSM builds the built-in store, for an API
+		// version that isn't served.
+		collectors = lo.Replace(collectors, factory.Name(), kubestatemetrics.CustomResourceClientKey(factory.Name(), factory.ExpectedType()), -1)
 	}
 
-	for _, resourceReplacement := range resourceReplacements {
-		for _, factory := range resourceReplacement {
-			factories = append(factories, factory(c))
-		}
-	}
-
-	return factories
+	return collectors, factories
 }
 
 // apiResourceAvailable reports whether the given kind is served under the
