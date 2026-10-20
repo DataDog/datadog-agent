@@ -189,7 +189,7 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 }
 
 func TestMapNumberMetricsGaugeInterval(t *testing.T) {
-	const intervalKey = "datadog.metric.interval"
+	const intervalKey = "datadog.gauge.interval"
 	tests := []struct {
 		name     string
 		declared any
@@ -264,7 +264,7 @@ func TestMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T) {
 				dp.SetStartTimestamp(pcommon.Timestamp(1e9))
 				dp.SetTimestamp(pcommon.Timestamp(11e9))
 				dp.SetDoubleValue(50)
-				dp.Attributes().PutInt("datadog.metric.interval", 15)
+				dp.Attributes().PutInt("datadog.gauge.interval", 15)
 				expectedType, expectedValue := Count, float64(50)
 				if asRate {
 					dp.Attributes().PutStr(deltaSumRateAttributeKey, "rate")
@@ -278,7 +278,7 @@ func TestMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T) {
 				assert.Equal(t, expectedValue, actual.Value)
 				assert.Equal(t, int64(10), actual.Interval)
 				assert.Equal(t, uint64(11e9), actual.Timestamp)
-				assert.NotContains(t, actual.Tags, "datadog.metric.interval:15")
+				assert.NotContains(t, actual.Tags, "datadog.gauge.interval:15")
 			})
 		}
 	}

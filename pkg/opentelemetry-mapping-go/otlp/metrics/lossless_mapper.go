@@ -50,7 +50,7 @@ const (
 
 	// gaugeIntervalAttributeKey declares the reporting cadence in whole seconds.
 	// Gauge start timestamps do not describe a reporting interval.
-	gaugeIntervalAttributeKey = "datadog.metric.interval"
+	gaugeIntervalAttributeKey = "datadog.gauge.interval"
 )
 
 // metricWarnings tracks which one-shot errors have been emitted for a
