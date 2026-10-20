@@ -129,6 +129,47 @@ func TestResizableSemaphoreContextCancellation(t *testing.T) {
 	})
 }
 
+func TestResizableSemaphoreCancelledContextWithCapacity(t *testing.T) {
+	s := newResizableSemaphore(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.ErrorIs(t, s.Acquire(ctx, 1), context.Canceled)
+	assert.Equal(t, int64(0), s.inFlight)
+}
+
+func TestResizableSemaphoreCancelConcurrentWithRelease(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.Acquire(ctx, 1)
+		}()
+		synctest.Wait()
+
+		// Cancel and free a token atomically with respect to the waiter, so it
+		// wakes up with both capacity available and its context done.
+		s.mu.Lock()
+		cancel()
+		s.inFlight--
+		s.cond.Broadcast()
+		s.mu.Unlock()
+
+		synctest.Wait()
+		select {
+		case err := <-errCh:
+			assert.ErrorIs(t, err, context.Canceled)
+		default:
+			t.Fatal("Acquire should return when the context is cancelled")
+		}
+		assert.Equal(t, int64(0), s.inFlight)
+		assert.NoError(t, s.Acquire(context.Background(), 1))
+	})
+}
+
 func TestSaturatedDurationAccumulates(t *testing.T) {
 	s := newResizableSemaphore(2)
 	clock := &fakeClock{t: time.Unix(0, 0)}

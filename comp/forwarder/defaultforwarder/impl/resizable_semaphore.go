@@ -50,7 +50,8 @@ func newResizableSemaphore(limit int64) *resizableSemaphore {
 
 // Acquire takes n tokens, blocking until they are available or ctx is done.
 // It returns ctx.Err() if the context is cancelled before the tokens are
-// acquired.
+// acquired, including when ctx is already done on entry even if tokens are
+// available, matching semaphore.Weighted.
 func (s *resizableSemaphore) Acquire(ctx context.Context, n int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,9 +65,12 @@ func (s *resizableSemaphore) Acquire(ctx context.Context, n int64) error {
 	})
 	defer stop()
 
-	for s.inFlight+n > s.limit {
+	for {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if s.inFlight+n <= s.limit {
+			break
 		}
 		s.cond.Wait()
 	}
