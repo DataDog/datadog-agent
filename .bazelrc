@@ -14,6 +14,7 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 startup --windows_enable_symlinks
 
 # Common options -------------------------------------------------------------------------------------------------------
+common --@rules_cc//cc/toolchains/args/archiver_flags:use_libtool_on_macos=false # CPython and OpenSSL builds need ar
 common --@rules_python//python/config_settings:bootstrap_impl=script # don't use any system Python interpreter
 common --@rules_python//python/config_settings:current_config=fail # must match `pip.parse` defined wheels
 common --@rules_python//python/config_settings:experimental_python_import_all_repositories=false # avoid interferences
@@ -75,7 +76,7 @@ common:linux --strategy=sandboxed
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:macos --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
-common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
+common:macos --experimental_use_llvm_covmap # gcov's runtime is missing in foreign_cc links (CPython's _ctypes)
 common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 
