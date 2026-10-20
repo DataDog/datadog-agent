@@ -153,6 +153,10 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 	// does not pin, so that they are not left running forever.
 	pinning := pinningFeaturesSupported(cfg, progSpec)
 
+	if !pinning && cfg.PersistMonitoring {
+		log.Warnf("pinning unsupported. cannot respect the 'persist_monitoring' configuration")
+	}
+
 	// Reuse the map of the previous probe, so that the OOM kills recorded while no system-probe
 	// was running are reported by the next check run.
 	if m, err := bpflib.LoadPinnedMap(mapPinPath(oomMapName), nil); err == nil {
@@ -304,7 +308,7 @@ func (k *Probe) unpin() {
 	}
 
 	if !ownsPin() {
-		log.Warnf("oom-kill pins are owned by another probe, leaving them")
+		log.Warnf("owned oom-kill pins not discovered")
 		return
 	}
 	removePins()
@@ -354,12 +358,12 @@ func (k *Probe) attach() error {
 // 5.15 for the kprobe's perf event link.
 func selectProgram(spec *bpflib.CollectionSpec, useFentry bool) (*bpflib.ProgramSpec, error) {
 	progName, unused := oomKprobeName, oomFentryName
-	if err := supportsFentry(oomHookName); err == nil && useFentry {
-		progName, unused = oomFentryName, oomKprobeName
-	} else if err != nil {
-		log.Debugf("fentry is not supported on %s, using kprobe: %s", oomHookName, err)
-	} else {
-		log.Debugf("fentry disallowed %s, using kprobe: %s", oomHookName, err)
+	if useFentry {
+		if err := supportsFentry(oomHookName); err == nil {
+			progName, unused = oomFentryName, oomKprobeName
+		} else {
+			log.Debugf("fentry is not supported on %s, using kprobe: %s", oomHookName, err)
+		}
 	}
 
 	if s, ok := spec.Programs[progName]; ok {
@@ -549,7 +553,7 @@ func samePinnedProgram(pinned link.Link, prog *bpflib.Program, maps ...*bpflib.M
 	return nil
 }
 
-// usesSameMaps reports whether the program described by info references m
+// usesSameMaps reports whether the program described by `info` references `maps`
 func usesSameMaps(info *bpflib.ProgramInfo, maps []*bpflib.Map) bool {
 	ids, ok := info.MapIDs()
 	if !ok {
