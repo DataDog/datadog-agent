@@ -188,6 +188,12 @@ var (
 	// TlmFoldspaceDropped counts non-abandoning payload drops reported by foldspace.
 	TlmFoldspaceDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_foldspace", "dropped",
 		nil, "Payloads a foldspace sender gave up on without abandoning the record")
+
+	// TlmFoldspaceUnadmitted counts records foldspace refused at admission for
+	// good, which are dropped unsent.
+	// Tags: reason (too_large, empty, unrouted, unroutable, unknown)
+	TlmFoldspaceUnadmitted = telemetryimpl.GetCompatComponent().NewCounter("logs_foldspace", "unadmitted",
+		[]string{"reason"}, "Records foldspace can never carry, dropped without being sent")
 )
 
 // FailureCause* are the stable tag values for the logs.http_connectivity_failure

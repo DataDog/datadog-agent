@@ -196,8 +196,10 @@ func (c *fixedAdmissionCore) PushLog(record Record, nowNanos uint64, metadataID 
 // let ingest move on. One the driver does not recognize is treated the same,
 // because retrying it would spin the ingest goroutine forever.
 func TestUnadmittableRecordsReleaseToAuditor(t *testing.T) {
-	for _, admission := range []Admission{Empty, Unroutable, Unrouted, Admission(99)} {
+	for _, admission := range []Admission{TooLarge, Empty, Unroutable, Unrouted, Admission(99)} {
 		t.Run(admission.String(), func(t *testing.T) {
+			counter := metrics.TlmFoldspaceUnadmitted.WithValues(unadmittedReason(admission))
+			before := counter.Get()
 			core := &fixedAdmissionCore{
 				Core:      NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}}),
 				marker:    "unadmittable",
@@ -214,8 +216,17 @@ func TestUnadmittableRecordsReleaseToAuditor(t *testing.T) {
 				require.Len(t, p.MessageMetas, 1)
 			}
 			assert.Equal(t, [][]byte{[]byte("after")}, transport.Sent(0))
+			assert.Equal(t, before+1, counter.Get(), "the drop must be counted under its reason")
 		})
 	}
+}
+
+func TestUnadmittedReasonTags(t *testing.T) {
+	assert.Equal(t, "too_large", unadmittedReason(TooLarge))
+	assert.Equal(t, "empty", unadmittedReason(Empty))
+	assert.Equal(t, "unrouted", unadmittedReason(Unrouted))
+	assert.Equal(t, "unroutable", unadmittedReason(Unroutable))
+	assert.Equal(t, "unknown", unadmittedReason(Admission(99)))
 }
 
 func TestEmptyBodyReleasesToAuditor(t *testing.T) {
