@@ -5,6 +5,7 @@ go_library(
     name = "python",
     srcs = [
         "check.go",
+        "com_windows.go",
         "containers.go",
         "datadog_agent.go",
         "discovery.go",
@@ -185,6 +186,7 @@ dd_agent_go_test(
     name = "python_test",
     srcs = [
         "check_test.go",
+        "com_windows_test.go",
         "containers_test.go",
         "datadog_agent_test.go",
         "discovery_test.go",
@@ -207,5 +209,10 @@ dd_agent_go_test(
     deps = [
         "//pkg/util/cache",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_go_ole_go_ole//:go-ole",
+        ],
+        "//conditions:default": [],
+    }),
 )
