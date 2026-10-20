@@ -80,6 +80,27 @@ logs_config:
 		"a profile-written compression_kind would disable the gzip fallback for additional endpoints")
 }
 
+func TestZstdLevelIgnoredReason(t *testing.T) {
+	for _, tc := range []struct {
+		name, yaml, want string
+	}{
+		{name: "zstd by default", yaml: "logs_config: {}"},
+		{name: "explicit zstd with additional endpoints", yaml: "logs_config:\n  compression_kind: zstd\n  additional_endpoints:\n    - host: example.com"},
+		{name: "additional endpoints", yaml: "logs_config:\n  additional_endpoints:\n    - host: example.com", want: "additional_endpoints fall back to gzip"},
+		{name: "explicit gzip", yaml: "logs_config:\n  compression_kind: gzip", want: `compression_kind is "gzip"`},
+		{name: "compression off", yaml: "logs_config:\n  use_compression: false", want: "use_compression is false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reason := zstdLevelIgnoredReason(confFromYAML(t, tc.yaml))
+			if tc.want == "" {
+				assert.Empty(t, reason)
+			} else {
+				assert.Contains(t, reason, tc.want)
+			}
+		})
+	}
+}
+
 func TestLowResourceCapsPipelinesAtTwo(t *testing.T) {
 	prev := runtime.GOMAXPROCS(8)
 	defer runtime.GOMAXPROCS(prev)

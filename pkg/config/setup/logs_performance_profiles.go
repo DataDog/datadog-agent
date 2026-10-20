@@ -85,7 +85,7 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	},
 	"max-throughput": {
 		1: {
-			description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled), at the expense of bandwidth and memory.",
+			description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled, including for additional_endpoints), at the expense of bandwidth and memory.",
 			settings:    maxThroughputSettings,
 		},
 	},
@@ -109,7 +109,7 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	},
 	"high-compression": {
 		1: {
-			description: "Reduce network bytes at the cost of CPU (higher zstd compression level).",
+			description: "Reduce network bytes at the cost of CPU (higher zstd compression level; no effect when logs are sent with gzip, the default with additional_endpoints).",
 			settings: map[string]interface{}{
 				"logs_config.zstd_compression_level": 6,
 			},
@@ -306,10 +306,45 @@ func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 	}
 
 	log.Infof("Applied logs performance profile %q (version %d): %s", name, version, profile.description)
+	if _, ok := profile.settings[zstdLevelKey]; ok && !keyExplicitlySet(config, zstdLevelKey) {
+		if reason := zstdLevelIgnoredReason(config); reason != "" {
+			log.Warnf("Logs performance profile %q sets %s, which has no effect: %s", name, zstdLevelKey, reason)
+		}
+	}
 	if len(kept) > 0 {
 		log.Infof("Logs performance profile %q (version %d) kept explicitly-configured settings: %s",
 			name, version, strings.Join(kept, ", "))
 	}
+}
+
+const zstdLevelKey = "logs_config.zstd_compression_level"
+
+// zstdLevelIgnoredReason explains why zstd_compression_level has no effect, or returns "" when it applies.
+func zstdLevelIgnoredReason(config pkgconfigmodel.Reader) string {
+	switch {
+	case !config.GetBool("logs_config.use_compression"):
+		return "logs_config.use_compression is false"
+	case config.IsConfigured("logs_config.compression_kind"):
+		if kind := config.GetString("logs_config.compression_kind"); kind != "zstd" {
+			return fmt.Sprintf("logs_config.compression_kind is %q", kind)
+		}
+		return ""
+	case hasAdditionalLogsEndpoints(config):
+		return "additional_endpoints fall back to gzip; set logs_config.compression_kind to zstd to use it"
+	}
+	return ""
+}
+
+// hasAdditionalLogsEndpoints reports whether logs_config.additional_endpoints is non-empty, as a list or a JSON string.
+func hasAdditionalLogsEndpoints(config pkgconfigmodel.Reader) bool {
+	switch v := config.Get("logs_config.additional_endpoints").(type) {
+	case []interface{}:
+		return len(v) > 0
+	case string:
+		v = strings.TrimSpace(v)
+		return v != "" && v != "[]"
+	}
+	return false
 }
 
 func sortedProfileNames() []string {
