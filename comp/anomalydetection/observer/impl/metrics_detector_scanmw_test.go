@@ -251,3 +251,72 @@ func TestScanMW_QuantityGaugeRoutingAndUnknownToGaugeTransition(t *testing.T) {
 	assert.Equal(t, "late.gauge", res2.Anomalies[0].Source.Name)
 	assert.Len(t, d.series, 2)
 }
+
+func TestScanMW_MinRelativeChangeGate(t *testing.T) {
+	tests := []struct {
+		name       string
+		preVal     float64
+		postVal    float64
+		wantDetect bool
+	}{
+		{
+			name:       "upward shift below 5% threshold is rejected",
+			preVal:     1000,
+			postVal:    1040, // +4% (statistically significant and >3 MADs, but <5%)
+			wantDetect: false,
+		},
+		{
+			name:       "downward shift below 5% threshold is rejected",
+			preVal:     1000,
+			postVal:    960, // -4%
+			wantDetect: false,
+		},
+		{
+			name:       "upward shift equal to 5% threshold passes",
+			preVal:     1000,
+			postVal:    1050, // +5%
+			wantDetect: true,
+		},
+		{
+			name:       "downward shift equal to 5% threshold passes",
+			preVal:     1000,
+			postVal:    950, // -5%
+			wantDetect: true,
+		},
+		{
+			name:       "upward shift above 5% threshold passes",
+			preVal:     1000,
+			postVal:    1100, // +10%
+			wantDetect: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := DefaultScanMWConfig()
+			cfg.Kind = observer.QuantityGauge
+			cfg.MinRelativeChange = 0.05
+			d := NewScanMWDetectorWithConfig(cfg)
+
+			storage := newTimeSeriesStorage()
+			for i := 0; i < 20; i++ {
+				storage.AddWithKeyAndHostComposite("ns", "memory.working_set", "host", tc.preVal, int64(i+1), tagset.CompositeTags{}, 1, metrics.GaugeType)
+			}
+			for i := 20; i < 40; i++ {
+				storage.AddWithKeyAndHostComposite("ns", "memory.working_set", "host", tc.postVal, int64(i+1), tagset.CompositeTags{}, 1, metrics.GaugeType)
+			}
+
+			res := d.Detect(storage, 40)
+			if tc.wantDetect {
+				require.Len(t, res.Anomalies, 1)
+				assert.Equal(t, tc.preVal, res.Anomalies[0].DebugInfo.BaselineMedian)
+				assert.Equal(t, tc.postVal, res.Anomalies[0].DebugInfo.CurrentValue)
+			} else {
+				require.Empty(t, res.Anomalies)
+				state := d.series[scanmwStateKey{ref: 0, agg: observer.AggregateAverage}]
+				require.NotNil(t, state)
+				assert.Zero(t, state.segmentStartTime, "rejected relative shift must not advance segmentStartTime")
+			}
+		})
+	}
+}

@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -235,6 +236,9 @@ func defaultCatalog() *componentCatalog {
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
 					}
+					if cfg.MinRelativeChange < 0 || math.IsNaN(cfg.MinRelativeChange) || math.IsInf(cfg.MinRelativeChange, 0) {
+						return nil, fmt.Errorf("scanmw: invalid min_relative_change %v: must be finite and >= 0", cfg.MinRelativeChange)
+					}
 					return cfg, nil
 				},
 				readConfig: func(reader ConfigReader, prefix string) any {
@@ -244,6 +248,9 @@ func defaultCatalog() *componentCatalog {
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
 						cfg.MaxPoints = reader.GetInt(k)
+					}
+					if k := prefix + "min_relative_change"; reader.IsConfigured(k) {
+						cfg.MinRelativeChange = reader.GetFloat64(k)
 					}
 					return cfg
 				},

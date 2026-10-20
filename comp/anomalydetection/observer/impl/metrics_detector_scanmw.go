@@ -57,6 +57,10 @@ type ScanMWConfig struct {
 	// Default: 3.0.
 	MinDeviationMAD float64 `json:"min_deviation_mad"`
 
+	// MinRelativeChange is the minimum |post_median - pre_median| / |pre_median|
+	// required in addition to statistical checks. Zero disables the gate.
+	MinRelativeChange float64 `json:"min_relative_change"`
+
 	// Aggregations to run detection on. Default: [Average, Count].
 	Aggregations []observer.Aggregate `json:"-"`
 }
@@ -116,6 +120,10 @@ type ScanMWDetector struct {
 	// Default: 3.0
 	MinDeviationMAD float64
 
+	// MinRelativeChange is the minimum |post_median - pre_median| / |pre_median|
+	// required in addition to statistical checks. Default: 0 (disabled).
+	MinRelativeChange float64 `json:"min_relative_change"`
+
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
@@ -146,6 +154,7 @@ func NewScanMWDetectorWithConfig(cfg ScanMWConfig) *ScanMWDetector {
 		SignificanceThreshold: cfg.SignificanceThreshold,
 		MinEffectSize:         cfg.MinEffectSize,
 		MinDeviationMAD:       cfg.MinDeviationMAD,
+		MinRelativeChange:     cfg.MinRelativeChange,
 		Aggregations:          cfg.Aggregations,
 		series:                make(map[scanmwStateKey]*scanmwSeriesState),
 	}
@@ -376,6 +385,14 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		return observer.Anomaly{}, 0, false
 	}
 
+	if d.MinRelativeChange > 0 {
+		delta := math.Abs(postMedian - preMedian)
+		requiredDelta := d.MinRelativeChange * math.Abs(preMedian)
+		if delta < requiredDelta {
+			return observer.Anomaly{}, 0, false
+		}
+	}
+
 	changePtTime := points[bestK].Timestamp
 	score := -math.Log10(bestPValue)
 	if math.IsInf(score, 1) {
@@ -426,6 +443,9 @@ func (d *ScanMWDetector) ensureDefaults() {
 	}
 	if d.MinDeviationMAD <= 0 {
 		d.MinDeviationMAD = 3.0
+	}
+	if d.MinRelativeChange < 0 || math.IsNaN(d.MinRelativeChange) || math.IsInf(d.MinRelativeChange, 0) {
+		d.MinRelativeChange = 0
 	}
 	if d.series == nil {
 		d.series = make(map[scanmwStateKey]*scanmwSeriesState)

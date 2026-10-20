@@ -116,7 +116,7 @@ func TestApplyTestbenchDefaults(t *testing.T) {
 func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
 		"bocpd":          json.RawMessage(`{"warmup_points": 42, "kind": "QUANTITY_GAUGE"}`),
-		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84, "min_segment": 10, "kind": "QUANTITY_GAUGE"}`),
+		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84, "min_segment": 10, "min_relative_change": 0.05, "kind": "QUANTITY_GAUGE"}`),
 		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84}`),
 		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
 		"time_cluster":   json.RawMessage(`{"enabled":true}`),
@@ -131,17 +131,24 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	require.Equal(t, 42, scanMW.MinPoints)
 	require.Equal(t, 84, scanMW.MaxPoints)
 	require.Equal(t, 10, scanMW.MinSegment)
+	require.InDelta(t, 0.05, scanMW.MinRelativeChange, 1e-12)
 	require.Equal(t, observerdef.QuantityGauge, scanMW.Kind)
 
 	settings.Enabled["scanmw"] = true
 	detectors, _, _, _, _ := defaultCatalog().Instantiate(settings)
 	require.Equal(t, []string{"bocpd/QUANTITY_GAUGE", "scanmw/QUANTITY_GAUGE"}, detectorNames(detectors))
+	require.InDelta(t, 0.05, detectors[1].(*ScanMWDetector).MinRelativeChange, 1e-12)
 
 	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
 	require.Equal(t, 42, scanWelch.MinPoints)
 	require.Equal(t, 84, scanWelch.MaxPoints)
 	require.False(t, settings.Enabled["anomaly_scorer"])
 	require.True(t, settings.Enabled["time_cluster"])
+
+	_, err = ParseSettingsFromJSON(map[string]json.RawMessage{
+		"scanmw": json.RawMessage(`{"min_relative_change": -0.01}`),
+	})
+	require.Error(t, err)
 }
 
 // bareDetectorForValidator is a minimal observerdef.Detector that
