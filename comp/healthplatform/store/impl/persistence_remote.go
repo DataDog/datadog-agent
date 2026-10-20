@@ -32,6 +32,7 @@ const (
 	remoteIssuesClusterAgentType = "cluster"
 	remoteIssuesResourceType     = "agent_health_issues"
 	remoteIssuesHTTPTimeout      = 10 * time.Second
+	remoteIssuesIdentityTimeout  = 10 * time.Second
 	remoteIssuesMaxResponse      = 10 * 1024 * 1024
 	jsonAPIContentType           = "application/vnd.api+json"
 )
@@ -39,7 +40,7 @@ const (
 type remoteIssueLoader struct {
 	config     config.Component
 	agentType  string
-	resourceID func() string
+	resourceID func(context.Context) string
 	baseURL    string
 	httpClient *http.Client
 }
@@ -68,11 +69,11 @@ type remoteIssue struct {
 }
 
 type remoteResourceIdentity interface {
-	DeploymentID() string
-	ClusterID() string
+	DeploymentIDWithContext(context.Context) string
+	ClusterIDWithContext(context.Context) string
 }
 
-func newRemoteIssueLoader(cfg config.Component, agentType string, resourceID func() string) *remoteIssueLoader {
+func newRemoteIssueLoader(cfg config.Component, agentType string, resourceID func(context.Context) string) *remoteIssueLoader {
 	site := strings.TrimSpace(cfg.GetString("site"))
 	return &remoteIssueLoader{
 		config:     cfg,
@@ -114,9 +115,9 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string, identity r
 
 	reqs.Log.Info("Running on Kubernetes: restoring health platform issue state from the Datadog API")
 	if agentFlavor == flavor.ClusterAgent {
-		return newRemoteIssueLoader(reqs.Config, remoteIssuesClusterAgentType, identity.ClusterID)
+		return newRemoteIssueLoader(reqs.Config, remoteIssuesClusterAgentType, identity.ClusterIDWithContext)
 	}
-	return newRemoteIssueLoader(reqs.Config, remoteIssuesNodeAgentType, identity.DeploymentID)
+	return newRemoteIssueLoader(reqs.Config, remoteIssuesNodeAgentType, identity.DeploymentIDWithContext)
 }
 
 func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
@@ -125,7 +126,13 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
 		return nil, errors.New("API key is required for remote issue restoration")
 	}
 
-	resourceID := strings.TrimSpace(r.resourceID())
+	identityCtx, cancel := context.WithTimeout(ctx, remoteIssuesIdentityTimeout)
+	resourceID := strings.TrimSpace(r.resourceID(identityCtx))
+	identityErr := identityCtx.Err()
+	cancel()
+	if identityErr != nil {
+		return nil, fmt.Errorf("resolve remote issue resource ID: %w", identityErr)
+	}
 	if resourceID == "" {
 		return nil, errors.New("resource ID is required for remote issue restoration")
 	}
