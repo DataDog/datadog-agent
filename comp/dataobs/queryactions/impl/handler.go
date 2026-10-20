@@ -134,7 +134,7 @@ func instanceHasDOEnabled(instance map[string]any) bool {
 // only ever sees monitor configs.
 func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) integration.ConfigChanges {
 	updates, taskUpdates := splitTaskUpdates(updates)
-	c.taskChanges.push(c.onTaskUpdate(taskUpdates, applyStatus))
+	c.onTaskUpdate(taskUpdates, applyStatus)
 
 	changes := integration.ConfigChanges{}
 	seenConfigIDs := make(map[string]bool, len(updates))
