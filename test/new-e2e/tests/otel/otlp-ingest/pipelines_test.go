@@ -104,6 +104,12 @@ func (s *otlpIngestTestSuite) SetupSuite() {
 
 func (s *otlpIngestTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s, otlpIngestParams)
+	utils.TestTracePayloadFormat(s, false)
+}
+
+func (s *otlpIngestIdxTestSuite) TestOTLPTraces() {
+	utils.TestTraces(s, otlpIngestParams)
+	utils.TestTracePayloadFormat(s, true)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPMetrics() {

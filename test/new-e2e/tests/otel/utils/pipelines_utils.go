@@ -84,6 +84,25 @@ type IAParams struct {
 	SkipCustomLabelTag bool
 }
 
+// TestTracePayloadFormat checks that the trace payloads received so far use the V1 (idx) format
+// when idx is set, which the trace-agent's direct OTLP decoder produces, or the legacy format
+// otherwise. The trace helpers read both formats, so this is what proves a suite exercises the
+// ingest path it means to rather than a fallback.
+func TestTracePayloadFormat(s OTelTestSuite, idx bool) {
+	traces, err := s.Env().FakeIntake.Client().GetTraces()
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), traces)
+	for _, p := range traces {
+		if idx {
+			assert.NotEmpty(s.T(), p.IdxTracerPayloads, "expected V1 (idx) trace payloads")
+			assert.Empty(s.T(), p.TracerPayloads, "unexpected legacy trace payloads")
+		} else {
+			assert.NotEmpty(s.T(), p.TracerPayloads, "expected legacy trace payloads")
+			assert.Empty(s.T(), p.IdxTracerPayloads, "unexpected V1 (idx) trace payloads")
+		}
+	}
+}
+
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
 func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
