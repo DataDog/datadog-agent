@@ -37,17 +37,18 @@ type Source interface {
 type rcSource struct {
 	cfg                model.Reader
 	service            rcservice.Component
+	scope              ScopeSource
 	key, rcURL, parURL string
 }
 
-// NewSource adapts the optional RC service without an HTTP client or fallback.
-func NewSource(cfg model.Reader, service rcservice.Component) Source {
-	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
+// NewSource combines optional RC status and PAR-owned scope without doing HTTP.
+func NewSource(cfg model.Reader, service rcservice.Component, scope ScopeSource) Source {
+	return &rcSource{cfg: cfg, service: service, scope: scope, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
 }
 
 func (r *rcSource) Demand(wanted bool) {
-	if r.service != nil {
-		r.service.SetPARDiscoveryDemand(wanted)
+	if r.scope != nil {
+		r.scope.SetPARDiscoveryDemand(wanted)
 	}
 }
 
@@ -60,7 +61,10 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 	if r.service == nil {
 		return p
 	}
-	scope := r.service.GetPARScope()
+	scope := PARScopeObservation{Reason: "par_scope_unchecked"}
+	if r.scope != nil {
+		scope = r.scope.GetPARScope()
+	}
 	p.ScopeReason, p.ScopeCheckedAt, p.NextCheck = scope.Reason, scope.CheckedAt, scope.NextCheck
 	if p.ScopeReason == "" {
 		p.ScopeReason = "par_scope_unchecked"

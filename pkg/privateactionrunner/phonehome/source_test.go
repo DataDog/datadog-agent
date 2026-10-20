@@ -14,21 +14,24 @@ import (
 
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/stretchr/testify/require"
 )
 
 type statusService struct {
 	rcservice.Component
-	rc     *pbgo.OrgStatusResponse
-	scope  remote.PARScopeObservation
+	rc *pbgo.OrgStatusResponse
+}
+
+func (s *statusService) GetOrgStatus() *pbgo.OrgStatusResponse { return s.rc }
+
+type scopeService struct {
+	scope  PARScopeObservation
 	wanted bool
 }
 
-func (s *statusService) GetOrgStatus() *pbgo.OrgStatusResponse   { return s.rc }
-func (s *statusService) GetPARScope() remote.PARScopeObservation { return s.scope }
-func (s *statusService) SetPARDiscoveryDemand(v bool)            { s.wanted = v }
+func (s *scopeService) GetPARScope() PARScopeObservation { return s.scope }
+func (s *scopeService) SetPARDiscoveryDemand(v bool)     { s.wanted = v }
 
 func TestReaderSeparatesLastRCStatusAndPARScope(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
@@ -38,13 +41,14 @@ func TestReaderSeparatesLastRCStatusAndPARScope(t *testing.T) {
 	}
 	now := time.Now()
 	service := &statusService{}
-	source := NewSource(cfg, service)
+	scope := &scopeService{}
+	source := NewSource(cfg, service, scope)
 	require.Equal(t, "rc_unchecked", source.Read(now).RCReason)
 	for _, enabled := range []bool{false, true} {
 		for _, authorized := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%t_%t", enabled, authorized), func(t *testing.T) {
 				service.rc = &pbgo.OrgStatusResponse{Enabled: enabled, Authorized: authorized}
-				service.scope = remote.PARScopeObservation{Reason: "scope_present", CheckedAt: now}
+				scope.scope = PARScopeObservation{Reason: "scope_present", CheckedAt: now}
 				p := source.Read(now)
 				require.Equal(t, enabled && authorized, p.RCReady)
 				require.Equal(t, enabled && authorized, p.ScopeReady)
@@ -54,7 +58,12 @@ func TestReaderSeparatesLastRCStatusAndPARScope(t *testing.T) {
 	p := source.Read(now.Add(time.Hour))
 	require.True(t, p.RCReady, "RC returns its last success, without expiry")
 	require.False(t, p.ScopeReady, "AAA grants still expire")
-	service.scope = (&remote.CoreAgentService{}).GetPARScope()
+	scope.scope = PARScopeObservation{}
+	require.False(t, NewSource(cfg, service, nil).Read(now).ScopeReady)
+	source.Demand(true)
+	require.True(t, scope.wanted)
+	source.Demand(false)
+	require.False(t, scope.wanted)
 	p = source.Read(now)
 	require.True(t, p.RCReady)
 	require.False(t, p.ScopeReady)
@@ -68,7 +77,7 @@ func TestReaderSeparatesLastRCStatusAndPARScope(t *testing.T) {
 	cfg.SetInTest("remote_configuration.enabled", false)
 	require.Equal(t, "rc_locally_disabled", source.Read(now).RCReason)
 	cfg.SetInTest("remote_configuration.enabled", true)
-	require.Equal(t, "rc_service_unavailable", NewSource(cfg, nil).Read(now).RCReason)
+	require.Equal(t, "rc_service_unavailable", NewSource(cfg, nil, nil).Read(now).RCReason)
 }
 
 func TestReaderFreezesLoopbackEndpointsEvenForIdentityReuse(t *testing.T) {
@@ -78,7 +87,7 @@ func TestReaderFreezesLoopbackEndpointsEvenForIdentityReuse(t *testing.T) {
 		cfg.SetInTest(k, v)
 	}
 	now := time.Now()
-	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}})
+	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}, nil)
 	require.True(t, source.Read(now).RCReady)
 	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
 	require.Equal(t, "rc_credential_or_endpoint_mismatch", source.Read(now).RCReason)

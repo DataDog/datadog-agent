@@ -26,10 +26,6 @@ type Component interface {
 	// GetOrgStatus returns a copy of the last successfully fetched org/key status,
 	// or nil if none has been fetched. Failed polls retain the last status.
 	GetOrgStatus() *pbgo.OrgStatusResponse
-	// GetPARScope returns a separate, possibly unobserved enrollment permission.
-	GetPARScope() remoteconfig.PARScopeObservation
-	// SetPARDiscoveryDemand cannot bypass RC readiness or discovery backoff.
-	SetPARDiscoveryDemand(bool)
 	// ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 	ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 	// ConfigGetState returns the state of the configuration and the director repos in the local store

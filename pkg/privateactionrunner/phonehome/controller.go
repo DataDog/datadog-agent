@@ -88,7 +88,7 @@ func Run(ctx context.Context, cfg model.Reader, hostname string, source Source) 
 		return
 	}
 	if source == nil {
-		source = NewSource(cfg, nil)
+		source = NewSource(cfg, nil, nil)
 	}
 	c := &controller{cfg: cfg, hostname: hostname, source: source, now: time.Now, pm: pb.NewProcessManagerClient(conn), emit: publish}
 	defer conn.Close()

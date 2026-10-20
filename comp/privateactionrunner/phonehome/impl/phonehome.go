@@ -49,7 +49,7 @@ func NewComponent(r Requires) Provides {
 		return Provides{Comp: c}
 	}
 	rc, _ := r.RC.Get()
-	source := engine.NewSource(r.Config, rc)
+	source := engine.NewSource(r.Config, rc, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	r.Lifecycle.Append(compdef.Hook{

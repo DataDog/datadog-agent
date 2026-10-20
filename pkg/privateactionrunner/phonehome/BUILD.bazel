@@ -5,6 +5,7 @@ go_library(
     name = "phonehome",
     srcs = [
         "controller.go",
+        "scope.go",
         "source.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome",
@@ -39,7 +40,6 @@ dd_agent_go_test(
     deps = [
         "//comp/remote-config/rcservice/def",
         "//pkg/config/mock",
-        "//pkg/config/remote/service",
         "//pkg/proto/pbgo/core",
         "@com_github_stretchr_testify//require",
     ] + select({

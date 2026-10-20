@@ -7,9 +7,10 @@ directly: no RC expiry, generations, provenance hashes or synthetic failure stat
 A prior positive can therefore remain usable during an RC outage. A subsequent
 successful negative closes the gate. Ordinary RC polling is unchanged.
 
-PR 2's PAR-scope producer is deliberately unchecked. Even with both RC booleans
-true, production fresh enrollment waits for PR 3's RC-owned AAA discovery.
-Positive scope observations in this slice's tests are injected test data.
+PR 2 has no PAR-scope producer. Even with both RC booleans true, production fresh
+enrollment waits for PR 3's PAR-owned AAA discovery in core. Scope observations
+and discovery demand live under PAR; RC exposes only `GetOrgStatus()` and knows
+nothing about PAR. Positive scope observations here are injected test data.
 
 ## Owners and gates
 

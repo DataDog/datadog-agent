@@ -24,7 +24,6 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/go-tuf/data"
@@ -146,9 +145,8 @@ type CoreAgentService struct {
 	// request that may bypass the usual refresh loop's interval.
 	refreshBypassCh chan<- chan<- struct{}
 
-	clients            *clients
-	orgStatusPoller    *orgStatusPoller
-	parDiscoveryDemand atomic.Bool
+	clients         *clients
+	orgStatusPoller *orgStatusPoller
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}

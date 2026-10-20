@@ -3,12 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package service
+package phonehome
 
 import "time"
 
+// ScopeSource owns PAR enrollment permission and discovery demand, separately
+// from RC's organization/key status. A nil source leaves fresh enrollment waiting.
+type ScopeSource interface {
+	GetPARScope() PARScopeObservation
+	SetPARDiscoveryDemand(bool)
+}
+
 // PARScopeObservation is separate from RC org/key status. RC authorization is
-// never proof of PAR enrollment permission. The producer is added in stack PR 3.
+// never proof of PAR enrollment permission.
 type PARScopeObservation struct {
 	Reason    string
 	CheckedAt time.Time
@@ -19,16 +26,4 @@ type PARScopeObservation struct {
 func (s PARScopeObservation) Granted(now time.Time) bool {
 	return s.Reason == "scope_present" && !s.CheckedAt.IsZero() &&
 		!now.Before(s.CheckedAt) && now.Before(s.CheckedAt.Add(2*time.Minute))
-}
-
-// GetPARScope is deliberately unknown until an RC-owned producer is installed.
-// The RC-only slice cannot authorize fresh PAR enrollment.
-func (s *CoreAgentService) GetPARScope() PARScopeObservation {
-	return PARScopeObservation{Reason: "par_scope_unchecked"}
-}
-
-// SetPARDiscoveryDemand expresses interest, not permission to issue a request.
-// A producer must independently enforce RC readiness and its own deadlines.
-func (s *CoreAgentService) SetPARDiscoveryDemand(wanted bool) {
-	s.parDiscoveryDemand.Store(wanted)
 }
