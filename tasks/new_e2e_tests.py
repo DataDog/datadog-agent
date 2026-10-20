@@ -24,6 +24,7 @@ from invoke.tasks import task
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, sandbox_ecr_credential
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
@@ -444,24 +445,15 @@ def run(
         usernames = env_username.split(",") if env_username else []
         passwords = env_password.split(",")
 
-    if not running_in_ci() and not passwords:
-        ecr_password = _get_agent_qa_ecr_password(ctx)
-        if ecr_password:
-            registries.append("669783387624.dkr.ecr.us-east-1.amazonaws.com")
-            usernames.append("AWS")
-            passwords.append(ecr_password)
-
     if not running_in_ci():
         # TODO(agent-devx): Add GCP authentication (follow-up to #47298)
-        # If we use an agent image from sandbox registry we need to authenticate against it
-        if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
-            sandbox_pwd = ctx.run(
-                "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password",
-                hide=True,
-            ).stdout.strip()
-            registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
-            usernames.append("AWS")
-            passwords.append(sandbox_pwd)
+        local_creds = [sandbox_ecr_credential(ctx, agent_image, cluster_agent_image)]
+        if not passwords:
+            local_creds.insert(0, agent_qa_ecr_credential(ctx))
+        for registry, username, password in filter(None, local_creds):
+            registries.append(registry)
+            usernames.append(username)
+            passwords.append(password)
 
     if passwords:
         env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
@@ -1295,23 +1287,6 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
-
-
-def _get_agent_qa_ecr_password(ctx: Context) -> str:
-    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
-
-    ecr_password_res = ctx.run(
-        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
-        hide=True,
-        warn=True,
-    )
-    if ecr_password_res.exited != 0:
-        print(
-            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
-            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
-        )
-        return ""
-    return ecr_password_res.stdout.strip()
 
 
 def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> str | None:
