@@ -28,6 +28,10 @@ unless do_repackage?
   build do
       command "bazel run #{omnibazel_flags} -- #{dependencies_install_target} --destdir=#{install_dir}",
           :live_stream => Omnibus.logger.live_stream(:info)
+      if linux_target?
+        command "bazel run #{omnibazel_flags} -- @libdd_rc_source//:install_rc_x509_ffi_linux_build_files --destdir=#{install_dir}",
+            :live_stream => Omnibus.logger.live_stream(:info)
+      end
   end
   build do
       # Delete empty folders that can still be present when building

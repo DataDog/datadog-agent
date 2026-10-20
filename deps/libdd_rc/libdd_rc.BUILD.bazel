@@ -9,6 +9,8 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_static_library")
 
 package(
@@ -191,6 +193,53 @@ cc_library(
     name = "rc_x509_ffi_headers",
     hdrs = ["include/libdd_rc.h"],
     includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+# The published Go module's cgo bridge links these version-agnostic names from
+# the Agent's embedded build prefix. AWS-LC is static on Linux, but its archive
+# is emitted inside the Cargo build script's tree artifact with a versioned
+# filename, so materialize the stable linker name expected by ffi.go.
+genrule(
+    name = "aws_lc_fips_crypto_linux_static_file",
+    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
+    outs = ["libaws_lc_fips_crypto.a"],
+    cmd = "cp $(execpath @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)/build/artifacts/libaws_lc_fips_0_14_2_crypto.a $@",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_linux_header_file",
+    srcs = ["include/libdd_rc.h"],
+    prefix = "embedded/include",
+    strip_prefix = "include",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_linux_static_files",
+    srcs = [
+        ":aws_lc_fips_crypto_linux_static_file",
+        ":rc_x509_ffi",
+    ],
+    prefix = "embedded/lib",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_ffi_linux_build_files",
+    srcs = [
+        ":rc_x509_ffi_linux_header_file",
+        ":rc_x509_ffi_linux_static_files",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install_rc_x509_ffi_linux_build_files",
+    srcs = [":rc_x509_ffi_linux_build_files"],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 

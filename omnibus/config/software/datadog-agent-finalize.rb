@@ -58,6 +58,12 @@ build do
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
+
+            # The rc-x509 Go bridge needs these development artifacts while
+            # agent.build runs, but the Linux Agent links them statically.
+            delete "#{install_dir}/embedded/include/libdd_rc.h"
+            delete "#{install_dir}/embedded/lib/librc_x509_ffi.a"
+            delete "#{install_dir}/embedded/lib/libaws_lc_fips_crypto.a"
         end
 
         # Size cleanups for the Windows embedded Python (embedded3), mirroring
