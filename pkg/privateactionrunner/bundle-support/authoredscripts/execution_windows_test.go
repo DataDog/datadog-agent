@@ -9,6 +9,8 @@ package authoredscripts
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -53,22 +55,51 @@ func TestExecuteCommandWindowsContextTimeout(t *testing.T) {
 	assert.ErrorContains(t, err, "timed out")
 }
 
-func TestExecuteCommandWindowsContextTimeoutTerminatesDescendants(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+func TestExecuteCommandWindowsContextCancellationTerminatesDescendants(t *testing.T) {
+	const testTimeout = 30 * time.Second
+
+	readyEventName := fmt.Sprintf(`Local\DatadogAuthoredScriptsTest-%d-%d`, os.Getpid(), time.Now().UnixNano())
+	readyEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(readyEventName))
+	require.NoError(t, err)
+	defer windows.CloseHandle(readyEvent)
+
+	testCtx, cancelTest := context.WithTimeout(context.Background(), testTimeout)
+	defer cancelTest()
+	executionCtx, cancelExecution := context.WithCancel(context.Background())
+	defer cancelExecution()
 	cmd := exec.Command(
 		"powershell.exe",
 		"-NoProfile",
 		"-NonInteractive",
 		"-Command",
-		`$child = Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 30' -PassThru; [Console]::Out.Write($child.Id); Start-Sleep -Seconds 30`,
+		fmt.Sprintf(`$child = Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 30' -PassThru; [Console]::Out.Write($child.Id); $ready = [System.Threading.EventWaitHandle]::OpenExisting('%s'); $ready.Set() | Out-Null; Start-Sleep -Seconds 30`, readyEventName),
 	)
 
-	result, err := ExecuteCommand(ctx, cmd)
+	type commandOutcome struct {
+		result Result
+		err    error
+	}
+	outcomeCh := make(chan commandOutcome, 1)
+	go func() {
+		result, err := ExecuteCommand(executionCtx, cmd)
+		outcomeCh <- commandOutcome{result: result, err: err}
+	}()
 
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	childPID, parseErr := strconv.ParseUint(strings.TrimSpace(result.Stdout), 10, 32)
-	require.NoError(t, parseErr, "child PID was not captured before cancellation: %q", result.Stdout)
+	status, waitErr := windows.WaitForSingleObject(readyEvent, uint32(testTimeout/time.Millisecond))
+	require.NoError(t, waitErr)
+	require.Equal(t, uint32(windows.WAIT_OBJECT_0), status, "child process did not become ready before the test timeout")
+	cancelExecution()
+
+	var outcome commandOutcome
+	select {
+	case outcome = <-outcomeCh:
+	case <-testCtx.Done():
+		t.Fatal("command did not stop after its execution context was canceled")
+	}
+
+	require.ErrorIs(t, outcome.err, context.Canceled)
+	childPID, parseErr := strconv.ParseUint(strings.TrimSpace(outcome.result.Stdout), 10, 32)
+	require.NoError(t, parseErr, "child PID was not captured before cancellation: %q", outcome.result.Stdout)
 	process, openErr := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(childPID))
 	if openErr != nil {
 		require.ErrorIs(t, openErr, windows.ERROR_INVALID_PARAMETER)
