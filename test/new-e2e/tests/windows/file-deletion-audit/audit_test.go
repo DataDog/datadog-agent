@@ -90,6 +90,35 @@ func TestDecodeFileDeletionEventsXMLDoesNotCorrelateDifferentProcessOrHandle(t *
 	assert.False(t, events[0].DeletionConfirmed)
 }
 
+func TestDecodeFileDeletionEventsXMLScopesConfirmationToHandleLifetime(t *testing.T) {
+	// msiexec renames a system file (DELETE access, no 4660) and closes the
+	// handle, then reuses the same handle value to delete an excluded file.
+	// The later 4660 must not confirm the access made through the earlier
+	// handle instance.
+	const input = `<Events>
+	<Event><System><EventID>4656</EventID><TimeCreated SystemTime="2026-01-01T00:00:00Z"/><EventRecordID>20</EventRecordID></System><EventData><Data Name="ObjectName">C:\Windows\System32\example.dll</Data><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data></EventData></Event>
+	<Event><System><EventID>4663</EventID><TimeCreated SystemTime="2026-01-01T00:00:01Z"/><EventRecordID>21</EventRecordID></System><EventData><Data Name="ObjectName">C:\Windows\System32\example.dll</Data><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+	<Event><System><EventID>4658</EventID><TimeCreated SystemTime="2026-01-01T00:00:02Z"/><EventRecordID>22</EventRecordID></System><EventData><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data></EventData></Event>
+	<Event><System><EventID>4656</EventID><TimeCreated SystemTime="2026-01-01T00:00:03Z"/><EventRecordID>23</EventRecordID></System><EventData><Data Name="ObjectName">C:\Windows\Temp\scratch.tmp</Data><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data></EventData></Event>
+	<Event><System><EventID>4663</EventID><TimeCreated SystemTime="2026-01-01T00:00:04Z"/><EventRecordID>24</EventRecordID></System><EventData><Data Name="ObjectName">C:\Windows\Temp\scratch.tmp</Data><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data><Data Name="AccessMask">0x10000</Data></EventData></Event>
+	<Event><System><EventID>4660</EventID><TimeCreated SystemTime="2026-01-01T00:00:05Z"/><EventRecordID>25</EventRecordID></System><EventData><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data></EventData></Event>
+	<Event><System><EventID>4658</EventID><TimeCreated SystemTime="2026-01-01T00:00:06Z"/><EventRecordID>26</EventRecordID></System><EventData><Data Name="ProcessName">C:\Windows\System32\msiexec.exe</Data><Data Name="ProcessId">0x4bc</Data><Data Name="HandleId">0x111</Data></EventData></Event>
+</Events>`
+
+	events, err := DecodeFileDeletionEventsXML(input)
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+
+	assert.Equal(t, `C:\Windows\System32\example.dll`, events[0].ObjectName)
+	assert.False(t, events[0].DeletionConfirmed)
+	assert.Zero(t, events[0].DeletionRecordID)
+
+	assert.Equal(t, `C:\Windows\Temp\scratch.tmp`, events[1].ObjectName)
+	assert.True(t, events[1].DeletionConfirmed)
+	assert.Equal(t, uint64(25), events[1].DeletionRecordID)
+	assert.Equal(t, time.Date(2026, 1, 1, 0, 0, 5, 0, time.UTC), events[1].DeletionTimeCreated)
+}
+
 func TestDecodeFileDeletionEventsXMLRejectsRootlessProductionOutput(t *testing.T) {
 	const input = `<Event><System><EventID>4663</EventID></System></Event><Event><System><EventID>4663</EventID></System></Event>`
 	_, err := DecodeFileDeletionEventsXML(input)

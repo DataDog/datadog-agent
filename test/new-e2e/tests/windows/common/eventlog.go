@@ -87,8 +87,10 @@ func WaitForSecurityLogToSettle(host *components.RemoteHost, quietPeriod, timeou
 }
 
 // GetFileDeletionEvents returns event 4663 records after start through end,
-// correlated with event 4660 deletion confirmations in the same window. It
-// fails rather than returning incomplete evidence if start has rolled out.
+// correlated with event 4660 deletion confirmations in the same window. Events
+// 4656 and 4658 mark where each handle's lifetime starts and ends, so a 4660
+// only confirms accesses made through the same handle instance. It fails
+// rather than returning incomplete evidence if start has rolled out.
 func GetFileDeletionEvents(host *components.RemoteHost, start SecurityLogCheckpoint, end SecurityLogCheckpoint) ([]FileDeletionEvent, error) {
 	if err := filedeletionaudit.ValidateSecurityLogWindow(start, end); err != nil {
 		return nil, err
@@ -97,7 +99,7 @@ func GetFileDeletionEvents(host *components.RemoteHost, start SecurityLogCheckpo
 		return nil, nil
 	}
 
-	xpath := fmt.Sprintf(`*[System[((EventID=4660) or (EventID=4663)) and (EventRecordID > %d) and (EventRecordID <= %d)]]`, start.RecordID, end.RecordID)
+	xpath := fmt.Sprintf(`*[System[((EventID=4656) or (EventID=4658) or (EventID=4660) or (EventID=4663)) and (EventRecordID > %d) and (EventRecordID <= %d)]]`, start.RecordID, end.RecordID)
 	cmd := fmt.Sprintf(`wevtutil.exe query-events Security /query:"%s" /format:xml /element:Events /rd:false`, xpath)
 	out, err := host.Execute(cmd)
 	if err != nil {

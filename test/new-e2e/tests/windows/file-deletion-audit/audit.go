@@ -8,11 +8,13 @@
 package filedeletionaudit
 
 import (
+	"cmp"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	pathpkg "path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -102,7 +104,11 @@ type eventsXML struct {
 // DecodeFileDeletionEventsXML decodes the rooted XML emitted by wevtutil with
 // /format:xml /element:Events without consulting the localized Message field.
 // Event 4663 supplies the object name and delete access; event 4660 confirms
-// that the same process and handle actually deleted the object.
+// that the same process and handle actually deleted the object. Because
+// Windows reuses handle values within a process, events 4656 (handle opened)
+// and 4658 (handle closed) bound each handle's lifetime: events are walked in
+// EventRecordID order and a 4660 only confirms 4663 records made through the
+// same handle instance.
 func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
 	output = strings.TrimSpace(output)
 	if output == "" {
@@ -114,14 +120,17 @@ func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
 		return nil, fmt.Errorf("decode Security event XML: %w", err)
 	}
 
-	type deletionConfirmation struct {
+	type decodedEvent struct {
+		eventID     uint64
 		recordID    uint64
 		timeCreated time.Time
+		data        map[string]string
 	}
-	confirmations := make(map[string][]deletionConfirmation)
-	events := make([]FileDeletionEvent, 0, len(envelope.Events))
+	decoded := make([]decodedEvent, 0, len(envelope.Events))
 	for _, raw := range envelope.Events {
-		if raw.System.EventID != 4660 && raw.System.EventID != 4663 {
+		switch raw.System.EventID {
+		case 4656, 4658, 4660, 4663:
+		default:
 			continue
 		}
 		if raw.System.EventRecordID == 0 {
@@ -132,40 +141,59 @@ func DecodeFileDeletionEventsXML(output string) ([]FileDeletionEvent, error) {
 			return nil, fmt.Errorf("decode event %d record %d timestamp %q: %w", raw.System.EventID, raw.System.EventRecordID, raw.System.TimeCreated.SystemTime, err)
 		}
 		data := eventData(raw)
-		if raw.System.EventID == 4660 {
-			processID := data["ProcessId"]
-			handleID := data["HandleId"]
-			if processID == "" || handleID == "" {
-				return nil, fmt.Errorf("event 4660 record %d is missing ProcessId or HandleId", raw.System.EventRecordID)
-			}
-			if isUsableHandleID(handleID) {
-				key := processHandleKey(processID, handleID)
-				confirmations[key] = append(confirmations[key], deletionConfirmation{recordID: raw.System.EventRecordID, timeCreated: created})
-			}
-			continue
+		if raw.System.EventID != 4663 && (data["ProcessId"] == "" || data["HandleId"] == "") {
+			return nil, fmt.Errorf("event %d record %d is missing ProcessId or HandleId", raw.System.EventID, raw.System.EventRecordID)
 		}
-		events = append(events, FileDeletionEvent{
-			RecordID:    raw.System.EventRecordID,
-			TimeCreated: created,
-			ObjectName:  data["ObjectName"],
-			ProcessName: data["ProcessName"],
-			ProcessID:   data["ProcessId"],
-			HandleID:    data["HandleId"],
-			AccessMask:  data["AccessMask"],
-			AccessList:  data["AccessList"],
+		decoded = append(decoded, decodedEvent{
+			eventID:     raw.System.EventID,
+			recordID:    raw.System.EventRecordID,
+			timeCreated: created,
+			data:        data,
 		})
 	}
+	slices.SortStableFunc(decoded, func(a, b decodedEvent) int {
+		return cmp.Compare(a.recordID, b.recordID)
+	})
 
-	for index := range events {
-		event := &events[index]
-		for _, confirmation := range confirmations[processHandleKey(event.ProcessID, event.HandleID)] {
-			if confirmation.recordID <= event.RecordID {
+	// openAccesses holds, per process and handle, the indexes into events of
+	// 4663 records made through the handle instance that is currently open.
+	openAccesses := make(map[string][]int)
+	events := make([]FileDeletionEvent, 0, len(decoded))
+	for _, raw := range decoded {
+		processID := raw.data["ProcessId"]
+		handleID := raw.data["HandleId"]
+		switch raw.eventID {
+		case 4656, 4658:
+			// Opening or closing a handle ends any previous handle instance
+			// that used the same value.
+			delete(openAccesses, processHandleKey(processID, handleID))
+		case 4660:
+			if !isUsableHandleID(handleID) {
 				continue
 			}
-			event.DeletionConfirmed = true
-			event.DeletionRecordID = confirmation.recordID
-			event.DeletionTimeCreated = confirmation.timeCreated
-			break
+			key := processHandleKey(processID, handleID)
+			for _, index := range openAccesses[key] {
+				event := &events[index]
+				event.DeletionConfirmed = true
+				event.DeletionRecordID = raw.recordID
+				event.DeletionTimeCreated = raw.timeCreated
+			}
+			delete(openAccesses, key)
+		case 4663:
+			events = append(events, FileDeletionEvent{
+				RecordID:    raw.recordID,
+				TimeCreated: raw.timeCreated,
+				ObjectName:  raw.data["ObjectName"],
+				ProcessName: raw.data["ProcessName"],
+				ProcessID:   processID,
+				HandleID:    handleID,
+				AccessMask:  raw.data["AccessMask"],
+				AccessList:  raw.data["AccessList"],
+			})
+			if isUsableHandleID(handleID) {
+				key := processHandleKey(processID, handleID)
+				openAccesses[key] = append(openAccesses[key], len(events)-1)
+			}
 		}
 	}
 	return events, nil
