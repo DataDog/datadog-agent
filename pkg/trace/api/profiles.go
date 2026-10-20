@@ -6,7 +6,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -293,14 +291,13 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 		return rresp, rerr
 	}
-	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
-	slurp, err := io.ReadAll(req.Body)
+	body, err := replayableBody(req, m.maxRequestBytes)
 	if err != nil {
 		return nil, err
 	}
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = body()
 		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
