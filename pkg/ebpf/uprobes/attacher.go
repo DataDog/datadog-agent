@@ -935,6 +935,16 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		for _, selector := range rule.ProbesSelector {
 			err = ua.attachProbeSelector(selector, fpath, uid, rule, result.SymbolMap)
 			if err != nil {
+				if errors.Is(err, syscall.EINVAL) {
+					// Distinguish errors between "process does not exist anymore" and "file is not found"
+					// by checking if the process root directory exists.
+					processRoot := ua.config.ProcRoot + "/" + strconv.FormatUint(uint64(fpath.PID), 10)
+					if _, statErr := os.Stat(processRoot); statErr != nil {
+						attachErrors = errors.Join(attachErrors, err)
+						continue
+					}
+				}
+
 				// At this point we have done enough validation so that the
 				// probe attachment should work, if it doesn't it's an issue we
 				// don't expect and we want to know about it.
