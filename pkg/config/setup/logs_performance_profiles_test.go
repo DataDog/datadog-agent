@@ -188,6 +188,19 @@ logs_config:
 	}
 }
 
+func TestLogsPerformanceProfileNameIsNormalized(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: " High-Throughput "
+`)
+	ApplyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, 200, cfg.GetInt("logs_config.message_channel_size"))
+	name, _, _, ok := ResolvedLogsPerformanceProfile(cfg)
+	require.True(t, ok)
+	assert.Equal(t, "high-throughput", name)
+}
+
 func TestLogsPerformanceProfileUnknownNameIsNoOp(t *testing.T) {
 	cfg := confFromYAML(t, `
 logs_config:
