@@ -24,8 +24,8 @@ func TestAdjustOOMKill(t *testing.T) {
 		{name: "neither set", expected: false},
 		{name: "only new key", newValue: new(true), expected: true},
 		{name: "only old key", oldValue: new(true), expected: true},
-		{name: "new key wins over old key", newValue: new(false), oldValue: new(true), expected: false},
-		{name: "new key wins when old is false", newValue: new(true), oldValue: new(false), expected: true},
+		{name: "old key wins over new key", newValue: new(false), oldValue: new(true), expected: true},
+		{name: "old key wins when it is false", newValue: new(true), oldValue: new(false), expected: false},
 	}
 
 	for _, te := range tests {

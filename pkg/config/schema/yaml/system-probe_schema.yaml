@@ -1806,7 +1806,7 @@ properties:
         default: false
         comment: |
           Equivalent to system_probe_config.enable_oom_kill; either one enables the OOM Kill
-          probe.
+          probe. When both are set, system_probe_config.enable_oom_kill takes priority.
       persist_monitoring:
         node_type: setting
         type: boolean
