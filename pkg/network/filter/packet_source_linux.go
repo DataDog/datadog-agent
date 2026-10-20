@@ -64,7 +64,9 @@ type AFPacketInfo struct {
 	// PktType corresponds to sll_pkttype in the
 	// sockaddr_ll struct; see packet(7)
 	// https://man7.org/linux/man-pages/man7/packet.7.html
-	PktType uint8
+	PktType     uint8
+	originalLen int
+	capturedLen int
 }
 
 // PacketType returns the packet direction type
@@ -76,6 +78,16 @@ func (a *AFPacketInfo) PacketType() uint8 {
 // Linux AF_PACKET always delivers Ethernet frames.
 func (a *AFPacketInfo) LinkLayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
+}
+
+// OriginalLength returns the packet length before capture truncation.
+func (a *AFPacketInfo) OriginalLength() int {
+	return a.originalLen
+}
+
+// CapturedLength returns the number of bytes supplied to the visitor.
+func (a *AFPacketInfo) CapturedLength() int {
+	return a.capturedLen
 }
 
 // GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
@@ -198,6 +210,8 @@ func visitPackets(p zeroCopyPacketReader, visit AFPacketVisitor) error {
 				pktInfo.PktType = pktType.Type
 			}
 		}
+		pktInfo.originalLen = stats.Length
+		pktInfo.capturedLen = stats.CaptureLength
 		if err := visit(data, pktInfo, stats.Timestamp); err != nil {
 			return err
 		}

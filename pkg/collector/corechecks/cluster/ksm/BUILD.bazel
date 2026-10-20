@@ -79,6 +79,7 @@ dd_agent_go_test(
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/cluster/ksm/customresources",
         "//pkg/config/mock",
+        "//pkg/kubestatemetrics/builder",
         "//pkg/kubestatemetrics/store",
         "//pkg/metrics/servicecheck",
         "//pkg/util/kubernetes",

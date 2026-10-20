@@ -33,6 +33,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -2697,6 +2698,90 @@ func TestDiscoverCustomResources_UsesInformerClients(t *testing.T) {
 			require.NotEmpty(t, cr.clients)
 			for key, client := range cr.clients {
 				assert.False(t, client == any(c.Cl), "store %s must use an informer client", key)
+			}
+		})
+	}
+}
+
+// TestDiscoverCustomResources_ResourceReplacements guards the stores replacing
+// the KSM built-in ones on clusters that only serve a deprecated version of an
+// API. They are registered under a group/version qualified key, which is what
+// must be enabled: enabling the plain resource name instead builds the KSM
+// built-in store, for an API version that isn't served, and never the
+// replacement one.
+func TestDiscoverCustomResources_ResourceReplacements(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	resourceList := func(groupVersion, name, kind string) *apiv1.APIResourceList {
+		return &apiv1.APIResourceList{
+			GroupVersion: groupVersion,
+			APIResources: []apiv1.APIResource{{Name: name, Kind: kind, Namespaced: true}},
+		}
+	}
+	cronJobs := func(groupVersion string) *apiv1.APIResourceList {
+		return resourceList(groupVersion, "cronjobs", "CronJob")
+	}
+	pdbs := func(groupVersion string) *apiv1.APIResourceList {
+		return resourceList(groupVersion, "poddisruptionbudgets", "PodDisruptionBudget")
+	}
+	hpas := func(groupVersion string) *apiv1.APIResourceList {
+		return resourceList(groupVersion, "horizontalpodautoscalers", "HorizontalPodAutoscaler")
+	}
+
+	collectors := []string{"pods", "cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"}
+	legacyKeys := []string{
+		"batch/v1beta1, Resource=cronjobs",
+		"policy/v1beta1, Resource=poddisruptionbudgets",
+		"autoscaling/v2beta2, Resource=horizontalpodautoscalers",
+	}
+
+	tests := []struct {
+		name       string
+		resources  []*apiv1.APIResourceList
+		expected   []string
+		unexpected []string
+	}{
+		{
+			name:       "current API versions served",
+			resources:  []*apiv1.APIResourceList{cronJobs("batch/v1"), pdbs("policy/v1"), hpas("autoscaling/v1"), hpas("autoscaling/v2")},
+			expected:   []string{"cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"},
+			unexpected: legacyKeys,
+		},
+		{
+			name:       "only deprecated API versions served",
+			resources:  []*apiv1.APIResourceList{cronJobs("batch/v1beta1"), pdbs("policy/v1beta1"), hpas("autoscaling/v1"), hpas("autoscaling/v2beta1"), hpas("autoscaling/v2beta2")},
+			expected:   legacyKeys,
+			unexpected: []string{"cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"},
+		},
+		{
+			name:       "HPAs served neither as autoscaling/v2 nor as autoscaling/v2beta2",
+			resources:  []*apiv1.APIResourceList{cronJobs("batch/v1"), pdbs("policy/v1"), hpas("autoscaling/v1"), hpas("autoscaling/v2beta1")},
+			expected:   []string{"cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"},
+			unexpected: []string{"autoscaling/v2beta2, Resource=horizontalpodautoscalers"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cr := k.discoverCustomResources(newDRATestClient(t), collectors, tt.resources)
+
+			for _, c := range tt.expected {
+				assert.Contains(t, cr.collectors, c)
+			}
+			for _, c := range tt.unexpected {
+				assert.NotContains(t, cr.collectors, c)
+			}
+
+			// Every enabled collector must name a registered store, and the
+			// custom resource ones must have a client.
+			builder := kubestatemetrics.New()
+			builder.WithCustomResourceStoreFactories(cr.factories...)
+			assert.NoError(t, builder.WithEnabledResources(cr.collectors))
+			for _, c := range cr.collectors {
+				if strings.Contains(c, ", Resource=") {
+					assert.Contains(t, cr.clients, c)
+				}
 			}
 		})
 	}

@@ -94,6 +94,7 @@ type CCCache struct {
 	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
 	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	requestGroup         singleflight.Group
+	retryBackoff         time.Duration
 }
 
 // CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
@@ -114,6 +115,25 @@ type CCClientI interface {
 }
 
 var globalCCCache = &CCCache{}
+
+const (
+	ccListAttempts     = 3
+	ccListRetryBackoff = time.Second
+)
+
+// retryableCCErrorCodes are the Cloud Controller error codes that map to a 5xx or 429 HTTP status and
+// can be returned by list endpoints, see https://github.com/cloudfoundry/cloud_controller_ng/tree/main/errors
+var retryableCCErrorCodes = map[int]struct{}{
+	10001: {}, // ServerError (500)
+	10011: {}, // DatabaseError (500)
+	10013: {}, // RateLimitExceeded (429)
+	10014: {}, // IPBasedRateLimitExceeded (429)
+	10015: {}, // ServiceUnavailable (503)
+	10018: {}, // RateLimitV2APIExceeded (429)
+	10081: {}, // InternalServerError (500)
+	20004: {}, // UaaUnavailable (503)
+	20008: {}, // UaaRateLimited (429)
+}
 
 // CCCacheConfig holds configuration for CCCache
 type CCCacheConfig struct {
@@ -139,6 +159,7 @@ func ConfigureGlobalCCCache(ctx context.Context, config CCCacheConfig) (*CCCache
 	globalCCCache.lastUpdated = time.Time{} // zero time
 	globalCCCache.updatedOnce = make(chan struct{})
 	globalCCCache.cancelContext = ctx
+	globalCCCache.retryBackoff = ccListRetryBackoff
 	globalCCCache.configured = true
 
 	go globalCCCache.start()
@@ -208,8 +229,11 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 		}
 
 		// update cache under global Lock
+		// A cache stays nil until its first successful poll, so skip storing rather than writing to a nil map.
 		ccc.Lock()
-		cache[guid] = fetchedResource
+		if cache != nil {
+			cache[guid] = fetchedResource
+		}
 		ccc.Unlock()
 
 		return fetchedResource, nil
@@ -430,9 +454,9 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		apps, err = ccc.config.CCAPIClient.ListV3AppsByQuery(query)
+		apps, err = listWithRetry(ccc, "apps", func() ([]cfclient.V3App, error) { return ccc.config.CCAPIClient.ListV3AppsByQuery(query) })
 		if err != nil {
-			log.Errorf("Failed listing apps from cloud controller: %v", err)
+			log.Errorf("Failed listing apps from cloud controller, keeping previously cached data: %v", err)
 			return
 		}
 		*appsMap = make(map[string]*cfclient.V3App, len(apps))
@@ -469,9 +493,9 @@ func (ccc *CCCache) listSpaces(wg *sync.WaitGroup, spacesMap *map[string]*cfclie
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		spaces, err := ccc.config.CCAPIClient.ListV3SpacesByQuery(query)
+		spaces, err := listWithRetry(ccc, "spaces", func() ([]cfclient.V3Space, error) { return ccc.config.CCAPIClient.ListV3SpacesByQuery(query) })
 		if err != nil {
-			log.Errorf("Failed listing spaces from cloud controller: %v", err)
+			log.Errorf("Failed listing spaces from cloud controller, keeping previously cached data: %v", err)
 			return
 		}
 		*spacesMap = make(map[string]*cfclient.V3Space, len(spaces))
@@ -488,9 +512,11 @@ func (ccc *CCCache) listOrgs(wg *sync.WaitGroup, orgsMap *map[string]*cfclient.V
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		orgs, err := ccc.config.CCAPIClient.ListV3OrganizationsByQuery(query)
+		orgs, err := listWithRetry(ccc, "orgs", func() ([]cfclient.V3Organization, error) {
+			return ccc.config.CCAPIClient.ListV3OrganizationsByQuery(query)
+		})
 		if err != nil {
-			log.Errorf("Failed listing orgs from cloud controller: %v", err)
+			log.Errorf("Failed listing orgs from cloud controller, keeping previously cached data: %v", err)
 			return
 		}
 		*orgsMap = make(map[string]*cfclient.V3Organization, len(orgs))
@@ -507,9 +533,9 @@ func (ccc *CCCache) listOrgQuotas(wg *sync.WaitGroup, orgQuotasMap *map[string]*
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		orgQuotas, err := ccc.config.CCAPIClient.ListOrgQuotasByQuery(query)
+		orgQuotas, err := listWithRetry(ccc, "org quotas", func() ([]cfclient.OrgQuota, error) { return ccc.config.CCAPIClient.ListOrgQuotasByQuery(query) })
 		if err != nil {
-			log.Errorf("Failed listing org quotas from cloud controller: %v", err)
+			log.Errorf("Failed listing org quotas from cloud controller, keeping previously cached data: %v", err)
 			return
 		}
 		*orgQuotasMap = make(map[string]*CFOrgQuota, len(orgQuotas))
@@ -529,9 +555,9 @@ func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		processes, err := ccc.config.CCAPIClient.ListAllProcessesByQuery(query)
+		processes, err := listWithRetry(ccc, "processes", func() ([]cfclient.Process, error) { return ccc.config.CCAPIClient.ListAllProcessesByQuery(query) })
 		if err != nil {
-			log.Errorf("Failed listing processes from cloud controller: %v", err)
+			log.Errorf("Failed listing processes from cloud controller, keeping previously cached data: %v", err)
 			return
 		}
 		// group all processes per app
@@ -557,9 +583,11 @@ func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID
 		defer wg.Done()
 		query := url.Values{}
 		query.Add("per_page", strconv.Itoa(ccc.config.AppsBatchSize))
-		segments, err := ccc.config.CCAPIClient.ListIsolationSegmentsByQuery(query)
+		segments, err := listWithRetry(ccc, "isolation segments", func() ([]cfclient.IsolationSegment, error) {
+			return ccc.config.CCAPIClient.ListIsolationSegmentsByQuery(query)
+		})
 		if err != nil {
-			log.Errorf("Failed listing isolation segments from cloud controller: %v", err)
+			log.Errorf("Failed listing isolation segments from cloud controller, keeping previously cached data: %v", err)
 			return
 		}
 		*segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
@@ -678,12 +706,6 @@ func (ccc *CCCache) readData() {
 	// wait for resources acquisition
 	wg.Wait()
 
-	// prepare CFApplications for the nozzle
-	var cfApplicationsByGUID map[string]*CFApplication
-	if ccc.config.ServeNozzleData {
-		cfApplicationsByGUID = ccc.prepareCFApplications(appsByGUID, processesByAppGUID, spacesByGUID, orgsByGUID, sidecarsByAppGUID)
-	}
-
 	// update cache in-place instead of swapping entire maps
 	ccc.Lock()
 	defer ccc.Unlock()
@@ -696,13 +718,57 @@ func (ccc *CCCache) readData() {
 	ccc.sidecarsByAppGUID = updateMapInPlace(ccc.sidecarsByAppGUID, sidecarsByAppGUID)
 	ccc.segmentBySpaceGUID = updateMapInPlace(ccc.segmentBySpaceGUID, segmentBySpaceGUID)
 	ccc.segmentByOrgGUID = updateMapInPlace(ccc.segmentByOrgGUID, segmentByOrgGUID)
-	ccc.cfApplicationsByGUID = updateMapInPlace(ccc.cfApplicationsByGUID, cfApplicationsByGUID)
+
+	// prepare CFApplications for the nozzle from the cached maps rather than this poll's results:
+	// the list functions leave their map nil when a fetch fails and updateMapInPlace then keeps the
+	// cached one, so a failed input falls back to its last known data while the others are refreshed.
+	// Wait until every input has been fetched once, otherwise the missing fields would be served as zero.
+	cachedInputsReady := ccc.appsByGUID != nil && ccc.processesByAppGUID != nil && ccc.spacesByGUID != nil && ccc.orgsByGUID != nil
+	if ccc.config.ServeNozzleData && cachedInputsReady {
+		cfApplicationsByGUID := ccc.prepareCFApplications(ccc.appsByGUID, ccc.processesByAppGUID, ccc.spacesByGUID, ccc.orgsByGUID, ccc.sidecarsByAppGUID)
+		ccc.cfApplicationsByGUID = updateMapInPlace(ccc.cfApplicationsByGUID, cfApplicationsByGUID)
+	}
 
 	firstUpdate := ccc.lastUpdated.IsZero()
 	ccc.lastUpdated = time.Now()
 	if firstUpdate {
 		close(ccc.updatedOnce)
 	}
+}
+
+// listWithRetry retries a Cloud Controller list call with exponential backoff, since a single
+// failed request otherwise costs a whole refresh.
+func listWithRetry[T any](ccc *CCCache, resourceName string, fetch func() (T, error)) (T, error) {
+	backoff := ccc.retryBackoff
+	for attempt := 1; ; attempt++ {
+		result, err := fetch()
+		if err == nil || attempt == ccListAttempts || !isRetryableCCError(err) {
+			return result, err
+		}
+		log.Warnf("Failed listing %s from cloud controller (attempt %d/%d), retrying in %s: %v", resourceName, attempt, ccListAttempts, backoff, err)
+		select {
+		case <-time.After(backoff):
+		case <-ccc.cancelContext.Done():
+			return result, err
+		}
+		backoff *= 2
+	}
+}
+
+// isRetryableCCError reports whether err is a server-side or transport failure that may succeed on retry.
+// go-cfclient drops the HTTP status when the Cloud Controller returns a JSON error body, so those are
+// classified by Cloud Controller error code instead.
+func isRetryableCCError(err error) bool {
+	var cfErr cfclient.CloudFoundryError
+	if errors.As(err, &cfErr) {
+		_, ok := retryableCCErrorCodes[cfErr.Code]
+		return ok
+	}
+	var httpErr cfclient.CloudFoundryHTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.StatusCode >= 500 || httpErr.StatusCode == 429
+	}
+	return true
 }
 
 // updateMapInPlace updates the cache map in-place with new data.

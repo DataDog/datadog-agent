@@ -49,7 +49,7 @@ type APIKeys struct {
 	// the apiKey to use for this endpoint
 	Keys []string
 
-	// HasPendingDelegatedAuth keeps a legacy endpoint usable while a DELA(...) directive
+	// HasPendingDelegatedAuth keeps a legacy endpoint usable while a DELA[...] directive
 	// is waiting for the delegatedauth component to write its resolved API key.
 	HasPendingDelegatedAuth bool
 }
@@ -80,20 +80,16 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 	return prefix + constants.DefaultSite
 }
 
-// delaDirectivePrefix marks a value in an `additional_endpoints`-style config list as a
-// delegated-auth directive (e.g. "DELA(<org_uuid>, aws)") rather than a literal API key. Such
-// entries are resolved asynchronously by the delegatedauth component, which writes the real key
-// back into the same config slot once fetched; until then they must not be treated as real keys.
-const delaDirectivePrefix = "DELA("
-
-// IsDelaDirective reports whether a value is a delegated-auth directive rather than a literal
-// API key. Consumers must skip (not send) values where this returns true.
+// IsDelaDirective reports whether a value is a delegated-auth directive (e.g.
+// "DELA[<org_uuid>, aws]") rather than a literal API key. The delegatedauth component writes the
+// real key back into the same config slot once fetched; until then consumers must skip (not send)
+// values where this returns true.
 func IsDelaDirective(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
+	return strings.HasPrefix(strings.TrimSpace(value), pkgconfigmodel.DelaDirectivePrefix)
 }
 
 // PartitionRealAndPendingKeys splits keys from an `additional_endpoints`-style config list into
-// real API keys and reports whether at least one pending DELA(...) directive was present. A
+// real API keys and reports whether at least one pending DELA[...] directive was present. A
 // caller that builds one endpoint per real key should still keep a placeholder entry for the
 // domain when hasPendingDelegatedAuth is true and no real keys are returned, so the domain still
 // gets a config-update watcher/resolver and can pick up the real key once delegated auth resolves
@@ -119,7 +115,7 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// Remove any empty API keys.
 		// We don't need to hold on to an endpoint with an empty API key to track if a
 		// secret has been updated since secrets can never be empty in the first place.
-		// Exception: a domain whose only entries are pending DELA(...) directives is still kept
+		// Exception: a domain whose only entries are pending DELA[...] directives is still kept
 		// (with an empty Keys list) below, so the forwarder knows to wait for delegated auth
 		// rather than dropping the domain outright.
 		nonEmpty := make([]string, 0, len(keys))
@@ -171,7 +167,7 @@ type EndpointDescriptor struct {
 	IsMRF     bool
 
 	// HasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
-	// be waiting on one from the delegatedauth component (a DELA(...) directive in
+	// be waiting on one from the delegatedauth component (a DELA[...] directive in
 	// additional_endpoints). Consumers (e.g. the forwarder's resolver.IsUsable()) should treat
 	// such a domain as usable so it isn't dropped before delegated auth has a chance to deliver
 	// a real key.

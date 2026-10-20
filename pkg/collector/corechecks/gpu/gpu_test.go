@@ -21,6 +21,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
@@ -312,6 +313,108 @@ func TestRunDoesNotError(t *testing.T) {
 	require.NoError(t, check.Run())
 }
 
+func TestContainerGPUMappingFailurePct(t *testing.T) {
+	newGPUContainer := func(id string, resourceIDs ...string) *workloadmeta.Container {
+		container := &workloadmeta.Container{
+			EntityID:   workloadmeta.EntityID{ID: id, Kind: workloadmeta.KindContainer},
+			EntityMeta: workloadmeta.EntityMeta{Name: id},
+		}
+		for _, resourceID := range resourceIDs {
+			container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, workloadmeta.ContainerAllocatedResource{
+				Name: "nvidia.com/gpu",
+				ID:   resourceID,
+			})
+		}
+		return container
+	}
+
+	const unknownUUID = "GPU-ffffffff-1234-1234-1234-123456789012"
+	matched := func(id string) *workloadmeta.Container {
+		return newGPUContainer(id, testutil.GPUUUIDs[0])
+	}
+	partial := func(id string) *workloadmeta.Container {
+		return newGPUContainer(id, testutil.GPUUUIDs[1], unknownUUID)
+	}
+	unmatched := func(id string) *workloadmeta.Container {
+		return newGPUContainer(id, unknownUUID)
+	}
+
+	tests := []struct {
+		name        string
+		containers  []*workloadmeta.Container
+		expectedPct float64
+	}{
+		{name: "no GPU containers", containers: nil, expectedPct: 0},
+		{name: "all matched", containers: []*workloadmeta.Container{matched("c1"), matched("c2")}, expectedPct: 0},
+		{name: "partial match counts as failure", containers: []*workloadmeta.Container{matched("c1"), partial("c2")}, expectedPct: 50},
+		{name: "unmatched", containers: []*workloadmeta.Container{unmatched("c1")}, expectedPct: 100},
+		{name: "mixed", containers: []*workloadmeta.Container{matched("c1"), partial("c2"), unmatched("c3"), matched("c4")}, expectedPct: 50},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+			check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+			require.NoError(t, check.deviceCache.Refresh())
+
+			for _, container := range tt.containers {
+				wmetaMock.Set(container)
+			}
+
+			check.getGPUToContainersMap()
+
+			telemetryMock, ok := check.telemetry.component.(telemetry.Mock)
+			require.True(t, ok)
+			metrics, err := telemetryMock.GetGaugeMetric(CheckName, "container_gpu_mapping_failure_pct")
+			require.NoError(t, err)
+			require.Len(t, metrics, 1)
+			assert.Equal(t, tt.expectedPct, metrics[0].Value())
+		})
+	}
+}
+
+func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	require.NoError(t, check.deviceCache.Refresh())
+
+	reservationPod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "reservation-pod-uid"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "gpu-reservation-6d8e72c077c10ec9",
+			Namespace:   "kai-resource-reservation",
+			Labels:      map[string]string{"runai-gpu-group": "c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8"},
+			Annotations: map[string]string{"run.ai/reserve_for_gpu_index": testutil.GPUUUIDs[0]},
+		},
+	}
+	wmetaMock.Set(reservationPod)
+	wmetaMock.Set(&workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "reservation-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "resource-reservation"},
+		Owner:      &reservationPod.EntityID,
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: testutil.GPUUUIDs[0]},
+		},
+	})
+
+	workloadContainer := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "workload-container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "workload"},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: testutil.GPUUUIDs[1]},
+		},
+	}
+	wmetaMock.Set(workloadContainer)
+
+	gpuToContainers := check.getGPUToContainersMap()
+
+	assert.Empty(t, gpuToContainers[testutil.GPUUUIDs[0]], "the reservation pod must not be reported as the GPU's user")
+	require.Len(t, gpuToContainers[testutil.GPUUUIDs[1]], 1)
+	assert.Equal(t, workloadContainer.EntityID, gpuToContainers[testutil.GPUUUIDs[1]][0].EntityID)
+}
+
 func TestSyncNvmlHealthIssue(t *testing.T) {
 	healthStore := healthplatformmock.New(t)
 	check := &Check{}
@@ -352,6 +455,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
+		testutil.WithNvLinkErrorCounters(),
 		testutil.WithDeviceCountFunc(func() int {
 			return int(curDeviceCount.Load())
 		}),
@@ -419,6 +523,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
+		testutil.WithNvLinkErrorCounters(),
 		testutil.WithDeviceOptions(0,
 			testutil.WithMIGEnabled(),
 			testutil.WithMIGChildUUIDs(map[int]string{
@@ -561,9 +666,9 @@ func TestCollectSamplesDoesNotCrashWhenCollectorPanics(t *testing.T) {
 	})
 
 	require.Len(t, results, 1)
-	assert.Equal(t, nvidia.CollectorName("panicking-collector"), results[0].name)
-	require.Error(t, results[0].err)
-	assert.Contains(t, results[0].err.Error(), "collector panicked: boom")
+	assert.Equal(t, nvidia.CollectorName("panicking-collector"), results[0].Name)
+	require.Error(t, results[0].Err)
+	assert.Contains(t, results[0].Err.Error(), "collector panicked: boom")
 }
 
 func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *testing.T) {

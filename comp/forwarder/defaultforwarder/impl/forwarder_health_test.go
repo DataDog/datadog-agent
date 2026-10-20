@@ -382,7 +382,9 @@ func TestConfigUpdateAPIKey(t *testing.T) {
 			expectAfter: []string{"api_key1", "api_key2"},
 		},
 	} {
-		runUpdateAPIKeysTest(t, test.description, test.before, test.after, test.expectBefore, test.expectAfter)
+		t.Run(test.description, func(t *testing.T) {
+			runUpdateAPIKeysTest(t, test.description, test.before, test.after, test.expectBefore, test.expectAfter)
+		})
 	}
 }
 

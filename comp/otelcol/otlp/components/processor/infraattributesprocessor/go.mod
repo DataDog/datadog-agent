@@ -42,7 +42,7 @@ require (
 require (
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.71.0 // indirect
+	cloud.google.com/go/compute v1.72.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.213 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
@@ -54,6 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1 // indirect
@@ -98,7 +99,9 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -118,7 +121,9 @@ require (
 	github.com/knadh/koanf/providers/confmap v1.0.1 // indirect
 	github.com/knadh/koanf/v2 v2.3.6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
-	github.com/mdlayher/socket v0.7.0 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/mdlayher/socket v0.8.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -130,9 +135,9 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
-	github.com/prometheus/client_golang v1.24.1 // indirect
+	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.72.0 // indirect
+	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.9 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
@@ -141,7 +146,7 @@ require (
 	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	github.com/twmb/murmur3 v1.2.0 // indirect
+	github.com/twmb/murmur3 v1.2.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0 // indirect
