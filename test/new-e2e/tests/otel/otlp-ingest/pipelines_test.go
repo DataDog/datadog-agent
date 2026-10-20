@@ -53,6 +53,38 @@ agents:
 	)
 }
 
+// otlpIngestIdxTestSuite runs the same checks without the legacy operation and resource name
+// flag, so the trace-agent takes the direct OTLP to V1 decoder path (the flag forces pdata/v04).
+type otlpIngestIdxTestSuite struct {
+	otlpIngestTestSuite
+}
+
+func TestOTLPIngestIdx(t *testing.T) {
+	values := `
+datadog:
+  otlp:
+    receiver:
+      protocols:
+        grpc:
+          enabled: true
+    logs:
+      enabled: true
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+agents:
+  containers:
+    agent:
+      env:
+        - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
+          value: 'true'
+`
+	t.Parallel()
+	e2e.Run(t, &otlpIngestIdxTestSuite{}, e2e.WithProvisioner(
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+	)
+}
+
 var otlpIngestParams = utils.IAParams{
 	InfraAttributes: true,
 }
