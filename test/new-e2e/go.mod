@@ -104,7 +104,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
-	github.com/DataDog/dd-trace-go/v2 v2.11.1 // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.11.2 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
