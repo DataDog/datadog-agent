@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -149,7 +151,7 @@ func (suite *admissionProbeSuite) captureRemotePersistenceStartup() remotePersis
 		clusterResourceID: clusterID,
 	}
 
-	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+	requestsObserved := assert.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
 		requests, err := suite.tryGetRemoteBackendRequests()
 		require.NoError(ct, err)
 		nodeRequest, found := findRemoteBackendRequest(requests, startup.nodeResourceID, "node")
@@ -159,6 +161,10 @@ func (suite *admissionProbeSuite) captureRemotePersistenceStartup() remotePersis
 		startup.nodeRequest = nodeRequest
 		startup.clusterRequest = clusterRequest
 	}, remotePersistenceControlTimeout, 2*time.Second, "remote issue requests were not observed")
+	if !requestsObserved {
+		suite.captureNodeAgentLog(ctx, daemonSet)
+		suite.T().FailNow()
+	}
 
 	fakeIntake := suite.Env().FakeIntake.Client()
 	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
@@ -175,6 +181,41 @@ func (suite *admissionProbeSuite) captureRemotePersistenceStartup() remotePersis
 	}, defaultIssueTimeout, 5*time.Second, "startup reconciliation did not reach fakeintake")
 
 	return startup
+}
+
+func (suite *admissionProbeSuite) captureNodeAgentLog(ctx context.Context, daemonSet *appsv1.DaemonSet) {
+	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(clusterAgentNamespace)
+	selector := metav1.FormatLabelSelector(daemonSet.Spec.Selector)
+	list, err := pods.List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		suite.T().Logf("failed to list node Agent pods for diagnostics: %v", err)
+		return
+	}
+
+	for _, pod := range list.Items {
+		if pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+
+		logs, err := pods.GetLogs(pod.Name, &corev1.PodLogOptions{
+			Container:  "agent",
+			Timestamps: true,
+		}).DoRaw(ctx)
+		if err != nil {
+			suite.T().Logf("failed to read node Agent logs for diagnostics: %v", err)
+			return
+		}
+
+		logPath := filepath.Join(suite.SessionOutputDir(), "remote-persistence-node-agent.log")
+		if err := os.WriteFile(logPath, logs, 0o644); err != nil {
+			suite.T().Logf("failed to write node Agent logs to %s: %v", logPath, err)
+			return
+		}
+		suite.T().Logf("wrote node Agent logs to %s", logPath)
+		return
+	}
+
+	suite.T().Log("no running node Agent pod found for diagnostics")
 }
 
 func (suite *admissionProbeSuite) restartNodeAgent(t *testing.T) {
