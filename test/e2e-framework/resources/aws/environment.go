@@ -6,13 +6,14 @@
 package aws
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	awsECR "github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
@@ -20,6 +21,10 @@ import (
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
 const (
@@ -176,6 +181,7 @@ func (e *Environment) InternalRegistry() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInternalRegistry, e.envDefault.ddInfra.defaultInternalRegistry)
 }
 
+// InternalDockerhubMirror returns the pull-through cache of Docker Hub, or Docker Hub itself on the accounts that have no cache.
 func (e *Environment) InternalDockerhubMirror() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInternalDockerhubMirror, e.envDefault.ddInfra.defaultInternalDockerhubMirror)
 }
@@ -198,6 +204,45 @@ func ecrRepositoryName(image string) string {
 	return repositoryName
 }
 
+// ecrImageGetter is the subset of the ECR client used to look up an image.
+type ecrImageGetter interface {
+	BatchGetImage(ctx context.Context, params *awsECR.BatchGetImageInput, optFns ...func(*awsECR.Options)) (*awsECR.BatchGetImageOutput, error)
+}
+
+// ecrImageTagExists reports whether the tag exists in the repository of the image.
+func ecrImageTagExists(ctx context.Context, client ecrImageGetter, image, tag string) (bool, error) {
+	registryID, _, _ := strings.Cut(image, ".")
+	repositoryName := ecrRepositoryName(image)
+
+	out, err := client.BatchGetImage(ctx, &awsECR.BatchGetImageInput{
+		RegistryId:     &registryID,
+		RepositoryName: &repositoryName,
+		ImageIds:       []types.ImageIdentifier{{ImageTag: &tag}},
+	})
+	if err != nil {
+		return false, err
+	}
+
+	if len(out.Failures) == 0 {
+		if len(out.Images) != 1 {
+			return false, fmt.Errorf("unable to get image %s/%s:%s: got %d images, expected 1",
+				registryID, repositoryName, tag, len(out.Images))
+		}
+		return true, nil
+	}
+
+	if len(out.Failures) == 1 && out.Failures[0].FailureCode == types.ImageFailureCodeImageNotFound {
+		return false, nil
+	}
+
+	errs := make([]error, 0, len(out.Failures))
+	for _, failure := range out.Failures {
+		errs = append(errs, fmt.Errorf("unable to get image %s/%s:%s: %s: %s",
+			registryID, repositoryName, tag, failure.FailureCode, aws.ToString(failure.FailureReason)))
+	}
+	return false, errors.Join(errs...)
+}
+
 // Check if the image exists in the internal registry
 func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, error) {
 
@@ -214,20 +259,7 @@ func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, e
 		return false, err
 	}
 
-	repositoryName := ecrRepositoryName(image)
-
-	ecrClient := awsECR.NewFromConfig(cfg)
-	_, err = ecrClient.BatchGetImage(e.Ctx().Context(), &awsECR.BatchGetImageInput{
-		RegistryId:     &strings.Split(image, ".")[0],
-		RepositoryName: &repositoryName,
-		ImageIds:       []types.ImageIdentifier{{ImageTag: &tag}},
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return ecrImageTagExists(e.Ctx().Context(), awsECR.NewFromConfig(cfg), image, tag)
 }
 
 func (e *Environment) InternalRegistryFullImagePathExists(fullImagePath string) (bool, error) {
