@@ -157,9 +157,6 @@ func TestUpdateReportsNoApplyStateForADocumentItDoesNotOwn(t *testing.T) {
 	p.Update(map[string]state.RawConfig{
 		"empty":      rawConfig(`{}`),
 		"future-key": rawConfig(`{"autodiscovery":{"configs":[]}}`),
-		"not-json":   rawConfig(`{`),
-		"json-null":  rawConfig(`null`),
-		"json-array": rawConfig(`[]`),
 	}, rec.callback)
 
 	assert.Empty(t, rec.states, "no apply state at all for an unowned document")
@@ -432,4 +429,54 @@ func TestUpdateBeforeStreamWaitsInTheChannel(t *testing.T) {
 	assert.Equal(t, []string{"path-a"}, h.renderedPaths)
 	assert.Equal(t, state.ApplyStateAcknowledged, rec.states["path-a"].State)
 	assert.Equal(t, 1, rec.counts["path-a"])
+}
+
+func TestUpdateKeepsAnActivePathsConfigsWhenItsReplacementIsMalformed(t *testing.T) {
+	h := &fakeHandler{key: "snmp", configs: map[string][]integration.Config{
+		"path-a": {snmpConfig("10.0.0.1")},
+	}}
+	p := newTestProvider(t, h)
+	ch := p.Stream(context.Background())
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
+	require.Len(t, drain(t, ch), 1)
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`[{"snmp":{}}]`)}, rec.callback)
+
+	assert.Empty(t, drain(t, ch))
+	assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+	assert.NotEmpty(t, rec.states["path-a"].Error)
+	assert.Len(t, p.GetConfigErrors()["path-a"], 1)
+}
+
+func TestUpdateReportsAnErrorStateForEveryMalformedPayload(t *testing.T) {
+	for name, body := range map[string]string{
+		"null":      `null`,
+		"array":     `[]`,
+		"string":    `"snmp"`,
+		"truncated": `{"snmp":`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := newTestProvider(t, &fakeHandler{key: "snmp"})
+			rec := newRecorder()
+
+			p.Update(map[string]state.RawConfig{"path-a": rawConfig(body)}, rec.callback)
+
+			assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+			assert.NotEmpty(t, rec.states["path-a"].Error)
+		})
+	}
+}
+
+func TestUpdateDropsAMalformedPathsErrorOnceItLeavesTheSnapshot(t *testing.T) {
+	p := newTestProvider(t, &fakeHandler{key: "snmp"})
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`null`)}, rec.callback)
+	require.Len(t, p.GetConfigErrors(), 1)
+
+	p.Update(map[string]state.RawConfig{}, rec.callback)
+
+	assert.Empty(t, p.GetConfigErrors())
 }

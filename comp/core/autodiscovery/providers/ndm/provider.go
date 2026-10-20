@@ -135,7 +135,11 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 	for path, raw := range updates {
 		keys, err := parseDocument(raw.Config)
 		if err != nil {
-			p.log.Debugf("ndm: ignoring config %s: %v", path, err)
+			// A malformed replacement keeps the path's last valid configs.
+			p.log.Errorf("ndm: keeping the last valid configs of %s: %v", path, err)
+			seenPaths[path] = struct{}{}
+			p.configErrors[path] = types.ErrorMsgSet{err.Error(): {}}
+			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 
