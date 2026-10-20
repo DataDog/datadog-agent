@@ -255,7 +255,9 @@ func (t *Tokenizer) collapseIPv4Tail() {
 	t.idxBuf = t.idxBuf[:n-ipv4TokenWidth+1]
 }
 
-// TokensToString converts a list of tokens to a debug string.
+// TokensToString returns the printed form of tokens, for example "CCC DDD" for
+// "abc 123". Consumers may hash this form, so changing it needs a
+// ProfileVersion bump.
 func TokensToString(tokens []Token) string {
 	var builder strings.Builder
 	for _, t := range tokens {

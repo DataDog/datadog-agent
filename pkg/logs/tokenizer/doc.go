@@ -32,7 +32,19 @@
 // hashes raw token bytes into the log_hash tag, and End sizes lookup arrays.
 // So:
 //
-//   - add a new Token immediately before End;
+//   - add a new Token immediately before End, and bump ProfileVersion;
 //   - never renumber or remove an existing Token;
 //   - End is a sentinel and may move; no other value may.
+//
+// More generally, bump ProfileVersion for any change to Tokenize's output: a
+// keyword list edit, a byte-class change, the IPv4 rule or the run-length cap
+// change token streams without adding a Token. Renaming a token's
+// TokensToString form counts too, because consumers may hash those strings.
+//
+// TestTokenOrdinalsArePinned fails if an existing value moves, and
+// TestProfileVersionMatchesTokenizerOutput, whose corpus produces every Token
+// and covers every keyword and byte value, fails if the tokens, their offsets
+// or their TokensToString form change without a ProfileVersion bump.
+// Consumers that store token streams, or strings made from them, should
+// record ProfileVersion with them.
 package tokenizer

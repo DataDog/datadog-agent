@@ -8,6 +8,16 @@ package tokenizer
 // Token is the type that represents a single token.
 type Token byte
 
+// ProfileVersion identifies what the tokenizer produces: the token set below
+// and the rules that map bytes to tokens. Bump it whenever Tokenize's output
+// changes for any input, so consumers that store or compare tokens can tell
+// token streams from different profiles apart. That includes adding a Token,
+// editing the keyword list, changing a byte's class, the IPv4 rule or the
+// run-length cap, and renaming a token's TokensToString form, which consumers
+// may hash. TestProfileVersionMatchesTokenizerOutput fails until the bump is
+// made. See the package documentation for the append-only rule.
+const ProfileVersion = 1
+
 // Disable linter since the token list is self explanatory, or documented where needed.
 //
 //revive:disable

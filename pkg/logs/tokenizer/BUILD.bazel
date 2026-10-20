@@ -44,7 +44,11 @@ dd_agent_go_test(
         "borrowed_tokens_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
+        "tokens_test.go",
     ],
     embed = [":tokenizer"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
