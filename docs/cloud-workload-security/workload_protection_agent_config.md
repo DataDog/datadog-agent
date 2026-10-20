@@ -40,13 +40,12 @@ The following settings can be configured under `runtime_security_config` in the 
 | **Environment variable**<br>`DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_CAPTURE_ALL_ERRORS_ENABLED`<br><br>**YAML attribute**<br>`runtime_security_config.syscalls.capture_all_errors.enabled` | bool | false | CaptureAllSyscallErrorsEnabled defines whether the agent should capture all syscall errors |
 
 ## `security-agent` configuration parameters
-<div class="alert alert-warning">The Security Agent is required for Workload Protection. Without it, no Workload Protection events reach Datadog.</div>
 
 <div class="alert alert-info">Parameters can be provided in two different manners: through environment variables (given to the Datadog Agent container for example) or by editing the <code>/etc/datadog-agent/security-agent.yaml</code> configuration file.</div>
 
 | Setting | Type | Default | Description |
 | ------- | ---- | ------- | ----------- |
-| **Environment variable**<br>`DD_RUNTIME_SECURITY_CONFIG_ENABLED`<br><br>**YAML attribute**<br>`runtime_security_config.enabled` | bool | false | Enables Workload Protection in the Security Agent. |
+| **Environment variable**<br>`DD_RUNTIME_SECURITY_CONFIG_ENABLED`<br><br>**YAML attribute**<br>`runtime_security_config.enabled` | bool | false | Enables Workload Protection. |
 
 
 [1]: /security/workload_protection/
