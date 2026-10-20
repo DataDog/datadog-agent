@@ -251,7 +251,10 @@ func TestOTLPIdxFallback(t *testing.T) {
 	p := receiveV04(t, h.out)
 	assert.Equal(t, "svc", p.TracerPayload.Chunks[0].Spans[0].Service)
 	assertNoPayloads(t, h)
-	assert.Equal(t, int64(1), countSum(h.stats, "datadog.trace_agent.otlp.idx_fallback"))
+	fallbacks := h.stats.GetCountSummaries()["datadog.trace_agent.otlp.idx_fallback"]
+	require.NotNil(t, fallbacks)
+	require.Len(t, fallbacks.Calls, 1)
+	assert.Equal(t, []string{"reason:max_depth"}, fallbacks.Calls[0].Tags)
 }
 
 func TestPow2BufferPool(t *testing.T) {

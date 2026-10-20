@@ -124,7 +124,7 @@ func FuzzDecodeExportRequest(f *testing.F) {
 			}
 			ps, err := Decode(context.Background(), canonical, opts)
 			if err != nil {
-				if !errors.Is(err, errMaxDepth) && !errors.Is(err, ErrTooManyResourceSpans) && !errors.Is(err, errStrindex) {
+				if !errors.Is(err, errMaxDepth) && !errors.Is(err, errTooManyResourceSpans) && !errors.Is(err, errStrindex) {
 					t.Fatalf("the decoder (%+v) rejects pdata's encoding of the request: %v", opts, err)
 				}
 				continue

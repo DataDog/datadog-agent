@@ -424,5 +424,6 @@ func TestDecodeResourceSpansLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, tps, maxResourceSpans)
 	_, err = decodeForTest(emptyResourceSpans(maxResourceSpans + 1))
-	assert.ErrorIs(t, err, ErrTooManyResourceSpans)
+	assert.ErrorIs(t, err, errTooManyResourceSpans)
+	assert.Equal(t, "too_many_resource_spans", FallbackReason(err))
 }

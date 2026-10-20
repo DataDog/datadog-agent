@@ -37,9 +37,9 @@ var errMaxDepth = errors.New("otlpidx: attribute nesting exceeds maximum depth")
 // carry one ResourceSpans per distinct resource, far fewer than this.
 const maxResourceSpans = 4096
 
-// ErrTooManyResourceSpans is returned for a request with more than maxResourceSpans
+// errTooManyResourceSpans is returned for a request with more than maxResourceSpans
 // ResourceSpans. The caller falls back to pdata, which holds them more cheaply.
-var ErrTooManyResourceSpans = errors.New("otlpidx: too many ResourceSpans in one request")
+var errTooManyResourceSpans = errors.New("otlpidx: too many ResourceSpans in one request")
 
 // Field numbers from opentelemetry/proto (collector/trace/v1, trace/v1, common/v1, resource/v1).
 const (
@@ -177,6 +177,29 @@ var errRepeatedMessage = errors.New("otlpidx: repeated singular message field")
 // but which has no V1 equivalent, so the receiver falls back to pdata.
 var errStrindex = errors.New("otlpidx: unsupported string_value_strindex")
 
+// errBothScopeSpans is returned for a ResourceSpans with both scope_spans and the deprecated
+// instrumentation_library_spans, which the receiver leaves to pdata (see scanResourceSpans).
+var errBothScopeSpans = errors.New("otlpidx: both scope_spans and deprecated instrumentation_library_spans")
+
+// FallbackReason classifies a Decode error, for the receiver's fallback metric and log: one of
+// the decoder's limits or unsupported encodings, which pdata handles, or "malformed" for input
+// that pdata most likely rejects too.
+func FallbackReason(err error) string {
+	switch {
+	case errors.Is(err, errMaxDepth):
+		return "max_depth"
+	case errors.Is(err, errTooManyResourceSpans):
+		return "too_many_resource_spans"
+	case errors.Is(err, errRepeatedMessage):
+		return "repeated_message"
+	case errors.Is(err, errStrindex):
+		return "strindex"
+	case errors.Is(err, errBothScopeSpans):
+		return "deprecated_scope_spans"
+	}
+	return "malformed"
+}
+
 // checkID returns an error unless an ID field is empty or n bytes long, as pdata requires.
 func checkID(b []byte, n int) error {
 	if len(b) != 0 && len(b) != n {
@@ -307,7 +330,7 @@ func Decode(ctx context.Context, b []byte, opts Options) ([]Payload, error) {
 			continue
 		}
 		if len(out) == maxResourceSpans {
-			return nil, ErrTooManyResourceSpans
+			return nil, errTooManyResourceSpans
 		}
 		p, err := decodeResourceSpans(ctx, f.val, opts)
 		if err != nil {
@@ -518,7 +541,7 @@ func scanResourceSpans(b []byte) (resource []byte, scopeSpansField protowire.Num
 	}
 	switch {
 	case hasScopeSpans && hasDeprecated:
-		return nil, 0, errors.New("otlpidx: both scope_spans and deprecated instrumentation_library_spans")
+		return nil, 0, errBothScopeSpans
 	case hasDeprecated:
 		return resource, fResourceSpansDeprecatedScopeSpans, nil
 	}

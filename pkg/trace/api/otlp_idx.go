@@ -29,6 +29,9 @@ import (
 // otlpIdxFeature opts in to decoding OTLP gRPC traces directly into the V1 representation.
 const otlpIdxFeature = "enable_otlp_idx"
 
+// otlpIdxFallbackLog reports requests the direct decoder leaves to pdata, at most once a minute.
+var otlpIdxFallbackLog = log.NewThrottled(1, time.Minute)
+
 // otlpIdxEnabled reports whether OTLP gRPC requests are decoded directly into the V1
 // representation and processed by ProcessV1. It is opt-in (otlpIdxFeature), and configurations
 // the decoder doesn't implement (see otlpidx.Supported) keep the pdata / v04 path regardless.
@@ -182,8 +185,9 @@ func (o *OTLPReceiver) exportRaw(ctx context.Context, in *rawExportRequest) (*ex
 		o.receiveIdx(payloads)
 		return &exportResponse{}, nil
 	}
-	log.Debugf("OTLP direct decoder rejected a request, falling back to pdata: %v", err)
-	_ = o.statsd.Count("datadog.trace_agent.otlp.idx_fallback", 1, nil, 1)
+	reason := otlpidx.FallbackReason(err)
+	otlpIdxFallbackLog.Warn("OTLP direct decoder rejected a request (%s), falling back to pdata: %v", reason, err)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.idx_fallback", 1, []string{"reason:" + reason}, 1)
 	req := ptraceotlp.NewExportRequest()
 	if err := req.UnmarshalProto(b); err != nil {
 		// What gRPC returns when the pdata codec fails.
