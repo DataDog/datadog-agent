@@ -102,10 +102,10 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 	snapshot, err := loader.load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
-	assert.Len(t, snapshot, 2)
-	assert.Contains(t, snapshot, agentIssueID)
-	assert.Contains(t, snapshot, "another-id")
-	assert.Equal(t, "configuration", snapshot[agentIssueID].Category)
+	assert.Len(t, snapshot.Issues, 2)
+	require.Contains(t, snapshot.Issues, agentIssueID)
+	assert.Contains(t, snapshot.Issues, "another-id")
+	assert.Equal(t, "configuration", snapshot.Issues[agentIssueID].Category)
 
 	request := <-requestCh
 	assert.Equal(t, http.MethodGet, request.method)
@@ -125,20 +125,21 @@ func TestRemoteIssueLoaderLoadEmpty(t *testing.T) {
 	snapshot, err := loader.load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
-	assert.Empty(t, snapshot)
+	assert.Empty(t, snapshot.Issues)
 }
 
 func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	const issueID = "invalid-config:daemonset-uid"
+	var requestCount atomic.Int32
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
+		requestCount.Add(1)
 		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{
 			{IssueID: issueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration", Category: "configuration"},
 		}))
 	})
 
 	h := newTestStore(t)
-	h.persistence = &noopPersistence{}
-	h.remoteLoader = loader
+	h.persistence = loader
 	resolvedCh := make(chan *healthplatformpayload.Issue, 1)
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: resolvedCh})
 
@@ -163,6 +164,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	assert.Equal(t, "configuration", resolved.Category)
 	require.NotNil(t, resolved.PersistedIssue)
 	assert.Equal(t, IssueStateResolved, resolved.PersistedIssue.State)
+	assert.Equal(t, int32(1), requestCount.Load())
 }
 
 func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
@@ -177,8 +179,8 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 		}))
 	})
 	remote := newTestStore(t)
-	remote.remoteLoader = loader
-	require.NoError(t, remote.loadFromRemote(context.Background()))
+	remote.persistence = loader
+	require.NoError(t, remote.loadPersistedState(context.Background()))
 
 	path := filepath.Join(t.TempDir(), "issues.json")
 	require.NoError(t, os.WriteFile(path, []byte(`{"version":2,"issues":{
@@ -191,7 +193,7 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 	}}`), 0600))
 	disk := newTestStore(t)
 	disk.persistence = newDiskPersistence(path, disk.log)
-	require.NoError(t, disk.loadFromDisk())
+	require.NoError(t, disk.loadPersistedState(context.Background()))
 
 	require.Len(t, remote.persistedIssues, 5)
 	assert.Equal(t, []string{"duplicate"}, remote.GetActiveIssueIDsByIssueName("New"))
@@ -318,16 +320,16 @@ func TestRemoteIssueLoaderLoadResponseErrors(t *testing.T) {
 	}
 }
 
-func TestRemoteIssueLoaderLoadCanceledContext(t *testing.T) {
+func TestLoadPersistedStateCanceledContext(t *testing.T) {
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{}))
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	snapshot, err := loader.load(ctx)
-	assert.Nil(t, snapshot)
-	require.ErrorIs(t, err, context.Canceled)
+	h := newTestStore(t)
+	h.persistence = loader
+	require.ErrorIs(t, h.loadPersistedState(ctx), context.Canceled)
 }
 
 func TestRemoteIssueLoaderLoadDoesNotFollowRedirects(t *testing.T) {

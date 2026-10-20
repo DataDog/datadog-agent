@@ -40,7 +40,7 @@ type memPersistence struct {
 	loadCalls int
 }
 
-func (m *memPersistence) load() (*PersistedState, error) {
+func (m *memPersistence) load(context.Context) (*PersistedState, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.loadCalls++
@@ -136,6 +136,7 @@ func TestNewComponentPersistence(t *testing.T) {
 	tests := []struct {
 		name                      string
 		kubernetes, local, remote bool
+		remoteDisabled            bool
 		wantDisk, wantRemote      bool
 	}{
 		{name: "non-Kubernetes uses disk", wantDisk: true},
@@ -144,6 +145,7 @@ func TestNewComponentPersistence(t *testing.T) {
 		{name: "Kubernetes local persistence", kubernetes: true, local: true, wantDisk: true},
 		{name: "Kubernetes remote persistence", kubernetes: true, remote: true, wantRemote: true},
 		{name: "remote takes precedence", kubernetes: true, local: true, remote: true, wantRemote: true},
+		{name: "remote disabled for process", kubernetes: true, local: true, remote: true, remoteDisabled: true},
 	}
 
 	for _, test := range tests {
@@ -165,16 +167,17 @@ func TestNewComponentPersistence(t *testing.T) {
 				Config:            cfg,
 				Log:               logmock.New(t),
 				Telemetry:         telemetrymock.New(t),
-				RemoteRestoration: &storedef.RemoteRestorationParams{Enabled: true},
+				RemoteRestoration: &storedef.RemoteRestorationParams{Enabled: !test.remoteDisabled},
 			})
 			require.NoError(t, err)
 			h := provided.Comp.(*healthPlatformImpl)
-			if test.wantDisk {
+			if test.wantRemote {
+				assert.IsType(t, &remoteIssueLoader{}, h.persistence)
+			} else if test.wantDisk {
 				assert.IsType(t, &diskPersistence{}, h.persistence)
 			} else {
 				assert.IsType(t, &noopPersistence{}, h.persistence)
 			}
-			assert.Equal(t, test.wantRemote, h.remoteLoader != nil)
 		})
 	}
 }
@@ -426,7 +429,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 
 	h2 := newTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
-	require.NoError(t, h2.loadFromDisk())
+	require.NoError(t, h2.loadPersistedState(context.Background()))
 
 	// Detailed proto payload is not persisted — it is repopulated when the check re-runs.
 	// What must survive is the lifecycle state so that storeIssue can correctly
@@ -465,7 +468,7 @@ func TestLoadPersistedStatePreservesIssueTypeAndCategoryOnResolvedTombstone(t *t
 	h2.persistence = newDiskPersistence(path, logger)
 	ch := make(chan *healthplatformpayload.Issue, 1)
 	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
-	require.NoError(t, h2.loadFromDisk())
+	require.NoError(t, h2.loadPersistedState(context.Background()))
 
 	require.Len(t, ch, 1)
 	got := <-ch
@@ -495,7 +498,7 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 
 	h := newTestStore(t)
 	h.persistence = newDiskPersistence(path, logmock.New(t))
-	require.NoError(t, h.loadFromDisk())
+	require.NoError(t, h.loadPersistedState(context.Background()))
 
 	// Stale version: store must start fresh.
 	assert.Nil(t, h.GetIssue("t:id"))
