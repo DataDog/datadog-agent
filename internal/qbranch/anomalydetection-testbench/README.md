@@ -342,11 +342,12 @@ Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an
 extreme number of results can therefore still require significant memory.
 
-Streaming keeps metric rows in a bounded five-second reorder window because
-concurrent GenSim collection can write slightly late samples. Log ordering is
-validated at the Observer's one-second scheduling resolution. Recordings with
-disorder beyond those bounds fail descriptively instead of silently producing
-late points.
+Streaming keeps metric and log rows in five-second reorder windows, then merges
+both streams chronologically. Logs are ordered at millisecond precision; equal
+timestamps retain their input order within each stream. Rows more than five
+seconds behind the latest timestamp in their stream fail descriptively. Use
+`--retain-parquet` for recordings requiring a larger reorder window. This
+normalizes event-time order rather than reproducing live arrival order.
 
 Interactive runs, and headless runs with `--retain-parquet`, use the retained
 replay pipeline:
