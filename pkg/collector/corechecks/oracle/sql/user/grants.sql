@@ -3,7 +3,14 @@ set serveroutput on size 100000
 
 @@pkg/collector/corechecks/oracle/sql/lib/init.sql
 
-grant create session to &&user ;
+begin
+  if :connection_type = :connection_type_cdb then
+    execute immediate 'GRANT CREATE SESSION TO &&user CONTAINER=ALL';
+  else
+    execute immediate 'GRANT CREATE SESSION TO &&user';
+  end if;
+end;
+/
 
 declare
    type array_t is table of varchar2(30);

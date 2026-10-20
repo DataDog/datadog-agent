@@ -108,10 +108,6 @@ func (c SchemasConfig) MaxQueryDurationDuration() time.Duration {
 	return time.Duration(c.MaxQueryDuration) * time.Second
 }
 
-type DataObservabilityConfig struct {
-	Enabled bool `yaml:"enabled"`
-}
-
 //nolint:revive // TODO(DBM) Fix revive linter
 type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -322,6 +318,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Schemas.MaxTables = defaultSchemaMaxTables
 	instance.Schemas.MaxColumns = defaultSchemaMaxColumns
 	instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
+	instance.DataObservability.CollectionInterval = defaultDataObservabilityCollectionInterval
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
@@ -349,6 +346,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if instance.Schemas.MaxQueryDuration <= 0 {
 		instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
 	}
+	instance.DataObservability.normalize()
 
 	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {
 		return nil, err
