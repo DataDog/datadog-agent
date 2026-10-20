@@ -348,6 +348,76 @@ func TestSamplingPriorityAttribute(t *testing.T) {
 	assert.Equal(t, uint32(samplingMechanismManual), c.SamplingMechanism())
 }
 
+// TestSamplingPriorityDDAttribute checks that a _sampling_priority_v1 span attribute sets the user
+// priority whether it is an int or a double, as today's lookup over the span's Metrics does, and
+// that a resource attribute doesn't, as today's resource attributes are only Meta.
+func TestSamplingPriorityDDAttribute(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		span, res    any
+		wantPriority int32
+	}{
+		{name: "int span attribute", span: 2, wantPriority: 2},
+		{name: "double span attribute", span: 2.0, wantPriority: 2},
+		{name: "resource attribute", res: 2.0, wantPriority: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			td := ptrace.NewTraces()
+			rs := td.ResourceSpans().AppendEmpty()
+			rs.Resource().Attributes().PutStr("service.name", "svc")
+			if tc.res != nil {
+				putValue(rs.Resource().Attributes().PutEmpty("_sampling_priority_v1"), tc.res)
+			}
+			span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			span.SetTraceID(traceA)
+			span.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1})
+			if tc.span != nil {
+				putValue(span.Attributes().PutEmpty("_sampling_priority_v1"), tc.span)
+			}
+			b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
+			require.NoError(t, err)
+			tps, err := decodeForTest(b)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantPriority, tps[0].Chunks[0].Priority)
+		})
+	}
+}
+
+// TestPromotedSpanFields checks that the payload and chunk fields today's Process fills in from
+// the spans are set by the decoder, as ProcessV1 expects: env and app version from the root span
+// first, the git commit SHA from any span, and origin and APM mode from the root span only.
+func TestPromotedSpanFields(t *testing.T) {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+	root := spans.AppendEmpty()
+	root.SetTraceID(traceA)
+	root.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1})
+	root.Attributes().PutStr("deployment.environment.name", "staging")
+	root.Attributes().PutStr("_dd.origin", "synthetics")
+	root.Attributes().PutStr("_dd.apm_mode", "edge")
+	child := spans.AppendEmpty()
+	child.SetTraceID(traceA)
+	child.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 2})
+	child.SetParentSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1})
+	child.Attributes().PutStr("service.version", "2.0")
+	child.Attributes().PutStr("_dd.git.commit.sha", "abc123")
+	child.Attributes().PutStr("_dd.origin", "not-root")
+	b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
+	require.NoError(t, err)
+	tps, err := decodeForTest(b)
+	require.NoError(t, err)
+	tp := tps[0]
+	assert.Equal(t, "staging", tp.Env())
+	assert.Equal(t, "2.0", tp.AppVersion())
+	sha, _ := tp.GetAttributeAsString("_dd.git.commit.sha")
+	assert.Equal(t, "abc123", sha)
+	mode, _ := tp.GetAttributeAsString("_dd.apm_mode")
+	assert.Equal(t, "edge", mode)
+	assert.Equal(t, "synthetics", tp.Chunks[0].Origin())
+}
+
 // TestScopeAttributesNative checks that scope attributes keep their native type, apply to every
 // span of their scope only, and overwrite span attributes and promoted span fields.
 func TestScopeAttributesNative(t *testing.T) {

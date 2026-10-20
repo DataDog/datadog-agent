@@ -41,6 +41,7 @@ func otlpIdxTestRequest() ptraceotlp.ExportRequest {
 			LibName: "lib",
 			Attributes: map[string]interface{}{
 				"service.name":                "checkout",
+				"service.version":             "1.2.3",
 				"deployment.environment.name": "prod",
 				"telemetry.sdk.language":      "go",
 				"telemetry.sdk.version":       "1.30.0",
@@ -51,6 +52,7 @@ func otlpIdxTestRequest() ptraceotlp.ExportRequest {
 					Kind: ptrace.SpanKindServer, Start: now - 2e6, End: now,
 					Attributes: map[string]interface{}{
 						"http.request.method": "GET", "http.route": "/users/{id}", "http.response.status_code": 200,
+						"_dd.git.commit.sha": "abc123",
 					},
 				},
 				{
@@ -62,6 +64,9 @@ func otlpIdxTestRequest() ptraceotlp.ExportRequest {
 					TraceID: [16]byte{15: 2}, SpanID: [8]byte{7: 3}, Name: "work",
 					Kind: ptrace.SpanKindInternal, Start: now - 1e6, End: now,
 					StatusCode: ptrace.StatusCodeError, StatusMsg: "boom",
+					// An int attribute: today's conversion stores it in Metrics like a double. The git
+					// commit SHA is per trace in v04 but per payload in V1, so both traces carry it.
+					Attributes: map[string]interface{}{"_sampling_priority_v1": 2, "_dd.git.commit.sha": "abc123"},
 				},
 			},
 		},
@@ -169,7 +174,27 @@ func TestOTLPIdxProcessV1(t *testing.T) {
 	sortOTLPAgentSpans(got04)
 	assert.Equal(t, got04, gotV1)
 	assert.Len(t, gotV1, 3)
-	assert.Equal(t, len(stats04[0].Traces), len(statsV1[0].Traces), "stats input traces")
+	// The payload-level fields that become stats aggregation keys.
+	type statsKey struct {
+		AppVersion, Env, Hostname, GitCommitSha string
+		Priority                                int32
+	}
+	var keys04, keysV1 []statsKey
+	for _, pt := range stats04[0].Traces {
+		keys04 = append(keys04, statsKey{pt.AppVersion, pt.TracerEnv, pt.TracerHostname, pt.GitCommitSha, pt.TraceChunk.Priority})
+	}
+	for _, pt := range statsV1[0].Traces {
+		keysV1 = append(keysV1, statsKey{pt.AppVersion, pt.TracerEnv, pt.TracerHostname, pt.GitCommitSha, pt.TraceChunk.Priority})
+	}
+	sortKeys := func(keys []statsKey) {
+		sort.Slice(keys, func(i, j int) bool { return keys[i].Priority < keys[j].Priority })
+	}
+	sortKeys(keys04)
+	sortKeys(keysV1)
+	assert.Equal(t, keys04, keysV1, "stats input keys")
+	require.Len(t, keysV1, 2)
+	assert.Equal(t, statsKey{"1.2.3", "prod", "test-host", "abc123", 1}, keysV1[0])
+	assert.Equal(t, statsKey{"1.2.3", "prod", "test-host", "abc123", 2}, keysV1[1], "int _sampling_priority_v1 sets the user priority")
 	// The obfuscator ran on the V1 path too.
 	for _, s := range gotV1 {
 		assert.NotContains(t, s.Resource, "42")

@@ -17,6 +17,7 @@ go_library(
         "//pkg/trace/config",
         "//pkg/trace/sampler",
         "//pkg/trace/semantics",
+        "//pkg/trace/traceutil",
         "//pkg/trace/traceutil/normalize",
         "//pkg/trace/transform",
         "@io_opentelemetry_go_collector_pdata//pcommon",

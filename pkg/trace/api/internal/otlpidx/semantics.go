@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
@@ -145,6 +147,25 @@ func (a attrAccessor) GetFloat64(key string) (float64, bool) {
 	}
 	if v, ok := a.res[ref].GetValue().(*idx.AnyValue_DoubleValue); ok {
 		return v.DoubleValue, true
+	}
+	return 0, false
+}
+
+// metricsAccessor reads only the span's attributes, and its numeric attributes as float64 whether
+// int or double, matching semantics.MetricsMapAccessor over a v04 span's Metrics, which hold int
+// and double span attributes alike (resource attributes are only Meta there).
+type metricsAccessor struct{ attrAccessor }
+
+func (a metricsAccessor) GetFloat64(key string) (float64, bool) {
+	ref := a.lookup(key)
+	if ref == 0 {
+		return 0, false
+	}
+	switch v := a.span[ref].GetValue().(type) {
+	case *idx.AnyValue_DoubleValue:
+		return v.DoubleValue, true
+	case *idx.AnyValue_IntValue:
+		return float64(v.IntValue), true
 	}
 	return 0, false
 }
@@ -549,7 +570,8 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	if dbNameRef == 0 || !spanHas && !resHas {
 		dbName = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptDBNamespace, false)
 	}
-	if p, ok := semantics.LookupFloat64(reg, acc, semantics.ConceptSamplingPriority); ok {
+	metrics := metricsAccessor{attrAccessor{strings: d.strings, keys: &d.lookupKeys, span: attrs}}
+	if p, ok := semantics.LookupFloat64(reg, metrics, semantics.ConceptSamplingPriority); ok {
 		if d.priorities == nil {
 			d.priorities = make(map[[16]byte]int32)
 		}
@@ -712,6 +734,77 @@ const (
 	samplingMechanismProbabilistic = 9 // the OTLP receiver's probabilistic sampler
 )
 
+// promoteSpanFields sets the payload and chunk fields that today's Process fills in from the spans
+// (setChunkAttributes, setPayloadAttributes and processedTrace), which ProcessV1 expects the
+// producer to have set: the chunk origin from its root span, and the payload env, app version,
+// hostname, git commit SHA and APM mode, each from the first chunk that has one, searching its
+// root span first, and only where the resource didn't set them.
+func (d *decoder) promoteSpanFields(tp *idx.InternalTracerPayload) {
+	var gitCommitSha, apmMode string
+	for _, c := range d.order {
+		root := traceutil.GetRootV1(c)
+		if root == nil {
+			continue
+		}
+		if c.Origin() == "" {
+			if v, _ := root.GetAttributeAsString("_dd.origin"); v != "" {
+				c.SetOrigin(v)
+			}
+		}
+		if tp.Env() == "" {
+			if v := firstInTrace(c, root, (*idx.InternalSpan).Env); v != "" {
+				tp.SetEnv(v)
+			}
+		}
+		if tp.AppVersion() == "" {
+			if v := firstInTrace(c, root, (*idx.InternalSpan).Version); v != "" {
+				tp.SetAppVersion(v)
+			}
+		}
+		if tp.Hostname() == "" {
+			// Older tracers set the tracer hostname in the root span.
+			if v, _ := root.GetAttributeAsString("_dd.hostname"); v != "" {
+				tp.SetHostname(v)
+			}
+		}
+		if gitCommitSha == "" {
+			gitCommitSha = firstInTrace(c, root, func(s *idx.InternalSpan) string {
+				v, _ := s.GetAttributeAsString("_dd.git.commit.sha")
+				return v
+			})
+		}
+		if apmMode == "" {
+			// Like normalizeAPMModeSpanTag, only "edge" is a valid mode.
+			if v, _ := root.GetAttributeAsString("_dd.apm_mode"); strings.EqualFold(v, "edge") {
+				apmMode = v
+			}
+		}
+	}
+	if gitCommitSha != "" {
+		tp.SetStringAttribute("_dd.git.commit.sha", gitCommitSha)
+	}
+	if apmMode != "" {
+		tp.SetStringAttribute("_dd.apm_mode", apmMode)
+	}
+}
+
+// firstInTrace returns the first non-empty value of get over the chunk's spans, starting with
+// root, like version.GetAppVersionFromTrace and traceutil.GetEnv.
+func firstInTrace(c *idx.InternalTraceChunk, root *idx.InternalSpan, get func(*idx.InternalSpan) string) string {
+	if v := get(root); v != "" {
+		return v
+	}
+	for _, s := range c.Spans {
+		if s == root {
+			continue
+		}
+		if v := get(s); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // finishPayload sets payload- and chunk-level fields once all spans are decoded.
 func (d *decoder) finishPayload(tp *idx.InternalTracerPayload) {
 	if d.opts.ResourceAttributesOnPayload {
@@ -732,6 +825,7 @@ func (d *decoder) finishPayload(tp *idx.InternalTracerPayload) {
 	if d.res.containerTags != "" {
 		tp.SetStringAttribute("_dd.tags.container", d.res.containerTags)
 	}
+	d.promoteSpanFields(tp)
 	// Mirrors OTLPReceiver.createChunks.
 	rate := SamplingRate(d.opts.Conf)
 	rateTag := strconv.FormatFloat(rate, 'f', 2, 64)
