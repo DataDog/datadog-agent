@@ -4,7 +4,10 @@ package(default_visibility = ["//visibility:public"])
 
 constraint_setting(name = "crypto")
 
-constraint_setting(name = "rust_abi")
+constraint_setting(
+    name = "rust_abi",
+    default_constraint_value = ":rust_abi_gnu",
+)
 
 constraint_value(
     name = "fips",
