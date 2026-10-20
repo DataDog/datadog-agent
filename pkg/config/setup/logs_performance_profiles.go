@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"sort"
@@ -78,7 +79,7 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	},
 	"max-throughput": {
 		1: {
-			description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled, including for additional_endpoints), at the expense of bandwidth and memory.",
+			description: "Remove the compression CPU bottleneck (high-throughput plus compression disabled, including for HTTP additional_endpoints), at the expense of bandwidth and memory.",
 			settings:    maxThroughputSettings,
 		},
 	},
@@ -311,8 +312,8 @@ func hasAdditionalLogsEndpoints(config pkgconfigmodel.Reader) bool {
 	case []interface{}:
 		return len(v) > 0
 	case string:
-		v = strings.TrimSpace(v)
-		return v != "" && v != "[]"
+		var endpoints []interface{}
+		return json.Unmarshal([]byte(v), &endpoints) == nil && len(endpoints) > 0
 	}
 	return false
 }
