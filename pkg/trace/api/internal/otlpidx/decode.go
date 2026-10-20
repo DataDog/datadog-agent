@@ -625,9 +625,11 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 		}
 		switch f.num {
 		case fSpanTraceID:
-			if len(f.val) != 16 {
+			// Like pdata, an empty trace_id is the zero ID; pdata also encodes the zero ID this way.
+			if len(f.val) != 0 && len(f.val) != 16 {
 				return nil, raw, fmt.Errorf("otlpidx: invalid trace_id length %d", len(f.val))
 			}
+			raw.traceID = [16]byte{}
 			copy(raw.traceID[:], f.val)
 		case fSpanSpanID:
 			span.SpanID = spanIDFromBytes(f.val)

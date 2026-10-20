@@ -30,8 +30,10 @@ dd_agent_go_test(
     name = "otlpidx_test",
     srcs = [
         "decode_test.go",
+        "fuzz_test.go",
         "semantics_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":otlpidx"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
@@ -46,5 +48,6 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
         "@org_golang_google_protobuf//encoding/protowire",
+        "@org_golang_google_protobuf//reflect/protoreflect",
     ],
 )

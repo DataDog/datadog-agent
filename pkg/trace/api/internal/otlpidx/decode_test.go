@@ -65,7 +65,7 @@ func decodeForTest(b []byte, opts ...Options) ([]*idx.InternalTracerPayload, err
 	return tps, nil
 }
 
-func buildRequest(t *testing.T) []byte {
+func buildRequest(t testing.TB) []byte {
 	td := ptrace.NewTraces()
 	rs := td.ResourceSpans().AppendEmpty()
 	rs.Resource().Attributes().PutStr("service.name", "svc")
@@ -336,11 +336,4 @@ func TestResourceAttributesOnPayload(t *testing.T) {
 	assert.False(t, hasAttr(tp, s2.Attributes(), "deployment.environment.name"))
 	assert.Equal(t, "svc", s2.Service())
 	assert.Equal(t, "prod", s2.Env())
-}
-
-func FuzzDecodeExportRequest(f *testing.F) {
-	f.Add([]byte{})
-	f.Fuzz(func(_ *testing.T, b []byte) {
-		_, _ = decodeForTest(b)
-	})
 }
