@@ -134,6 +134,11 @@ func isLogsPerformanceProfileOff(name string) bool {
 	return false
 }
 
+// configuredLogsPerformanceProfile returns logs_config.profile trimmed and lowercased.
+func configuredLogsPerformanceProfile(config pkgconfigmodel.Reader) string {
+	return strings.ToLower(strings.TrimSpace(config.GetString("logs_config.profile")))
+}
+
 // resolveLogsPerformanceProfileVersion maps an unset (0) version to 1 for
 // upgrade-safety; otherwise returns the version unchanged.
 func resolveLogsPerformanceProfileVersion(version int) int {
@@ -146,7 +151,7 @@ func resolveLogsPerformanceProfileVersion(version int) int {
 // lookupLogsPerformanceProfile resolves the profile selected by config to its
 // definition, name, and version. ok is false when no valid profile is active.
 func lookupLogsPerformanceProfile(config pkgconfigmodel.Reader) (profile logsPerformanceProfile, name string, version int, ok bool) {
-	name = config.GetString("logs_config.profile")
+	name = configuredLogsPerformanceProfile(config)
 	if isLogsPerformanceProfileOff(name) {
 		return logsPerformanceProfile{}, name, 0, false
 	}
@@ -274,7 +279,7 @@ func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 		config.UnsetForSource(key, pkgconfigmodel.SourceConfigPostInit)
 	}
 
-	name := config.GetString("logs_config.profile")
+	name := configuredLogsPerformanceProfile(config)
 	if isLogsPerformanceProfileOff(name) {
 		return
 	}
