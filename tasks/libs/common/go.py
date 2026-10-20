@@ -132,6 +132,7 @@ def go_build(
     check_deadcode: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
+    go: str = "go",
 ) -> Result:
     if check_deadcode and sys.platform == "aix":
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
@@ -155,7 +156,7 @@ def go_build(
             if sys.platform == "win32":
                 env = _with_hermetic_mingw_path(ctx, env)
 
-    cmd = "go build"
+    cmd = f"{go} build"
     if coverage:
         cmd += " -cover -covermode=atomic"
         build_tags = build_tags or []

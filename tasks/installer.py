@@ -106,6 +106,7 @@ def build(
         bin_path=installer_bin,
         check_deadcode=getenv("DEPLOY_AGENT") == "true",
         env=env,
+        go="bazel run //:msgo --" if fips_mode else "go",
     )
 
 
