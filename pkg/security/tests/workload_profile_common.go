@@ -450,6 +450,27 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 	})) > 0
 }
 
+// profileDirChildren returns the file nodes below the directory dir, in the first process node of the profile that
+// holds files in it
+func profileDirChildren(p *profile.Profile, dir string) map[string]*activity_tree.FileNode {
+	components := strings.Split(strings.Trim(dir, "/"), "/")
+	for _, node := range walkProfileProcesses(p, func(*activity_tree.ProcessNode) bool { return true }) {
+		children := node.Files
+		for _, component := range components {
+			file, ok := children[component]
+			if !ok {
+				children = nil
+				break
+			}
+			children = file.Children
+		}
+		if len(children) > 0 {
+			return children
+		}
+	}
+	return nil
+}
+
 // profileFileSeenTimes returns the seen timestamps of a file node, for the image tag, under the process node of execBasename
 func profileFileSeenTimes(p *profile.Profile, execBasename string, basename string, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
 	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
