@@ -151,7 +151,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 
 	// Pins left by a previous system-probe are taken over and cleaned up below even when this one
 	// does not pin, so that they are not left running forever.
-	pinning := pinningFeaturesSupported(cfg, progSpec)
+	pinning := pinningFeaturesSupported(progSpec) && cfg.PersistMonitoring
 
 	if !pinning && cfg.PersistMonitoring {
 		log.Warnf("pinning unsupported. cannot respect the 'persist_monitoring' configuration")
@@ -448,10 +448,7 @@ func convertStatsV1(in oomStatsV1Layout) (out model.OOMKillStats) {
 //     pinned link can be read from its fd.
 //
 // The kprobe program is never pinned: its perf event link can only be pinned from 5.15
-func pinningFeaturesSupported(cfg *Config, progSpec *bpflib.ProgramSpec) bool {
-	if !cfg.PersistMonitoring {
-		return false
-	}
+func pinningFeaturesSupported(progSpec *bpflib.ProgramSpec) bool {
 	if !bpffsAvailable() {
 		log.Warnf("bpffs is not mounted at %s, oom-kill probe will not be pinned", bpffsRoot)
 		return false
