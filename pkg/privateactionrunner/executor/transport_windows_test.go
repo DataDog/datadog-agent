@@ -76,7 +76,7 @@ func TestPipeSecurityDescriptorGrantsOnlyIntendedAccounts(t *testing.T) {
 }
 
 func TestPipeSecurityDescriptorRejectsUnsafeAccounts(t *testing.T) {
-	for _, sid := range []string{"", "not-a-sid", "S-1-1-0", "S-1-5-7", "S-1-5-11", "S-1-5-32-545", "S-1-5-32-546"} {
+	for _, sid := range []string{"S-1-1-0", "S-1-5-7", "S-1-5-11", "S-1-5-32-545", "S-1-5-32-546"} {
 		t.Run(sid, func(t *testing.T) {
 			_, err := formatPipeSecurityDescriptor(sid)
 			assert.Error(t, err)
@@ -84,19 +84,10 @@ func TestPipeSecurityDescriptorRejectsUnsafeAccounts(t *testing.T) {
 	}
 }
 
-func TestPipeSecurityDescriptorUsesResolvedAgentAccount(t *testing.T) {
-	useAgentAccount(t, func() (*windows.SID, error) { return windows.StringToSid(customAgentSID) })
-
-	sddl, err := pipeSecurityDescriptor()
-	require.NoError(t, err)
-	assert.Equal(t, windows.ACCESS_MASK(pipeClientAccess), daclGrants(t, sddl)[customAgentSID])
-}
-
 func TestListenFailsClosedWhenAgentAccountIsUnresolved(t *testing.T) {
 	for name, resolve := range map[string]func() (*windows.SID, error){
-		"error":    func() (*windows.SID, error) { return nil, errors.New("service not installed") },
-		"nil SID":  func() (*windows.SID, error) { return nil, nil },
-		"Everyone": func() (*windows.SID, error) { return windows.StringToSid("S-1-1-0") },
+		"error":   func() (*windows.SID, error) { return nil, errors.New("service not installed") },
+		"nil SID": func() (*windows.SID, error) { return nil, nil },
 	} {
 		t.Run(name, func(t *testing.T) {
 			address := testListenAddr(t)

@@ -24,19 +24,14 @@ const socketMode os.FileMode = 0o600
 // chmodSocket is replaced in tests to exercise permission-setup failures.
 var chmodSocket = os.Chmod
 
-// Listen creates the executor's Unix socket, removing any stale socket file first.
+// Listen creates the executor's Unix socket, replacing any stale socket file.
 //
 // The socket is bound inside a private 0700 directory next to address,
-// restricted to socketMode, and only then renamed to address. It is therefore
-// never reachable with umask-derived permissions, without changing the
-// process-wide umask.
+// restricted to socketMode, and only then renamed over address, so it is
+// never reachable with umask-derived permissions.
 func Listen(address string) (net.Listener, error) {
-	if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	// Staging next to address keeps the rename on one filesystem. The short
-	// prefix keeps the staging path within the sun_path limit.
+	// Same directory, so the rename stays on one filesystem; short names keep
+	// the staging path within the sun_path limit.
 	staging, err := os.MkdirTemp(filepath.Dir(address), ".pe")
 	if err != nil {
 		return nil, fmt.Errorf("could not create executor socket staging directory: %w", err)
@@ -48,22 +43,21 @@ func Listen(address string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The socket leaves stagingPath, so unixListener unlinks address instead.
 	lis.SetUnlinkOnClose(false)
 
 	if err := chmodSocket(stagingPath, socketMode); err != nil {
 		_ = lis.Close()
 		return nil, fmt.Errorf("could not restrict executor socket permissions: %w", err)
 	}
+	// The rename keeps the inode, so this identifies the published socket.
+	info, err := os.Lstat(stagingPath)
+	if err != nil {
+		_ = lis.Close()
+		return nil, fmt.Errorf("could not stat executor socket: %w", err)
+	}
 	if err := os.Rename(stagingPath, address); err != nil {
 		_ = lis.Close()
 		return nil, fmt.Errorf("could not move executor socket into place: %w", err)
-	}
-	info, err := os.Lstat(address)
-	if err != nil {
-		_ = lis.Close()
-		_ = os.Remove(address)
-		return nil, fmt.Errorf("could not stat executor socket: %w", err)
 	}
 	return &unixListener{UnixListener: lis, path: address, info: info}, nil
 }

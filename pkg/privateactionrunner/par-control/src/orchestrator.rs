@@ -211,13 +211,11 @@ where
                                     Outcome::Success { .. } => {
                                         info!("task {} succeeded", task.task_id)
                                     }
-                                    // Neither failure message is logged: both can carry raw
-                                    // error text, including credentials, and are only
-                                    // published to OPMS.
-                                    Outcome::Failure { error_code, .. } => info!(
-                                        "task {} failed with code {error_code}: the action returned an error",
-                                        task.task_id
-                                    ),
+                                    // Both failure messages can carry raw error text,
+                                    // including credentials; only OPMS gets them.
+                                    Outcome::Failure { error_code, .. } => {
+                                        info!("task {} failed with code {error_code}", task.task_id)
+                                    }
                                 }
                                 o
                             }

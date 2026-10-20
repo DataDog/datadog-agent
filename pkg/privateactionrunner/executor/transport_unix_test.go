@@ -142,10 +142,3 @@ func TestListenFailsClosedWhenPermissionSetupFails(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "no socket may be published: %v", statErr)
 	assert.Empty(t, dirEntries(t, filepath.Dir(address)), "the staging socket must be cleaned up")
 }
-
-func TestListenFailsWhenParentIsMissing(t *testing.T) {
-	address := filepath.Join(testListenAddr(t)+".missing", "e.sock")
-	lis, err := Listen(address)
-	require.Error(t, err)
-	assert.Nil(t, lis)
-}

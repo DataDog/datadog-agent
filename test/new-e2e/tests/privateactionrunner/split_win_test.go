@@ -38,11 +38,10 @@ const (
 	pipeClientAccess = 0x12008b // FILE_GENERIC_READ | FILE_WRITE_DATA, the Agent account
 )
 
-// errorAccessDenied is ERROR_ACCESS_DENIED; errorFileNotFound means the pipe
-// went away before it could be probed.
+// Win32 errors returned by the probe.
 const (
-	errorAccessDenied = 5
-	errorFileNotFound = 2
+	errorAccessDenied = 5 // ERROR_ACCESS_DENIED
+	errorFileNotFound = 2 // ERROR_FILE_NOT_FOUND: the executor idled out mid-probe
 )
 
 //go:embed fixtures/windows-pipe-probe.ps1
