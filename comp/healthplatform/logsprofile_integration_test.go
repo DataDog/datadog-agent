@@ -67,6 +67,7 @@ func TestLogsProfileRecommendationSurvivesFullPipeline(t *testing.T) {
 				return
 			case <-time.After(10 * time.Millisecond):
 				logsmetrics.BytesMissed.Add(1)
+				logsmetrics.RecordMissedBytes("integration-test", "", "0", 1, time.Now())
 			}
 		}
 	}()
