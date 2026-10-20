@@ -12,7 +12,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/qri-io/jsonpointer"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
@@ -157,6 +157,15 @@ func ValidateSystemProbeConfig(config interface{}) ([]string, error) {
 		return nil, err
 	}
 	return validateData(sch, config)
+}
+
+// ValidateSystemProbeConfigDetailed returns structured system-probe schema violations.
+func ValidateSystemProbeConfigDetailed(config interface{}) ([]Violation, error) {
+	sch, err := sysprobeSchemaGetter()
+	if err != nil {
+		return nil, err
+	}
+	return validateDataDetailed(sch, config)
 }
 
 // GetCoreSchema returns the raw bytes of the embedded core agent configuration schema.

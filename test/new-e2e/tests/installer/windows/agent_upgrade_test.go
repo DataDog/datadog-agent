@@ -400,8 +400,13 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	// lower timeout to 2 minute
 	s.setWatchdogTimeout(2)
 
+	// Keep tracing through the watchdog assertion. Merging the trace before
+	// checking the experiment can outlast the two-minute watchdog on Windows.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
-	s.MustStartExperimentCurrentVersion()
+	s.mustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert

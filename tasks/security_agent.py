@@ -296,7 +296,9 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # 2.17 symbols end up referenced. The host toolchain would link them against the
 # build image's glibc instead, which is newer than every KMT host and than the
 # ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
-# linked variant would then be skipped outside the newest legs.
+# linked variant would then be skipped outside the newest legs. The Node.js
+# tester is Bazel-built the same way, alongside the native one; it is glibc-only,
+# so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
 # pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
@@ -563,78 +565,25 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx, verbose=False):
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
-    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
-    # CWS codegens migrated to Bazel keep their //go:generate directives so a future
-    # Gazelle extension can pick them up; we just skip them in `go generate` here.
-    # See ABLD-420.
-    bazel("run", "//pkg/security/secl/compiler/eval:eval_operators")
-    bazel("run", "//pkg/security/secl/model:consts_map_names_linux")
-    bazel("run", "//pkg/security/secl/model:accessors_unix")
-    bazel("run", "//pkg/security/secl/model:accessors_windows")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_unix")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
-    bazel("run", "//docs/cloud-workload-security:secl_linux")
-    bazel("run", "//docs/cloud-workload-security:secl_windows")
-    bazel("run", "//pkg/security/secl/schemas:policy_schema")
-    bazel("run", "//docs/cloud-workload-security:workload_protection_agent_config_schema")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy|generators/config_doc"
-    with ctx.cd("./pkg/security/secl"):
-        if sys.platform == "linux":
-            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
-        elif is_windows:
-            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
-        cmd = f"go generate -skip='{skip}'"
-        if verbose:
-            cmd += " -v"
-        ctx.run(cmd + " ./...")
-
-    if sys.platform == "linux":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_linux_easyjson.mock",
-            "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
-    ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run(f"go generate -skip='{skip}' -tags=bpf,cws_go_generate ./pkg/security/...")
-
-    # synchronize the seclwin package from the secl package
-    bazel("run", "//pkg/security/seclwin:sync")
-    bazel("run", "//pkg/security/seclwin/model:sync")
-
-    # generate documentation
-    generate_cws_documentation(ctx)
+def cws_go_generate(ctx, windows=False):
+    # CWS codegens keep their //go:generate directives so a future Gazelle
+    # extension can emit the matching Bazel targets from them (ABLD-475).
+    # Off Windows, cws_codegen renders backend_windows.md from the committed
+    # schema, so refresh that first.
+    if windows and sys.platform == "linux":
+        bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
+    bazel("run", "//pkg/security:cws_codegen")
 
 
 @task
 def generate_syscall_table(ctx):
-    def single_run(ctx, table_url, output_file, output_string_file, abis=None):
-        if abis:
-            abis = f"-abis {abis}"
-        ctx.run(
-            f"go run github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
-        )
+    """Regenerate secl model syscall enums from the pinned Linux kernel tables.
 
-    linux_version = "v6.13"
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
-        "pkg/security/secl/model/syscalls_linux_amd64.go",
-        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
-        abis="common,64",
-    )
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
-        "pkg/security/secl/model/syscalls_linux_arm64.go",
-        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
-    )
+    Tables are fetched as http_file repos in MODULE.bazel (same pins as
+    utils_syscall_table). Bumping the kernel version means updating those
+    URLs and sha256 entries.
+    """
+    bazel("run", "//pkg/security/secl/model:syscall_table")
 
 
 @task
@@ -727,45 +676,19 @@ def get_git_dirty_files():
     return paths
 
 
-class FailingTask:
-    def __init__(self, name, dirty_files):
-        self.name = name
-        self.dirty_files = dirty_files
-
-
 @task
 def go_generate_check(ctx):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    tasks = [
-        [cws_go_generate],
-        [generate_cws_proto],
-        [gen_mocks],
-    ]
-    failing_tasks = []
-    previous_dirty = set()
-
-    for task_entry in tasks:
-        task, args = task_entry[0], task_entry[1:]
-        task(ctx, *args)
-        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
-        # this is especially visible in the Gitlab job logs
-        # we flush to ensure correct separation between steps
-        sys.stdout.flush()
-        sys.stderr.flush()
-        dirty_files = [f for f in get_git_dirty_files() if f not in previous_dirty]
-        if dirty_files:
-            failing_tasks.append(FailingTask(task.__name__, dirty_files))
-
-        previous_dirty.update(dirty_files)
-
-    if failing_tasks:
-        for ft in failing_tasks:
-            task = ft.name.replace("_", "-")
-            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
-            for file in ft.dirty_files:
-                print(f"* {file}")
+    # The other CWS generated files are guarded by their Bazel diff tests;
+    # mockery has none yet.
+    gen_mocks(ctx)
+    dirty_files = get_git_dirty_files()
+    if dirty_files:
+        print("Task `dda inv security-agent.gen-mocks` resulted in dirty files, please re-run it:")
+        for file in dirty_files:
+            print(f"* {file}")
         raise Exit(code=1)
 
 

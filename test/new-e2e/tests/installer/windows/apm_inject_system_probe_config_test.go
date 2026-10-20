@@ -56,11 +56,14 @@ func (s *testSystemProbeConfig) TestInstallScriptStartsSystemProbe() {
 		fmt.Printf("%s\n", output)
 	}
 	s.assertSystemProbeEnabled()
+	// dd-procmgr supervises system-probe, so the legacy SCM service stays stopped and the
+	// running instance is the procmgr child.
 	s.Require().NoError(
-		s.WaitForServicesWithBackoff("Running", []string{"datadog-system-probe"},
+		s.WaitForServicesWithBackoff("Stopped", []string{"datadog-system-probe"},
 			backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))),
-		"system-probe service should be running after install script",
+		"the legacy system-probe service should stay stopped under dd-procmgr",
 	)
+	s.assertManagedByProcmgr(sysprobeProcmgrProcess)
 }
 
 func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
@@ -83,6 +86,9 @@ func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
 	s.Require().NoError(err)
 	s.Require().NotEqual("Running", status,
 		"system-probe service should not be running after standalone apm-inject install")
+	// The legacy service being stopped is now true whatever happens, since dd-procmgr owns
+	// system-probe. The claim the test is making lives on the procmgr side.
+	s.assertNotRunningUnderProcmgr(sysprobeProcmgrProcess)
 }
 
 // assertSystemProbeEnabled reads system-probe.yaml and asserts that

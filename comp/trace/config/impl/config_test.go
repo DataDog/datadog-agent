@@ -423,8 +423,8 @@ func TestConfigHostname(t *testing.T) {
 			}
 			srcpath := filepath.Join(os.TempDir(), stat.Name())
 			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
-				t.Fatal(err)
+			if output, err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).CombinedOutput(); err != nil {
+				t.Fatalf("failed to build hostname test program: %v\n%s", err, output)
 			}
 			os.Remove(srcpath)
 			return binpath
@@ -432,6 +432,27 @@ func TestConfigHostname(t *testing.T) {
 
 		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
+
+		t.Run("eudm", func(t *testing.T) {
+			for _, tc := range []struct {
+				name, response, want string
+			}{
+				{"valid core hostname", "device-serial", "device-serial"},
+				{"empty core hostname disallowed", "", "fallback.host"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					coreConfig := configcomp.NewMock(t)
+					coreConfig.SetInTest("infrastructure_mode", "end_user_device")
+					bin := makeProgram(t, tc.response, 0)
+					defer os.Remove(bin)
+					cfg := traceconfig.New()
+					cfg.DDAgentBin = bin
+					cfg.Features = map[string]struct{}{"disable_empty_hostname": {}}
+					require.NoError(t, acquireHostnameFallback(cfg))
+					require.Equal(t, tc.want, cfg.Hostname)
+				})
+			}
+		})
 
 		t.Run("good", func(t *testing.T) {
 			bin := makeProgram(t, "host.name", 0)
@@ -3010,4 +3031,30 @@ func TestTracesSendToMainEndpoint(t *testing.T) {
 		cfg.Endpoints = cfg.Endpoints[:1]
 		assert.NoError(t, validate(cfg, coreConfig))
 	})
+}
+
+func TestAcquireHostnameFallbackEUDM(t *testing.T) {
+	cfg := configcomp.NewMock(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	oldFallback, oldUsable := fallbackHostnameFunc, osHostnameUsableFunc
+	t.Cleanup(func() { fallbackHostnameFunc, osHostnameUsableFunc = oldFallback, oldUsable })
+	for _, usable := range []bool{true, false} {
+		t.Run(strconv.FormatBool(usable), func(t *testing.T) {
+			osHostnameUsableFunc = func(context.Context) bool { return usable }
+			fallbackHostnameFunc = func() (string, error) {
+				require.True(t, usable, "must not use OS hostname when the environment disallows it")
+				return "os-hostname", nil
+			}
+			c := traceconfig.New()
+			c.DDAgentBin = "/not/exist"
+			err := acquireHostnameFallback(c)
+			if usable {
+				require.NoError(t, err)
+				require.Equal(t, "os-hostname", c.Hostname)
+			} else {
+				require.Error(t, err)
+				require.Empty(t, c.Hostname)
+			}
+		})
+	}
 }

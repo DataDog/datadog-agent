@@ -10,6 +10,8 @@
 package monitor
 
 import (
+	"encoding/json"
+	"math"
 	"os"
 	"runtime"
 	"testing"
@@ -20,6 +22,7 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -127,11 +130,80 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Status:     "loaded",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Set: &RuleSetAction{
 										Name:    "artifact",
 										Field:   "process.file.path",
 										Capture: "/orchestration/([^/]+)/",
 										Scope:   "process",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "rule with an invalid action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+										},
+										Hash: &rules.HashDefinition{},
+									},
+									{
+										Log: &rules.LogDefinition{
+											Level:   "info",
+											Message: "hello",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusLoaded,
+									Log: &LogAction{
+										Level:   "info",
+										Message: "hello",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "only one action can be specified",
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+									Hash: &HashAction{
+										Enabled: true,
 									},
 								},
 							},
@@ -440,6 +512,62 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Message:                "this agent version doesn't support this rule",
 							FilterType:             string(rules.FilterTypeAgentVersion),
 							AgentVersionConstraint: "< 0.0.2",
+						},
+					},
+				},
+			},
+		},
+		{
+			// a `null` entry in the YAML actions list yields a nil action definition
+			name: "filtered rule with a null action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:                     "rule_a",
+								Expression:             `exec.file.path == "/etc/foo/bar"`,
+								AgentVersionConstraint: "< 0.0.1",
+								Actions: []*rules.ActionDefinition{
+									nil,
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusFullyFiltered,
+					Rules: []*RuleState{
+						{
+							ID:                     "rule_a",
+							Expression:             `exec.file.path == "/etc/foo/bar"`,
+							Status:                 "filtered",
+							Message:                "this agent version doesn't support this rule",
+							FilterType:             string(rules.FilterTypeAgentVersion),
+							AgentVersionConstraint: "< 0.0.1",
+							Actions: []RuleAction{
+								{
+									Status: ActionStatusRejected,
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -952,6 +1080,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Status:     "loaded",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 									},
@@ -979,6 +1108,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Status:     "loaded",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 									},
@@ -1088,12 +1218,14 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.3",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 										Scope:  "container",
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Hash: &HashAction{
 										Enabled: true,
 										Field:   "exec.file",
@@ -1130,12 +1262,14 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.3",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 										Scope:  "container",
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Hash: &HashAction{
 										Enabled: true,
 										Field:   "exec.file",
@@ -1173,12 +1307,14 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.3",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
 										Scope:  "container",
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Hash: &HashAction{
 										Enabled: true,
 										Field:   "exec.file",
@@ -1362,6 +1498,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							},
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
 										Name:    "rtl_process_path_qwuUJ",
@@ -1373,6 +1510,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
 										Name:    "rtl_process_parent_qwuUJ",
@@ -1381,6 +1519,30 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 										Append:  true,
 										Scope:   "process",
 										Private: true,
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_path_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_path_qwuUJ",
+										Field:  "process.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_parent_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_parent_qwuUJ",
+										Field:  "process.parent.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
 									},
 								},
 							},
@@ -1409,6 +1571,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							},
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
 										Name:    "rtl_process_path_qwuUJ",
@@ -1420,6 +1583,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
 										Name:    "rtl_process_parent_qwuUJ",
@@ -1428,6 +1592,30 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 										Append:  true,
 										Scope:   "process",
 										Private: true,
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_path_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_path_qwuUJ",
+										Field:  "process.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_parent_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_parent_qwuUJ",
+										Field:  "process.parent.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
 									},
 								},
 							},
@@ -1461,6 +1649,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							},
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
 										Name:    "rtl_process_path_qwuUJ",
@@ -1472,6 +1661,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									},
 								},
 								{
+									Status: ActionStatusLoaded,
 									Filter: &[]string{"process.pid != 0 "}[0],
 									Set: &RuleSetAction{
 										Name:    "rtl_process_parent_qwuUJ",
@@ -1482,6 +1672,30 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 										Private: true,
 									},
 								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_path_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_path_qwuUJ",
+										Field:  "process.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
+								{
+									Status:  ActionStatusRejected,
+									Message: "conflicting private flag for variable 'process.rtl_process_parent_qwuUJ'",
+									Filter:  &[]string{"process.pid != 0 "}[0],
+									Set: &RuleSetAction{
+										Name:   "rtl_process_parent_qwuUJ",
+										Field:  "process.parent.file.path",
+										TTL:    "1h0m0s",
+										Append: true,
+										Scope:  "process",
+									},
+								},
 							},
 						},
 					},
@@ -1489,8 +1703,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			},
 		},
 		{
-			// an invalid set action (here an unknown scope) is dropped but doesn't prevent the rule
-			// from loading, so the rule must be reported as loaded and not as an error
+			// an invalid set action (here an unknown scope) is not loaded but doesn't prevent the rule
+			// from loading, so the rule must be reported as loaded and the action as an error
 			name: "rule loaded despite an invalid set action scope",
 			policies: []*testPolicy{
 				{
@@ -1529,6 +1743,17 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							ID:         "rule_a",
 							Expression: `exec.file.path == "/etc/foo/bar"`,
 							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Status:  ActionStatusRejected,
+									Message: "invalid scope 'invalid_scope'",
+									Set: &RuleSetAction{
+										Name:  "my_var",
+										Value: "foo",
+										Scope: "invalid_scope",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -1582,6 +1807,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							Version:    "0.0.1",
 							Actions: []RuleAction{
 								{
+									Status: ActionStatusLoaded,
 									Set: &RuleSetAction{
 										Name:         "ratelimiter_var",
 										Field:        "exec.file.path",
@@ -1853,6 +2079,63 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates), gocmp.Diff(tc.expectedPolicyStates, policyStates))
 		})
 	}
+}
+
+func TestRulesetLoadedEventUnserializableSetValues(t *testing.T) {
+	policy := &testPolicy{
+		info: rules.PolicyInfo{
+			Name:   "Policy A",
+			Source: "test",
+		},
+		def: rules.PolicyDef{
+			Rules: []*rules.RuleDefinition{
+				{
+					ID:         "rule_a",
+					Expression: `exec.file.path == "/etc/foo/bar"`,
+					Actions: []*rules.ActionDefinition{
+						{
+							Set: &rules.SetDefinition{
+								Name:  "nan_value",
+								Value: math.NaN(),
+							},
+						},
+						{
+							Set: &rules.SetDefinition{
+								Name:  "map_value",
+								Value: map[interface{}]interface{}{1: "a"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return &model.Event{} }, ruleOpts, evalOpts)
+	loader := rules.NewPolicyLoader(newTestPolicyProvider(policy))
+	filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{})
+
+	evt := RulesetLoadedEvent{Policies: NewPoliciesState(rs, filteredRules, errs, false)}
+	data, err := evt.ToJSON()
+	require.NoError(t, err)
+
+	var decoded RulesetLoadedEvent
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Len(t, decoded.Policies, 1)
+	require.Len(t, decoded.Policies[0].Rules, 1)
+
+	rule := decoded.Policies[0].Rules[0]
+	assert.Equal(t, "loaded", rule.Status)
+	require.Len(t, rule.Actions, 2)
+	for _, action := range rule.Actions {
+		assert.Equal(t, ActionStatusRejected, action.Status)
+		assert.NotEmpty(t, action.Message)
+		require.NotNil(t, action.Set)
+		assert.IsType(t, "", action.Set.Value)
+	}
+	assert.Equal(t, "NaN", rule.Actions[0].Set.Value)
+	assert.Equal(t, "map[1:a]", rule.Actions[1].Set.Value)
 }
 
 type testPolicyProvider struct {

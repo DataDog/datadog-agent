@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,8 +25,10 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumererror"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -39,7 +42,10 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -51,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	zstdimpl "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
@@ -61,17 +68,20 @@ type metricRecorder struct {
 	serializer.Serializer // embed for implementing serializer.MetricSerializer
 
 	sketchSeriesList metrics.SketchSeriesList
+	distributions    []metrics.Distribution // non-DDSketch distributions
 	series           []*metrics.Serie
 }
 
 // SendSketch implements the MetricSerializer interface
 func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 	for s.MoveNext() {
-		c := s.Current()
-		if c == nil {
-			continue
+		switch c := s.Current().(type) {
+		case nil:
+		case *metrics.SketchSeries:
+			r.sketchSeriesList = append(r.sketchSeriesList, c)
+		default:
+			r.distributions = append(r.distributions, c)
 		}
-		r.sketchSeriesList = append(r.sketchSeriesList, c.(*metrics.SketchSeries))
 	}
 	return nil
 }
@@ -261,7 +271,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
@@ -378,7 +388,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -429,7 +439,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -508,7 +518,7 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 			}
 
 			rec := &metricRecorder{}
-			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 			require.NoError(t, err)
 
 			md := pmetric.NewMetrics()
@@ -526,6 +536,75 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 			} else {
 				assert.NotContains(t, names, "otel.datadog_exporter.metrics.running")
 				assert.NotContains(t, names, "otel.datadog_exporter.metrics.running.fargate")
+			}
+		})
+	}
+}
+
+func TestDDOTRunningMetricForPayloadContents(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(m pmetric.Metric)
+		wantRunning bool
+	}{
+		{
+			name: "apm stats only",
+			setup: func(m pmetric.Metric) {
+				m.SetName("dd.internal.stats.payload")
+				m.SetEmptySum()
+			},
+			wantRunning: false,
+		},
+		{
+			name: "real metric",
+			setup: func(m pmetric.Metric) {
+				m.SetName("my.metric")
+				m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			},
+			wantRunning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newDefaultConfig().(*ExporterConfig)
+
+			set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+			attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			createConsumer := func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer {
+				return &serializerConsumer{
+					extraTags:       extraTags,
+					apmReceiverAddr: apmReceiverAddr,
+					ipath:           ddot,
+					hosts:           make(map[string]struct{}),
+					buildInfo:       buildInfo,
+					standalone:      true,
+				}
+			}
+
+			rec := &metricRecorder{}
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot, true)
+			require.NoError(t, err)
+
+			md := pmetric.NewMetrics()
+			m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			tt.setup(m)
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var names []string
+			for _, serie := range rec.series {
+				names = append(names, serie.Name)
+			}
+			if tt.wantRunning {
+				assert.Contains(t, names, "otel.ddot_collector.metrics.running")
+			} else {
+				assert.NotContains(t, names, "otel.ddot_collector.metrics.running")
 			}
 		})
 	}
@@ -550,17 +629,15 @@ func TestAzureAppServiceRunningMetric(t *testing.T) {
 	}
 
 	rec := &metricRecorder{}
-	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 	require.NoError(t, err)
 
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
 	require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
-		"cloud.platform":            "azure.app_service",
-		"service.name":              "my-app",
-		"cloud.account.id":          "sub-123",
-		"azure.resource_group.name": "my-rg",
-		"service.instance.id":       "instance-1",
+		"cloud.platform":    "azure.app_service",
+		"service.name":      "my-app",
+		"cloud.resource_id": "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
 	}))
 	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 	metric.SetName("my.metric")
@@ -578,11 +655,181 @@ func TestAzureAppServiceRunningMetric(t *testing.T) {
 	require.NotNil(t, running)
 	assert.Empty(t, running.Host)
 	assert.ElementsMatch(t, []string{
-		"instance:instance-1",
 		"name:my-app",
 		"subscription_id:sub-123",
 		"resource_group:my-rg",
 	}, running.Tags.UnsafeToReadOnlySliceString())
+}
+
+func newCollectorRunningMetricTestExporter(t *testing.T) (*Exporter, *metricRecorder) {
+	t.Helper()
+	cfg := newDefaultConfig().(*ExporterConfig)
+	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+	attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+	require.NoError(t, err)
+	hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "collector-fallback-host", nil })
+	tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+	require.NoError(t, err)
+	createConsumer := func([]string, string, component.BuildInfo) SerializerConsumer {
+		return &collectorConsumer{
+			serializerConsumer: &serializerConsumer{},
+			seenHosts:          make(map[string]struct{}),
+			seenTagSets:        make(map[tagSetKey][]string),
+			getPushTime:        func() uint64 { return 0 },
+		}
+	}
+	rec := &metricRecorder{}
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
+	require.NoError(t, err)
+	return exp, rec
+}
+
+func TestGCPServerlessRunningMetric(t *testing.T) {
+	tests := []struct {
+		name       string
+		platform   string
+		metricName string
+		wantName   string
+	}{
+		{
+			name:       "Cloud Run service",
+			platform:   "gcp_cloud_run",
+			metricName: "my.metric",
+			wantName:   "otel.datadog_exporter.metrics.running.cloudrun",
+		},
+		{
+			name:       "Cloud Functions v2",
+			platform:   "gcp_cloud_functions",
+			metricName: "my.metric",
+			wantName:   "otel.datadog_exporter.metrics.running.cloudrunfunctions",
+		},
+		{
+			name:       "APM stats only",
+			platform:   "gcp_cloud_run",
+			metricName: "dd.internal.stats.payload",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exp, rec := newCollectorRunningMetricTestExporter(t)
+			md := pmetric.NewMetrics()
+			rm := md.ResourceMetrics().AppendEmpty()
+			require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
+				"cloud.provider":   "gcp",
+				"cloud.platform":   tt.platform,
+				"cloud.account.id": "project-1",
+				"cloud.region":     "us-central1",
+				"faas.name":        "my-service",
+				"faas.instance":    "instance-1",
+				"faas.version":     "revision-1",
+				"host.name":        "resource-host",
+			}))
+			metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			metric.SetName(tt.metricName)
+			if tt.metricName == "dd.internal.stats.payload" {
+				metric.SetEmptySum()
+			} else {
+				metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			}
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var running []*metrics.Serie
+			for _, serie := range rec.series {
+				if serie.Name == tt.wantName && tt.wantName != "" {
+					running = append(running, serie)
+				}
+				assert.NotEqual(t, "otel.datadog_exporter.metrics.running", serie.Name)
+			}
+			if tt.wantName == "" {
+				for _, serie := range rec.series {
+					assert.False(t, strings.HasPrefix(serie.Name, "otel.datadog_exporter.metrics.running."))
+				}
+				return
+			}
+
+			require.Len(t, running, 1)
+			assert.Empty(t, running[0].Host)
+			assert.ElementsMatch(t, []string{
+				"instance:instance-1",
+				"service_name:my-service",
+				"project_id:project-1",
+				"location:us-central1",
+			}, running[0].Tags.UnsafeToReadOnlySliceString())
+
+			var applicationMetric *metrics.Serie
+			for _, serie := range rec.series {
+				if serie.Name == "my.metric" {
+					applicationMetric = serie
+					break
+				}
+			}
+			require.NotNil(t, applicationMetric)
+			assert.Empty(t, applicationMetric.Host)
+			for _, tag := range []string{
+				"instance:instance-1",
+				"service_name:my-service",
+				"project_id:project-1",
+				"location:us-central1",
+				"revision_name:revision-1",
+			} {
+				assert.Contains(t, applicationMetric.Tags.UnsafeToReadOnlySliceString(), tag)
+			}
+		})
+	}
+}
+
+func TestGCPServerlessRunningMetricIdentityDedup(t *testing.T) {
+	exp, rec := newCollectorRunningMetricTestExporter(t)
+	md := pmetric.NewMetrics()
+	identities := []struct {
+		project  string
+		location string
+		service  string
+		instance string
+		revision string
+	}{
+		{project: "project-1", location: "location-1", service: "service-1", instance: "instance-1", revision: "revision-1"},
+		// A revision change does not change the approved four-tag running identity.
+		{project: "project-1", location: "location-1", service: "service-1", instance: "instance-1", revision: "revision-2"},
+		{project: "project-2", location: "location-1", service: "service-1", instance: "instance-1", revision: "revision-1"},
+		{project: "project-1", location: "location-2", service: "service-1", instance: "instance-1", revision: "revision-1"},
+		{project: "project-1", location: "location-1", service: "service-2", instance: "instance-1", revision: "revision-1"},
+		{project: "project-1", location: "location-1", service: "service-1", instance: "instance-2", revision: "revision-1"},
+	}
+	for _, identity := range identities {
+		rm := md.ResourceMetrics().AppendEmpty()
+		require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
+			"cloud.provider":   "gcp",
+			"cloud.platform":   "gcp_cloud_run",
+			"cloud.account.id": identity.project,
+			"cloud.region":     identity.location,
+			"faas.name":        identity.service,
+			"faas.instance":    identity.instance,
+			"faas.version":     identity.revision,
+		}))
+		metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+		metric.SetName("my.metric")
+		metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+	}
+
+	require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+	var running []*metrics.Serie
+	for _, serie := range rec.series {
+		if serie.Name == "otel.datadog_exporter.metrics.running.cloudrun" {
+			running = append(running, serie)
+		}
+	}
+	require.Len(t, running, 5, "only resources with all four identity tags equal should deduplicate")
+	for _, serie := range running {
+		assert.Empty(t, serie.Host)
+		assert.Len(t, serie.Tags.UnsafeToReadOnlySliceString(), 4)
+		for _, tag := range serie.Tags.UnsafeToReadOnlySliceString() {
+			assert.False(t, strings.HasPrefix(tag, "revision_name:"))
+		}
+	}
 }
 
 func newMetrics(
@@ -693,7 +940,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, otel.NewDisabledGatewayUsage(), store, nil)
+	}, nil, otel.NewDisabledGatewayUsage(), store, nil, false)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -764,7 +1011,7 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, 
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, gwUsage, store, nil)
+	}, nil, gwUsage, store, nil, false)
 
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
@@ -895,7 +1142,7 @@ func TestMetricRemapping(t *testing.T) {
 			rec := &metricRecorder{}
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				t.Context(),
@@ -972,7 +1219,7 @@ func TestDeltaSumAsRateAttribute(t *testing.T) {
 			rec := &metricRecorder{}
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				t.Context(),
@@ -1281,4 +1528,157 @@ func initSyncSerializerForTest(t testing.TB, logger *zap.Logger, cfg *ExporterCo
 		return nil, nil, errors.New("failed to cast forwarder to *defaultforwarderimpl.OTelSyncForwarder")
 	}
 	return s, sf, nil
+}
+
+func newHistogramsMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("host.name", "test-host")
+	ms := rm.ScopeMetrics().AppendEmpty().Metrics()
+
+	m := ms.AppendEmpty()
+	m.SetName("delta.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := m.Histogram().DataPoints().AppendEmpty()
+	dp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+	dp.Attributes().PutStr("k", "v")
+	dp.SetCount(3)
+	dp.SetSum(3)
+	dp.ExplicitBounds().FromRaw([]float64{1})
+	dp.BucketCounts().FromRaw([]uint64{1, 2})
+
+	m = ms.AppendEmpty()
+	m.SetName("cumulative.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	dp = m.Histogram().DataPoints().AppendEmpty()
+	dp.SetCount(3)
+	dp.ExplicitBounds().FromRaw([]float64{1})
+	dp.BucketCounts().FromRaw([]uint64{1, 2})
+
+	m = ms.AppendEmpty()
+	m.SetName("delta.exponential")
+	m.SetEmptyExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	edp := m.ExponentialHistogram().DataPoints().AppendEmpty()
+	edp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+	edp.SetCount(2)
+	edp.Positive().BucketCounts().FromRaw([]uint64{2})
+
+	m = ms.AppendEmpty()
+	m.SetName("test.gauge")
+	m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+	return md
+}
+
+func setNativeHistogramsGate(t *testing.T, enabled bool) {
+	reg := featuregate.GlobalRegistry()
+	prev := nativeOTelHistogramsGate.IsEnabled()
+	require.NoError(t, reg.Set(nativeOTelHistogramsGate.ID(), enabled))
+	t.Cleanup(func() { require.NoError(t, reg.Set(nativeOTelHistogramsGate.ID(), prev)) })
+}
+
+// capturingForwarder records the transactions instead of sending them.
+type capturingForwarder struct {
+	defaultforwarder.Forwarder
+	mu   sync.Mutex
+	txns []*transaction.HTTPTransaction
+}
+
+func (f *capturingForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.txns = append(f.txns, t)
+	return nil
+}
+
+// pointsTo returns the number of points sent to the endpoint.
+func (f *capturingForwarder) pointsTo(endpoint transaction.Endpoint) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int
+	for _, t := range f.txns {
+		if t.Endpoint == endpoint {
+			n += t.Payload.GetPointCount()
+		}
+	}
+	return n
+}
+
+// newTestAgentSerializer returns an agent serializer for dd_url http://intake.example.test,
+// with zstd compression and the given settings, sending through a capturing forwarder.
+func newTestAgentSerializer(t *testing.T, settings map[string]any) (*serializer.Serializer, *capturingForwarder) {
+	config := configmock.New(t)
+	config.SetInTest("dd_url", "http://intake.example.test")
+	config.SetInTest("api_key", "test_key")
+	for k, v := range settings {
+		config.SetInTest(k, v)
+	}
+	logger := &datadog.Zaplogger{Logger: zap.NewNop()}
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	fwd := &capturingForwarder{Forwarder: f}
+	s := serializer.NewSerializer(fwd, nil, zstdimpl.New(zstdimpl.Requires{Level: 1}), config, logger, "")
+	return s, fwd
+}
+
+func createDDOTMetricsExporter(s serializer.MetricSerializer, histogramsMode datadogconfig.HistogramMode) (exporter.Metrics, error) {
+	f := NewFactoryForOTelAgent(s, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	if histogramsMode != "" {
+		cfg.Metrics.Metrics.HistConfig.Mode = histogramsMode
+	}
+	return f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("datadog")), cfg)
+}
+
+// v3SketchPointsWithGate sends newHistogramsMetrics through DDOT, with histograms in counters
+// mode, and returns the number of points sent to the v3 sketches intake.
+func v3SketchPointsWithGate(t *testing.T, enabled bool) int {
+	setNativeHistogramsGate(t, enabled)
+	s, fwd := newTestAgentSerializer(t, map[string]any{
+		"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
+	})
+	ctx := context.Background()
+	exp, err := createDDOTMetricsExporter(s, datadogconfig.HistogramModeCounters)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	require.NoError(t, exp.ConsumeMetrics(ctx, newHistogramsMetrics()))
+	require.NoError(t, exp.Shutdown(ctx))
+	return fwd.pointsTo(endpoints.V3SketchSeriesEndpoint)
+}
+
+func TestNativeOTelHistogramsGate(t *testing.T) {
+	// Without the gate, counters mode turns the explicit histogram into .bucket series and
+	// only the exponential one becomes a sketch. With the gate, both delta histograms are
+	// sent as is and the cumulative one is dropped.
+	assert.Equal(t, 1, v3SketchPointsWithGate(t, false))
+	assert.Equal(t, 2, v3SketchPointsWithGate(t, true))
+}
+
+func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
+	setNativeHistogramsGate(t, true)
+
+	t.Run("v2 destinations", func(t *testing.T) {
+		s, _ := newTestAgentSerializer(t, map[string]any{
+			"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
+			"additional_endpoints": map[string][]string{"http://proxy.example.test": {"alt_key"}},
+		})
+		_, err := createDDOTMetricsExporter(s, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "these use v2: http://proxy.example.test;")
+		assert.Contains(t, err.Error(), "serializer_experimental_use_v3_api.sketches.endpoints")
+	})
+
+	t.Run("not the agent serializer", func(t *testing.T) {
+		_, err := createDDOTMetricsExporter(&MockSerializer{}, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "needs the agent serializer")
+	})
+
+	t.Run("agent OTLP ingest is not checked", func(t *testing.T) {
+		f := NewFactoryForAgent(&MockSerializer{}, func(context.Context) (string, error) { return "", nil }, TelemetryStore{})
+		cfg := f.CreateDefaultConfig().(*ExporterConfig)
+		_, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
+		require.NoError(t, err)
+	})
 }

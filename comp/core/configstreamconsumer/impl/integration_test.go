@@ -663,6 +663,7 @@ remote_agent:
 		cfg.UnsetForSource("log_level", model.SourceFile)
 		cfg.UnsetForSource("security_agent.log_level", model.SourceFile)
 		cfg.UnsetForSource("apm_config.log_level", model.SourceFile)
+		cfg.UnsetForSource("system_probe.log_level", model.SourceFile)
 	})
 	return datadogPath
 }
@@ -731,6 +732,103 @@ func TestSecurityAgentLogLevelOverridesBaseKey(t *testing.T) {
 				Settings: []*pb.ConfigSetting{
 					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
 					{Key: "security_agent.log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+func TestSystemProbeLogLevelYieldsToStreamedRC(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+	t.Cleanup(func() {
+		configstreambootstrap.SystemProbeConfig().UnsetForSource("log_level", model.SourceAgentRuntime)
+	})
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("system-probe", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		sysProbe := configstreambootstrap.SystemProbeConfig()
+		require.Equal(t, "warn", sysProbe.Get("log_level"))
+		require.Equal(t, model.SourceAgentRuntime, sysProbe.GetSource("log_level"))
+		require.NotEqual(t, "warn", configstreambootstrap.Config().Get("log_level"), "the core object must not carry the system-probe override")
+
+		// An RC/CLI log_level outranks the namespaced override, which only sits at SourceAgentRuntime.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 2,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceRC)},
+						{Key: "system_probe.log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return sysProbe.Get("log_level") == "debug"
+		}, 10*time.Second, 20*time.Millisecond, "the namespaced override outranked a streamed RC value")
+
+		// Retracting the RC layer hands the level back to the namespaced override.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 3,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+						{Key: "system_probe.log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return sysProbe.Get("log_level") == "warn"
+		}, 10*time.Second, 20*time.Millisecond, "the override never came back after the RC layer was retracted")
+
+		// With no namespaced value the streamed global is copied across instead.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 4,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+						{Key: "system_probe.log_level", Value: mustNewValue(t, ""), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return sysProbe.Get("log_level") == "info"
+		}, 10*time.Second, 20*time.Millisecond, "the streamed global never reached the system-probe object")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "system_probe.log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
 				},
 			},
 		},

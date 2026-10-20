@@ -4,104 +4,87 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::BootstrapConfig;
+use crate::executor::ExecutorDispatcher;
+use crate::procmgr::ExecutorLifecycle;
 use anyhow::{Context, Result, bail};
-use std::path::Path;
-use std::process::{Command, Output};
+use std::time::Duration;
 
-pub fn run_bootstrap(argv: &[String]) -> Result<BootstrapConfig> {
-    let Some((program, args)) = argv.split_first() else {
-        bail!("no bootstrap command is configured; set --bootstrap-command");
-    };
-    let name = Path::new(program)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(program);
-    log::info!("running bootstrap command: {name}");
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(120);
+const RPC_TIMEOUT: Duration = Duration::from_secs(5);
+const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
-    let output = Command::new(program)
-        .args(args)
-        .output()
-        .with_context(|| format!("failed to run bootstrap command {name}"))?;
-    parse_output(name, &output)
+pub async fn run_bootstrap(
+    lifecycle: &impl ExecutorLifecycle,
+    executor: &ExecutorDispatcher,
+) -> Result<BootstrapConfig> {
+    tokio::time::timeout(
+        STARTUP_TIMEOUT,
+        bootstrap_loop(lifecycle, executor, RETRY_INTERVAL),
+    )
+    .await
+    .context("timed out waiting for executor configuration; check executor logs")?
 }
 
-fn parse_output(program: &str, output: &Output) -> Result<BootstrapConfig> {
-    for line in String::from_utf8_lossy(&output.stderr).lines() {
-        if !line.trim().is_empty() {
-            log::info!("bootstrap: {line}");
+fn retryable(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<tonic::Status>().is_some_and(|status| {
+        matches!(
+            status.code(),
+            tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Cancelled
+        )
+    })
+}
+
+async fn bootstrap_loop(
+    lifecycle: &impl ExecutorLifecycle,
+    executor: &ExecutorDispatcher,
+    retry_interval: Duration,
+) -> Result<BootstrapConfig> {
+    loop {
+        match lifecycle.ensure_started().await {
+            Ok(()) => break,
+            Err(error) if retryable(&error) => tokio::time::sleep(retry_interval).await,
+            Err(error) => return Err(error),
         }
     }
-
-    if !output.status.success() {
-        bail!(
-            "bootstrap command {program} exited with status {}",
-            output.status
-        );
+    loop {
+        match tokio::time::timeout(RPC_TIMEOUT, executor.control_plane_config()).await {
+            Ok(Ok(snapshot)) => return Ok(snapshot),
+            Ok(Err(error)) if !retryable(&error) => return Err(error),
+            _ => {}
+        }
+        match lifecycle.has_exited().await {
+            Ok(true) => {
+                bail!("executor exited before configuration became available; check executor logs")
+            }
+            Err(error) if !retryable(&error) => return Err(error),
+            _ => {}
+        }
+        tokio::time::sleep(retry_interval).await;
     }
-    if output.stdout.is_empty() {
-        bail!("bootstrap command {program} returned no configuration");
-    }
-
-    serde_json::from_slice(&output.stdout).map_err(|_| {
-        anyhow::anyhow!("bootstrap command {program} returned malformed configuration")
-    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::ExitStatus;
 
-    fn status(success: bool) -> ExitStatus {
-        #[cfg(unix)]
-        use std::os::unix::process::ExitStatusExt;
-        #[cfg(windows)]
-        use std::os::windows::process::ExitStatusExt;
-
-        #[cfg(unix)]
-        let raw = if success { 0 } else { 256 };
-        #[cfg(windows)]
-        let raw = if success { 0 } else { 1 };
-        ExitStatus::from_raw(raw)
-    }
-
-    fn output(success: bool, stdout: &str) -> Output {
-        Output {
-            status: status(success),
-            stdout: stdout.as_bytes().to_vec(),
-            stderr: Vec::new(),
+    #[test]
+    fn retries_transport_failures_not_auth_or_protocol_errors() {
+        for code in [
+            tonic::Code::Unavailable,
+            tonic::Code::DeadlineExceeded,
+            tonic::Code::Cancelled,
+        ] {
+            assert!(retryable(&tonic::Status::new(code, "test").into()));
         }
-    }
-
-    #[test]
-    fn parses_config() {
-        let config = parse_output(
-            "bootstrap",
-            &output(true, r#"{"split_mode":false,"log_level":"debug"}"#),
-        )
-        .unwrap();
-
-        assert!(!config.split_mode);
-        assert_eq!(config.log_level(), log::LevelFilter::Debug);
-    }
-
-    #[test]
-    fn reports_command_failure() {
-        let error = parse_output("bootstrap", &output(false, "secret"))
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("exited with status"));
-        assert!(!error.contains("secret"));
-    }
-
-    #[test]
-    fn malformed_config_is_not_exposed() {
-        let error = parse_output("bootstrap", &output(true, r#"{"private_key":"secret""#))
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("malformed configuration"));
-        assert!(!error.contains("secret"));
+        for code in [
+            tonic::Code::PermissionDenied,
+            tonic::Code::Unauthenticated,
+            tonic::Code::Unimplemented,
+            tonic::Code::InvalidArgument,
+            tonic::Code::NotFound,
+        ] {
+            assert!(!retryable(&tonic::Status::new(code, "test").into()));
+        }
+        assert!(!retryable(&anyhow::anyhow!("invalid snapshot")));
     }
 }
