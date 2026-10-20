@@ -58,4 +58,5 @@ def build(
         bin_path=BIN_PATH,
         mod=go_mod,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        fips_mode=AgentFlavor[flavor].is_fips(),
     )

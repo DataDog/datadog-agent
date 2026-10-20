@@ -290,6 +290,7 @@ def build_sysprobe_binary(
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
+        fips_mode=fips_mode,
     )
 
 

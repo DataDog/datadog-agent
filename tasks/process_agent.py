@@ -95,6 +95,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_mode=flavor.is_fips(),
     )
 
 

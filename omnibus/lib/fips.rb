@@ -54,5 +54,5 @@ def fips_check_binary_for_expected_symbol(path)
       raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in '#{path}' but did not")
     end
   }
-  GoSymbolsInspector.new(path, &inspector).inspect()
+  GoSymbolsInspector.new(path, fips_mode: fips_mode?, omnibazel_flags: omnibazel_flags, &inspector).inspect()
 end
