@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/observer"
 )
 
 const (
@@ -120,13 +121,13 @@ func installAgentLogTapWithQueueSize(
 
 	tap.worker.Add(1)
 	go tap.run()
-	pkglog.SetLogObserver(tap.enqueue)
+	observer.SetLogObserver(tap.enqueue)
 	return tap
 }
 
-// enqueue runs while pkg/util/log's global logger lock is held. Keep this path
-// bounded: no tag construction, rule matching, rate limiter, JSON encoding, or
-// observer call is allowed here.
+// enqueue blocks handling of log messages, so keep this path bounded: no tag
+// construction, rule matching, rate limiter, JSON encoding, or observer call
+// is allowed here.
 func (t *agentLogTap) enqueue(level pkglog.LogLevel, message string) {
 	// Prevent anomaly-detection's own logs from feeding back into the tap. This
 	// must happen before the asynchronous handoff because worker-side logging is
@@ -143,7 +144,7 @@ func (t *agentLogTap) enqueue(level pkglog.LogLevel, message string) {
 	entry := queuedAgentLog{
 		level:       level,
 		message:     message,
-		component:   pkglog.GetLoggerName(),
+		component:   observer.GetLoggerName(),
 		timestampMs: time.Now().UnixMilli(),
 	}
 
@@ -233,7 +234,7 @@ func (t *agentLogTap) reportQueueDrops() {
 // that were accepted before shutdown.
 func (t *agentLogTap) stop() {
 	t.stopOnce.Do(func() {
-		pkglog.SetLogObserver(nil)
+		observer.SetLogObserver(nil)
 		t.queueMu.Lock()
 		t.stopped = true
 		close(t.queue)

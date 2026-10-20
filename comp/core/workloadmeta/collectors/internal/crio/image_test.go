@@ -541,17 +541,21 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 	}
 }
 
-func TestGenerateUnsetImageEvent(t *testing.T) {
+func TestGenerateUnsetImageEvents(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainerImageMetadata,
 		ID:   "sha256:abc123",
 	}
 
-	event := generateUnsetImageEvent(entityID)
+	events := generateUnsetImageEvents(entityID)
 
-	assert.Equal(t, workloadmeta.EventTypeUnset, event.Type)
-	assert.Equal(t, workloadmeta.SourceRuntime, event.Source)
-	assert.Equal(t, entityID, event.Entity.GetID())
+	var sources []workloadmeta.Source
+	for _, event := range events {
+		assert.Equal(t, workloadmeta.EventTypeUnset, event.Type)
+		assert.Equal(t, entityID, event.Entity.GetID())
+		sources = append(sources, event.Source)
+	}
+	assert.Equal(t, []workloadmeta.Source{workloadmeta.SourceRuntime, workloadmeta.SourceTrivy}, sources)
 }
 
 func TestParseImageInfo(t *testing.T) {

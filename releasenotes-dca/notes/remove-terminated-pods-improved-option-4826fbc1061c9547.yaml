@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The ``orchestrator_explorer.terminated_pods_improved.enabled`` configuration
+    option is removed in favor of ``orchestrator_explorer.terminated_pods.enabled``.

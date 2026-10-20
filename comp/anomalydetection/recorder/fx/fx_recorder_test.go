@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -130,9 +131,10 @@ func (*fxTestMetric) GetValue() float64 { return 2.5 }
 func (*fxTestMetric) GetTags() tagset.CompositeTags {
 	return tagset.CompositeTagsFromSlice([]string{"env:test"})
 }
-func (*fxTestMetric) GetHost() string         { return "test-host" }
-func (*fxTestMetric) GetTimestampUnix() int64 { return 1234 }
-func (*fxTestMetric) GetSampleRate() float64  { return 1 }
+func (*fxTestMetric) GetHost() string                   { return "test-host" }
+func (*fxTestMetric) GetTimestampUnix() int64           { return 1234 }
+func (*fxTestMetric) GetSampleRate() float64            { return 1 }
+func (*fxTestMetric) GetMetricType() metrics.MetricType { return metrics.GaugeType }
 
 type fxTestLog struct{}
 

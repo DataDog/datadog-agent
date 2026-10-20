@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -51,6 +52,7 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 				Metrics: []observer.MetricOutput{{
 					Name:       "connection.errors",
 					Value:      1.0,
+					MetricType: pkgmetrics.CountType,
 					Tags:       tagset.CompositeTagsFromSlice(tags),
 					HasContext: true,
 					Context: observer.MetricContext{

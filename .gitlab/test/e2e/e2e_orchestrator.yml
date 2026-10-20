@@ -8,6 +8,7 @@
       paths:
         - comp/core/tagger/**/*
         - comp/forwarder/defaultforwarder/**/*
+        - pkg/collector/corechecks/cluster/kubernetesapiserver/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
@@ -37,6 +38,19 @@ new-e2e-orchestrator:
     ON_NIGHTLY_FIPS: "true"
 
 .on_autoscaling_or_e2e_changes:
+  # Do not skip known flaky tests on PRs that change spot scheduling code or tests.
+  # Remove the GO_TEST_SKIP_FLAKE variable once the flakes are fixed.
+  # To make this work, the spot rule must come before .on_e2e_main_release_or_rc because the first matching rule wins.
+  # Repeat the guards of .on_e2e_main_release_or_rc so they still apply to it.
+  - !reference [.except_light_pipeline]
+  - if: $RUN_E2E_TESTS != "off"
+    changes:
+      paths:
+        - test/new-e2e/tests/autoscaling/spot/**/*
+        - pkg/clusteragent/autoscaling/cluster/spot/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      GO_TEST_SKIP_FLAKE: "false"
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
