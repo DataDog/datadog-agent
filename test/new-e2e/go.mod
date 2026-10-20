@@ -308,7 +308,7 @@ require (
 	github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2 // indirect
-	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
