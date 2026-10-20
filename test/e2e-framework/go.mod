@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
-	github.com/DataDog/dd-trace-go/v2 v2.11.1
+	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
