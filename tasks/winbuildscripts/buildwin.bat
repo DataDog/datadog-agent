@@ -2,6 +2,8 @@ if not exist c:\mnt\ goto nomntdir
 @echo on
 @echo c:\mnt found, continuing
 
+C:\devtools\ci-identities-gitlab-job-client.exe assume-role || exit /b 7
+
 set BUILD_ROOT=c:\buildroot
 mkdir %BUILD_ROOT%\datadog-agent
 if not exist %BUILD_ROOT%\datadog-agent exit /b 2
