@@ -40,7 +40,7 @@ type domainForwarder struct {
 	domain                  string
 	isMRF                   bool
 	isLocal                 bool
-	concurrency             concurrencyPolicy
+	concurrency             concurrencyDomain
 	highPrio                chan transaction.Transaction // use to receive new transactions
 	lowPrio                 chan transaction.Transaction // use to retry transactions
 	requeuedTransaction     chan transaction.Transaction
@@ -64,7 +64,7 @@ func newDomainForwarder(
 	mrf bool,
 	isLocal bool,
 	retryQueue *retry.TransactionRetryQueue,
-	concurrency concurrencyPolicy,
+	concurrency concurrencyDomain,
 	connectionResetInterval time.Duration,
 	pointCountTelemetry *retry.PointCountTelemetry,
 	transport http.RoundTripper) *domainForwarder {
@@ -82,7 +82,7 @@ func newDomainForwarder(
 		internalState:           Stopped,
 		blockedList:             newBlockedEndpoints(config, log),
 		pointCountTelemetry:     pointCountTelemetry,
-		Client:                  NewSharedConnection(log, isLocal, concurrency.maxConns(), config, transport),
+		Client:                  NewSharedConnection(log, isLocal, concurrency, config, transport),
 	}
 }
 
@@ -223,6 +223,7 @@ func (f *domainForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
+	f.concurrency.start()
 	for i := 0; i < f.concurrency.numWorkers(); i++ {
 		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, f.concurrency)
 		w.Start()
@@ -312,6 +313,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}
+	f.concurrency.stop()
 	f.workers = []*Worker{}
 	close(f.highPrio)
 	close(f.lowPrio)

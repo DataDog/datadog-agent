@@ -238,9 +238,11 @@ func TestEngineCapacityEvictionDropsIdleBucketizerState(t *testing.T) {
 		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
 	))
 
-	// A real metric observed later is more active than the log series. The
-	// synthetic zero written at t=10 must not make the log series look newer.
-	storage.Add("native", "metric", 1, 7, nil)
+	// A real metric observed later reaches the hard admission limit and evicts
+	// the log series before it is stored. Engine cleanup must immediately remove
+	// the corresponding bucketizer state.
+	e.IngestMetric("native", &metricObs{name: "metric", value: 1, timestamp: 7, storageKey: storageKeyForCompositeIdentity("native", "metric", "", testCompositeTags(nil))})
+	require.Empty(t, e.logCounts.series)
 	e.Advance(10)
 	require.Nil(t, storage.GetSeries(
 		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
@@ -304,5 +306,43 @@ func TestLogDerivedMetricTypesReachStorage(t *testing.T) {
 				require.Equal(t, want, storage.GetSeriesMeta(meta.Ref).MetricType, meta.Name)
 			}
 		})
+	}
+}
+
+func TestEngineCapacityEvictionDuringLogFlushPreservesRealObservations(t *testing.T) {
+	// Exercise different map traversal orders: the idle series can be visited
+	// either before or after the new series that evicts it.
+	for range 64 {
+		storage := newTimeSeriesStorageWith(StorageConfig{MaxSeries: 1})
+		detector := &inactiveEvictionDetector{}
+		e := newEngine(engineConfig{
+			storage:         storage,
+			detectors:       []observerdef.Detector{detector},
+			extractors:      []observerdef.LogMetricsExtractor{&fixedLogCountExtractor{}},
+			logCountBuckets: LogCountBucketConfig{Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 20},
+		})
+		e.IngestLog("logs", &logObs{timestampMs: 1_000, tags: []string{"service:idle"}})
+		e.Advance(5)
+		metas := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+		require.Len(t, metas, 1)
+		idleRef := metas[0].Ref
+
+		e.IngestLog("logs", &logObs{timestampMs: 6_000, tags: []string{"service:active"}})
+		e.Advance(10)
+
+		require.Equal(t, []observerdef.SeriesRef{idleRef}, detector.removed)
+		require.Nil(t, storage.GetSeriesMeta(idleRef))
+		require.Len(t, e.logCounts.series, 1)
+		activeTags := []string{"observer_source:logs", "service:active"}
+		active := storage.GetSeries("fixed_log_count", "log.fixed.count", activeTags, observerdef.AggregateAverage)
+		require.NotNil(t, active)
+		require.Equal(t, []observerdef.Point{{Timestamp: 10, Value: 1}}, active.Points)
+
+		e.Advance(15)
+		require.Equal(t, []observerdef.SeriesRef{idleRef}, detector.removed)
+		require.Equal(t, 1, storage.TotalSeriesCount())
+		active = storage.GetSeries("fixed_log_count", "log.fixed.count", activeTags, observerdef.AggregateAverage)
+		require.NotNil(t, active)
+		require.Equal(t, []observerdef.Point{{Timestamp: 10, Value: 1}, {Timestamp: 15, Value: 0}}, active.Points)
 	}
 }

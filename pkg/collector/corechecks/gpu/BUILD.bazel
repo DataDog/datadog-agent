@@ -5,6 +5,7 @@ go_library(
     name = "gpu",
     srcs = [
         "config.go",
+        "emitter.go",
         "gpu.go",
         "gpu_stub.go",
         "sysprobe_health.go",
@@ -199,6 +200,7 @@ go_library(
 dd_agent_go_test(
     name = "gpu_test",
     srcs = [
+        "amd_host_test.go",
         "gpu_test.go",
         "sysprobe_health_test.go",
         "tags_test.go",
@@ -226,6 +228,7 @@ dd_agent_go_test(
             "//pkg/config/env",
             "//pkg/config/setup",
             "//pkg/errors",
+            "//pkg/gpu/amd",
             "//pkg/gpu/config",
             "//pkg/gpu/containers",
             "//pkg/gpu/prm",
@@ -267,6 +270,7 @@ dd_agent_go_test(
             "//pkg/config/env",
             "//pkg/config/setup",
             "//pkg/errors",
+            "//pkg/gpu/amd",
             "//pkg/gpu/config",
             "//pkg/gpu/containers",
             "//pkg/gpu/prm",

@@ -9,33 +9,33 @@ import (
 )
 
 func TestCgoAlignment_SSLCtxPidTGID(t *testing.T) {
-	ebpftest.TestCgoAlignment[SSLCtxPidTGID](t)
+	ebpftest.AssertCgoAlignment[SSLCtxPidTGID](t)
 }
 
 func TestCgoAlignment_SslSock(t *testing.T) {
-	ebpftest.TestCgoAlignment[SslSock](t)
+	ebpftest.AssertCgoAlignment[SslSock](t)
 }
 
 func TestCgoAlignment_SslReadArgs(t *testing.T) {
-	ebpftest.TestCgoAlignment[SslReadArgs](t)
+	ebpftest.AssertCgoAlignment[SslReadArgs](t)
 }
 
 func TestCgoAlignment_SslReadExArgs(t *testing.T) {
-	ebpftest.TestCgoAlignment[SslReadExArgs](t)
+	ebpftest.AssertCgoAlignment[SslReadExArgs](t)
 }
 
 func TestCgoAlignment_SslWriteArgs(t *testing.T) {
-	ebpftest.TestCgoAlignment[SslWriteArgs](t)
+	ebpftest.AssertCgoAlignment[SslWriteArgs](t)
 }
 
 func TestCgoAlignment_SslWriteExArgs(t *testing.T) {
-	ebpftest.TestCgoAlignment[SslWriteExArgs](t)
+	ebpftest.AssertCgoAlignment[SslWriteExArgs](t)
 }
 
 func TestCgoAlignment_EbpfEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfEvent](t)
+	ebpftest.AssertCgoAlignment[EbpfEvent](t)
 }
 
 func TestCgoAlignment_EbpfTx(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfTx](t)
+	ebpftest.AssertCgoAlignment[EbpfTx](t)
 }

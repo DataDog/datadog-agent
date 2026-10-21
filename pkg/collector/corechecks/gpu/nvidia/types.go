@@ -95,7 +95,7 @@ func (s *baseSample) AppendTags(tags []string) {
 	s.tags = append(s.tags, tags...)
 }
 
-// Metric represents a single metric collected from the NVML library.
+// Metric represents a single GPU metric.
 type Metric struct {
 	baseSample
 	Name                string               // Name holds the name of the metric.
