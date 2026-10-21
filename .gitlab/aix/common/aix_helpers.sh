@@ -6,12 +6,8 @@ export AIX_SSH_COMMON_OPTS="-o ServerAliveInterval=20 -o ServerAliveCountMax=6"
 export AIX_SSH_DEST="$AIX_USER@$AIX_HOST"
 
 # Non-sensitive CI/GitLab environment variables forwarded to the AIX host, so
-# that remote commands run with the pipeline context: eg. packaging scripts
-# computing the Agent version with `invoke agent.version` pick up
-# CI_PIPELINE_ID and BUCKET_BRANCH to embed the .pipeline.<id> suffix in
-# nightly/dev versions, like the deb/rpm/dmg builds do on their runners.
-# Keep this list curated on purpose: never forward the whole environment,
-# as CI_JOB_TOKEN, Vault secrets and AWS credentials are runner-side only.
+# that remote commands run with the pipeline context. Don't forward the whole environment
+# to avoid passing secrets, which are only needed in the CI runner.
 AIX_FORWARDED_ENV_VARS=(
     CI_PIPELINE_ID
     CI_PIPELINE_SOURCE
