@@ -2589,7 +2589,7 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Provide(func() config.Component { return config.NewMock(t) }),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 			store.Set(&workloadmeta.Container{
@@ -2601,7 +2601,7 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 				image, err = workloadmeta.NewContainerImage("", tt.image)
 				require.NoError(t, err)
 			}
-			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
 			pod := &workloadmeta.KubernetesPod{
 				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "ray-pod"},
 				EntityMeta: workloadmeta.EntityMeta{
