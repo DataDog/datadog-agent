@@ -9,8 +9,8 @@ from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
 
 # The ECR registries the Agent images can be pulled from
-AGENT_QA_REGISTRY = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-SANDBOX_REGISTRY = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
+DATADOG_AGENT_QA_REGISTRY = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+DATADOG_AGENT_SANDBOX_REGISTRY = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
 
 
 def deploy(
@@ -94,12 +94,12 @@ def deploy(
     # The registries to pull from, with the command printing their password: the images may
     # come from both, e.g. two Agent versions compared by benchmarkeks.
     pull_registries = {}
-    if needs_agent_containers and (pipeline_id is not None or uses_registry(AGENT_QA_REGISTRY)):
-        pull_registries[AGENT_QA_REGISTRY] = (
+    if needs_agent_containers and (pipeline_id is not None or uses_registry(DATADOG_AGENT_QA_REGISTRY)):
+        pull_registries[DATADOG_AGENT_QA_REGISTRY] = (
             f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}"
         )
-    if uses_registry(SANDBOX_REGISTRY):
-        pull_registries[SANDBOX_REGISTRY] = (
+    if uses_registry(DATADOG_AGENT_SANDBOX_REGISTRY):
+        pull_registries[DATADOG_AGENT_SANDBOX_REGISTRY] = (
             f"aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}"
         )
     if pull_registries:
