@@ -155,6 +155,53 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	state.AssertPathDoesNotExist("/opt/datadog-agent")
 }
 
+func (s *upgradeScenarioSuite) TestFipsUpgradeFromDebRPM() {
+	if s.installMethod != InstallMethodInstallScript || s.os.Flavor != e2eos.Ubuntu {
+		s.T().Skip("Exercise FIPS promotion on the Ubuntu amd64 and arm64 install-script hosts")
+	}
+
+	s.RunInstallScript("DD_AGENT_FLAVOR=datadog-fips-agent")
+	defer s.Purge()
+	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
+	s.Env().RemoteHost.MustExecute(`printf '\nremote_updates: true\nremote_configuration:\n  enabled: true\n' | sudo tee -a /etc/datadog-agent/datadog.yaml`)
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, installerUnit)
+	s.setCatalog(s.testCatalog())
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperiment(datadogAgent)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
+
+	// Match the daemon's user IDs; running as root would hide this library-loading failure.
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		output := s.Env().RemoteHost.MustExecuteOn(c,
+			"sudo setpriv --ruid 0 --euid dd-agent --rgid 0 --egid dd-agent --clear-groups "+
+				"/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer get-states")
+		var states packageStatus
+		require.NoError(c, json.Unmarshal([]byte(output), &states))
+		assert.Equal(c, s.pipelineAgentVersion, states.States["datadog-agent"].Stable)
+		assert.Empty(c, states.States["datadog-agent"].Experiment)
+	}, time.Minute, time.Second)
+
+	// A second attempt must reach the same-version check, not crash while loading FIPS libraries.
+	s.setCatalog(s.testCatalog())
+	_, err = s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	require.Error(s.T(), err)
+	bootstrapLog := s.Env().RemoteHost.MustExecute("cat /tmp/start_experiment.log")
+	require.Contains(s.T(), bootstrapLog, "cannot set new experiment to the same version as")
+	s.host.WaitForUnitActive(s.T(), agentUnit, installerUnit)
+	status := s.Env().RemoteHost.MustExecute("sudo datadog-agent status")
+	require.Contains(s.T(), status, "FIPS Mode: enabled")
+}
+
 func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
