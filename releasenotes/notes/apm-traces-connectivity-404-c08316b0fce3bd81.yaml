@@ -8,7 +8,10 @@
 ---
 fixes:
   - |
-    The inventory connectivity check for APM traces now treats HTTP 404 from
-    ``GET /_health`` on ``trace.agent.<site>`` as success. Trace intake no longer
-    serves that path, but a 404 still means the endpoint was reached. Connection
-    errors, timeouts, 401, 403, and 5xx remain failures.
+    The connectivity diagnostics of the Agent, shown in the Agent status, the
+    flare and the inventory metadata, no longer report APM traces as failing
+    when the trace intake answers ``GET /_health`` with HTTP 404. The trace
+    intake no longer serves that path, and still rejects an invalid API key
+    with 403. Connection errors, timeouts, 403 and 5xx responses remain
+    failures, as does a 404 from an ``apm_config.apm_dd_url`` that is not a
+    Datadog host. Trace submission was not affected.
