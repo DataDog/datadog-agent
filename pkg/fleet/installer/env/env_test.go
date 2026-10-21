@@ -404,6 +404,16 @@ func TestDeferAgentRestartRoundTrip(t *testing.T) {
 	assert.False(t, FromEnv().DeferAgentRestart)
 }
 
+func TestTaskIDRoundTrip(t *testing.T) {
+	for _, v := range (&Env{}).ToEnv() {
+		assert.NotContains(t, v, "DD_INSTALLER_TASK_ID=")
+	}
+	assert.Contains(t, (&Env{TaskID: "task-1"}).ToEnv(), "DD_INSTALLER_TASK_ID=task-1")
+
+	t.Setenv("DD_INSTALLER_TASK_ID", "task-1")
+	assert.Equal(t, "task-1", FromEnv().TaskID)
+}
+
 func TestAgentUserVars(t *testing.T) {
 	tests := []struct {
 		name     string

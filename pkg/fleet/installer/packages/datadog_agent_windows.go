@@ -34,6 +34,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/taskmarker"
 )
 
 // datadogAgentPackage is the package for the Datadog Agent
@@ -285,6 +286,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
+	waitForDaemonToRecordTask(ctx, env.TaskID)
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
 	// Save and remove stable extensions before uninstalling the stable agent.
@@ -376,6 +378,7 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	}
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
+	waitForDaemonToRecordTask(ctx, env.TaskID)
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
 	if err := removeAgentExtensions(hookCtx, true); err != nil {
@@ -1039,6 +1042,25 @@ func launchConfigExperimentRestart(ctx context.Context, command string) error {
 		return nil
 	}
 	return launchPackageCommandInBackground(ctx, e, command)
+}
+
+// daemonTaskRecordTimeout bounds how long an Agent package experiment restart waits for the
+// daemon to record the task before going ahead anyway.
+const daemonTaskRecordTimeout = 2 * time.Minute
+
+// waitForDaemonToRecordTask holds off the Agent restart until the daemon that requested this
+// experiment step has recorded the task result. Stopping the services stops the daemon too,
+// and a daemon stopped before recording the result keeps reporting the task as running.
+// Daemons that pass no task ID are not waited for.
+func waitForDaemonToRecordTask(ctx context.Context, taskID string) {
+	if taskID == "" {
+		return
+	}
+	if taskmarker.Wait(ctx, taskID, daemonTaskRecordTimeout) {
+		log.Infof("Daemon recorded task %s, restarting the Agent", taskID)
+		return
+	}
+	log.Warnf("Daemon did not record task %s within %s, restarting the Agent anyway", taskID, daemonTaskRecordTimeout)
 }
 
 func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command string) error {
