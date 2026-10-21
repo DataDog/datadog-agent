@@ -6,7 +6,8 @@
 package datasecurity
 
 import (
-	_ "embed"
+	"embed"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -33,11 +34,23 @@ instances:
     password: postgres_admin_pw
 `
 
-//go:embed fixtures/rc/scan_task.json
-var rcScanTask []byte
+//go:embed fixtures/rc/scenarios/*.yaml
+var rcScenarioFS embed.FS
 
-//go:embed fixtures/rc/expected.yaml
-var rcExpectedYAML []byte
+// rcScenario is self-contained: the RC payload, the apply state the agent must report, and the
+// SDS results that must follow.
+type rcScenario struct {
+	Name       string           `yaml:"name"`
+	RC         map[string]any   `yaml:"rc"`
+	ApplyState string           `yaml:"apply_state"`
+	ApplyError string           `yaml:"apply_error"` // regexp, only for apply_state: error
+	Expected   []map[string]any `yaml:"expected"`
+}
+
+var rcApplyStates = map[string]state.ApplyState{
+	"acknowledged": state.ApplyStateAcknowledged,
+	"error":        state.ApplyStateError,
+}
 
 type postgresRCSuite struct {
 	e2e.BaseSuite[postgresScanEnv]
@@ -60,34 +73,63 @@ func (s *postgresRCSuite) SetupSuite() {
 	}
 }
 
-// TestRCScanTaskEmitsSDSResult covers the golden path: an RC scan task is scheduled by the
-// data-security provider, scanned, and its SDS result reaches fakeintake.
-func (s *postgresRCSuite) TestRCScanTaskEmitsSDSResult() {
-	expected := rcExpectedResults(s.T())
+// TestRCScenarios pushes each scenario through Remote Config and checks the apply state the
+// agent reports and the SDS results that reach fakeintake.
+func (s *postgresRCSuite) TestRCScenarios() {
+	for _, sc := range loadRCScenarios(s.T()) {
+		s.Run(sc.Name, func() {
+			payload, err := json.Marshal(sc.RC)
+			require.NoError(s.T(), err)
+			applyState, ok := rcApplyStates[sc.ApplyState]
+			require.True(s.T(), ok, "unknown apply_state %q", sc.ApplyState)
 
-	id := fmt.Sprintf("e2e-datasec-%d", time.Now().UnixNano())
-	fi := s.Env().FakeIntake.Client()
-	require.NoError(s.T(), fi.RCAddConfig("", state.ProductDataSecurityDBScanTasks, id, "scan-task", rcScanTask))
+			id := fmt.Sprintf("e2e-datasec-%s-%d", sc.Name, time.Now().UnixNano())
+			fi := s.Env().FakeIntake.Client()
+			require.NoError(s.T(), fi.RCAddConfig("", state.ProductDataSecurityDBScanTasks, id, "scan-task", payload))
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		payloads, err := fi.GetSDSResults()
-		require.NoError(c, err)
-		got := sdsResultsBySubTask(aggregatorSDSResults(payloads))
-		for subTaskID, want := range sdsResultsBySubTask(expected) {
-			assertSDSResultsEqual(c, "rc", subTaskID, want, got[subTaskID])
-		}
-	}, 2*time.Minute, 10*time.Second)
+			pattern := fmt.Sprintf(`config_states:\{id:%q[^}]*apply_state:%d`, id, applyState)
+			if sc.ApplyError != "" {
+				pattern += `[^}]*apply_error:".*` + sc.ApplyError
+			}
+			s.EventuallyWithT(func(c *assert.CollectT) {
+				assert.Regexp(c, pattern, s.Env().Agent.Client.RemoteConfig())
+			}, time.Minute, 5*time.Second)
+
+			if len(sc.Expected) == 0 {
+				return // rejected task: nothing is scanned
+			}
+			s.EventuallyWithT(func(c *assert.CollectT) {
+				payloads, err := fi.GetSDSResults()
+				require.NoError(c, err)
+				got := sdsResultsBySubTask(aggregatorSDSResults(payloads))
+				for subTaskID, want := range sdsResultsBySubTask(sc.expectedResults(s.T())) {
+					assertSDSResultsEqual(c, sc.Name, subTaskID, want, got[subTaskID])
+				}
+			}, 2*time.Minute, 10*time.Second)
+		})
+	}
 }
 
-func rcExpectedResults(t *testing.T) []*sds.SdsResultPayload {
+func (sc rcScenario) expectedResults(t *testing.T) []*sds.SdsResultPayload {
 	t.Helper()
-	var doc struct {
-		Expected []map[string]any `yaml:"expected"`
-	}
-	require.NoError(t, yaml.Unmarshal(rcExpectedYAML, &doc))
-	out := make([]*sds.SdsResultPayload, 0, len(doc.Expected))
-	for _, raw := range doc.Expected {
-		out = append(out, mustSDSResult("rc", raw))
+	out := make([]*sds.SdsResultPayload, 0, len(sc.Expected))
+	for _, raw := range sc.Expected {
+		out = append(out, mustSDSResult(sc.Name, raw))
 	}
 	return out
+}
+
+func loadRCScenarios(t *testing.T) []rcScenario {
+	t.Helper()
+	entries, err := rcScenarioFS.ReadDir("fixtures/rc/scenarios")
+	require.NoError(t, err)
+	scenarios := make([]rcScenario, 0, len(entries))
+	for _, entry := range entries {
+		raw, err := rcScenarioFS.ReadFile("fixtures/rc/scenarios/" + entry.Name())
+		require.NoError(t, err)
+		var sc rcScenario
+		require.NoError(t, yaml.Unmarshal(raw, &sc), entry.Name())
+		scenarios = append(scenarios, sc)
+	}
+	return scenarios
 }
