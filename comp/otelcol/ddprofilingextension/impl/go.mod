@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.82.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.82.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/dd-trace-go/v2 v2.11.1
+	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0
@@ -81,7 +81,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
-	github.com/google/pprof v0.0.0-20261006160405-d99a6174ef52 // indirect
+	github.com/google/pprof v0.0.0-20261012231050-2af12c3f4d87 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
