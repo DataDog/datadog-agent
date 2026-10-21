@@ -2,7 +2,7 @@
 enhancements:
   - |
     Add the ``datadog.logsagentexporter.UseSyncSender`` feature gate (Alpha,
-    disabled by default) to the logs exporter of the embedded Datadog
+    disabled by default) to the logs exporter of Datadog's distribution of
     OpenTelemetry Collector (DDOT). When enabled logs are sent to the Datadog 
     intake before the export returns. 
     Intake errors are then reported to the OpenTelemetry pipeline: rejected logs, 
