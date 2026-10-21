@@ -1638,7 +1638,7 @@ func (s *configMacOSSuite) TestAgentExpCrashRevertsAndIsNotRelaunchedMacOS() {
 
 // TestDeadlineFileLifecycleMacOS pins the persisted deadline (pkg/fleet/installer/packages/launchd/
 // supervisor.go, config_experiment_darwin.go): it exists only while an experiment is live, belongs
-// to root, and holds a time configExperimentDeadlineWindow (60 minutes) after the start. It is what
+// to root, and holds a time configExperimentDeadlineWindow (50 minutes) after the start. It is what
 // the watcher and the next daemon start judge the experiment window by.
 func (s *configMacOSSuite) TestDeadlineFileLifecycleMacOS() {
 	s.requireResting()
@@ -1661,8 +1661,8 @@ func (s *configMacOSSuite) TestDeadlineFileLifecycleMacOS() {
 
 		deadline, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(s.readFile(experimentDeadlinePath)))
 		require.NoError(s.T(), err, "the deadline should hold an RFC 3339 time")
-		require.WithinRange(s.T(), deadline, started.Add(59*time.Minute), s.remoteNow().Add(61*time.Minute),
-			"the deadline should be 60 minutes after the start")
+		require.WithinRange(s.T(), deadline, started.Add(49*time.Minute), s.remoteNow().Add(51*time.Minute),
+			"the deadline should be 50 minutes after the start")
 
 		end[how]()
 		require.False(s.T(), s.pathExists(experimentDeadlinePath), "the deadline should be cleared once the experiment is %s", how)
