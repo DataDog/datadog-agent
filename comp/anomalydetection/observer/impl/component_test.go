@@ -142,6 +142,21 @@ anomaly_detection:
 `,
 			errContains: "anomaly_detection.metrics.processing_rules: rule \"bad_pattern\": name_pattern must be a prefix with an optional trailing *",
 		},
+		{
+			name: "invalid allowed metric type",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  metrics:
+    enabled: true
+    allowed_types:
+      - Gauge
+      - bogus_type
+`,
+			errContains: `anomaly_detection.metrics.allowed_types: invalid metric type "bogus_type" (valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp)`,
+		},
 	}
 
 	for _, tc := range testCases {
