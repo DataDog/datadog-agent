@@ -37,7 +37,14 @@ package_aix-ppc64:
       set -eux
       cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
       cd $AIX_AGENT_SRC
-      env AGENT_BUILD=1 AGENT_VERSION="$AGENT_VERSION" sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      if ! env AGENT_BUILD=1 AGENT_VERSION="$AGENT_VERSION" sh $AIX_AGENT_SRC/packaging/aix/build.sh; then
+        echo "=== AIX build failed, dumping stage logs ==="
+        for f in /opt/dd-build/logs/*.log; do
+          echo "--- \$f (tail) ---"
+          tail -n 100 "\$f" 2>/dev/null || true
+        done
+        exit 1
+      fi
       EOF
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'
