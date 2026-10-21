@@ -7,8 +7,10 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // MetricsEndpointRoutingKey is the configuration namespace for per-endpoint metric policies.
@@ -105,8 +107,12 @@ func readMetricAllowlist(c model.Reader, field string) (map[string][]string, err
 
 func resolveMetricsPrimaryEndpoint(c model.Reader, additional map[string][]string, hasPolicies bool) (configured, transport string, err error) {
 	configured = c.GetString("dd_url")
-	if site := c.GetString("site"); !c.IsConfigured("dd_url") && site != "" {
-		configured = InfraURLPrefix + site
+	if !c.IsConfigured("dd_url") || configured == "" {
+		site := c.GetString("site")
+		if site == "" {
+			site = constants.DefaultSite
+		}
+		configured = InfraURLPrefix + strings.TrimSpace(site)
 	}
 	transport = GetInfraEndpoint(c)
 	if _, collision := additional[transport]; hasPolicies && transport != configured && collision {
