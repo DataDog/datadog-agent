@@ -9,10 +9,7 @@ load(
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "LOADER_TAGS")
 
-package(
-    default_package_metadata = ["//:package_metadata"],
-    default_visibility = ["//packages:__subpackages__"],
-)
+package(default_visibility = ["//packages:__subpackages__"])
 
 exports_files(
     ["main_noop.sh"],
