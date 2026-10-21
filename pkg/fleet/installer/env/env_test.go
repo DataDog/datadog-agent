@@ -414,6 +414,18 @@ func TestTaskIDRoundTrip(t *testing.T) {
 	assert.Equal(t, "task-1", FromEnv().TaskID)
 }
 
+func TestClearTaskID(t *testing.T) {
+	t.Setenv("DD_INSTALLER_TASK_ID", "task-1")
+	e := FromEnv()
+
+	e.ClearTaskID()
+
+	assert.Empty(t, e.TaskID)
+	_, set := os.LookupEnv("DD_INSTALLER_TASK_ID")
+	assert.False(t, set, "child processes inherit os.Environ, so the variable must be unset too")
+	assert.Empty(t, FromEnv().TaskID)
+}
+
 func TestAgentUserVars(t *testing.T) {
 	tests := []struct {
 		name     string

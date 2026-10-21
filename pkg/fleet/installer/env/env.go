@@ -385,6 +385,13 @@ func appendBoolEnv(env []string, key string, value *bool) []string {
 	return env
 }
 
+// ClearTaskID removes the task ID from e and from this process's environment, so installer
+// processes started afterwards do not inherit it.
+func (e *Env) ClearTaskID() {
+	e.TaskID = ""
+	_ = os.Unsetenv(envTaskID)
+}
+
 func appendStringEnv(env []string, key string, value string, skipIfEqual string) []string {
 	if value != skipIfEqual {
 		env = append(env, key+"="+value)

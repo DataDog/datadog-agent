@@ -45,7 +45,7 @@ func withTaskMarkerRecorder(t *testing.T, i *testInstaller) *markerRecorder {
 	previous := recordTaskMarker
 	recordTaskMarker = func(taskID string) error {
 		tasks, err := i.taskDB.GetTasksState()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		recorder.Lock()
 		recorder.taskIDs = append(recorder.taskIDs, taskID)
 		recorder.stateAtMark = append(recorder.stateAtMark, tasks[datadogAgentPackage].State)
