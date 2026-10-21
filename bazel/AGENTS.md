@@ -991,6 +991,15 @@ external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can
 
 ## Testing
 
+BPF and NPM tag variants are excluded by the default `--test_tag_filters`, even
+when named explicitly. To run a focused variant, override the filter, for example:
+
+```sh
+bazel test --test_tag_filters= //pkg/util/kernel/headers:headers_test_bpf
+```
+
+Check the reported executed test count; building a filtered target does not run it.
+
 ### Testing rules (Starlark unit tests)
 
 Use `bazel-skylib`'s `unittest.bzl` to test rule analysis behavior (providers, actions) without running a full build:
