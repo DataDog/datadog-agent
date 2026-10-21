@@ -25,7 +25,8 @@ import (
 //go:embed fixtures/datadog-agent.yaml
 var agentConfig string
 
-func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
+// postgresScanProvisioner provisions the host Agent and Postgres workload, with extra agent options.
+func postgresScanProvisioner(agentOpts ...agentparams.Option) provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 	return func(ctx *pulumi.Context, env *postgresScanEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -70,12 +71,12 @@ func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 			return err
 		}
 
-		agentComp, err := agent.NewHostAgent(&awsEnv, host,
+		opts := append([]agentparams.Option{
 			agentparams.WithFakeintake(fi),
 			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithIntegration("datasecurity.d", datasecurityCheckYAML()),
 			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(pgStack)),
-		)
+		}, agentOpts...)
+		agentComp, err := agent.NewHostAgent(&awsEnv, host, opts...)
 		if err != nil {
 			return err
 		}
