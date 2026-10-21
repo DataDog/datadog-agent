@@ -9,6 +9,8 @@
 package connection
 
 import (
+	"errors"
+	"maps"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -18,7 +20,9 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 )
@@ -29,6 +33,42 @@ func TestFailedConnectionTelemetryMapLoads(t *testing.T) {
 	t.Cleanup(tr.Stop)
 
 	require.NotNil(t, tr.(*ebpfTracer).tcpFailuresTelemetryMap, "error loading tcp failure telemetry map")
+}
+
+// TestFentryLoadFailureFallsBackToKprobe loads the real fentry tracer, forces it to fail after
+// eBPF telemetry instruction patching has run, and checks that the real kprobe tracer still
+// loads. A failed fentry load must not leave state behind that breaks the fallback.
+func TestFentryLoadFailureFallsBackToKprobe(t *testing.T) {
+	// system-probe initializes the eBPF errors collector at startup; without it the telemetry
+	// modifier never fills its maps, which hides failures that only happen in production
+	ebpftelemetry.NewEBPFErrorsCollector()
+
+	prevFentryLoader := fentryTracerLoader
+	t.Cleanup(func() { fentryTracerLoader = prevFentryLoader })
+	var fentryErr error
+	fentryTracerLoader = func(c *config.Config, o manager.Options, h *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+		// an invalid map size fails inside the manager's collection load, after patching
+		o.MapSpecEditors = maps.Clone(o.MapSpecEditors)
+		o.MapSpecEditors[probes.ConnMap] = manager.MapSpecEditor{MaxEntries: 0, EditorFlag: manager.EditMaxEntries}
+		var m *ddebpf.Manager
+		var closeFn func()
+		m, closeFn, fentryErr = fentry.LoadTracer(c, o, h)
+		return m, closeFn, fentryErr
+	}
+
+	cfg := config.New()
+	cfg.EnableFentry = true
+	cfg.AllowKprobeFallback = true
+	tr, err := newEbpfTracer(cfg, nil)
+	if tr != nil {
+		t.Cleanup(tr.Stop)
+	}
+	if errors.Is(fentryErr, fentry.ErrorUnsupported) {
+		t.Skipf("fentry tracer not supported on this kernel: %v", fentryErr)
+	}
+	require.ErrorContains(t, fentryErr, probes.ConnMap, "fentry tracer did not fail where the test forced it to")
+	require.NoError(t, err, "kprobe fallback failed after a fentry load failure")
+	assert.NotEqual(t, TracerTypeFentry, tr.Type())
 }
 
 func TestFentryKprobeFallback(t *testing.T) {

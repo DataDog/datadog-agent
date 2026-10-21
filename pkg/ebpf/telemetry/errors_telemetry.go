@@ -126,9 +126,8 @@ func (k *telemetryKey) String() string {
 // ebpfErrorsTelemetry interface allows easy mocking for UTs without a need to initialize the whole ebpf sub-system and execute ebpf maps APIs
 type ebpfErrorsTelemetry interface {
 	sync.Locker
-	fill([]names.MapName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
+	fill([]names.MapName, []names.ProgramName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
 	cleanup([]names.MapName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
-	setProbe(name telemetryKey, hash uint64)
 	isInitialized() bool
 	forEachMapErrorEntryInMaps(yield func(telemetryKey, uint64, mapErrTelemetry) bool)
 	forEachHelperErrorEntryInMaps(yield func(telemetryKey, uint64, helperErrTelemetry) bool)
@@ -157,14 +156,14 @@ func (e *ebpfTelemetry) Unlock() {
 
 // fill initializes the maps for holding telemetry info.
 // It must be called after the manager is initialized
-func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMap *maps.GenericMap[uint64, mapErrTelemetry], helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
+func (e *ebpfTelemetry) fill(maps []names.MapName, programs []names.ProgramName, mn names.ModuleName, mapErrMap *maps.GenericMap[uint64, mapErrTelemetry], helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	if err := e.initializeMapErrTelemetryMap(maps, mn, mapErrMap); err != nil {
 		return err
 	}
-	if err := e.initializeHelperErrTelemetryMap(mn, helperErrMap); err != nil {
+	if err := e.initializeHelperErrTelemetryMap(programs, mn, helperErrMap); err != nil {
 		return err
 	}
 
@@ -216,12 +215,6 @@ func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapEr
 	delete(e.helperErrMapsByModule, mn)
 
 	return errs
-}
-
-func (e *ebpfTelemetry) setProbe(key telemetryKey, hash uint64) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.probeKeys[key] = hash
 }
 
 func (e *ebpfTelemetry) isInitialized() bool {
@@ -300,20 +293,27 @@ func (e *ebpfTelemetry) initializeMapErrTelemetryMap(maps []names.MapName, mn na
 	return nil
 }
 
-func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(module names.ModuleName, helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
-	// the `probeKeys` get added during instruction patching, so we just try to insert entries for any that don't exist
+// initializeHelperErrTelemetryMap registers the helper-error keys for the programs of a
+// successfully initialized manager. Keys are only recorded once every map insert succeeds:
+// registering them earlier (e.g. at instruction-patching time) leaks keys from a manager that
+// then fails to load into the next manager initialized under the same module name.
+func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(programs []names.ProgramName, module names.ModuleName, helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
 	z := new(helperErrTelemetry)
-	for p, key := range e.probeKeys {
-		if p.moduleName != module {
-			continue
-		}
-
+	h := keyHash()
+	keys := make(map[telemetryKey]uint64, len(programs))
+	for _, programName := range programs {
+		tk := probeTelemetryKey(programName, module)
+		key := eBPFHelperErrorKey(h, tk)
 		err := helperErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-			return fmt.Errorf("failed to initialize telemetry struct for probe %s: %w", p.String(), err)
+			return fmt.Errorf("failed to initialize telemetry struct for probe %s: %w", tk.String(), err)
 		}
+		keys[tk] = key
 	}
 
+	for tk, key := range keys {
+		e.probeKeys[tk] = key
+	}
 	return nil
 }
 
@@ -364,7 +364,6 @@ func patchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, 
 			if err := PatchConstant(symbol, p, key); err != nil {
 				return err
 			}
-			bpfTelemetry.setProbe(tk, key)
 		}
 
 		// patch telemetry helper calls
