@@ -3,7 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package ebpf
+// Package ksyms provides helpers to look up and verify kernel symbols in kallsyms.
+//
+// It is intentionally a leaf package (its only dependency is pkg/process/util) so
+// that leaf consumers such as pkg/ebpf/kernelbugs can look up kernel symbols
+// without importing pkg/ebpf itself.
+package ksyms
 
 import (
 	"bufio"

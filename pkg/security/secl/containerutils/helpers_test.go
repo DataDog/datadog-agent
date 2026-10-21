@@ -97,6 +97,10 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice/cri-containerd-7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17.scope/init.scope",
 			output: "7cb5ee992e38b61c2a0e752c2272c12a2cf5761745de03d89fb728466e72ef17",
 		},
+		{ // nested containers: the innermost wins
+			input:  "/docker/0123456789012345678901234567890123456789012345678901234567890123/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+		},
 	}
 
 	for _, test := range testCases {

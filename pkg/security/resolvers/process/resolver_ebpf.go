@@ -33,6 +33,7 @@ import (
 	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -1577,6 +1578,7 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
+		entry.Tracer.MetadataSource = model.TracerMetadataSourceMemfd
 	}
 	p.Unlock()
 
@@ -1692,6 +1694,8 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
+	p.applyOTelTracerMetadata(pid, procCtx)
+
 	attributeKeys, err := otelAttributeKeys(procCtx)
 	if err != nil {
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
@@ -1725,6 +1729,21 @@ func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
 	}
 
 	return nil
+}
+
+// applyOTelTracerMetadata fills in the tracer metadata of tracers without a memfd (e.g. PHP).
+func (p *EBPFResolver) applyOTelTracerMetadata(pid uint32, procCtx otelprocessctx.ProcessContext) {
+	tmeta := otelprocessctx.TracerMetadata(procCtx)
+	if tmeta.IsZero() {
+		return
+	}
+
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil && entry.Tracer.MetadataSource != model.TracerMetadataSourceMemfd {
+		entry.Tracer.Metadata = tmeta
+		entry.Tracer.MetadataSource = model.TracerMetadataSourceOTelProcessContext
+	}
+	p.Unlock()
 }
 
 // attachOTelAttributeKeys records the OTel attribute key names on pid.

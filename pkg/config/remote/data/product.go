@@ -48,6 +48,8 @@ const (
 	ProductNetworkPath Product = "NETWORK_PATH"
 	// ProductDataSecurityDBScanTasks is used to remotely trigger Data Security DB scan tasks
 	ProductDataSecurityDBScanTasks Product = "DATA_SECURITY_DB_SCAN_TASKS"
+	// ProductNDMConfig carries Network Device Monitoring configuration documents
+	ProductNDMConfig Product = "NDM_CONFIG"
 )
 
 // ProductListToString converts a product list to string list
