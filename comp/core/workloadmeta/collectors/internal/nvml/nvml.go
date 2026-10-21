@@ -25,6 +25,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -55,6 +56,7 @@ type collector struct {
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
 	kaiSchedulerEnabled                bool
+	kaiAssignmentFailed                telemetry.Counter
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
@@ -247,7 +249,7 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
-func newCollector(store workloadmeta.Component, config config.Component) *collector {
+func newCollector(store workloadmeta.Component, config config.Component, tm telemetry.Component) *collector {
 	collector := &collector{
 		id:                      collectorID,
 		catalog:                 workloadmeta.NodeAgent,
@@ -259,6 +261,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
+		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
 	}
 
 	if config != nil {
@@ -272,9 +275,9 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector(config config.Component) (workloadmeta.CollectorProvider, error) {
+func NewCollector(config config.Component, tm telemetry.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: newCollector(nil, config),
+		Collector: newCollector(nil, config, tm),
 	}, nil
 }
 
