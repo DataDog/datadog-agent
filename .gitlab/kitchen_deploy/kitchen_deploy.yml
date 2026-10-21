@@ -42,7 +42,7 @@
 
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   <<: *deploy_deb_resource_group-a6
   variables:
@@ -96,7 +96,7 @@ deploy_deb_testing-a6_arm64:
 
 .deploy_rpm_testing-a6:
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -153,7 +153,7 @@ deploy_suse_rpm_testing_x64-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     [
@@ -181,7 +181,7 @@ deploy_windows_testing-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["lint_windows-x64", "windows_msi_x64-a6"]
   before_script:
@@ -196,7 +196,7 @@ export_testing_public_key:
     - !reference [.manual]
   needs: []
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
     - *setup_signing
