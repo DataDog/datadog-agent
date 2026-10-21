@@ -106,7 +106,7 @@ func TestExecuteCommandWindowsContextCancellationTerminatesDescendants(t *testin
 		return
 	}
 	defer windows.CloseHandle(process)
-	status, waitErr := windows.WaitForSingleObject(process, 5_000)
+	status, waitErr = windows.WaitForSingleObject(process, 5_000)
 	require.NoError(t, waitErr)
 	assert.Equal(t, uint32(windows.WAIT_OBJECT_0), status, "descendant process was not terminated with its Windows job")
 }
