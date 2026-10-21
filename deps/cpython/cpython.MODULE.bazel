@@ -95,3 +95,37 @@ python_bin_deps = {
     )
     for name, (version, sha256) in python_bin_deps.items()
 ]
+
+bazel_dep(name = "cpython", version = "0.0.0", repo_name = "hermetic_cpython")
+archive_override(
+    module_name = "cpython",
+    integrity = "sha256-iYq3Vqq3lYduU5+jLTSVLx9rg1ip49K4EegG0pr4hTY=",
+    strip_prefix = "hermetic-cpython-f2c436e2e5703bd8acad8e8711fce588f998bb4c",
+    urls = ["https://github.com/chouquette/hermetic-cpython/archive/f2c436e2e5703bd8acad8e8711fce588f998bb4c.tar.gz"],
+)
+
+hermetic_python = use_extension("@hermetic_cpython//python:extensions.bzl", "python")
+hermetic_python.version(
+    copts = ["-O2"],
+    patches = ["//deps/cpython:0004-Skip-bytecode-compilation-during-install.patch"],
+    version = PYTHON_MAJOR_MINOR,
+)
+hermetic_python.dependencies(
+    bzip2 = "@bzip2//:libbz2",
+    bzip2_license = "@bzip2//:LICENSE",
+    bzip2_shared_library = "@bzip2//:bz2_pkg",
+    libffi = "@libffi//:ffi",
+    libffi_license = "@libffi//:LICENSE",
+    openssl_crypto = "@openssl//:libcrypto_shared",
+    openssl_license = "@openssl//:LICENSE.txt",
+    openssl_ssl = "@openssl//:openssl_shared",
+    sqlite3 = "@sqlite3//:libsqlite3",
+    sqlite3_shared_library = "@sqlite3//:sqlite3_pkg",
+    xz = "@xz//:liblzma",
+    xz_license = "@xz//:COPYING",
+    xz_shared_library = "@xz//:lzma_pkg",
+    zlib = "@zlib//:zlib",
+    zlib_license = "@zlib//:LICENSE",
+    zlib_shared_library = "@zlib//:z_pkg",
+)
+use_repo(hermetic_python, "python3_13")

@@ -28,13 +28,13 @@ def rtloader_go_test(**kwargs):
     """
     unix_data = [
         "//rtloader:datadog-agent-three",
-        "@cpython//:python_unix",
-        "@cpython//:python3_bin",
+        "//deps/cpython:python_home",
+        "//deps/cpython:python3_bin",
     ]
 
     unix_env = {
         "LD_LIBRARY_PATH": ".",
-        "PYTHON_BIN": "$(rlocationpath @cpython//:python3_bin)",
+        "PYTHON_BIN": "$(rlocationpath //deps/cpython:python3_bin)",
     }
 
     go_test(
