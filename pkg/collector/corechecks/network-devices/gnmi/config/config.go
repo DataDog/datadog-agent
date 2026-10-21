@@ -38,6 +38,7 @@ type InstanceConfig struct {
 	UseTLS                     bool     `yaml:"use_tls"`
 	InsecureSkipVerify         bool     `yaml:"insecure_skip_verify"`
 	Encoding                   string   `yaml:"encoding"`
+	MetricPrefix               string   `yaml:"metric_prefix"`
 }
 
 // CheckConfig combines a validated instance config with its loaded profile.
@@ -104,6 +105,12 @@ func validateInstanceConfig(instance *InstanceConfig) error {
 	}
 	if instance.MetadataCollectionInterval < 0 {
 		return fmt.Errorf("invalid `metadata_collection_interval` %d: must be greater than or equal to 0", instance.MetadataCollectionInterval)
+	}
+	if instance.MetricPrefix == "" {
+		instance.MetricPrefix = "snmp"
+	}
+	if instance.MetricPrefix != "snmp" && instance.MetricPrefix != "gnmi" {
+		return fmt.Errorf("invalid `metric_prefix` %q: must be snmp or gnmi", instance.MetricPrefix)
 	}
 	if instance.InsecureSkipVerify && !instance.UseTLS {
 		return errors.New("`insecure_skip_verify` requires `use_tls: true`")

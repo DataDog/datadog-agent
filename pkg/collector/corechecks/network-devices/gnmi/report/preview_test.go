@@ -185,6 +185,58 @@ func TestPreviewCollectionMatchesCheckCollection(t *testing.T) {
 	assert.NotEmpty(t, checkSender.MetadataEvents())
 }
 
+func TestPreviewCollectionMetricPrefix(t *testing.T) {
+	for _, prefix := range []string{"", "snmp", "gnmi"} {
+		t.Run(prefix, func(t *testing.T) {
+			cfg := throughputTestConfig("10.0.0.5")
+			cfg.Instance.MetricPrefix = prefix
+			cfg.Instance.MinCollectionInterval = 15
+			cfg.Profile.Metadata = config.DefaultOpenConfigMetadata()
+			cfg.Profile.Metrics = append(cfg.Profile.Metrics,
+				config.MetricConfig{Path: pathPortSpeed, Metric: "snmp.ifInSpeed", Type: config.MetricTypeGauge, Tags: map[string]string{"interface": "name"}},
+				config.MetricConfig{Path: pathMemoryUsed, Metric: "snmp.memory.used", Type: config.MetricTypeGauge},
+				config.MetricConfig{Path: pathMemoryAvail, Metric: "snmp.memory.free", Type: config.MetricTypeGauge},
+				config.MetricConfig{Path: "/custom", Metric: "custom.metric", Type: config.MetricTypeGauge},
+			)
+			start := time.Unix(1000, 0)
+			snapshot := func(value uint64, ts time.Time) []client.CachedValue {
+				return append(inOctetsSample(value, ts),
+					client.CachedValue{Key: client.CacheKey{Path: pathPortSpeed, Keys: map[string]string{"name": "eth0"}}, Entry: client.CacheEntry{Value: uint64(1_000_000_000), Timestamp: ts}},
+					client.CachedValue{Key: client.CacheKey{Path: pathMemoryUsed, Keys: map[string]string{"name": "Chassis"}}, Entry: client.CacheEntry{Value: 75, Timestamp: ts}},
+					client.CachedValue{Key: client.CacheKey{Path: pathMemoryAvail, Keys: map[string]string{"name": "Chassis"}}, Entry: client.CacheEntry{Value: 25, Timestamp: ts}},
+					client.CachedValue{Key: client.CacheKey{Path: "/custom"}, Entry: client.CacheEntry{Value: 42, Timestamp: ts}},
+				)
+			}
+			capture := NewCaptureSender()
+			state := NewBandwidthState()
+			_, err := PreviewCollection(capture, cfg, newPreviewTestClient(snapshot(100, start)), state, time.Time{}, start, DefaultPreviewOptions())
+			require.NoError(t, err)
+			now := start.Add(15 * time.Second)
+			_, err = PreviewCollection(capture, cfg, newPreviewTestClient(snapshot(200, now)), state, time.Time{}, now, DefaultPreviewOptions())
+			require.NoError(t, err)
+
+			expectedPrefix := prefix
+			if expectedPrefix == "" {
+				expectedPrefix = "snmp"
+			}
+			names := make([]string, 0)
+			for _, metric := range capture.Metrics() {
+				names = append(names, metric.Name)
+				assert.Contains(t, metric.Tags, "integration_source:gnmi")
+				if prefix == "gnmi" {
+					assert.NotContains(t, metric.Name, "snmp.")
+				}
+			}
+			for _, suffix := range []string{"ifHCInOctets", "ifHCInOctets.rate", "ifInSpeed", "ifBandwidthInUsage.rate", "memory.used", "memory.free", "memory.usage", "interface.status"} {
+				assert.Contains(t, names, expectedPrefix+"."+suffix)
+			}
+			assert.Contains(t, names, "datadog.gnmi.stream_state")
+			assert.Contains(t, names, "custom.metric")
+			assert.Equal(t, "snmp.ifHCInOctets", cfg.Profile.Metrics[0].Metric)
+		})
+	}
+}
+
 func TestPreviewCollectionPrunesStateWithNoFreshSamples(t *testing.T) {
 	now := time.Now()
 	cfg := &config.CheckConfig{Instance: config.InstanceConfig{Address: "10.0.0.5", MinCollectionInterval: 15}}
