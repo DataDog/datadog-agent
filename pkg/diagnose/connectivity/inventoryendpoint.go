@@ -33,9 +33,10 @@ type endpointDescription struct {
 	configPrefix      string
 	altURLOverrideKey string
 	handlesFailover   bool
-	// notFoundOK treats HTTP 404 as success. The trace intake no longer serves
-	// GET /_health (it used to when the catch-all forwarded to trace-edge); a 404
-	// still proves the endpoint was reached.
+	// notFoundOK treats HTTP 404 from a Datadog host as success. The trace
+	// intake no longer serves GET /_health but still rejects an invalid API key
+	// with 403, so a 404 there means the host was reached with a valid key. A
+	// 404 from a custom URL proves neither.
 	notFoundOK bool
 }
 
@@ -81,7 +82,7 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 				url:        route,
 				method:     e.method,
 				apiKey:     getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
-				notFoundOK: e.notFoundOK,
+				notFoundOK: e.notFoundOK && utils.IsDatadogURL(route),
 			},
 		}
 	}
@@ -99,7 +100,7 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 			method:     e.method,
 			apiKey:     getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
 			isFailover: domain.isFailover,
-			notFoundOK: e.notFoundOK,
+			notFoundOK: e.notFoundOK && utils.IsDatadogURL(url),
 		})
 	}
 	return routes

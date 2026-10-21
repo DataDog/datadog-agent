@@ -211,6 +211,90 @@ func TestBuildEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "notFoundOK on default Datadog hosts including failover",
+			endpointDescription: endpointDescription{
+				prefix:          "trace.agent",
+				routePath:       "_health",
+				method:          http.MethodGet,
+				handlesFailover: true,
+				notFoundOK:      true,
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+				{
+					site:          "datadoghq.eu",
+					defaultAPIKey: "api-key-2",
+					isFailover:    true,
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey:     "api-key-1",
+					url:        "https://trace.agent.datadoghq.com./_health",
+					notFoundOK: true,
+				},
+				{
+					apiKey:     "api-key-2",
+					url:        "https://trace.agent.datadoghq.eu./_health",
+					notFoundOK: true,
+				},
+			},
+		},
+		{
+			name: "notFoundOK kept with url override to a Datadog host",
+			endpointDescription: endpointDescription{
+				prefix:            "trace.agent",
+				routePath:         "_health",
+				method:            http.MethodGet,
+				altURLOverrideKey: "apm_config.apm_dd_url",
+				notFoundOK:        true,
+			},
+			config: map[string]string{
+				"apm_config.apm_dd_url": "https://trace.agent.us5.datadoghq.com",
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey:     "api-key-1",
+					url:        "https://trace.agent.us5.datadoghq.com/_health",
+					notFoundOK: true,
+				},
+			},
+		},
+		{
+			name: "notFoundOK dropped with url override to a custom host",
+			endpointDescription: endpointDescription{
+				prefix:            "trace.agent",
+				routePath:         "_health",
+				method:            http.MethodGet,
+				altURLOverrideKey: "apm_config.apm_dd_url",
+				notFoundOK:        true,
+			},
+			config: map[string]string{
+				"apm_config.apm_dd_url": "http://localhost:9802",
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey: "api-key-1",
+					url:    "http://localhost:9802/_health",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -238,6 +322,7 @@ func TestBuildEndpoints(t *testing.T) {
 						found = true
 						assert.Equal(t, tt.endpointDescription.method, endpoint.method)
 						assert.Equal(t, expectedEndpoint.apiKey, endpoint.apiKey)
+						assert.Equal(t, expectedEndpoint.notFoundOK, endpoint.notFoundOK)
 						break
 					}
 				}
@@ -384,6 +469,12 @@ func TestCheckGetNotFoundOK(t *testing.T) {
 			statusCode: http.StatusForbidden,
 			notFoundOK: true,
 			wantErr:    "invalid status code: 403",
+		},
+		{
+			name:       "503 with notFoundOK fails",
+			statusCode: http.StatusServiceUnavailable,
+			notFoundOK: true,
+			wantErr:    "invalid status code: 503",
 		},
 	}
 
