@@ -396,7 +396,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 			continue
 		}
 
-		_, rule, err := rs.IsDiscarder(ctx, field, bucket.GetRules())
+		rule, err := rs.checkDiscarderSupport(ctx, field, bucket.GetRules())
 		if err != nil {
 			if errors.As(err, &errFieldNotFound) {
 				report.Invalid = append(report.Invalid, DiscarderInvalidReport{
@@ -1067,6 +1067,22 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 		isDiscarder = true
 	}
 	return isDiscarder, nil, nil
+}
+
+// checkDiscarderSupport returns the first rule that can't be partially evaluated on the field, without stopping like IsDiscarder at a rule the event satisfies
+func (rs *RuleSet) checkDiscarderSupport(ctx *eval.Context, field eval.Field, rules []*Rule) (*Rule, error) {
+	for _, rule := range rules {
+		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists {
+			continue
+		}
+
+		if _, err := rule.PartialEval(ctx, field); err != nil {
+			if _, err := rs.basenamePartialEval(ctx, field, rule, err); err != nil {
+				return rule, err
+			}
+		}
+	}
+	return nil, nil
 }
 
 // basenamePartialEval evaluates a rule without path condition on the basename instead, as no file can match a rule its basename doesn't

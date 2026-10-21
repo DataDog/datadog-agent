@@ -251,14 +251,16 @@ func TestRuleSetBasenameDiscarders(t *testing.T) {
 			t.Fatalf("open.file.path should be a supported discarder: %+v", report)
 		}
 
-		rs = newRuleSet()
-		AddTestRuleExpr(t, rs, pathRule, noFileRule)
+		for _, exprs := range [][]string{{pathRule, noFileRule}, {pathRule, nameRule, noFileRule}} {
+			rs = newRuleSet()
+			AddTestRuleExpr(t, rs, exprs...)
 
-		if report, err = rs.GetDiscardersReport(); err != nil {
-			t.Fatal(err)
-		}
-		if len(report.Invalid) != 1 || report.Invalid[0].Field != "open.file.path" {
-			t.Fatalf("open.file.path should be an invalid discarder: %+v", report)
+			if report, err = rs.GetDiscardersReport(); err != nil {
+				t.Fatal(err)
+			}
+			if len(report.Invalid) != 1 || report.Invalid[0].Field != "open.file.path" {
+				t.Fatalf("open.file.path should be an invalid discarder: %+v", report)
+			}
 		}
 	})
 }
