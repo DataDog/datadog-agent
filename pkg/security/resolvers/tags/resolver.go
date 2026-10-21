@@ -33,6 +33,12 @@ type Tagger interface {
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 }
 
+// SubscribableTagger is an optional interface implemented by taggers that support entity event subscriptions
+type SubscribableTagger interface {
+	Tagger
+	Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error)
+}
+
 // Resolver represents a cache resolver
 type Resolver interface {
 	Start(ctx context.Context) error
@@ -118,6 +124,64 @@ func (t *DefaultResolver) Start(_ context.Context) error {
 
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
+	return nil
+}
+
+// SubscribeContainerTags subscribes to container and container image metadata tag updates
+// and invokes onTagsUpdated whenever tags are added or modified.
+func (t *DefaultResolver) SubscribeContainerTags(ctx context.Context, subscriptionID string, onTagsUpdated func()) error {
+	if t == nil || t.tagger == nil || onTagsUpdated == nil {
+		return nil
+	}
+	subscribable, ok := t.tagger.(SubscribableTagger)
+	if !ok {
+		return nil
+	}
+
+	filter := types.NewFilterBuilder().
+		Include(types.ContainerID, types.ContainerImageMetadata).
+		Build(types.OrchestratorCardinality)
+
+	sub, err := subscribable.Subscribe(subscriptionID, filter)
+	if err != nil || sub == nil {
+		return err
+	}
+
+	go func() {
+		defer func() {
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case events, ok := <-sub.EventsChan():
+				if !ok {
+					if ctx.Err() != nil {
+						return
+					}
+					var err error
+					sub, err = subscribable.Subscribe(subscriptionID, filter)
+					if err != nil || sub == nil {
+						seclog.Warnf("failed to resubscribe to tagger events: %v", err)
+						return
+					}
+					onTagsUpdated()
+					continue
+				}
+				for _, ev := range events {
+					if ev.EventType == types.EventTypeAdded || ev.EventType == types.EventTypeModified {
+						onTagsUpdated()
+						break
+					}
+				}
+			}
+		}
+	}()
+
 	return nil
 }
 
