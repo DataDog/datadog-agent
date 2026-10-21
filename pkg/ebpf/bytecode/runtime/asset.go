@@ -54,9 +54,9 @@ func logRuntimeDirOnce(reason string) bool {
 // runtime-directory component was moved aside and recreated. A recurring reclaim
 // points at something else recreating the directory as non-root, so it is worth
 // surfacing rather than doing it silently.
-func logRuntimeDirReclaimed(purpose, p string) {
+func logRuntimeDirReclaimed(p string) {
 	if logRuntimeDirOnce("reclaimed:" + p) {
-		log.Warnf("recreated %s component %s: it was not a root-owned directory", purpose, p)
+		log.Warnf("recreated runtime directory component %s: it was not a root-owned directory", p)
 	}
 }
 
@@ -122,10 +122,9 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 		// headers by those means does not require this directory to be securable.
 		// secureDir verifies every component of the path it is given, so passing the
 		// leaf checks "system-probe" and "kernel-headers" rather than assuming they
-		// are safe because the directory above them is.
-		kernelHeaders = headers.GetKernelHeaders(headerOpts, func(dir string) error {
-			return secureDir(kernelHeaderDownloadDirPurpose, dir)
-		})
+		// are safe because the directory above them is. GetKernelHeaders wraps
+		// the error to say which directory it was.
+		kernelHeaders = headers.GetKernelHeaders(headerOpts, secureDir)
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
 			return nil, errors.New("unable to find kernel headers")
@@ -142,7 +141,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	}
 	defer f.Close()
 
-	if err := secureDir(compilerOutputDirPurpose, outputDir); err != nil {
+	if err := secureDir(outputDir); err != nil {
+		err = fmt.Errorf("unable to use compiler output directory: %w", err)
 		// Surface the policy refusal distinctly so operators can tell "runtime
 		// compilation disabled because the output directory is not under root's
 		// control" apart from an ordinary compilation failure. compile() runs
@@ -224,13 +224,6 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 // runtime_compiler_output_dir default (pkg/config/setup/system_probe_settings.go).
 const dedicatedDirName = "datadog-agent"
 
-// Purposes passed to secureDir, used in its refusal messages so an operator can
-// tell which directory was rejected.
-const (
-	compilerOutputDirPurpose       = "compiler output directory"
-	kernelHeaderDownloadDirPurpose = "kernel header download directory"
-)
-
 // secureDir ensures the given directory exists, is
 // root-only (0700), and that it and every ancestor up to the filesystem root is
 // a real directory owned by root and not writable by other users. The compiler
@@ -274,8 +267,8 @@ const (
 // or above the sticky boundary, and anything outside the datadog-agent subtree
 // are all still refused, so unexpected or broken layouts fail closed rather than
 // being silently rewritten.
-func secureDir(purpose, dir string) error {
-	components, err := runtimeDirComponents(purpose, dir)
+func secureDir(dir string) error {
+	components, err := runtimeDirComponents(dir)
 	if err != nil {
 		return err
 	}
@@ -288,7 +281,7 @@ func secureDir(purpose, dir string) error {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		retryable, err := ensureRuntimeDirChain(purpose, components)
+		retryable, err := ensureRuntimeDirChain(components)
 		if err == nil {
 			return nil
 		}
@@ -297,16 +290,16 @@ func secureDir(purpose, dir string) error {
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("unable to secure %s %s after %d attempts: %w", purpose, dir, maxAttempts, lastErr)
+	return fmt.Errorf("unable to secure %s after %d attempts: %w", dir, maxAttempts, lastErr)
 }
 
 // runtimeDirComponents returns the absolute form of outputDir and every ancestor
 // up to the filesystem root, ordered root-first: index 0 is the filesystem root
 // ("/") and the last element is the leaf output directory.
-func runtimeDirComponents(purpose, dir string) ([]string, error) {
+func runtimeDirComponents(dir string) ([]string, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("unable to resolve %s %s: %w", purpose, dir, err)
+		return nil, fmt.Errorf("unable to resolve %s: %w", dir, err)
 	}
 	var components []string
 	for p := filepath.Clean(abs); ; {
@@ -351,7 +344,7 @@ func runtimeDirComponents(purpose, dir string) ([]string, error) {
 //     permissions. A symlink or non-directory at a path component is unexpected
 //     rather than a routine leftover, so it is still refused (fail-closed)
 //     instead of being rewritten.
-func ensureRuntimeDirChain(purpose string, components []string) (retryable bool, err error) {
+func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 	// Walk root -> leaf so we know a component sits below a verified sticky
 	// boundary, and inside the agent's dedicated subtree, before we decide
 	// whether its failure is reclaimable.
@@ -373,21 +366,21 @@ func ensureRuntimeDirChain(purpose string, components []string) (retryable bool,
 			// directories and will not create through a symlink at p.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
 				// A racing actor may have created p first; re-walking re-checks it.
-				return true, fmt.Errorf("unable to create %s component %s: %w", purpose, p, mErr)
+				return true, fmt.Errorf("unable to create %s: %w", p, mErr)
 			}
 			continue
 		}
 		if lerr != nil {
-			return false, fmt.Errorf("unable to verify %s component %s: %w", purpose, p, lerr)
+			return false, fmt.Errorf("unable to verify %s: %w", p, lerr)
 		}
 
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
-			return false, fmt.Errorf("unable to read ownership of %s component %s", purpose, p)
+			return false, fmt.Errorf("unable to read ownership of %s", p)
 		}
 		// The last component is the leaf output directory, which is held to the
 		// stricter no-group/other-write rule (see verifyDirComponent).
-		if verr := verifyDirComponent(purpose, p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
+		if verr := verifyDirComponent(p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
 			// Reclaim only a real, wrong-owner/permission directory that is below
 			// the sticky boundary, inside the agent's dedicated subtree, and only
 			// as root. info.Mode().IsDir() is false for a symlink or a regular
@@ -400,11 +393,11 @@ func ensureRuntimeDirChain(purpose string, components []string) (retryable bool,
 			if rErr := reclaimDirComponent(p); rErr != nil {
 				return false, fmt.Errorf("%w (attempted reclaim failed: %v)", verr, rErr)
 			}
-			logRuntimeDirReclaimed(purpose, p)
+			logRuntimeDirReclaimed(p)
 			// Recreate this component fresh; deeper components were removed with
 			// the reclaimed subtree and are created as the walk continues.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
-				return true, fmt.Errorf("unable to recreate %s component %s after reclaim: %w", purpose, p, mErr)
+				return true, fmt.Errorf("unable to recreate %s after reclaim: %w", p, mErr)
 			}
 			continue
 		}
@@ -465,18 +458,18 @@ func reclaimDirComponent(p string) error {
 // interpose an entry at one of those names between our check and the compiler's
 // write. The leaf must therefore have no group/other write bits regardless of the
 // sticky bit; isLeaf selects that stricter rule.
-func verifyDirComponent(purpose, p string, mode os.FileMode, uid uint32, isLeaf bool) error {
+func verifyDirComponent(p string, mode os.FileMode, uid uint32, isLeaf bool) error {
 	if mode&os.ModeSymlink != 0 {
-		return fmt.Errorf("refusing to use %s: %s is a symlink", purpose, p)
+		return fmt.Errorf("%s is a symlink", p)
 	}
 	if !mode.IsDir() {
-		return fmt.Errorf("refusing to use %s: %s is not a directory", purpose, p)
+		return fmt.Errorf("%s is not a directory", p)
 	}
 	if uid != 0 {
-		return fmt.Errorf("refusing to use %s: %s is not owned by root (uid=%d)", purpose, p, uid)
+		return fmt.Errorf("%s is not owned by root (uid=%d)", p, uid)
 	}
 	if mode.Perm()&0022 != 0 && (isLeaf || mode&os.ModeSticky == 0) {
-		return fmt.Errorf("refusing to use %s: %s is writable by non-root (mode=%#o)", purpose, p, mode.Perm())
+		return fmt.Errorf("%s is writable by non-root (mode=%#o)", p, mode.Perm())
 	}
 	return nil
 }
