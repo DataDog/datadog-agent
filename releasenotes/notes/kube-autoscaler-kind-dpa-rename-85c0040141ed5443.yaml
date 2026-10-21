@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    The ``kube_autoscaler_kind`` tag value for pods managed by a
+    DatadogPodAutoscaler changes from ``datadogpodautoscaler`` to ``dpa``.
+    Update any queries, monitors, and dashboards that filter on
+    ``kube_autoscaler_kind:datadogpodautoscaler`` to use
+    ``kube_autoscaler_kind:dpa`` instead.

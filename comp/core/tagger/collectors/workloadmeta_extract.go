@@ -55,6 +55,8 @@ const (
 	// (from pkg/clusteragent/autoscaling/workload/model/const.go)
 	// no importing due to packages it pulls
 	datadogAutoscalingIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
+
+	datadogPodAutoscalerKind = "dpa"
 )
 
 var (
@@ -561,7 +563,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 
 	// autoscaler presence
 	if pod.Annotations[datadogAutoscalingIDAnnotation] != "" {
-		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
+		tagList.AddLow(tags.KubeAutoscalerKind, datadogPodAutoscalerKind)
 	}
 
 	kubeServiceDisabled := slices.Contains(c.cfg.GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")

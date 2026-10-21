@@ -857,7 +857,7 @@ func TestHandleKubePod(t *testing.T) {
 					},
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
-						"kube_autoscaler_kind:datadogpodautoscaler",
+						"kube_autoscaler_kind:dpa",
 					},
 					StandardTags: []string{},
 				},
