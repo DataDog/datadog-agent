@@ -5,6 +5,37 @@
 export AIX_SSH_COMMON_OPTS="-o ServerAliveInterval=20 -o ServerAliveCountMax=6"
 export AIX_SSH_DEST="$AIX_USER@$AIX_HOST"
 
+# Non-sensitive CI/GitLab environment variables forwarded to the AIX host, so
+# that remote commands run with the pipeline context: eg. packaging scripts
+# computing the Agent version with `invoke agent.version` pick up
+# CI_PIPELINE_ID and BUCKET_BRANCH to embed the .pipeline.<id> suffix in
+# nightly/dev versions, like the deb/rpm/dmg builds do on their runners.
+# Keep this list curated on purpose: never forward the whole environment,
+# as CI_JOB_TOKEN, Vault secrets and AWS credentials are runner-side only.
+AIX_FORWARDED_ENV_VARS=(
+    CI_PIPELINE_ID
+    CI_PIPELINE_SOURCE
+    CI_PROJECT_NAME
+    CI_COMMIT_SHA
+    CI_COMMIT_REF_NAME
+    CI_COMMIT_TAG
+    BUCKET_BRANCH
+    DEPLOY_AGENT
+    DEPLOY_INSTALLER
+)
+
+# Prints export lines for the forwarded variables that are set in the
+# current environment, safely single-quoted for the remote shell.
+aix_ci_env_exports() {
+    local var value
+    for var in "${AIX_FORWARDED_ENV_VARS[@]}"; do
+        value="${!var:-}"
+        if [ -n "$value" ]; then
+            printf "export %s='%s'\n" "$var" "${value//\'/\'\\\'\'}"
+        fi
+    done
+}
+
 # Run a script on the AIX host. Accepts the script either as inline arguments
 # or on stdin, eg.:
 #   aix_run_cmd echo "Hello from AIX"
@@ -18,6 +49,10 @@ aix_run_cmd() {
     else
         script=$(cat)
     fi
+    # Prepend the forwarded CI environment so the remote script runs with the
+    # pipeline context.
+    script="$(aix_ci_env_exports)
+$script"
     local encoded
     encoded=$(printf '%s' "$script" | base64 -w0)
     # pass the script encoded in base64 to avoid quoting and stdin issues:
