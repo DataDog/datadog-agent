@@ -45,6 +45,19 @@ func TestEndpointDescriptorSetFromKeysPerDomainPreservesPendingDelegatedAuth(t *
 	assert.True(t, descriptors["https://pending.example"].HasPendingDelegatedAuth)
 }
 
+func TestNewEndpointDescriptorWithConfigName(t *testing.T) {
+	apiKeys := []APIKeys{{
+		ConfigSettingPath:       "process_config.additional_endpoints",
+		HasPendingDelegatedAuth: true,
+	}}
+	descriptor := NewEndpointDescriptorWithConfigName("https://process.example/some/path", "https://process.example", apiKeys)
+
+	assert.Equal(t, "https://process.example/some/path", descriptor.ConfigName)
+	assert.Equal(t, "https://process.example", descriptor.BaseURL)
+	assert.Equal(t, apiKeys, descriptor.APIKeySet)
+	assert.True(t, descriptor.HasPendingDelegatedAuth)
+}
+
 func TestGetMultipleEndpointsDefault(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey

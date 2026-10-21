@@ -166,6 +166,9 @@ type EndpointDescriptor struct {
 	APIKeySet []APIKeys
 	IsMRF     bool
 
+	// ConfigName is the endpoint URL as it appears in the configuration, if it differs from BaseURL.
+	ConfigName string
+
 	// HasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
 	// be waiting on one from the delegatedauth component (a DELA[...] directive in
 	// additional_endpoints). Consumers (e.g. the forwarder's resolver.IsUsable()) should treat
@@ -185,6 +188,14 @@ func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescript
 			break
 		}
 	}
+	return descriptor
+}
+
+// NewEndpointDescriptorWithConfigName creates an EndpointDescriptor whose resolver tracks
+// configuration updates under configName rather than baseURL.
+func NewEndpointDescriptorWithConfigName(configName, baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
+	descriptor := newEndpointDescriptor(baseURL, apiKeySet)
+	descriptor.ConfigName = configName
 	return descriptor
 }
 
