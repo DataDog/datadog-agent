@@ -40,7 +40,7 @@ const (
 	DynamoSubComponentTypeLabelKey = "nvidia.com/dynamo-sub-component-type"
 	// RayClusterLabelKey is the KubeRay label for the owning RayCluster.
 	RayClusterLabelKey = "ray.io/cluster"
-	// RayServeLabelKey selects Ray pods for the serving service.
+	// RayServeLabelKey marks RayService pods; its value controls serving traffic.
 	RayServeLabelKey = "ray.io/serve"
 	// RayNodeTypeLabelKey is the KubeRay label for the head or worker node type.
 	RayNodeTypeLabelKey = "ray.io/node-type"

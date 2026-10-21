@@ -393,6 +393,8 @@ func TestPodParsersRayInferenceTags(t *testing.T) {
 		nodeType      string
 		group         string
 		wantComponent string
+		sidecarImage  string
+		serveFalse    bool
 	}{
 		{name: "head", containerName: "ray-head", image: "rayproject/ray-llm:latest", imageName: "rayproject/ray-llm", nodeType: "head", group: "headgroup", wantComponent: "head"},
 		{name: "private worker", containerName: "ray-worker", image: "example.com/team/ray-llm-service:vllm-stable", imageName: "example.com/team/ray-llm-service", nodeType: "worker", group: "decode", wantComponent: "decode"},
@@ -401,7 +403,9 @@ func TestPodParsersRayInferenceTags(t *testing.T) {
 		{name: "LLM tag only", containerName: "ray-worker", image: "example.com/team/ray:vllm-stable", imageName: "example.com/team/ray", nodeType: "worker"},
 		{name: "LLM namespace only", containerName: "ray-worker", image: "example.com/vllm/ray:latest", imageName: "example.com/vllm/ray", nodeType: "worker"},
 		{name: "LLM registry only", containerName: "ray-worker", image: "ray-llm.example.com/team/ray:latest", imageName: "ray-llm.example.com/team/ray", nodeType: "worker"},
-		{name: "sidecar only", containerName: "sidecar", image: "vllm/vllm-openai:latest", imageName: "vllm/vllm-openai", nodeType: "worker"},
+		{name: "sidecar only", containerName: "ray-worker", image: "rayproject/ray:latest", imageName: "rayproject/ray", sidecarImage: "vllm/vllm-openai:latest", nodeType: "worker"},
+		{name: "custom worker", containerName: "llm", image: "rayproject/ray-llm:2.56.0-py312-cu130", imageName: "rayproject/ray-llm", nodeType: "worker", group: "gpu-group", wantComponent: "gpu-group"},
+		{name: "head excluded from traffic", containerName: "ray-head", image: "rayproject/ray-llm:latest", imageName: "rayproject/ray-llm", nodeType: "head", wantComponent: "head", serveFalse: true},
 		{name: "missing image", containerName: "ray-worker", nodeType: "worker"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -414,6 +418,12 @@ func TestPodParsersRayInferenceTags(t *testing.T) {
 					},
 				},
 				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: tt.containerName, Image: tt.image}}},
+			}
+			if tt.serveFalse {
+				pod.Labels["ray.io/serve"] = "false"
+			}
+			if tt.sidecarImage != "" {
+				pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: "sidecar", Image: tt.sidecarImage})
 			}
 			// The minimal informer decodes API JSON and deep-copies its objects.
 			raw, err := json.Marshal(pod)
@@ -428,7 +438,7 @@ func TestPodParsersRayInferenceTags(t *testing.T) {
 			} {
 				t.Run(name, func(t *testing.T) {
 					parsedPod := entity.(*workloadmeta.KubernetesPod)
-					require.Len(t, parsedPod.Containers, 1)
+					require.Len(t, parsedPod.Containers, len(pod.Spec.Containers))
 					assert.Equal(t, tt.imageName, parsedPod.Containers[0].Image.Name)
 					extractor := collectors.NewPodTagExtractor(config.NewMock(t), nil)
 					var got []string

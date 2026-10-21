@@ -1124,8 +1124,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 		}
 	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
-	// KubeRay adds the Serve labels. Also require an LLM serving image.
-	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && pod.Labels[kubernetes.RayServeLabelKey] == "true" && isRayLLMPod(pod) {
+	// KubeRay adds the Serve label only to RayService pods. Its value tracks
+	// traffic readiness, so both true and false identify the same workload.
+	_, isRayService := pod.Labels[kubernetes.RayServeLabelKey]
+	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && isRayService && isRayLLMPod(pod) {
 		tagList.AddLow(tags.InferenceWorkload, rayClusterWorkloadName(cluster))
 		component := pod.Labels[kubernetes.RayNodeTypeLabelKey]
 		if component == "worker" && pod.Labels[kubernetes.RayNodeGroupLabelKey] != "" {
@@ -1176,21 +1178,15 @@ func rayClusterWorkloadName(name string) string {
 }
 
 func isRayLLMPod(pod *workloadmeta.KubernetesPod) bool {
-	// Workloadmeta containers follow status order, not pod spec order. Identify
-	// the standard KubeRay container by name so sidecars cannot qualify a pod.
-	for _, container := range pod.Containers {
-		if container.Name != "ray-head" && container.Name != "ray-worker" {
-			continue
-		}
-		// Image.Name excludes the tag and digest. Check only the repository
-		// basename so registry and namespace names cannot qualify a pod.
-		name := container.Image.Name
-		name = strings.ToLower(name[strings.LastIndex(name, "/")+1:])
-		if strings.Contains(name, "ray-llm") || strings.Contains(name, "vllm") {
-			return true
-		}
+	// KubeRay uses the first spec container for Ray, regardless of its name.
+	// Pod containers retain spec order across the kubelet and API-server parsers.
+	if len(pod.Containers) == 0 {
+		return false
 	}
-	return false
+	// Image.Name excludes the tag and digest. Match only the repository basename.
+	name := pod.Containers[0].Image.Name
+	name = strings.ToLower(name[strings.LastIndex(name, "/")+1:])
+	return strings.Contains(name, "ray-llm") || strings.Contains(name, "vllm")
 }
 
 // addResourceLabelsAndAnnotationsAsTags applies the labels-as-tags and

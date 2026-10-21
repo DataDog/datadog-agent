@@ -2562,7 +2562,7 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "batch", cluster: "batch", nodeType: "worker", group: "decode"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "serve disabled", cluster: "serve", serve: "false", nodeType: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head excluded from traffic", cluster: "serve", serve: "false", nodeType: "head", wantWorkload: "serve", wantComponent: "head"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no cluster", serve: "true", nodeType: "worker", group: "decode"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "unrelated pod"},
 		{name: "generic Ray Serve", image: "rayproject/ray:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", group: "decode"},
@@ -2638,12 +2638,22 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 					}
 				}
 			}
+			if tt.serve == "" {
+				delete(pod.Labels, kubernetes.RayServeLabelKey)
+			}
 			check(tt.wantWorkload, tt.wantComponent)
+			// Changes to traffic readiness must not change workload identity.
+			if tt.serve != "" {
+				pod.Labels[kubernetes.RayServeLabelKey] = "false"
+				check(tt.wantWorkload, tt.wantComponent)
+				pod.Labels[kubernetes.RayServeLabelKey] = "true"
+				check(tt.wantWorkload, tt.wantComponent)
+			}
 			// A change to a generic Ray image must remove the inference tags.
 			pod.Containers[0].Image = workloadmeta.ContainerImage{Name: "rayproject/ray"}
 			check("", "")
 			pod.Containers[0].Image = image
-			// An update must replace the tags when the pod no longer serves.
+			// Removing RayService identity must remove the inference tags.
 			delete(pod.Labels, kubernetes.RayServeLabelKey)
 			check("", "")
 		})
@@ -2658,11 +2668,11 @@ func TestRayLLMContainerIdentification(t *testing.T) {
 			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "vllm/vllm-openai"}},
 		},
 	}))
-	for _, name := range []string{"ray-head", "ray-worker"} {
+	for _, name := range []string{"ray-head", "ray-worker", "llm", "custom-ray"} {
 		assert.True(t, isRayLLMPod(&workloadmeta.KubernetesPod{
 			Containers: []workloadmeta.OrchestratorContainer{
-				{Name: "autoscaler", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
 				{Name: name, Image: workloadmeta.ContainerImage{Name: "rayproject/ray-llm"}},
+				{Name: "autoscaler", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
 			},
 		}))
 	}
