@@ -1,0 +1,31 @@
+expected:
+  - resource:
+      type: postgres_table
+      name: e2e-instance.labdb.public.accounts
+    ruleIds:
+      - e2e-owner-pattern
+    scanningSource:
+      agent: {}
+    scanResults:
+      - tableMatches:
+          - ruleId: e2e-owner-pattern
+            columnName: owner
+            countMatchedRows: 200
+            countMatches: 200
+        location:
+          postgresTable:
+            databaseClusterName: e2e-cluster
+            databaseInstanceName: e2e-instance
+            databaseHostName: localhost
+            databaseName: labdb
+            schemaName: public
+            tableName: accounts
+            scannedRowCount: 200
+            scannedColumns:
+              - name: owner
+                dataType: text
+        scanMetadata:
+          scanTaskMetadata:
+            taskId: e2e-datasec-postgres
+            subTaskId: e2e-accounts
+            status: SUCCESS

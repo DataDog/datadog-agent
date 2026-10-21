@@ -10,6 +10,7 @@ dd_agent_go_test(
     name = "data-security_test",
     srcs = [
         "postgres_provisioner.go",  # keep
+        "postgres_rc_test.go",
         "postgres_scan_test.go",
         "postgres_scenarios.go",  # keep
     ],
@@ -19,6 +20,7 @@ dd_agent_go_test(
     # keep
     deps = [
         "//pkg/proto/pbgo/sds",
+        "//pkg/remoteconfig/state",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
