@@ -684,6 +684,12 @@ type Container struct {
 	// workloadmeta clients, as system-probe needs it to attribute GPU process
 	// metrics to the right device.
 	GPUDeviceIDs []string
+	// GPUShares holds, keyed by GPU device UUID, the share of each GPU in
+	// GPUDeviceIDs that the container is assigned when the GPU is shared with
+	// other workloads by a mechanism that assigns each of them a share, such as
+	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
+	// way.
+	GPUShares map[string]GPUShare `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -787,6 +793,9 @@ func (c Container) String(verbose bool) string {
 	if len(c.GPUDeviceIDs) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
 		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		if len(c.GPUShares) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
 	}
 
 	if c.ECSContainer != nil {
@@ -2280,6 +2289,27 @@ const (
 	GPUCOUNT
 )
 
+// GPUSharingMode is the mechanism through which a GPU is shared between
+// workloads.
+type GPUSharingMode string
+
+const (
+	// GPUSharingModeNone means that no sharing mechanism was detected for the
+	// GPU.
+	GPUSharingModeNone GPUSharingMode = "none"
+	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
+	// between workloads that each request a fraction of it.
+	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+)
+
+// GPUShare is the share of a GPU assigned to a container that shares the GPU
+// with other workloads.
+type GPUShare struct {
+	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
+	// or 0 when the container shares the GPU but its share is unknown.
+	Fraction float64
+}
+
 // GPUDeviceType is an enum to identify the type of the GPU device.
 type GPUDeviceType int
 
@@ -2381,6 +2411,11 @@ type GPU struct {
 	// as reported by the driver for the device's GPU instance. Empty for physical
 	// devices and for MIG devices on drivers that do not expose the profile name.
 	MIGProfile string
+
+	// SharingMode is the mechanism through which the device is shared between
+	// workloads. Empty when the collector does not detect sharing mechanisms,
+	// which means the same as GPUSharingModeNone.
+	SharingMode GPUSharingMode
 }
 
 var _ Entity = &GPU{}
@@ -2441,6 +2476,9 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
 	if g.Lost {
 		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
+	if g.SharingMode != "" && g.SharingMode != GPUSharingModeNone {
+		_, _ = fmt.Fprintln(&sb, "Sharing Mode:", g.SharingMode)
 	}
 
 	// Do not show "physical" device type as it's the default and redundant information

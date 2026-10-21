@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // SampleEmitter sends the samples collected for GPU devices: it removes
@@ -61,7 +62,8 @@ type CollectorSamples struct {
 // the tags of a device, gpuToContainers the containers each device is
 // allocated to, and gpuToProcesses the PIDs of the processes using each
 // device: samples without associated workloads get the tags of those
-// containers and the tags shared by those processes.
+// containers and the tags shared by those processes. It also sends the share
+// of each device assigned to its containers, see sharingFractionSamples.
 func (e *SampleEmitter) Emit(snd sender.Sender, collectorResults []CollectorSamples, gpuToContainers map[string][]*workloadmeta.Container, gpuToProcesses map[string][]int32, deviceTags func(deviceUUID string) []string, currentExecutionTime time.Time) error {
 	var multiErr []error
 	perDeviceSamples := make(map[string]*deviceSamplesCollection)
@@ -99,6 +101,8 @@ func (e *SampleEmitter) Emit(snd sender.Sender, collectorResults []CollectorSamp
 
 		deduplicatedSamples = e.StrictIntervals.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 		deduplicatedSamples = e.RateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
+
+		deduplicatedSamples = append(deduplicatedSamples, sharingFractionSamples(deviceUUID, deviceContainers)...)
 
 		for _, sample := range deduplicatedSamples {
 			if err := e.EmitSample(sample, snd, currentExecutionTime, deviceContainers, devicePIDs, tags); err != nil {
@@ -154,6 +158,32 @@ func (e *SampleEmitter) EmitSample(sample nvidia.Sample, snd sender.Sender, curr
 	}
 
 	return errors.Join(multiErr...)
+}
+
+// sharingFractionMetricName is the metric holding the fraction of a device
+// assigned to a container.
+const sharingFractionMetricName = "device.sharing_fraction"
+
+// sharingFractionSamples returns, for each container on the given device that
+// is assigned a share of it (see workloadmeta.Container.GPUShares), a sample
+// with that share, associated with that container only, so that each fraction
+// is attributable to one container. Containers without a known share get
+// nothing: whether they have the device to themselves or share it some other
+// way, such as time-slicing, cannot be told apart reliably.
+func sharingFractionSamples(deviceUUID string, deviceContainers []*workloadmeta.Container) []nvidia.Sample {
+	var samples []nvidia.Sample
+	seen := make(map[string]struct{}, len(deviceContainers))
+	for _, container := range deviceContainers {
+		if _, duplicate := seen[container.ID]; duplicate {
+			continue
+		}
+		seen[container.ID] = struct{}{}
+
+		if share := container.GPUShares[deviceUUID]; share.Fraction > 0 {
+			samples = append(samples, nvidia.NewMetric(sharingFractionMetricName, share.Fraction, metrics.GaugeType, nvidia.Low, nil, []workloadmeta.EntityID{container.EntityID}))
+		}
+	}
+	return samples
 }
 
 // GPUToProcessesMap returns the mapping of GPU device UUIDs to the PIDs of the

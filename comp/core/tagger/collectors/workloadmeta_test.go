@@ -4501,6 +4501,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
 						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4541,6 +4542,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
 						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4586,6 +4588,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_mig_profile:3g.20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
+						"gpu_sharing_mode:none",
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4632,6 +4635,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_sharing_mode:none",
 						"gpu_mig_profile:none",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
@@ -4640,6 +4644,39 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "shared by KAI fractions",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:        "nvidia",
+				Device:        "tesla-t4",
+				NVLinkVersion: "not_nvlink_capable",
+				SharingMode:   workloadmeta.GPUSharingModeKAIFraction,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla-t4",
+						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:kai_fraction",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 					},
 					StandardTags: []string{},
 				},
@@ -5422,6 +5459,8 @@ func TestHandleProcess(t *testing.T) {
 		DriverVersion:      gpuDriverVersion,
 		VirtualizationMode: gpuVirtMode,
 		PCIBusID:           "0000:00:1e.0",
+		// Processes do not get gpu_sharing_mode, which changes at runtime.
+		SharingMode: workloadmeta.GPUSharingModeKAIFraction,
 	})
 
 	cfg := configmock.New(t)

@@ -1331,6 +1331,215 @@ func TestRunEmitsSharedProcessTagsMultiGPUContainer(t *testing.T) {
 	mockSender.AssertExpectations(t)
 }
 
+func TestSharingFractionSamples(t *testing.T) {
+	const (
+		device = "GPU-11111111-1111-1111-1111-111111111111"
+		other  = "GPU-22222222-2222-2222-2222-222222222222"
+	)
+	container := func(id string, shares map[string]workloadmeta.GPUShare) *workloadmeta.Container {
+		return &workloadmeta.Container{
+			EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+			GPUShares: shares,
+		}
+	}
+	share := func(fraction float64) map[string]workloadmeta.GPUShare {
+		return map[string]workloadmeta.GPUShare{device: {Fraction: fraction}}
+	}
+	multiGPU := container("multi", map[string]workloadmeta.GPUShare{device: {Fraction: 0.5}, other: {Fraction: 0.25}})
+
+	tests := []struct {
+		name       string
+		containers []*workloadmeta.Container
+		want       map[string]float64
+	}{
+		{
+			name:       "two pods sharing the GPU in halves",
+			containers: []*workloadmeta.Container{container("a", share(0.5)), container("b", share(0.5))},
+			want:       map[string]float64{"a": 0.5, "b": 0.5},
+		},
+		{
+			name:       "unequal fractions",
+			containers: []*workloadmeta.Container{container("a", share(0.3)), container("b", share(0.7))},
+			want:       map[string]float64{"a": 0.3, "b": 0.7},
+		},
+		{
+			name:       "a fraction leaving the rest of the GPU unassigned",
+			containers: []*workloadmeta.Container{container("a", share(0.5))},
+			want:       map[string]float64{"a": 0.5},
+		},
+		{
+			name:       "a container without a share gets nothing, even alone on the GPU",
+			containers: []*workloadmeta.Container{container("whole", nil)},
+		},
+		{
+			name:       "nor do containers sharing the GPU without a known share",
+			containers: []*workloadmeta.Container{container("a", nil), container("b", nil)},
+		},
+		{
+			name:       "a share that could not be read is not reported",
+			containers: []*workloadmeta.Container{container("a", share(0)), container("b", share(0.5))},
+			want:       map[string]float64{"b": 0.5},
+		},
+		{
+			name:       "a container listed twice is reported once",
+			containers: []*workloadmeta.Container{container("a", share(0.5)), container("a", share(0.5))},
+			want:       map[string]float64{"a": 0.5},
+		},
+		{
+			name:       "a multi-GPU container reports its share of this GPU only",
+			containers: []*workloadmeta.Container{multiGPU, container("a", share(0.5))},
+			want:       map[string]float64{"multi": 0.5, "a": 0.5},
+		},
+		{
+			name:       "a share of another GPU does not apply to this one",
+			containers: []*workloadmeta.Container{container("elsewhere", map[string]workloadmeta.GPUShare{other: {Fraction: 0.5}})},
+		},
+		{
+			name: "no containers",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := make(map[string]float64)
+			for _, sample := range sharingFractionSamples(device, test.containers) {
+				metric, ok := sample.(*nvidia.Metric)
+				require.True(t, ok)
+				require.Equal(t, sharingFractionMetricName, metric.Name)
+				require.Equal(t, ddmetrics.GaugeType, metric.Type)
+				// Each fraction belongs to exactly one container, so that it
+				// does not get the tags of the others.
+				workloads := metric.AssociatedWorkloads()
+				require.Len(t, workloads, 1)
+				require.Equal(t, workloadmeta.KindContainer, workloads[0].Kind)
+				require.NotContains(t, got, workloads[0].ID)
+				got[workloads[0].ID] = metric.Value
+			}
+			if test.want == nil {
+				test.want = map[string]float64{}
+			}
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestEmitSharingFractionPerContainer(t *testing.T) {
+	// Two KAI pods share GPU 0 in halves, and one of them also holds half of
+	// GPU 1. Each fraction must carry the tags of its own pod only, while the
+	// device metrics keep the tags of every pod on the device.
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
+	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	gpu0, gpu1 := testutil.GPUUUIDs[0], testutil.GPUUUIDs[1]
+	fracA := &workloadmeta.Container{
+		EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "frac-a"},
+		Runtime:      workloadmeta.ContainerRuntimeContainerd,
+		GPUDeviceIDs: []string{gpu0},
+		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5}},
+	}
+	fracMulti := &workloadmeta.Container{
+		EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "frac-multi"},
+		Runtime:      workloadmeta.ContainerRuntimeContainerd,
+		GPUDeviceIDs: []string{gpu0, gpu1},
+		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5}, gpu1: {Fraction: 0.5}},
+	}
+	for _, container := range []*workloadmeta.Container{fracA, fracMulti} {
+		wmetaMock.Set(container)
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", []string{"pod_name:" + container.ID}, nil, nil, nil)
+	}
+
+	check.collectors = nil
+	for _, uuid := range []string{gpu0, gpu1} {
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai_fraction"}, nil, nil, nil)
+		check.collectors = append(check.collectors, &mockCollector{
+			name:       "mockCollector",
+			deviceUUID: uuid,
+			samples:    []nvidia.Sample{nvidia.NewMetric("sm_active", 10, ddmetrics.GaugeType, 0, nil, nil)},
+		})
+	}
+
+	require.NoError(t, check.Run())
+
+	type series struct {
+		value float64
+		tags  []string
+	}
+	emitted := make(map[string][]series)
+	for _, call := range mockSender.Mock.Calls {
+		if call.Method != "GaugeWithTimestamp" {
+			continue
+		}
+		tags := slices.Sorted(slices.Values(call.Arguments.Get(3).([]string)))
+		emitted[call.Arguments.Get(0).(string)] = append(emitted[call.Arguments.Get(0).(string)], series{call.Arguments.Get(1).(float64), tags})
+	}
+
+	assert.ElementsMatch(t, []series{
+		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
+		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
+		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+	}, emitted["gpu.device.sharing_fraction"])
+	assert.ElementsMatch(t, []series{
+		{10, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a", "pod_name:frac-multi"}},
+		{10, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+	}, emitted["gpu.sm_active"], "device metrics keep the tags of every container on the device")
+}
+
+func TestSharingFractionFollowsSpec(t *testing.T) {
+	// device.sharing_fraction needs a container on the device, which
+	// TestMetricsFollowSpec cannot add without giving every device metric
+	// container tags that their spec does not list. Validate it on its own,
+	// against the same spec and validation code.
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+
+	for _, config := range gpuspec.KnownGPUConfigs(specs) {
+		if config.DeviceMode == gpuspec.DeviceModeMIG {
+			// The MIG mock exposes a different device layout; the share
+			// logic does not depend on the device mode.
+			continue
+		}
+		t.Run(fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode), func(t *testing.T) {
+			setup := setupMockCheckForMetricCollection(t, config, specs.Architectures, specs.Architectures.Architectures[config.Architecture])
+			setup.wmeta.Set(&workloadmeta.Container{
+				EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "fractional"},
+				Runtime:      workloadmeta.ContainerRuntimeContainerd,
+				GPUDeviceIDs: []string{testutil.DefaultGpuUUID},
+				GPUShares:    map[string]workloadmeta.GPUShare{testutil.DefaultGpuUUID: {Fraction: 0.5}},
+			})
+			setup.fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "fractional"), "spec-test", []string{"kube_container_name:fractional"}, nil, nil, nil)
+
+			setup.runCollection()
+
+			emitted := GetEmittedGPUMetrics(setup.mockSender)
+			require.NotEmpty(t, emitted[sharingFractionMetricName])
+			results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]gpuspec.MetricObservation{
+				sharingFractionMetricName: emitted[sharingFractionMetricName],
+			}, setup.knownTagValues, gpuspec.ValidationOptions{
+				WorkloadActive:  true,
+				ConfigFeatures:  gpuspec.AllConfigFeatures(),
+				WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
+			})
+			require.NoError(t, err)
+			status := results.Metrics[sharingFractionMetricName]
+			require.NotNil(t, status)
+			assert.False(t, status.HasFailures(), "%+v", status)
+			for tag, tagResult := range status.TagResults {
+				assert.Zero(t, tagResult.Missing, "tag %s missing", tag)
+				assert.Zero(t, tagResult.Unknown, "tag %s unknown", tag)
+				assert.Zero(t, tagResult.InvalidValue, "tag %s invalid: %v", tag, tagResult.InvalidValueSamples)
+			}
+		})
+	}
+}
+
 func TestGetGPUToProcessesMap(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	check := &Check{wmeta: wmetaMock}
@@ -1700,6 +1909,8 @@ type metricCollectionSetup struct {
 	mockSender     *mocksender.MockSender
 	runCollection  func()
 	knownTagValues map[string]string
+	wmeta          workloadmetamock.Mock
+	fakeTagger     taggermock.Mock
 }
 
 func seedContainersForPIDMapping(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock, pidToContainerID map[int]string) {
@@ -1832,6 +2043,8 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		mockSender:     mockSender,
 		runCollection:  runCollection,
 		knownTagValues: knownTagValues,
+		wmeta:          wmeta,
+		fakeTagger:     fakeTagger,
 	}
 }
 

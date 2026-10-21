@@ -256,7 +256,7 @@ func (c *Check) deviceTagsFor(dev *amdgpu.Device) []string {
 }
 
 // amdDeviceTags builds the device tags of an AMD GPU, with the same keys and
-// values the tagger produces from its workloadmeta entity (ExtractGPUTags).
+// values the tagger produces from its workloadmeta entity (ExtractGPUEntityTags).
 func amdDeviceTags(dev *amdgpu.Device) []string {
 	tags := []string{
 		"gpu_vendor:" + amdgpu.Vendor,
@@ -264,6 +264,7 @@ func amdDeviceTags(dev *amdgpu.Device) []string {
 		"gpu_device:" + gpuutil.NormalizeGPUDeviceName(dev.Name),
 		"gpu_pci_bus_id:" + strings.ToLower(dev.PCIBusID),
 		"gpu_slicing_mode:none",
+		"gpu_sharing_mode:none",
 		"gpu_mig_profile:none",
 		"gpu_nvlink_capable:false",
 		"gpu_parent_uuid:" + strings.ToLower(dev.UUID),

@@ -8,9 +8,13 @@
 package nvml
 
 import (
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -42,6 +46,19 @@ const (
 	// kaiFractionContainerNameAnnotation names the container that gets the GPU
 	// when the pod author sets it explicitly.
 	kaiFractionContainerNameAnnotation = "gpu-fraction-container-name"
+	// kaiGPUFractionAnnotation requests the same fraction of each GPU the pod
+	// gets, e.g. "0.5".
+	kaiGPUFractionAnnotation = "gpu-fraction"
+	// kaiGPUMemoryAnnotation requests the same amount of memory, in MiB, on
+	// each GPU the pod gets, e.g. "4096". It is the alternative to
+	// kaiGPUFractionAnnotation.
+	kaiGPUMemoryAnnotation = "gpu-memory"
+	// kaiGPUMemoryRequestSuffix ends the per-container annotation holding the
+	// memory the container gets on each of its GPUs, as a Kubernetes quantity,
+	// e.g. "nvidia.com/container.<name>.gpu-memory.request: 7680Mi". Since
+	// v0.18, KAI's admission webhook writes it from gpu-memory, and its binder
+	// from the fraction it allocated when the pod requested gpu-fraction.
+	kaiGPUMemoryRequestSuffix = ".gpu-memory.request"
 )
 
 // Terminal pod phases, as the kubelet reports them in KubernetesPod.Phase.
@@ -80,12 +97,24 @@ func newKAIAssignmentFailedCounter(tm telemetry.Component) telemetry.Counter {
 // that the rest of this collector depends on.
 var kaiWarnLimiter = log.NewLogLimit(20, 10*time.Minute)
 
+// kaiShareWarnLimiter is separate from kaiWarnLimiter for the same reason: a
+// pod whose share cannot be read is warned about on every pull, and must not
+// starve the warnings about GPUs that cannot be attributed at all.
+var kaiShareWarnLimiter = log.NewLogLimit(20, 10*time.Minute)
+
 // kaiFractions is what one pull could establish about the KAI Scheduler
 // fractional GPUs on this node.
 type kaiFractions struct {
 	// uuidsByContainer holds the GPU UUIDs resolved for each fractional
 	// container, keyed by container ID.
 	uuidsByContainer map[string][]string
+	// sharesByContainer holds the share of each GPU of each fractional
+	// container, keyed by container ID and then by GPU UUID.
+	sharesByContainer map[string]map[string]workloadmeta.GPUShare
+	// sharedGPUs holds the UUIDs of the GPUs that a live reservation pod holds
+	// for KAI fractions, whether or not the workloads sharing them could be
+	// attributed.
+	sharedGPUs map[string]struct{}
 	// claiming holds every container that still has a fraction to account for:
 	// one whose GPUs resolved, and one still waiting for a reservation pod. A
 	// container whose reservations were all seen and whose GPUs have all left
@@ -111,6 +140,15 @@ type kaiReservation struct {
 type reservationCandidate struct {
 	kaiReservation
 	group string
+}
+
+// resolveKAIFractions returns the KAI Scheduler fractional GPUs on this node,
+// or none when KAI support is disabled.
+func (c *collector) resolveKAIFractions(deviceCache ddnvml.DeviceCache) kaiFractions {
+	if !c.kaiSchedulerEnabled {
+		return kaiFractions{}
+	}
+	return c.kaiFractionalGPUs(deviceCache)
 }
 
 // kaiFractionalGPUs resolves which GPU each KAI Scheduler fractional container
@@ -144,9 +182,16 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 	reservations := c.kaiGPUGroupReservations(pods, deviceCache)
 
 	fractions := kaiFractions{
-		uuidsByContainer: make(map[string][]string),
-		claiming:         make(map[string]struct{}),
-		partial:          make(map[string]struct{}),
+		uuidsByContainer:  make(map[string][]string),
+		sharesByContainer: make(map[string]map[string]workloadmeta.GPUShare),
+		sharedGPUs:        make(map[string]struct{}),
+		claiming:          make(map[string]struct{}),
+		partial:           make(map[string]struct{}),
+	}
+	for _, reservation := range reservations {
+		if reservation.uuid != "" {
+			fractions.sharedGPUs[reservation.uuid] = struct{}{}
+		}
 	}
 	for _, pod := range pods {
 		// A reservation pod carries a group label too, but it is KAI's
@@ -228,10 +273,110 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 		}
 		if len(uuids) > 0 {
 			fractions.uuidsByContainer[containerID] = uuids
+			containerName := kaiContainerNameByID(slices.Concat(pod.Containers, pod.InitContainers), containerID)
+			fractions.sharesByContainer[containerID] = kaiGPUShares(pod, containerName, uuids, deviceCache)
 		}
 	}
 
 	return fractions
+}
+
+// kaiGPUShares returns the share of each of the given GPUs that KAI assigned
+// to the pod's fractional container, named containerName, keyed by GPU UUID.
+//
+// KAI assigns the same share of every GPU a pod gets. The fraction is read
+// from the gpu-fraction annotation when the pod requested one, as that is the
+// fraction the pod asked for and KAI accounts for. Otherwise the pod requested an amount of memory,
+// which is turned into a fraction of each GPU's memory, capped at the whole
+// GPU: from the per-container gpu-memory.request annotation, or from the
+// gpu-memory annotation on KAI versions that do not write the former. An
+// invalid value is skipped in favour of the next source. A GPU whose share
+// cannot be determined still gets an entry, with a zero fraction, so that the
+// container is not taken for having it whole.
+func kaiGPUShares(pod *workloadmeta.KubernetesPod, containerName string, uuids []string, deviceCache ddnvml.DeviceCache) map[string]workloadmeta.GPUShare {
+	shares := make(map[string]workloadmeta.GPUShare, len(uuids))
+	for _, uuid := range uuids {
+		shares[uuid] = workloadmeta.GPUShare{}
+	}
+
+	if raw := pod.Annotations[kaiGPUFractionAnnotation]; raw != "" {
+		fraction, err := strconv.ParseFloat(raw, 64)
+		if err == nil && fraction > 0 && fraction <= 1 {
+			for _, uuid := range uuids {
+				shares[uuid] = workloadmeta.GPUShare{Fraction: fraction}
+			}
+			return shares
+		}
+		warnInvalidKAIShare(pod, kaiGPUFractionAnnotation, raw)
+	}
+
+	requested, found := kaiRequestedGPUMemory(pod, containerName)
+	if !found {
+		return shares
+	}
+	for _, uuid := range uuids {
+		// The UUIDs were validated against NVML by kaiGPUGroupReservations, so
+		// a lookup failure here means the device left between the two calls.
+		device, err := deviceCache.GetByUUID(uuid)
+		if err != nil {
+			log.Debugf("KAI: cannot get GPU %s to compute the share of pod %s/%s: %v", uuid, pod.Namespace, pod.Name, err)
+			continue
+		}
+		total := device.GetDeviceInfo().Memory
+		if total == 0 {
+			log.Debugf("KAI: GPU %s reports no memory, so the share of pod %s/%s on it cannot be computed", uuid, pod.Namespace, pod.Name)
+			continue
+		}
+		shares[uuid] = workloadmeta.GPUShare{Fraction: min(1, float64(requested)/float64(total))}
+	}
+	return shares
+}
+
+// kaiRequestedGPUMemory returns the memory, in bytes, that the pod's
+// fractional container requests on each of its GPUs, and whether it could be
+// read: from the per-container gpu-memory.request annotation, else from the
+// gpu-memory annotation.
+func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string) (uint64, bool) {
+	key := kaiContainerAnnotationPrefix + containerName + kaiGPUMemoryRequestSuffix
+	if raw := pod.Annotations[key]; raw != "" {
+		if requested, ok := parseMemoryQuantity(raw); ok {
+			return requested, true
+		}
+		warnInvalidKAIShare(pod, key, raw)
+	}
+
+	if raw := pod.Annotations[kaiGPUMemoryAnnotation]; raw != "" {
+		mib, err := strconv.ParseUint(raw, 10, 64)
+		if err == nil && mib > 0 && mib <= math.MaxUint64>>20 {
+			return mib << 20, true
+		}
+		warnInvalidKAIShare(pod, kaiGPUMemoryAnnotation, raw)
+	}
+
+	return 0, false
+}
+
+// parseMemoryQuantity parses a positive memory amount written as a Kubernetes
+// quantity, e.g. "7680Mi", into bytes.
+func parseMemoryQuantity(raw string) (uint64, bool) {
+	quantity, err := resource.ParseQuantity(raw)
+	if err != nil {
+		return 0, false
+	}
+	// Value rounds a fraction of a byte up, the way Kubernetes does.
+	bytes := quantity.Value()
+	if bytes <= 0 {
+		return 0, false
+	}
+	return uint64(bytes), true
+}
+
+// warnInvalidKAIShare warns that an annotation holding a pod's share of its
+// GPUs cannot be read.
+func warnInvalidKAIShare(pod *workloadmeta.KubernetesPod, annotation, value string) {
+	if kaiShareWarnLimiter.ShouldLog() {
+		log.Warnf("KAI: pod %s/%s has an invalid %s annotation %q, ignoring it for its GPU share", pod.Namespace, pod.Name, annotation, value)
+	}
 }
 
 // kaiGPUGroupReservations maps each KAI GPU group to the GPU its reservation
@@ -471,6 +616,17 @@ func kaiHasContainerStatus(pod *workloadmeta.KubernetesPod, name string) bool {
 	return slices.ContainsFunc(slices.Concat(pod.ContainerStatuses, pod.InitContainerStatuses), func(status workloadmeta.KubernetesContainerStatus) bool {
 		return status.Name == name
 	})
+}
+
+// kaiContainerNameByID returns the name of the container with the given ID, or
+// "" if the pod has no such container.
+func kaiContainerNameByID(containers []workloadmeta.OrchestratorContainer, id string) string {
+	for _, container := range containers {
+		if container.ID == id {
+			return container.Name
+		}
+	}
+	return ""
 }
 
 // kaiContainerIDByName returns the ID of the named container, or "" if the pod
