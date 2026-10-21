@@ -1029,7 +1029,6 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 	}
 }
 
-// launchPackageCommandInBackground launches a package command in the background using the installer.
 // launchConfigExperimentRestart launches the background Agent restart for a config experiment
 // step, unless the daemon asked to launch it itself once the task result is recorded.
 func launchConfigExperimentRestart(ctx context.Context, command string) error {
@@ -1041,6 +1040,7 @@ func launchConfigExperimentRestart(ctx context.Context, command string) error {
 	return launchPackageCommandInBackground(ctx, e, command)
 }
 
+// launchPackageCommandInBackground launches a package command in the background using the installer.
 func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command string) error {
 	installer, err := newInstallerExec(env)
 	if err != nil {

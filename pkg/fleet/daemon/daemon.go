@@ -612,17 +612,18 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()
 	parentSpan, ctx := newRequestContext(request)
-	defer parentSpan.Finish(err)
+	defer func() { parentSpan.Finish(err) }()
 
 	// Registered before the final refreshState so it runs after the task result is persisted:
-	// on Windows the restart stops the service hosting this daemon.
+	// on Windows the restart stops the service hosting this daemon. A failed stop still restarts,
+	// because its hook has already pointed the Agent back at the stable config.
 	restartCommand := deferredAgentRestartCommand(request.Method, request.Package)
 	defer func() {
-		if restartCommand == "" || err != nil {
+		if restartCommand == "" || (err != nil && request.Method != methodStopConfigExperiment) {
 			return
 		}
 		if launchErr := d.launchDeferredAgentRestart(ctx, restartCommand); launchErr != nil {
-			err = launchErr
+			err = errors.Join(err, launchErr)
 			setRequestDone(ctx, err)
 			d.refreshState(ctx)
 		}

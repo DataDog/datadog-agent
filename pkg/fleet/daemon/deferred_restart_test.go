@@ -87,6 +87,14 @@ func (i *testInstaller) submitConfigRequest(id string, method string, experiment
 	i.requestsWG.Wait()
 }
 
+// persistedTaskFromCallback is persistedTask for mock callbacks, which run on the daemon goroutine
+// where require must not be used.
+func (i *testInstaller) persistedTaskFromCallback(t *testing.T) requestState {
+	tasks, err := i.taskDB.GetTasksState()
+	assert.NoError(t, err)
+	return tasks[datadogAgentPackage]
+}
+
 func (i *testInstaller) persistedTask(t *testing.T) requestState {
 	tasks, err := i.taskDB.GetTasksState()
 	require.NoError(t, err)
@@ -125,7 +133,7 @@ func TestPromoteConfigExperimentLaunchesRestartAfterDone(t *testing.T) {
 	i.pm.On("PromoteConfigExperiment", mock.Anything, datadogAgentPackage).Return(nil).Once()
 	i.pm.On("StartPackageCommandDetached", mock.Anything, datadogAgentPackage, exec.PostPromoteConfigExperimentBackgroundCommand).
 		Run(func(mock.Arguments) {
-			task := i.persistedTask(t)
+			task := i.persistedTaskFromCallback(t)
 			assert.Equal(t, "promote-1", task.ID)
 			assert.Equal(t, pbgo.TaskState_DONE, task.State, "the result must be persisted before the restart can stop the daemon")
 		}).
@@ -146,13 +154,50 @@ func TestStopConfigExperimentLaunchesRestartAfterDone(t *testing.T) {
 	i.pm.On("RemoveConfigExperiment", mock.Anything, datadogAgentPackage).Return(nil).Once()
 	i.pm.On("StartPackageCommandDetached", mock.Anything, datadogAgentPackage, exec.PreStopConfigExperimentBackgroundCommand).
 		Run(func(mock.Arguments) {
-			assert.Equal(t, pbgo.TaskState_DONE, i.persistedTask(t).State)
+			assert.Equal(t, pbgo.TaskState_DONE, i.persistedTaskFromCallback(t).State)
 		}).
 		Return(nil).Once()
 
 	i.submitConfigRequest("stop-1", methodStopConfigExperiment, experimentConfig)
 
 	i.pm.AssertExpectations(t)
+}
+
+func TestFailedStopConfigExperimentStillRestarts(t *testing.T) {
+	withDeferAgentRestartToDaemon(t, true)
+	i, _ := newDeferredRestartTestInstaller(t)
+
+	i.expectConfigState(experimentConfig)
+	i.pm.On("RemoveConfigExperiment", mock.Anything, datadogAgentPackage).Return(errors.New("could not remove experiment")).Once()
+	i.pm.On("StartPackageCommandDetached", mock.Anything, datadogAgentPackage, exec.PreStopConfigExperimentBackgroundCommand).
+		Run(func(mock.Arguments) {
+			assert.Equal(t, pbgo.TaskState_ERROR, i.persistedTaskFromCallback(t).State)
+		}).
+		Return(nil).Once()
+
+	i.submitConfigRequest("stop-2", methodStopConfigExperiment, experimentConfig)
+
+	i.pm.AssertExpectations(t)
+	task := i.persistedTask(t)
+	assert.Equal(t, pbgo.TaskState_ERROR, task.State)
+	assert.Contains(t, task.Err, "could not remove experiment")
+}
+
+func TestFailedStopConfigExperimentKeepsErrorWhenRestartFails(t *testing.T) {
+	withDeferAgentRestartToDaemon(t, true)
+	i, _ := newDeferredRestartTestInstaller(t)
+
+	i.expectConfigState(experimentConfig)
+	i.pm.On("RemoveConfigExperiment", mock.Anything, datadogAgentPackage).Return(errors.New("could not remove experiment")).Once()
+	i.pm.On("StartPackageCommandDetached", mock.Anything, datadogAgentPackage, exec.PreStopConfigExperimentBackgroundCommand).
+		Return(errors.New("access denied")).Once()
+
+	i.submitConfigRequest("stop-3", methodStopConfigExperiment, experimentConfig)
+
+	task := i.persistedTask(t)
+	assert.Equal(t, pbgo.TaskState_ERROR, task.State)
+	assert.Contains(t, task.Err, "could not remove experiment")
+	assert.Contains(t, task.Err, "access denied")
 }
 
 func TestDeferredRestartLaunchFailureReportsError(t *testing.T) {
