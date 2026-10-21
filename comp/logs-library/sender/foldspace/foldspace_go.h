@@ -47,7 +47,9 @@ enum foldspace_status {
   FOLDSPACE_ERR_MAX_OPEN_BYTES_ZERO = 20,
   FOLDSPACE_ERR_MAX_OPEN_BYTES_BELOW_ONE_BUFFER = 21,
   FOLDSPACE_ERR_FIRST_BATCH_ID_AT_CEILING = 23,
-  FOLDSPACE_ERR_CONFIG_VALUE_OUT_OF_RANGE = 24
+  FOLDSPACE_ERR_CONFIG_VALUE_OUT_OF_RANGE = 24,
+  FOLDSPACE_ERR_STREAM_LIFETIME_ZERO = 25,
+  FOLDSPACE_ERR_DRAIN_TIMEOUT_ZERO = 26
 };
 
 /* Delivery class of one sender, passed as an ordered array at construction.
@@ -164,6 +166,9 @@ typedef struct {
   uint32_t first_batch_id;
   foldspace_eviction dictionary_eviction;
   foldspace_eviction pattern_eviction;
+  /* The longest body the pattern extractor tokenizes; a longer one is sent
+   * raw. Zero asks for the library's default. */
+  uint64_t max_patterned_body_bytes;
 } foldspace_config;
 
 /* One log offered to the library. Every pointer is borrowed for the duration
@@ -182,8 +187,11 @@ typedef struct {
   size_t processing_tags_len;
 } foldspace_log_record;
 
-/* What a state-changing call left behind. Every field is a level rather than
- * an edge, so a caller acting on one has not had to observe every prior call.
+/* What a state-changing call left behind. wake names every sender the call
+ * gave work to and may name senders that already held some, so a caller that
+ * polls the senders each call names reaches all of it; a call that gives no
+ * sender work can name none. has_capacity and notifications_ready are levels,
+ * so a caller acting on one has not had to observe every prior call.
  *
  * wake is a caller-owned array: set wake and wake_capacity before the call and
  * read wake_len after. A capacity of foldspace_sender_count() can never
@@ -213,7 +221,15 @@ typedef struct {
  * times the endpoint count; neither climbs without the live rule count
  * climbing. retired_entries that never falls is a reference never given back,
  * and derive_fallbacks counts widens sent whole because the destination could
- * not resolve the base they diff against. */
+ * not resolve the base they diff against.
+ *
+ * The table figures report the pattern table and the dictionary apart.
+ * *_entries and *_bytes are the live table, with bytes measured the way the
+ * table's max_memory_bytes budget measures it. *_candidates and
+ * *_candidate_bytes are the values the admission gate is holding back, which
+ * sit outside the table and outside that budget; the bytes are estimated from
+ * the set's capacity, because a set emptied at its cap keeps its allocation. A
+ * pattern table with no gate reports zero candidates. */
 typedef struct {
   uint64_t byte_evictions;
   uint64_t mask_evictions;
@@ -225,6 +241,14 @@ typedef struct {
   uint64_t retired_entries;
   uint64_t sent_entries;
   uint64_t derive_fallbacks;
+  uint64_t pattern_entries;
+  uint64_t pattern_bytes;
+  uint64_t pattern_candidates;
+  uint64_t pattern_candidate_bytes;
+  uint64_t dictionary_entries;
+  uint64_t dictionary_bytes;
+  uint64_t dictionary_candidates;
+  uint64_t dictionary_candidate_bytes;
 } foldspace_core_stats;
 
 /* A protocol error reported against one sender. Which fields are meaningful
@@ -272,8 +296,6 @@ int foldspace_sender_count(const foldspace_client *client, uint64_t *out);
  * what a config asking for the default resolved to. Static; do not free. */
 int foldspace_content_encoding(const foldspace_client *client, const char **out);
 
-/* Requests one stream per sender. Without it no sender ever dials. */
-int foldspace_start(foldspace_client *client, foldspace_progress *progress);
 int foldspace_has_capacity(const foldspace_client *client, uint8_t *out);
 
 /* now_nanos is a reading from any monotonic source whose origin is fixed for
