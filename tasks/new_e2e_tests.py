@@ -934,6 +934,38 @@ def cleanup_remote_stacks(ctx, stack_regex):
         print(f"Failed to destroy stack {stack}")
 
 
+@task(
+    help={
+        "output_file": "Dotenv file to write the baseline to",
+        "fetch": "Fetch the base branch from origin before computing the merge base",
+    }
+)
+def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baseline.env", fetch: bool = True):
+    """
+    Find the baseline images of the benchmarkeks suite (TestBenchmarkEKSSuite) and write them to a dotenv file.
+
+    Like the SMP regression detector, the baseline commit is the merge base with the base branch of release.json, or the
+    parent commit on the base branch, walking first parents back to the first commit whose Agent and Cluster Agent
+    images exist in registry.ddbuild.io, up to 4 days old. The dotenv file has the images to publish to agent-qa and
+    the E2E_BENCHMARKEKS_BASELINE_* variables read by the suite.
+    """
+    from tasks.libs.releasing.json import _get_release_json_value
+    from tasks.libs.testing.benchmarkeks import BaselineLookupError, format_dotenv, resolve_baseline
+
+    branch = os.environ.get("CI_COMMIT_BRANCH") or get_current_branch(ctx)
+    try:
+        baseline = resolve_baseline(ctx, _get_release_json_value("base_branch"), branch, fetch)
+    except BaselineLookupError as e:
+        raise Exit(color_message(str(e), Color.RED), code=1) from e
+    variables = baseline.dotenv_variables()
+    with open(output_file, "w") as f:
+        f.write(format_dotenv(variables))
+    print(color_message(f"Baseline: commit {baseline.sha}, pipeline {baseline.pipeline_id}", Color.GREEN))
+    for name, value in variables.items():
+        print(f"  {name}={value}")
+    print(f"Written to {output_file}")
+
+
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
     """
     Post process the test results to add the test run name

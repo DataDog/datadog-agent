@@ -195,6 +195,7 @@
 /.gitlab/test/e2e/e2e_templates.yml                                       @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_devx.yml                                            @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_containers.yml                                      @DataDog/container-integrations @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_containers_benchmarkeks.yml                         @DataDog/container-integrations @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_fleet.yml                                           @DataDog/fleet @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_npm.yml                                             @DataDog/cloud-network-monitoring @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_ssi.yml                                             @DataDog/injection-platform @DataDog/agent-devx
@@ -991,6 +992,8 @@
 /tasks/devcontainer.py                                          @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                                              @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx
+/tasks/libs/testing/benchmarkeks.py                             @DataDog/container-integrations @DataDog/agent-devx
+/tasks/unit_tests/benchmarkeks_tests.py                         @DataDog/container-integrations @DataDog/agent-devx
 /tasks/process_agent.py                                         @DataDog/container-experiences
 /tasks/privateactionrunner.py                                   @DataDog/action-platform
 /tasks/system_probe.py                                          @DataDog/ebpf-platform
