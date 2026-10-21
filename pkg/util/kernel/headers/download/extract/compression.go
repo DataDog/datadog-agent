@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ulikunitz/xz/lzma"
 	"github.com/xi2/xz"
 
 	"github.com/DataDog/datadog-agent/pkg/zstd"
@@ -26,6 +27,8 @@ const (
 	compressionZstd
 	compressionBzip2
 	compressionXZ
+	compressionLZMA
+	compressionNone
 )
 
 func openCompressed(reader io.Reader, format compressionFormat) (io.ReadCloser, error) {
@@ -42,6 +45,14 @@ func openCompressed(reader io.Reader, format compressionFormat) (io.ReadCloser, 
 			return nil, err
 		}
 		return io.NopCloser(r), nil
+	case compressionLZMA:
+		r, err := lzma.NewReader(reader)
+		if err != nil {
+			return nil, err
+		}
+		return io.NopCloser(r), nil
+	case compressionNone:
+		return io.NopCloser(reader), nil
 	default:
 		return nil, fmt.Errorf("unsupported compression format %d", format)
 	}

@@ -5,6 +5,7 @@ go_library(
     name = "extract",
     srcs = [
         "compression.go",
+        "cpio.go",
         "root.go",
         "rpm-package.go",
         "tarball.go",
@@ -16,12 +17,16 @@ go_library(
             "//pkg/util/kernel/headers/download/types",
             "//pkg/zstd",
             "@com_github_sassoftware_go_rpmutils//:go-rpmutils",
+            "@com_github_sassoftware_go_rpmutils//cpio",
+            "@com_github_ulikunitz_xz//lzma",
             "@com_github_xi2_xz//:xz",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/kernel/headers/download/types",
             "//pkg/zstd",
             "@com_github_sassoftware_go_rpmutils//:go-rpmutils",
+            "@com_github_sassoftware_go_rpmutils//cpio",
+            "@com_github_ulikunitz_xz//lzma",
             "@com_github_xi2_xz//:xz",
         ],
         "//conditions:default": [],
@@ -31,8 +36,17 @@ go_library(
 dd_agent_go_test(
     name = "extract_test",
     srcs = [
+        "cpio_test.go",
         "rpm-package_test.go",
         "tarball_test.go",
+    ],
+    data = [
+        "testdata/payload-test-0.1-w.ufdio.x86_64.rpm",
+        "testdata/payload-test-0.1-w3.zstdio.x86_64.rpm",
+        "testdata/payload-test-0.1-w6.lzdio.x86_64.rpm",
+        "testdata/payload-test-0.1-w6.xzdio.x86_64.rpm",
+        "testdata/payload-test-0.1-w9.bzdio.x86_64.rpm",
+        "testdata/payload-test-0.1-w9.gzdio.x86_64.rpm",
     ],
     embed = [":extract"],
     embedsrcs = select({
@@ -50,11 +64,13 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/util/kernel/headers/download/types",
             "//pkg/zstd",
+            "@com_github_sassoftware_go_rpmutils//cpio",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/kernel/headers/download/types",
             "//pkg/zstd",
+            "@com_github_sassoftware_go_rpmutils//cpio",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

@@ -23,18 +23,22 @@ import (
 
 // ExtractRPMPackage extracts an RPM from reader into directory for kernelUname.
 func ExtractRPMPackage(reader io.Reader, directory, kernelUname string, logger types.Logger) error {
-	rpm, err := rpmutils.ReadRpm(reader)
+	header, err := rpmutils.ReadHeader(reader)
 	if err != nil {
 		return fmt.Errorf("parse RPM package: %w", err)
-	}
-	if err := rpm.ExpandPayload(directory); err != nil {
-		return fmt.Errorf("extract RPM package: %w", err)
 	}
 	destination, err := openExtractionDirectory(directory)
 	if err != nil {
 		return err
 	}
 	defer destination.root.Close()
+	payload, err := openRPMPayload(reader, header)
+	if err != nil {
+		return fmt.Errorf("open RPM payload: %w", err)
+	}
+	if err := extractRPMPayload(payload, destination); err != nil {
+		return fmt.Errorf("extract RPM package: %w", err)
+	}
 	return fixKernelModulesSymlinks(destination, kernelUname, logger)
 }
 
