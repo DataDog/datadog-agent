@@ -10,6 +10,7 @@ package selfident
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -27,7 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
-const testPodName = "dd-agent-abc12"
+const (
+	testPodName     = "dd-agent-abc12"
+	testContainerID = "container-id-123"
+)
 
 // testNamespace mirrors what resolveDeploymentID actually queries
 // (namespace.GetMyNamespace()) instead of assuming "default", since that
@@ -63,6 +67,34 @@ func setSelfPod(mockStore workloadmetamock.Mock, owners []workloadmeta.Kubernete
 	})
 }
 
+func setSelfContainer(mockStore workloadmetamock.Mock) {
+	mockStore.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   testContainerID,
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "self-pod-uid",
+		},
+	})
+}
+
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	value, exists := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if exists {
+			_ = os.Setenv(key, value)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	})
+}
+
 func TestDeploymentID_ResolvesFromDaemonSetOwner(t *testing.T) {
 	t.Setenv(podNameEnvVar, testPodName)
 	mockStore := newMockStore(t)
@@ -71,6 +103,44 @@ func TestDeploymentID_ResolvesFromDaemonSetOwner(t *testing.T) {
 	})
 
 	s := New(mockStore)
+	s.selfContainerID = func() (string, error) {
+		t.Fatal("self container lookup should not run when DD_POD_NAME is set")
+		return "", nil
+	}
+
+	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
+}
+
+func TestDeploymentID_ResolvesFromSelfContainer(t *testing.T) {
+	unsetEnv(t, podNameEnvVar)
+	mockStore := newMockStore(t)
+	setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{
+		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
+	})
+	setSelfContainer(mockStore)
+
+	s := New(mockStore)
+	s.selfContainerID = func() (string, error) { return testContainerID, nil }
+
+	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
+}
+
+func TestDeploymentID_RetriesUntilSelfContainerAppearsInWorkloadmeta(t *testing.T) {
+	unsetEnv(t, podNameEnvVar)
+	mockStore := newMockStore(t)
+	setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{
+		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
+	})
+
+	s := New(mockStore)
+	s.selfContainerID = func() (string, error) { return testContainerID, nil }
+	s.resolveTimeout = 500 * time.Millisecond
+	s.resolveRetryDelay = time.Millisecond
+
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		setSelfContainer(mockStore)
+	}()
 
 	assert.Equal(t, "daemonset-uid-123", s.DeploymentID())
 }
@@ -123,12 +193,16 @@ func TestDeploymentID_RetriesUntilPodAppearsInWorkloadmeta(t *testing.T) {
 }
 
 func TestDeploymentID_NoPodNameEnvVar(t *testing.T) {
+	unsetEnv(t, podNameEnvVar)
 	mockStore := newMockStore(t)
 	setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{
 		{Kind: "DaemonSet", Name: "datadog-agent", ID: "daemonset-uid-123"},
 	})
 
 	s := New(mockStore)
+	s.selfContainerID = func() (string, error) { return "", nil }
+	s.resolveTimeout = time.Millisecond
+	s.resolveRetryDelay = time.Millisecond
 
 	assert.Empty(t, s.DeploymentID())
 }

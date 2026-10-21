@@ -16,12 +16,16 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	containermetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	// Register the cgroup-based self-container collector without pulling in every runtime collector.
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -36,7 +40,8 @@ const (
 // SelfIdent resolves and caches the agent's own DaemonSet UID (deployment_id)
 // and cluster id, for use as health-issue identity discriminators.
 type SelfIdent struct {
-	wmeta workloadmeta.Component
+	wmeta           workloadmeta.Component
+	selfContainerID func() (string, error)
 
 	resolveMu    sync.Mutex
 	deploymentID atomic.Pointer[string]
@@ -56,7 +61,10 @@ type SelfIdent struct {
 // deployment_id resolution, in which case DeploymentID resolves to empty.
 func New(wmeta workloadmeta.Component) *SelfIdent {
 	s := &SelfIdent{
-		wmeta:             wmeta,
+		wmeta: wmeta,
+		selfContainerID: func() (string, error) {
+			return containermetrics.GetProvider(option.New(wmeta)).GetMetaCollector().GetSelfContainerID()
+		},
 		resolveTimeout:    defaultResolveTimeout,
 		resolveRetryDelay: defaultResolveRetryDelay,
 	}
@@ -216,20 +224,16 @@ func clusterAgentOwnClusterID() (string, error) {
 }
 
 // resolveDeploymentID makes one resolution attempt. definitive is true when
-// the caller can cache the result permanently (no workloadmeta, no resolvable
-// pod name, or the pod was found); false means the pod isn't in workloadmeta
-// yet, so the caller should retry rather than cache a false negative.
+// the caller can cache the result permanently (no workloadmeta or the pod was
+// found); false means the pod isn't in workloadmeta yet, so the caller should
+// retry rather than cache a false negative.
 func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definitive bool) {
 	if s.wmeta == nil {
 		return "", true
 	}
-	podName, ok := selfPodName()
-	if !ok {
-		return "", true
-	}
-	pod, err := s.wmeta.GetKubernetesPodByName(podName, podNamespace)
+	pod, err := s.resolveSelfPod(podNamespace)
 	if err != nil {
-		log.Debugf("selfident: own pod %q not yet in workloadmeta: %v", podName, err)
+		log.Debugf("selfident: own pod not yet available in workloadmeta: %v", err)
 		return "", false
 	}
 	for _, owner := range pod.Owners {
@@ -240,17 +244,27 @@ func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definit
 	return "", true
 }
 
-// selfPodName returns this container's own pod name: DD_POD_NAME when set
-// (Helm chart via the downward API), else the container hostname, which
-// kubelet defaults to the pod's name. The hostname fallback matters because
-// the Datadog Operator only injects DD_POD_NAME into the cluster agent.
-func selfPodName() (string, bool) {
-	if podName, ok := os.LookupEnv(podNameEnvVar); ok {
-		return podName, true
+func (s *SelfIdent) resolveSelfPod(podNamespace string) (*workloadmeta.KubernetesPod, error) {
+	if podName, ok := os.LookupEnv(podNameEnvVar); ok && podName != "" {
+		return s.wmeta.GetKubernetesPodByName(podName, podNamespace)
 	}
-	hostname, err := os.Hostname()
+
+	containerID, err := s.selfContainerID()
 	if err != nil {
-		return "", false
+		log.Debugf("selfident: own container id unavailable: %v", err)
+	} else if containerID != "" {
+		pod, err := s.wmeta.GetKubernetesPodForContainer(containerID)
+		if err == nil {
+			return pod, nil
+		}
+		log.Debugf("selfident: own container %q not yet linked to a pod in workloadmeta: %v", containerID, err)
 	}
-	return hostname, true
+
+	// Keep the hostname fallback for manifests that do not inject DD_POD_NAME.
+	// GetSelfPodName rejects it when the process shares the host UTS namespace.
+	podName, err := apiservercommon.GetSelfPodName()
+	if err != nil {
+		return nil, err
+	}
+	return s.wmeta.GetKubernetesPodByName(podName, podNamespace)
 }
