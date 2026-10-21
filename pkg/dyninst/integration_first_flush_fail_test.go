@@ -369,7 +369,7 @@ func runFirstFlushFailScenario(
 		t.Logf("--- end trace_pipe output ---")
 	})
 
-	port := waitForDropTesterPort(t, filepath.Join(tempDir, "sample.out"))
+	port := waitForListeningPort(t, filepath.Join(tempDir, "sample.out"))
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 
 	probes := testprogs.MustGetProbeDefinitions(t, "drop_tester")
@@ -758,7 +758,7 @@ func TestFragmentCap(t *testing.T) {
 		t.Logf("--- end trace_pipe output ---")
 	})
 
-	port := waitForDropTesterPort(t, filepath.Join(tempDir, "sample.out"))
+	port := waitForListeningPort(t, filepath.Join(tempDir, "sample.out"))
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 
 	probes := testprogs.MustGetProbeDefinitions(t, "drop_tester")

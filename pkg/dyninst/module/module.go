@@ -20,6 +20,7 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
@@ -49,9 +50,14 @@ type Module struct {
 
 	cancel context.CancelFunc
 
+	// metrics reports the values of metric probes. It is nil when the module
+	// has no client to report them to.
+	metrics *metricsReporter
+
 	shutdown struct {
 		sync.Once
-		realDependencies realDependencies
+		realDependencies  realDependencies
+		metricProbeStatsd ddgostatsd.ClientInterface
 	}
 }
 
@@ -59,13 +65,29 @@ type Module struct {
 type Option func(*options)
 
 type options struct {
-	statsd ddgostatsd.ClientInterface
+	statsd            ddgostatsd.ClientInterface
+	metricProbeStatsd ddgostatsd.ClientInterface
+	workloadMeta      workloadmeta.Component
 }
 
 // WithStatsd sets the statsd client that the module reports metrics to. Without
 // one, no metrics are reported.
 func WithStatsd(client ddgostatsd.ClientInterface) Option {
 	return func(o *options) { o.statsd = client }
+}
+
+// WithMetricProbeStatsd sets the statsd client that the values of metric probes
+// are reported to. Without one, metric probes are installed but never report
+// anything. The module closes the client when it shuts down.
+func WithMetricProbeStatsd(client ddgostatsd.ClientInterface) Option {
+	return func(o *options) { o.metricProbeStatsd = client }
+}
+
+// WithWorkloadMeta sets the workloadmeta store used to find the Kubernetes pods
+// of the processes that metric probes report about. Without one, metric probe
+// metrics are not tagged with the target's pod.
+func WithWorkloadMeta(wmeta workloadmeta.Component) Option {
+	return func(o *options) { o.workloadMeta = wmeta }
 }
 
 // NewModule creates a new dynamic instrumentation module.
@@ -90,6 +112,13 @@ func NewModule(
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
 	var moduleOpts []newUnstartedModuleOption
+	if o.metricProbeStatsd != nil {
+		var lookupContainer func(string) (string, bool)
+		if o.workloadMeta != nil {
+			lookupContainer = podLookup(o.workloadMeta)
+		}
+		moduleOpts = append(moduleOpts, withMetricsClient(o.metricProbeStatsd, lookupContainer))
+	}
 	if k := config.TestingKnobs; k.SinkOverride != nil || k.OnProgramLoaded != nil {
 		moduleOpts = append(moduleOpts, withRuntimeTestingKnobs(&runtimeTestingKnobs{
 			sinkOverride:    k.SinkOverride,
@@ -99,6 +128,7 @@ func NewModule(
 	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath, moduleOpts...)
 	m.config = config
 	m.shutdown.realDependencies = realDeps
+	m.shutdown.metricProbeStatsd = o.metricProbeStatsd
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
@@ -137,6 +167,33 @@ func withRuntimeTestingKnobs(k *runtimeTestingKnobs) newUnstartedModuleOption {
 	return func(rt *runtimeImpl) { rt.testingKnobs = k }
 }
 
+// withMetricsClient makes the module report the values of metric probes to
+// client. lookupContainer finds the pod of a container; it may be nil.
+func withMetricsClient(
+	client metricsClient, lookupContainer func(containerID string) (podUID string, ok bool),
+) newUnstartedModuleOption {
+	return func(rt *runtimeImpl) {
+		rt.metrics = newMetricsReporter(
+			client, defaultMetricsReportInterval, rt.setProbeMaybeEmitting, lookupContainer,
+		)
+	}
+}
+
+// podLookup returns a function that finds the Kubernetes pod of a container in
+// workloadmeta.
+func podLookup(wmeta workloadmeta.Component) func(containerID string) (podUID string, ok bool) {
+	return func(containerID string) (string, bool) {
+		container, err := wmeta.GetContainer(containerID)
+		if err != nil {
+			return "", false
+		}
+		if owner := container.Owner; owner != nil && owner.Kind == workloadmeta.KindKubernetesPod {
+			return owner.ID, true
+		}
+		return "", true
+	}
+}
+
 func newUnstartedModule(deps dependencies, tombstoneFilePath string, opts ...newUnstartedModuleOption) *Module {
 	// A zero-value symdbManager is valid and disabled.
 	if deps.symdbManager == nil {
@@ -170,6 +227,7 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string, opts ...new
 		symdb:        deps.symdbManager,
 		actuator:     deps.Actuator,
 		runtimeStats: &runtime.stats,
+		metrics:      runtime.metrics,
 		cancel:       func() {}, // This gets overwritten in NewModule
 	}
 	if deps.ProcessSubscriber != nil {
@@ -383,7 +441,17 @@ func (m *Module) Close() {
 	m.shutdown.Once.Do(func() {
 		log.Debugf("closing dynamic instrumentation module")
 		m.cancel()
+		// Shutting down the actuator detaches the programs, which reports their
+		// metric probes one last time, so the metrics reporter goes second.
 		m.shutdown.realDependencies.shutdown()
+		if m.metrics != nil {
+			m.metrics.close()
+		}
+		if c := m.shutdown.metricProbeStatsd; c != nil {
+			if err := c.Close(); err != nil {
+				log.Warnf("error closing the metric probes statsd client: %v", err)
+			}
+		}
 	})
 }
 

@@ -68,6 +68,11 @@ type ProcessEvent struct {
 	TopPCOffset         int8
 	ThrottleMode        ThrottleMode
 	EventRootType       *ir.EventRootType
+	// IsMetric is true for the events of metric probes. Their handlers
+	// update metrics_buf instead of producing an event, so the BPF program
+	// skips everything that only matters for events (goroutine ID, stack
+	// walk, pointer chasing, ringbuf submission).
+	IsMetric bool
 }
 
 // String returns a human-readable identifier for the function.

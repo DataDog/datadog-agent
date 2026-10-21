@@ -23,3 +23,7 @@ func TestCgoAlignment_throttlerParams(t *testing.T) {
 func TestCgoAlignment_stats(t *testing.T) {
 	ebpftest.AssertCgoAlignment[stats](t)
 }
+
+func TestCgoAlignment_metricState(t *testing.T) {
+	ebpftest.TestCgoAlignment[metricState](t)
+}
