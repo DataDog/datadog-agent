@@ -15,7 +15,10 @@ import (
 	"strings"
 	"time"
 
+	bberrors "go.etcd.io/bbolt/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -78,8 +81,10 @@ func discardExperimentConfig(ctx context.Context) error {
 // promotes it around the stop and promote hooks. So by the time any method here runs, the
 // directory the incoming job set is about to read is already in place.
 //
-// The installer daemon is deliberately not part of the set. It is the process performing the
-// swap, and a set that contained it would stop itself halfway through.
+// Which jobs are in the set depends on who drives it. The hooks run inside the installer daemon's
+// job, so they drive the agent jobs only (agentJobSet): a set that contained the daemon would stop
+// itself halfway through. The detached watcher runs outside it and drives every job
+// (configExperimentJobSet). See installerJob.
 type configExperiment struct {
 	jobs launchd.JobSet
 }
@@ -179,6 +184,66 @@ func (e configExperiment) restoreStable(ctx context.Context) error {
 	// stop the stable set from being restored; it is still reported.
 	removeErr := e.jobs.Remove(launchd.Experiment)
 	return errors.Join(restoreErr, removeErr)
+}
+
+// handBackInstaller runs in a detached process, launched by the stop and promote hooks when the
+// experiment daemon is loaded (handBackInstallerAfterHook). It hands the installer daemon back from
+// its experiment job to its stable one.
+//
+// It first waits for the installer command that ran the hook to exit: it holds the installer's
+// lock for its whole run, and only once it exits has the experiment configuration directory been
+// discarded or promoted. Swapping the daemon earlier would kill that command halfway, its process
+// being in the daemon's job. The swap itself kills the experiment daemon, which is why it runs from
+// here, and it is made with the lock released, for the reason handOverInstaller gives: the daemon
+// must be able to finish the request the command was part of, or that request is reported as
+// running forever.
+//
+// A deadline present by the time the command has exited means the experiment daemon started a new
+// experiment after the one this process was launched for. Its watcher hands the daemon over to it,
+// so there is nothing to hand back.
+func handBackInstaller(ctx context.Context) (err error) {
+	lock, err := waitForInstallerLock(ctx, func() (bool, error) { return true, nil })
+	if err != nil {
+		return fmt.Errorf("hand-back: %w", err)
+	}
+	token, readErr := (launchd.Deadline{Path: configExperimentDeadlinePath}).Read()
+	if err := lock.Close(); err != nil {
+		log.Warnf("hand-back: could not release the installer lock: %v", err)
+	}
+	if readErr != nil {
+		return fmt.Errorf("hand-back: could not read experiment deadline: %w", readErr)
+	}
+	if token != "" {
+		log.Infof("hand-back: a new configuration experiment started, leaving the installer daemon to it")
+		return nil
+	}
+	e := configExperiment{jobs: installerJobSet()}
+	restoreErr := e.restoreStableJobs(context.WithoutCancel(ctx))
+	removeErr := e.jobs.Remove(launchd.Experiment)
+	if err := errors.Join(restoreErr, removeErr); err != nil {
+		return fmt.Errorf("hand-back: %w", err)
+	}
+	return nil
+}
+
+// waitForInstallerLock takes the installer's lock, waiting for any installer command that holds
+// it. Between waits it asks stillWanted, and gives up without the lock, returning a nil lock and
+// no error, once that reports false.
+func waitForInstallerLock(ctx context.Context, stillWanted func() (bool, error)) (*db.PackagesDB, error) {
+	for {
+		lock, err := db.New(ctx, configExperimentLockPath, db.WithTimeout(installerLockPoll))
+		if err == nil {
+			return lock, nil
+		}
+		if !errors.Is(err, bberrors.ErrTimeout) {
+			return nil, fmt.Errorf("could not take the installer lock: %w", err)
+		}
+		wanted, err := stillWanted()
+		if err != nil || !wanted {
+			return nil, err
+		}
+		log.Infof("still waiting for a running installer command")
+	}
 }
 
 // restoreStableJobs hands every label back from the experiment job to the stable one, retrying a

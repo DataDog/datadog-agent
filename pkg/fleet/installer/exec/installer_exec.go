@@ -67,6 +67,7 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 	// it was built with CommandContext -- and this one is deliberately built with exec.Command
 	// (see above) so it survives ctx being cancelled. Clear it back out here.
 	iCmd.Cmd.Cancel = nil
+	detachCmdPlatform(iCmd.Cmd)
 	return iCmd
 }
 

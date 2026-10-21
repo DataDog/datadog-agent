@@ -150,8 +150,8 @@ const (
 
 // GetLaunchdJob returns the launchd job definition for the given label and variant.
 //
-// name is the label without its variant suffix, e.g. "com.datadoghq.agent". The installer and
-// procmgr daemons have no experiment variant.
+// name is the label without its variant suffix, e.g. "com.datadoghq.agent". The procmgr daemon
+// has no experiment variant.
 func GetLaunchdJob(name string, variant LaunchdVariant) ([]byte, error) {
 	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", name+string(variant)+".plist"))
 }

@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 )
 
-// swappableJobs are the labels defined in both variants. The installer daemon is deliberately
-// absent: it is the process that performs the swap.
+// swappableJobs are the agent jobs, which the tests here swap as a set. The installer daemon is
+// left out: the package swaps it on its own (see TestTheInstallerHasAnExperimentVariant).
 var swappableJobs = []string{
 	"com.datadoghq.agent",
 	"com.datadoghq.sysprobe",
@@ -214,17 +214,17 @@ func TestDataPlaneJobRunsWithMacOSConfig(t *testing.T) {
 	assert.Equal(t, "daemon", stable.groupName)
 }
 
-// TestTheInstallerHasNoExperimentVariant pins that the daemon driving an experiment is not part of
-// the set being swapped.
-func TestTheInstallerHasNoExperimentVariant(t *testing.T) {
+// TestTheInstallerHasAnExperimentVariant pins that the daemon driving an experiment is swapped
+// with the rest of the set, so it runs under the experiment configuration too.
+func TestTheInstallerHasAnExperimentVariant(t *testing.T) {
 	_, err := embedded.GetLaunchdJob("com.datadoghq.installer", Stable)
 	require.NoError(t, err)
 	_, err = embedded.GetLaunchdJob("com.datadoghq.installer", Experiment)
-	assert.Error(t, err, "the installer must not have an experiment variant")
+	require.NoError(t, err)
 
 	labels, err := embedded.LaunchdJobs(Experiment)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, swappableJobs, labels)
+	assert.ElementsMatch(t, append(append([]string{}, swappableJobs...), "com.datadoghq.installer"), labels)
 }
 
 func TestJobSetWritesAndRemovesTheVariantDefinitions(t *testing.T) {

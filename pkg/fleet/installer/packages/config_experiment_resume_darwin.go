@@ -34,7 +34,16 @@ import (
 // exceeded before the daemon got a chance to resume it, so the experiment is reverted instead.
 // No deadline at all, but an experiment configuration directory still deployed, is reverted too
 // (see revertOrphanedExperiment).
+//
+// Only the stable daemon resumes or reverts anything, and it drives the agent jobs only: it is the
+// installer job's stable variant, and must not swap itself (see installerJob). The watcher it
+// launches hands it over to the experiment. The experiment daemon starting is the experiment
+// running as intended, with its watcher alive, so this hook leaves it alone: resuming would bounce
+// the experiment and stop the very watcher that supervises it.
 func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
+	if runByExperimentDaemon() {
+		return nil
+	}
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
 	token, err := deadline.Read()
 	if err != nil {
@@ -50,7 +59,7 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if expired {
 		log.Warnf("resume: configuration experiment deadline already expired before the daemon could resume it, reverting")
-		_, err := revertExperimentIfStillPending(ctx, deadline, token, "experiment deadline expired before the daemon could resume it")
+		_, err := revertFromResume(ctx, deadline, token, "experiment deadline expired before the daemon could resume it")
 		return err
 	}
 
@@ -63,7 +72,7 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := (configExperiment{jobs: agentJobSet()}).Resume(ctx); err != nil {
 		log.Errorf("resume: could not resume the configuration experiment job set, reverting: %v", err)
-		if _, revertErr := revertExperimentIfStillPending(ctx, deadline, token, "experiment could not be resumed"); revertErr != nil {
+		if _, revertErr := revertFromResume(ctx, deadline, token, "experiment could not be resumed"); revertErr != nil {
 			return fmt.Errorf("resume failed (%w) and the experiment could not be reverted: %w", err, revertErr)
 		}
 		return fmt.Errorf("resume failed, experiment reverted: %w", err)
@@ -93,10 +102,31 @@ func revertOrphanedExperiment(ctx HookContext) error {
 		return nil
 	}
 	log.Warnf("resume: configuration experiment %s is deployed with no deadline, reverting", state.ExperimentDeploymentID)
-	if err := revertExperiment(ctx); err != nil {
+	if err := revertExperiment(ctx, agentJobSet()); err != nil {
 		return fmt.Errorf("resume: %w", err)
 	}
+	removeInstallerExperimentJob()
 	return nil
+}
+
+// revertFromResume is revertExperimentIfStillPending for the resume hook: it reverts the agent
+// jobs, and removes a leftover definition of the experiment daemon's job.
+func revertFromResume(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
+	reverted, err := revertExperimentIfStillPending(ctx, agentJobSet(), deadline, token, reason)
+	if reverted {
+		removeInstallerExperimentJob()
+	}
+	return reverted, err
+}
+
+// removeInstallerExperimentJob removes the experiment daemon's job definition, left on disk when
+// the host rebooted mid-experiment. The stable daemon is running, so that job is not: it only has
+// to go so the host looks as if no experiment had ever run. Failing to remove it is logged only:
+// with no RunAtLoad, a leftover definition never starts on its own.
+func removeInstallerExperimentJob() {
+	if err := installerJobSet().Remove(launchd.Experiment); err != nil {
+		log.Warnf("resume: could not remove the experiment daemon's job definition: %v", err)
+	}
 }
 
 // watcherStopTimeout bounds how long stopSurvivingWatchers waits for a watcher to exit after

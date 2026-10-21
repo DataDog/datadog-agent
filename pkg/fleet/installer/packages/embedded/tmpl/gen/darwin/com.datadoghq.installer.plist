@@ -4,7 +4,9 @@
     <dict>
         <key>Label</key>
         <string>com.datadoghq.installer</string>
-        <!-- RunAtLoad starts the daemon at boot, with no login session. -->
+        <!-- RunAtLoad starts the daemon at boot, with no login session. Only the stable set has
+             it: a reboot mid-experiment must bring back only the stable daemon, which resumes
+             the experiment. -->
         <key>RunAtLoad</key>
         <true/>
         <!-- SuccessfulExit false: a clean exit is respected, so the daemon can exit 0 when
