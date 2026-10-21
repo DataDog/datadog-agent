@@ -444,6 +444,14 @@ build do
     patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/__init__.py"
   end
 
+  # The last certifi release supporting Python 2 (2021.10.8) still ships roots Mozilla has since
+  # distrusted, so make it use the embedded CA bundle instead.
+  if windows_target?
+    copy "#{python_2_embedded}/ssl/certs/cacert.pem", "#{python_2_embedded}/Lib/site-packages/certifi/cacert.pem"
+  else
+    copy "#{install_dir}/embedded/ssl/certs/cacert.pem", "#{install_dir}/embedded/lib/python2.7/site-packages/certifi/cacert.pem"
+  end
+
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   if windows_target?
     command "#{python} -m pip check"
