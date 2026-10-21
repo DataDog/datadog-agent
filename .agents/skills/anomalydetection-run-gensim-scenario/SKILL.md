@@ -17,9 +17,11 @@ Accept `--backend vm|eks`. If the user does not specify a backend, **ask them to
 - `eks` is for production benchmark recordings and automatically uploads the recorded archive to S3.
 - `vm` is for interactive debugging or lightweight single-node experiments.
 
-Run the bundled helpers one at a time and check their exit status. They do not automatically tear down infrastructure so
-you can reuse a healthy VM or EKS cluster across a batch. Do not claim a live AWS or VM run unless the user explicitly
-authorized one and you actually performed it.
+Run the bundled helpers one at a time from the `datadog-agent` worktree and check their exit status (avoid chaining
+`cd <dir> && ...`, as user shell `cd` hooks can return non-zero in non-interactive shells; use `GENSIM_REPO_PATH` or
+`git -C <repo>` instead). They do not automatically tear down infrastructure so you can reuse a healthy VM or EKS
+cluster across a batch. Do not claim a live AWS or VM run unless the user explicitly authorized one and you actually
+performed it.
 
 ## 1. Collect inputs, authorization, and backend choice
 
@@ -28,16 +30,22 @@ authorized one and you actually performed it.
 | `eks` (production) | Production benchmark recordings and batches; automatically uploads recordings to S3 | `dda inv aws.eks.gensim.{submit,status,fetch,stop-all,destroy}` |
 | `vm` | Interactive debugging, single-worker kind inspection, quick shortened trials | SSH helpers in `scripts/vm.sh`, `scripts/scenario.sh`, `scripts/fetch.sh` |
 
-Ask for missing inputs and resolve ambiguity before changing resources:
+Ask for missing inputs in a single round trip before changing resources (`AskUserQuestion` requires `>= 2` options per
+question):
+1. **Backend**: `eks` (production, uploads to S3) or `vm` (interactive debugging)
+2. **Recorder image tag**: `datadog/agent-dev:<tag>` from `dev_branch-recorder-full`
+3. **Target & S3 bucket**: EKS stack (default `gensim-eks`) + S3 bucket (default `qbranch-gensim-recordings`), or VM `user@host` / stack
+4. **Credentials env file**: local file defining `DD_API_KEY` and `DD_APP_KEY` for dddev
+5. **Authorization & clean clone**: live-run approval, plus approval to clone `gensim-episodes` to `/tmp/gensim-episodes-clean` if the local checkout is dirty
 
 | Input | Requirement |
 |---|---|
 | Backend & target | Ask if not provided: `--backend eks` (production recordings, automatically uploads to S3; authorized EKS stack name, default `gensim-eks`, plus S3 bucket) or `--backend vm` (disposable `user@host` or authorized new AWS VM) |
 | Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml` |
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
-| Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full`; confirm pipeline and amd64 platform |
+| Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full` (confirm pipeline and amd64 platform). If no tag is known, point the user at the CI Visibility Explorer (`ci_level:job env:prod @git.repository.id:gitlab.ddbuild.io/DataDog/datadog-agent @ci.pipeline.name:DataDog/datadog-agent @ci.provider.instance:gitlab-ci @ci.job.name:dev_branch-recorder-full @ci.status:success`): `https://app.datadoghq.com/ci/ci-cd/explorer/executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3Agitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.provider.instance%3Agitlab-ci%20%40ci.job.name%3Adev_branch-recorder-full%20%40ci.status%3Asuccess&agg_m=count&agg_m_source=base&agg_t=count&ci_cd_explorer_tab=pipelines&fromUser=true&refresh_mode=sliding&paused=false` |
 | Run settings | Flush interval (default `1m`), retention (default `90m`), recording-only mode (default `true` for recording), VM full/shortened mode or EKS mode (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
-| Output | Fresh local absolute directory per episode (e.g. `/tmp/vm-scenarios/<episode>` or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. If the user gives a custom name (e.g. `kafka-partition-saturation2`), use it as the directory name; `--episode`/`--scenario` on `fetch` still use the real names |
+| Output | Any fresh nonexistent local absolute path per episode (e.g. `/tmp/scenarios/kafka`, `/tmp/vm-scenarios/<episode>`, or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. `--episode`/`--scenario` on `fetch` still use the canonical `gensim-episodes` names |
 | Batch / teardown | Episodes to run and resources to remove afterwards; retain reusable infrastructure until the batch finishes |
 
 Retention must exceed the episode duration plus the final flush wait (and the full batch on VM). Do not operate on
@@ -141,11 +149,11 @@ dda inv aws.eks.gensim.status --stack-name="$STACK"
 local validation (`validation`). An uploaded S3 artifact (`upload=succeeded`, `validation=pending`) is **not yet a
 validated benchmark recording**.
 
-3. Fetch the uploaded artifact into a fresh local directory and run the shared PyArrow validator.
-`uv run --with pyarrow dda inv ...` does **not** reliably expose `pyarrow` to the validator (`dda` overrides `PATH`, so the
-validator's `python3` fails with `No module named 'pyarrow'` and leaves a partial `$OUT`). If that happens, the artifact is
-already downloaded in `$OUT`: create a venv (`uv venv /tmp/pyarrow-venv && uv pip install --python /tmp/pyarrow-venv/bin/python pyarrow`)
-and run the validator directly with it first on `PATH`:
+3. Fetch the uploaded artifact into a fresh nonexistent local directory (`$OUT`, e.g. `/tmp/scenarios/kafka` or
+`/tmp/eks-scenarios/<episode>`) and run the shared PyArrow validator.
+If `dda` overrides `PATH` and the validator's `python3` fails with `No module named 'pyarrow'` after downloading `$OUT`,
+create a venv (`uv venv /tmp/pyarrow-venv && uv pip install --python /tmp/pyarrow-venv/bin/python pyarrow`) and run the
+validator directly with it first on `PATH`:
 `PATH=/tmp/pyarrow-venv/bin:$PATH python3 "$SKILL/scripts/recording.py" validate "$OUT" 60 --backend eks --run-id "$RUN_ID" --scenario-dir "$SCENARIO_ID" --episode "$EPISODE" --namespace default`.
 
 ```bash
@@ -184,8 +192,11 @@ dda inv anomalydetection.launch-testbench --scenarios-dir "$(dirname "$OUT")" --
 
 ## 4. Teardown and report
 
-Perform only authorized teardown after all episodes in the batch have been fetched and validated:
+After all episodes in the batch have been uploaded, fetched, and validated:
 
+- **Clean `gensim-episodes` generated files**: run `git -C <gensim-repo> status` on the repo used for `submit` (the clean
+  clone, or the user's checkout if used directly) to ensure no generated files (`results/*.json`, deleted chart
+  templates) remain. In the clean clone, restore generated changes with `git -C <clone> checkout -- <generated-files>`.
 - **VM**: uninstall selected Helm releases (`KUBECONFIG="$HOME/gensim/kubeconfig" helm --kube-context kind-gadget-dev --namespace default uninstall <release>`), delete kind only when requested (`kind delete cluster --name gadget-dev`), and destroy the VM only when requested (`dda inv aws.destroy-vm --stack-name=<stack>`).
 - **EKS**: stop active workloads while keeping the cluster with `dda inv aws.eks.gensim.stop-all --stack-name=<stack>`; destroy the cluster only when requested with `dda inv aws.eks.gensim.destroy --stack-name=<stack>`.
 
@@ -198,7 +209,7 @@ Use this final-response template per episode:
 | Output / artifact | Local `$OUT` path (and S3 artifact key on EKS), kept metrics/log file and row counts, removed file count |
 | Window | Start/end, flush interval, observed coverage from `validation.json` |
 | Quality / states | `episode_outcome`, `collection`, `upload`, `validation` (`passed`/`failed`), sample gaps, restarts; distinguish `unknown` from `verified` |
-| Teardown | Releases/workloads/cluster/VM removed vs retained |
+| Teardown | Releases/workloads/cluster/VM removed vs retained; `gensim-episodes` repo left clean |
 
 Example 1 (VM): "Record a shortened `kafka-partition-saturation` episode on `ubuntu@10.0.1.23` (`--backend vm`) with
 `datadog/agent-dev:my-branch-recorder-full`, use `~/dddev.env`, save under `/tmp/vm-scenarios`, and keep the VM."
@@ -212,7 +223,8 @@ Example 2 (EKS): "Record `authcore-pgbouncer:pool-saturation` with `--backend ek
 Result: `backend=eks`, `run_id=eval-20261015T120000Z-a1b2c3d-9f8e7d`, 2 recorder pods on `gensim-eks`, S3 artifact
 `gensim-results-eval-20261015T120000Z-a1b2c3d-9f8e7d-authcore-pgbouncer-pool-saturation.zip` (`collection=succeeded`,
 `upload=succeeded`), fetched to `/tmp/eks-scenarios/pool-saturation` with 8 metrics files and 8 log files retained across
-both pods, SHA-256 checksums verified, `validation=passed`, EKS cluster retained for the next batch.
+both pods, SHA-256 checksums verified, `validation=passed`, `gensim-episodes` repo verified clean, EKS cluster retained
+for the next batch.
 Fill these fields from real observations, not the examples.
 
 ## Troubleshooting references
