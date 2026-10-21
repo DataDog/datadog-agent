@@ -24,8 +24,6 @@ Enhancement Notes
 
 - Agents are now built with Go ``1.26.10``.
 
-- Agents are now built with Go ``1.26.9``.
-
 
 .. _Release Notes_7.84.5_Security Notes:
 
