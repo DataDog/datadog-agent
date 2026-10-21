@@ -25,7 +25,11 @@ flare:
     - postgres_admin_pw
     - 'owner_[0-9]+'
   present:
-    - e2e-owner-pattern
+    - '=== datasecurity check ==='
+    - 'task_id: ${TASK_ID}'
+    - 'sub_task_id: ${SUB_TASK_ID}'
+    - 'database_instance_name: e2e-instance'
+    - 'id: e2e-owner-pattern'
 expected:
   - resource:
       type: postgres_table

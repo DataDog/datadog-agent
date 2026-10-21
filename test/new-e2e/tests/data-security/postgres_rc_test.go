@@ -87,6 +87,10 @@ func (s *postgresRCSuite) SetupSuite() {
 // TestRCScenarios pushes each scenario through Remote Config and checks the apply state the
 // agent reports and the SDS results that reach fakeintake.
 func (s *postgresRCSuite) TestRCScenarios() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.NoError(c, s.Env().FakeIntake.Client().GetServerHealth())
+	}, 5*time.Minute, 20*time.Second, "timed out waiting for fakeintake to be healthy")
+
 	for _, sc := range loadRCScenarios(s.T()) {
 		s.Run(sc.Name, func() {
 			payload, err := json.Marshal(sc.RC)
@@ -127,7 +131,6 @@ func (s *postgresRCSuite) TestRCScenarios() {
 func (s *postgresRCSuite) assertFlareScrubbed(expected flareExpectation) {
 	t := s.T()
 	fi := s.Env().FakeIntake.Client()
-	require.NoError(t, fi.FlushServerAndResetAggregators())
 
 	_, err := s.Env().Agent.Client.FlareWithError(
 		agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}),
