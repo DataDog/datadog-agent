@@ -87,29 +87,36 @@ func (m *injectorModule) GetStats() map[string]interface{} {
 
 	// If last_check_timestamp is 0, the Collect callback has not yet been trigered.
 	return map[string]interface{}{
-		"last_check_timestamp":                     m.lastCheck.Load(),
-		"processes_added_to_injection_tracker":     m.counters.ProcessesAddedToInjectionTracker.Get(),
-		"processes_removed_from_injection_tracker": m.counters.ProcessesRemovedFromInjectionTracker.Get(),
-		"processes_skipped_subsystem":              m.counters.ProcessesSkippedSubsystem.Get(),
-		"processes_skipped_container":              m.counters.ProcessesSkippedContainer.Get(),
-		"processes_skipped_protected":              m.counters.ProcessesSkippedProtected.Get(),
-		"processes_skipped_system":                 m.counters.ProcessesSkippedSystem.Get(),
-		"processes_skipped_excluded":               m.counters.ProcessesSkippedExcluded.Get(),
-		"injection_attempts":                       m.counters.InjectionAttempts.Get(),
-		"injection_attempt_failures":               m.counters.InjectionAttemptFailures.Get(),
-		"injection_max_time_us":                    m.counters.InjectionMaxTimeUs.Get(),
-		"injection_successes":                      m.counters.InjectionSuccesses.Get(),
-		"injection_failures":                       m.counters.InjectionFailures.Get(),
-		"pe_caching_failures":                      m.counters.PeCachingFailures.Get(),
-		"import_directory_restoration_failures":    m.counters.ImportDirectoryRestorationFailures.Get(),
-		"pe_memory_allocation_failures":            m.counters.PeMemoryAllocationFailures.Get(),
-		"pe_injection_context_allocated":           m.counters.PeInjectionContextAllocated.Get(),
-		"pe_injection_context_cleanedup":           m.counters.PeInjectionContextCleanedup.Get(),
-		"crashes_during_injection":                 m.counters.CrashesDuringInjection.Get(),
-		"crashes_post_injection":                   m.counters.CrashesPostInjection.Get(),
-		"boot_recovery_crash_boots_detected":       m.counters.BootRecoveryCrashBootsDetected.Get(),
-		"boot_recovery_driver_self_disabled":       m.counters.BootRecoveryDriverSelfDisabled.Get(),
-		"boot_recovery_stability_timer_fired":      m.counters.BootRecoveryStabilityTimerFired.Get(),
+		"last_check_timestamp":                       m.lastCheck.Load(),
+		"processes_added_to_injection_tracker":       m.counters.ProcessesAddedToInjectionTracker.Get(),
+		"processes_removed_from_injection_tracker":   m.counters.ProcessesRemovedFromInjectionTracker.Get(),
+		"processes_skipped_subsystem":                m.counters.ProcessesSkippedSubsystem.Get(),
+		"processes_skipped_container":                m.counters.ProcessesSkippedContainer.Get(),
+		"processes_skipped_protected":                m.counters.ProcessesSkippedProtected.Get(),
+		"processes_skipped_system":                   m.counters.ProcessesSkippedSystem.Get(),
+		"processes_skipped_excluded":                 m.counters.ProcessesSkippedExcluded.Get(),
+		"injection_attempts":                         m.counters.InjectionAttempts.Get(),
+		"injection_attempt_failures":                 m.counters.InjectionAttemptFailures.Get(),
+		"injection_max_time_us":                      m.counters.InjectionMaxTimeUs.Get(),
+		"injection_successes":                        m.counters.InjectionSuccesses.Get(),
+		"injection_failures":                         m.counters.InjectionFailures.Get(),
+		"pe_caching_failures":                        m.counters.PeCachingFailures.Get(),
+		"import_directory_restoration_failures":      m.counters.ImportDirectoryRestorationFailures.Get(),
+		"pe_memory_allocation_failures":              m.counters.PeMemoryAllocationFailures.Get(),
+		"pe_injection_context_allocated":             m.counters.PeInjectionContextAllocated.Get(),
+		"pe_injection_context_cleanedup":             m.counters.PeInjectionContextCleanedup.Get(),
+		"crashes_during_injection":                   m.counters.CrashesDuringInjection.Get(),
+		"crashes_post_injection":                     m.counters.CrashesPostInjection.Get(),
+		"boot_recovery_crash_boots_detected":         m.counters.BootRecoveryCrashBootsDetected.Get(),
+		"boot_recovery_driver_self_disabled":         m.counters.BootRecoveryDriverSelfDisabled.Get(),
+		"boot_recovery_stability_timer_fired":        m.counters.BootRecoveryStabilityTimerFired.Get(),
+		"processes_automatically_added_to_skip_list": m.counters.ProcessesAutomaticallyAddedToSkipList.Get(),
+		"processes_skipped_default":                  m.counters.ProcessesSkippedDefault.Get(),
+		"processes_skipped_custom":                   m.counters.ProcessesSkippedCustom.Get(),
+		"processes_skipped_crash_recovery":           m.counters.ProcessesSkippedCrashRecovery.Get(),
+		"processes_skipped_signature_policy":         m.counters.ProcessesSkippedSignaturePolicy.Get(),
+		"processes_signature_policy_unknown":         m.counters.ProcessesSignaturePolicyUnknown.Get(),
+		"processes_skipped_short_name":               m.counters.ProcessesSkippedShortName.Get(),
 	}
 }
 
@@ -208,6 +215,36 @@ func (m *injectorModule) initializeMetrics() {
 	m.counters.BootRecoveryStabilityTimerFired = m.telemetry.NewSimpleGauge(
 		subsystem, "boot_recovery_stability_timer_fired",
 		"Number of times the boot recovery stability timer fired")
+
+	// v3 counters: skip-list sources and signature policy. Registered
+	// unconditionally; they remain 0 against drivers older than V3.
+	m.counters.ProcessesAutomaticallyAddedToSkipList = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_automatically_added_to_skip_list",
+		"Number of processes automatically added to the skip list by crash recovery")
+
+	m.counters.ProcessesSkippedDefault = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_skipped_default",
+		"Number of processes skipped due to the default skip list")
+
+	m.counters.ProcessesSkippedCustom = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_skipped_custom",
+		"Number of processes skipped due to the custom skip list")
+
+	m.counters.ProcessesSkippedCrashRecovery = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_skipped_crash_recovery",
+		"Number of processes skipped due to the crash-recovery skip list")
+
+	m.counters.ProcessesSkippedSignaturePolicy = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_skipped_signature_policy",
+		"Number of processes skipped due to a binary signature policy")
+
+	m.counters.ProcessesSignaturePolicyUnknown = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_signature_policy_unknown",
+		"Number of processes whose binary signature policy could not be determined")
+
+	m.counters.ProcessesSkippedShortName = m.telemetry.NewSimpleGauge(
+		subsystem, "processes_skipped_short_name",
+		"Number of processes skipped because their image path kept an 8.3 short name")
 }
 
 // Describe implements prometheus.Collector - no-op for dynamic metrics

@@ -561,6 +561,13 @@ profiles:
       - name: injector.boot_recovery_crash_boots_detected
       - name: injector.boot_recovery_driver_self_disabled
       - name: injector.boot_recovery_stability_timer_fired
+      - name: injector.processes_automatically_added_to_skip_list
+      - name: injector.processes_skipped_default
+      - name: injector.processes_skipped_custom
+      - name: injector.processes_skipped_crash_recovery
+      - name: injector.processes_skipped_signature_policy
+      - name: injector.processes_signature_policy_unknown
+      - name: injector.processes_skipped_short_name
   schedule:
     start_after: 30
     iterations: 0
