@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
-	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
@@ -59,6 +58,9 @@ const (
 	// scanQueueSize lets every SBOM entry wait for its scan.
 	scanQueueSize        = maxSBOMEntries
 	maxPendingFileEvents = 2048
+	// rootReadInterval spaces out the reads of the root mount of a container
+	// while it is unknown, as for a container that still runs on the host root.
+	rootReadInterval = 10 * time.Second
 	// maxForwardWait bounds how long forwarding keeps retrying while the image's
 	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
 	// re-arming when no image SBOM will ever be produced (for example when
@@ -84,6 +86,10 @@ const (
 	// wait for the scan indexing them, and hostMissTTL how long one waits.
 	maxHostMisses = 1024
 	hostMissTTL   = 10 * time.Minute
+	// deletedSuffix ends the path procfs gives a file removed from its path
+	// while a process runs or maps it, as when an upgrade renames a new build
+	// over it.
+	deletedSuffix = " (deleted)"
 )
 
 // hostMiss is the run of a host file the host index lacked: the usage it
@@ -94,9 +100,9 @@ type hostMiss struct {
 }
 
 // pendingFileEvent holds the accesses to a file made before the SBOM of its container
-// was ready: the hash of its usr-merge alias, the latest time, the sticky properties.
+// was ready: the keys of the file, the latest time and the sticky properties.
 type pendingFileEvent struct {
-	alias          uint64
+	keys           fileKeys
 	lastAccess     int64 // Unix nanoseconds, which keep the map free of pointers
 	suidBit        bool
 	accessedByRoot bool
@@ -110,6 +116,13 @@ type openedFile struct {
 	comm string
 	file model.FileEvent
 	at   time.Time
+}
+
+// pendingFileKey identifies the queued accesses to a file by the hash of its
+// path and its mount, so that a bind mount at a package path stands apart.
+type pendingFileKey struct {
+	path    uint64
+	mountID uint32
 }
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
@@ -261,8 +274,9 @@ type SBOM struct {
 
 	ContainerID containerutils.ContainerID
 
-	data   *Data
-	cached bool // data counts as a use of its key in the data cache
+	data        *Data
+	cached      bool   // data counts as a use of its key in the data cache
+	fingerprint string // fingerprint of the package databases data was scanned from
 
 	workloadKey workloadKey
 	status      workloadmeta.SBOMStatus
@@ -275,9 +289,34 @@ type SBOM struct {
 	forwardRetryCount int
 
 	usrMerged bool
+
+	root     containerRoot
+	rootRead time.Time // when root was last read, while unknown
+}
+
+// containerRoot is the root mount of a container and the mounts of its mount
+// namespace, zero when unknown.
+type containerRoot struct {
+	mountID uint32
+	mounts  []uint32
+}
+
+// onRoot reports whether a file on mountID may be on the root, on any mount but the
+// other ones of its namespace. Another namespace copies the root under a new ID.
+func (c containerRoot) onRoot(mountID uint32) bool {
+	return c.mountID == 0 || mountID == 0 || mountID == c.mountID || !slices.Contains(c.mounts, mountID)
 }
 
 type workloadKey string
+
+// dataKey returns the data cache key of the scan of a workload of key, from a
+// root whose package databases have fingerprint.
+func dataKey(key workloadKey, fingerprint string) workloadKey {
+	if fingerprint == "" {
+		return key
+	}
+	return key + "@" + workloadKey(fingerprint)
+}
 
 // IsComputed returns true if SBOM was successfully generated
 func (s *SBOM) IsComputed() bool {
@@ -339,9 +378,9 @@ type Resolver struct {
 	pendingScanLock sync.Mutex
 	pendingScan     []containerutils.ContainerID
 
-	// pending file events: file accesses received before the SBOM was ready, by the hash of their path
+	// pending file events: file accesses received before the SBOM was ready, by pendingFileKey
 	pendingFileEventsLock sync.Mutex
-	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[uint64]pendingFileEvent]
+	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[pendingFileKey]pendingFileEvent]
 
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
@@ -371,6 +410,8 @@ type Resolver struct {
 	// loadedModules the names of its loaded modules.
 	kernelRelease func() (string, error)
 	loadedModules func() ([]string, error)
+	// scanWorkload reads the packages installed in the root of a workload.
+	scanWorkload func(*SBOM) ([]sbomtypes.PackageWithInstalledFiles, error)
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -401,7 +442,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	// one entry per workload waiting for its scan, so the same bound as the sboms cache
-	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[uint64]pendingFileEvent](maxSBOMEntries, nil)
+	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[pendingFileKey]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
@@ -451,6 +492,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOM resolver: %w", err)
 	}
 	resolver.sboms = sboms
+	resolver.scanWorkload = resolver.doScan
 
 	if !c.SBOMResolverEnabled {
 		return resolver, nil
@@ -538,14 +580,8 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
-// refreshScan invalidates a workload's cached SBOM data and re-queues it for a
-// full re-scan. The state is reset to pending because analyzeWorkload drops any
-// SBOM not in the pending state: a workload is left in the computed state by its
-// initial scan, so without this reset the refresh re-scan is discarded and the
-// runtime properties are never recomputed. The SBOM of a workload deleted while
-// its refresh waited stays stopped, and the cached data of its image stays for
-// the other containers of the image. The host SBOM, outside the workloads, is
-// scanned again in place.
+// refreshScan scans a workload again, its state reset to pending as analyzeWorkload
+// scans pending SBOMs alone. The host SBOM is scanned again in place.
 func (r *Resolver) refreshScan(sbom *SBOM) {
 	if sbom.ContainerID == "" {
 		if err := r.scanHost(); err != nil {
@@ -554,6 +590,12 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 		return
 	}
 
+	r.rescan(sbom, r.rootFingerprint(sbom))
+}
+
+// rescan queues sbom for a scan of its root, whose databases have fingerprint. The old
+// scan stays cached for the image's other containers when the databases changed.
+func (r *Resolver) rescan(sbom *SBOM, fingerprint string) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 	sbom.Lock()
@@ -563,7 +605,9 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 		return
 	}
 
-	r.removeSBOMData(sbom.workloadKey)
+	if fingerprint == "" || fingerprint == sbom.fingerprint {
+		r.removeSBOMData(dataKey(sbom.workloadKey, sbom.fingerprint))
+	}
 	sbom.state.Store(pendingState)
 	r.triggerScan(sbom)
 }
@@ -909,6 +953,7 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 				if r.forward(sbom) {
 					forwarder.Call()
 				}
+				r.refreshChanged(sbom, func() string { return r.rootFingerprint(sbom) })
 			},
 		)
 		forwarder.Start()
@@ -1087,6 +1132,14 @@ func isProcRootGone(err error) bool {
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
 }
 
+// sortedPIDs returns the PIDs of cgroup in increasing order, so that the scan and
+// the fingerprint of a container read the root of the same process.
+func sortedPIDs(cgroup *cgroupModel.CacheEntry) []uint32 {
+	pids := cgroup.GetPIDs()
+	slices.Sort(pids)
+	return pids
+}
+
 // onHostRoot reports whether the root of the process pid is the root of the
 // host. A process of a system container or a snap runs on a root of its own
 // with an empty container ID. A process whose root cannot be read, most often
@@ -1203,7 +1256,7 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 	cfs := utils.DefaultCGroupFS()
 
-	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
+	for _, rootCandidatePID := range sortedPIDs(sbom.cgroup) {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for
 		// the flush to remove a pid, there might be a significant delay before a PID is removed from this list. Checking
 		// the container ID reduces drastically the likelihood of this race)
@@ -1302,9 +1355,8 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	if data, exists := r.dataCache.acquire(sb.workloadKey); exists {
-		r.setData(sb, data, true)
-
+	fingerprint := r.rootFingerprint(sb)
+	if r.acquireData(sb, fingerprint) {
 		sb.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
@@ -1318,12 +1370,12 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	// Only count a cache miss when we actually do the scan
 	r.sbomsCacheMiss.Inc()
 
-	report, scanErr := r.doScan(sb)
+	report, scanErr := r.scanWorkload(sb)
 	if scanErr != nil {
 		return scanErr
 	}
 
-	data := r.setScan(sb, report)
+	data := r.setScan(sb, report, fingerprint)
 
 	// mark the SBOM as successful
 	sb.state.Store(computedState)
@@ -1370,16 +1422,24 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 // ResolvePackage returns the package that owns file, which the process of pc
 // runs or opens, and records the access as usage of the package. The path of
-// file must be resolved.
+// file must be resolved. It returns nil for a file procfs names with
+// deletedSuffix, after recording its usage.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
-	if !file.IsPathnameStrResolved {
+	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
 		return nil
 	}
+
+	// procfs names a file replaced under a running process by its path
+	// followed by deletedSuffix, in the executables and the mappings the probe
+	// reads at start and on ruleset reloads. Such a file counts for the package
+	// that owns its path. That package may hold the build that replaced it by
+	// now, so ResolvePackage returns nil for the file.
+	lookupPath, replaced := strings.CutSuffix(file.PathnameStr, deletedSuffix)
 
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, runsAsRoot(pc), file.MountID)
 		return nil
 	}
 
@@ -1389,7 +1449,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
 	if !sbom.IsComputed() {
 		sbom.Unlock()
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, runsAsRoot(pc), file.MountID)
 		return nil
 	}
 
@@ -1398,9 +1458,16 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// replay any file accesses that arrived before the SBOM was ready
 	r.processPendingFileEvents(sbom)
 
+	// The image holds the files of the root mount of its containers, which a bind
+	// mount or a ConfigMap at a package path is apart from.
+	r.refreshRoot(sbom)
+	if !sbom.root.onRoot(file.MountID) {
+		return nil
+	}
+
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
-	pkg := r.owner(sbom, pc.Pid, file.PathnameStr)
+	pkg := r.owner(sbom, pc.Pid, lookupPath, true)
 
 	// rpm lists the directories a package owns among its files. A directory
 	// resolves to its package, and opening it, as a listing or a walk of the
@@ -1431,11 +1498,14 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	// The executable of a host process the host index lacks may belong to a
 	// package installed since the last scan. Its run waits for the scan
-	// indexing it.
-	if pkg == nil && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
+	// indexing it, if the executable is still at its path.
+	if pkg == nil && !replaced && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
 		r.addHostMiss(pc, file)
 	}
 
+	if replaced {
+		return nil
+	}
 	return pkg
 }
 
@@ -1463,7 +1533,13 @@ func runsAsRoot(pc *model.ProcessContext) bool {
 // events read it, for the files a process runs or opens as well as for the
 // target of a chmod or an unlink.
 func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
-	if !file.IsPathnameStrResolved {
+	return r.lookup(pc, file, false)
+}
+
+// lookup returns the package owning file, or the package a use of file credits
+// when usage is set, and leaves its usage as it is.
+func (r *Resolver) lookup(pc *model.ProcessContext, file *model.FileEvent, usage bool) *sbomtypes.Package {
+	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
 		return nil
 	}
 
@@ -1478,14 +1554,18 @@ func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent
 	if !sbom.IsComputed() {
 		return nil
 	}
-	return r.owner(sbom, pc.Pid, file.PathnameStr)
+	return r.owner(sbom, pc.Pid, file.PathnameStr, usage)
 }
 
-// owner returns the package of sbom that owns the file at path, opened by the
-// process pid. A process on a root of its own opens the files of that root
-// under the paths of host files, and its root is read once the path matches.
-func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package {
-	pkg := sbom.data.files.queryFile(path)
+// owner returns the package of sbom owning path, or the one a use of it credits
+// with usage set. A match in the host SBOM needs pid on the host root.
+func (r *Resolver) owner(sbom *SBOM, pid uint32, path string, usage bool) *sbomtypes.Package {
+	var pkg *sbomtypes.Package
+	if usage {
+		pkg = sbom.data.files.queryUsage(path)
+	} else {
+		pkg = sbom.data.files.queryFile(path)
+	}
 	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pid) {
 		return nil
 	}
@@ -1526,8 +1606,9 @@ func (r *Resolver) ResolveOpen(pc *model.ProcessContext, file *model.FileEvent) 
 		r.ResolvePackage(pc, file)
 		return
 	}
-	// LookupPackage reads the root of the process while the process lives.
-	if isDir(file.Mode) || r.LookupPackage(pc, file) == nil {
+	// lookup reads the root of the process while it lives. With usage set,
+	// bytecode a package leaves unlisted counts for its source.
+	if isDir(file.Mode) || r.lookup(pc, file, true) == nil {
 		return
 	}
 
@@ -1581,31 +1662,29 @@ func (r *Resolver) recordSettled(now time.Time) {
 // deduplication the shared libraries mapped by every process of a workload crowd out
 // the distinct paths worth keeping. Directory opens, which leave the usage of their
 // package as it is, stay out of the queue.
-func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, root bool) {
+func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, root bool, mountID uint32) {
 	if containerID == "" || isDir(fileMode) {
 		return
 	}
 
 	event := pendingFileEvent{
+		keys:           newUsageKeys(filePath),
 		lastAccess:     time.Now().UnixNano(),
 		suidBit:        fs.FileMode(fileMode)&04000 != 0,
 		accessedByRoot: root,
 	}
-	if alias := pathAlias(filePath); alias != "" {
-		event.alias = murmur3.StringSum64(alias)
-	}
-	hash := murmur3.StringSum64(filePath)
+	key := pendingFileKey{path: event.keys.path, mountID: mountID}
 
 	r.pendingFileEventsLock.Lock()
 	defer r.pendingFileEventsLock.Unlock()
 
 	events, ok := r.pendingFileEvents.Get(containerID)
 	if !ok {
-		events = make(map[uint64]pendingFileEvent)
+		events = make(map[pendingFileKey]pendingFileEvent)
 		r.pendingFileEvents.Add(containerID, events)
 	}
 
-	if previous, ok := events[hash]; ok {
+	if previous, ok := events[key]; ok {
 		event.suidBit = event.suidBit || previous.suidBit
 		event.accessedByRoot = event.accessedByRoot || previous.accessedByRoot
 	} else if len(events) >= maxPendingFileEvents {
@@ -1613,7 +1692,7 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 		return
 	}
 
-	events[hash] = event
+	events[key] = event
 }
 
 // processPendingFileEvents applies the accesses queued for sbom to its data and
@@ -1627,13 +1706,17 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 	if !ok || len(events) == 0 {
 		return
 	}
+	r.refreshRoot(sbom)
 
 	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
 
 	recorded := false
 	sbom.data.mu.Lock()
-	for hash, event := range events {
-		pkg := sbom.data.files.queryHashes(hash, event.alias)
+	for key, event := range events {
+		if !sbom.root.onRoot(key.mountID) {
+			continue
+		}
+		pkg := sbom.data.files.queryKeys(event.keys)
 		if pkg == nil {
 			continue
 		}
@@ -1659,6 +1742,45 @@ func (r *Resolver) newSBOM(id containerutils.ContainerID, cgroup *cgroupModel.Ca
 	return sbom
 }
 
+// refreshRoot reads the root mount of sbom while unknown, at most every
+// rootReadInterval, as processes start on the host root. sbom.Lock() must be held.
+func (r *Resolver) refreshRoot(sbom *SBOM) {
+	if sbom.ContainerID == "" || sbom.root.mountID != 0 || time.Since(sbom.rootRead) < rootReadInterval {
+		return
+	}
+	sbom.root, sbom.rootRead = r.readContainerRoot(sbom.ContainerID, sbom.cgroup), time.Now()
+}
+
+// readContainerRoot returns the root mount of container id and the mounts of its
+// namespace, read from one of the processes of cgroup off the root of the host.
+func (r *Resolver) readContainerRoot(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry) containerRoot {
+	if cgroup == nil {
+		return containerRoot{}
+	}
+	cfs := utils.DefaultCGroupFS()
+	for _, pid := range cgroup.GetPIDs() {
+		if computedID, _, _, err := cfs.FindCGroupContext(pid, pid); err != nil || computedID != id || r.onHostRoot(pid) {
+			continue
+		}
+		mounts, err := kernel.ParseMountInfoFile(int32(pid))
+		if err != nil {
+			continue
+		}
+		root := containerRoot{mounts: make([]uint32, 0, len(mounts))}
+		for _, mnt := range mounts {
+			root.mounts = append(root.mounts, uint32(mnt.ID))
+			// the last mount on / hides the ones below it
+			if mnt.Mountpoint == "/" {
+				root.mountID = uint32(mnt.ID)
+			}
+		}
+		if root.mountID != 0 {
+			return root
+		}
+	}
+	return containerRoot{}
+}
+
 // queueWorkload inserts the provided sbom in a SBOM resolver chan, it will be inserted in the scanChan or the
 // delayerChan depending on the tags that have been resolved
 func (r *Resolver) queueWorkload(sbom *SBOM) {
@@ -1671,9 +1793,7 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	}
 
 	// check if this sbom has been scanned before
-	if data, cached := r.dataCache.acquire(sbom.workloadKey); cached {
-		r.setData(sbom, data, true)
-
+	if r.acquireData(sbom, r.rootFingerprint(sbom)) {
 		sbom.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
@@ -1805,28 +1925,75 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 // Must be called with sbom.Lock() already held.
 func (r *Resolver) stopSBOM(sbom *SBOM) {
 	sbom.stop()
-	r.setData(sbom, nil, false)
+	r.setData(sbom, nil, false, "")
+}
+
+// acquireData gives sbom the cached scan of its workload on databases of fingerprint,
+// if any, and reports whether it did. Must be called with sbom.Lock() already held.
+func (r *Resolver) acquireData(sbom *SBOM, fingerprint string) bool {
+	data, ok := r.dataCache.acquire(dataKey(sbom.workloadKey, fingerprint))
+	if ok {
+		r.setData(sbom, data, true, fingerprint)
+	}
+	return ok
 }
 
 // setScan gives sbom the data of its fresh scan report, cached unless empty, as
 // a failing scanner returns. Must be called with sbom.Lock() already held.
-func (r *Resolver) setScan(sbom *SBOM, report []sbomtypes.PackageWithInstalledFiles) *Data {
+func (r *Resolver) setScan(sbom *SBOM, report []sbomtypes.PackageWithInstalledFiles, fingerprint string) *Data {
 	data := newData(report, sbom.usrMerged)
 	if len(report) > 0 {
-		r.dataCache.add(sbom.workloadKey, data)
+		r.dataCache.add(dataKey(sbom.workloadKey, fingerprint), data)
 	}
-	r.setData(sbom, data, len(report) > 0)
+	r.setData(sbom, data, len(report) > 0, fingerprint)
 	return data
 }
 
-// setData gives sbom data, a use of its key in the data cache when cached is set,
-// and releases the data it held. Must be called with sbom.Lock() already held.
-func (r *Resolver) setData(sbom *SBOM, data *Data, cached bool) {
+// setData gives sbom data scanned from databases of fingerprint, a cache use when cached
+// is set, and releases the data it held. Must be called with sbom.Lock() already held.
+func (r *Resolver) setData(sbom *SBOM, data *Data, cached bool, fingerprint string) {
 	if sbom.cached {
-		r.dataCache.release(sbom.workloadKey)
+		r.dataCache.release(dataKey(sbom.workloadKey, sbom.fingerprint))
 	}
 	sbom.data = data
 	sbom.cached = cached
+	sbom.fingerprint = fingerprint
+}
+
+// rootFingerprint returns the fingerprint of the package databases in the root
+// of the container of sbom, read through the process doScan scans, if any.
+func (r *Resolver) rootFingerprint(sbom *SBOM) string {
+	if sbom.ContainerID == "" || sbom.cgroup == nil {
+		return ""
+	}
+	cfs := utils.DefaultCGroupFS()
+	for _, pid := range sortedPIDs(sbom.cgroup) {
+		if id, _, _, err := cfs.FindCGroupContext(pid, pid); err != nil || id != sbom.ContainerID || r.onHostRoot(pid) {
+			continue
+		}
+		if fingerprint := r.sbomCollector.Fingerprint(utils.ProcRootPath(pid)); fingerprint != "" {
+			return fingerprint
+		}
+	}
+	return ""
+}
+
+// refreshChanged refreshes the SBOM of a container whose databases changed since its
+// scan, as the CWS refresh rules would. fingerprint reads their current fingerprint.
+func (r *Resolver) refreshChanged(sbom *SBOM, fingerprint func() string) {
+	sbom.RLock()
+	scanned := sbom.fingerprint
+	computed := sbom.state.Load() == computedState
+	sbom.RUnlock()
+	if !computed || scanned == "" {
+		return
+	}
+	if current := fingerprint(); current == "" || current == scanned {
+		return
+	}
+	if err := r.RefreshSBOM(sbom.ContainerID); err != nil {
+		seclog.Debugf("failed to refresh the SBOM of %s after a package change: %v", sbom.ContainerID, err)
+	}
 }
 
 // onSBOMEvicted releases everything indexed by the container ID of an SBOM leaving

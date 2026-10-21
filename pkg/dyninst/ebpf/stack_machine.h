@@ -2282,36 +2282,17 @@ sm_swiss_map_aesenc(stack_machine_t* sm) {
     sm->swiss_map_state.aes_rk_offset = off + 16;
   }
 
-  // MixColumns + AddRoundKey.
-  uint8_t a0, a1, a2, a3, x0, x1, x2, x3;
-
-  a0 = tmp[0]; a1 = tmp[1]; a2 = tmp[2]; a3 = tmp[3];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[0] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[0];
-  state[1] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[1];
-  state[2] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[2];
-  state[3] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[3];
-
-  a0 = tmp[4]; a1 = tmp[5]; a2 = tmp[6]; a3 = tmp[7];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[4] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[4];
-  state[5] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[5];
-  state[6] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[6];
-  state[7] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[7];
-
-  a0 = tmp[8]; a1 = tmp[9]; a2 = tmp[10]; a3 = tmp[11];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[8]  = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[8];
-  state[9]  = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[9];
-  state[10] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[10];
-  state[11] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[11];
-
-  a0 = tmp[12]; a1 = tmp[13]; a2 = tmp[14]; a3 = tmp[15];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[12] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[12];
-  state[13] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[13];
-  state[14] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[14];
-  state[15] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[15];
+  // MixColumns + AddRoundKey, one column at a time.
+  for (uint32_t c = 0; c < 4; c++) {
+    uint32_t off = (c * 4) & 12;
+    uint8_t a0 = tmp[off + 0], a1 = tmp[off + 1];
+    uint8_t a2 = tmp[off + 2], a3 = tmp[off + 3];
+    uint8_t x0 = xtime(a0), x1 = xtime(a1), x2 = xtime(a2), x3 = xtime(a3);
+    state[off + 0] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[off + 0];
+    state[off + 1] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[off + 1];
+    state[off + 2] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[off + 2];
+    state[off + 3] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[off + 3];
+  }
   return 0;
 }
 
@@ -2374,36 +2355,18 @@ sm_swiss_map_aese(stack_machine_t* sm) {
     return 0;
   }
 
-  // AESMC: MixColumns only (NO AddRoundKey — that was done before SubBytes).
-  uint8_t a0, a1, a2, a3, x0, x1, x2, x3;
-
-  a0 = tmp[0]; a1 = tmp[1]; a2 = tmp[2]; a3 = tmp[3];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[0] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[1] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[2] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[3] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
-
-  a0 = tmp[4]; a1 = tmp[5]; a2 = tmp[6]; a3 = tmp[7];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[4] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[5] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[6] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[7] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
-
-  a0 = tmp[8]; a1 = tmp[9]; a2 = tmp[10]; a3 = tmp[11];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[8]  = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[9]  = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[10] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[11] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
-
-  a0 = tmp[12]; a1 = tmp[13]; a2 = tmp[14]; a3 = tmp[15];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[12] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[13] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[14] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[15] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+  // AESMC: MixColumns only (NO AddRoundKey — that was done before SubBytes),
+  // one column at a time.
+  for (uint32_t c = 0; c < 4; c++) {
+    uint32_t off = (c * 4) & 12;
+    uint8_t a0 = tmp[off + 0], a1 = tmp[off + 1];
+    uint8_t a2 = tmp[off + 2], a3 = tmp[off + 3];
+    uint8_t x0 = xtime(a0), x1 = xtime(a1), x2 = xtime(a2), x3 = xtime(a3);
+    state[off + 0] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
+    state[off + 1] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
+    state[off + 2] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
+    state[off + 3] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+  }
   return 0;
 }
 
