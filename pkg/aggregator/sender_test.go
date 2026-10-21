@@ -819,6 +819,13 @@ func TestInternalTelemetryProgressDuringStream(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("internal telemetry deadlocked against the stream")
 	}
+	// Feedback may share the initial commit's wire second. It must remain
+	// available for the next flush, without waiting inside the serializer.
+	agg.mu.Lock()
+	for _, sampler := range agg.checkSamplers {
+		sampler.commitAt(float64(time.Now().Unix()+15), true, false, nil)
+	}
+	agg.mu.Unlock()
 	series, _ := agg.GetSeriesAndSketches(time.Now())
 	found := false
 	for _, s := range series {
@@ -902,4 +909,46 @@ func TestComparisonFinalFlushIncludesCurrentSecondSketch(t *testing.T) {
 		}
 		require.Equal(t, int64(7), count, "a stopped Agent cannot depend on another check run to flush its last sketch")
 	})
+}
+
+func TestPeriodicDeferredGaugePreservesNextRun(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("deferred-gauge")
+	synctest.Test(t, func(t *testing.T) {
+		cs := agg.checkSamplers["deferred-gauge"]
+		cs.commitNow(true, nil)
+		submit := func(value float64) {
+			agg.handleSenderSample(senderMetricSample{id: "deferred-gauge", metricSample: &metrics.MetricSample{Name: "deferred.gauge", Mtype: metrics.GaugeType, Value: value}})
+			agg.handleSenderSample(senderMetricSample{id: "deferred-gauge", commit: true})
+		}
+		submit(7)
+		require.True(t, cs.deferredFinal)
+		// Virtual time: simulate the next scheduled check, without a real sleep.
+		time.Sleep(time.Second)
+		submit(11)
+		cs.commitAt(float64(time.Now().UnixNano())/1e9, true, true, nil)
+		series, _ := cs.flush()
+		require.Len(t, series, 2)
+		require.Equal(t, float64(7), series[0].Points[0].Value)
+		require.Equal(t, float64(11), series[1].Points[0].Value)
+		require.Less(t, series[0].Points[0].Ts, series[1].Points[0].Ts)
+	})
+}
+
+func TestPeriodicShutdownDrainsFutureSketch(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("future-sketch")
+	future := time.Now().Unix() + 3600
+	agg.handleSenderBucket(senderHistogramBucket{id: "future-sketch", bucket: &metrics.HistogramBucket{Name: "future.distribution", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: float64(future)}})
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+	agg.Flush(flushTrigger{trigger: trigger{time: time.Now(), waitForSerializer: true}, finalFlush: true, seriesSink: &series, sketchesSink: &sketches})
+	require.Len(t, sketches, 1)
+	require.Len(t, sketches[0].Points, 1)
+	require.Equal(t, future, sketches[0].Points[0].Ts)
+	require.Equal(t, int64(7), sketches[0].Points[0].Sketch.Basic.Cnt)
 }

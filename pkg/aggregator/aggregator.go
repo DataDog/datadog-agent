@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -489,6 +490,13 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		if ss.commit {
 			checkSampler.commitNow(false, &agg.flushFilterList)
 		} else {
+			if checkSampler.deferredFinal {
+				// Preserve the previous run's gauge before a later run overwrites it.
+				now := float64(time.Now().UnixNano()) / 1e9
+				if int64(now) > checkSampler.lastCommitSecond {
+					checkSampler.commitAt(now, true, false, &agg.flushFilterList)
+				}
+			}
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
 		}
@@ -807,20 +815,19 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushMutex.Lock()
 	defer agg.flushMutex.Unlock()
-	if trigger.serializationDone != nil {
+	if trigger.serializationDone != nil || trigger.finalFlush {
 		agg.mu.Lock()
 		for _, sampler := range agg.checkSamplers {
-			sampler.commitNow(true, &agg.flushFilterList)
+			sampler.commitAt(float64(time.Now().UnixNano())/1e9, true, trigger.finalFlush, &agg.flushFilterList)
 		}
 		agg.mu.Unlock()
 	}
 	if trigger.finalFlush {
 		agg.mu.Lock()
-		// Include the current second only at shutdown. Sketch timestamps stay
-		// unchanged; ordinary flushes retain the open bucket for more samples.
-		before := float64(time.Now().Unix() + 1)
+		// Drain every accepted sketch at shutdown, including buckets ahead of
+		// wall time after a clock rollback. Preserve their original timestamps.
 		for _, sampler := range agg.checkSamplers {
-			sampler.commitSketches(before, &agg.flushFilterList)
+			sampler.commitSketchesBefore(math.MaxInt64, &agg.flushFilterList)
 		}
 		agg.mu.Unlock()
 	}

@@ -897,7 +897,7 @@ func TestComparisonHistorateContinuity(t *testing.T) {
 	comparisonIntermediate(cs, 100)
 	comparisonAdd(cs, metrics.HistorateType, 150, 3, false)
 	cs.commit(101, nil)
-	require.Equal(t, []float64{20, 30}, comparisonPoints(cs, ".avg"), "intermediate commit must preserve the 120 -> 150 rate contribution")
+	require.Equal(t, []float64{25}, comparisonPoints(cs, ".avg"), "historate must retain its complete check-run distribution")
 }
 func TestComparisonCountConservation(t *testing.T) {
 	cs := comparisonSampler(t)
@@ -915,7 +915,7 @@ func TestComparisonRateContinuity(t *testing.T) {
 	comparisonIntermediate(cs, 100)
 	comparisonAdd(cs, metrics.RateType, 150, 3, false)
 	cs.commit(101, nil)
-	require.Equal(t, []float64{20, 30}, comparisonPoints(cs, ""))
+	require.Equal(t, []float64{30}, comparisonPoints(cs, ""), "rate keeps the original last-two-samples check-run contract")
 }
 func TestComparisonMonotonicResetConservation(t *testing.T) {
 	cs := comparisonSampler(t)
@@ -1016,6 +1016,8 @@ func TestCorrectedPeriodicFinalTimestampCollision(t *testing.T) {
 		first := cs.lastCommitSecond
 		comparisonAdd(cs, metrics.CountType, 11, 2, false)
 		cs.commitNow(false, nil)
+		require.Equal(t, first, cs.lastCommitSecond)
+		cs.commitAt(float64(first+15), true, false, nil)
 		series, _ := cs.flush()
 		points := map[int64]float64{}
 		var total float64
@@ -1050,4 +1052,107 @@ func TestPeriodicReclaimsFlushedGaugeContexts(t *testing.T) {
 	require.Len(t, series, 1)
 	require.Equal(t, float64(11), series[0].Points[0].Value)
 	require.Equal(t, "stable:tag", series[0].Tags.Join(","))
+}
+
+func TestPeriodicClockAndDeferredCommit(t *testing.T) {
+	for _, kind := range []metrics.MetricType{metrics.CountType, metrics.MonotonicCountType, metrics.GaugeType} {
+		t.Run(kind.String(), func(t *testing.T) {
+			cs := comparisonSampler(t)
+			comparisonAdd(cs, kind, 7, 1, true)
+			cs.commitAt(100, true, false, nil)
+			series, _ := cs.flush()
+			require.Len(t, series, 1)
+			require.Equal(t, float64(7), series[0].Points[0].Value)
+			comparisonAdd(cs, kind, 11, 2, true)
+			// Many same-second check completions must neither wait nor expire
+			// accepted contributions. Histogram windows still close each run.
+			for i := 0; i < 10; i++ {
+				cs.commitAt(100.5, false, false, nil)
+			}
+			require.Empty(t, cs.series)
+			require.Equal(t, int64(100), cs.lastCommitSecond)
+			cs.commitAt(115, true, false, nil)
+			series, _ = cs.flush()
+			require.Len(t, series, 1)
+			want := 11.0
+			if kind == metrics.MonotonicCountType {
+				want = 4
+			}
+			require.Equal(t, want, series[0].Points[0].Value)
+			require.Equal(t, float64(115), series[0].Points[0].Ts)
+			comparisonAdd(cs, kind, 13, 3, true)
+			// Rollback does not block the input loop or retain unbounded output.
+			cs.commitAt(1, true, false, nil)
+			series, _ = cs.flush()
+			require.Len(t, series, 1)
+			require.Equal(t, float64(116), series[0].Points[0].Ts)
+			comparisonAdd(cs, kind, 17, 4, true)
+			cs.commitAt(1, true, true, nil)
+			series, _ = cs.flush()
+			require.Len(t, series, 1)
+			require.Equal(t, float64(117), series[0].Points[0].Ts)
+		})
+	}
+}
+
+func TestPeriodicPreservesHistogramQueries(t *testing.T) {
+	cs := comparisonSampler(t)
+	for i := 0; i < 99; i++ {
+		comparisonAdd(cs, metrics.HistogramType, 0, float64(i+1), false)
+	}
+	cs.commitAt(100, true, false, nil)
+	require.Empty(t, cs.series)
+	comparisonAdd(cs, metrics.HistogramType, 100, 101, false)
+	// Even a colliding final commit must close the full histogram window.
+	cs.commitAt(100.5, false, false, nil)
+	series, _ := cs.flush()
+	values := map[string]float64{}
+	for _, s := range series {
+		values[s.Name] = s.Points[0].Value
+	}
+	require.Equal(t, float64(1), values["comparison.metric.avg"])
+	require.Equal(t, float64(100), values["comparison.metric.count"])
+	require.Contains(t, values, "comparison.metric.95percentile")
+	require.Zero(t, values["comparison.metric.95percentile"])
+	comparisonAdd(cs, metrics.HistogramType, 7, 102, false)
+	cs.commitAt(100.6, false, false, nil)
+	require.Equal(t, []float64{7}, comparisonPoints(cs, ".avg"), "next run must have a fresh window")
+}
+
+func TestPeriodicReclaimsMonotonicMetadataWithoutAgingBaseline(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.MonotonicCountType, 100, 1, false)
+	cs.commitIntermediate(100, nil)
+	require.Zero(t, cs.contextResolver.length())
+	require.Len(t, cs.retiredBaselines, 1)
+	// Several hours of one run must not start the stateful expiry timeout.
+	cs.commitIntermediate(10000, nil)
+	comparisonAdd(cs, metrics.MonotonicCountType, 125, 2, false)
+	require.Empty(t, cs.retiredBaselines)
+	cs.commitIntermediate(10001, nil)
+	require.Zero(t, cs.contextResolver.length())
+	require.Equal(t, []float64{25}, comparisonPoints(cs, ""))
+	// The usual two completed-run context grace period still applies.
+	cs.commit(10002, nil)
+	cs.commit(10003, nil)
+	require.Len(t, cs.retiredBaselines, 1)
+	cs.commit(10004, nil)
+	require.Empty(t, cs.retiredBaselines)
+	// Once the additional stateful timeout passes, a new baseline is needed.
+	cs.commit(14000, nil)
+	comparisonAdd(cs, metrics.MonotonicCountType, 150, 3, false)
+	cs.commit(14001, nil)
+	require.Empty(t, comparisonPoints(cs, ""))
+}
+
+func TestPeriodicExplicitTimestampsSurviveClockPolicy(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.CountWithTimestampType, 7, 42, false)
+	cs.commitAt(100, true, false, nil)
+	comparisonAdd(cs, metrics.CountWithTimestampType, 11, 43, false)
+	cs.commitAt(1, true, true, nil)
+	series, _ := cs.flush()
+	require.Len(t, series, 2)
+	require.Equal(t, float64(42), series[0].Points[0].Ts)
+	require.Equal(t, float64(43), series[1].Points[0].Ts)
 }

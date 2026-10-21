@@ -171,16 +171,34 @@ func (c *CheckMetricsTelemetryAccumulator) Flush() {
 	tlmCheckMetricsActive.Set(total-waiting, "sum")
 }
 
-// FlushIntermediate preserves the historate baseline until the check finishes.
+// periodicMetric identifies metrics whose accumulation can cross check commits.
+// Histogram, historate, set and rate retain their check-run windows. Explicitly
+// timestamped samples already carry their own boundaries.
+func periodicMetric(metric Metric) bool {
+	switch metric.(type) {
+	case *Gauge, *Count, *MonotonicCount, *MetricWithTimestamp:
+		return true
+	default:
+		return false
+	}
+}
+
+// FlushIntermediate drains metrics that can be emitted during a check run.
 func (cm *CheckMetrics) FlushIntermediate(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
+	return cm.flushSelected(timestamp, true)
+}
+
+// FlushRunScoped closes check-run windows while leaving periodic contributions
+// pending when another numeric point has already been committed this second.
+func (cm *CheckMetrics) FlushRunScoped(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
+	return cm.flushSelected(timestamp, false)
+}
+
+func (cm *CheckMetrics) flushSelected(timestamp float64, periodic bool) ([]*Serie, map[ckey.ContextKey]error) {
 	var series []*Serie
 	errors := make(map[ckey.ContextKey]error)
 	for key, metric := range cm.metrics {
-		if h, ok := metric.(*Historate); ok {
-			previousSample, previousTimestamp := h.previousSample, h.previousTimestamp
-			series = flushToSeries(key, metric, timestamp, series, errors)
-			h.previousSample, h.previousTimestamp = previousSample, previousTimestamp
-		} else {
+		if periodicMetric(metric) == periodic {
 			series = flushToSeries(key, metric, timestamp, series, errors)
 		}
 	}

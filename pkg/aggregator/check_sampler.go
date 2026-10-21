@@ -30,7 +30,10 @@ type bucketBounds struct {
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
-	lastCommitSecond       int64
+	lastCommitSecond int64
+	deferredFinal    bool
+	// Baselines outlive their names/tags, but still expire by check-run age.
+	retiredBaselines       map[ckey.ContextKey]int64
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
@@ -78,6 +81,7 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
+	delete(cs.retiredBaselines, contextKey)
 	if cs.observerHandle != nil {
 		context, _ := cs.contextResolver.get(contextKey)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
@@ -248,9 +252,13 @@ func (cs *CheckSampler) commitSeriesWithFlush(timestamp float64, filterList *met
 }
 
 func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitSketchesBefore(int64(timestamp), filterList)
+}
+
+func (cs *CheckSampler) commitSketchesBefore(before int64, filterList *metricname.Matcher) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
-	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
+	cs.sketchMap.flushBefore(before, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
 		}
@@ -271,12 +279,32 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitWithSketchTimestamp(timestamp, timestamp, filterList)
+}
+
+func (cs *CheckSampler) commitWithSketchTimestamp(timestamp, wallTimestamp float64, filterList *metricname.Matcher) {
 	cs.commitSeries(timestamp, filterList)
-	cs.commitSketches(timestamp, filterList)
+	cs.commitSketches(wallTimestamp, filterList)
+	cs.expire(wallTimestamp, true)
+}
 
+func (cs *CheckSampler) expire(timestamp float64, advance bool) {
 	cs.metrics.RemoveExpired(timestamp)
-
-	expiredContextKeys := cs.contextResolver.expireContexts()
+	index := cs.contextResolver.expireCount
+	if !advance {
+		index-- // cleanup for the most recent, already counted final commit
+	}
+	expiredContextKeys := cs.contextResolver.expireContextsAt(index)
+	for key, lastSeen := range cs.retiredBaselines {
+		if lastSeen <= index-cs.contextResolver.expireCountInterval {
+			expiredContextKeys = append(expiredContextKeys, key)
+			delete(cs.retiredBaselines, key)
+		}
+	}
+	if advance {
+		cs.contextResolver.expireCount++
+	}
+	cs.deferredFinal = false
 
 	// garbage collect unused buckets
 	for _, ctxKey := range expiredContextKeys {
@@ -344,40 +372,66 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 
 // Intermediate boundaries do not age run-based context or bucket baselines.
 func (cs *CheckSampler) commitIntermediate(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitIntermediateAt(timestamp, timestamp, filterList)
+}
+
+func (cs *CheckSampler) commitIntermediateAt(timestamp, wallTimestamp float64, filterList *metricname.Matcher) {
 	cs.commitSeriesWithFlush(timestamp, filterList, cs.metrics.FlushIntermediate)
-	cs.commitSketches(timestamp, filterList)
-	// Flushed gauges have no baseline to retain. Keep stateful metrics and
-	// distribution contexts, including sketches still in the current second.
+	cs.commitSketches(wallTimestamp, filterList)
 	var expired []ckey.ContextKey
 	for key, entry := range cs.contextResolver.resolver.contextsByKey {
-		if entry.context.mtype == metrics.GaugeType {
+		switch entry.context.mtype {
+		case metrics.MonotonicCountType:
+			// Keep the existing metric object; only its context metadata is retired.
+			// Starting its timeout here would lose baselines during long checks.
+			if cs.retiredBaselines == nil {
+				cs.retiredBaselines = make(map[ckey.ContextKey]int64)
+			}
+			cs.retiredBaselines[key] = entry.lastSeen
+			cs.contextResolver.resolver.remove(key)
+		case metrics.GaugeType, metrics.CountType, metrics.GaugeWithTimestampType, metrics.CountWithTimestampType:
 			expired = append(expired, key)
 			cs.contextResolver.resolver.remove(key)
 		}
 	}
 	cs.metrics.Expire(expired, timestamp)
+	if cs.deferredFinal {
+		cs.expire(wallTimestamp, false)
+	}
 }
 
-// commitNow keeps ordinary final commits, delaying only a wire-second collision.
-// Periodic attempts in an already committed second can wait for the next tick.
-// The caller holds agg.mu. This deliberately blocks checks while waiting, with
-// no per-submission GIL release. The responsiveness cost is benchmarked explicitly.
 func (cs *CheckSampler) commitNow(periodic bool, filterList *metricname.Matcher) {
-	now := time.Now()
-	if now.Unix() <= cs.lastCommitSecond {
-		if periodic {
+	cs.commitAt(float64(time.Now().UnixNano())/1e9, periodic, false, filterList)
+}
+
+// commitAt never waits for the wall clock. A colliding final commit closes only
+// run-scoped metrics; periodic contributions remain in their bounded accumulators
+// until the next flush. Expiry must not remove those pending contributions.
+// On clock rollback (or a colliding shutdown), advance the generated numeric
+// timestamp by one wire second. Explicit sample/sketch timestamps are untouched.
+func (cs *CheckSampler) commitAt(timestamp float64, periodic, shutdown bool, filterList *metricname.Matcher) {
+	wallTimestamp := timestamp
+	second := int64(timestamp)
+	if second <= cs.lastCommitSecond {
+		if !periodic && !shutdown {
+			cs.commitSeriesWithFlush(timestamp, filterList, cs.metrics.FlushRunScoped)
+			cs.commitSketches(timestamp, filterList)
+			cs.contextResolver.expireCount++
+			cs.deferredFinal = true
 			return
 		}
-		for now.Unix() <= cs.lastCommitSecond {
-			time.Sleep(time.Until(time.Unix(cs.lastCommitSecond+1, 0)))
-			now = time.Now()
+		if second == cs.lastCommitSecond && !shutdown {
+			return
 		}
+		if second < cs.lastCommitSecond && !cs.logThrottling.ShouldThrottle() {
+			log.Warnf("Check %s clock moved backwards; preserving numeric point ordering at %d", cs.id, cs.lastCommitSecond+1)
+		}
+		timestamp = float64(cs.lastCommitSecond + 1)
 	}
-	timestamp := float64(now.UnixNano()) / 1e9
-	if periodic {
-		cs.commitIntermediate(timestamp, filterList)
+	if periodic && !shutdown {
+		cs.commitIntermediateAt(timestamp, wallTimestamp, filterList)
 	} else {
-		cs.commit(timestamp, filterList)
+		cs.commitWithSketchTimestamp(timestamp, wallTimestamp, filterList)
 	}
-	cs.lastCommitSecond = now.Unix()
+	cs.lastCommitSecond = int64(timestamp)
 }
