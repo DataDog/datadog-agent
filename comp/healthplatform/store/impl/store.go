@@ -132,7 +132,7 @@ func issueStateFromString(s string) IssueState {
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
-// It is both the in-memory and on-disk representation; proto payload fields are
+// It is both the in-memory and on-disk representation; detailed proto payload fields are
 // intentionally omitted because IssueIDs are deterministic — when the agent
 // restarts, health checks re-run and call ReportIssue with the same ID, at which
 // point storeIssue picks up the existing firstSeen/state from this struct.
@@ -145,6 +145,7 @@ type PersistedIssue struct {
 	IssueID        string     `json:"issue_id"`
 	IssueType      string     `json:"issue_type"`
 	ProtoIssueType string     `json:"proto_issue_type,omitempty"`
+	Category       string     `json:"category,omitempty"`
 	State          IssueState `json:"state"`
 	FirstSeen      string     `json:"first_seen"`
 	LastSeen       string     `json:"last_seen"`
@@ -483,6 +484,7 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			Id:             issueID,
 			IssueName:      persisted.IssueType,
 			IssueType:      persisted.ProtoIssueType,
+			Category:       persisted.Category,
 			PersistedIssue: persistedIssueToProto(persisted),
 		}
 	}
@@ -515,6 +517,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 		}
@@ -664,6 +667,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		existing.LastSeen = now
 	}
 	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
+	h.persistedIssues[issueID].Category = issue.Category
 
 	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
 	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
@@ -743,6 +747,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Id:             issueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 			continue

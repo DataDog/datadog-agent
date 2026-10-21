@@ -201,24 +201,24 @@ api_key: fakeapikey
 
 additional_endpoints:
   "https://second-org.datadoghq.com":
-  - 'DELA(some-org-uuid, aws)'
+  - 'DELA[some-org-uuid, aws]'
   "https://third-org.datadoghq.com":
   - "some-static-key"
-  - 'DELA(some-other-org-uuid, aws, region=us-east-1)'
+  - 'DELA[some-other-org-uuid, aws, region=us-east-1]'
 `
 
 	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
-	// A domain whose only entry is a pending DELA(...) directive still gets a resolver (with zero
+	// A domain whose only entry is a pending DELA[...] directive still gets a resolver (with zero
 	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
 	// auth has a chance to deliver a real key.
 	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
 		{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
 	})
 
-	// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
+	// A coexisting static key is preserved; the DELA[...] directive is filtered out of the
 	// real-key list until delegated auth resolves it, but the domain is still marked pending.
 	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", []APIKeys{
 		{ConfigSettingPath: "additional_endpoints", Keys: []string{"some-static-key"}, HasPendingDelegatedAuth: true},
@@ -528,6 +528,41 @@ func TestExtractSiteFromURL(t *testing.T) {
 		t.Run(tc.url, func(t *testing.T) {
 			assert.Equal(t, tc.expected, ExtractSiteFromURL(tc.url))
 		})
+	}
+}
+
+func TestAPIEndpointFromURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected string
+	}{
+		// Datadog sites
+		{"https://app.datadoghq.com", "https://api.datadoghq.com"},
+		{"https://app.datadoghq.eu.", "https://api.datadoghq.eu"},
+		{"https://app.us5.datadoghq.com", "https://api.us5.datadoghq.com"},
+		{"https://app.ddog-gov.com", "https://api.ddog-gov.com"},
+		{"https://app.datad0g.com", "https://api.datad0g.com"},
+		{"https://custom.agent.us2.datadoghq.com", "https://api.us2.datadoghq.com"},
+		{"https://APP.DATADOGHQ.EU:443/", "https://api.datadoghq.eu"},
+
+		// Multi-Region Failover URLs that include the failover site
+		{"https://app.mrf.datadoghq.eu", "https://api.datadoghq.eu"},
+		{"https://mrf.us5.datadoghq.com", "https://api.us5.datadoghq.com"},
+
+		// Customer-specific Multi-Region Failover aliases
+		{"https://acme.mrf.datadoghq.com", "https://acme.mrf.datadoghq.com"},
+		{"https://acme.mrf.datadoghq.com:443", "https://acme.mrf.datadoghq.com:443"},
+		{"https://Acme.MRF.datadoghq.com.", "https://Acme.MRF.datadoghq.com."},
+
+		// Non-Datadog URLs
+		{"https://myproxy.example.com:3834", "https://myproxy.example.com:3834"},
+		{"https://notdatadoghq.com", "https://notdatadoghq.com"},
+		{"https://app.datadoghq.internal", "https://app.datadoghq.internal"},
+		{"", ""},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, APIEndpointFromURL(tc.url), "APIEndpointFromURL(%q)", tc.url)
 	}
 }
 
