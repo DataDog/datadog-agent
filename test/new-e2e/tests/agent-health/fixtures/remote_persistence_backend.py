@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-
 ISSUE_NAME = "Invalid Config"
 ISSUE_TYPE = "invalid_config"
 RESOURCE_TYPE = "agent_health_issues"
