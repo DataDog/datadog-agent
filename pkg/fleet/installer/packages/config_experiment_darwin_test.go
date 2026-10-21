@@ -11,8 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1277,4 +1279,90 @@ func TestHandOverHandsBackAnExperimentStoppedDuringTheSwap(t *testing.T) {
 	kickstarted := launchctlCalls(*calls, "kickstart")
 	require.NotEmpty(t, kickstarted)
 	assert.Equal(t, "system/"+installerJob, kickstarted[len(kickstarted)-1], "the stable daemon should be running again")
+}
+
+// TestExitFailsExperiment pins which exits revert an experiment: any exit of the Agent or the
+// installer daemon, a clean one included, and only an abnormal exit of the other jobs, which exit
+// cleanly by design when their feature is off.
+func TestExitFailsExperiment(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		clean bool
+		fails bool
+	}{
+		{"com.datadoghq.agent", true, true},
+		{"com.datadoghq.agent", false, true},
+		{"com.datadoghq.installer", true, true},
+		{"com.datadoghq.installer", false, true},
+		{"com.datadoghq.sysprobe", true, false},
+		{"com.datadoghq.sysprobe", false, true},
+		{"com.datadoghq.data-plane", true, false},
+		{"com.datadoghq.data-plane", false, true},
+	} {
+		t.Run(fmt.Sprintf("%s/clean=%t", tc.label, tc.clean), func(t *testing.T) {
+			assert.Equal(t, tc.fails, exitFailsExperiment(tc.label, tc.clean))
+		})
+	}
+	assert.ElementsMatch(t, configExperimentJobs, []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane", "com.datadoghq.installer"},
+		"a new experiment job needs a decision in TestExitFailsExperiment")
+}
+
+// stubLaunchdExited behaves like stubLaunchd, but reports every experiment job as running except
+// exitedLabel, which launchd reports as having exited with exitCode.
+func stubLaunchdExited(t *testing.T, exitedLabel string, exitCode int) {
+	t.Helper()
+
+	original := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		pid := 100
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			if len(args) == 0 || args[0] != "print" {
+				return nil, nil
+			}
+			target := args[len(args)-1]
+			if !strings.HasSuffix(target, "-exp") {
+				return []byte(notLoadedOutput), exitError(113)
+			}
+			if target == "system/"+exitedLabel+"-exp" {
+				return fmt.Appendf(nil, "\tstate = not running\n\tlast exit code = %d\n", exitCode), nil
+			}
+			pid++
+			return fmt.Appendf(nil, "\tstate = running\n\tpid = %d\n", pid), nil
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = original })
+}
+
+// TestResolveExperimentPidsFailsOnACleanExitOfAnEssentialJob covers the pre-arm check: a clean exit
+// launchd already recorded for the Agent or the installer daemon is returned as a failure, while
+// one for system-probe or data-plane is tolerated and the rest of the set is still watched.
+func TestResolveExperimentPidsFailsOnACleanExitOfAnEssentialJob(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		fails bool
+	}{
+		{"com.datadoghq.agent", true},
+		{"com.datadoghq.installer", true},
+		{"com.datadoghq.sysprobe", false},
+		{"com.datadoghq.data-plane", false},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			stubLaunchdExited(t, tc.label, 0)
+			stubJobDir(t)
+
+			jobPIDs, exited, err := resolveExperimentPids(context.Background(), configExperimentJobSet())
+			require.NoError(t, err)
+			if tc.fails {
+				require.NotNil(t, exited, "a clean exit of %s must fail the experiment", tc.label)
+				assert.Equal(t, tc.label+"-exp", exited.Label)
+				return
+			}
+			assert.Nil(t, exited, "a clean exit of %s must be tolerated", tc.label)
+			assert.Len(t, jobPIDs, len(configExperimentJobs)-1, "the rest of the set should still be watched")
+			assert.NotContains(t, slices.Collect(maps.Values(jobPIDs)), tc.label)
+		})
+	}
 }

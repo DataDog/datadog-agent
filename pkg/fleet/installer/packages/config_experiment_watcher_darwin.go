@@ -10,6 +10,8 @@ package packages
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -41,8 +43,8 @@ var installerLockPoll = time.Minute
 // watchExperiment runs in a detached process, launched by postStartConfigExperimentDatadogAgent
 // after a configuration experiment has started successfully. It supervises the experiment job
 // set for as long as the deadline file (configExperimentDeadlinePath) still holds the deadline it
-// read on start, reverting to the stable set if an experiment job exits abnormally or if the
-// deadline expires.
+// read on start, reverting to the stable set if an experiment job exits in a way that fails the
+// experiment (exitFailsExperiment) or if the deadline expires.
 //
 // A deliberate stop or promote (configExperiment.restoreStable) clears the deadline file before
 // touching any job, which is this design's only signal between the two processes: there is no
@@ -77,7 +79,7 @@ func watchExperiment(ctx context.Context) error {
 		return err
 	}
 
-	pids, exited, err := resolveExperimentPids(ctx, jobs)
+	jobPIDs, exited, err := resolveExperimentPids(ctx, jobs)
 	if err != nil {
 		return fmt.Errorf("watcher: could not resolve experiment pids: %w", err)
 	}
@@ -90,7 +92,7 @@ func watchExperiment(ctx context.Context) error {
 		_, err := revertFromWatcher(ctx, deadline, token, reason)
 		return err
 	}
-	if len(pids) == 0 {
+	if len(jobPIDs) == 0 {
 		// Every job in the set failed to come up at all within the startup grace period,
 		// and none of them recorded an exit either -- Kickstart was accepted but nothing
 		// ever ran. Treat that as a failed launch, same as a crash.
@@ -98,6 +100,10 @@ func watchExperiment(ctx context.Context) error {
 		return err
 	}
 
+	pids := make([]int, 0, len(jobPIDs))
+	for pid := range jobPIDs {
+		pids = append(pids, pid)
+	}
 	observer, exitCh, err := launchd.ArmExitObserver(pids)
 	if err != nil {
 		return fmt.Errorf("watcher: could not arm exit observer: %w", err)
@@ -122,15 +128,11 @@ func watchExperiment(ctx context.Context) error {
 				exitCh = nil
 				continue
 			}
-			if exitedCleanly(ev.Status) {
-				// A job whose feature is disabled (e.g. system-probe with no module
-				// enabled) exits on its own moments after being kickstarted, by
-				// design -- the stable job set does exactly the same and nothing
-				// watches it for that. Only an abnormal exit of a sibling job should
-				// pull the rest of the set down with it.
+			label := jobPIDs[ev.Pid]
+			if !exitFailsExperiment(label, exitedCleanly(ev.Status)) {
 				continue
 			}
-			reason := fmt.Sprintf("experiment pid %d exited (status %d)", ev.Pid, ev.Status)
+			reason := fmt.Sprintf("experiment job %s (pid %d) exited (status %d)", label, ev.Pid, ev.Status)
 			_, err := revertFromWatcher(ctx, deadline, token, reason)
 			if err != nil {
 				return err
@@ -232,31 +234,34 @@ func waitForInstallerCommand(ctx context.Context, deadline launchd.Deadline, tok
 // returned -- so a healthy job should acquire a pid almost immediately; the bound only covers
 // the gap between that request and this process actually getting to check.
 //
-// A job that launchd itself recorded as an abnormal exit stops the wait immediately and is
-// returned in exited, regardless of its siblings' state: that is a durable fact recorded by
-// launchd, not something more waiting would resolve. A job recorded as having exited cleanly
-// (LastExitStatus zero) is not: configExperimentJobSet swaps its jobs as one unit, and a job whose
-// feature is off exits that way the instant it is kickstarted, same as the stable set -- exactly
-// the case exitedCleanly exists to tolerate later in watchExperiment, and this pre-check must
-// tolerate it too, or every experiment with one disabled feature reverts itself on startup before
-// the caller ever gets a chance to observe it running. Unlike exitedCleanly's wait(2) status word,
-// LastExitStatus is launchd's own simple signed code, so a direct zero check is what it takes to
-// tell the two apart here.
-func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (pids []int, exited *launchd.JobStatus, err error) {
+// It returns the running jobs' pids, each mapped to its label without the variant suffix, which is
+// what exitFailsExperiment is keyed on.
+//
+// A job that launchd itself recorded as having exited in a way that fails the experiment
+// (exitFailsExperiment) stops the wait immediately and is returned in exited, regardless of its
+// siblings' state: that is a durable fact recorded by launchd, not something more waiting would
+// resolve. Any other job recorded as having exited cleanly (LastExitStatus zero) is not: a job
+// whose feature is off exits that way the instant it is kickstarted, same as the stable set, and
+// this pre-check must tolerate it, or every experiment with one disabled feature reverts itself on
+// startup before the caller ever gets a chance to observe it running. Unlike exitedCleanly's
+// wait(2) status word, LastExitStatus is launchd's own simple signed code, so a direct zero check
+// is what it takes to tell a clean exit apart here.
+func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (jobPIDs map[int]string, exited *launchd.JobStatus, err error) {
 	giveUp := time.Now().Add(startupPollTimeout)
 	for {
 		statuses, err := jobs.Statuses(ctx, launchd.Experiment)
 		if err != nil {
 			return nil, nil, err
 		}
-		pids = pids[:0]
+		jobPIDs = make(map[int]string, len(statuses))
 		pending := false
 		for i, status := range statuses {
+			label := strings.TrimSuffix(status.Label, string(launchd.Experiment))
 			if status.PID != 0 {
-				pids = append(pids, status.PID)
+				jobPIDs[status.PID] = label
 				continue
 			}
-			if status.HasExited && status.LastExitStatus != 0 {
+			if status.HasExited && exitFailsExperiment(label, status.LastExitStatus == 0) {
 				return nil, &statuses[i], nil
 			}
 			if status.HasExited {
@@ -265,25 +270,39 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (pids []int
 			pending = true
 		}
 		if !pending || time.Now().After(giveUp) {
-			return pids, nil, nil
+			return jobPIDs, nil, nil
 		}
 		select {
 		case <-ctx.Done():
-			return pids, nil, nil
+			return jobPIDs, nil, nil
 		case <-time.After(startupPollInterval):
 		}
 	}
 }
 
+// essentialJobs are the jobs that must keep running for as long as an experiment does: the Agent,
+// and the installer daemon, the only process that can stop or promote the experiment. Either one
+// exiting fails the experiment, even cleanly: an experiment left with no Agent would otherwise run
+// on, and could be promoted, until its deadline, and one left with no daemon could not be ended
+// before it. The other jobs exit cleanly by design when their feature is off.
+var essentialJobs = []string{agentJob, installerJob}
+
+// exitFailsExperiment reports whether an experiment job exiting, cleanly or not, fails the
+// experiment. label is the job's label without its variant suffix.
+func exitFailsExperiment(label string, clean bool) bool {
+	return !clean || slices.Contains(essentialJobs, label)
+}
+
 // exitedCleanly reports whether a wait(2) status word (as delivered by NOTE_EXITSTATUS) describes
-// a normal, voluntary exit(0). configExperimentJobSet swaps its jobs as one unit, and a
-// job whose feature is off exits this way the instant it is kickstarted -- that is expected
-// lifecycle, not a crash, and must not cost the rest of the set an otherwise-healthy experiment.
+// a normal, voluntary exit(0). For a job outside essentialJobs, whose feature may be off, that is
+// expected lifecycle, not a crash, and must not cost the rest of the set an otherwise-healthy
+// experiment.
 //
 // A pid that had already exited before ArmExitObserver could arm it also reports status 0 (its
 // real exit status is unrecoverable by then, see ArmExitObserver's doc comment on that residual
 // race): this treats that case the same as a clean exit rather than a crash, narrowing an already
-// zero-width, documented race rather than introducing a new one.
+// zero-width, documented race rather than introducing a new one. For an essential job either way
+// is a failure.
 func exitedCleanly(status int) bool {
 	ws := unix.WaitStatus(status)
 	return ws.Exited() && ws.ExitStatus() == 0

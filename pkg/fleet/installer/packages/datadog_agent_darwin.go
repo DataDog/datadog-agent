@@ -99,10 +99,13 @@ func (l agentLayout) convenienceLinks() map[string]string {
 	}
 }
 
+// agentJob is the core Agent's launchd job.
+const agentJob = "com.datadoghq.agent"
+
 // agentJobs are the launchd jobs the configuration experiment hooks swap themselves, in the order
 // they are loaded.
 var agentJobs = []string{
-	"com.datadoghq.agent",
+	agentJob,
 	"com.datadoghq.sysprobe",
 	"com.datadoghq.data-plane",
 }
