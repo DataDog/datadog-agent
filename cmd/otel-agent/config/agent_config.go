@@ -113,12 +113,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	activeLogLevel := logtypes.CriticalLvl
+	activeLogLevelString := activeLogLevel.String()
 	if pkgconfig.IsConfigured("log_level") {
-		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
-		activeLogLevel, err = logtypes.ValidateLogLevel(logLevel)
+		levelRules, err := logtypes.ParseLevelRules(pkgconfig.GetString("log_level"), "X") // pass a non-empty prefix just to get the default level
 		if err != nil {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
+		activeLogLevel = levelRules.DefaultLevel()
+		activeLogLevelString = levelRules.Spec()
 	}
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := logtypes.InfoStr
@@ -137,9 +139,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
+		activeLogLevelString = telemetryLogMapping.String()
 	}
-	fmt.Printf("setting log level to: %v\n", activeLogLevel.String())
-	pkgconfig.Set("log_level", activeLogLevel.String(), pkgconfigmodel.SourceFile)
+	fmt.Printf("using log level %v\n", activeLogLevelString)
+	pkgconfig.Set("log_level", activeLogLevelString, pkgconfigmodel.SourceFile)
 
 	// Standalone mode runs without a core Datadog Agent on the same host, so
 	// every client that would otherwise contact it over IPC (trace-agent

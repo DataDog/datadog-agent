@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	eudmProviderName    = "eudm"
 	configProviderName  = hostnameinterface.ConfigProvider
 	fargateProviderName = hostnameinterface.FargateProvider
 )
@@ -80,6 +81,13 @@ var (
 		expvarName:       "fargate",
 	}
 
+	eudmProvider = provider{
+		name:             eudmProviderName,
+		cb:               fromEUDM,
+		stopIfSuccessful: true,
+		expvarName:       "eudm",
+	}
+
 	gceProvider = provider{
 		name:             "gce",
 		cb:               fromGCE,
@@ -138,6 +146,7 @@ var (
 // * Config (`hostname')
 // * Config (`hostname_file')
 // * Fargate/Sidecar (strips hostname for Fargate and managed instances in sidecar mode)
+// * EUDM device name and serial (macOS/Windows only)
 // * GCE
 // * Azure
 // * FQDN
@@ -149,6 +158,7 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 		configProvider,
 		hostnameFileProvider,
 		fargateProvider,
+		eudmProvider,
 		gceProvider,
 		azureProvider,
 		fqdnProvider,
