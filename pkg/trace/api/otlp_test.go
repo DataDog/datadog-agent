@@ -819,6 +819,65 @@ func TestCreateChunks(t *testing.T) {
 	}
 }
 
+func TestCreateChunksSamplingRateFromTracestate(t *testing.T) {
+	tests := []struct {
+		name                  string
+		probabilisticSampling float64
+		tracestates           []string // one per span
+		want                  string
+	}{
+		{
+			name:        "no tracestate",
+			tracestates: []string{"", ""},
+			want:        "1.00",
+		},
+		{
+			name:        "th on all spans",
+			tracestates: []string{"ot=th:8", "ot=th:8"},
+			want:        "0.50",
+		},
+		{
+			name:        "th only on a non-first span",
+			tracestates: []string{"", "ot=th:c"},
+			want:        "0.25",
+		},
+		{
+			name:        "p encoding",
+			tracestates: []string{"ot=p:2;r:62"},
+			want:        "0.25",
+		},
+		{
+			name:                  "combined with receiver probabilistic sampling",
+			probabilisticSampling: 50,
+			tracestates:           []string{"ot=th:8"},
+			want:                  "0.25",
+		},
+		{
+			name:        "malformed tracestate falls back to receiver rate",
+			tracestates: []string{"ot=th:zz"},
+			want:        "1.00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			cfg.OTLPReceiver.ProbabilisticSampling = tt.probabilisticSampling
+			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			var trace pb.Trace
+			for i, ts := range tt.tracestates {
+				span := &pb.Span{TraceID: 1, SpanID: uint64(i + 1), Meta: map[string]string{}}
+				if ts != "" {
+					span.Meta["w3c.tracestate"] = ts
+				}
+				trace = append(trace, span)
+			}
+			chunks := o.createChunks(map[uint64]pb.Trace{1: trace}, nil)
+			require.Len(t, chunks, 1)
+			assert.Equal(t, tt.want, chunks[0].Tags["_dd.otlp_sr"])
+		})
+	}
+}
+
 func TestOTLPReceiveResourceSpans(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
 		testOTLPReceiveResourceSpans(false, t)

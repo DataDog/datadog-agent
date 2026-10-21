@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: The OTLP receiver now includes the upstream sampling probability encoded
+    in the W3C tracestate (``ot=th:`` or ``ot=p:``) in the ``_dd.otlp_sr`` sampling
+    rate reported for each trace chunk. Traces sampled by an OpenTelemetry SDK
+    probability sampler, or by the Collector ``tail_sampling`` processor with the
+    ``processor.tailsamplingprocessor.usetracestate`` feature gate enabled, are now
+    weighted accordingly in trace-derived metrics such as the dependency map.

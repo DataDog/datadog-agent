@@ -257,6 +257,23 @@ func (o *OTLPReceiver) samplingRate() float64 {
 	return rate
 }
 
+// chunkSamplingRate returns the rate to report in _dd.otlp_sr for a chunk: the
+// receiver's own sampling rate combined with any upstream sampling probability
+// encoded in the W3C tracestate of the chunk's spans (e.g. written by an OTel SDK
+// sampler or by the collector's tail_sampling processor). The backend uses
+// 1/_dd.otlp_sr to weight ingested traces.
+func (o *OTLPReceiver) chunkSamplingRate(spans pb.Trace) float64 {
+	rate := o.samplingRate()
+	for _, span := range spans {
+		// Upstream samplers write the same probability on every span of a kept trace,
+		// so the first decodable one is enough.
+		if prob, ok := transform.SamplingProbFromTracestate(span.Meta["w3c.tracestate"]); ok {
+			return rate * prob
+		}
+	}
+	return rate
+}
+
 // sample returns the sampling priority to apply to a trace with the trace ID tid.
 func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 	rate := o.samplingRate()
@@ -584,7 +601,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		if len(spans) == 0 {
 			continue
 		}
-		rate := strconv.FormatFloat(o.samplingRate(), 'f', 2, 64)
+		rate := strconv.FormatFloat(o.chunkSamplingRate(spans), 'f', 2, 64)
 		chunk := &pb.TraceChunk{
 			Tags:  map[string]string{"_dd.otlp_sr": rate},
 			Spans: spans,
