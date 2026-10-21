@@ -235,6 +235,11 @@ func (c *NetworkCheck) submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
+		// Interfaces are symlinks to their device directory. Regular files such as
+		// bonding_masters (created by the bonding driver) are not interfaces.
+		if iface.Mode().IsRegular() {
+			continue
+		}
 		if c.isInterfaceExcluded(iface.Name()) {
 			continue
 		}
