@@ -20,8 +20,16 @@ package_aix-ppc64:
     - !reference [.manual]
   script:
     # Compute the canonical version on the runner, from the pipeline's
-    # agent-version cache, and pass it to the remote build
-    - AGENT_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $CI_PIPELINE_ID)" || exit $?
+    # agent-version cache, and pass it to the remote build: the BFF filename
+    # then embeds the same version string (including the .pipeline.<id> suffix
+    # for nightly/dev builds) as the one used by the release promotions in
+    # agent-release-management, like for the deb/rpm/dmg packages.
+    # Use the url-safe (dashed) form, which is the BFF filename convention:
+    # the omnibus (deb) form replaces dashes with tildes, and the tilde form
+    # only matches after agent-release-management converts it back to dashes.
+    # Assign before exporting: a plain assignment propagates the command's
+    # failure status, `export` would mask it.
+    - AGENT_VERSION="$(dda inv agent.version --url-safe --include-git --pipeline-id $CI_PIPELINE_ID)" || exit $?
     - export AGENT_VERSION
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
     - |
