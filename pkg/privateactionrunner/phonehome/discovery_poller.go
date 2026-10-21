@@ -192,9 +192,10 @@ func (p *Discovery) step(ctx context.Context) {
 	p.observation.NextCheck = p.next
 	p.mu.Unlock()
 	stopWatch, watchDone := make(chan struct{}), make(chan struct{})
+	// Arm before dispatch so the first cancellation tick cannot be missed.
+	ticker := p.clock.Ticker(time.Second)
 	go func() {
 		defer close(watchDone)
-		ticker := p.clock.Ticker(time.Second)
 		defer ticker.Stop()
 		for {
 			select {
