@@ -14,6 +14,7 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
+load("//bazel/rules/msgo:defs.bzl", "msgo_binary")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
@@ -136,6 +137,13 @@ go_shim(
 alias(
     name = "go",
     actual = "@go_fast",  #TODO(agent-build): move back to "@rules_go//go" when golang/go#77889 is addressed
+)
+
+# bazel run //:msgo -- ...
+msgo_binary(
+    name = "msgo",
+    src = "@rules_go//go",
+    tags = ["manual"],
 )
 
 # bazel run //:go_mod_tidy_all -- -x
