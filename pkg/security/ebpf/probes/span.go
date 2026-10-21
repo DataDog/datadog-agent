@@ -18,7 +18,7 @@ func getSpanFillTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
 			ProgArrayName: "span_fill_progs",
-			Key:           uint32(0),
+			Key:           SpanFillGenericKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallFnc("fill_span_and_send"),
 			},
@@ -27,7 +27,7 @@ func getSpanFillTailCallRoutes() []manager.TailCallRoute {
 		// in tracepoint context); bpf_tail_call requires a matching program type.
 		{
 			ProgArrayName: "span_fill_tp_progs",
-			Key:           uint32(0),
+			Key:           SpanFillGenericKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallTracepointFnc("fill_span_and_send"),
 			},
@@ -36,14 +36,14 @@ func getSpanFillTailCallRoutes() []manager.TailCallRoute {
 		// map, whose 4KB filter buffer can't use the shared span_fill slot).
 		{
 			ProgArrayName: "span_fill_progs",
-			Key:           uint32(1),
+			Key:           SpanFillSetsockoptKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallFnc("fill_span_and_send_setsockopt"),
 			},
 		},
 		{
 			ProgArrayName: "span_fill_tp_progs",
-			Key:           uint32(1),
+			Key:           SpanFillSetsockoptKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallTracepointFnc("fill_span_and_send_setsockopt"),
 			},
@@ -53,7 +53,7 @@ func getSpanFillTailCallRoutes() []manager.TailCallRoute {
 		// tracepoint-typed twin.
 		{
 			ProgArrayName: "span_fill_progs",
-			Key:           uint32(2),
+			Key:           SpanFillExitKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallFnc("fill_span_and_send_exit"),
 			},
