@@ -234,7 +234,7 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 		default:
 			var filter metrics.Filter = metrics.AllowAllFilter{}
 			if endpointFilter, exists := s.endpointMetricFilters[resolver.GetConfigName()]; exists {
-				if endpointFilter.matcher.Len() == 0 {
+				if endpointFilter.Len() == 0 {
 					continue
 				}
 				filter = endpointFilter

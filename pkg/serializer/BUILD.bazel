@@ -7,7 +7,6 @@ go_library(
     name = "serializer",
     srcs = [
         "metrics.go",
-        "metrics_endpoint_routing.go",
         "serializer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer",
@@ -23,7 +22,6 @@ go_library(
         "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/metrics/event",
-        "//pkg/metrics/metricname",
         "//pkg/metrics/servicecheck",
         "//pkg/process/util/api/headers",
         "//pkg/serializer/internal/metrics",
@@ -41,7 +39,6 @@ dd_agent_go_test(
     name = "serializer_test",
     srcs = [
         "metrics_endpoint_payloads_test.go",
-        "metrics_endpoint_routing_test.go",
         "metrics_test.go",
         "serializer_test.go",
         "series_benchmark_test.go",

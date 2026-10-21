@@ -22,6 +22,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	implzlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
@@ -510,6 +511,31 @@ func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
 		assert.False(t, conf.V3)
 		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
 		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
+func TestEndpointMetricRoutingSitePrimaryWithMetricsOverride(t *testing.T) {
+	for _, prefix := range []string{"vector", "observability_pipelines_worker"} {
+		t.Run(prefix, func(t *testing.T) {
+			const primary = "https://app.us5.datadoghq.com"
+			cfg := configmock.New(t)
+			cfg.SetInTest("site", "us5.datadoghq.com")
+			cfg.SetInTest("api_key", "fake-key")
+			cfg.SetInTest(prefix+".metrics.enabled", true)
+			cfg.SetInTest(prefix+".metrics.url", "http://worker.example")
+			cfg.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{primary: {"keep"}})
+			s := newSeriesV3Serializer(t, cfg)
+			pipelines := s.buildPipelines(metricsKindSeries)
+			require.Len(t, pipelines, 1)
+			for conf, context := range pipelines {
+				require.Len(t, context.Destinations, 1)
+				destination := context.Destinations[0]
+				require.Equal(t, utils.GetInfraEndpoint(cfg), destination.Resolver.GetConfigName())
+				require.Equal(t, "http://worker.example", destination.Resolver.Resolve(destination.Endpoint))
+				require.True(t, conf.Filter.Filter(&agentmetrics.Serie{Name: "keep"}))
+				require.False(t, conf.Filter.Filter(&agentmetrics.Serie{Name: "drop"}))
+			}
+		})
 	}
 }
 

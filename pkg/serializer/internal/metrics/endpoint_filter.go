@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serializer
+package metrics
 
 import (
 	"encoding/json"
@@ -12,22 +12,28 @@ import (
 
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
-	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 )
 
-type endpointMetricFilter struct {
+// EndpointMetricFilter admits metric names matching an endpoint allowlist.
+type EndpointMetricFilter struct {
 	matcher metricname.Matcher
 }
 
-func (f *endpointMetricFilter) Filter(metric metrics.Filterable) bool {
+// Len returns the number of stored matcher entries.
+func (f *EndpointMetricFilter) Len() int {
+	return f.matcher.Len()
+}
+
+// Filter implements Filter.
+func (f *EndpointMetricFilter) Filter(metric Filterable) bool {
 	return f.matcher.Test(metric.GetName())
 }
 
-// compileEndpointMetricFilters groups equivalent policies to share an encoder.
+// CompileEndpointMetricFilters groups equivalent policies to share an encoder.
 // Matching normalizes incoming names and preserves configured names and prefixes.
-func compileEndpointMetricFilters(routing configutils.MetricsEndpointRouting) map[string]*endpointMetricFilter {
-	filters := make(map[string]*endpointMetricFilter)
-	groups := make(map[string]*endpointMetricFilter)
+func CompileEndpointMetricFilters(routing configutils.MetricsEndpointRouting) map[string]*EndpointMetricFilter {
+	filters := make(map[string]*EndpointMetricFilter)
+	groups := make(map[string]*EndpointMetricFilter)
 	for _, policies := range []map[string][]string{routing.MetricAllowlist, routing.MetricPrefixAllowlist} {
 		for endpoint := range policies {
 			if _, exists := filters[endpoint]; exists {
@@ -56,7 +62,7 @@ func compileEndpointMetricFilters(routing configutils.MetricsEndpointRouting) ma
 					rules = append(rules, metricname.PrefixRule{Prefix: prefix})
 				}
 				matcher, _ := metricname.NewMatcherWithPrefixRules(names, false, rules)
-				filter = &endpointMetricFilter{matcher: matcher}
+				filter = &EndpointMetricFilter{matcher: matcher}
 				groups[string(key)] = filter
 			}
 			filters[endpoint] = filter
