@@ -758,3 +758,6 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 
 	return result
 }
+
+// DrainPendingEvents is a no-op for V1 Manager
+func (m *Manager) DrainPendingEvents() {}
