@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"testing"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
@@ -154,4 +155,37 @@ func TestMetricHandoffDefersTagDependentRule(t *testing.T) {
 	queued := <-ch
 	require.True(t, queued.metric.precheck.needsTags)
 	assert.Nil(t, prepareMetricHandoff(queued.source, queued.metric, filter, nil).metric)
+}
+
+func TestMetricTypesReachStorageThroughLiveAndReplayIngest(t *testing.T) {
+	for _, source := range []string{"check", "dogstatsd", "parquet"} {
+		t.Run(source, func(t *testing.T) {
+			filter, err := newDefaultMetricsFilterRules()
+			require.NoError(t, err)
+			obs := &observerImpl{
+				engine: newEngine(engineConfig{storage: newTimeSeriesStorageWith(StorageConfig{})}),
+				obsCh:  make(chan observation, 32), metricFilter: filter, ingestMetricsEnabled: true,
+			}
+			done := make(chan struct{})
+			go func() { obs.run(); close(done) }()
+			t.Cleanup(func() { close(obs.obsCh); <-done })
+			handle := obs.innerHandle(source)
+			types := []metrics.MetricType{observerdef.UnknownType, metrics.GaugeType, metrics.CountType, metrics.CounterType, metrics.MonotonicCountType, metrics.RateType, metrics.HistogramType, metrics.DistributionType}
+			for _, typ := range types {
+				sample := &metricObs{name: "metric." + typ.String(), metricType: typ, value: 1, timestamp: 100}
+				if source == "parquet" {
+					obs.IngestMetricSync(source, sample, testContextKeyFor(sample))
+				} else {
+					handle.ObserveMetric(sample, testContextKeyFor(sample))
+				}
+			}
+			obs.Flush()
+			metas := obs.engine.storage.ListSeries(observerdef.SeriesFilter{Namespace: source})
+			require.Len(t, metas, len(types))
+			for _, meta := range metas {
+				assert.Equal(t, "metric."+meta.MetricType.String(), meta.Name)
+				assert.Equal(t, meta.MetricType, obs.engine.storage.GetSeriesMeta(meta.Ref).MetricType)
+			}
+		})
+	}
 }

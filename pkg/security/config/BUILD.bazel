@@ -50,6 +50,7 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "credential_endpoints_test.go",
+        "sampling_test.go",
         "sbom_test.go",
     ],
     embed = [":config"],

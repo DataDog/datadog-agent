@@ -9,41 +9,41 @@ import (
 )
 
 func TestCgoAlignment_HTTP2DynamicTableIndex(t *testing.T) {
-	ebpftest.TestCgoAlignment[HTTP2DynamicTableIndex](t)
+	ebpftest.AssertCgoAlignment[HTTP2DynamicTableIndex](t)
 }
 
 func TestCgoAlignment_HTTP2DynamicTableEntry(t *testing.T) {
-	ebpftest.TestCgoAlignment[HTTP2DynamicTableEntry](t)
+	ebpftest.AssertCgoAlignment[HTTP2DynamicTableEntry](t)
 }
 
 func TestCgoAlignment_HTTP2StreamKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[HTTP2StreamKey](t)
+	ebpftest.AssertCgoAlignment[HTTP2StreamKey](t)
 }
 
 func TestCgoAlignment_http2StatusCode(t *testing.T) {
-	ebpftest.TestCgoAlignment[http2StatusCode](t)
+	ebpftest.AssertCgoAlignment[http2StatusCode](t)
 }
 
 func TestCgoAlignment_http2requestMethod(t *testing.T) {
-	ebpftest.TestCgoAlignment[http2requestMethod](t)
+	ebpftest.AssertCgoAlignment[http2requestMethod](t)
 }
 
 func TestCgoAlignment_http2Path(t *testing.T) {
-	ebpftest.TestCgoAlignment[http2Path](t)
+	ebpftest.AssertCgoAlignment[http2Path](t)
 }
 
 func TestCgoAlignment_HTTP2Stream(t *testing.T) {
-	ebpftest.TestCgoAlignment[HTTP2Stream](t)
+	ebpftest.AssertCgoAlignment[HTTP2Stream](t)
 }
 
 func TestCgoAlignment_EbpfTx(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfTx](t)
+	ebpftest.AssertCgoAlignment[EbpfTx](t)
 }
 
 func TestCgoAlignment_HTTP2Telemetry(t *testing.T) {
-	ebpftest.TestCgoAlignment[HTTP2Telemetry](t)
+	ebpftest.AssertCgoAlignment[HTTP2Telemetry](t)
 }
 
 func TestCgoAlignment_HTTP2IncompleteFrameEntry(t *testing.T) {
-	ebpftest.TestCgoAlignment[HTTP2IncompleteFrameEntry](t)
+	ebpftest.AssertCgoAlignment[HTTP2IncompleteFrameEntry](t)
 }

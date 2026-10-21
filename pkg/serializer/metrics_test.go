@@ -756,3 +756,81 @@ func TestEvalSeriesV3(t *testing.T) {
 		assert.Equal(t, tc.wantOther, gotOther, "other value=%q", tc.in)
 	}
 }
+
+func TestSketchesV2Domains(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   map[string]any
+		zlib     bool
+		expected []string
+	}{
+		{
+			name:     "sketches on v2 by default",
+			expected: []string{"https://app.datadoghq.com"},
+		},
+		{
+			name:   "sketches on v3",
+			config: map[string]any{"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"}},
+		},
+		{
+			name: "additional endpoint on v2",
+			config: map[string]any{
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"},
+				"additional_endpoints": map[string][]string{"http://my-proxy.example.test": {"alt_key"}},
+			},
+			expected: []string{"http://my-proxy.example.test"},
+		},
+		{
+			name: "MRF on v2",
+			config: map[string]any{
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"},
+				"multi_region_failover.enabled":                         true,
+				"multi_region_failover.failover_metrics":                true,
+				"multi_region_failover.dd_url":                          "http://mrf.example.test",
+			},
+			expected: []string{"http://mrf.example.test"},
+		},
+		{
+			name: "MRF on v2 while failover is off",
+			config: map[string]any{
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"},
+				"multi_region_failover.enabled":                         true,
+				"multi_region_failover.dd_url":                          "http://mrf.example.test",
+			},
+			expected: []string{"http://mrf.example.test"},
+		},
+		{
+			name: "MRF on v3",
+			config: map[string]any{
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com", "http://mrf.example.test"},
+				"multi_region_failover.enabled":                         true,
+				"multi_region_failover.dd_url":                          "http://mrf.example.test",
+			},
+		},
+		{
+			name:     "zlib forces v2",
+			config:   map[string]any{"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"}},
+			zlib:     true,
+			expected: []string{"https://app.datadoghq.com"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := logmock.New(t)
+			config := configmock.New(t)
+			config.SetInTest("dd_url", "https://app.datadoghq.com")
+			config.SetInTest("api_key", "test_key")
+			for k, v := range tt.config {
+				config.SetInTest(k, v)
+			}
+			f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+			require.NoError(t, err)
+			var compressor compression.Compressor = metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
+			if tt.zlib {
+				compressor = implzlib.New()
+			}
+			s := NewSerializer(f, nil, compressor, config, logger, "")
+			assert.Equal(t, tt.expected, s.SketchesV2Domains())
+		})
+	}
+}

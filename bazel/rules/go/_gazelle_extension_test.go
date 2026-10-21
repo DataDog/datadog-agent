@@ -1116,8 +1116,7 @@ func TestKinds(t *testing.T) {
 
 // TestDepsMerge_KeptItemSurvivesResolveUpdate replays Gazelle's real two-phase
 // merge (PreResolve, then PostResolve after Resolve sets deps) against a
-// dd_agent_go_test rule with a `# keep`-annotated dep, the same pattern used
-// for split cgo_align targets (e.g. pkg/collector/corechecks/ebpf/probe/ebpfcheck).
+// dd_agent_go_test rule with a `# keep`-annotated dep.
 // It guards that a manually kept dep survives while a stale one is dropped and
 // a freshly resolved one is added — the same behavior go_test gets for free.
 func TestDepsMerge_KeptItemSurvivesResolveUpdate(t *testing.T) {

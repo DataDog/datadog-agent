@@ -49,7 +49,7 @@ type APIKeys struct {
 	// the apiKey to use for this endpoint
 	Keys []string
 
-	// HasPendingDelegatedAuth keeps a legacy endpoint usable while a DELA(...) directive
+	// HasPendingDelegatedAuth keeps a legacy endpoint usable while a DELA[...] directive
 	// is waiting for the delegatedauth component to write its resolved API key.
 	HasPendingDelegatedAuth bool
 }
@@ -80,20 +80,16 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 	return prefix + constants.DefaultSite
 }
 
-// delaDirectivePrefix marks a value in an `additional_endpoints`-style config list as a
-// delegated-auth directive (e.g. "DELA(<org_uuid>, aws)") rather than a literal API key. Such
-// entries are resolved asynchronously by the delegatedauth component, which writes the real key
-// back into the same config slot once fetched; until then they must not be treated as real keys.
-const delaDirectivePrefix = "DELA("
-
-// IsDelaDirective reports whether a value is a delegated-auth directive rather than a literal
-// API key. Consumers must skip (not send) values where this returns true.
+// IsDelaDirective reports whether a value is a delegated-auth directive (e.g.
+// "DELA[<org_uuid>, aws]") rather than a literal API key. The delegatedauth component writes the
+// real key back into the same config slot once fetched; until then consumers must skip (not send)
+// values where this returns true.
 func IsDelaDirective(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), delaDirectivePrefix)
+	return strings.HasPrefix(strings.TrimSpace(value), pkgconfigmodel.DelaDirectivePrefix)
 }
 
 // PartitionRealAndPendingKeys splits keys from an `additional_endpoints`-style config list into
-// real API keys and reports whether at least one pending DELA(...) directive was present. A
+// real API keys and reports whether at least one pending DELA[...] directive was present. A
 // caller that builds one endpoint per real key should still keep a placeholder entry for the
 // domain when hasPendingDelegatedAuth is true and no real keys are returned, so the domain still
 // gets a config-update watcher/resolver and can pick up the real key once delegated auth resolves
@@ -119,7 +115,7 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 		// Remove any empty API keys.
 		// We don't need to hold on to an endpoint with an empty API key to track if a
 		// secret has been updated since secrets can never be empty in the first place.
-		// Exception: a domain whose only entries are pending DELA(...) directives is still kept
+		// Exception: a domain whose only entries are pending DELA[...] directives is still kept
 		// (with an empty Keys list) below, so the forwarder knows to wait for delegated auth
 		// rather than dropping the domain outright.
 		nonEmpty := make([]string, 0, len(keys))
@@ -171,7 +167,7 @@ type EndpointDescriptor struct {
 	IsMRF     bool
 
 	// HasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
-	// be waiting on one from the delegatedauth component (a DELA(...) directive in
+	// be waiting on one from the delegatedauth component (a DELA[...] directive in
 	// additional_endpoints). Consumers (e.g. the forwarder's resolver.IsUsable()) should treat
 	// such a domain as usable so it isn't dropped before delegated auth has a chance to deliver
 	// a real key.
@@ -254,7 +250,8 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 
 // ddDomainPattern matches known Datadog domains (e.g., datadoghq.com,
 // datad0g.eu, ddog-gov.com). This is the shared building block for
-// wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, and ddURLRegexp.
+// wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, mrfAliasRegexp, and
+// ddURLRegexp.
 const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com`
 
 var wellKnownSitesRe = regexp.MustCompile(`(?:` + ddDomainPattern + `)$`)
@@ -294,6 +291,37 @@ func ExtractSiteFromURL(rawURL string) string {
 	// matches[1] is the DC label with trailing dot (e.g., "us3.") or empty
 	// matches[2] is the known domain (e.g., "datadoghq.com")
 	return matches[1] + matches[2]
+}
+
+// mrfAliasRegexp matches customer-specific Multi-Region Failover aliases (e.g., "<customer>.mrf.datadoghq.com"). These
+// DNS records point at whichever region the customer's org is currently active in, so unlike the "app.mrf.<site>" URLs
+// built from `multi_region_failover.site`, their site does not tell us where the org lives.
+var mrfAliasRegexp = regexp.MustCompile(`^([a-z0-9-]+)\.mrf\.` + ddSitePattern + `$`)
+
+// isMRFAliasURL reports whether the given URL points at a customer-specific Multi-Region Failover alias.
+func isMRFAliasURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimRight(u.Hostname(), "."))
+	matches := mrfAliasRegexp.FindStringSubmatch(host)
+	return matches != nil && matches[1] != "app"
+}
+
+// APIEndpointFromURL returns the base URL for API calls (e.g., API key validation) related to the given endpoint URL.
+//
+// If the URL belongs to a Datadog site, the API endpoint for that site is returned: "https://app.us3.datadoghq.com"
+// returns "https://api.us3.datadoghq.com". Otherwise, such as for proxies or customer-specific Multi-Region Failover
+// aliases, the URL is returned unchanged.
+func APIEndpointFromURL(rawURL string) string {
+	if isMRFAliasURL(rawURL) {
+		return rawURL
+	}
+	if site := ExtractSiteFromURL(rawURL); site != "" {
+		return "https://api." + site
+	}
+	return rawURL
 }
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.

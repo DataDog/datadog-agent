@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CWS: the replayed opens of memory-mapped files, the replayed kernel
+    module loads, and the files of activity dump snapshots now carry the
+    full change and modification times of each file. They held only the
+    nanosecond part of each time, so ``change_time`` and
+    ``modification_time`` read as instants in the first second of 1970.

@@ -2,6 +2,10 @@
 package_aix-ppc64:
   stage: packaging
   extends: .aix_remote
+  # Wait for the setup job that creates and uploads the agent-version cache,
+  # which the version computation below resolves from.
+  needs:
+    - setup_agent_version
   # avoid blocking nightly pipelines on errors
   allow_failure: true
   rules:
@@ -15,13 +19,17 @@ package_aix-ppc64:
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   script:
+    # Compute the canonical version on the runner, from the pipeline's
+    # agent-version cache, and pass it to the remote build
+    - AGENT_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $CI_PIPELINE_ID)" || exit $?
+    - export AGENT_VERSION
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
     - |
       aix_run_cmd <<EOF
       set -eux
       cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
       cd $AIX_AGENT_SRC
-      env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      env AGENT_BUILD=1 AGENT_VERSION="$AGENT_VERSION" sh $AIX_AGENT_SRC/packaging/aix/build.sh
       EOF
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'

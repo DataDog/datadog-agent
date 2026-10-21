@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,69 @@ func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T)
 	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
 	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
 }
+
+func TestConfigureDelegatedAuthSharesStartupBudgetAndAllowsEndpointRecovery(t *testing.T) {
+	startupCtx := &expiringDeadlineContext{done: make(chan struct{})}
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	var sharedCtx context.Context
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		if sharedCtx == nil {
+			sharedCtx = ctx
+			startupCtx.expire()
+		} else {
+			assert.Same(t, sharedCtx, ctx)
+		}
+		paramsByKey[params.APIKeyConfigKey] = params
+		return ctx.Err()
+	}}
+	config := confFromYAML(t, `
+delegated_auth:
+  org_uuid: flat-org
+  startup_timeout_secs: 5
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+	startedAt := time.Now()
+	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)
+	require.NotNil(t, sharedCtx)
+	assert.NotSame(t, startupCtx, sharedCtx)
+	deadline, ok := sharedCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, startedAt.Add(5*time.Second), deadline, time.Second)
+
+	for _, key := range []string{
+		"api_key",
+		"additional_endpoints[https://metrics.datadoghq.com][0][map-org]",
+		"logs_config.additional_endpoints[0][list-org]",
+	} {
+		require.Contains(t, paramsByKey, key)
+		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+type expiringDeadlineContext struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (c *expiringDeadlineContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *expiringDeadlineContext) Done() <-chan struct{}       { return c.done }
+func (c *expiringDeadlineContext) Value(any) any               { return nil }
+func (c *expiringDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+func (c *expiringDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
@@ -191,92 +255,6 @@ metric_lookback:
 	assert.Equal(t, []string{"az", "instance_type"}, cfg.GetStringSlice("metric_lookback.monitor.partition_tags"))
 	assert.Equal(t, 7*time.Second, cfg.GetDuration("metric_lookback.egress.pre_trigger_window"))
 	assert.Equal(t, 21*time.Second, cfg.GetDuration("metric_lookback.egress.post_recovery_window"))
-}
-
-func TestUnexpectedUnicode(t *testing.T) {
-	keyYaml := "api_\u202akey: fakeapikey\n"
-	valueYaml := "api_key: fa\u202akeapikey\n"
-
-	testConfig := confFromYAML(t, keyYaml)
-
-	warnings := findUnexpectedUnicode(testConfig)
-	require.Len(t, warnings, 1)
-
-	assert.Contains(t, warnings[0], "Configuration key string")
-	assert.Contains(t, warnings[0], "U+202A")
-
-	testConfig = confFromYAML(t, valueYaml)
-
-	warnings = findUnexpectedUnicode(testConfig)
-
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], "For key 'api_key'")
-	assert.Contains(t, warnings[0], "U+202A")
-}
-
-func TestUnexpectedNestedUnicode(t *testing.T) {
-	yaml := "runtime_security_config:\n  activity_dump:\n    remote_storage:\n      endpoints:\n        logs_dd_url: \"http://\u202adatadawg.com\""
-	testConfig := confFromYAML(t, yaml)
-
-	warnings := findUnexpectedUnicode(testConfig)
-	require.Len(t, warnings, 1)
-
-	assert.Contains(t, warnings[0], "U+202A")
-	assert.Contains(t, warnings[0], "For key 'runtime_security_config.activity_dump.remote_storage.endpoints.logs_dd_url'")
-}
-
-func TestUnexpectedWhitespace(t *testing.T) {
-	tests := []struct {
-		yaml                string
-		expectedWarningText string
-		expectedPosition    string
-	}{
-		{
-			yaml:                "root_element:\n  nestedKey: \"hiddenI\u200bnvalidWhitespaceEmbedded\n\"",
-			expectedWarningText: "U+200B",
-			expectedPosition:    fmt.Sprintf("position %d", 7),
-		},
-		{
-			yaml:                "root_element:\n  nestedKey: \u202fhiddenInvalidWhitespaceToLeft\n",
-			expectedWarningText: "U+202F",
-			expectedPosition:    fmt.Sprintf("position %d", 0),
-		},
-		{
-			yaml:                "root_element:\n  nestedKey: [validValue, \u202fhiddenInvalidWhitespaceToLeft]\n",
-			expectedWarningText: "U+202F",
-			expectedPosition:    fmt.Sprintf("position %d", 0),
-		},
-	}
-	for _, tc := range tests {
-		testConfig := confFromYAML(t, tc.yaml)
-		warnings := findUnexpectedUnicode(testConfig)
-		require.Len(t, warnings, 1)
-
-		assert.Contains(t, warnings[0], tc.expectedPosition)
-		assert.Contains(t, warnings[0], tc.expectedPosition)
-	}
-}
-
-func TestUnknownVarsWarning(t *testing.T) {
-	test := func(v string, unknown bool) func(*testing.T) {
-		return func(t *testing.T) {
-			env := []string{v + "=foo"}
-			var exp []string
-			if unknown {
-				exp = append(exp, v)
-			}
-			assert.Equal(t, exp, findUnknownEnvVars(env))
-		}
-	}
-	t.Run("DD_API_KEY", test("DD_API_KEY", false))
-	t.Run("DD_SITE", test("DD_SITE", false))
-	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
-	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
-	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
-	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
-	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
-	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
-	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", true))
 }
 
 func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {

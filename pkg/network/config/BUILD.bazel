@@ -40,6 +40,7 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "config_bpf_linux_test.go",
+        "config_darwin_test.go",
         "config_linux_test.go",
         "config_test.go",
         "usm_config_linux_test.go",
@@ -59,6 +60,14 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_vishvananda_netns//:netns",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/mock",
