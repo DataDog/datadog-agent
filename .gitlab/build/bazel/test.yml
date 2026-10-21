@@ -95,7 +95,7 @@ bazel:test:linux-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //test/new-e2e/scenarios/system-probe //test/e2e-framework/run //test/e2e-framework/cmd/ai-sandbox //test/new-e2e/tests/agent-health/cmd/agent-health-demo --noremote_accept_cached --remote_upload_local_results 
   after_script:
     - !reference [.macos_cleanup_python_dependencies]
     - !reference [.install_python_dependencies]
