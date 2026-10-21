@@ -2,6 +2,8 @@ if not exist c:\mnt\ goto nomntdir
 
 @echo c:\mnt found, continuing
 
+C:\devtools\ci-identities-gitlab-job-client.exe assume-role || exit /b 3
+
 @echo PARAMS %*
 @echo PY_RUNTIMES %PY_RUNTIMES%
 

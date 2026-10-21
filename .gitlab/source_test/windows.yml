@@ -7,6 +7,9 @@
     - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   tags: ["windows-v2:2022"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   script:
     - $ErrorActionPreference = "Stop"
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
@@ -31,6 +34,7 @@
       -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
       -e EXTRA_OPTS="$FAST_TESTS_FLAG"
       -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${CI_IDENTITIES_GITLAB_ID_TOKEN}
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -91,6 +95,9 @@ lint_windows-x64:
   tags: ["windows-v2:2022"]
   variables:
     VARIANT: ltsc2022
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   script:
     - $ErrorActionPreference = "Stop"
     - !reference [.setup_python_mirror_win]
@@ -105,6 +112,7 @@ lint_windows-x64:
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${CI_IDENTITIES_GITLAB_ID_TOKEN}
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -119,6 +127,9 @@ lint_windows-x64:
   tags: ["windows-v2:2022"]
   variables:
     VARIANT: ltsc2022
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   script:
     - $ErrorActionPreference = "Stop"
     - !reference [.setup_python_mirror_win]
@@ -133,6 +144,7 @@ lint_windows-x64:
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN=${CI_IDENTITIES_GITLAB_ID_TOKEN}
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\secagent.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
