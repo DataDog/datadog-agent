@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
