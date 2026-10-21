@@ -848,6 +848,90 @@ func TestFilterOpenGrandParentDiscarder(t *testing.T) {
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
+// TestFilterOpenBasenameRuleDiscarder checks that a rule without path condition lets the files whose name it can't
+// match be discarded, but neither their parent directory nor the files whose name it matches.
+func TestFilterOpenBasenameRuleDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			// no approver on the path, so that the opens below reach user space through the flags approver
+			ID:         "test_rule_path",
+			Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		},
+		{
+			ID:         "test_rule_basename",
+			Expression: `open.file.name == "test-obr-match" && open.flags & O_CREAT > 0`,
+		},
+	}
+
+	// the ~25 s of waits below are long enough to catch abnormal paths from unrelated processes on busy hosts
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{disableAbnormalPathCheck: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	discardedFile, _, err := test.Path("parent-obr", "test-obr-discarded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(discardedFile)
+
+	matchingFile, _, err := test.Path("parent-obr", "test-obr-match")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(matchingFile)
+
+	openFile := func(file string, flags int) func() error {
+		return func() error {
+			fd, err := openTestFile(test, file, flags)
+			if err != nil {
+				return err
+			}
+			return syscall.Close(fd)
+		}
+	}
+
+	isOpenDiscarder := func(file string) onDiscarderPushedHandler {
+		return func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
+			if event == nil || eventType != "open" {
+				return false
+			}
+			v, _ := event.GetFieldValue("open.file.path")
+			return v == file
+		}
+	}
+
+	if err := test.GetEventDiscarder(t, func() error {
+		// let the retention of discarders on reused inodes expire, see TestFilterOpenLeafDiscarder
+		time.Sleep(probe.DiscardRetention)
+
+		return openFile(discardedFile, syscall.O_CREAT|syscall.O_SYNC)()
+	}, isOpenDiscarder(discardedFile)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := waitForOpenProbeEvent(test, openFile(discardedFile, syscall.O_CREAT|syscall.O_SYNC), discardedFile); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+
+	// a discarder on the parent directory would hide this sibling
+	test.WaitSignalFromRule(t, openFile(matchingFile, syscall.O_CREAT), func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "open.file.path", matchingFile)
+	}, "test_rule_basename")
+
+	err = test.GetEventDiscarder(t, openFile(matchingFile, syscall.O_SYNC), isOpenDiscarder(matchingFile))
+	if _, ok := err.(ErrTimeout); !ok {
+		t.Fatalf("shouldn't get a discarder: %v", err)
+	}
+
+	test.WaitSignalFromRule(t, openFile(matchingFile, syscall.O_CREAT), func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "open.file.path", matchingFile)
+	}, "test_rule_basename")
+}
+
 func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventType model.EventType, field eval.Field, path string, auidOK, auidKO string) {
 	var cmdWrapper *dockerCmdWrapper
 	cmdWrapper, err := test.StartADocker()
