@@ -347,6 +347,8 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		containersList = append(containersList, c)
 	}
 
+	conditions := kubernetesresourceparsers.ResizeConditionsFromPodConditions(pod.Status.Conditions)
+
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -368,6 +370,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
+		Conditions:                 conditions,
 		CreationTimestamp:          pod.CreationTimestamp.Time,
 		ReadyTimestamp:             readyTimestamp,
 		DeletionTimestamp:          deletionTimestamp,
