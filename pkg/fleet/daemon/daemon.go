@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/taskmarker"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -53,6 +54,7 @@ var (
 
 	// installExperimentFunc is the method to install an experiment. Overridden in tests.
 	installExperimentFunc = bootstrap.InstallExperiment
+	recordTaskMarker      = taskmarker.Write
 )
 
 // PackageState represents a package state.
@@ -341,6 +343,9 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			log.Errorf("Daemon: could not resume configuration experiments: %v", err)
 		}
 	}
+	if err := taskmarker.RemoveStale(staleTaskMarkerAge); err != nil {
+		log.Warnf("Daemon: could not remove stale task markers: %v", err)
+	}
 	d.refreshState(d.ctx)
 
 	d.m.Lock()
@@ -448,17 +453,17 @@ func (d *daemonImpl) remove(ctx context.Context, pkg string) (err error) {
 func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startExperiment(ctx, url)
+	return d.startExperiment(ctx, d.env, url)
 }
 
-func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
+func (d *daemonImpl) startExperiment(ctx context.Context, experimentEnv *env.Env, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting experiment for package from %s", url)
-	err = installExperimentFunc(ctx, d.env, url)
+	err = installExperimentFunc(ctx, experimentEnv, url)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -492,17 +497,17 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err err
 func (d *daemonImpl) StopExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.stopExperiment(ctx, pkg)
+	return d.stopExperiment(ctx, d.installer(d.env), pkg)
 }
 
-func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error) {
+func (d *daemonImpl) stopExperiment(ctx context.Context, inst installer.Installer, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping experiment for package %s", pkg)
-	err = d.installer(d.env).RemoveExperiment(ctx, pkg)
+	err = inst.RemoveExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -629,12 +634,23 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		}
 	}()
 
+	recordTask := taskMarkerRequired(request.Method, request.Package)
+	defer func() {
+		if !recordTask {
+			return
+		}
+		if markerErr := recordTaskMarker(request.ID); markerErr != nil {
+			log.Errorf("Daemon: could not record task %s for the experiment restart: %v", request.ID, markerErr)
+		}
+	}()
+
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	err = d.verifyState(ctx, request)
 	if err != nil {
 		restartCommand = ""
+		recordTask = false
 		if errors.Is(err, errStateDoesntMatch) {
 			return nil // Error already reported to RC
 		}
@@ -692,11 +708,11 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		return d.startExperiment(ctx, experimentPackage.URL)
+		return d.startExperiment(ctx, d.experimentEnv(recordTask, request.ID), experimentPackage.URL)
 
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		return d.stopExperiment(ctx, request.Package)
+		return d.stopExperiment(ctx, d.installer(d.experimentEnv(recordTask, request.ID)), request.Package)
 
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
@@ -773,6 +789,28 @@ func (d *daemonImpl) configExperimentInstaller(deferRestart bool) installer.Inst
 	deferredEnv := *d.env
 	deferredEnv.DeferAgentRestart = true
 	return d.installer(&deferredEnv)
+}
+
+// staleTaskMarkerAge is how long a task marker can sit unread before startup removes it.
+const staleTaskMarkerAge = time.Hour
+
+// taskMarkerRequired reports whether the Agent package experiment restart launched for this
+// request waits for the daemon to record the task, which it does on Windows because that
+// restart stops the service hosting the daemon.
+func taskMarkerRequired(method string, pkg string) bool {
+	return deferAgentRestartToDaemon && pkg == datadogAgentPackage &&
+		(method == methodStartExperiment || method == methodStopExperiment)
+}
+
+// experimentEnv passes the task ID to the installer process when its restart has to wait
+// for the daemon to record the task.
+func (d *daemonImpl) experimentEnv(recordTask bool, taskID string) *env.Env {
+	if !recordTask {
+		return d.env
+	}
+	taskEnv := *d.env
+	taskEnv.TaskID = taskID
+	return &taskEnv
 }
 
 type detachedPackageCommandStarter interface {

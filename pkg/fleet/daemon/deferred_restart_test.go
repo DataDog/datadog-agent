@@ -50,6 +50,18 @@ func (r *envRecorder) deferredCount() int {
 	return count
 }
 
+func (r *envRecorder) taskIDs() []string {
+	r.Lock()
+	defer r.Unlock()
+	var ids []string
+	for _, e := range r.envs {
+		if e.TaskID != "" {
+			ids = append(ids, e.TaskID)
+		}
+	}
+	return ids
+}
+
 func newDeferredRestartTestInstaller(t *testing.T) (*testInstaller, *envRecorder) {
 	i := newTestInstaller(t)
 	t.Cleanup(i.Stop)

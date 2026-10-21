@@ -52,6 +52,7 @@ const (
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
 	envDeferAgentRestart     = "DD_INSTALLER_DEFER_AGENT_RESTART"
+	envTaskID                = "DD_INSTALLER_TASK_ID"
 	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
@@ -241,6 +242,10 @@ type Env struct {
 	// restart because the daemon launches it after recording the task result.
 	DeferAgentRestart bool
 
+	// TaskID is the remote task that started this installer process. Agent package
+	// experiment restarts on Windows wait for the daemon to record this task first.
+	TaskID string
+
 	// FIPSMode requests the FIPS-compliant flavor of any package downloaded by the
 	// installer. When true, only manifests annotated with com.datadoghq.package.flavor=fips
 	// are eligible, with no fallback to the base flavor.
@@ -368,6 +373,7 @@ func FromEnv() *Env {
 		IsCentos6:         DetectCentos6(),
 		IsFromDaemon:      os.Getenv(envIsFromDaemon) == "true",
 		DeferAgentRestart: os.Getenv(envDeferAgentRestart) == "true",
+		TaskID:            os.Getenv(envTaskID),
 		FIPSMode:          pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv(envFIPSMode)) == "true",
 	}
 }
@@ -377,6 +383,13 @@ func appendBoolEnv(env []string, key string, value *bool) []string {
 		env = append(env, key+"="+strconv.FormatBool(*value))
 	}
 	return env
+}
+
+// ClearTaskID removes the task ID from e and from this process's environment, so installer
+// processes started afterwards do not inherit it.
+func (e *Env) ClearTaskID() {
+	e.TaskID = ""
+	_ = os.Unsetenv(envTaskID)
 }
 
 func appendStringEnv(env []string, key string, value string, skipIfEqual string) []string {
@@ -471,6 +484,7 @@ func (e *Env) ToEnv() []string {
 	if e.DeferAgentRestart {
 		env = append(env, envDeferAgentRestart+"=true")
 	}
+	env = appendStringEnv(env, envTaskID, e.TaskID, "")
 	if e.FIPSMode {
 		env = append(env, envFIPSMode+"=true")
 	}
