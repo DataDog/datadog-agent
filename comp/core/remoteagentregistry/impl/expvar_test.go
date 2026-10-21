@@ -37,7 +37,8 @@ dogstatsd__processed{message_type="logs",state="ok",origin="host"} 100
 `
 
 func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
-	series := expvarSeriesFromPromText(dogstatsdTelemetry)
+	series, parsed := expvarSeriesFromPromText(dogstatsdTelemetry)
+	require.True(t, parsed)
 
 	values := make(map[string]int64)
 	for _, value := range series {
@@ -58,9 +59,18 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 }
 
 func TestExpvarSeriesFromPromTextRejectsMalformedAndNonCounterFamilies(t *testing.T) {
-	assert.Empty(t, expvarSeriesFromPromText("# TYPE dogstatsd__udp_packets gauge\ndogstatsd__udp_packets 1\n"))
-	assert.Empty(t, expvarSeriesFromPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 1.5\n"))
-	assert.Empty(t, expvarSeriesFromPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 1"))
+	series, parsed := expvarSeriesFromPromText("# TYPE dogstatsd__udp_packets gauge\ndogstatsd__udp_packets 1\n")
+	assert.True(t, parsed)
+	assert.Empty(t, series)
+
+	series, parsed = expvarSeriesFromPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 1.5\n")
+	assert.True(t, parsed)
+	assert.Empty(t, series)
+
+	series, parsed = expvarSeriesFromPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 1")
+	assert.False(t, parsed)
+	assert.Empty(t, series)
+
 }
 
 func TestRemoteExpvarValuesOnlyUseADP(t *testing.T) {
@@ -91,6 +101,10 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 
 	values := component.getRemoteExpvarValues()
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_udp_packets"])
+	assert.Len(t, component.expvarCache.counters, 1)
+	for _, state := range component.expvarCache.counters {
+		assert.False(t, state.hasOrigin, "origin tracking is only used when the origin label is present")
+	}
 
 	// A second read inside the cache window reuses the same remote snapshot.
 	agent.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 11\n"
@@ -103,9 +117,15 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 	assert.Equal(t, int64(13), values["agent-data-plane"]["dogstatsd_udp_packets"])
 
 	agent.Stop()
+	// Explicitly remove the disconnected fixture from the registry so this assertion exercises
+	// counter retirement on deregistration rather than the registry's idle-timeout sweep.
+	component.agentMapMu.Lock()
+	clear(component.agentMap)
+	component.agentMapMu.Unlock()
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues()
 	assert.Equal(t, int64(13), values["agent-data-plane"]["dogstatsd_udp_packets"])
+	assert.Empty(t, component.expvarCache.counters, "unregistered process series should be compacted")
 
 	// A re-registered process gets a new identity, while the prior process's
 	// accumulated value remains part of the monotonic remote total.
@@ -115,6 +135,50 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues()
 	assert.Equal(t, int64(17), values["agent-data-plane"]["dogstatsd_udp_packets"])
+}
+
+func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
+	provides, _, _, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
+	agent := buildAndRegisterRemoteAgent(t, ipcComp, component, adpAgentFlavor, "Agent Data Plane", "123",
+		withTelemetryProvider("# TYPE dogstatsd__processed counter\ndogstatsd__processed{message_type=\"metrics\",state=\"ok\",origin=\"container_id://worker-1\"} 10\n"),
+	)
+
+	values := component.getRemoteExpvarValues()
+	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
+
+	registeredAgents := component.GetRegisteredAgents()
+	require.Len(t, registeredAgents, 1)
+	series, parsed := expvarSeriesFromPromText(agent.promText)
+	require.True(t, parsed)
+	require.Len(t, series, 1)
+	counterKey := remoteCounterKey{
+		agentIdentity: remoteAgentIdentity(registeredAgents[0]),
+		agentName:     registeredAgents[0].SanitizedDisplayName,
+		mappingID:     series[0].mappingID,
+		labels:        series[0].labels,
+	}
+	state := component.expvarCache.counters[counterKey]
+	require.NotNil(t, state)
+	initialLastSeen := state.lastSeen
+
+	// Presence refreshes last-seen even when the absolute counter does not change.
+	state.lastSeen = time.Now().Add(-remoteExpvarOriginIdleTTL - time.Second)
+	component.expvarCache.values = nil
+	values = component.getRemoteExpvarValues()
+	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
+	assert.True(t, state.lastSeen.After(initialLastSeen))
+	assert.Contains(t, component.expvarCache.counters, counterKey)
+
+	// Once the origin-labeled series disappears, its completed total is compacted and the
+	// per-series state is evicted.
+	agent.promText = ""
+	state.lastSeen = time.Now().Add(-remoteExpvarOriginIdleTTL - time.Second)
+	component.expvarCache.values = nil
+	values = component.getRemoteExpvarValues()
+	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
+	assert.NotContains(t, component.expvarCache.counters, counterKey)
+	assert.Equal(t, int64(10), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_metric_packets"])
 }
 
 func TestDogstatsdExpvarMappingsResolve(t *testing.T) {
