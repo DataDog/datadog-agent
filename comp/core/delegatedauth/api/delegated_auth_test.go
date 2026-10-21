@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -26,6 +27,29 @@ func TestGetAPIKeyHonorsCanceledContext(t *testing.T) {
 	_, err := GetAPIKey(ctx, config, "proof", "")
 
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestOIDCExchangeRequiresHTTPSAndRejectsRedirects(t *testing.T) {
+	config := mock.New(t)
+	config.SetInTest("dd_url", "http://127.0.0.1:1")
+	_, err := GetAPIKey(context.Background(), config, "oidc-header.payload.signature", "")
+	require.ErrorContains(t, err, "requires HTTPS")
+
+	var redirected bool
+	target := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		redirected = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	config.SetInTest("dd_url", server.URL)
+	config.SetInTest("skip_ssl_validation", true)
+	_, err = GetAPIKey(context.Background(), config, "oidc-header.payload.signature", "")
+	require.Error(t, err)
+	require.False(t, redirected)
 }
 
 func TestParseResponse(t *testing.T) {

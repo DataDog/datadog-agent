@@ -14,6 +14,7 @@ go_library(
         "//comp/core/delegatedauth/api",
         "//comp/core/delegatedauth/api/cloudauth/aws",
         "//comp/core/delegatedauth/api/cloudauth/config",
+        "//comp/core/delegatedauth/api/cloudauth/oidc",
         "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
         "//comp/core/status",
@@ -29,7 +30,10 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["delegatedauth_test.go"],
+    srcs = [
+        "delegatedauth_test.go",
+        "oidc_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",

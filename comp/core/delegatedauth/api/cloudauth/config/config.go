@@ -20,3 +20,18 @@ type AWSProviderConfig struct {
 func (c *AWSProviderConfig) ProviderName() string {
 	return ProviderAWS
 }
+
+// ProviderOIDC exchanges all workload JWTs through ETS's custom OIDC handler.
+const ProviderOIDC = "oidc"
+
+// OIDCProviderConfig configures token acquisition independently of ETS exchange.
+type OIDCProviderConfig struct {
+	Source        string
+	TokenFile     string
+	Audience      string
+	ClientID      string
+	OrgUUIDSource string
+}
+
+// ProviderName returns the common protocol, independent of the token's issuer.
+func (c *OIDCProviderConfig) ProviderName() string { return ProviderOIDC }

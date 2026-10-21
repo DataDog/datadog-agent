@@ -160,6 +160,14 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 	if targetSite != "" {
 		client.CheckRedirect = checkDelegatedAuthRedirect
 	}
+	if strings.HasPrefix(delegatedAuthProof, "oidc-") {
+		// Workload JWTs are bearer credentials. Never send them over plaintext
+		// or follow redirects (including redirects to a sibling/subdomain).
+		if !strings.HasPrefix(url, "https://") {
+			return nil, errors.New("OIDC token exchange requires HTTPS")
+		}
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {
 		return nil, err

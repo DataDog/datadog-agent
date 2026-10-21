@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "oidc",
+    srcs = [
+        "oidc.go",
+        "sources.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/oidc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/delegatedauth/api/cloudauth/config",
+        "//comp/core/delegatedauth/common",
+        "//pkg/config/model",
+    ],
+)
+
+dd_agent_go_test(
+    name = "oidc_test",
+    srcs = ["oidc_test.go"],
+    embed = [":oidc"],
+    deps = [
+        "//comp/core/delegatedauth/api/cloudauth/config",
+        "//comp/core/delegatedauth/common",
+        "@com_github_stretchr_testify//require",
+    ],
+)

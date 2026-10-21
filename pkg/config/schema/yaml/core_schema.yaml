@@ -7011,6 +7011,35 @@ properties:
     node_type: section
     type: object
     properties:
+      oidc:
+        node_type: section
+        type: object
+        properties:
+          source:
+            node_type: setting
+            type: string
+            default: ''
+            comment: Workload token source (file, gcp, or azure). All use the ETS custom OIDC handler.
+          token_file:
+            node_type: setting
+            type: string
+            default: ''
+            comment: Absolute path to a rotating JWT file. Read again on every exchange.
+          audience:
+            node_type: setting
+            type: string
+            default: ''
+            comment: Defaults to datadog/<org_uuid>. Required for Azure (Entra resource URI). File tokens must already have the intended audience.
+          client_id:
+            node_type: setting
+            type: string
+            default: ''
+            comment: Optional Azure user-assigned managed identity client ID.
+          org_uuid_source:
+            node_type: setting
+            type: string
+            default: claims
+            comment: Use claims for existing ETS routing, or suffix for providers registered with explicit org routing.
       aws:
         node_type: section
         type: object
