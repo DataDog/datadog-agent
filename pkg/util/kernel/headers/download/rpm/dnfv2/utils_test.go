@@ -26,7 +26,7 @@ var testRPM []byte
 func TestExtractPackageDoesNotStoreRPM(t *testing.T) {
 	dir := t.TempDir()
 	pkg := &repo.PkgInfo{Header: repo.PkgInfoHeader{Name: "headers"}}
-	require.NoError(t, ExtractPackage(pkg, testRPM, dir, &types.Target{}, nil))
+	require.NoError(t, ExtractPackage(pkg, testRPM, dir, &types.Target{Uname: types.Utsname{Kernel: "test"}}, nil))
 	regular := 0
 	require.NoError(t, filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestExtractPackageDoesNotStoreRPM(t *testing.T) {
 	}))
 	require.Positive(t, regular)
 	failed := t.TempDir()
-	require.ErrorContains(t, ExtractPackage(pkg, []byte("invalid"), failed, &types.Target{}, nil), "headers-")
+	require.ErrorContains(t, ExtractPackage(pkg, []byte("invalid"), failed, &types.Target{Uname: types.Utsname{Kernel: "test"}}, nil), "headers-")
 	entries, err := os.ReadDir(failed)
 	require.NoError(t, err)
 	require.Empty(t, entries)
