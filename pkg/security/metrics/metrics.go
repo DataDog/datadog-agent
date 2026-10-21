@@ -622,6 +622,10 @@ var (
 	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
 
+	// MetricSecurityProfileV2TagResolutionEventsCapped is the name of the metric used to report events not queued because the tag resolution queue is full
+	// Tags: limit (cgroup or total)
+	MetricSecurityProfileV2TagResolutionEventsCapped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_capped")
+
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
