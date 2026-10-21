@@ -114,6 +114,21 @@ common:cache:frontend --remote_cache=grpcs://buildbarn-frontend-datadog-agent.us
 common:cache --config=cache:frontend
 common:cache --noremote_upload_local_results
 
+# Remote execution config: run Linux x86_64 actions on the Buildbarn agent pool, from any host (e.g. macOS).
+# Target selection is not affected: actions that do not support the Linux x86_64 execution platform fail instead of
+# falling back to the local host.
+build:rbe --config=cache:frontend
+build:rbe --extra_execution_platforms=//bazel/platforms:linux_x86_64
+build:rbe --jobs=100
+build:rbe --noremote_local_fallback
+build:rbe --noremote_upload_local_results
+build:rbe --platforms=//bazel/platforms:linux_x86_64
+build:rbe --remote_default_exec_properties=ISA=x86-64
+build:rbe --remote_default_exec_properties=OSFamily=Linux
+build:rbe --remote_download_minimal
+build:rbe --remote_executor=grpcs://buildbarn-frontend-datadog-agent.us1.ddbuild.io:443
+build:rbe --remote_timeout=900
+
 # Explicit local-only config: disable the remote cache while keeping the
 # wrapper-injected --disk_cache. Use `--config=no-remote-cache` (or
 # DD_BAZEL_REMOTE_CACHE=off) to opt out of tools/bazel auto-selection.
