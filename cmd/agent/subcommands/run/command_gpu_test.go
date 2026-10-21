@@ -9,6 +9,8 @@ package run
 
 import (
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -54,4 +56,52 @@ func TestCommandGPUEnabled(t *testing.T) {
 			require.True(t, ok)
 			gpuCheck.AssertReadinessForTest(t, readiness)
 		})
+}
+
+func TestGPUReadinessTimeout(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		env     string
+		yaml    string
+		timeout time.Duration
+	}{
+		{name: "default", timeout: time.Minute},
+		{name: "environment override", env: "2m", timeout: 2 * time.Minute},
+		{name: "yaml override", yaml: "45s", timeout: 45 * time.Second},
+		{name: "zero disables readiness", env: "0s"},
+		{name: "negative disables readiness", env: "-1s"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv("DD_GPU_READINESS_TIMEOUT", tt.env)
+			}
+			yaml := "gpu:\n  enabled: true\n"
+			if tt.yaml != "" {
+				yaml += "  readiness_timeout: " + tt.yaml + "\n"
+			}
+			cfg := config.NewMockFromYAML(t, yaml)
+			synctest.Test(t, func(t *testing.T) {
+				readiness := newGPUReadiness(cfg)
+				if tt.timeout == 0 {
+					require.Nil(t, readiness)
+					require.NotContains(t, health.GetReady().Unhealthy, gpu.CheckName)
+					require.NotContains(t, health.GetReady().Healthy, gpu.CheckName)
+					return
+				}
+				require.NotNil(t, readiness)
+				t.Cleanup(func() { readiness.CleanupForTest(t) })
+				require.Contains(t, health.GetReady().Unhealthy, gpu.CheckName)
+
+				// The configured deadline applies even if the check never runs.
+				synctest.Wait()
+				time.Sleep(tt.timeout - time.Second)
+				synctest.Wait()
+				require.Contains(t, health.GetReady().Unhealthy, gpu.CheckName)
+				time.Sleep(16 * time.Second)
+				synctest.Wait()
+				require.NotContains(t, health.GetReady().Unhealthy, gpu.CheckName)
+				require.Contains(t, health.GetReady().Healthy, gpu.CheckName)
+			})
+		})
+	}
 }

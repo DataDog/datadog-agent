@@ -1,4 +1,7 @@
 enhancements:
   - |
     When GPU Monitoring is enabled, the Agent waits for NVML initialization
-    or a two-minute timeout before reporting readiness.
+    or a one-minute timeout before reporting readiness. Configure this timeout
+    with ``gpu.readiness_timeout`` or ``DD_GPU_READINESS_TIMEOUT``. Hosts without
+    working NVML wait for the full timeout on every Agent restart. Set the timeout
+    to ``0s`` to disable this readiness delay.

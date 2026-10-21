@@ -422,7 +422,7 @@ func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
 
 func initReadiness(t *testing.T) *Readiness {
 	t.Helper()
-	readiness := NewReadiness()
+	readiness := NewReadiness(time.Minute)
 	t.Cleanup(func() { readiness.CleanupForTest(t) })
 	return readiness
 }
@@ -536,7 +536,7 @@ func TestReadinessBeforeCheckConfiguration(t *testing.T) {
 				// Readiness must block even before autodiscovery configures the check.
 				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				synctest.Wait()
-				time.Sleep(time.Minute)
+				time.Sleep(30 * time.Second)
 				synctest.Wait()
 				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				if reload {
@@ -547,7 +547,7 @@ func TestReadinessBeforeCheckConfiguration(t *testing.T) {
 				}
 
 				// The startup deadline must survive delayed scheduling and reloads.
-				time.Sleep(time.Minute - time.Second)
+				time.Sleep(29 * time.Second)
 				synctest.Wait()
 				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				time.Sleep(16 * time.Second)

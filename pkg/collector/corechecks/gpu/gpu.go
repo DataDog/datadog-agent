@@ -104,9 +104,13 @@ type checkTelemetryMetrics struct {
 
 // NewReadiness registers GPU readiness before the health probe server and checks start.
 // The returned state must be shared across check cancellations and reloads.
-func NewReadiness() *Readiness {
+// A non-positive timeout disables the readiness check.
+func NewReadiness(timeout time.Duration) *Readiness {
+	if timeout <= 0 {
+		return nil
+	}
 	handle := health.RegisterReadiness(CheckName, health.Once)
-	timer := time.AfterFunc(2*time.Minute, func() {
+	timer := time.AfterFunc(timeout, func() {
 		select {
 		case <-handle.C:
 		default:

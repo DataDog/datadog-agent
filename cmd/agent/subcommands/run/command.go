@@ -420,6 +420,13 @@ func run(log log.Component,
 	return <-stopCh
 }
 
+func newGPUReadiness(cfg config.Component) *gpu.Readiness {
+	if cfg.GetBool("gpu.enabled") {
+		return gpu.NewReadiness(cfg.GetDuration("gpu.readiness_timeout"))
+	}
+	return nil
+}
+
 func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
@@ -518,12 +525,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		// Register GPU readiness before lifecycle hooks start the health probe server.
 		// OneShot resolves the run arguments during Fx construction.
-		fx.Provide(func(cfg config.Component) *gpu.Readiness {
-			if cfg.GetBool("gpu.enabled") {
-				return gpu.NewReadiness()
-			}
-			return nil
-		}),
+		fx.Provide(newGPUReadiness),
 		logs.Bundle(),
 		observerfx.Module(),
 		logssourcefx.Module(),

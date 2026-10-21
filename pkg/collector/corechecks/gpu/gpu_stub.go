@@ -8,6 +8,8 @@
 package gpu
 
 import (
+	"time"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -19,7 +21,7 @@ import (
 type Readiness struct{}
 
 // NewReadiness is a no-op when the GPU check is not supported.
-func NewReadiness() *Readiness { return nil }
+func NewReadiness(_ time.Duration) *Readiness { return nil }
 
 // Factory creates a new check factory
 func Factory(_ tagger.Component, _ telemetry.Component, _ workloadmeta.Component, _ *Readiness) option.Option[func() check.Check] {

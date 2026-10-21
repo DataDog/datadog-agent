@@ -20,6 +20,25 @@ properties:
       Required for GPU monitoring on non-containerized Linux hosts.
       Enable gpu_monitoring.enabled in system-probe.yaml for NVIDIA kernel-level metrics.
       AMD sysfs metrics require only the core Agent.
+      On Linux Agents with NVML support, enabling GPU Monitoring delays readiness
+      until NVML initializes or gpu.readiness_timeout expires (one minute by default).
+  readiness_timeout:
+    node_type: setting
+    type: string
+    default: 1m
+    format: duration
+    visibility: public
+    tags:
+    - golang_type:duration
+    description: |-
+      How long the core Agent waits for NVML initialization before reporting GPU
+      readiness when gpu.enabled is true. Applies to Linux Agents with NVML support.
+      The timeout starts during Agent startup, even if the GPU check is not scheduled.
+      Hosts without working NVML, including AMD-only hosts, wait for the full timeout
+      on every Agent restart. The health probe can take up to 15 additional seconds
+      to report readiness. This does not affect liveness or ongoing GPU health checks.
+      Use a duration such as 30s or 2m. Set to 0s or a negative duration to disable
+      this readiness delay.
   legacy_sm_active:
     node_type: setting
     type: boolean
