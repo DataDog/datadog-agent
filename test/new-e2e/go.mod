@@ -305,7 +305,7 @@ require (
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2 // indirect
