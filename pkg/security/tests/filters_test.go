@@ -377,8 +377,12 @@ func TestFilterOpenLeafDiscarderWorkloadProfile(t *testing.T) {
 		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
 	}
 
+	// in accept mode, every open of the host goes through the sampler: the opens of the container runtime could
+	// exhaust the global open sampling rate before cat opens the discarded file.
 	tagger := NewFakeManualTagger()
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,8 +534,12 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 		Expression: `open.file.path == "/tmp/test/test-approved"`,
 	}
 
+	// in deny mode, every rejected open of the host goes through the sampler: the opens of the container runtime
+	// could exhaust the global open sampling rate before touch and cat open the file.
 	tagger := NewFakeManualTagger()
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}

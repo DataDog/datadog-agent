@@ -77,8 +77,6 @@ cc_library(
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.
-# gazelle:exclude pkg/ebpf/ebpftest/cgo_align.go
-# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest
 # gazelle:exclude internal/qbranch/anomalydetection-testbench
 # gazelle:exclude vendor
 

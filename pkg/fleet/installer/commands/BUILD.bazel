@@ -30,6 +30,7 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/template/html",
         "//pkg/util/log",
+        "//pkg/util/log/scrub",
         "//pkg/util/log/slog",
         "//pkg/util/log/slog/handlers",
         "//pkg/version",

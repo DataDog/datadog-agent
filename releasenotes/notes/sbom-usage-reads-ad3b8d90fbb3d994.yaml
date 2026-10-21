@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment counts a successful open that reads a file as use
+    of its package. Refused opens, write-only opens and ``O_PATH`` opens marked
+    the package in use. A path left partial by a resolution error resolves to
+    no package, in runtime usage and in the package fields of CWS events.

@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkubeadm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kubeadm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
@@ -240,7 +242,8 @@ type usageOnlyKubeadmSuite struct {
 
 // packageInUseProvisioner provisions the RHEL 10 single-node kubeadm cluster of
 // TestSBOMKubeadmSuite with the SBOM workloads, and the Agent with
-// packageInUseHelmValues and helmValues.
+// packageInUseHelmValues and helmValues. The fake intake keeps an hour of SBOMs,
+// and each query reads them all.
 func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
@@ -248,7 +251,7 @@ func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[en
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
-			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
+			scenkubeadm.WithFakeintakeOptions(fakeintake.WithCPU(2048), fakeintake.WithMemory(4096), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenkubeadm.WithDeploySBOMWorkloads(),
 			scenkubeadm.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
@@ -410,8 +413,8 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			assert.LessOrEqualf(c, age, inUseWindowSec, "%s LastSeenRunning is %ds old, expected <= %ds while in use", d.inUsePkg, age, inUseWindowSec)
 			// The workload runs as root and the in-use binary is not setuid, so the
 			// security enrichment must reflect that on the in-use component.
-			assert.Equalf(c, "true", s.packageProperty(repo, d.inUsePkg, propRunningAsRoot), "%s RunningAsRoot should be true (workload runs as root)", d.inUsePkg)
-			assert.Equalf(c, "false", s.packageProperty(repo, d.inUsePkg, propHasSetSuidBit), "%s HasSetSuidBit should be false (not a setuid binary)", d.inUsePkg)
+			assert.Equalf(c, "true", s.packageProperty(c, repo, d.inUsePkg, propRunningAsRoot), "%s RunningAsRoot should be true (workload runs as root)", d.inUsePkg)
+			assert.Equalf(c, "false", s.packageProperty(c, repo, d.inUsePkg, propHasSetSuidBit), "%s HasSetSuidBit should be false (not a setuid binary)", d.inUsePkg)
 		}, 5*time.Minute, 15*time.Second, "%s SBOM never reported %s as in-use after starting the service", d.name, d.inUsePkg)
 	})
 
@@ -454,8 +457,8 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			require.Truef(c, nrPresent, "%s carries no %s property yet", d.nonRootPkg, propLastSeenRunning)
 			require.Positivef(c, nrTS, "%s was never reported in use", d.nonRootPkg)
 
-			suidVal := s.packageProperty(repo, d.suidPkg, propHasSetSuidBit)
-			rootVal := s.packageProperty(repo, d.nonRootPkg, propRunningAsRoot)
+			suidVal := s.packageProperty(c, repo, d.suidPkg, propHasSetSuidBit)
+			rootVal := s.packageProperty(c, repo, d.nonRootPkg, propRunningAsRoot)
 			s.T().Logf("PKG-IN-USE[%s] security: %s HasSetSuidBit=%q (ts=%d), %s RunningAsRoot=%q (ts=%d)", d.name, d.suidPkg, suidVal, suidTS, d.nonRootPkg, rootVal, nrTS)
 
 			assert.Equalf(c, "true", suidVal, "%s HasSetSuidBit should be true (a setuid-root binary of it was run)", d.suidPkg)
@@ -482,7 +485,7 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 
 			// Read the newest payload, not the max across payloads: the max would
 			// still see the earlier in-use payloads and never observe the reset.
-			v := s.packageProperty(repo, d.inUsePkg, propLastSeenRunning)
+			v := s.packageProperty(c, repo, d.inUsePkg, propLastSeenRunning)
 			require.NotEmptyf(c, v, "%s carries no %s property", d.inUsePkg, propLastSeenRunning)
 			s.T().Logf("PKG-IN-USE[%s] refresh: %s LastSeenRunning=%q", d.name, d.inUsePkg, v)
 			assert.Equalf(c, "0", v, "%s LastSeenRunning should reset to 0 after a package-DB refresh, got %q", d.inUsePkg, v)
@@ -601,11 +604,11 @@ func (s *packageInUseSuite) runUpgrade(d pkgInUseDistro) {
 		rescanAt := scans[len(scans)-1].Unix()
 		// The loop runs the binary every 15s, so a payload stamped 20s past the
 		// rescan follows a run of the upgraded build.
-		control, _ := strconv.ParseInt(s.packageProperty(repo, d.controlPkg, propLastSeenRunning), 10, 64)
+		control, _ := strconv.ParseInt(s.packageProperty(c, repo, d.controlPkg, propLastSeenRunning), 10, 64)
 		require.Greaterf(c, control, rescanAt+20, "%s LastSeenRunning %d in the newest payload is within 20s of the rescan at %d", d.controlPkg, control, rescanAt)
 
-		dpkg := s.packageProperty(repo, "dpkg", propLastSeenRunning)
-		inUse, _ := strconv.ParseInt(s.packageProperty(repo, d.inUsePkg, propLastSeenRunning), 10, 64)
+		dpkg := s.packageProperty(c, repo, "dpkg", propLastSeenRunning)
+		inUse, _ := strconv.ParseInt(s.packageProperty(c, repo, d.inUsePkg, propLastSeenRunning), 10, 64)
 		s.T().Logf("PKG-IN-USE[%s] upgraded at %d, rescans %v: dpkg LastSeenRunning=%q, %s LastSeenRunning=%d", d.name, upgradedAt, scans, dpkg, d.inUsePkg, inUse)
 		assert.Equalf(c, "0", dpkg, "dpkg LastSeenRunning should reset to 0 after the rescan, got %q", dpkg)
 		// Known gap: the image SBOM lacks the version the upgrade installed, so the package keeps the usage of the build it replaced.
@@ -1062,20 +1065,25 @@ func (s *packageInUseSuite) hostEpoch(shell string) int64 {
 	return n
 }
 
+// fetchSBOMs returns the SBOMs intake holds, parsed from one fetch of its SBOM
+// history. Each FilterSBOMs call fetches that whole history again.
+func fetchSBOMs(c require.TestingT, intake *fakeintakeclient.Client) *aggregator.SBOMAggregator {
+	payloads, err := intake.GetRawPayloads("/api/v2/sbom")
+	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := aggregator.NewSBOMAggregator()
+	require.NoErrorf(c, agg.UnmarshallPayloads(payloads), "Failed to parse the SBOMs of fake intake")
+	return &agg
+}
+
 // newestHostSBOM returns the components of the newest full host SBOM intake
 // collected after after.
 func newestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client, after time.Time) []*cyclonedx_v1_4.Component {
-	ids, err := intake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, intake)
 
 	newest := after
 	var components []*cyclonedx_v1_4.Component
-	for _, id := range ids {
-		payloads, err := intake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+	for _, id := range agg.GetNames() {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1140,16 +1148,11 @@ func usageWindowOf(sb usageSBOM, window time.Duration) (open, closed bool) {
 
 // hostUsageSBOMs returns the host SBOMs with a body the fake intake holds.
 func hostUsageSBOMs(c require.TestingT, intake *fakeintakeclient.Client) []usageSBOM {
-	ids, err := intake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, intake)
 
 	var sboms []usageSBOM
-	for _, id := range ids {
-		payloads, err := intake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+	for _, id := range agg.GetNames() {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1161,19 +1164,14 @@ func hostUsageSBOMs(c require.TestingT, intake *fakeintakeclient.Client) []usage
 
 // repoUsageSBOMs returns the successful SBOMs with a body of the images of repo.
 func (s *packageInUseSuite) repoUsageSBOMs(c require.TestingT, repo string) []usageSBOM {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
 	var sboms []usageSBOM
-	for _, id := range ids {
+	for _, id := range agg.GetNames() {
 		if !strings.Contains(id, repo+"@") {
 			continue
 		}
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1243,18 +1241,13 @@ func assertUsageDefaulted(c assert.TestingT, sb usageSBOM) {
 // oldestHostSBOM returns the components of the first host SBOM with a body the
 // fake intake received, and how many host SBOMs with a body it holds.
 func oldestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client) ([]*cyclonedx_v1_4.Component, int) {
-	ids, err := intake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, intake)
 
 	var oldest time.Time
 	var components []*cyclonedx_v1_4.Component
 	bodies := 0
-	for _, id := range ids {
-		payloads, err := intake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+	for _, id := range agg.GetNames() {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1321,19 +1314,13 @@ type enrichedImage struct {
 // property marks the payloads the enrichment merge has been through, which are
 // the ones worth asserting on.
 func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
 	var images []enrichedImage
-	for _, id := range ids {
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-
+	for _, id := range agg.GetNames() {
 		var newest time.Time
 		var components []*cyclonedx_v1_4.Component
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1365,18 +1352,15 @@ func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
 // reported as in use (a diagnostic for when the targeted package is not the one
 // that flipped).
 func (s *packageInUseSuite) packageUsage(c *myCollectT, repo, pkg string) (maxTS int64, present bool, inUse []string) {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
-	ids = lo.Filter(ids, func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
+	agg := fetchSBOMs(c, s.Fakeintake)
+	ids := lo.Filter(agg.GetNames(), func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
 	if len(ids) == 0 {
-		s.dumpSBOMInventory()
+		s.dumpSBOMInventory(agg)
 	}
 	require.NotEmptyf(c, ids, "No SBOM id for %s yet", repo)
 
 	payloads := lo.FlatMap(ids, func(id string, _ int) []*aggregator.SBOMPayload {
-		p, err := s.Fakeintake.FilterSBOMs(id)
-		assert.NoErrorf(c, err, "Failed to query fake intake")
-		return p
+		return agg.GetPayloadsByName(id)
 	})
 	payloads = lo.Filter(payloads, func(p *aggregator.SBOMPayload, _ int) bool {
 		return p.GetType() == sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS &&
@@ -1411,20 +1395,13 @@ func (s *packageInUseSuite) packageUsage(c *myCollectT, repo, pkg string) (maxTS
 // packageProperty returns the value of the named runtime property on the given
 // package's component from the most recently collected SBOM payload for the
 // repo, or "" if absent.
-func (s *packageInUseSuite) packageProperty(repo, pkg, name string) string {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	if err != nil {
-		return ""
-	}
-	ids = lo.Filter(ids, func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
+func (s *packageInUseSuite) packageProperty(c require.TestingT, repo, pkg, name string) string {
+	agg := fetchSBOMs(c, s.Fakeintake)
+	ids := lo.Filter(agg.GetNames(), func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
 	var value string
 	var newest time.Time
 	for _, id := range ids {
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1521,19 +1498,13 @@ func (s *packageInUseSuite) runComponentListPreserved() {
 // the merge has been through, which leaves the raw Trivy ones as the baseline to
 // compare against.
 func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
 	var images []imagePayloads
-	for _, id := range ids {
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-
+	for _, id := range agg.GetNames() {
 		img := imagePayloads{id: id}
 		var newest time.Time
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1561,18 +1532,13 @@ func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
 // repoPayloads counts the successful SBOM payloads of the images of repo sent
 // in use, enriched with runtime usage and raw.
 func (s *packageInUseSuite) repoPayloads(c require.TestingT, repo string) (enriched, raw int) {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
-	for _, id := range ids {
+	for _, id := range agg.GetNames() {
 		if !strings.Contains(id, repo+"@") {
 			continue
 		}
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil || !p.GetInUse() {
 				continue
 			}
@@ -1652,21 +1618,140 @@ func (s *packageInUseSuite) nodeEpoch(d pkgInUseDistro) int64 {
 
 // podExec runs cmd in the given workload pod's container and returns stdout/stderr.
 func (s *packageInUseSuite) podExec(d pkgInUseDistro, cmd ...string) (string, string) {
+	return s.workloadExec(s.T(), d.workload, cmd...)
+}
+
+// workloadExec runs cmd in the container of the pod of workload and returns its
+// stdout and stderr.
+func (s *packageInUseSuite) workloadExec(t require.TestingT, workload string, cmd ...string) (string, string) {
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", d.workload).String(),
+		LabelSelector: fields.OneTermEqualSelector("app", workload).String(),
 	})
-	require.NoErrorf(s.T(), err, "failed to list %s workload pods", d.workload)
-	require.NotEmptyf(s.T(), pods.Items, "no %s workload pod found in namespace %s", d.workload, sbomtargets.Namespace)
+	require.NoErrorf(t, err, "failed to list %s workload pods", workload)
+	require.NotEmptyf(t, pods.Items, "no %s workload pod found in namespace %s", workload, sbomtargets.Namespace)
 
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(sbomtargets.Namespace, pods.Items[0].Name, "main", cmd)
-	require.NoErrorf(s.T(), err, "pod exec failed: %s", stderr)
+	require.NoErrorf(t, err, "pod exec failed: %s", stderr)
 	return stdout, stderr
 }
 
-// TestZZDumpAgentDiagnostics runs last (the ZZ prefix sorts it after the
-// package-in-use test) and dumps the Agent's SBOM/CWS state - the SBOM status
-// section and the system-probe/security logs - which otherwise live only in the
-// flare artifact, not the test trace. It is a debugging aid and always passes.
+// stopSystemProbe stops system-probe on the node, found by the name of its
+// process, and fails when no process has that name.
+const stopSystemProbe = "pkill -x system-probe"
+
+// idleWorkloads are the SBOM workloads that run tail alone, and in which the
+// suite runs nothing, with the package of their tail, and latch, a command of
+// another package, whose run makes system-probe send the SBOM of the workload
+// again.
+var idleWorkloads = []struct {
+	workload, repo, pkg string
+	latch               []string
+}{
+	{"sbom-python", "python", "coreutils", []string{"getent", "hosts", "localhost"}},
+	{"sbom-node", "node", "coreutils", []string{"getent", "hosts", "localhost"}},
+	{"sbom-ruby", "ruby", "coreutils", []string{"getent", "hosts", "localhost"}},
+	{"sbom-golang", "golang", "busybox", []string{"apk", "--version"}},
+}
+
+// TestZZRunningBeforeSystemProbe checks that system-probe credits the packages
+// of the containers running when it starts. It stops system-probe in the Agent
+// pod, which the kubelet restarts while the core agent keeps the SBOMs of the
+// images, and checks that the package of tail, the only process of the idle
+// workloads, reads in use from then on. The restart fails the restart count
+// check of WaitForAgentReady, so the test runs last, after
+// TestZZDumpAgentDiagnostics, and deletes the Agent pod when it ends, for a
+// later run on the same stack to start from a new pod. A suite that collects
+// coverage keeps the pod for its teardown.
+func (s *packageInUseSuite) TestZZRunningBeforeSystemProbe() {
+	t := s.T()
+	shell := s.startHostShell()
+	agent := s.nodeAgent(t)
+	restarts := systemProbeStatus(t, agent).RestartCount
+
+	// The restart resets the coverage counters of system-probe, so a suite
+	// that collects coverage saves them first, and its teardown saves those of
+	// the new process next to them.
+	on, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	dir, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if on && dir != "" {
+		s.Require().NoError(s.SaveCoverage(dir), "save the coverage before the restart of system-probe")
+	} else {
+		t.Cleanup(func() {
+			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
+				t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
+			}
+		})
+	}
+
+	// The fake intake holds the reports of every test of the suite by now, and
+	// its queries slow down with them. Only the reports sent after the restart
+	// count here.
+	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		require.NoError(c, s.Fakeintake.FlushServerAndResetAggregators(), "flush the fake intake")
+	}, 2*time.Minute, 10*time.Second, "the fake intake never flushed its payloads")
+
+	stoppedAt := s.hostEpoch(shell)
+	s.hostExec(t, shell, stopSystemProbe)
+
+	// Usage recorded from restartedAt on comes from the new system-probe.
+	var restartedAt int64
+	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		status := systemProbeStatus(c, s.nodeAgent(c))
+		require.Greaterf(c, status.RestartCount, restarts, "system-probe restarted %d times", status.RestartCount)
+		require.NotNilf(c, status.State.Running, "system-probe waits to run again")
+		restartedAt = status.State.Running.StartedAt.Unix()
+	}, 5*time.Minute, 5*time.Second, "the kubelet never restarted system-probe")
+
+	// The workloads share one deadline, so the test waits ten minutes at most
+	// for all of them.
+	deadline := time.Now().Add(10 * time.Minute)
+	for _, w := range idleWorkloads {
+		s.Run(w.repo, func() {
+			s.Require().Lessf(s.workloadStart(w.workload), stoppedAt, "%s started after system-probe stopped", w.workload)
+
+			s.EventuallyWithTf(func(collect *assert.CollectT) {
+				c := &myCollectT{CollectT: collect, errors: []error{}}
+				collect = nil //nolint:ineffassign
+
+				s.workloadExec(c, w.workload, w.latch...)
+				ts, present, _ := s.packageUsage(c, w.repo, w.pkg)
+				require.Truef(c, present, "%s carries no %s property", w.pkg, propLastSeenRunning)
+				s.T().Logf("PKG-IN-USE[%s] restart: %s LastSeenRunning=%d restartedAt=%d", w.repo, w.pkg, ts, restartedAt)
+				assert.GreaterOrEqualf(c, ts, restartedAt, "%s LastSeenRunning %d predates the restart of system-probe at %d", w.pkg, ts, restartedAt)
+			}, max(time.Until(deadline), 30*time.Second), 15*time.Second, "the %s SBOM never reported %s in use after the restart of system-probe", w.repo, w.pkg)
+		})
+	}
+}
+
+// systemProbeStatus returns the status of the system-probe container of agent.
+func systemProbeStatus(t require.TestingT, agent corev1.Pod) corev1.ContainerStatus {
+	status, ok := lo.Find(agent.Status.ContainerStatuses, func(status corev1.ContainerStatus) bool {
+		return status.Name == "system-probe"
+	})
+	require.Truef(t, ok, "the Agent pod %s runs no system-probe", agent.Name)
+	return status
+}
+
+// workloadStart returns the Unix time at which the container of workload
+// started.
+func (s *packageInUseSuite) workloadStart(workload string) int64 {
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(s.T().Context(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", workload).String(),
+	})
+	s.Require().NoErrorf(err, "failed to list the %s pods", workload)
+	s.Require().NotEmptyf(pods.Items, "no %s pod", workload)
+	status, ok := lo.Find(pods.Items[0].Status.ContainerStatuses, func(status corev1.ContainerStatus) bool {
+		return status.Name == "main"
+	})
+	s.Require().Truef(ok && status.State.Running != nil, "the %s container waits to run", workload)
+	return status.State.Running.StartedAt.Unix()
+}
+
+// TestZZDumpAgentDiagnostics runs after the package-in-use tests, the ZZ prefix
+// sorting it after them, and before TestZZRunningBeforeSystemProbe restarts
+// system-probe. It dumps the SBOM and CWS settings of the Agent and the sockets
+// of system-probe into the test trace, as they otherwise live in the flare
+// artifact alone. It is a debugging aid and always passes.
 func (s *packageInUseSuite) TestZZDumpAgentDiagnostics() {
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
@@ -1710,21 +1795,12 @@ func (s *packageInUseSuite) keepActive(d pkgInUseDistro) {
 // most once even though it is called from a retry loop.
 var pkgInUseInventoryOnce sync.Once
 
-// dumpSBOMInventory logs every SBOM id with its type and status once, to diagnose
-// a missing payload (e.g. the image was never scanned or never enriched).
-func (s *packageInUseSuite) dumpSBOMInventory() {
+// dumpSBOMInventory logs every SBOM id of agg with its type and status once, to
+// diagnose a missing payload (e.g. the image was never scanned or never enriched).
+func (s *packageInUseSuite) dumpSBOMInventory(agg *aggregator.SBOMAggregator) {
 	pkgInUseInventoryOnce.Do(func() {
-		ids, err := s.Fakeintake.GetSBOMIDs()
-		if err != nil {
-			s.T().Logf("PKG-IN-USE inventory: GetSBOMIDs error: %v", err)
-			return
-		}
-		for _, id := range ids {
-			ps, err := s.Fakeintake.FilterSBOMs(id)
-			if err != nil {
-				continue
-			}
-			for _, p := range ps {
+		for _, id := range agg.GetNames() {
+			for _, p := range agg.GetPayloadsByName(id) {
 				s.T().Logf("PKG-IN-USE inventory id=%q type=%v status=%v", id, p.GetType(), p.Status)
 			}
 		}
