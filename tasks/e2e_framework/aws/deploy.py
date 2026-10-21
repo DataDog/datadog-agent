@@ -8,6 +8,10 @@ from invoke.exceptions import Exit
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
 
+# The ECR registries the Agent images can be pulled from
+AGENT_QA_REGISTRY = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+SANDBOX_REGISTRY = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
+
 
 def deploy(
     ctx: Context,
@@ -35,7 +39,12 @@ def deploy(
     pulumi_extra_args: str = "",
     pulumi_env: dict[str, str] | None = None,
     needs_agent_containers: bool = True,
+    extra_image_paths: list[str | None] | None = None,
 ) -> str:
+    """
+    extra_image_paths are the images of the scenarios deploying several Agents, like benchmarkeks, whose registries
+    need pull credentials just like those of full_image_path and cluster_agent_full_image_path.
+    """
     from pydantic_core._pydantic_core import ValidationError
 
     from tasks.e2e_framework import config
@@ -77,31 +86,28 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
-    if needs_agent_containers and (
-        pipeline_id is not None
-        or full_image_path is not None
-        and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
-        or cluster_agent_full_image_path is not None
-        and cluster_agent_full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
-    ):
-        flags["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-        flags["ddagent:imagePullUsername"] = "AWS"
-        flags["ddagent:imagePullPassword"] = ctx.run(
-            f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
-            hide=True,
-        ).stdout.strip()
-    elif (
-        full_image_path is not None
-        and full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
-        or cluster_agent_full_image_path is not None
-        and cluster_agent_full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
-    ):
-        flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
-        flags["ddagent:imagePullUsername"] = "AWS"
-        flags["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region us-east-1",
-            hide=True,
-        ).stdout.strip()
+    image_paths = [full_image_path, cluster_agent_full_image_path, *(extra_image_paths or [])]
+
+    def uses_registry(registry: str) -> bool:
+        return any(path and path.startswith(registry + "/") for path in image_paths)
+
+    # The registries to pull from, with the command printing their password: the images may
+    # come from both, e.g. two Agent versions compared by benchmarkeks.
+    pull_registries = {}
+    if needs_agent_containers and (pipeline_id is not None or uses_registry(AGENT_QA_REGISTRY)):
+        pull_registries[AGENT_QA_REGISTRY] = (
+            f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}"
+        )
+    if uses_registry(SANDBOX_REGISTRY):
+        pull_registries[SANDBOX_REGISTRY] = (
+            f"aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}"
+        )
+    if pull_registries:
+        flags["ddagent:imagePullRegistry"] = ",".join(pull_registries)
+        flags["ddagent:imagePullUsername"] = ",".join("AWS" for _ in pull_registries)
+        flags["ddagent:imagePullPassword"] = ",".join(
+            ctx.run(command, hide=True).stdout.strip() for command in pull_registries.values()
+        )
     return common_deploy(
         ctx,
         scenario_name,
