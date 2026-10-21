@@ -1,12 +1,13 @@
 Subject: [PATCH] Stop waiting on an initializing parent package in importlib
 
-The 3.13.16 backport of gh-130094 (python/cpython#155915) makes
-_find_and_load_unlocked() re-import a parent package that is still
-initializing while it holds the submodule's module lock. When one thread
-runs pkg/__init__.py (holding pkg's lock) and that file imports pkg.sub,
-while a second thread imports pkg.sub directly, each thread waits on the
-other's lock and importlib raises _DeadlockError. The Agent imports Python
-checks from several goroutines, so some checks fail to load at startup.
+The 3.13 backport of gh-130094 (python/cpython#155915), first released
+in 3.13.16 and still present in 3.13.17, makes _find_and_load_unlocked()
+re-import a parent package that is still initializing while it holds the
+submodule's module lock. When one thread runs pkg/__init__.py (holding
+pkg's lock) and that file imports pkg.sub, while a second thread imports
+pkg.sub directly, each thread waits on the other's lock and importlib
+raises _DeadlockError. The Agent imports Python checks from several
+goroutines, so some checks fail to load at startup.
 
 Remove that block to restore the 3.13.15 behavior. The rest of the
 backport (copying sys.meta_path before iterating it) is kept.

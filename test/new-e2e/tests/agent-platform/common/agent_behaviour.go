@@ -228,7 +228,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when PYTHON_VERSION in deps/cpython/cpython.MODULE.bazel changes
-	ExpectedPythonVersion3 = "3.13.16"
+	ExpectedPythonVersion3 = "3.13.17"
 	// ExpectedUnloadedPython is the status value for uninitialized lazy loaded python runtime
 	ExpectedUnloadedPython = "unused"
 )
