@@ -27,10 +27,10 @@ import (
 const (
 	// configExperimentDeadlineWindow bounds how long an unsupervised configuration experiment
 	// may run before the watcher (config_experiment_watcher_darwin.go) treats it as hung and
-	// reverts it. There is no existing signal in this codebase to size the window from, so it
-	// shares Windows's default experiment watchdog timeout (getWatchdogTimeout in
-	// datadog_agent_windows.go, 60 minutes) rather than inventing an unrelated number.
-	configExperimentDeadlineWindow = 60 * time.Minute
+	// reverts it. It matches the EXPERIMENT_TIMEOUT=3000s the Linux experiment units run the
+	// Agent under (datadog-agent-exp.service, embedded/tmpl), so an experiment is bounded the
+	// same way on both platforms.
+	configExperimentDeadlineWindow = 50 * time.Minute
 
 	// configExperimentRestoreRetries bounds restoreStableJobs's attempts at handing each label back
 	// to its stable job. A transient disk or launchd hiccup is the most plausible failure here;
