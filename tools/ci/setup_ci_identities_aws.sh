@@ -15,7 +15,7 @@
 # to be set on the job.
 set -euo pipefail
 
-: "${AWS_SHARED_CREDENTIALS_FILE:?AWS_SHARED_CREDENTIALS_FILE must be set (see the job's variables)}"
+: "${AWS_SHARED_CREDENTIALS_FILE:?AWS_SHARED_CREDENTIALS_FILE must be set in the job variables}"
 
 CI_IDENTITIES_VERSION="${CI_IDENTITIES_VERSION:-v0.6.7}"
 CI_IDENTITIES_SHA256="${CI_IDENTITIES_SHA256:-c39c35f1db9daddaca6b47080e5bcb4b8ffd5cf7e7fe61b02ed56690e749928c}"
