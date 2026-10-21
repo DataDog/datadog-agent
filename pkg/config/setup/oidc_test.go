@@ -25,7 +25,6 @@ delegated_auth:
   oidc:
     source: gcp
     client_id: managed-identity-client
-    org_uuid_source: suffix
 additional_endpoints:
   https://app.datad0g.com:
     - DELA[other-org, oidc]
@@ -37,7 +36,7 @@ additional_endpoints:
 		require.Equal(t, "azure", cfg.Source)
 		require.Equal(t, "api://datadog", cfg.Audience)
 		require.Equal(t, "managed-identity-client", cfg.ClientID)
-		require.Equal(t, "suffix", cfg.OrgUUIDSource)
+		require.Equal(t, "request", cfg.OrgUUIDSource)
 		seen[p.OrgUUID] = true
 		return nil
 	}}

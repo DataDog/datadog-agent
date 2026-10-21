@@ -29,7 +29,7 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestProofProtocolAndAudience(t *testing.T) {
-	for _, mode := range []string{"claims", "suffix"} {
+	for _, mode := range []string{"", "claims", "request"} {
 		t.Run(mode, func(t *testing.T) {
 			a, err := New(tokenFunc(func(_ context.Context, aud string) (string, error) {
 				require.Equal(t, "datadog/org-123", aud)
@@ -39,7 +39,7 @@ func TestProofProtocolAndAudience(t *testing.T) {
 			proof, err := a.GenerateAuthProof(context.Background(), nil, &common.AuthConfig{OrgUUID: "org-123"})
 			require.NoError(t, err)
 			want := "oidc-header.payload.signature"
-			if mode == "suffix" {
+			if mode != "claims" {
 				want += ":org-123"
 			}
 			require.Equal(t, want, proof)
@@ -56,7 +56,7 @@ func TestFileRotationAndCancellation(t *testing.T) {
 		require.NoError(t, os.Rename(path+".new", path))
 		proof, err := a.GenerateAuthProof(context.Background(), nil, &common.AuthConfig{OrgUUID: "org"})
 		require.NoError(t, err)
-		require.Equal(t, "oidc-"+token, proof)
+		require.Equal(t, "oidc-"+token+":org", proof)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -100,7 +100,7 @@ func TestMetadataSources(t *testing.T) {
 			})
 			proof, err := a.GenerateAuthProof(context.Background(), nil, &common.AuthConfig{OrgUUID: "org"})
 			require.NoError(t, err)
-			require.Equal(t, "oidc-header.payload.signature", proof)
+			require.Equal(t, "oidc-header.payload.signature:org", proof)
 		})
 	}
 }

@@ -44,17 +44,18 @@ var (
 const maxTokenSize = 64 * 1024
 
 // New adapts a custom source without requiring changes to the exchange client.
-// orgUUIDSource is "claims" (existing ETS protocol) or "suffix" (explicit
-// routing, requiring the registered ETS provider to opt into suffix routing).
+// orgUUIDSource defaults to "request": send the configured destination org
+// alongside the token. ETS authorizes the identity in that org. "claims" keeps
+// the legacy wire format for ETS deployments that do not accept explicit routing.
 func New(source TokenSource, audience, name, orgUUIDSource string) (*Auth, error) {
 	if source == nil {
 		return nil, errors.New("OIDC token source is required")
 	}
 	if orgUUIDSource == "" {
-		orgUUIDSource = "claims"
+		orgUUIDSource = "request"
 	}
-	if orgUUIDSource != "claims" && orgUUIDSource != "suffix" {
-		return nil, errors.New("OIDC org_uuid_source must be claims or suffix")
+	if orgUUIDSource != "claims" && orgUUIDSource != "request" {
+		return nil, errors.New("OIDC org_uuid_source must be claims or request")
 	}
 	return &Auth{source: source, audience: audience, name: name, orgUUIDSource: orgUUIDSource}, nil
 }
@@ -86,7 +87,7 @@ func (a *Auth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader, c
 		return "", errors.New("OIDC source must return a compact signed JWT no larger than 64 KiB")
 	}
 	proof := "oidc-" + token
-	if a.orgUUIDSource == "suffix" {
+	if a.orgUUIDSource == "request" {
 		proof += ":" + config.OrgUUID
 	}
 	return proof, nil

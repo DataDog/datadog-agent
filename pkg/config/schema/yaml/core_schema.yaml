@@ -7038,8 +7038,8 @@ properties:
           org_uuid_source:
             node_type: setting
             type: string
-            default: claims
-            comment: Use claims for existing ETS routing, or suffix for providers registered with explicit org routing.
+            default: request
+            comment: Send the configured org alongside the token. Use claims only for compatibility with ETS deployments that require the org inside the token.
       aws:
         node_type: section
         type: object

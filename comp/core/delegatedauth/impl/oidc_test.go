@@ -32,9 +32,9 @@ func TestOIDCExchangeAndRefresh(t *testing.T) {
 		proof := r.Header.Get("Authorization")
 		proofs <- proof
 		switch proof {
-		case "Delegated oidc-header.first.signature":
+		case "Delegated oidc-header.first.signature:org-123":
 			fmt.Fprint(w, `{"data":{"attributes":{"api_key":"first-key"}}}`)
-		case "Delegated oidc-header.second.signature":
+		case "Delegated oidc-header.second.signature:org-123":
 			fmt.Fprint(w, `{"data":{"attributes":{"api_key":"second-key"}}}`)
 		default:
 			w.WriteHeader(http.StatusUnauthorized)
@@ -52,7 +52,7 @@ func TestOIDCExchangeAndRefresh(t *testing.T) {
 		Config: config, OrgUUID: "org-123", APIKeyConfigKey: "api_key", RefreshInterval: 60,
 		ProviderConfig: &cloudauthconfig.OIDCProviderConfig{Source: "file", TokenFile: path},
 	}))
-	require.Equal(t, "Delegated oidc-header.first.signature", <-proofs)
+	require.Equal(t, "Delegated oidc-header.first.signature:org-123", <-proofs)
 	require.Equal(t, "first-key", config.GetString("api_key"))
 	instance := comp.instances["api_key"]
 	require.Equal(t, "oidc", instance.providerName)
@@ -60,11 +60,11 @@ func TestOIDCExchangeAndRefresh(t *testing.T) {
 	require.NoError(t, os.Rename(path+".new", path))
 	_, err := comp.refreshAndWriteAPIKey(context.Background(), instance)
 	require.NoError(t, err)
-	require.Equal(t, "Delegated oidc-header.second.signature", <-proofs)
+	require.Equal(t, "Delegated oidc-header.second.signature:org-123", <-proofs)
 	require.Equal(t, "second-key", config.GetString("api_key"))
 	require.NoError(t, os.WriteFile(path, []byte("header.denied.signature"), 0600))
 	_, err = comp.refreshAndWriteAPIKey(context.Background(), instance)
 	require.Error(t, err)
-	require.Equal(t, "Delegated oidc-header.denied.signature", <-proofs)
+	require.Equal(t, "Delegated oidc-header.denied.signature:org-123", <-proofs)
 	require.Equal(t, "second-key", config.GetString("api_key"))
 }

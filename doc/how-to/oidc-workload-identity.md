@@ -42,6 +42,29 @@ The Agent performs only size and compact-JWT shape checks. It obtains a token on
 every exchange attempt and does not cache workload tokens. The API key refresh
 interval is independent of the lifetime of the workload JWT used to obtain it.
 
+## Destination organization
+
+The token proves workload identity. The configured `org_uuid` selects the Datadog
+organization whose issuer, audience, and identity mappings ETS must check. Every
+source sends that destination alongside the token by default; the token does not
+need to contain a Datadog org ID. On the wire this uses the existing delegated-auth
+suffix convention: `Authorization: Delegated oidc-<JWT>:<ORG_UUID>`.
+
+New custom OIDC intake registrations opt into `org_uuid_source: request` and must
+allowlist a nonempty audience intended for this exchange. ETS checks the signature,
+issuer, audience, expiry, and an identity mapping in the requested org. Supplying an
+org ID grants no permission. Any signed `dd_org_uuid` or `datadog/<org>` audience
+must agree with the requested org. A token with no org restriction may be used in
+multiple orgs only if each org independently trusts and authorizes it; caches remain
+scoped by token and org.
+
+Existing registrations retain their claim/audience requirements. The new ETS intake
+handler accepts an explicit destination for them only when those requirements still
+hold. For an older ETS deployment, set `oidc.org_uuid_source: claims` in Agent config
+to omit the destination from the proof; the token must then carry the org itself.
+Custom OIDC user/persona exchanges are unchanged. Deploy the backend support before
+using the Agent's new default.
+
 ## Customer configuration
 
 Use `site: datad0g.com` for staging. Replace `ORG_UUID` with the staging org UUID.
@@ -61,7 +84,7 @@ delegated_auth:
 
 The source requests an ID token for `datadog/ORG_UUID` from the default attached
 service account. Register `https://accounts.google.com` as the issuer, select
-`org_uuid_source: aud` on the **ETS registration**, and allowlist that exact
+`org_uuid_source: request` on the **ETS registration**, and allowlist that exact
 audience. Prefer the stable `sub` claim for the identity mapping.
 
 ### Azure VM managed identity
@@ -74,7 +97,6 @@ delegated_auth:
   oidc:
     source: azure
     audience: api://YOUR_ENTRA_APP_ID
-    org_uuid_source: suffix
     # client_id: USER_ASSIGNED_MANAGED_IDENTITY_CLIENT_ID
 ```
 
@@ -84,15 +106,10 @@ user-assigned identity; otherwise IMDS chooses the system-assigned identity.
 This built-in source targets VM IMDS, not every Azure managed-identity environment
 (App Service, AKS federated credentials, and others can supply a token file).
 
-Azure's JWT uses the resource audience rather than `datadog/ORG_UUID`. The ETS
-companion change adds **intake-only**, opt-in `JWT:ORG_UUID` routing. Register the
-token's exact issuer, its actual signed audience (which can differ from the resource
-URI), `identity_claim_name: oid`, and `org_uuid_source: suffix` on the ETS provider.
-The audience allowlist must be nonempty. The suffix is a routing hint; possession
-of an org UUID grants no access. A conflicting signed org claim is rejected.
-
-Both the Agent and ETS changes are needed for this Azure example. Existing ETS
-claim/audience routing continues to serve the GCP and Kubernetes examples.
+Register the token's exact issuer, its actual signed audience (which can differ
+from the resource URI), `identity_claim_name: oid`, and `org_uuid_source: request`
+on the ETS provider. Azure uses the same destination-org mechanism as every other
+source; no Azure-specific routing setting is needed in the Agent.
 
 ### Kubernetes or an arbitrary provider writing a token file
 
@@ -131,7 +148,7 @@ spec:
 Merge this snippet with the deployment's existing volumes and mounts. Mount the
 directory, not a `subPath`, so kubelet rotation is visible. The file must be
 readable by the Agent's user. Register the cluster's exact service-account issuer,
-`org_uuid_source: aud`, and audience `datadog/ORG_UUID`. Map the exact `sub`, such
+`org_uuid_source: request`, and audience `datadog/ORG_UUID`. Map the exact `sub`, such
 as `system:serviceaccount:oidc-hackathon:datadog-agent`. Its JWKS must be reachable
 by ETS. Do not use the default token intended for the Kubernetes API server.
 
@@ -142,7 +159,7 @@ All settings support their normal `DD_` environment equivalents, for example
 The existing per-product org settings and `DELA[ORG_UUID, oidc]` additional
 endpoint directives reuse the global token source. A file cannot mint different
 audiences for different orgs: supply an appropriately registered fixed audience
-with explicit suffix routing when sharing a file across orgs, or use separate
+when sharing a file across independently authorized orgs, or use separate
 Agent instances/token projections. GCP can request a distinct default audience
 on each instance's exchange.
 
@@ -196,7 +213,7 @@ alone does not satisfy that prerequisite.
 7. Observe two API key refreshes. For Kubernetes, also wait for kubelet token
    rotation and confirm a later exchange succeeds without restarting the Agent.
 8. In the dedicated test org, verify rejection for an unmapped identity, wrong
-   audience, conflicting org suffix, expired JWT, and invalid signature. A failed
+   audience, conflicting requested org, expired JWT, and invalid signature. A failed
    refresh should preserve the last API key while retries continue.
 9. Delete test-drive deployments, test namespace/workloads, and temporary mappings;
    release or stop the CAVM resources under their normal lifecycle.
