@@ -4,6 +4,18 @@
 #         untriaged (reason not documented yet).
 # Policy: see "Avoiding external dependencies" in test/new-e2e/codereview_guideline.md.
 entries:
+- file: test/new-e2e/tests/containers/eks_test.go
+  function: TestEKSSuite
+  status: debt
+  reason: Deploys the upstream Argo Rollouts chart without image overrides; mirror its images internally before removing this exception.
+- file: test/new-e2e/tests/sbom/kubeadm_test.go
+  function: TestSBOMKubeadmSuite
+  status: debt
+  reason: Kubeadm bootstrap downloads containerd and Kubernetes packages, the Flannel manifest, and public container images; prebake or mirror these dependencies internally.
+- file: test/new-e2e/tests/sbom/kubeadm_test.go
+  function: TestSBOMKubeadmCrioSuite
+  status: debt
+  reason: Kubeadm bootstrap downloads CRI-O and Kubernetes packages, the Flannel manifest, and public container images; prebake or mirror these dependencies internally.
 - file: test/e2e-framework/scenarios/aws/eks/args_test.go
   function: TestDefaultEKSOptions
   status: justified
