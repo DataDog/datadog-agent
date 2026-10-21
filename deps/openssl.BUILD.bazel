@@ -199,8 +199,9 @@ configure_make(
         mv $$INSTALLDIR/lib/libssl.dll.a $$INSTALLDIR/lib/libssl.lib
         """,
         # Flatten the DESTDIR-staged install (see `args`) into $INSTALLDIR, the
-        # flat layout rules_foreign_cc collects outputs from.
-        "//conditions:default": 'cp -a "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
+        # flat layout rules_foreign_cc collects outputs from. Not `cp -a`: preserving timestamps
+        # fails with EPERM on the output directories pre-created by remote executors (Buildbarn).
+        "//conditions:default": 'cp -R "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
     }),
     resource_size = "enormous",
     targets = [
