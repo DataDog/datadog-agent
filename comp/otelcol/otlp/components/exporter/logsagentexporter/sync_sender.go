@@ -55,13 +55,14 @@ const syncBatchFlushTimeout = 200 * time.Millisecond
 
 // SyncSenderQueueConfig adapts the sending queue settings of an exporter that uses a SyncSender.
 // The asynchronous pipeline batched records from all requests and sent the batches concurrently; a
-// SyncSender sends every request as it comes.
-func SyncSenderQueueConfig(queue configoptional.Optional[exporterhelper.QueueBatchConfig], numConsumers, batchSize int) configoptional.Optional[exporterhelper.QueueBatchConfig] {
+// SyncSender sends every request as it comes. numConsumers replaces the number of queue consumers
+// unless numConsumersSet reports that the user configured it.
+func SyncSenderQueueConfig(queue configoptional.Optional[exporterhelper.QueueBatchConfig], numConsumers, batchSize int, numConsumersSet bool) configoptional.Optional[exporterhelper.QueueBatchConfig] {
 	if !queue.HasValue() {
 		return queue
 	}
 	cfg := *queue.Get()
-	if cfg.NumConsumers == exporterhelper.NewDefaultQueueConfig().NumConsumers {
+	if !numConsumersSet {
 		cfg.NumConsumers = numConsumers
 	}
 	if !cfg.Batch.HasValue() {

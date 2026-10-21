@@ -225,11 +225,11 @@ func TestSyncSenderQueueConfig(t *testing.T) {
 
 	t.Run("disabled queue stays disabled", func(t *testing.T) {
 		disabled := configoptional.None[exporterhelper.QueueBatchConfig]()
-		assert.False(t, SyncSenderQueueConfig(disabled, 40, 1000).HasValue())
+		assert.False(t, SyncSenderQueueConfig(disabled, 40, 1000, false).HasValue())
 	})
 
 	t.Run("defaults keep the concurrency and payload size of the pipeline", func(t *testing.T) {
-		got := SyncSenderQueueConfig(configoptional.Some(defaults), 40, 1000)
+		got := SyncSenderQueueConfig(configoptional.Some(defaults), 40, 1000, false)
 
 		require.True(t, got.HasValue())
 		assert.Equal(t, 40, got.Get().NumConsumers)
@@ -249,9 +249,15 @@ func TestSyncSenderQueueConfig(t *testing.T) {
 		batch := exporterhelper.BatchConfig{FlushTimeout: time.Second, Sizer: exporterhelper.RequestSizerTypeItems, MinSize: 10, MaxSize: 100}
 		custom.Batch = configoptional.Some(batch)
 
-		got := SyncSenderQueueConfig(configoptional.Some(custom), 40, 1000)
+		got := SyncSenderQueueConfig(configoptional.Some(custom), 40, 1000, true)
 
 		assert.Equal(t, 5, got.Get().NumConsumers)
 		assert.Equal(t, batch, *got.Get().Batch.Get())
+	})
+
+	t.Run("explicit number of consumers equal to the default is kept", func(t *testing.T) {
+		got := SyncSenderQueueConfig(configoptional.Some(defaults), 40, 1000, true)
+
+		assert.Equal(t, defaults.NumConsumers, got.Get().NumConsumers)
 	})
 }

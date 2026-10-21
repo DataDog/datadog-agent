@@ -390,7 +390,7 @@ func (f *factory) createLogsExporter(
 			lf = logsagentexporter.NewFactoryWithSyncSender(syncSender, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
 			timeout = exporterhelper.TimeoutConfig{Timeout: cfg.ClientConfig.Timeout}
 			retry = cfg.BackOffConfig
-			queue = logsagentexporter.SyncSenderQueueConfig(queue, f.logsSenderConcurrency(), f.logsBatchSize())
+			queue = logsagentexporter.SyncSenderQueueConfig(queue, f.logsSenderConcurrency(), f.logsBatchSize(), cfg.IsQueueNumConsumersSet())
 		} else {
 			set.Logger.Warn("the " + logsagentexporter.SyncSenderGateID + " feature gate is enabled but the logs agent cannot send synchronously; logs use the asynchronous pipeline")
 		}
