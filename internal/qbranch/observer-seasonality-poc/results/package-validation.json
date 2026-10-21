@@ -1,0 +1,13 @@
+{
+  "environment": "Linux Workspace, Go 1.26.7 through dda inv",
+  "prepare": "passed in a fresh detached checkout",
+  "preservation_suite": {
+    "passed": 51,
+    "skipped_opt_in": 6
+  },
+  "six_hour_suite": {
+    "passed": 11
+  },
+  "testbench_build": "passed",
+  "scope": "Final formatted source bundle; recorded replay/resource results are preserved from the preceding research runs"
+}

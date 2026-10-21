@@ -1,0 +1,92 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	"fmt"
+	"math"
+	"reflect"
+	"testing"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+)
+
+func TestSeasonalDiscoveryRawContinuity(t *testing.T) {
+	old := realSeasonalDiscoverAll
+	realSeasonalDiscoverAll = true
+	defer func() { realSeasonalDiscoverAll = old }()
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120})
+	d := realSeasonalTestWrapper("phase_pooled_floor")
+	d.budget = newSeasonalAdmissionBudget(2)
+	raw := realSeasonalTestFactory()
+	for slot := 0; slot < 400; slot++ {
+		now := int64(100000 + slot*15)
+		for j := 0; j < 8; j++ {
+			v := 100 + float64(j)*math.Sin(float64(slot)/11)
+			if slot >= 90 && slot < 120 {
+				v += 200
+			}
+			s.Add("discovery", fmt.Sprintf("previously.unseen.%d", j), v, now, []string{fmt.Sprintf("opaque:%d", j)})
+		}
+		a, b := admissionSortResult(raw.Detect(s, now)), admissionSortResult(d.Detect(s, now))
+		if !reflect.DeepEqual(a, b) {
+			t.Fatalf("raw continuity changed at %d", slot)
+		}
+		admissionAssertBound(t, d)
+	}
+	if len(d.states) != 8 || d.budget.active != 2 || d.budget.queue.Len() != 6 {
+		t.Fatalf("unexpected census: %v", d.budget.census())
+	}
+	refs := []observer.SeriesRef{}
+	for _, m := range s.ListSeries(observer.WorkloadSeriesFilter()) {
+		refs = append(refs, m.Ref)
+	}
+	d.RemoveSeries(refs)
+	if len(d.states) != 0 || len(d.budget.entries) != 0 || d.budget.queue.Len() != 0 || d.budget.active != 0 {
+		t.Fatal("removal leaked state")
+	}
+}
+
+func TestSeasonalDiscoveryQualification(t *testing.T) {
+	for _, kind := range []string{"pulse", "sine", "flat", "trend", "noise", "oneoff"} {
+		t.Run(kind, func(t *testing.T) {
+			m, err := newHourlyAdaptiveSeasonalModel(15, []int{1800, 3600})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rng := uint64(17)
+			for i := 0; i < realSeasonalTrain; i++ {
+				rng = rng*6364136223846793005 + 1
+				noise := float64(rng>>11)/float64(uint64(1)<<53) - 0.5
+				v := 100.0
+				switch kind {
+				case "pulse":
+					v += noise
+					if i%240 < 12 {
+						v += 100
+					}
+				case "sine":
+					v += 30*math.Sin(2*math.Pi*float64(i)/240) + noise
+				case "trend":
+					v += float64(i) / 10
+				case "noise":
+					v += 30 * noise
+				case "oneoff":
+					if i >= 240 && i < 252 {
+						v += 100
+					}
+				}
+				m.Observe(i, v)
+			}
+			want := kind == "pulse" || kind == "sine"
+			if (m.Profile != nil) != want {
+				t.Fatalf("qualification %s = %v, want %v", kind, m.Profile != nil, want)
+			}
+		})
+	}
+}

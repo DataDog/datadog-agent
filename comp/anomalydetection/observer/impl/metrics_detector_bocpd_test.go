@@ -565,3 +565,41 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
 }
+
+func TestBOCPDUnderflowPreservesRelativeEvidence(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	cfg.MaxRunLength = 8
+	cfg.ShortRunLength = 1
+	d := NewBOCPDDetector(cfg)
+	state := &bocpdSeriesState{obsVar: 1, priorPrecision: 1}
+	state.runProbs = make([]float64, 2, 9)
+	state.means = make([]float64, 2, 9)
+	state.precisions = make([]float64, 2, 9)
+	state.runProbs[0], state.runProbs[1] = 0.25, 0.75
+	state.means[0], state.means[1] = 0, 1
+	state.precisions[0], state.precisions[1] = 1, 1
+	// Both direct likelihoods vanish, but the second hypothesis is overwhelmingly
+	// more plausible. A uniform fallback loses that evidence.
+	require.Zero(t, gaussianPDF(100, 0, 2))
+	require.Zero(t, gaussianPDF(100, 1, 2))
+	_, cp, short := d.updatePosterior(state, 100)
+	require.InDelta(t, cfg.Hazard, cp, 1e-12)
+	require.Less(t, short, 1e-20)
+	require.InDelta(t, 1-cfg.Hazard, state.runProbs[2], 1e-12)
+	require.InDelta(t, 1, state.runProbs[0]+state.runProbs[1]+state.runProbs[2], 1e-12)
+}
+
+func TestBOCPDOrdinaryLikelihoodsUseDirectDensities(t *testing.T) {
+	d := NewBOCPDDetector(DefaultBOCPDConfig())
+	state := &bocpdSeriesState{
+		obsVar: 2, runProbs: []float64{0, 0.25, 0.75},
+		means: []float64{0, 1, 2}, precisions: []float64{1, 2, 3},
+	}
+	require.False(t, d.prepareLikelihoods(state, 3))
+	for i := range state.runProbs {
+		require.Equal(t, gaussianPDF(3, state.means[i], state.obsVar+1/state.precisions[i]), d.likelihoodScratch[i])
+	}
+	// Zero prior mass must remain zero even in the rescaled path.
+	require.True(t, d.prepareLikelihoods(state, 100))
+	require.Zero(t, d.likelihoodScratch[0])
+}

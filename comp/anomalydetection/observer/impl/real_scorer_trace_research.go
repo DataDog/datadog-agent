@@ -1,0 +1,96 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	"encoding/json"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+)
+
+// Synchronous serialization is intentional: hook values may refer to state
+// protected by caller locks. This writer never invokes Observer/scorer methods.
+var researchTraceMu sync.Mutex
+var researchTraceSeq int64
+var researchTraceBytes int64
+var researchTraceFile *os.File
+var researchTraceRanges [][2]int64
+
+const researchTraceMaxRows int64 = 500000
+const researchTraceMaxBytes int64 = 256 * 1024 * 1024
+
+func init() {
+	name := os.Getenv("OBSERVER_RESEARCH_TRACE")
+	if name == "" {
+		return
+	}
+	for _, part := range strings.Split(os.Getenv("OBSERVER_RESEARCH_WINDOWS"), ",") {
+		if part == "" {
+			continue
+		}
+		pair := strings.Split(part, ":")
+		if len(pair) != 2 {
+			panic("invalid trace window")
+		}
+		a, e1 := strconv.ParseInt(pair[0], 10, 64)
+		b, e2 := strconv.ParseInt(pair[1], 10, 64)
+		if e1 != nil || e2 != nil || b < a {
+			panic("invalid trace bounds")
+		}
+		researchTraceRanges = append(researchTraceRanges, [2]int64{a, b})
+	}
+	var err error
+	researchTraceFile, err = os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		panic(err)
+	}
+	researchTraceGlobal("trace_config", 0, map[string]any{"schema_version": 1, "max_rows": researchTraceMaxRows, "max_bytes": researchTraceMaxBytes, "detail_windows_inclusive": researchTraceRanges})
+}
+
+func researchTraceActive() bool { return researchTraceFile != nil }
+func researchTraceEnabled(timestamp int64) bool {
+	if !researchTraceActive() {
+		return false
+	}
+	for _, r := range researchTraceRanges {
+		if timestamp >= r[0] && timestamp <= r[1] {
+			return true
+		}
+	}
+	return false
+}
+func researchTraceGlobal(kind string, timestamp int64, fields map[string]any) {
+	if !researchTraceActive() {
+		return
+	}
+	researchTraceMu.Lock()
+	defer researchTraceMu.Unlock()
+	if researchTraceSeq >= researchTraceMaxRows {
+		panic("trace row bound exceeded; replay invalid")
+	}
+	fields["kind"], fields["timestamp"], fields["sequence"] = kind, timestamp, researchTraceSeq+1
+	row, err := json.Marshal(fields)
+	if err != nil {
+		panic(err)
+	}
+	row = append(row, '\n')
+	if researchTraceBytes+int64(len(row)) > researchTraceMaxBytes {
+		panic("trace byte bound exceeded; replay invalid")
+	}
+	n, err := researchTraceFile.Write(row)
+	if err != nil {
+		panic(err)
+	}
+	if n != len(row) {
+		panic("short trace write; replay invalid")
+	}
+	researchTraceSeq++
+	researchTraceBytes += int64(n)
+}

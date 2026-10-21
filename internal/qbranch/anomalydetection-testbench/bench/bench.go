@@ -750,8 +750,8 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 
 // streamingStorageCfg uses the production point-retention and series limits,
 // but disables inactivity eviction so headless output retains complete scenario state.
-func streamingStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
-	cfg := observerimpl.DefaultStorageConfig()
+func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
+	cfg := observerimpl.TestbenchStreamingStorageConfig(settings)
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
@@ -770,7 +770,7 @@ func (tb *Bench) resetAllState() {
 	tb.baselineMu.Unlock()
 	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg(tb.config.IncludeDetectorAnomalies)
+		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
 	}
 	tb.debug.Reset(tb.settings, storageCfg)
 }
