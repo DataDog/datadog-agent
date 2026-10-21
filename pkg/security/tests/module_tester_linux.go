@@ -151,6 +151,9 @@ runtime_security_config:
         time_based: {{ not .ProfileReportingWaitPersistence }}
         duration: 0s
       profiling_startup_delay: {{ .ProfilingStartupDelay }}
+{{if gt .SecurityProfileSampleRefreshPeriod 0}}
+      sample_refresh_period: {{ .SecurityProfileSampleRefreshPeriod }}
+{{end}}
 {{if .WorkloadProfileEventTypes}}
       event_types: {{range .WorkloadProfileEventTypes}}
       - {{. -}}
