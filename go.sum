@@ -2570,8 +2570,8 @@ github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJx
 github.com/DataDog/go-tuf v1.1.1-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
-github.com/DataDog/gopacket v0.0.0-20261014133721-da0f9a209e68 h1:2rn+E1GObX3htGwQdYitsDnopjxBqH63kk3j9EIilTM=
-github.com/DataDog/gopacket v0.0.0-20261014133721-da0f9a209e68/go.mod h1:pLZxrHTaT9Wk9CvZpg2vyEzSP/QEmU89D3Mv23EQeb4=
+github.com/DataDog/gopacket v0.0.0-20261021172430-e6ca44b48f3b h1:xaT+r8mj7PAW4Ri4dumyGCotP6w5TAPqID4Xx0benBk=
+github.com/DataDog/gopacket v0.0.0-20261021172430-e6ca44b48f3b/go.mod h1:pLZxrHTaT9Wk9CvZpg2vyEzSP/QEmU89D3Mv23EQeb4=
 github.com/DataDog/jsonapi v0.13.0 h1:ebIqG50aEGjjl/Hg8TVUsm6Fiw9T6IT1WZRC8aL8OQE=
 github.com/DataDog/jsonapi v0.13.0/go.mod h1:FUSGF3bwMARlVfXEoFo9R/CVlYYy9BGL4C/Prf6Ke3M=
 github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1 h1:v6ApDqhuktjB+ajpBa2ZFkSPe2/Hpq6+iP13EVE5jXY=
