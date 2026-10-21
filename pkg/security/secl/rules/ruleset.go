@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"path"
 	"reflect"
 	"regexp"
 	"slices"
@@ -49,6 +50,12 @@ func parseArrayFieldAccess(field string) (baseField string, index int, isArray b
 type Rule struct {
 	*PolicyRule
 	*eval.Rule
+}
+
+type basenameDiscarder struct {
+	nameField eval.Field
+	evalPath  func(*eval.Context) string
+	evalName  func(*eval.Context) string
 }
 
 // DiscarderInvalidReport is a report of an invalid discarder
@@ -91,6 +98,9 @@ type RuleSet struct {
 	fields []eval.Field
 	logger log.Logger
 	pool   *eval.ContextPool
+
+	// path discarder fields that can be evaluated on their basename field
+	basenameDiscarders map[eval.Field]basenameDiscarder
 
 	// event collector, used for tests
 	eventCollector EventCollector
@@ -1047,6 +1057,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 		}
 
 		isTrue, err := rule.PartialEval(ctx, field)
+		if err != nil {
+			isTrue, err = rs.basenamePartialEval(ctx, field, rule, err)
+		}
 		if err != nil || isTrue {
 			return false, rule, err
 		}
@@ -1054,6 +1067,51 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 		isDiscarder = true
 	}
 	return isDiscarder, nil, nil
+}
+
+// basenamePartialEval evaluates a rule without path condition on the basename instead, as no file can match a rule its basename doesn't
+func (rs *RuleSet) basenamePartialEval(ctx *eval.Context, pathField eval.Field, rule *Rule, err error) (bool, error) {
+	discarder, found := rs.basenameDiscarders[pathField]
+	if _, notFound := err.(*eval.ErrFieldNotFound); !found || !notFound {
+		return false, err
+	}
+
+	partialEval := rule.GetPartialEval(discarder.nameField)
+	if partialEval == nil {
+		return false, err
+	}
+
+	// synthetic events, like the multi-discarder ones, may only have the path set
+	if discarder.evalName(ctx) != path.Base(discarder.evalPath(ctx)) {
+		return true, nil
+	}
+
+	return partialEval(ctx), nil
+}
+
+func (rs *RuleSet) initBasenameDiscarders() {
+	rs.basenameDiscarders = make(map[eval.Field]basenameDiscarder)
+	for pathField := range rs.opts.SupportedDiscarders {
+		prefix, found := strings.CutSuffix(pathField, model.PathSuffix)
+		if !found {
+			continue
+		}
+		nameField := prefix + model.NameSuffix
+		if evalPath, evalName := rs.stringEvalFnc(pathField), rs.stringEvalFnc(nameField); evalPath != nil && evalName != nil {
+			rs.basenameDiscarders[pathField] = basenameDiscarder{nameField: nameField, evalPath: evalPath, evalName: evalName}
+		}
+	}
+}
+
+func (rs *RuleSet) stringEvalFnc(field eval.Field) func(*eval.Context) string {
+	evaluator, err := rs.model.GetEvaluator(field, "", 0)
+	if err != nil {
+		return nil
+	}
+	if evaluator, ok := evaluator.(*eval.StringEvaluator); ok {
+		return evaluator.EvalFnc
+	}
+	return nil
 }
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
@@ -1481,7 +1539,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		setter.SetLegacyFields(evalOpts.LegacyFields)
 	}
 
-	return &RuleSet{
+	rs := &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
 		opts:             opts,
@@ -1494,6 +1552,9 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		globalVariables:  eval.NewVariables(),
 		parsingContext:   ast.NewParsingContext(opts.RuleCacheEnabled),
 	}
+	rs.initBasenameDiscarders()
+
+	return rs
 }
 
 // GetScopedVariables returns all scoped variables that match the given name and scope

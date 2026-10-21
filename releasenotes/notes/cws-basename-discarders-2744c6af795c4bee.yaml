@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CWS discards the events of files that no rule can match even when a rule
+    only has a condition on the file name, like ``core_pattern_write`` in the
+    default policy. Such a rule disabled these kernel discarders for its event
+    type, which increased system-probe CPU usage and kernel event loss.

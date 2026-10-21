@@ -11,6 +11,7 @@ package rules
 import (
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -165,6 +166,101 @@ func TestRuleSetDiscarders(t *testing.T) {
 	if !reflect.DeepEqual(expected, handler.filters) {
 		t.Fatalf("unable to find expected discarders, expected: `%v`, got: `%v`", expected, handler.filters)
 	}
+}
+
+func TestRuleSetBasenameDiscarders(t *testing.T) {
+	pathRule := `open.file.path == "/etc/passwd" && open.flags & O_CREAT > 0`
+	nameRule := `open.file.name == "core_pattern" && open.flags & O_WRONLY > 0`
+	noFileRule := `open.file.filesystem == "proc" && open.flags & O_WRONLY > 0`
+
+	tests := []struct {
+		name      string
+		exprs     []string
+		path      string
+		basename  string
+		flags     int
+		discarded bool
+	}{
+		{
+			name:      "basename-only-rule-not-matching",
+			exprs:     []string{pathRule, nameRule},
+			path:      "/dev/null",
+			basename:  "null",
+			flags:     syscall.O_WRONLY | syscall.O_CREAT | syscall.O_TRUNC,
+			discarded: true,
+		},
+		{
+			name:     "basename-only-rule-matching",
+			exprs:    []string{pathRule, nameRule},
+			path:     "/proc/sys/kernel/core_pattern",
+			basename: "core_pattern",
+			flags:    syscall.O_RDONLY,
+		},
+		{
+			name:  "basename-unset",
+			exprs: []string{pathRule, nameRule},
+			path:  "/dev/null",
+			flags: syscall.O_WRONLY,
+		},
+		{
+			name:     "no-path-nor-basename",
+			exprs:    []string{pathRule, noFileRule},
+			path:     "/dev/null",
+			basename: "null",
+			flags:    syscall.O_WRONLY,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := &testHandler{
+				filters: make(map[string]testFieldValues),
+			}
+
+			rs := newRuleSet()
+			rs.AddListener(handler)
+			AddTestRuleExpr(t, rs, test.exprs...)
+
+			ev := model.NewFakeEvent()
+			ev.Type = uint32(model.FileOpenEventType)
+			ev.SetFieldValue("open.file.path", test.path)
+			ev.SetFieldValue("open.file.name", test.basename)
+			ev.SetFieldValue("open.flags", test.flags)
+
+			if rs.Evaluate(ev) {
+				t.Fatal("no rule should match")
+			}
+			rs.EvaluateDiscarders(ev)
+
+			_, discarded := handler.filters["open"]["open.file.path"]
+			if discarded != test.discarded {
+				t.Fatalf("expected discarded to be %v, got %v", test.discarded, discarded)
+			}
+		})
+	}
+
+	t.Run("report", func(t *testing.T) {
+		rs := newRuleSet()
+		AddTestRuleExpr(t, rs, pathRule, nameRule)
+
+		report, err := rs.GetDiscardersReport()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(report.Supported, "open.file.path") || len(report.Invalid) != 0 {
+			t.Fatalf("open.file.path should be a supported discarder: %+v", report)
+		}
+
+		rs = newRuleSet()
+		AddTestRuleExpr(t, rs, pathRule, noFileRule)
+
+		if report, err = rs.GetDiscardersReport(); err != nil {
+			t.Fatal(err)
+		}
+		if len(report.Invalid) != 1 || report.Invalid[0].Field != "open.file.path" {
+			t.Fatalf("open.file.path should be an invalid discarder: %+v", report)
+		}
+	})
 }
 
 func TestRuleSetApprovers1(t *testing.T) {
