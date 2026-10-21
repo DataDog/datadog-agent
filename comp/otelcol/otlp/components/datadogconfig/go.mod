@@ -74,14 +74,6 @@ require (
 	go.opentelemetry.io/collector/extension/extensionauth v1.68.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.162.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.162.0 // indirect
-	go.opentelemetry.io/collector/client v1.65.0 // indirect
-	go.opentelemetry.io/collector/config/configcompression v1.65.0 // indirect
-	go.opentelemetry.io/collector/config/configmiddleware v1.65.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.162.0 // indirect
-	go.opentelemetry.io/collector/exporter v1.65.0 // indirect
-	go.opentelemetry.io/collector/extension/extensionauth v1.65.0 // indirect
-	go.opentelemetry.io/collector/extension/extensionmiddleware v0.159.0 // indirect
-	go.opentelemetry.io/collector/extension/xextension v0.159.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.68.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.162.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.68.0 // indirect
@@ -89,10 +81,6 @@ require (
 	go.opentelemetry.io/collector/pdata/xpdata v0.162.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.68.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.162.0 // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.159.0 // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.159.0 // indirect
-	go.opentelemetry.io/collector/receiver v1.68.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.162.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
