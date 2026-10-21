@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,8 +49,9 @@ type factory struct {
 	reporter     *inframetadata.Reporter
 	gatewayUsage otel.GatewayUsage
 
-	ipath ingestionPath
-	store TelemetryStore
+	ipath      ingestionPath
+	standalone bool
+	store      TelemetryStore
 }
 
 // TelemetryStore stores the internal COAT (cross-org agent telemetry) metrics in DDOT
@@ -133,6 +135,7 @@ func newFactoryForAgentWithType(
 		options:      options,
 		gatewayUsage: gatewayUsage,
 		ipath:        ipath,
+		standalone:   standalone,
 		store:        store,
 	}
 
@@ -259,7 +262,21 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		hostGetter = cfg.HostProvider
 	}
 	// Create the metrics translator
-	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
+	newTranslator := translatorFromConfig
+	if f.ipath == ddot && nativeOTelHistogramsGate.IsEnabled() {
+		// OTel histograms cannot go over the v2 sketches intake.
+		agentSerializer, ok := s.(*serializer.Serializer)
+		if !ok {
+			return nil, fmt.Errorf("feature gate %s needs the agent serializer", nativeOTelHistogramsGate.ID())
+		}
+		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
+			return nil, fmt.Errorf("feature gate %s needs the v3 sketches intake for every metrics destination, but these use v2: %s; "+
+				"list them in serializer_experimental_use_v3_api.sketches.endpoints and do not use zlib compression",
+				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
+		}
+		newTranslator = minimalTranslatorFromConfig
+	}
+	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
@@ -279,7 +296,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		usageMetric = f.store.DDOTMetrics
 	}
 
-	newExp, err := NewExporter(s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath)
+	newExp, err := NewExporter(s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath, f.standalone)
 	if err != nil {
 		return nil, err
 	}

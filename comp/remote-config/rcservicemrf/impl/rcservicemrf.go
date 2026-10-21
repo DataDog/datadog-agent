@@ -150,7 +150,7 @@ func getHostTags(config cfgcomp.Component) func() []string {
 		// by the first agent metadata V5 payload.
 		ctx, cc := context.WithTimeout(context.Background(), time.Second)
 		defer cc()
-		hostTags := hosttags.Get(ctx, true, config)
+		hostTags := hosttags.Get(ctx, true, config, true)
 		return append(hostTags.System, hostTags.GoogleCloudPlatform...)
 	}
 }

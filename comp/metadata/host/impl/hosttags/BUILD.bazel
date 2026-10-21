@@ -42,6 +42,7 @@ dd_agent_go_test(
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/inventory/systeminfo",
         "@com_github_stretchr_testify//assert",
     ],
 )

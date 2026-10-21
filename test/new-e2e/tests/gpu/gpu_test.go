@@ -75,31 +75,28 @@ var (
 	pytorch19DockerImage = fmt.Sprintf("%s/pytorch/pytorch:1.9.0-cuda%s-cudnn7-runtime", dockerRegistry, oldCudaVersion)
 )
 
-// gpuSystems is a map of AMIs for different Ubuntu versions
+// gpuSystems selects AWS catalog images and runtime settings for each GPU system.
 var gpuSystems = map[systemName]systemData{
 	gpuSystemUbuntu2204: {
-		ami:                          "ami-03ee78da2beb5b622",
+		amiDescriptor:                os.NewDescriptor(os.Ubuntu, "22-04-gpu"),
 		os:                           os.Ubuntu2204,
 		cudaSanityCheckImage:         cuda12DockerImage,
-		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
-		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs
+		hasAllNVMLCriticalAPIs:       true, // 22.04 has all the critical APIs
 		supportsSystemProbeComponent: true,
 		cudaVersion:                  defaultCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver430: {
-		ami:                          "ami-0cd4aa4912d788419",
+		amiDescriptor:                os.NewDescriptor(os.Ubuntu, "18-04-gpu-driver-430"),
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
 		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
-		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
 		supportsSystemProbeComponent: false,
 		cudaVersion:                  oldCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver510: {
-		ami:                          "ami-0cbf114f88ec230fe",
+		amiDescriptor:                os.NewDescriptor(os.Ubuntu, "18-04-gpu-driver-510"),
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
 		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
-		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs
 		supportsSystemProbeComponent: false,
 		cudaVersion:                  oldCudaVersion,
@@ -500,6 +497,119 @@ func (v *gpuBaseSuite[Env]) TestWorkloadmetaHasGPUs() {
 		// log the output for debugging in case of failure
 		v.T().Log(out)
 	}
+}
+
+// coatCollectorTagKeys are the tags the COAT gpu profile preserves for collector telemetry, plus
+// the emitter tag that COAT always adds.
+var coatCollectorTagKeys = []string{
+	"emitter", "status", "collector", "gpu_device", "gpu_architecture", "gpu_driver_version", "gpu_slicing_mode", "gpu_virtualization_mode",
+}
+
+// TestCOATMetricsReported checks that the COAT gpu profile selects the GPU check telemetry. The
+// payload is built on demand by the core agent, so system-probe metrics (driver events) are not
+// covered. Building it also advances the counter deltas, so only presence and tags are asserted.
+func (v *gpuBaseSuite[Env]) TestCOATMetricsReported() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	var output string
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		output = v.caps.Agent().Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-telemetry"}))
+		metrics, err := parseCOATMetrics(output)
+		if !assert.NoError(c, err) {
+			return
+		}
+
+		created := metrics["gpu.collectors__created"]
+		assert.NotEmpty(c, created, "gpu.collectors__created not reported")
+		statelessCreated := false
+		for _, m := range created {
+			assert.NotContains(c, []string{"unsupported", "disabled"}, m.Tags["status"], "excluded status reported: %v", m.Tags)
+			tagKeys := make([]string, 0, len(m.Tags))
+			for tagKey := range m.Tags {
+				tagKeys = append(tagKeys, tagKey)
+			}
+			assert.ElementsMatch(c, coatCollectorTagKeys, tagKeys, "unexpected tag set in gpu.collectors__created")
+			if m.Tags["collector"] == "stateless" && m.Tags["status"] == "success" {
+				statelessCreated = true
+			}
+		}
+		assert.True(c, statelessCreated, "no successful creation reported for the stateless collector: %v", created)
+
+		assert.NotEmpty(c, metrics["gpu.collectors__collection_runs"], "gpu.collectors__collection_runs not reported")
+
+		mappingPct := metrics["gpu.container_gpu_mapping_failure_pct"]
+		if assert.Len(c, mappingPct, 1, "gpu.container_gpu_mapping_failure_pct should be reported once, even when it is 0") {
+			assert.Zero(c, mappingPct[0].Value, "GPU containers in the test environment should all be matched to devices")
+		}
+	}, 5*time.Minute, 10*time.Second)
+
+	if v.T().Failed() {
+		v.T().Log(output)
+	}
+}
+
+type coatMetric struct {
+	Value float64           `json:"value"`
+	Tags  map[string]string `json:"tags"`
+}
+
+type coatMessage struct {
+	RequestType string          `json:"request_type"`
+	Payload     json.RawMessage `json:"payload"`
+}
+
+// parseCOATMetrics returns the metrics in an agent telemetry payload, grouped by name. A metric
+// with several tag sets is spread across several messages, one tag set per message.
+func parseCOATMetrics(output string) (map[string][]coatMetric, error) {
+	// The command output can contain log lines around the JSON payload
+	start := strings.Index(output, "{")
+	end := strings.LastIndex(output, "}")
+	if start < 0 || end < start {
+		return nil, fmt.Errorf("no JSON payload in output: %s", output)
+	}
+
+	var top coatMessage
+	if err := json.Unmarshal([]byte(output[start:end+1]), &top); err != nil {
+		return nil, fmt.Errorf("failed to parse agent telemetry payload: %w", err)
+	}
+
+	var messages []coatMessage
+	switch top.RequestType {
+	case "agent-metrics":
+		messages = []coatMessage{top}
+	case "message-batch":
+		if err := json.Unmarshal(top.Payload, &messages); err != nil {
+			return nil, fmt.Errorf("failed to parse agent telemetry batch: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unexpected agent telemetry request type %q in output: %s", top.RequestType, output)
+	}
+
+	metrics := make(map[string][]coatMetric)
+	for _, msg := range messages {
+		if msg.RequestType != "agent-metrics" {
+			continue
+		}
+		var payload struct {
+			Metrics map[string]json.RawMessage `json:"metrics"`
+		}
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			return nil, fmt.Errorf("failed to parse agent telemetry metrics: %w", err)
+		}
+		for name, raw := range payload.Metrics {
+			if name == "agent_metadata" {
+				continue
+			}
+			var m coatMetric
+			if err := json.Unmarshal(raw, &m); err != nil {
+				return nil, fmt.Errorf("failed to parse agent telemetry metric %s: %w", name, err)
+			}
+			metrics[name] = append(metrics[name], m)
+		}
+	}
+	return metrics, nil
 }
 
 // TestZZAgentDidNotRestart checks that the agent did not restart during the test suite

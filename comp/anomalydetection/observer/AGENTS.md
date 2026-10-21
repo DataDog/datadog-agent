@@ -1,7 +1,5 @@
 # comp/anomalydetection/observer — AI Agent Guide
 
-Subsystem overview, wiring, and config: see `../AGENTS.md`.
-
 ## What This Component Does
 
 The observer watches data flowing through the agent and runs anomaly detection
@@ -130,6 +128,26 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+### Bounded series admission
+
+Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,
+the incoming identity wins admission: storage evicts the least-recently-active
+existing series to the configured floor before allocating it, then synchronously
+clears evicted detector and auxiliary state before the next detection pass.
+During materialized log-count flushing, remove evicted bucketizer entries before
+visiting another series so scheduled zero buckets cannot resurrect them.
+
+### Metric types
+
+Input metric types flow through both live handles and synchronous replay into
+`SeriesMeta.MetricType`; storage retains one type per series, never per point.
+The first known type wins. An unknown type can become known later without
+changing the series identity or catalog generation. Type changes do not create new series.
+Log pattern frequencies and connection-error totals use `metrics.CountType`;
+numeric JSON fields use `metrics.GaugeType`. `metrics.CounterType` is the
+DogStatsD counter normalized to a rate, not the type for log event totals.
+Only `metrics.CountType` outputs enter fixed-width log count buckets.
+
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to a buffered channel. If the channel is full,
@@ -246,7 +264,7 @@ scoring, or deduplication.
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
-dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
+dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args="-test.run=^$ -test.bench=."
 ```
 
 **Testbench** (algorithm iteration + scenario replay):
@@ -255,9 +273,9 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 
-# The testbench reporter requires its own build tag, passed through extra args
-# because it is not part of the Agent's selectable build-tag set.
-dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
+# The testbench has no Bazel targets yet; use the legacy task and include
+# the testbench reporter build tag through extra args.
+dda inv test-legacy --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.

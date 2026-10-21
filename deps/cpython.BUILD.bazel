@@ -220,12 +220,7 @@ configure_make(
         ":redacted_compat.h",
         "@@//deps/cpython:fix_sysconfigdata.py",
         DEFAULT_PYTHON,
-    ] + select({
-        "@platforms//os:macos": [
-            "@llvm_toolchain_llvm//:ar",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=no",  # pip is installed as a separate target
@@ -284,14 +279,6 @@ configure_make(
             dep.upper() + "_LIBS": lib
             for dep, lib in python_dep_libs.items()
         },
-    }) | select({
-        "@platforms//os:macos": {
-            # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the same flags
-            # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
-            # See also: https://github.com/bazelbuild/bazel/issues/5127
-            "AR": "$(execpath @llvm_toolchain_llvm//:ar)",
-        },
-        "//conditions:default": {},
     }),
     includes = ["python{}".format(PYTHON_MAJOR_MINOR)],
     lib_source = ":all_srcs",

@@ -12,10 +12,10 @@ load(
 # a Windows runfiles path (see _test_tag_set_check_name). Only needed for sets
 # that build on Windows.
 _TAG_SET_SUFFIX_ALIASES = {
-    "cel+clusterchecks+kubeapiserver+kubelet+orchestrator": "dca",
-    "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator": "dca_docker",
-    "cel+clusterchecks+containerd+docker+kubeapiserver+kubelet+orchestrator": "dca_containerd_docker",
-    "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator+python": "dca_docker_python",
+    "cel+clusterchecks+kubeapiserver+kubelet": "dca",
+    "cel+clusterchecks+docker+kubeapiserver+kubelet": "dca_docker",
+    "cel+clusterchecks+containerd+docker+kubeapiserver+kubelet": "dca_containerd_docker",
+    "cel+clusterchecks+docker+kubeapiserver+kubelet+python": "dca_docker_python",
 }
 
 # Windows caps a process's current directory at MAX_PATH even where longer paths
@@ -81,13 +81,15 @@ def dd_agent_go_test(
 
     Args:
         name: Default target name and prefix for gotags-set variants.
-        gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
+        gotags_sets: Lists of Go build tags, such as [["docker", "kubelet"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
         target_compatible_with: Optional user-supplied target_compatible_with.
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     user_tags = tags or []
+    if "go_link:enormous" in user_tags:  # `GoLink` peaks at 6.1 GiB RSS when dragging most of the pulumi-kubernetes SDK
+        kwargs["exec_properties"] = kwargs.get("exec_properties", {}) | {"go_link.resources:memory": "6144"}
     user_tcw = [] if target_compatible_with == None else target_compatible_with
 
     #TODO(regis): make our Gazelle extension manage the following attributes (didn't want to bloat #56569)
@@ -97,7 +99,6 @@ def dd_agent_go_test(
     visibility = None
     if native.package_name().startswith("test/new-e2e/tests/"):
         kwargs["importpath"] = importpath  # for CI Visibility's module-identity parity
-        visibility = ["//test/new-e2e/tests:__subpackages__"]  # needed by //test/new-e2e/tests:test_binaries
 
     if include_default:
         _test_tag_set_check_name(name)

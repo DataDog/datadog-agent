@@ -26,6 +26,7 @@ go_library(
         "@io_k8s_apimachinery//pkg/version",
         "@io_k8s_client_go//discovery",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@org_golang_x_mod//semver",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/system",
@@ -52,7 +53,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [

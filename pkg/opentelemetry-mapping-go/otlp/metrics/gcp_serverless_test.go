@@ -108,6 +108,28 @@ func TestGCPServerlessTranslation(t *testing.T) {
 			wantSuffix: "cloudrunfunctions",
 		},
 		{
+			name: "Cloud Run service resource name fallback",
+			attributes: map[string]any{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_run",
+				"cloud.resource_id": "//run.googleapis.com/projects/project-1/locations/us-central1/services/my-service",
+				"faas.instance":     "instance-1",
+				"faas.version":      "revision-1",
+			},
+			wantSuffix: "cloudrun",
+		},
+		{
+			name: "Cloud Functions resource name fallback",
+			attributes: map[string]any{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_functions",
+				"cloud.resource_id": "//cloudfunctions.googleapis.com/projects/project-1/locations/us-central1/functions/my-service",
+				"faas.instance":     "instance-1",
+				"faas.version":      "revision-1",
+			},
+			wantSuffix: "cloudrunfunctions",
+		},
+		{
 			name: "incomplete identity",
 			attributes: func() map[string]any {
 				attrs := completeGCPServerlessAttributes("gcp_cloud_run")
@@ -163,6 +185,172 @@ func TestGCPServerlessTranslation(t *testing.T) {
 						"location:us-central1",
 					}, consumer.tagSetCalls[0].tags)
 					assert.Contains(t, consumer.metrics[0].tags, "revision_name:revision-1")
+				})
+			}
+		})
+	}
+}
+
+func TestCompleteServerlessSourcesWithoutRunningMetricsDoNotFallbackToHost(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes map[string]any
+	}{
+		{
+			name: "AWS Lambda",
+			attributes: map[string]any{
+				"cloud.provider": "aws",
+				"cloud.platform": "aws_lambda",
+				"faas.id":        "arn:aws:lambda:us-east-1:123456789012:function:orders",
+			},
+		},
+		{
+			name: "Cloud Run Jobs",
+			attributes: map[string]any{
+				"cloud.provider":              "gcp",
+				"cloud.platform":              "gcp_cloud_run",
+				"cloud.resource_id":           "//run.googleapis.com/projects/project-1/locations/us-central1/jobs/daily-job",
+				"faas.instance":               "instance-1",
+				"gcp.cloud_run.job.execution": "daily-job-abc",
+			},
+		},
+		{
+			name: "GKE Autopilot",
+			attributes: map[string]any{
+				"cloud.provider":   "gcp",
+				"cloud.platform":   "gcp_kubernetes_engine",
+				"cloud.account.id": "project-1",
+				"k8s.cluster.name": "autopilot-cluster",
+				"host.name":        "gk3-autopilot-cluster-pool-abc",
+			},
+		},
+	}
+
+	for _, minimal := range []bool{false, true} {
+		translatorName := "default"
+		if minimal {
+			translatorName = "minimal"
+		}
+		t.Run(translatorName, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					consumer := &mockGCPServerlessConsumer{}
+					_, err := newGCPServerlessTranslator(t, minimal).MapMetrics(
+						context.Background(), gcpServerlessMetrics(t, tt.attributes, false), consumer, nil,
+					)
+					require.NoError(t, err)
+
+					require.Len(t, consumer.metrics, 1)
+					assert.Empty(t, consumer.metrics[0].host)
+					assert.Empty(t, consumer.hostCalls)
+					assert.Empty(t, consumer.tagSetCalls)
+				})
+			}
+		})
+	}
+}
+
+func TestServerlessSourceIdentityDistinguishesMetricSeries(t *testing.T) {
+	tests := []struct {
+		name       string
+		resources  []map[string]any
+		wantTags   [][]string
+		uniqueTags []string
+	}{
+		{
+			name: "AWS Lambda",
+			resources: []map[string]any{
+				{
+					"cloud.provider": "aws",
+					"cloud.platform": "aws_lambda",
+					"faas.id":        "arn:aws:lambda:us-east-1:123456789012:function:orders",
+				},
+				{
+					"cloud.provider": "aws",
+					"cloud.platform": "aws_lambda",
+					"faas.id":        "arn:aws:lambda:us-east-1:123456789012:function:payments",
+				},
+			},
+			wantTags: [][]string{
+				{
+					"function_arn:arn:aws:lambda:us-east-1:123456789012:function:orders",
+					"function_name:orders",
+					"region:us-east-1",
+					"aws_account:123456789012",
+				},
+				{
+					"function_arn:arn:aws:lambda:us-east-1:123456789012:function:payments",
+					"function_name:payments",
+					"region:us-east-1",
+					"aws_account:123456789012",
+				},
+			},
+			uniqueTags: []string{"function_name:orders", "function_name:payments"},
+		},
+		{
+			name: "Cloud Run Jobs",
+			resources: []map[string]any{
+				{
+					"cloud.provider":              "gcp",
+					"cloud.platform":              "gcp_cloud_run",
+					"cloud.resource_id":           "//run.googleapis.com/projects/project-1/locations/us-central1/jobs/daily-job",
+					"faas.instance":               "instance-1",
+					"gcp.cloud_run.job.execution": "daily-job-abc",
+				},
+				{
+					"cloud.provider":              "gcp",
+					"cloud.platform":              "gcp_cloud_run",
+					"cloud.resource_id":           "//run.googleapis.com/projects/project-1/locations/us-central1/jobs/hourly-job",
+					"faas.instance":               "instance-2",
+					"gcp.cloud_run.job.execution": "hourly-job-def",
+				},
+			},
+			wantTags: [][]string{
+				{
+					"project_id:project-1",
+					"location:us-central1",
+					"job_name:daily-job",
+					"instance:instance-1",
+				},
+				{
+					"project_id:project-1",
+					"location:us-central1",
+					"job_name:hourly-job",
+					"instance:instance-2",
+				},
+			},
+			uniqueTags: []string{"job_name:daily-job", "job_name:hourly-job"},
+		},
+	}
+
+	for _, minimal := range []bool{false, true} {
+		translatorName := "default"
+		if minimal {
+			translatorName = "minimal"
+		}
+		t.Run(translatorName, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					consumer := &mockGCPServerlessConsumer{}
+					translator := newGCPServerlessTranslator(t, minimal)
+					for _, resourceAttrs := range tt.resources {
+						_, err := translator.MapMetrics(
+							context.Background(), gcpServerlessMetrics(t, resourceAttrs, false), consumer, nil,
+						)
+						require.NoError(t, err)
+					}
+
+					require.Len(t, consumer.metrics, len(tt.resources))
+					assert.Empty(t, consumer.hostCalls)
+					assert.Empty(t, consumer.tagSetCalls)
+					for i, wantTags := range tt.wantTags {
+						assert.Empty(t, consumer.metrics[i].host)
+						for _, wantTag := range wantTags {
+							assert.Contains(t, consumer.metrics[i].tags, wantTag)
+						}
+						assert.Contains(t, consumer.metrics[i].tags, tt.uniqueTags[i])
+						assert.NotContains(t, consumer.metrics[1-i].tags, tt.uniqueTags[i])
+					}
 				})
 			}
 		})

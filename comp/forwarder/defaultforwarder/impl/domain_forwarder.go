@@ -40,7 +40,7 @@ type domainForwarder struct {
 	domain                  string
 	isMRF                   bool
 	isLocal                 bool
-	numberOfWorkers         int
+	concurrency             concurrencyDomain
 	highPrio                chan transaction.Transaction // use to receive new transactions
 	lowPrio                 chan transaction.Transaction // use to retry transactions
 	requeuedTransaction     chan transaction.Transaction
@@ -64,7 +64,7 @@ func newDomainForwarder(
 	mrf bool,
 	isLocal bool,
 	retryQueue *retry.TransactionRetryQueue,
-	numberOfWorkers int,
+	concurrency concurrencyDomain,
 	connectionResetInterval time.Duration,
 	pointCountTelemetry *retry.PointCountTelemetry,
 	transport http.RoundTripper) *domainForwarder {
@@ -76,13 +76,13 @@ func newDomainForwarder(
 		isMRF:                   mrf,
 		isLocal:                 isLocal,
 		domain:                  domain,
-		numberOfWorkers:         numberOfWorkers,
+		concurrency:             concurrency,
 		retryQueue:              retryQueue,
 		connectionResetInterval: connectionResetInterval,
 		internalState:           Stopped,
 		blockedList:             newBlockedEndpoints(config, log),
 		pointCountTelemetry:     pointCountTelemetry,
-		Client:                  NewSharedConnection(log, isLocal, numberOfWorkers, config, transport),
+		Client:                  NewSharedConnection(log, isLocal, concurrency, config, transport),
 	}
 }
 
@@ -223,8 +223,9 @@ func (f *domainForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
-	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
+	f.concurrency.start()
+	for i := 0; i < f.concurrency.numWorkers(); i++ {
+		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, f.concurrency)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -244,7 +245,7 @@ func (f *domainForwarder) resetConnections() {
 	f.Client.ResetClient()
 }
 
-func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
+func newBearerAuthHTTPClient(maxConns int) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -255,7 +256,7 @@ func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
 			ForceAttemptHTTP2:     false,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 			TLSHandshakeTimeout:   5 * time.Second,
-			MaxConnsPerHost:       numberOfWorkers,
+			MaxConnsPerHost:       maxConns,
 			MaxIdleConnsPerHost:   1,
 			IdleConnTimeout:       60 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
@@ -312,6 +313,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}
+	f.concurrency.stop()
 	f.workers = []*Worker{}
 	close(f.highPrio)
 	close(f.lowPrio)

@@ -29,7 +29,8 @@ build do
             :live_stream => Omnibus.logger.live_stream(:info)
 
         if linux_target?
-            command "bazel run #{omnibazel_flags} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}",
+            license_files_install_target = heroku_target? ? "//packages/heroku:license_files_install" : "//packages/agent/linux:license_files_install"
+            command "bazel run #{omnibazel_flags} -- #{license_files_install_target} --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         elsif osx_target?
             command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
@@ -57,6 +58,25 @@ build do
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
+        end
+
+        # Size cleanups for the Windows embedded Python (embedded3), mirroring
+        # the ones done above for the Linux/macOS embedded Python.
+        if windows_target?
+            emb3 = File.join(install_dir, "embedded3")
+
+            # pip is already installed in site-packages (~1.8 MiB)
+            delete File.join(emb3, "Lib", "ensurepip")
+
+            # Unit tests bundled with the embedded packages
+            Dir.glob(File.join(emb3, "Lib", "site-packages", "**", "{test,tests}")).each do |dir|
+                delete dir if File.directory?(dir)
+            end
+
+            # HTML documentation bundled with the embedded packages (~2.6 MiB)
+            Dir.glob(File.join(emb3, "**", "*.chm")).each do |chm|
+                delete chm
+            end
         end
 
         # TODO: Rather than move these, let's install them to the right place to start

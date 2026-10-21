@@ -312,6 +312,7 @@ properties:
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
       This setting is ignored on Linux and does not enable or disable the systemd unit.
+      On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
     tags:
     - template_section:Common
     properties:
@@ -323,9 +324,11 @@ properties:
         description: |-
           When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
           On Linux, the process manager daemon is started by systemd; this option is ignored.
+          On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
           On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+          On macOS, dd-procmgrd always runs (com.datadoghq.procmgr). This setting is not yet supported there.
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -863,6 +866,14 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: value in milliseconds
+  gce_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      GCE or not.
   collect_gpu_tags:
     node_type: setting
     type: boolean
@@ -911,6 +922,14 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
+  azure_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      Azure or not.
   scrubber:
     node_type: section
     type: object
@@ -1703,7 +1722,7 @@ properties:
     description: Network Path configuration
     tags:
     - full-agent-only:true
-    - platform_only:windows,linux
+    - platform_only:windows,linux,darwin
     - template_section:CoreAgent
     properties:
       connections_monitoring:
@@ -1726,11 +1745,30 @@ properties:
           basic_tests_enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             description: Enables basic Network Path Dynamic Tests for a representative subset of
               eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
-              system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
-              when both options are enabled.
+              system-probe traceroute. Set to false to opt out. Standard connection-monitoring
+              Dynamic Tests take precedence when both options are enabled.
+          eudm_basic_tests_enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            visibility: public
+            description: Enables basic Network Path Dynamic Tests for end-user devices. In
+              end_user_device infrastructure mode, the Agent tests up to 20 eligible paths
+              after the first five minutes and in each subsequent hour. Set to false to
+              disable these tests. This setting has no effect in other infrastructure modes.
+          eudm_basic_candidate_limit:
+            node_type: setting
+            type: integer
+            default: 80
+            minimum: 20
+            maximum: 512
+            visibility: public
+            description: Maximum number of eligible paths considered when selecting the 20
+              basic Network Path Dynamic Tests on an end-user device. Must be between 20
+              and 512. This setting has no effect in other infrastructure modes.
       collector:
         node_type: section
         type: object
@@ -1825,6 +1863,13 @@ properties:
 
                 # Include specific domain
                 # - match_domain: 'api.datadoghq.com'
+                #   type: include
+
+                # To select dynamic paths only from chosen domains, exclude all domains first,
+                # then add includes. The last matching filter wins.
+                # - match_domain: '*'
+                #   type: exclude
+                # - match_domain: 'api.example.com'
                 #   type: include
           traceroute_queries:
             node_type: setting
@@ -3059,6 +3104,13 @@ properties:
       WARNING: Only files containing checks configuration are supported (logs configuration are not supported).
     tags:
     - template_section:CoreAgent
+  autoconf_config_files_num_workers:
+    node_type: setting
+    type: integer
+    default: 1
+    description: |-
+      Number of goroutines used to read and parse integration configuration files
+      concurrently when scanning a configuration directory. This value must be >= 1.
   config_providers:
     node_type: setting
     type: array
@@ -4958,6 +5010,13 @@ properties:
       items:
         type: string
       type: array
+  agent_checks_metadata_message_truncation_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      Truncates check error and warning messages in the agent_checks metadata payload to 4096 bytes.
+      Safeguard to disable the truncation in case it causes a regression; to be removed in a future version.
   agent_ipc:
     node_type: section
     type: object
@@ -5410,6 +5469,14 @@ properties:
         node_type: section
         type: object
         properties:
+          allowed_types:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: Allowed metric types for anomaly detection. When empty, all metric
+              types are allowed.
           enabled:
             node_type: setting
             type: boolean
@@ -5434,12 +5501,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Parquet recording of raw ingested signals for offline analysis
-              and replay.
+            comment: Recording of raw ingested signals for offline analysis
+              when a writer backend is registered.
+          only:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: With an active recorder, record observations without
+              feeding them into anomaly detection analysis.
           flush_interval:
             node_type: setting
-            type: integer
-            default: 60
+            type: string
+            default: 60s
           output_dir:
             node_type: setting
             type: string
@@ -5633,6 +5706,63 @@ properties:
                 node_type: setting
                 type: string
                 default: 1m
+      endpoint:
+        node_type: section
+        type: object
+        properties:
+          api_key:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. API key for the organization serving the autoscaling
+              configuration endpoint. Only read when autoscaling.endpoint.url is set.
+          config_root:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Trusted root metadata for the config repository of the
+              autoscaling configuration endpoint, overriding the root embedded for
+              its site. Needed when the target backend signs with its own keys.
+              Equivalent to remote_configuration.config_root for the default
+              endpoint.
+          director_root:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Trusted root metadata for the director repository of the
+              autoscaling configuration endpoint, overriding the root embedded for
+              its site. Equivalent to remote_configuration.director_root for the
+              default endpoint.
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Remote configuration key for the autoscaling configuration
+              endpoint, for backends using the legacy per-organization key instead
+              of an API key alone. Equivalent to remote_configuration.key for the
+              default endpoint.
+          site:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Datadog site of the autoscaling configuration endpoint,
+              which selects the trusted roots to use. Empty means derive it from
+              autoscaling.endpoint.url, which is correct for every endpoint we
+              target; set it only to pin a different site's roots.
+          url:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Datadog endpoint the autoscaling product reads its
+              configuration from, instead of the Cluster Agent default remote
+              configuration endpoint. Empty means use the default. Reserved for
+              Datadog staging clusters; not supported for customer use.
       failover:
         node_type: section
         type: object
@@ -6413,8 +6543,15 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Data Security: single enablement flag gating both the autodiscovery provider
-          and the sds-result event platform pipeline.
+          Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
+          and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
+          to also be true.
+      enforce_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: when true, scans are enforced to use SSL, with no fallback to plaintext.
   data_streams:
     node_type: section
     type: object
@@ -6894,6 +7031,11 @@ properties:
         node_type: setting
         type: integer
         default: 60
+      startup_timeout_secs:
+        node_type: setting
+        type: integer
+        default: 60
+        comment: Bounds provider detection and the initial credential exchange during config loading. Set to 0 to disable the deadline.
   disable_unsafe_yaml:
     node_type: setting
     type: boolean
@@ -7430,7 +7572,9 @@ properties:
     format: duration
     tags:
     - golang_type:duration
-    comment: Duration during which the host tags will be submitted with metrics.
+    comment: |-
+      Duration during which host tags are submitted with metrics.
+      The ``infra_mode`` host tag is never copied onto metrics this way.
   external_metrics:
     node_type: section
     type: object
@@ -7960,18 +8104,6 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
-      cloud_cost_only:
-        node_type: section
-        type: object
-        properties:
-          tagged:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
-              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean
@@ -8085,21 +8217,15 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
   inventories_first_run_delay:
     node_type: setting
     type: integer
     default: 60
-    tags:
-    - full-agent-only:true
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: |-
       when updating the default here also update pkg/metadata/inventories/README.md
       0 == default interval from inventories
@@ -8107,8 +8233,6 @@ properties:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
@@ -8484,6 +8608,27 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  metric_filterlist_prefix:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json
+    items:
+      type: object
+    comment: |-
+      Drops every metric name starting with one of the given prefixes, in addition to
+      metric_filterlist. Every entry is always a prefix -- no trailing `*` is needed or
+      recognized here, unlike the per-entry `*` metric_filterlist once supported. An empty
+      prefix ("") matches every metric name.
+
+      Each entry is an object with a `prefix` field and two optional exception fields,
+      `except_exact` (a list of exact metric names to keep) and `except_prefix` (a list of
+      prefixes to keep). Exceptions apply across all entries in this list: a metric excepted
+      by one entry is kept even if another prefix entry also matches it. Exact or prefix
+      matches from metric_filterlist still drop the metric.
+
+      A prefix does not need to end on a segment boundary: `sys` matches both `system.cpu` and
+      `sys.cpu`.
   metric_tag_filterlist:
     node_type: setting
     type: array
@@ -9038,6 +9183,18 @@ properties:
             - datadoghq.com
             items:
               type: string
+          max_compressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_uncompressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_points_per_payload:
+            node_type: setting
+            type: integer
+            default: 0
   serializer_max_payload_size:
     node_type: setting
     type: integer
@@ -9076,6 +9233,24 @@ properties:
         default: false
         tags:
         - no-env
+      inventory_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SERVERLESS_INIT_INVENTORY_ENABLED
+      inventory_wrapped_command_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |
+          Include the wrapped workload command in serverless-init inventory when inventory is enabled.
+          The command is omitted by default. Collection may transmit secrets in command-line arguments.
+          Redaction is best effort and incomplete: it does not cover all argument names, formats,
+          positional values, or embedded scripts. Enable only after verifying that your workload
+          command contains no sensitive information.
+        env_vars:
+        - DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED
       logs_enabled:
         node_type: setting
         type: boolean

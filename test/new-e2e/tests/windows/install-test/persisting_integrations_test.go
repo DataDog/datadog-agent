@@ -58,7 +58,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -81,7 +81,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -91,7 +91,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version
@@ -140,7 +140,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -165,7 +165,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -175,7 +175,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version
@@ -220,7 +220,7 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// TODO: we shouldn't have to start the agent manually after rollback
@@ -269,7 +269,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// create folder in protected location with the ddagentuser as the owner
@@ -312,7 +312,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 		)
 		s.Require().NoError(err, "should install agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// the previous version should be functional
@@ -364,7 +364,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// install third party integration
@@ -393,7 +393,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// verify that test==1.0.0 is still in .post_python_installed_packages.txt
@@ -431,7 +431,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
@@ -468,7 +468,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -496,7 +496,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -506,7 +506,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version

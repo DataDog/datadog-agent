@@ -119,6 +119,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/msi",
             "//pkg/fleet/installer/packages/service/windows",
         ],
         "//conditions:default": [],

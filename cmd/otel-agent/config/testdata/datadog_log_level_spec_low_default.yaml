@@ -1,0 +1,3 @@
+api_key: deadbeef
+
+log_level: "error,./pkg/...=debug"

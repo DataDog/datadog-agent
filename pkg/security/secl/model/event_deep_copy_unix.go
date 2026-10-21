@@ -912,6 +912,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 	copied.Detached = fieldToCopy.Detached
 	copied.Device = fieldToCopy.Device
 	copied.FSType = fieldToCopy.FSType
+	copied.MountFlags = fieldToCopy.MountFlags
 	copied.MountID = fieldToCopy.MountID
 	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	copied.MountPointStr = fieldToCopy.MountPointStr
@@ -1198,6 +1199,8 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent) SysCtlEvent {
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent) SyscallsEvent {
 	copied := SyscallsEvent{}
 	copied.EventReason = fieldToCopy.EventReason
+	copied.SampleCookie = fieldToCopy.SampleCookie
+	copied.SyscallID = fieldToCopy.SyscallID
 	return copied
 }
 func deepCopyTracerMemfdSealEvent(fieldToCopy TracerMemfdSealEvent) TracerMemfdSealEvent {
