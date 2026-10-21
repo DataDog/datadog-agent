@@ -15,13 +15,19 @@ package_aix-ppc64:
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   script:
+    # Compute the canonical version on the runner, from the pipeline's
+    # agent-version cache, and pass it to the remote build: the BFF filename
+    # then embeds the same version string (including the .pipeline.<id> suffix
+    # for nightly/dev builds) as the one used by the release promotions in
+    # agent-release-management, like for the deb/rpm/dmg packages.
+    - export AGENT_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $CI_PIPELINE_ID)"
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
     - |
       aix_run_cmd <<EOF
       set -eux
       cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
       cd $AIX_AGENT_SRC
-      env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      env AGENT_BUILD=1 AGENT_VERSION="$AGENT_VERSION" sh $AIX_AGENT_SRC/packaging/aix/build.sh
       EOF
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'
