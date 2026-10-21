@@ -152,13 +152,11 @@ func (inj *Injector) GetCounters(counters *InjectorCounters) error {
 	// expect for the negotiated version. This keeps a single read/validate path
 	// regardless of version.
 	raw := DDInjectorCountersV3{}
-	var expectedSize uint32
+	expectedSize := uint32(DDInjectorCountersV1Size)
 	switch negotiated {
-	case CountersVersion1:
-		expectedSize = uint32(DDInjectorCountersV1Size)
 	case CountersVersion2:
 		expectedSize = uint32(DDInjectorCountersV2Size)
-	default:
+	case CountersVersion3:
 		expectedSize = uint32(DDInjectorCountersV3Size)
 	}
 

@@ -93,14 +93,14 @@ func (m *injectorModule) Close() {
 
 // GetStats prints the injector stats as part of /debug/stats.
 func (m *injectorModule) GetStats() map[string]interface{} {
+	// Collect rebinds the counters when the driver version changes.
+	m.collectMutex.Lock()
+	defer m.collectMutex.Unlock()
+
 	// Sanity check in case the metrics have not been initialized.
 	if m.counters.ProcessesAddedToInjectionTracker == nil {
 		return map[string]interface{}{}
 	}
-
-	// Collect rebinds the counters when the driver version changes.
-	m.collectMutex.Lock()
-	defer m.collectMutex.Unlock()
 
 	// If last_check_timestamp is 0, the Collect callback has not yet been trigered.
 	return map[string]interface{}{
@@ -312,12 +312,13 @@ func (m *injectorModule) Collect(_ chan<- prometheus.Metric) {
 	}
 	defer injector.Close()
 
-	version, err := ddinjector.DriverVersion()
-	if err != nil {
+	// On error, keep the last known version rather than churning every series through
+	// unknownDriverVersion and back.
+	if version, err := ddinjector.DriverVersion(); err != nil {
 		log.Debugf("error getting Injector driver version: %v", err)
-		version = unknownDriverVersion
+	} else {
+		m.setDriverVersion(version)
 	}
-	m.setDriverVersion(version)
 
 	err = injector.GetCounters(&m.counters)
 	if err != nil {
