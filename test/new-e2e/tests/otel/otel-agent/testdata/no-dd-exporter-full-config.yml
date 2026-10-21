@@ -136,6 +136,19 @@ extensions:
     transport: tcp
     write_timeout: 30s
 processors:
+  cumulativetodelta/dd-autoconfigured:
+    exclude:
+      match_type: ""
+      metric_types: []
+      metrics: []
+      regexp: null
+    include:
+      match_type: ""
+      metric_types: []
+      metrics: []
+      regexp: null
+    initial_value: 0
+    max_staleness: 1h0m0s
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: ignore
     log_conditions: []
@@ -280,6 +293,7 @@ service:
       - datadog
       processors:
       - filter/drop-prometheus-internal-metrics/dd-autoconfigured
+      - cumulativetodelta/dd-autoconfigured
       receivers:
       - prometheus/dd-autoconfigured
     traces:
