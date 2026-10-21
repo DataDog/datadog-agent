@@ -33,11 +33,9 @@ type endpointDescription struct {
 	configPrefix      string
 	altURLOverrideKey string
 	handlesFailover   bool
-	// notFoundOK treats HTTP 404 from a Datadog host as success. The trace
-	// intake no longer serves GET /_health but still rejects an invalid API key
-	// with 403, so a 404 there means the host was reached with a valid key. A
-	// 404 from a custom URL proves neither.
-	notFoundOK bool
+	// The trace intake no longer serves GET /_health but rejects invalid API keys
+	// with 403 first, so only a 404 from a Datadog host proves a valid key.
+	acceptNotFound bool
 }
 
 func getEndpointsDescriptions() []endpointDescription {
@@ -47,19 +45,19 @@ func getEndpointsDescriptions() []endpointDescription {
 		{name: "Agent package yum", route: "https://yum.datadoghq.com", method: http.MethodHead},
 		{name: "Agent package apt", route: "https://apt.datadoghq.com", method: http.MethodHead},
 		{name: "Agent keys", route: "https://keys.datadoghq.com", method: http.MethodHead},
-		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url", notFoundOK: true},
+		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url", acceptNotFound: true},
 		{name: "LLM obs", prefix: "llmobs-intake", routePath: "api/v2/llmobs", method: http.MethodPost},
 		{name: "Remote configuration", prefix: "config", configPrefix: "remote_configuration", altURLOverrideKey: "remote_configuration.rc_dd_url", handlesFailover: true, routePath: "_health", method: http.MethodGet},
 	}
 }
 
 type resolvedEndpoint struct {
-	name       string
-	url        string
-	method     string
-	apiKey     string
-	isFailover bool
-	notFoundOK bool
+	name           string
+	url            string
+	method         string
+	apiKey         string
+	isFailover     bool
+	acceptNotFound bool
 }
 
 func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain) []resolvedEndpoint {
@@ -78,11 +76,11 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 
 		return []resolvedEndpoint{
 			{
-				name:       e.name,
-				url:        route,
-				method:     e.method,
-				apiKey:     getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
-				notFoundOK: e.notFoundOK && utils.IsDatadogURL(route),
+				name:           e.name,
+				url:            route,
+				method:         e.method,
+				apiKey:         getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
+				acceptNotFound: e.acceptNotFound && utils.IsDatadogURL(route),
 			},
 		}
 	}
@@ -95,12 +93,12 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 
 		url := e.buildRoute(cfg, domain)
 		routes = append(routes, resolvedEndpoint{
-			name:       e.name,
-			url:        url,
-			method:     e.method,
-			apiKey:     getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
-			isFailover: domain.isFailover,
-			notFoundOK: e.notFoundOK && utils.IsDatadogURL(url),
+			name:           e.name,
+			url:            url,
+			method:         e.method,
+			apiKey:         getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
+			isFailover:     domain.isFailover,
+			acceptNotFound: e.acceptNotFound && utils.IsDatadogURL(url),
 		})
 	}
 	return routes
@@ -341,7 +339,7 @@ func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (st
 	if err != nil {
 		return "Failed to connect", fmt.Errorf("%s\n%w", strings.Join(httpTraces, "\n"), err)
 	}
-	if e.notFoundOK && statusCode == http.StatusNotFound {
+	if e.acceptNotFound && statusCode == http.StatusNotFound {
 		return "Success", nil
 	}
 	return validateStatusCode(statusCode)
