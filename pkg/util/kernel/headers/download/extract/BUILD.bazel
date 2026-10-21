@@ -1,8 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "extract",
     srcs = [
+        "compression.go",
+        "root.go",
         "rpm-package.go",
         "tarball.go",
     ],
@@ -20,6 +23,34 @@ go_library(
             "//pkg/zstd",
             "@com_github_sassoftware_go_rpmutils//:go-rpmutils",
             "@com_github_xi2_xz//:xz",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "extract_test",
+    srcs = ["tarball_test.go"],
+    embed = [":extract"],
+    embedsrcs = select({
+        "@rules_go//go/platform:android": [
+            "testdata/header.tar.bz2",
+            "testdata/header.tar.xz",
+        ],
+        "@rules_go//go/platform:linux": [
+            "testdata/header.tar.bz2",
+            "testdata/header.tar.xz",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/zstd",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/zstd",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
