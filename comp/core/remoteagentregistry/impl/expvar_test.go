@@ -1,5 +1,5 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License 2.0.
+// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
@@ -115,6 +115,13 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues()
 	assert.Equal(t, int64(17), values["agent-data-plane"]["dogstatsd_udp_packets"])
+}
+
+func TestDogstatsdExpvarMappingsResolve(t *testing.T) {
+	for _, mapping := range dogstatsdExpvarMappings {
+		ensureExpvarInt(t, mapping.expvarPath)
+		require.Truef(t, wrapExpvar(mapping), "mapping %q did not resolve", mapping.id)
+	}
 }
 
 func TestRegisterExpvarsCombinesLocalValueAndPublishesRemoteValues(t *testing.T) {
