@@ -6,10 +6,6 @@
 package metrics
 
 import (
-	"encoding/json"
-	"slices"
-	"strings"
-
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
@@ -39,31 +35,17 @@ func CompileEndpointMetricFilters(routing configutils.MetricsEndpointRouting) ma
 			if _, exists := filters[endpoint]; exists {
 				continue
 			}
-			prefixes := slices.Clone(routing.MetricPrefixAllowlist[endpoint])
-			slices.Sort(prefixes)
-			compacted := make([]string, 0, len(prefixes))
+			prefixes := routing.MetricPrefixAllowlist[endpoint]
+			rules := make([]metricname.PrefixRule, 0, len(prefixes))
 			for _, prefix := range prefixes {
-				if len(compacted) == 0 || !strings.HasPrefix(prefix, compacted[len(compacted)-1]) {
-					compacted = append(compacted, prefix)
-				}
+				rules = append(rules, metricname.PrefixRule{Prefix: prefix})
 			}
-			names := slices.Clone(routing.MetricAllowlist[endpoint])
-			slices.Sort(names)
-			names = slices.DeleteFunc(slices.Compact(names), func(name string) bool {
-				i, found := slices.BinarySearch(compacted, name)
-				return found || (i > 0 && strings.HasPrefix(name, compacted[i-1]))
-			})
-			// JSON avoids ambiguous group keys when entries contain separators.
-			key, _ := json.Marshal([2][]string{append([]string{}, names...), compacted})
-			filter, exists := groups[string(key)]
+			matcher, _ := metricname.NewMatcherWithPrefixRules(routing.MetricAllowlist[endpoint], false, rules)
+			key := matcher.Key()
+			filter, exists := groups[key]
 			if !exists {
-				rules := make([]metricname.PrefixRule, 0, len(compacted))
-				for _, prefix := range compacted {
-					rules = append(rules, metricname.PrefixRule{Prefix: prefix})
-				}
-				matcher, _ := metricname.NewMatcherWithPrefixRules(names, false, rules)
 				filter = &EndpointMetricFilter{matcher: matcher}
-				groups[string(key)] = filter
+				groups[key] = filter
 			}
 			filters[endpoint] = filter
 		}
