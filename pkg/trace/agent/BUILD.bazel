@@ -42,6 +42,7 @@ go_library(
         "//pkg/trace/transform",
         "//pkg/trace/version",
         "//pkg/trace/writer",
+        "//pkg/util/kubernetes/clustername",
         "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

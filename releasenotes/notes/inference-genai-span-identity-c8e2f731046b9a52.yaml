@@ -1,7 +1,9 @@
 enhancements:
   - |
     GenAI spans from inference containers now receive the emitting pod's
-    ``inference_workload``, ``inference_workload_component``, ``pod_name``, and
-    ``kube_namespace`` tags. OTLP ingestion also preserves AI trace identity
+    ``inference_workload``, ``inference_workload_component``, ``pod_name``,
+    ``kube_namespace``, and ``kube_cluster_name`` tags. The cluster name falls
+    back to the Agent's detected Kubernetes cluster when container metadata
+    does not provide it. OTLP ingestion also preserves AI trace identity
     and sampling decisions propagated by Datadog SDKs across OpenTelemetry
     service boundaries.

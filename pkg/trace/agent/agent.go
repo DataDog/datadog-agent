@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -168,7 +169,8 @@ type Agent struct {
 	InV1 chan *api.PayloadV1
 
 	// config
-	conf *config.AgentConfig
+	conf            *config.AgentConfig
+	kubeClusterName string
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
@@ -245,6 +247,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		In:                    in,
 		InV1:                  inV1,
 		conf:                  conf,
+		kubeClusterName:       clustername.GetClusterNameTagValue(ctx, conf.Hostname),
 		ctx:                   ctx,
 		stopped:               make(chan struct{}),
 		DebugServer:           api.NewDebugServer(conf),
@@ -431,7 +434,7 @@ func (a *Agent) loop() {
 // pod. Put these tags on each AI span, not just the APM payload: the AI span
 // mapper does not inherit the payload's infrastructure tags. In particular, do
 // not attribute a router's remote workers to the router's own spans.
-func inferenceTagsFromContainerTags(containerTags []string) map[string]string {
+func inferenceTagsFromContainerTags(containerTags []string, kubeClusterName string) map[string]string {
 	hasInferenceWorkload := false
 	for _, tag := range containerTags {
 		if value, ok := strings.CutPrefix(tag, "inference_workload:"); ok && value != "" {
@@ -442,16 +445,21 @@ func inferenceTagsFromContainerTags(containerTags []string) map[string]string {
 	if !hasInferenceWorkload {
 		return nil
 	}
-	tags := make(map[string]string, 4)
+	tags := make(map[string]string, 5)
 	for _, tag := range containerTags {
 		key, value, ok := strings.Cut(tag, ":")
 		if !ok || value == "" {
 			continue
 		}
 		switch key {
-		case "inference_workload", "inference_workload_component", "pod_name", "kube_namespace":
+		case "inference_workload", "inference_workload_component", "pod_name", "kube_namespace", "kube_cluster_name":
 			tags[key] = value
 		}
+	}
+	// Node Agents do not normally include their cluster name in container tags.
+	// Keep an explicit resource/container value when one is available.
+	if tags["kube_cluster_name"] == "" && kubeClusterName != "" {
+		tags["kube_cluster_name"] = kubeClusterName
 	}
 	return tags
 }
@@ -557,9 +565,9 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
-	inferenceTags := inferenceTagsFromContainerTags(p.ContainerTags)
+	inferenceTags := inferenceTagsFromContainerTags(p.ContainerTags, a.kubeClusterName)
 	if inferenceTags == nil && p.TracerPayload.Tags[tagContainersTags] != "" {
-		inferenceTags = inferenceTagsFromContainerTags(strings.Split(p.TracerPayload.Tags[tagContainersTags], ","))
+		inferenceTags = inferenceTagsFromContainerTags(strings.Split(p.TracerPayload.Tags[tagContainersTags], ","), a.kubeClusterName)
 	}
 
 	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
@@ -752,10 +760,10 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	}
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
-	inferenceTags := inferenceTagsFromContainerTags(p.ContainerTags)
+	inferenceTags := inferenceTagsFromContainerTags(p.ContainerTags, a.kubeClusterName)
 	if inferenceTags == nil {
 		if tags, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags); ok && tags != "" {
-			inferenceTags = inferenceTagsFromContainerTags(strings.Split(tags, ","))
+			inferenceTags = inferenceTagsFromContainerTags(strings.Split(tags, ","), a.kubeClusterName)
 		}
 	}
 

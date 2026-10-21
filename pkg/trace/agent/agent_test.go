@@ -5062,7 +5062,7 @@ func TestProcessInferenceSpanIdentity(t *testing.T) {
 				ordinary := proto.Clone(span).(*pb.Span)
 				ordinary.SpanID = 3
 				ordinary.Meta = nil
-				tags := []string{"inference_workload:model", "inference_workload_component:" + role, "pod_name:model-" + role + "-abc", "kube_namespace:models", "image_name:ignored"}
+				tags := []string{"inference_workload:model", "inference_workload_component:" + role, "pod_name:model-" + role + "-abc", "kube_namespace:models", "kube_cluster_name:workload-cluster", "image_name:ignored"}
 				payload := &api.Payload{
 					TracerPayload: testutil.TracerPayloadWithChunk(&pb.TraceChunk{Spans: pb.Trace{span, ordinary}}),
 					Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}), ContainerTags: tags,
@@ -5076,13 +5076,15 @@ func TestProcessInferenceSpanIdentity(t *testing.T) {
 				assert.Equal(t, role, span.Meta["inference_workload_component"])
 				assert.Equal(t, "model-"+role+"-abc", span.Meta["pod_name"])
 				assert.Equal(t, "models", span.Meta["kube_namespace"])
+				assert.Equal(t, "workload-cluster", span.Meta["kube_cluster_name"])
 				assert.NotContains(t, span.Meta, "image_name")
 				assert.NotContains(t, ordinary.Meta, "inference_workload")
+				assert.NotContains(t, ordinary.Meta, "kube_cluster_name")
 			})
 		}
 	}
 	t.Run("client pod is not an inference workload", func(t *testing.T) {
-		assert.Nil(t, inferenceTagsFromContainerTags([]string{"pod_name:cronjob-123", "kube_namespace:models"}))
+		assert.Nil(t, inferenceTagsFromContainerTags([]string{"pod_name:cronjob-123", "kube_namespace:models"}, "agent-cluster"))
 	})
 }
 
@@ -5094,6 +5096,7 @@ func TestProcessInferenceSpanIdentityV1(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			a := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			a.kubeClusterName = "agent-cluster"
 			st := idx.NewStringTable()
 			span := testutil.GetTestSpanV1(st)
 			span.SetStringAttribute("gen_ai.operation.name", "invoke_workflow")
@@ -5108,10 +5111,33 @@ func TestProcessInferenceSpanIdentityV1(t *testing.T) {
 				payload.TracerPayload.SetStringAttribute(tagContainersTags, strings.Join(tags, ","))
 			}
 			a.ProcessV1(payload)
-			for key, expected := range map[string]string{"inference_workload": "model", "inference_workload_component": "decode", "pod_name": "model-decode-abc"} {
+			for key, expected := range map[string]string{"inference_workload": "model", "inference_workload_component": "decode", "pod_name": "model-decode-abc", "kube_cluster_name": "agent-cluster"} {
 				value, exists := span.GetAttributeAsString(key)
 				assert.True(t, exists)
 				assert.Equal(t, expected, value)
+			}
+		})
+	}
+}
+
+func TestInferenceClusterIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		tags         []string
+		agentCluster string
+		want         string
+	}{
+		{"agent fallback", []string{"inference_workload:model"}, "agent-cluster", "agent-cluster"},
+		{"explicit cluster wins", []string{"inference_workload:model", "kube_cluster_name:remote-cluster"}, "agent-cluster", "remote-cluster"},
+		{"empty cluster uses fallback", []string{"inference_workload:model", "kube_cluster_name:"}, "agent-cluster", "agent-cluster"},
+		{"unknown cluster omitted", []string{"inference_workload:model"}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tags := inferenceTagsFromContainerTags(tc.tags, tc.agentCluster)
+			require.NotNil(t, tags)
+			assert.Equal(t, tc.want, tags["kube_cluster_name"])
+			if tc.want == "" {
+				assert.NotContains(t, tags, "kube_cluster_name")
 			}
 		})
 	}
