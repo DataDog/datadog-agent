@@ -9,9 +9,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -36,6 +38,8 @@ instances:
 
 //go:embed fixtures/rc/scenarios/*.yaml
 var rcScenarioFS embed.FS
+
+var rcIDPlaceholder = regexp.MustCompile(`\$\{(?:TASK|SUB_TASK)_ID(?:_[A-Z0-9_]+)?\}`)
 
 // rcScenario is self-contained: the RC payload, the apply state the agent must report, and the
 // SDS results that must follow.
@@ -83,7 +87,7 @@ func (s *postgresRCSuite) TestRCScenarios() {
 			applyState, ok := rcApplyStates[sc.ApplyState]
 			require.True(s.T(), ok, "unknown apply_state %q", sc.ApplyState)
 
-			id := fmt.Sprintf("e2e-datasec-%s-%d", sc.Name, time.Now().UnixNano())
+			id := fmt.Sprintf("e2e-datasec-%s-%s", sc.Name, uuid.NewString())
 			fi := s.Env().FakeIntake.Client()
 			require.NoError(s.T(), fi.RCAddConfig("", state.ProductDataSecurityDBScanTasks, id, "scan-task", payload))
 
@@ -127,6 +131,15 @@ func loadRCScenarios(t *testing.T) []rcScenario {
 	for _, entry := range entries {
 		raw, err := rcScenarioFS.ReadFile("fixtures/rc/scenarios/" + entry.Name())
 		require.NoError(t, err)
+		ids := make(map[string]string)
+		raw = rcIDPlaceholder.ReplaceAllFunc(raw, func(placeholder []byte) []byte {
+			key := string(placeholder)
+			if _, found := ids[key]; !found {
+				ids[key] = uuid.NewString()
+			}
+			return []byte(ids[key])
+		})
+		require.NotContains(t, string(raw), "${", "%s: unresolved ID placeholder", entry.Name())
 		var sc rcScenario
 		require.NoError(t, yaml.Unmarshal(raw, &sc), entry.Name())
 		scenarios = append(scenarios, sc)

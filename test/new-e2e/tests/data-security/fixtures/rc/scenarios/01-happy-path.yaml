@@ -2,12 +2,12 @@ name: happy-path
 # DATA_SECURITY_DB_SCAN_TASKS payload pushed through Remote Config. No connection: it is
 # resolved from the postgres integration whose host matches database_host_name.
 rc:
-  task_id: e2e-datasec-postgres
+  task_id: ${TASK_ID}
   scanning_rules:
     - id: e2e-owner-pattern
       pattern: 'owner_[0-9]+'
   scan_data:
-    - sub_task_id: e2e-accounts
+    - sub_task_id: ${SUB_TASK_ID}
       query: "SELECT owner FROM accounts"
       timeout_seconds: 30
       entity:
@@ -48,6 +48,6 @@ expected:
                 dataType: text
         scanMetadata:
           scanTaskMetadata:
-            taskId: e2e-datasec-postgres
-            subTaskId: e2e-accounts
+            taskId: ${TASK_ID}
+            subTaskId: ${SUB_TASK_ID}
             status: SUCCESS
