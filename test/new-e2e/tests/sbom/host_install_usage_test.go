@@ -6,6 +6,7 @@
 package sbom
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,19 +64,32 @@ instances:
 // scans hostInstallUsageSBOMCheck sets.
 const hostInstallUsageWindow = 3 * time.Minute
 
-// unindexedPackage is the dpkg package TestHostUsage installs once the Agent
-// runs, and buildUnindexedDeb the script that builds it and prints its path.
+// installedPackage is the dpkg package TestHostUsage installs once the Agent
+// runs. Its binary of the same name is a copy of true.
+const installedPackage = "sbom-installed-test"
+
+// scannedPackage and readPackage are the dpkg packages the readers subtest
+// installs, each with a copy of libz in a directory of its own, and
+// ldconfigCopy is the copy of ldconfig it scans the second with.
 const (
-	unindexedPackage  = "sbom-unindexed-test"
-	buildUnindexedDeb = `set -e
+	scannedPackage = "sbom-scanned-test"
+	readPackage    = "sbom-read-test"
+	ldconfigCopy   = "/usr/local/bin/sbom-ldconfig"
+)
+
+// buildDeb returns the script that builds version of the dpkg package name,
+// which ships a copy of the file src as dst, and prints the path of the
+// package.
+func buildDeb(name, version, src, dst string) string {
+	return fmt.Sprintf(`set -e
 umask 022
 d=$(mktemp -d)
-mkdir -p "$d/pkg/DEBIAN" "$d/pkg/usr/share/sbom-unindexed-test"
-printf 'Package: sbom-unindexed-test\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
-echo sbom >"$d/pkg/usr/share/sbom-unindexed-test/README"
-dpkg-deb --root-owner-group --build "$d/pkg" "$d/sbom-unindexed-test.deb" >/dev/null
-echo "$d/sbom-unindexed-test.deb"`
-)
+mkdir -p "$d/pkg/DEBIAN" "$d/pkg$(dirname %[4]s)"
+printf 'Package: %[1]s\nVersion: %[2]s\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
+cp %[3]s "$d/pkg%[4]s"
+dpkg-deb --root-owner-group --build "$d/pkg" "$d/%[1]s.deb" >/dev/null
+echo "$d/%[1]s.deb"`, name, version, src, dst)
+}
 
 type hostInstallUsageSuite struct {
 	baseSuite[environments.Host]
@@ -91,6 +105,9 @@ func TestSBOMHostInstallUsageSuite(t *testing.T) {
 			scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2204E2E)),
 			scenec2.WithFakeIntakeOptions(fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenec2.WithPreAgentInstallHook(startCron),
+			scenec2.WithPreAgentInstallHook(startScriptDaemon),
+			scenec2.WithPreAgentInstallHook(startExplicitDaemon),
+			scenec2.WithPreAgentInstallHook(startReplacedDaemon),
 			scenec2.WithAgentOptions(
 				agentparams.WithAgentConfig(hostInstallUsageAgentConfig),
 				agentparams.WithSystemProbeConfig(hostInstallUsageSystemProbeConfig),
@@ -106,6 +123,176 @@ func startCron(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
 	return host.OS.Runner().Command("start-cron", &command.Args{
 		Create: pulumi.String("sudo systemctl enable --now cron"),
 	})
+}
+
+// scriptDaemonPackage is the dpkg package startScriptDaemon installs. Its
+// /usr/bin/sbom-script-daemon is a shell script whose shebang argument puts
+// the script third among the arguments of the shell, and whose name, longer
+// than 15 bytes, is cut in the name of its process.
+const scriptDaemonPackage = "sbom-script-daemon"
+
+// startScriptDaemonScript builds scriptDaemonPackage with dpkg-deb, installs
+// it, and runs its script as a transient service. The shell forks sleep and
+// waits for it, so the shell running the script stays the main process.
+const startScriptDaemonScript = `set -e
+umask 022
+cloud-init status --wait >/dev/null 2>&1 || true
+d=$(mktemp -d)
+mkdir -p "$d/pkg/DEBIAN" "$d/pkg/usr/bin"
+printf 'Package: sbom-script-daemon\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
+printf '#!/bin/sh -e\nsleep infinity\n' >"$d/pkg/usr/bin/sbom-script-daemon"
+chmod 755 "$d/pkg/usr/bin/sbom-script-daemon"
+dpkg-deb --root-owner-group --build "$d/pkg" "$d/sbom-script-daemon.deb" >/dev/null
+n=0
+until sudo dpkg -i "$d/sbom-script-daemon.deb"; do
+	n=$((n + 1))
+	[ "$n" -lt 30 ]
+	sleep 10
+done
+sudo systemd-run --unit=sbom-script-daemon /usr/bin/sbom-script-daemon`
+
+// startScriptDaemon starts the script of scriptDaemonPackage before the Agent
+// is installed, so the probe of system-probe finds it running when it starts.
+// dpkg retries while the boot of the host holds its lock.
+func startScriptDaemon(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
+	return host.OS.Runner().Command("start-script-daemon", &command.Args{
+		Create: pulumi.String(startScriptDaemonScript),
+	})
+}
+
+// explicitDaemonPackage is the dpkg package startExplicitDaemon installs. Its
+// /usr/bin/sbom-explicit-daemon is a Python script of mode 0644, which systemd
+// runs as the operand of python3, as it runs waagent, so its process takes the
+// name of python3.
+const explicitDaemonPackage = "sbom-explicit-daemon"
+
+// startExplicitDaemonScript builds explicitDaemonPackage with dpkg-deb,
+// installs it, and runs its script as the operand of python3 in a transient
+// service.
+const startExplicitDaemonScript = `set -e
+umask 022
+cloud-init status --wait >/dev/null 2>&1 || true
+d=$(mktemp -d)
+mkdir -p "$d/pkg/DEBIAN" "$d/pkg/usr/bin"
+printf 'Package: sbom-explicit-daemon\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
+printf 'import time\nwhile True:\n    time.sleep(3600)\n' >"$d/pkg/usr/bin/sbom-explicit-daemon"
+chmod 644 "$d/pkg/usr/bin/sbom-explicit-daemon"
+dpkg-deb --root-owner-group --build "$d/pkg" "$d/sbom-explicit-daemon.deb" >/dev/null
+n=0
+until sudo dpkg -i "$d/sbom-explicit-daemon.deb"; do
+	n=$((n + 1))
+	[ "$n" -lt 30 ]
+	sleep 10
+done
+sudo systemd-run --unit=sbom-explicit-daemon /usr/bin/python3 -u /usr/bin/sbom-explicit-daemon`
+
+// startExplicitDaemon starts the script of explicitDaemonPackage before the
+// Agent is installed, so the probe of system-probe finds it running when it
+// starts.
+func startExplicitDaemon(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
+	return host.OS.Runner().Command("start-explicit-daemon", &command.Args{
+		Create: pulumi.String(startExplicitDaemonScript),
+	})
+}
+
+// replacedDaemonPackage and replacedLibPackage are the dpkg packages
+// startReplacedDaemon installs. The binary of the first, a copy of sleep, runs
+// as a daemon that preloads replacedLib, the library of the second, a copy of
+// libutil.so.1, a stub glibc keeps for compatibility. Copies of both replace
+// them once the daemon runs, as an upgrade renames a new build over a file.
+const (
+	replacedDaemonPackage = "sbom-replaced-daemon"
+	replacedLibPackage    = "sbom-replaced-lib"
+	replacedLib           = "/usr/lib/sbom-replaced-lib/libsbomreplaced.so"
+)
+
+// startReplacedDaemonScript builds replacedDaemonPackage and
+// replacedLibPackage with dpkg-deb, installs them, runs the daemon as a
+// transient service that preloads the library, then renames a copy of the
+// binary and of the library over them, so procfs names both with the suffix
+// of a replaced file. The library comes from the directory of the libc of
+// sleep, as the loader ignores a library of another ABI, such as the x32 one
+// ldconfig lists first on a multilib host. Type=exec makes systemd-run return
+// once the daemon runs its binary, and the script waits up to 5 s for the
+// loader to map the library before the renames. The replaced subtest checks
+// the mapping. A retry first stops the daemon of an earlier attempt.
+// needrestart, which restarts the services running a replaced file once apt
+// installs the Agent, is told to leave the service alone.
+const startReplacedDaemonScript = `set -e
+umask 022
+cloud-init status --wait >/dev/null 2>&1 || true
+sudo systemctl stop sbom-replaced-daemon 2>/dev/null || true
+sudo systemctl reset-failed sbom-replaced-daemon 2>/dev/null || true
+d=$(mktemp -d)
+mkdir -p "$d/daemon/DEBIAN" "$d/daemon/usr/bin" "$d/lib/DEBIAN" "$d/lib/usr/lib/sbom-replaced-lib"
+printf 'Package: sbom-replaced-daemon\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/daemon/DEBIAN/control"
+printf 'Package: sbom-replaced-lib\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/lib/DEBIAN/control"
+cp /usr/bin/sleep "$d/daemon/usr/bin/sbom-replaced-daemon"
+libc=$(ldd /usr/bin/sleep | awk '$1 == "libc.so.6" {print $3}')
+cp "${libc%/*}/libutil.so.1" "$d/lib/usr/lib/sbom-replaced-lib/libsbomreplaced.so"
+dpkg-deb --root-owner-group --build "$d/daemon" "$d/sbom-replaced-daemon.deb" >/dev/null
+dpkg-deb --root-owner-group --build "$d/lib" "$d/sbom-replaced-lib.deb" >/dev/null
+n=0
+until sudo dpkg -i "$d/sbom-replaced-daemon.deb" "$d/sbom-replaced-lib.deb"; do
+	n=$((n + 1))
+	[ "$n" -lt 30 ]
+	sleep 10
+done
+if [ -d /etc/needrestart/conf.d ]; then
+	echo '$nrconf{override_rc}{qr(^sbom-replaced-daemon)} = 0;' | sudo tee /etc/needrestart/conf.d/sbom-replaced-daemon.conf >/dev/null
+fi
+sudo systemd-run --unit=sbom-replaced-daemon --property=Type=exec --setenv=LD_PRELOAD=/usr/lib/sbom-replaced-lib/libsbomreplaced.so /usr/bin/sbom-replaced-daemon infinity
+pid=$(systemctl show -p MainPID --value sbom-replaced-daemon)
+n=0
+until sudo grep -qF /usr/lib/sbom-replaced-lib/libsbomreplaced.so "/proc/$pid/maps" || [ "$n" -ge 50 ]; do
+	n=$((n + 1))
+	sleep 0.1
+done
+for f in /usr/bin/sbom-replaced-daemon /usr/lib/sbom-replaced-lib/libsbomreplaced.so; do
+	sudo cp -p "$f" "$f.new"
+	sudo mv -f "$f.new" "$f"
+done`
+
+// startReplacedDaemon starts the daemon of replacedDaemonPackage and replaces
+// its binary and its library before the Agent is installed, so the probe of
+// system-probe finds it running replaced files when it starts.
+func startReplacedDaemon(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
+	return host.OS.Runner().Command("start-replaced-daemon", &command.Args{
+		Create: pulumi.String(startReplacedDaemonScript),
+	})
+}
+
+// mapsExecutable reports whether maps, the content of /proc/<pid>/maps, maps
+// the file at path with execute permission.
+func mapsExecutable(maps, path string) bool {
+	for _, line := range strings.Split(maps, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 6 && strings.Contains(fields[1], "x") && strings.HasSuffix(line, " "+path) {
+			return true
+		}
+	}
+	return false
+}
+
+// hostInt runs cmd on the host and returns the integer it prints.
+func (s *hostInstallUsageSuite) hostInt(cmd string) int64 {
+	out := strings.TrimSpace(s.Env().RemoteHost.MustExecute(cmd))
+	n, err := strconv.ParseInt(out, 10, 64)
+	s.Require().NoErrorf(err, "%s printed %q", cmd, out)
+	return n
+}
+
+// unitStart returns the monotonic time, in microseconds, at which the main
+// process of the systemd unit started.
+func (s *hostInstallUsageSuite) unitStart(unit string) int64 {
+	return s.hostInt("systemctl show -p ExecMainStartTimestampMonotonic --value " + unit)
+}
+
+// mainPID returns the main process of the systemd unit, which must run.
+func (s *hostInstallUsageSuite) mainPID(unit string) string {
+	pid := s.hostInt("systemctl show -p MainPID --value " + unit)
+	s.Require().NotZerof(pid, "the service %s has no main process", unit)
+	return strconv.FormatInt(pid, 10)
 }
 
 func (s *hostInstallUsageSuite) SetupSuite() {
@@ -128,8 +315,10 @@ func (s *hostInstallUsageSuite) Test00UpAndRunning() {
 	}
 }
 
-// TestHostUsage checks the usage of the host packages: a daemon started before
-// the Agent, a binary and its library run by root, and a setuid binary.
+// TestHostUsage checks the usage of the host packages: a daemon and two scripts
+// started before the Agent, one through its shebang and one as the operand of
+// python3, a daemon and its library replaced on disk before the Agent, a binary
+// and its library run by root, and a setuid binary.
 func (s *hostInstallUsageSuite) TestHostUsage() {
 	host := s.Env().RemoteHost
 	defer func() {
@@ -194,37 +383,53 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 		}, 10*time.Minute, 15*time.Second, "the host SBOMs never covered both sides of the usage window")
 	})
 
-	// dpkg installs a package once the Agent runs. system-probe indexes the
-	// host packages at start and every hour, so the package stays out of the
-	// usage reports of the run, and the host SBOMs list it without runtime
-	// properties, past the usage window too.
-	s.Run("unindexed", func() {
-		deb := strings.TrimSpace(host.MustExecute(buildUnindexedDeb))
-		s.T().Cleanup(func() {
-			_, _ = host.Execute("sudo dpkg --purge " + unindexedPackage)
-		})
+	// dpkg installs a package once the Agent runs, and root runs its binary
+	// right away, before system-probe indexes the package. system-probe
+	// checks the package databases every minute, and the scan that indexes
+	// the package credits it the run.
+	s.T().Cleanup(func() {
+		_, _ = host.Execute("sudo dpkg --purge " + installedPackage)
+	})
+	var ranAt int64
+	s.Run("installed", func() {
+		deb := strings.TrimSpace(host.MustExecute(buildDeb(installedPackage, "1.0", "/usr/bin/true", "/usr/bin/"+installedPackage)))
+		var err error
+		ranAt, err = strconv.ParseInt(strings.TrimSpace(host.MustExecute("date +%s")), 10, 64)
+		s.Require().NoError(err, "date")
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			_, err := host.Execute("sudo dpkg -i " + deb + " && sudo " + installedPackage)
+			require.NoErrorf(c, err, "dpkg -i %s, then %s", deb, installedPackage)
+		}, 10*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			comp := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), installedPackage)
+			require.NotNilf(c, comp, "no %s in the host SBOM", installedPackage)
+			ts, _ := lastSeenRunning(comp)
+			s.T().Logf("PKG-IN-USE[host] installed: %s LastSeenRunning=%d, ranAt=%d", installedPackage, ts, ranAt)
+			assert.GreaterOrEqualf(c, ts, ranAt, "%s LastSeenRunning %d predates its run at %d", installedPackage, ts, ranAt)
+			assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, root ran it", installedPackage, propRunningAsRoot)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use", installedPackage)
+	})
+
+	// The upgrade of the package carries its usage over to the new version,
+	// which system-probe indexes within a minute.
+	s.Run("upgraded", func() {
+		s.Require().Positivef(ranAt, "%s never ran", installedPackage)
+		deb := strings.TrimSpace(host.MustExecute(buildDeb(installedPackage, "2.0", "/usr/bin/true", "/usr/bin/"+installedPackage)))
 		s.EventuallyWithTf(func(c *assert.CollectT) {
 			_, err := host.Execute("sudo dpkg -i " + deb)
 			require.NoErrorf(c, err, "dpkg -i %s", deb)
-		}, 3*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+		}, 10*time.Minute, 10*time.Second, "dpkg never upgraded %s", installedPackage)
 
 		s.EventuallyWithTf(func(c *assert.CollectT) {
-			past := 0
-			for _, sb := range hostUsageSBOMs(c, s.Fakeintake) {
-				comp := findComponent(sb.components, unindexedPackage)
-				if comp == nil {
-					continue
-				}
-				if _, pastWindow := usageWindowOf(sb, hostInstallUsageWindow); pastWindow {
-					past++
-				}
-				for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
-					assert.Emptyf(c, propertyValues(comp.GetProperties(), name), "%s carries %s, in the SBOM of %s", unindexedPackage, name, sb.collected)
-				}
-			}
-			s.T().Logf("PKG-IN-USE[host] unindexed: %d host SBOMs past the usage window list %s", past, unindexedPackage)
-			require.Positivef(c, past, "no host SBOM past the usage window lists %s yet", unindexedPackage)
-		}, 10*time.Minute, 15*time.Second, "the host SBOMs never listed %s past the usage window", unindexedPackage)
+			comp := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), installedPackage)
+			require.NotNilf(c, comp, "no %s in the host SBOM", installedPackage)
+			require.Equalf(c, "2.0", comp.GetVersion(), "%s version in the host SBOM", installedPackage)
+			ts, _ := lastSeenRunning(comp)
+			s.T().Logf("PKG-IN-USE[host] upgraded: %s %s LastSeenRunning=%d, ranAt=%d", installedPackage, comp.GetVersion(), ts, ranAt)
+			assert.GreaterOrEqualf(c, ts, ranAt, "%s %s LastSeenRunning %d predates the run at %d", installedPackage, comp.GetVersion(), ts, ranAt)
+			assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, root ran it", installedPackage, propRunningAsRoot)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s 2.0 in use", installedPackage)
 	})
 
 	// cron starts before the Agent, so its use comes from the processes the
@@ -240,6 +445,79 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 			// 10m: run on its own, the subtest also waits out the Agent start and
 			// its first host scans.
 		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported cron in use")
+	})
+
+	// The script of scriptDaemonPackage starts before the Agent too, and procfs
+	// gives the shell running it as the executable of its process, so its use
+	// comes from the script the probe finds in the arguments of the process.
+	s.Run("script", func() {
+		pid := s.mainPID(scriptDaemonPackage)
+		exe := strings.TrimSpace(host.MustExecute("sudo readlink /proc/" + pid + "/exe"))
+		s.Require().Equalf("/usr/bin/dash", exe, "the main process of %s runs %s", scriptDaemonPackage, exe)
+		s.Require().Lessf(s.unitStart(scriptDaemonPackage), s.unitStart("datadog-agent-sysprobe"), "%s started after system-probe", scriptDaemonPackage)
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			script := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), scriptDaemonPackage)
+			require.NotNilf(c, script, "no %s in the host SBOM", scriptDaemonPackage)
+			ts, _ := lastSeenRunning(script)
+			s.T().Logf("PKG-IN-USE[host] script: %s LastSeenRunning=%d", scriptDaemonPackage, ts)
+			assert.Positivef(c, ts, "%s is unused, with its script running since before the Agent", scriptDaemonPackage)
+			assert.Equalf(c, []string{"true"}, propertyValues(script.GetProperties(), propRunningAsRoot), "%s %s, systemd runs it as root", scriptDaemonPackage, propRunningAsRoot)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use", scriptDaemonPackage)
+	})
+
+	// The script of explicitDaemonPackage runs as the operand of python3 from
+	// before the Agent, so its process takes the name of python3, and its use
+	// comes from the script the probe finds past the options of python3.
+	s.Run("explicit", func() {
+		pid := s.mainPID(explicitDaemonPackage)
+		exe := strings.TrimSpace(host.MustExecute("sudo readlink /proc/" + pid + "/exe"))
+		s.Require().Regexpf(`^/usr/bin/python3\.[0-9]+$`, exe, "the main process of %s runs %s", explicitDaemonPackage, exe)
+		comm := strings.TrimSpace(host.MustExecute("cat /proc/" + pid + "/comm"))
+		s.Require().Equalf("python3", comm, "the main process of %s is named %s", explicitDaemonPackage, comm)
+		s.Require().Lessf(s.unitStart(explicitDaemonPackage), s.unitStart("datadog-agent-sysprobe"), "%s started after system-probe", explicitDaemonPackage)
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			explicit := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), explicitDaemonPackage)
+			require.NotNilf(c, explicit, "no %s in the host SBOM", explicitDaemonPackage)
+			ts, _ := lastSeenRunning(explicit)
+			s.T().Logf("PKG-IN-USE[host] explicit: %s LastSeenRunning=%d", explicitDaemonPackage, ts)
+			assert.Positivef(c, ts, "%s is unused, with its script running as the operand of python3 since before the Agent", explicitDaemonPackage)
+			assert.Equalf(c, []string{"true"}, propertyValues(explicit.GetProperties(), propRunningAsRoot), "%s %s, systemd runs it as root", explicitDaemonPackage, propRunningAsRoot)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use", explicitDaemonPackage)
+	})
+
+	// The binary of replacedDaemonPackage and replacedLib, which the daemon
+	// preloads, are replaced on disk once the daemon runs, before the Agent, so
+	// procfs names both with the suffix of a replaced file, and their use comes
+	// from the replay of those paths: the executable of the daemon and its
+	// mappings.
+	s.Run("replaced", func() {
+		pid := s.mainPID(replacedDaemonPackage)
+		exe := strings.TrimSpace(host.MustExecute("sudo readlink /proc/" + pid + "/exe"))
+		s.Require().Truef(strings.HasSuffix(exe, " (deleted)"), "the daemon of %s runs %s, a binary in place", replacedDaemonPackage, exe)
+		maps := host.MustExecute("sudo cat /proc/" + pid + "/maps")
+		if !mapsExecutable(maps, replacedLib+" (deleted)") {
+			journal := host.MustExecute("sudo journalctl --no-pager -u " + replacedDaemonPackage)
+			s.Require().Failf("premise", "the daemon of %s maps %s in place, or not at all:\n%s\n%s", replacedDaemonPackage, replacedLib, maps, journal)
+		}
+		sysprobeStart := s.hostInt(`date -d "$(systemctl show -p ExecMainStartTimestamp --value datadog-agent-sysprobe)" +%s`)
+		for _, file := range []string{"/usr/bin/" + replacedDaemonPackage, replacedLib} {
+			s.Require().Lessf(s.hostInt("stat -c %Z "+file), sysprobeStart, "%s was replaced after system-probe started", file)
+		}
+		s.Require().Lessf(s.unitStart(replacedDaemonPackage), s.unitStart("datadog-agent-sysprobe"), "%s started after system-probe", replacedDaemonPackage)
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			for _, name := range []string{replacedDaemonPackage, replacedLibPackage} {
+				comp := findComponent(comps, name)
+				require.NotNilf(c, comp, "no %s in the host SBOM", name)
+				ts, _ := lastSeenRunning(comp)
+				s.T().Logf("PKG-IN-USE[host] replaced: %s LastSeenRunning=%d", name, ts)
+				assert.Positivef(c, ts, "%s is unused, with its replaced file running since before the Agent", name)
+				assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, systemd runs it as root", name, propRunningAsRoot)
+			}
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s and %s in use", replacedDaemonPackage, replacedLibPackage)
 	})
 
 	// sudo runs gzip as root from its setuid binary, and the loader opens
@@ -277,5 +555,49 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 			require.NotNilf(c, osComp, "no OS component in the host SBOM")
 			assertNoRuntimeProperties(c, "host", osComp)
 		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported gzip, libc6 and sudo in use")
+	})
+
+	// ldconfig, run by every library install, opens each library of the
+	// directories it scans to read its soname, and leaves their packages
+	// unused, while libc-bin, the package of ldconfig, runs. A copy of
+	// ldconfig under another name, the positive control, scans the directory
+	// of a second package, which goes in use. The copy opens the same way and
+	// runs first, so its scan counting shows that the opens of ldconfig reach
+	// system-probe and that its name alone keeps them out.
+	s.Run("readers", func() {
+		s.T().Cleanup(func() {
+			_, _ = host.Execute("sudo dpkg --purge " + scannedPackage + " " + readPackage + "; sudo rm -f " + ldconfigCopy)
+		})
+		host.MustExecute(`sudo sh -c 'cp "$(command -v ldconfig.real || command -v ldconfig)" ` + ldconfigCopy + `'`)
+		for _, name := range []string{scannedPackage, readPackage} {
+			deb := strings.TrimSpace(host.MustExecute(buildDeb(name, "1.0", "/usr/lib/x86_64-linux-gnu/libz.so.1", "/usr/lib/"+name+"/libz.so.1")))
+			s.EventuallyWithTf(func(c *assert.CollectT) {
+				_, err := host.Execute("sudo dpkg -i " + deb)
+				require.NoErrorf(c, err, "dpkg -i %s", deb)
+			}, 10*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+		}
+		startedAt, err := strconv.ParseInt(strings.TrimSpace(host.MustExecute("date +%s")), 10, 64)
+		s.Require().NoError(err, "date")
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			_, err := host.Execute("sudo " + ldconfigCopy + " -n /usr/lib/" + readPackage + " && sudo ldconfig -n /usr/lib/" + scannedPackage)
+			require.NoError(c, err, "the copy of ldconfig, then ldconfig")
+
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			read := findComponent(comps, readPackage)
+			require.NotNilf(c, read, "no %s in the host SBOM", readPackage)
+			readTS, _ := lastSeenRunning(read)
+			require.GreaterOrEqualf(c, readTS, startedAt, "%s not reported in use since the scan of the copy of ldconfig yet", readPackage)
+			scanned := findComponent(comps, scannedPackage)
+			require.NotNilf(c, scanned, "no %s in the host SBOM", scannedPackage)
+			scannedTS, present := lastSeenRunning(scanned)
+			require.Truef(c, present, "%s carries no %s property", scannedPackage, propLastSeenRunning)
+			libcBin := findComponent(comps, "libc-bin")
+			require.NotNilf(c, libcBin, "no libc-bin in the host SBOM")
+			libcBinTS, _ := lastSeenRunning(libcBin)
+			s.T().Logf("PKG-IN-USE[host] readers: %s LastSeenRunning=%d, %s LastSeenRunning=%d, libc-bin LastSeenRunning=%d, startedAt=%d", scannedPackage, scannedTS, readPackage, readTS, libcBinTS, startedAt)
+			assert.Lessf(c, scannedTS, startedAt, "the scan of ldconfig put %s in use", scannedPackage)
+			assert.GreaterOrEqualf(c, libcBinTS, startedAt, "libc-bin LastSeenRunning %d predates the run of ldconfig at %d", libcBinTS, startedAt)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use after the scan of the copy of ldconfig", readPackage)
 	})
 }

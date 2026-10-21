@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe queues a scan for every container it
+    tracks, up to 1024. Past 100 containers waiting for a scan, as at a start
+    on a busy host, a container was left without a package index for its life.

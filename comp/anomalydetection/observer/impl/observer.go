@@ -9,7 +9,7 @@ package observerimpl
 import (
 	"context"
 	"errors"
-	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -298,7 +298,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
 	if err != nil {
-		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
+		return Provides{}, err
 	}
 
 	obsTelemetry := newObserverTelemetry(deps.Telemetry)
@@ -319,6 +319,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		extractors:      extractors,
 		detectors:       detectors,
 		correlators:     correlators,
+		metricFilter:    compiledMetricFilter,
 		scorer:          scorer,
 		scheduler:       &currentBehaviorPolicy{},
 		baseline:        settings.Baseline,
@@ -486,10 +487,20 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		return storageCfg
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.max_series") {
-		storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		configuredMaxSeries := cfg.GetInt("anomaly_detection.storage.max_series")
+		if configuredMaxSeries <= 0 {
+			logging.Warnf("anomaly_detection.storage.max_series must be > 0, got %d; using default %d", configuredMaxSeries, storageCfg.MaxSeries)
+		} else {
+			storageCfg.MaxSeries = configuredMaxSeries
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
-		storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		configuredRatio := cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		if math.IsNaN(configuredRatio) || configuredRatio < 0 || configuredRatio >= 1 {
+			logging.Warnf("anomaly_detection.storage.eviction_floor_ratio must be >= 0 and < 1, got %g; using default %g", configuredRatio, storageCfg.EvictionFloorRatio)
+		} else {
+			storageCfg.EvictionFloorRatio = configuredRatio
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
 		configuredRetention := cfg.GetDuration("anomaly_detection.storage.point_retention")
@@ -1131,6 +1142,10 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	name := sample.GetName()
 	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
+	metricType := sample.GetMetricType()
+	if !filter.isMetricTypeAllowed(metricType) {
+		return metricIngestDecision{source: normalizedSource}
+	}
 	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
@@ -1142,7 +1157,7 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 		normalizedSource,
 		name,
 		sample.GetValue(),
-		sample.GetMetricType(),
+		metricType,
 		host,
 		sample.GetTags(),
 		sample.GetTimestampUnix(),
@@ -1274,6 +1289,12 @@ func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, conte
 	name := sample.GetName()
 	host := sample.GetHost()
 	source := normalizeMetricSource(name, h.source)
+	if !h.filter.isMetricTypeAllowed(sample.GetMetricType()) {
+		if h.telemetry != nil {
+			h.recordFilteredMetric(source)
+		}
+		return false
+	}
 	precheck := h.filter.precheck(name, source, host)
 	if precheck.reject {
 		if h.telemetry != nil {

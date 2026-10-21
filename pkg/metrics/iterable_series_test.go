@@ -102,3 +102,30 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 		r.Equal(v, series[i].Name)
 	}
 }
+
+type testDistribution struct{ name string }
+
+func (d *testDistribution) GetName() string                    { return d.name }
+func (d *testDistribution) WriteTo(_ DistributionWriter) error { return nil }
+
+func TestIterableSketchesDistributions(t *testing.T) {
+	var callbackNames []string
+	var names []string
+	sketches := NewIterableSketches(func(s *SketchSeries) { callbackNames = append(callbackNames, s.Name) }, 10, 2)
+	Serialize(
+		NewIterableSeries(func(*Serie) {}, 10, 1),
+		sketches,
+		func(_ SerieSink, _ SketchesSink) {
+			sketches.Append(&SketchSeries{DistributionMetadata: DistributionMetadata{Name: "sketch"}})
+			sketches.AppendDistribution(&testDistribution{name: "otel"})
+		}, func(_ SerieSource) {}, func(sketchesSource SketchesSource) {
+			for sketchesSource.MoveNext() {
+				names = append(names, sketchesSource.Current().GetName())
+			}
+		})
+
+	r := require.New(t)
+	r.Equal([]string{"sketch", "otel"}, names)
+	// The callback only sees DDSketch series.
+	r.Equal([]string{"sketch"}, callbackNames)
+}

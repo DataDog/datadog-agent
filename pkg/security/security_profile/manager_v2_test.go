@@ -758,3 +758,51 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		assert.Contains(t, m.profiles, testSelector)
 	})
 }
+
+// TestManagerV2_onCGroupDeleted goes through the actual lifecycle of a workload, instead of queuing the removal
+// by hand: the deletion of the cgroup of the only workload of a profile unlinks it, and the profile is removed
+// once the cleanup delay is over.
+func TestManagerV2_onCGroupDeleted(t *testing.T) {
+	const cleanupDelay = time.Minute
+
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+
+	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.True(t, inserted)
+	require.Len(t, p.Instances, 1, "the workload of the event should be linked to the profile")
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.onCGroupDeleted(cgce)
+
+	assert.Empty(t, p.Instances, "the deleted workload should be unlinked from the profile")
+	queuedAt, queued := m.pendingProfileRemovals[testSelector]
+	require.True(t, queued, "a profile without workload should be queued for removal")
+
+	m.pendingProfileRemovals[testSelector] = queuedAt.Add(-2 * cleanupDelay)
+	m.cleanupPendingProfiles()
+	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
+}
+
+// TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,
+// ProcessEvent returns before it records the cgroup or queues the event.
+func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
+	m := &ManagerV2{
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileEnabled:      true,
+			SecurityProfileV2Enabled:    true,
+			SecurityProfileV2EventTypes: []model.EventType{model.ExecEventType},
+		}},
+		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.ExecEventType)
+	event.ProcessContext.Process.ContainerContext.ContainerID = "container"
+	m.ProcessEvent(event)
+
+	assert.Empty(t, m.profilePendingEvents)
+	assert.Empty(t, m.resolvedCgroups)
+}
