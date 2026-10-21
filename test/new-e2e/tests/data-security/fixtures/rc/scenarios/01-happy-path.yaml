@@ -20,6 +20,12 @@ rc:
         table: accounts
 # Apply state the agent reports for the config.
 apply_state: acknowledged
+flare:
+  absent:
+    - postgres_admin_pw
+    - 'owner_[0-9]+'
+  present:
+    - e2e-owner-pattern
 expected:
   - resource:
       type: postgres_table

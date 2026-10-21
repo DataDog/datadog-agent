@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // The scan task carries no connection: the provider resolves it from the postgres integration
@@ -44,11 +45,17 @@ var rcIDPlaceholder = regexp.MustCompile(`\$\{(?:TASK|SUB_TASK)_ID(?:_[A-Z0-9_]+
 // rcScenario is self-contained: the RC payload, the apply state the agent must report, and the
 // SDS results that must follow.
 type rcScenario struct {
-	Name       string           `yaml:"name"`
-	RC         map[string]any   `yaml:"rc"`
-	ApplyState string           `yaml:"apply_state"`
-	ApplyError string           `yaml:"apply_error"` // regexp, only for apply_state: error
-	Expected   []map[string]any `yaml:"expected"`
+	Name       string            `yaml:"name"`
+	RC         map[string]any    `yaml:"rc"`
+	ApplyState string            `yaml:"apply_state"`
+	ApplyError string            `yaml:"apply_error"` // regexp, only for apply_state: error
+	Flare      *flareExpectation `yaml:"flare"`
+	Expected   []map[string]any  `yaml:"expected"`
+}
+
+type flareExpectation struct {
+	Absent  []string `yaml:"absent"`
+	Present []string `yaml:"present"`
 }
 
 var rcApplyStates = map[string]state.ApplyState{
@@ -110,7 +117,32 @@ func (s *postgresRCSuite) TestRCScenarios() {
 					assertSDSResultsEqual(c, sc.Name, subTaskID, want, got[subTaskID])
 				}
 			}, 2*time.Minute, 10*time.Second)
+			if sc.Flare != nil {
+				s.assertFlareScrubbed(*sc.Flare)
+			}
 		})
+	}
+}
+
+func (s *postgresRCSuite) assertFlareScrubbed(expected flareExpectation) {
+	t := s.T()
+	fi := s.Env().FakeIntake.Client()
+	require.NoError(t, fi.FlushServerAndResetAggregators())
+
+	_, err := s.Env().Agent.Client.FlareWithError(
+		agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}),
+	)
+	require.NoError(t, err)
+
+	flare, err := fi.GetLatestFlare()
+	require.NoError(t, err)
+	configCheck, err := flare.GetFileContent("config-check.log")
+	require.NoError(t, err)
+	for _, value := range expected.Absent {
+		assert.NotContains(t, configCheck, value)
+	}
+	for _, value := range expected.Present {
+		assert.Contains(t, configCheck, value)
 	}
 }
 
