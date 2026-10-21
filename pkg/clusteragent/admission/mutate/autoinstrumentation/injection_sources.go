@@ -36,6 +36,7 @@ const (
 	injectionSourceDatadogInstrumentation injectionSourceName = "datadog-instrumentation"
 	injectionSourceRemoteConfig           injectionSourceName = "remote-config"
 	injectionSourceGPU                    injectionSourceName = "gpu"
+	injectionSourceAPMBasic               injectionSourceName = "apm-basic"
 	injectionSourceStatic                 injectionSourceName = "static"
 	injectionSourceInjectAll              injectionSourceName = "inject-all"
 )

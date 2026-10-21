@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "autoinstrumentation",
     srcs = [
+        "apm_basic_target.go",
         "apm_config.go",
         "auto_instrumentation.go",
         "config.go",
@@ -63,6 +64,7 @@ go_library(
 dd_agent_go_test(
     name = "autoinstrumentation_test",
     srcs = [
+        "apm_basic_target_test.go",
         "auto_instrumentation_test.go",
         "config_test.go",
         "env_vars_test.go",

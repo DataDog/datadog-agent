@@ -39,6 +39,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag: "foo",
 				Targets:          []Target{},
 				InjectionMode:    "auto",
+				APMBasic:         APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -62,6 +63,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag: "foo",
 				Targets:          []Target{},
 				InjectionMode:    "auto",
+				APMBasic:         APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -111,6 +113,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -169,6 +172,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -197,6 +201,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
