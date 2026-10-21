@@ -120,14 +120,6 @@ func NewNativeCore(cfg Config) (Core, error) {
 	return core, nil
 }
 
-func (c *nativeCore) Start() Progress {
-	var pinner runtime.Pinner
-	defer pinner.Unpin()
-	p := c.progress(&pinner)
-	must(C.foldspace_start(c.client, &p.native))
-	return p.result()
-}
-
 func (c *nativeCore) HasCapacity() bool {
 	var out C.uint8_t
 	must(C.foldspace_has_capacity(c.client, &out))

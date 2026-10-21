@@ -12,9 +12,19 @@ import (
 	"time"
 )
 
+// fakeRedialBackoff is how long FakeCore asks a sender to wait before
+// redialing after a failure. It is non-zero because a driver waits on stop
+// only while an OpenStream's After runs, so a dial failing at once on every
+// attempt would otherwise never yield to Stop.
+const fakeRedialBackoff = 10 * time.Millisecond
+
 // FakeCore is an in-process Core used by driver tests. It seals one payload
 // per accepted record, fans that payload out to every sender, and resolves
 // durability when every reliable sender has acknowledged.
+//
+// A sender dials from the PollSender that finds it holding a queued payload,
+// and a stream that ends with nothing outstanding and nothing queued closes
+// without a redial, as the library's do.
 type FakeCore struct {
 	classes         []SenderClass
 	maxInflight     int
@@ -26,7 +36,6 @@ type FakeCore struct {
 
 	mu sync.Mutex
 
-	started      bool
 	shuttingDown bool
 	abandoned    bool
 	closed       bool
@@ -35,7 +44,8 @@ type FakeCore struct {
 	nextBatch    []uint32
 
 	streams   []StreamID
-	streamGen []uint64 // last opened generation, 0 if never opened
+	streamGen []uint64   // last opened generation, 0 if never opened
+	dialing   []StreamID // the stream an OpenStream asked for and no report has settled, 0 if none
 
 	queued   [][]queuedSend
 	effects  [][]Effect
@@ -91,6 +101,7 @@ func NewFakeCore(cfg FakeCoreConfig) *FakeCore {
 		nextBatch:       make([]uint32, n),
 		streams:         make([]StreamID, n),
 		streamGen:       make([]uint64, n),
+		dialing:         make([]StreamID, n),
 		queued:          make([][]queuedSend, n),
 		effects:         make([][]Effect, n),
 		pending:         make(map[uint64]*fakePayload),
@@ -140,27 +151,6 @@ func (c *FakeCore) SenderClass(sender SenderID) SenderClass {
 
 // ReleasedLeases is how many leases have been released.
 func (c *FakeCore) ReleasedLeases() int64 { return c.released.Load() }
-
-// Start requests one stream per sender.
-func (c *FakeCore) Start() Progress {
-	c.enterIngest()
-	defer c.leaveIngest()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.started = true
-	wake := make([]SenderID, 0, len(c.classes))
-	for i := range c.classes {
-		c.nextStream++
-		sid := StreamID(c.nextStream)
-		c.effects[i] = append(c.effects[i], Effect{
-			Kind:   OpenStream,
-			Sender: SenderID(i),
-			Stream: sid,
-		})
-		wake = append(wake, SenderID(i))
-	}
-	return c.progressLocked(wake)
-}
 
 // HasCapacity is whether a record can be offered.
 func (c *FakeCore) HasCapacity() bool {
@@ -314,7 +304,8 @@ func (c *FakeCore) IsDrained() bool {
 	return c.inflight == 0 && len(c.notifications) == 0
 }
 
-// PollSender drains one sender's effects.
+// PollSender drains one sender's effects, and dials for a sender holding no
+// stream once it has a queued payload it still owes.
 func (c *FakeCore) PollSender(sender SenderID) []Effect {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
@@ -322,15 +313,60 @@ func (c *FakeCore) PollSender(sender SenderID) []Effect {
 	defer c.mu.Unlock()
 	out := c.effects[sender]
 	c.effects[sender] = nil
+	if c.streams[sender] == 0 && c.dialing[sender] == 0 && c.owesQueuedLocked(sender) {
+		out = append(out, c.dialLocked(sender, 0))
+	}
 	return out
 }
 
-// HandleStreamOpened reports that a sender's stream is up.
+// dialLocked asks for a new stream for sender, after waiting after.
+func (c *FakeCore) dialLocked(sender SenderID, after time.Duration) Effect {
+	c.nextStream++
+	c.dialing[sender] = StreamID(c.nextStream)
+	return Effect{Kind: OpenStream, Sender: sender, Stream: c.dialing[sender], After: after}
+}
+
+// owesQueuedLocked is whether sender has a queued payload it still owes,
+// dropping the queued ids it no longer does.
+func (c *FakeCore) owesQueuedLocked(sender SenderID) bool {
+	kept := c.queued[sender][:0]
+	for _, q := range c.queued[sender] {
+		if p := c.pending[q.id]; p != nil && !p.resolved && !p.acked[sender] && !p.dropped[sender] {
+			kept = append(kept, q)
+		}
+	}
+	c.queued[sender] = kept
+	return len(kept) > 0
+}
+
+// busyLocked is whether sender has work its stream ending would lose: a sent
+// payload not yet acknowledged, a send not yet polled, or a queued payload.
+func (c *FakeCore) busyLocked(sender SenderID) bool {
+	for _, effect := range c.effects[sender] {
+		if effect.Kind == SendBatch {
+			return true
+		}
+	}
+	for _, id := range c.order {
+		p := c.pending[id]
+		if p != nil && !p.resolved && p.batchOn[sender] != 0 && !p.acked[sender] && !p.dropped[sender] {
+			return true
+		}
+	}
+	return c.owesQueuedLocked(sender)
+}
+
+// HandleStreamOpened reports that a sender's stream is up. A stream other than
+// the one the sender is dialing is discarded.
 func (c *FakeCore) HandleStreamOpened(sender SenderID, stream StreamID) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.dialing[sender] != stream {
+		return c.progressLocked(nil)
+	}
+	c.dialing[sender] = 0
 	c.streams[sender] = stream
 	c.streamGen[sender] = uint64(stream)
 	queued := c.queued[sender]
@@ -448,29 +484,34 @@ func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progre
 	return c.progressLocked(nil)
 }
 
-// HandleStreamError reports that a sender's stream died.
+// HandleStreamError reports that a sender's dial failed or its stream ended.
+// A failed dial, or a stream that ends holding work, is reported as a
+// StreamFailed and redialed after fakeRedialBackoff. A stream that ends with
+// nothing to carry closes idle, and the sender dials again only once it has
+// work.
 func (c *FakeCore) HandleStreamError(sender SenderID, stream StreamID, message string) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.streams[sender] != stream {
+	switch {
+	case stream != 0 && stream == c.dialing[sender]:
+		c.dialing[sender] = 0
+	case stream != 0 && stream == c.streams[sender]:
+		c.streamGen[sender] = 0
+		c.streams[sender] = 0
+		if !c.busyLocked(sender) {
+			return c.progressLocked(nil)
+		}
+	default:
 		return c.progressLocked(nil)
 	}
-	c.streamGen[sender] = 0
-	c.streams[sender] = 0
-	c.nextStream++
-	sid := StreamID(c.nextStream)
 	c.effects[sender] = append(c.effects[sender], Effect{
 		Kind:   ReportError,
 		Sender: sender,
 		Stream: stream,
 		Err:    &CoreError{Kind: StreamFailed, Message: message},
-	}, Effect{
-		Kind:   OpenStream,
-		Sender: sender,
-		Stream: sid,
-	})
+	}, c.dialLocked(sender, fakeRedialBackoff))
 	return c.progressLocked([]SenderID{sender})
 }
 

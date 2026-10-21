@@ -12,8 +12,12 @@ import "time"
 // The contract forbids two callers inside one region at once. The regions are
 // ingest, one per sender, and notification draining. A panic rather than an
 // error, because the violation is memory-safe and silently protocol-breaking.
+//
+// A sender holds no stream until a PollSender finds it has work, and that
+// poll is what yields the OpenStream. A stream that ends with nothing
+// outstanding and nothing queued closes idle: the core asks for no new one
+// until the sender has work again.
 type Core interface {
-	Start() Progress
 	HasCapacity() bool
 	PushLog(record Record, nowNanos uint64, metadataID uint64, route Route) (Admission, Progress)
 	Flush() (Admission, Progress)
