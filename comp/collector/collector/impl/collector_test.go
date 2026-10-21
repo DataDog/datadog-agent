@@ -207,12 +207,20 @@ func (suite *CollectorTestSuite) SetupTest() {
 // newTestCollector returns a started collector. overrides are applied on top
 // of the default test configuration.
 func newTestCollector(t *testing.T, overrides map[string]interface{}) *collectorImpl {
+	c := newUnstartedTestCollector(t, overrides)
+	c.start(context.TODO())
+	return c
+}
+
+// newUnstartedTestCollector returns a collector that is not started, so no
+// runner workers are registered in the global expvars.
+func newUnstartedTestCollector(t *testing.T, overrides map[string]interface{}) *collectorImpl {
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
 	cfg := map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}
 	for k, v := range overrides {
 		cfg[k] = v
 	}
-	c := newCollector(dependencies{
+	return newCollector(dependencies{
 		Lc:               compdef.NewTestLifecycle(t),
 		Config:           config.NewMockWithOverrides(t, cfg),
 		Log:              logmock.New(t),
@@ -223,8 +231,6 @@ func newTestCollector(t *testing.T, overrides map[string]interface{}) *collector
 		MetricSerializer: option.None[serializer.MetricSerializer](),
 		AgentTelemetry:   option.None[agenttelemetry.Component](),
 	})
-	c.start(context.TODO())
-	return c
 }
 
 func (suite *CollectorTestSuite) TearDownTest() {

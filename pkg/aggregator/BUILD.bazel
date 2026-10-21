@@ -135,6 +135,7 @@ dd_agent_go_test(
         "//comp/core/tagger/mock",
         "//comp/core/tagger/types",
         "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/filterlist/def",
         "//comp/filterlist/fx",
         "//comp/filterlist/fx-mock",

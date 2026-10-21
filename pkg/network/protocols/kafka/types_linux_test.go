@@ -9,25 +9,25 @@ import (
 )
 
 func TestCgoAlignment_ConnTuple(t *testing.T) {
-	ebpftest.TestCgoAlignment[ConnTuple](t)
+	ebpftest.AssertCgoAlignment[ConnTuple](t)
 }
 
 func TestCgoAlignment_EbpfTx(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfTx](t)
+	ebpftest.AssertCgoAlignment[EbpfTx](t)
 }
 
 func TestCgoAlignment_KafkaTransactionKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[KafkaTransactionKey](t)
+	ebpftest.AssertCgoAlignment[KafkaTransactionKey](t)
 }
 
 func TestCgoAlignment_KafkaTransaction(t *testing.T) {
-	ebpftest.TestCgoAlignment[KafkaTransaction](t)
+	ebpftest.AssertCgoAlignment[KafkaTransaction](t)
 }
 
 func TestCgoAlignment_KafkaResponseContext(t *testing.T) {
-	ebpftest.TestCgoAlignment[KafkaResponseContext](t)
+	ebpftest.AssertCgoAlignment[KafkaResponseContext](t)
 }
 
 func TestCgoAlignment_RawKernelTelemetry(t *testing.T) {
-	ebpftest.TestCgoAlignment[RawKernelTelemetry](t)
+	ebpftest.AssertCgoAlignment[RawKernelTelemetry](t)
 }

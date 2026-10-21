@@ -52,16 +52,22 @@ const (
 
 // HTTP errors.
 var (
-	errClient  = errors.New("client error")
-	errServer  = errors.New("server error")
-	tlmSend    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse   = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
-	tlmDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors")
+	errClient             = errors.New("client error")
+	errServer             = errors.New("server error")
+	errCredentialNotReady = errors.New("delegated credential not ready")
+	tlmSend               = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse              = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle               = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped            = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors")
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
 )
+
+// credentialWaitInterval is how often a reliable destination rechecks for a delegated-auth
+// credential while it holds a payload. Waiting for a key isn't a send failure, so it doesn't grow
+// the backoff. A var so tests can shorten it.
+var credentialWaitInterval = time.Second
 
 // emptyJSONPayload is an empty payload used to check HTTP connectivity without sending logs.
 var emptyJSONPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
@@ -283,6 +289,36 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			latency: latency,
 			err:     err,
 		}
+		if errors.Is(err, errCredentialNotReady) {
+			if !d.shouldRetry {
+				// Unreliable destinations don't feed the auditor: drop this copy.
+				metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+				metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+				output <- payload
+				return destinationResult{latency: latency}
+			}
+			// Never ack a payload this destination didn't send: that would let the auditor advance
+			// past logs nobody delivered. Reporting retrying makes the worker skip this destination,
+			// so other reliable destinations keep sending.
+			started := d.markWaitingForCredential(err, isRetrying)
+			if d.endpoint.AwaitsDelegatedAuthKey() {
+				// A key is on its way: queue the payload and recheck.
+				if started {
+					log.Infof("%s: queuing logs until delegated auth provides an API key", d.url)
+				}
+				d.waitForBackoff(time.Now().Add(credentialWaitInterval))
+				continue
+			}
+			if _, ready := d.endpoint.GetAPIKeyIfReady(); ready {
+				// The key arrived since unconditionalSend checked: send now.
+				continue
+			}
+			// No key will arrive (disabled until restart, or a setting nothing writes back): drop
+			// this copy without acking rather than hold it forever.
+			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+			return destinationResult{latency: latency}
+		}
 
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
@@ -300,7 +336,6 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			d.updateRetryState(nil, isRetrying)
 			return result
 		}
-
 		if d.shouldRetry {
 			if d.updateRetryState(err, isRetrying) {
 				continue
@@ -321,16 +356,24 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 	}
 }
 
-func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
+func (d *Destination) unconditionalSend(payload *message.Payload) error {
+	return d.unconditionalSendWithContext(d.destinationsContext.Context(), payload)
+}
+
+func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload *message.Payload) (err error) {
+	// Check shutdown first: a destination waiting for a credential would otherwise keep
+	// retrying after the context is cancelled.
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	apiKey, ready := d.endpoint.GetAPIKeyIfReady()
+	if !ready {
+		return client.NewRetryableError(errCredentialNotReady)
+	}
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
 
-	ctx := d.destinationsContext.Context()
-
-	if err != nil {
-		return err
-	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	var sourceTag string
 	compressionKind := "none"
@@ -357,7 +400,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 
-	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
+	req.Header.Set("DD-API-KEY", apiKey)
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
@@ -411,18 +454,31 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode == http.StatusForbidden &&
 		d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) &&
 		d.secrets.Refresh() {
-		return client.NewRetryableError(errServer)
+		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	} else if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		tlmDropped.Inc()
-		return errClient
+		return fmt.Errorf("%w: %s", errClient, resp.Status)
 	} else if resp.StatusCode > http.StatusBadRequest {
-		return client.NewRetryableError(errServer)
+		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 	return nil
+}
+
+// markWaitingForCredential reports this destination as retrying without growing the backoff. It
+// returns true when the destination wasn't already retrying.
+func (d *Destination) markWaitingForCredential(err error, isRetrying chan bool) bool {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+	started := d.lastRetryError == nil
+	if isRetrying != nil && started {
+		isRetrying <- true
+	}
+	d.lastRetryError = err
+	return started
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
