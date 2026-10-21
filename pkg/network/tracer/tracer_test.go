@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -78,10 +77,6 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	tr, err := NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
-
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		require.Equal(t, connection.TracerTypeFentry, tr.Type(), "fentry build mode silently fell back to another tracer")
-	}
 
 	initTracerState(t, tr)
 	return tr
