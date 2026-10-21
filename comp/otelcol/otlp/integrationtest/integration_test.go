@@ -62,6 +62,7 @@ import (
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/def"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
@@ -95,7 +96,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) (*fx.App, error) {
+func runTestOTelAgent(t testing.TB, ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) (*fx.App, error) {
 	return fxutil.TestRunWithApp(
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		delegatedauthnoopfx.Module(),
@@ -163,7 +164,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return c, nil
 		}),
-		orchestratormock.MockModule(),
+		fx.Provide(func() orchestrator.Component { return orchestratormock.New(t) }),
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(pidfilePath)),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
@@ -231,7 +232,7 @@ func TestIntegration(t *testing.T) {
 	}
 	pidfilePath := "test_pid"
 	go func() {
-		if app, err = runTestOTelAgent(context.Background(), params, pidfilePath); err != nil {
+		if app, err = runTestOTelAgent(t, context.Background(), params, pidfilePath); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
