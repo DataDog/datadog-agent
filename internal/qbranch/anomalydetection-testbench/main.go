@@ -42,6 +42,7 @@ type CLIParams struct {
 	ScenariosDir      string
 	HTTPAddr          string
 	ComponentSettings observerimpl.ComponentSettings
+	AllowedTypes      []string
 
 	// Headless mode: run a scenario and exit (no HTTP server)
 	Headless                 string // scenario name to run (empty = interactive mode)
@@ -86,6 +87,7 @@ func main() {
 	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
 	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 2m window.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
+	allowedTypes := flag.String("allowed_types", "", "Comma-separated allowed metric types (e.g. \"Gauge,Count,Unknown\"); empty allows all types")
 	flag.Parse()
 
 	// --config takes full precedence over --enable/--disable/--only.
@@ -154,6 +156,15 @@ func main() {
 			MuteNoisyMetrics: *muteNoisyMetrics,
 		}
 	}
+	var parsedAllowedTypes []string
+	if *allowedTypes != "" {
+		var err error
+		parsedAllowedTypes, err = parseAllowedTypesFlag(*allowedTypes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid --allowed_types: %v\n", err)
+			os.Exit(1)
+		}
+	}
 	componentSettings = observerimpl.ApplyTestbenchDefaults(componentSettings)
 
 	if *headless == "" {
@@ -195,6 +206,9 @@ func main() {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			if len(parsedAllowedTypes) > 0 {
+				c.Set("anomaly_detection.metrics.allowed_types", parsedAllowedTypes, pkgconfigmodel.SourceAgentRuntime)
+			}
 			return c
 		}),
 		fx.Supply(core.BundleParams{
@@ -205,6 +219,7 @@ func main() {
 			ScenariosDir:             *scenariosDir,
 			HTTPAddr:                 *httpAddr,
 			ComponentSettings:        componentSettings,
+			AllowedTypes:             parsedAllowedTypes,
 			Headless:                 *headless,
 			Output:                   *output,
 			Verbose:                  *verbose,
@@ -381,6 +396,9 @@ func run(
 }
 
 func validateCLIParams(params CLIParams) error {
+	if err := observerimpl.ValidateAllowedMetricTypes(params.AllowedTypes); err != nil {
+		return fmt.Errorf("invalid allowed_types: %w", err)
+	}
 	if params.RetainParquet && params.Headless == "" {
 		return fmt.Errorf("--retain-parquet requires --headless")
 	}
@@ -388,4 +406,23 @@ func validateCLIParams(params CLIParams) error {
 		return fmt.Errorf("--include-detector-anomalies requires --headless")
 	}
 	return nil
+}
+
+func parseAllowedTypesFlag(raw string) ([]string, error) {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	if err := observerimpl.ValidateAllowedMetricTypes(out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

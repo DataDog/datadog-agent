@@ -7,7 +7,7 @@ require go.opentelemetry.io/collector/otelcol v0.162.0
 require go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0 // indirect
 
 require (
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.1 // indirect

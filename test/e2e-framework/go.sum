@@ -58,8 +58,8 @@ github.com/Masterminds/sprig/v3 v3.3.0/go.mod h1:Zy1iXRYNqNLUolqCpL4uhk6SHUMAOSC
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpzfwIujj1a84=
-github.com/Microsoft/go-winio v0.6.3 h1:M/52tsoyTfwaxajLnXZm7PqkbMGRH8iSWP+8fcg9MQ4=
-github.com/Microsoft/go-winio v0.6.3/go.mod h1:ma0QpxizD4fyyzJ1C7MIblymTD2Nxz5Mho/3CepwIZg=
+github.com/Microsoft/go-winio v0.6.4 h1:kJF2pamtYCWXf0xAT8sAkwKC0pMl2HYBrRPHAqyUc+g=
+github.com/Microsoft/go-winio v0.6.4/go.mod h1:1xl5JXG4ze/m74GH6Dc4Mwxfc3VL5siRVQjIAlHH07U=
 github.com/ProtonMail/go-crypto v1.5.2 h1:cucYnvqcY7UOXVD//mSyjeaPY0SSN3v5cDkYPxumINk=
 github.com/ProtonMail/go-crypto v1.5.2/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
 github.com/agext/levenshtein v1.2.3 h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo=
@@ -565,8 +565,8 @@ github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 h1:XTI3n9L4NrABP2ivPB+v45MBKP8hhgs
 github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0/go.mod h1:Yf4jYBGmvm+xnvsmQDCbKJ6EOlmvn/iL4pB8cpqT8g0=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 h1:i8WP3JtVBC+O7QOoDoX1gKXihMSPpRVVFT0L/i7TyXo=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0/go.mod h1:W/jRMGvQSKB15Mi+ln4TnV0viqwSWFw8Urq8+AgYqKc=
-github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.0 h1:B6zKRhZVe6QbQ5Cwdv/1Na1CpC0W/9ikTUJvD+bU9eA=
-github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.0/go.mod h1:Z4BpaqORULmROYG9FVZaRQj+ARKgo2fRiMsBJh0knas=
+github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.1 h1:Cm0KNafIRE2c4fDRsPfirrUjwKcc1ybd3WXHRfpfNkY=
+github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.1/go.mod h1:lbuguIveyWmBBzaFkWW5Sv/Pyjd0+JlKXNRnvlcgd9s=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2 h1:W9XLxp6EzQGf14DumMCGOnT9QcRRSgsI+f5Do3pMqqU=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2/go.mod h1:/klrd3ib4AMRlFMjrxkv5r76x3Bdr68wIMEKfRkRzHU=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
