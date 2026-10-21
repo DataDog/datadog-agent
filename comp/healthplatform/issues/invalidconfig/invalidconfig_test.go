@@ -39,7 +39,7 @@ func testSelfIdent(t *testing.T) *selfident.SelfIdent {
 // dev builds do not unless explicitly generated.
 func requireSchema(t *testing.T) {
 	t.Helper()
-	if _, err := schema.GetCoreSchema(); err != nil {
+	if _, err := schema.GetRawSchema(model.CoreSchema); err != nil {
 		t.Skipf("embedded schema not available (%v); run `dda inv schema.compress`", err)
 	}
 }
