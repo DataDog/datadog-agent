@@ -17,8 +17,9 @@ import (
 )
 
 type precheckOnlyMetricView struct {
-	name string
-	host string
+	name       string
+	host       string
+	metricType metrics.MetricType
 }
 
 func (m *precheckOnlyMetricView) GetName() string { return m.name }
@@ -29,8 +30,8 @@ func (*precheckOnlyMetricView) GetTags() tagset.CompositeTags {
 }
 func (*precheckOnlyMetricView) GetTimestampUnix() int64 { panic("timestamp must not be read") }
 func (*precheckOnlyMetricView) GetSampleRate() float64  { panic("sample rate must not be read") }
-func (*precheckOnlyMetricView) GetMetricType() metrics.MetricType {
-	panic("metric type must not be read")
+func (m *precheckOnlyMetricView) GetMetricType() metrics.MetricType {
+	return m.metricType
 }
 
 func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {

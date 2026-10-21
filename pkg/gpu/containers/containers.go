@@ -401,6 +401,13 @@ func IsKAIReservationContainer(wmeta workloadmeta.Component, container *workload
 	if err != nil {
 		return false
 	}
+	return IsKAIReservationPod(pod)
+}
+
+// IsKAIReservationPod reports whether the pod is a KAI Scheduler reservation
+// pod: one carrying the reserved-GPU annotation or, before it has written it,
+// the GPU group label and KAI's reservation pod name prefix.
+func IsKAIReservationPod(pod *workloadmeta.KubernetesPod) bool {
 	if pod.Annotations[kaiReservationGPUAnnotation] != "" {
 		return true
 	}
