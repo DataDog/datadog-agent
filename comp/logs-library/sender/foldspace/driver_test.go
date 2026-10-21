@@ -139,17 +139,25 @@ func TestOfferOrderDurable(t *testing.T) {
 	assert.Equal(t, []string{"one", "two", "three"}, got)
 }
 
+// openFor takes the dial sender's next poll asks for, reports it open, and
+// returns the stream with the effects the open released.
+func openFor(t *testing.T, core *FakeCore, sender SenderID) (StreamID, []Effect) {
+	t.Helper()
+	effects := core.PollSender(sender)
+	require.Len(t, effects, 1)
+	require.Equal(t, OpenStream, effects[0].Kind)
+	assert.Zero(t, effects[0].After, "a sender with work dials at once")
+	stream := effects[0].Stream
+	core.HandleStreamOpened(sender, stream)
+	return stream, core.PollSender(sender)
+}
+
 func TestRefuseThenRetry(t *testing.T) {
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: 1})
-	progress := core.Start()
-	require.Len(t, progress.Wake, 1)
-	effects := core.PollSender(0)
-	require.Equal(t, OpenStream, effects[0].Kind)
-	core.HandleStreamOpened(0, effects[0].Stream)
 
 	admission, _ := core.PushLog(Record{Body: []byte("first")}, 1, 1, AllSenders(1))
 	require.Equal(t, Accepted, admission)
-	effects = core.PollSender(0)
+	_, effects := openFor(t, core, 0)
 	require.Equal(t, SendBatch, effects[0].Kind)
 	batchID := effects[0].BatchID
 	effects[0].Batch.Release()
@@ -160,7 +168,7 @@ func TestRefuseThenRetry(t *testing.T) {
 	core.HandleAck(0, effects[0].Stream, batchID, AckOK)
 	require.Equal(t, PayloadDurable, core.PollNotifications()[0].Kind)
 
-	admission, progress = core.PushLog(Record{Body: []byte("second")}, 3, 2, AllSenders(1))
+	admission, progress := core.PushLog(Record{Body: []byte("second")}, 3, 2, AllSenders(1))
 	require.Equal(t, Accepted, admission)
 	require.Contains(t, progress.Wake, SenderID(0))
 }
@@ -303,16 +311,10 @@ func TestLeaseHeldAcrossSend(t *testing.T) {
 
 func TestStaleStreamIDDiscarded(t *testing.T) {
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
-	progress := core.Start()
-	require.Len(t, progress.Wake, 1)
-	effects := core.PollSender(0)
-	require.Equal(t, OpenStream, effects[0].Kind)
-	live := effects[0].Stream
-	core.HandleStreamOpened(0, live)
 
-	_, progress = core.PushLog(Record{Body: []byte("x")}, 1, 7, AllSenders(1))
+	_, progress := core.PushLog(Record{Body: []byte("x")}, 1, 7, AllSenders(1))
 	require.Contains(t, progress.Wake, SenderID(0))
-	effects = core.PollSender(0)
+	live, effects := openFor(t, core, 0)
 	require.Equal(t, SendBatch, effects[0].Kind)
 	effects[0].Batch.Release()
 
@@ -384,30 +386,18 @@ func (b *atomicBool) get() bool {
 
 func TestOnePayloadWakesEverySender(t *testing.T) {
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Unreliable}})
-	core.Start()
-	for i := 0; i < 2; i++ {
-		effects := core.PollSender(SenderID(i))
-		require.Equal(t, OpenStream, effects[0].Kind)
-		core.HandleStreamOpened(SenderID(i), effects[0].Stream)
-	}
 	_, progress := core.PushLog(Record{Body: []byte("fan")}, 1, 1, AllSenders(2))
 	assert.ElementsMatch(t, []SenderID{0, 1}, progress.Wake)
 }
 
 func TestReliableAckResolvesUnreliableDropDoesNot(t *testing.T) {
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Unreliable}})
-	core.Start()
-	var streams [2]StreamID
-	for i := 0; i < 2; i++ {
-		effects := core.PollSender(SenderID(i))
-		require.Equal(t, OpenStream, effects[0].Kind)
-		streams[i] = effects[0].Stream
-		core.HandleStreamOpened(SenderID(i), streams[i])
-	}
 	_, _ = core.PushLog(Record{Body: []byte("shared")}, 1, 9, AllSenders(2))
+	var streams [2]StreamID
 	var reliableBatch uint32
 	for i := 0; i < 2; i++ {
-		effects := core.PollSender(SenderID(i))
+		var effects []Effect
+		streams[i], effects = openFor(t, core, SenderID(i))
 		require.Equal(t, SendBatch, effects[0].Kind)
 		if i == 0 {
 			reliableBatch = effects[0].BatchID
@@ -741,6 +731,9 @@ func TestStopDoesNotWaitOutAnOpen(t *testing.T) {
 		ShutdownTimeout: 200 * time.Millisecond,
 	})
 	d.Start()
+	d.Offer(testMessage("dials"))
+	require.Eventually(t, func() bool { return transport.Dials() == 1 }, time.Second, 5*time.Millisecond,
+		"a record must make its sender dial")
 
 	stopped := make(chan struct{})
 	go func() {
@@ -816,4 +809,68 @@ func TestMRFRoutingGatedByFailover(t *testing.T) {
 			"the non-MRF sender must still receive the record")
 		assert.Empty(t, transport.Sent(1), "the MRF sender must not receive a record the message did not mark MRF-allowed")
 	})
+}
+
+// A sender holds no stream until it has work, and a record dials only the
+// senders it is routed to.
+func TestSenderDialsOnlyWithWork(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Reliable}})
+	assert.Empty(t, core.PollSender(0), "a sender with no work must not dial")
+	assert.Empty(t, core.PollSender(1), "a sender with no work must not dial")
+
+	_, progress := core.PushLog(Record{Body: []byte("one")}, 1, 1, Route(0).WithSender(1))
+	assert.Equal(t, []SenderID{1}, progress.Wake)
+	assert.Empty(t, core.PollSender(0), "a record must not dial a sender it is not routed to")
+	_, effects := openFor(t, core, 1)
+	require.Len(t, effects, 1)
+	assert.Equal(t, SendBatch, effects[0].Kind)
+	effects[0].Batch.Release()
+}
+
+// A stream that ends with nothing to carry closes without a failure or a
+// redial, and the sender dials at once when it next has work. One that ends
+// holding an unacked batch is a failure, redialed after a backoff.
+func TestStreamEndClosesIdleAndFailsBusy(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	_, _ = core.PushLog(Record{Body: []byte("acked")}, 1, 1, AllSenders(1))
+	stream, effects := openFor(t, core, 0)
+	effects[0].Batch.Release()
+	core.HandleAck(0, stream, effects[0].BatchID, AckOK)
+
+	progress := core.HandleStreamError(0, stream, "reset by proxy")
+	assert.Empty(t, progress.Wake)
+	assert.Empty(t, core.PollSender(0), "an idle stream that ends must close without a redial")
+
+	_, _ = core.PushLog(Record{Body: []byte("unacked")}, 2, 2, AllSenders(1))
+	stream, effects = openFor(t, core, 0)
+	effects[0].Batch.Release()
+
+	progress = core.HandleStreamError(0, stream, "reset")
+	assert.Equal(t, []SenderID{0}, progress.Wake)
+	effects = core.PollSender(0)
+	require.Len(t, effects, 2)
+	assert.Equal(t, ReportError, effects[0].Kind)
+	assert.Equal(t, StreamFailed, effects[0].Err.Kind)
+	assert.Equal(t, OpenStream, effects[1].Kind)
+	assert.Positive(t, effects[1].After, "a failed stream redials after a backoff")
+}
+
+// An intake or proxy that closes an idle stream must not stop the sender: the
+// next record dials a new stream and is delivered on it.
+func TestDriverRedialsAfterIdleClose(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := NewFakeTransport(1)
+	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, false)
+
+	d.Offer(testMessage("first"))
+	waitPayloads(t, sink, 1)
+	transport.EndStreams()
+	assert.Never(t, func() bool { return transport.Dials() > 1 }, 100*time.Millisecond, 5*time.Millisecond,
+		"an idle stream that ends must not be redialed until there is work")
+
+	d.Offer(testMessage("second"))
+	waitPayloads(t, sink, 1)
+	assert.Equal(t, [][]byte{[]byte("first"), []byte("second")}, transport.Sent(0))
+	assert.Equal(t, 2, transport.Opens())
 }

@@ -222,8 +222,6 @@ func (d *Driver) Offer(msg *message.Message) {
 // Start launches ingest, per-sender workers, and the notification drain.
 func (d *Driver) Start() {
 	d.monitor.Start()
-	progress := d.core.Start()
-	d.dispatch(progress)
 
 	d.wg.Add(1)
 	go d.ingestLoop()

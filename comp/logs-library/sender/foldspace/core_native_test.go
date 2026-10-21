@@ -30,8 +30,7 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 	require.Equal(t, 1, core.SenderCount())
 	require.Equal(t, Reliable, core.SenderClass(0))
 
-	start := core.Start()
-	t.Logf("start: wake=%v hasCapacity=%v", start.Wake, start.HasCapacity)
+	require.Empty(t, core.PollSender(0), "a sender must not dial before it has work")
 	require.True(t, core.HasCapacity())
 
 	admission, progress := core.PushLog(Record{
@@ -51,11 +50,13 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 	flushAdmission, _ := core.Flush()
 	require.Equal(t, Accepted, flushAdmission)
 
-	// The library asks for a stream before it will hand over bytes, so the
-	// first poll yields only OpenStream.
+	// The sealed batch is what makes the sender dial, and the library asks for
+	// a stream before it will hand over bytes, so the first poll yields only an
+	// OpenStream that waits on nothing.
 	opening := core.PollSender(0)
 	require.Len(t, opening, 1)
 	require.Equal(t, OpenStream, opening[0].Kind)
+	require.Zero(t, opening[0].After, "a first dial waits on nothing")
 	stream := opening[0].Stream
 
 	// Reporting the stream open is what releases the sealed batch. A payload
@@ -139,7 +140,6 @@ func TestNativeCoresShareTokenizer(t *testing.T) {
 	}
 	survivor := cores[0]
 	t.Cleanup(survivor.Close)
-	survivor.Start()
 	admission, _ := survivor.PushLog(Record{
 		Body:            []byte("request 1234 served in 56 ms"),
 		TimestampMillis: time.Now().UnixMilli(),
@@ -153,7 +153,6 @@ func TestNativeAdmissionCodes(t *testing.T) {
 	core, err := NewNativeCore(nativeTestConfig())
 	require.NoError(t, err)
 	t.Cleanup(core.Close)
-	core.Start()
 
 	cases := []struct {
 		name   string
@@ -172,7 +171,7 @@ func TestNativeAdmissionCodes(t *testing.T) {
 }
 
 // nativeTestConfig is complete, because the library validates the config and
-// refuses a zero reconnect backoff.
+// refuses a zero reconnect backoff, drain timeout, or stream lifetime.
 func nativeTestConfig() Config {
 	return Config{
 		Endpoints:              []Endpoint{{Address: "127.0.0.1:1", Class: Reliable}},
@@ -182,5 +181,23 @@ func nativeTestConfig() Config {
 		ReconnectBackoffBase:   time.Second,
 		ReconnectBackoffFactor: 2,
 		ReconnectBackoffCap:    30 * time.Second,
+		DrainTimeout:           5 * time.Second,
+		StreamLifetime:         time.Minute,
+	}
+}
+
+// TestNativeRefusesZeroDurations checks that a config the library refuses
+// surfaces as a construction error rather than a core that never sends.
+func TestNativeRefusesZeroDurations(t *testing.T) {
+	for name, zero := range map[string]func(*Config){
+		"drain timeout":   func(c *Config) { c.DrainTimeout = 0 },
+		"stream lifetime": func(c *Config) { c.StreamLifetime = 0 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := nativeTestConfig()
+			zero(&cfg)
+			_, err := NewNativeCore(cfg)
+			require.ErrorContains(t, err, "was zero")
+		})
 	}
 }

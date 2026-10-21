@@ -7,6 +7,7 @@ package foldspace
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -47,9 +48,12 @@ type FakeTransport struct {
 	// ackDelay holds each ack back this long before Recv returns it.
 	ackDelay time.Duration
 	opens    int
+	// dials counts every OpenStream call, including ones that fail or block.
+	dials int
 	// blockOpen makes every OpenStream wait until its ctx ends, as a dial to an
 	// intake that never answers does.
 	blockOpen bool
+	streams   []*FakeStream
 }
 
 // NewFakeTransport returns a transport with n senders that acks OK.
@@ -78,6 +82,7 @@ func (t *FakeTransport) SetOpenError(sender SenderID, err error) {
 // OpenStream returns a FakeStream that records writes and acks OK.
 func (t *FakeTransport) OpenStream(ctx context.Context, sender SenderID, _ StreamID) (Stream, error) {
 	t.mu.Lock()
+	t.dials++
 	if t.blockOpen {
 		t.mu.Unlock()
 		<-ctx.Done()
@@ -90,15 +95,18 @@ func (t *FakeTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		return nil, err
 	}
 	t.opens++
-	return &FakeStream{
+	s := &FakeStream{
 		transport: t,
 		sender:    sender,
 		acks:      make(chan ack, 64),
+		ended:     make(chan struct{}),
 		blockRecv: t.blockRecv,
 		stallSend: t.opens <= t.stallStreams,
 		mute:      t.opens <= t.muteStreams,
 		ackDelay:  t.ackDelay,
-	}, nil
+	}
+	t.streams = append(t.streams, s)
+	return s, nil
 }
 
 // Opens returns how many streams have been opened across all senders.
@@ -106,6 +114,24 @@ func (t *FakeTransport) Opens() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.opens
+}
+
+// Dials returns how many OpenStream calls have been made across all senders.
+func (t *FakeTransport) Dials() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.dials
+}
+
+// EndStreams ends every stream opened so far, whose Recv then returns io.EOF
+// once it has delivered the acks already queued, as a proxy closing an idle
+// connection does.
+func (t *FakeTransport) EndStreams() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, s := range t.streams {
+		s.endOnce.Do(func() { close(s.ended) })
+	}
 }
 
 type ack struct {
@@ -118,6 +144,8 @@ type FakeStream struct {
 	transport *FakeTransport
 	sender    SenderID
 	acks      chan ack
+	ended     chan struct{}
+	endOnce   sync.Once
 	blockRecv bool
 	stallSend bool
 	mute      bool
@@ -146,25 +174,34 @@ func (s *FakeStream) Send(ctx context.Context, batchID uint32, data []byte) erro
 	return nil
 }
 
-// Recv returns the next queued ack. When blockRecv is set it waits until ctx ends.
+// Recv returns the next queued ack. When blockRecv is set it waits until ctx
+// ends. Once EndStreams has ended the stream it returns io.EOF in place of
+// waiting for another ack.
 func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 	if s.blockRecv {
 		<-ctx.Done()
 		return 0, 0, ctx.Err()
 	}
+	var a ack
 	select {
 	case <-ctx.Done():
 		return 0, 0, ctx.Err()
-	case a := <-s.acks:
-		if s.ackDelay > 0 {
-			select {
-			case <-ctx.Done():
-				return 0, 0, ctx.Err()
-			case <-time.After(s.ackDelay):
-			}
+	case a = <-s.acks:
+	case <-s.ended:
+		select {
+		case a = <-s.acks:
+		default:
+			return 0, 0, io.EOF
 		}
-		return a.id, a.status, nil
 	}
+	if s.ackDelay > 0 {
+		select {
+		case <-ctx.Done():
+			return 0, 0, ctx.Err()
+		case <-time.After(s.ackDelay):
+		}
+	}
+	return a.id, a.status, nil
 }
 
 // Close is a no-op.
