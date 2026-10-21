@@ -179,7 +179,7 @@ func TestInvalidDocuments(t *testing.T) {
 		{"hostname_leading_digit", `[{"type":"hostname","hostname":"1x"}]`, "must be a hostname"},
 		{"description_injection", iface(`{"type":"description","value":"x\nreload"}`), "printable ASCII"},
 		{"description_pipe", iface(`{"type":"description","value":"x | redirect flash:y"}`), "printable ASCII"},
-		{"description_non_ascii", iface(`{"type":"description","value":"x reload"}`), "printable ASCII"},
+		{"description_non_ascii", iface(`{"type":"description","value":"x` + "\u2028" + `reload"}`), "printable ASCII"},
 		{"description_help", iface(`{"type":"description","value":"why?"}`), "printable ASCII"},
 		{"pipe_injection", `[{"type":"show","target":"version","pipe":{"type":"include","pattern":"x\nreload"}}]`, "printable ASCII"},
 		{"pipe_chain", `[{"type":"show","target":"version","pipe":{"type":"include","pattern":"x | tee flash:y"}}]`, "printable ASCII"},
