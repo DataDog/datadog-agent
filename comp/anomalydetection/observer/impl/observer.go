@@ -9,7 +9,7 @@ package observerimpl
 import (
 	"context"
 	"errors"
-	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -29,6 +29,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -74,6 +75,7 @@ type observation struct {
 type metricHandoff struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	host       string
 	tags       tagset.CompositeTags
 	timestamp  int64
@@ -89,6 +91,7 @@ func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck
 	return metricHandoff{
 		name:       name,
 		value:      sample.GetValue(),
+		metricType: sample.GetMetricType(),
 		host:       host,
 		tags:       sample.GetTags(),
 		timestamp:  timestamp,
@@ -101,6 +104,7 @@ func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck
 type metricObs struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	host       string
 	tags       tagset.CompositeTags
 	timestamp  int64
@@ -130,6 +134,8 @@ func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 func (m *metricObs) GetSampleRate() float64 {
 	return 1.0
 }
+
+func (m *metricObs) GetMetricType() metrics.MetricType { return m.metricType }
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
@@ -292,7 +298,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
 	if err != nil {
-		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
+		return Provides{}, err
 	}
 
 	obsTelemetry := newObserverTelemetry(deps.Telemetry)
@@ -313,6 +319,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		extractors:      extractors,
 		detectors:       detectors,
 		correlators:     correlators,
+		metricFilter:    compiledMetricFilter,
 		scorer:          scorer,
 		scheduler:       &currentBehaviorPolicy{},
 		baseline:        settings.Baseline,
@@ -365,20 +372,20 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// A configured recorder wraps handles. ObserverRequired enables the live
-	// anomaly-detection pipeline and its default metric/log ingestion paths.
+	// A configured recorder wraps handles. Recording-only mode bypasses analysis
+	// while keeping the recorder in the observation path.
 	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
+	recorder, recorderEnabled := deps.Recorder.Get()
 	if observerRequired {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)
 	}
 
 	obs.handleFunc = obs.noopHandle
-	if observerRequired {
+	if observerRequired && !(recorderEnabled && anomalydetectionconfig.RecordingOnly(cfg)) {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	recorder, recorderEnabled := deps.Recorder.Get()
 	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
@@ -480,10 +487,20 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		return storageCfg
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.max_series") {
-		storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		configuredMaxSeries := cfg.GetInt("anomaly_detection.storage.max_series")
+		if configuredMaxSeries <= 0 {
+			logging.Warnf("anomaly_detection.storage.max_series must be > 0, got %d; using default %d", configuredMaxSeries, storageCfg.MaxSeries)
+		} else {
+			storageCfg.MaxSeries = configuredMaxSeries
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
-		storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		configuredRatio := cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		if math.IsNaN(configuredRatio) || configuredRatio < 0 || configuredRatio >= 1 {
+			logging.Warnf("anomaly_detection.storage.eviction_floor_ratio must be >= 0 and < 1, got %g; using default %g", configuredRatio, storageCfg.EvictionFloorRatio)
+		} else {
+			storageCfg.EvictionFloorRatio = configuredRatio
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
 		configuredRetention := cfg.GetDuration("anomaly_detection.storage.point_retention")
@@ -1125,6 +1142,10 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	name := sample.GetName()
 	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
+	metricType := sample.GetMetricType()
+	if !filter.isMetricTypeAllowed(metricType) {
+		return metricIngestDecision{source: normalizedSource}
+	}
 	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
@@ -1136,6 +1157,7 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 		normalizedSource,
 		name,
 		sample.GetValue(),
+		metricType,
 		host,
 		sample.GetTags(),
 		sample.GetTimestampUnix(),
@@ -1151,6 +1173,7 @@ func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter 
 		normalizedSource,
 		sample.name,
 		sample.value,
+		sample.metricType,
 		sample.host,
 		sample.tags,
 		sample.timestamp,
@@ -1165,6 +1188,7 @@ func prepareMetricAfterPrecheck(
 	source string,
 	name string,
 	value float64,
+	metricType metrics.MetricType,
 	host string,
 	resolvedTags tagset.CompositeTags,
 	timestamp int64,
@@ -1196,6 +1220,7 @@ func prepareMetricAfterPrecheck(
 		metric: &metricObs{
 			name:       name,
 			value:      value,
+			metricType: metricType,
 			host:       host,
 			tags:       resolvedTags,
 			timestamp:  timestamp,
@@ -1264,6 +1289,12 @@ func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, conte
 	name := sample.GetName()
 	host := sample.GetHost()
 	source := normalizeMetricSource(name, h.source)
+	if !h.filter.isMetricTypeAllowed(sample.GetMetricType()) {
+		if h.telemetry != nil {
+			h.recordFilteredMetric(source)
+		}
+		return false
+	}
 	precheck := h.filter.precheck(name, source, host)
 	if precheck.reject {
 		if h.telemetry != nil {

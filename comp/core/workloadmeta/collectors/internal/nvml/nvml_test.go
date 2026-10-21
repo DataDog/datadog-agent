@@ -9,6 +9,7 @@ package nvml
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpucontainers "github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -644,14 +646,21 @@ func TestCDIClaimUID(t *testing.T) {
 }
 
 // fakeDeviceCache is a DeviceCache that returns a fixed device list. Only All()
-// is exercised by resolveMIGUUID; the rest satisfy the interface.
+// and GetByUUID() are exercised; the rest satisfy the interface.
 type fakeDeviceCache struct {
 	devices []ddnvml.Device
 }
 
-func (f *fakeDeviceCache) Refresh() error                               { return nil }
-func (f *fakeDeviceCache) Invalidate()                                  {}
-func (f *fakeDeviceCache) GetByUUID(string) (ddnvml.Device, error)      { return nil, nil }
+func (f *fakeDeviceCache) Refresh() error { return nil }
+func (f *fakeDeviceCache) Invalidate()    {}
+func (f *fakeDeviceCache) GetByUUID(uuid string) (ddnvml.Device, error) {
+	for _, device := range f.devices {
+		if device.GetDeviceInfo().UUID == uuid {
+			return device, nil
+		}
+	}
+	return nil, fmt.Errorf("device %s not found", uuid)
+}
 func (f *fakeDeviceCache) GetByPCIBusID(string) (ddnvml.Device, error)  { return nil, nil }
 func (f *fakeDeviceCache) GetByIndex(int) (ddnvml.Device, error)        { return nil, nil }
 func (f *fakeDeviceCache) Count() (int, error)                          { return len(f.devices), nil }
@@ -751,9 +760,9 @@ func writeCDISpec(t *testing.T, uid, contents string) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(
 		filepath.Join(dir, "k8s.gpu.nvidia.com-claim_"+uid+".yaml"), []byte(contents), 0o600))
-	old := cdiSpecDirs
-	cdiSpecDirs = []string{dir}
-	t.Cleanup(func() { cdiSpecDirs = old })
+	old := gpucontainers.CDISpecDirs
+	gpucontainers.CDISpecDirs = []string{dir}
+	t.Cleanup(func() { gpucontainers.CDISpecDirs = old })
 }
 
 func TestCDIDeviceNodes(t *testing.T) {

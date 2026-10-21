@@ -212,7 +212,7 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys are declared in the config schema (`pkg/config/schema/yaml/`).
+Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|
@@ -220,8 +220,10 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
+| `anomaly_detection.metrics.allowed_types` | `[]` | Allowed metric types for external and log-derived metrics (`[]` = all) |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
 | `anomaly_detection.recording.enabled` | `false` | Enables Parquet recording in tagged Agent builds |
+| `anomaly_detection.recording.only` | `true` | With an active recorder, record metrics and logs without analysis |
 | `anomaly_detection.recording.flush_interval` | `60s` | Duration passed to the writer backend; `0s` uses `60s` |
 | `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |

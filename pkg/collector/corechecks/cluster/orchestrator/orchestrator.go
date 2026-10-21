@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"go.uber.org/atomic"
@@ -25,7 +26,6 @@ import (
 	"k8s.io/client-go/metadata/metadatainformer"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -219,6 +219,8 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
+	o.refreshInfraTags()
+
 	if ok, err := o.IsLeader(); !ok {
 		// Disable terminated resource bundle if not leader so we don't buffer terminated resources by informer DeleteFunc
 		o.collectorBundle.GetTerminatedResourceBundle().Disable()
@@ -227,6 +229,8 @@ func (o *OrchestratorCheck) Run() error {
 
 	// Enable terminated resource bundle to start buffering terminated resources
 	o.collectorBundle.EnableTerminatedResourceBundle()
+
+	o.collectorBundle.RetryDiscovery()
 
 	// Initialize collectors
 	o.collectorBundle.Initialize()
@@ -241,6 +245,34 @@ func (o *OrchestratorCheck) Run() error {
 	o.collectorBundle.Run(sender)
 
 	return nil
+}
+
+// refreshInfraTags adds the infrastructure mode tags to the payload tags when
+// they were not available at Configure time. On a Cluster Check Runner they come
+// from the Cluster Agent's tagger stream, which can connect after the check is
+// configured.
+//
+// Other goroutines read the tags in two places: the manifest buffer, which only
+// runs inside a collector bundle run and so never overlaps this call, and the
+// terminated resource flush that Cancel triggers, which the bundle lock covers.
+func (o *OrchestratorCheck) refreshInfraTags() {
+	infraTags := o.tagger.GetInfraTags()
+	missing := slices.ContainsFunc(infraTags, func(tag string) bool {
+		return !slices.Contains(o.orchestratorConfig.ExtraTags, tag)
+	})
+	if !missing {
+		return
+	}
+
+	update := func() {
+		o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
+	}
+	if o.collectorBundle != nil {
+		o.collectorBundle.GetTerminatedResourceBundle().withLock(update)
+	} else {
+		update()
+	}
+	log.Infoc(fmt.Sprintf("Adding infrastructure mode tags %v to orchestrator payloads", infraTags), orchestrator.ExtraLogContext...)
 }
 
 // Cancel cancels the orchestrator check
@@ -258,15 +290,6 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
 
-	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
-	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
-		options.FieldSelector = fields.AndSelectors(
-			fields.OneTermNotEqualSelector("status.phase", "Pending"),
-			fields.OneTermNotEqualSelector("status.phase", "Running"),
-			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
-		).String()
-	}
-
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
@@ -274,7 +297,6 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		MetadataInformerFactory:      metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
-		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
 	}
 
 	return of

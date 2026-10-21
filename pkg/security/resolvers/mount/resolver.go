@@ -225,7 +225,7 @@ func (mr *Resolver) SyncCache() error {
 }
 
 func (mr *Resolver) insertMoved(mount *model.Mount) {
-	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
+	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false, dentry.CallerMountPoint)
 
 	mr.insert(mount)
 	_, _, _, _ = mr.getMountPath(mount.MountID, 0)
@@ -653,6 +653,18 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 
 	for mount := range mr.mounts.ValuesIter() {
 		cb(mount)
+	}
+}
+
+// IterateNamespace calls cb for every cached mount in the given mount namespace
+func (mr *Resolver) IterateNamespace(nsInode uint32, cb func(*model.Mount)) {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for mount := range mr.mounts.ValuesIter() {
+		if mount.NamespaceInode == nsInode {
+			cb(mount)
+		}
 	}
 }
 

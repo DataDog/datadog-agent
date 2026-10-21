@@ -102,8 +102,8 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 		pkgconfigmodel.SourceAgentRuntime,
 	)
 
-	// The endpoint has both api keys
-	expectData = `{"example1.com":["api_key1","api_key2"],"example2.com":["api_key3"]}`
+	// The updated endpoint has both API keys, while the removed endpoint loses its stale key.
+	expectData = `{"example1.com":["api_key1","api_key2"],"example2.com":[]}`
 	actualAPIKeys = forwarder.domainAPIKeyMap()
 	data, err = json.Marshal(actualAPIKeys)
 	require.NoError(t, err)

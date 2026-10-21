@@ -8,6 +8,8 @@ package observerimpl
 import (
 	"testing"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/stretchr/testify/assert"
@@ -15,8 +17,9 @@ import (
 )
 
 type precheckOnlyMetricView struct {
-	name string
-	host string
+	name       string
+	host       string
+	metricType metrics.MetricType
 }
 
 func (m *precheckOnlyMetricView) GetName() string { return m.name }
@@ -27,16 +30,20 @@ func (*precheckOnlyMetricView) GetTags() tagset.CompositeTags {
 }
 func (*precheckOnlyMetricView) GetTimestampUnix() int64 { panic("timestamp must not be read") }
 func (*precheckOnlyMetricView) GetSampleRate() float64  { panic("sample rate must not be read") }
+func (m *precheckOnlyMetricView) GetMetricType() metrics.MetricType {
+	return m.metricType
+}
 
 func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	ch := make(chan observation, 1)
 	h := &handle{ch: ch, source: "dogstatsd"}
 	sample := &metricObs{
-		name:      "requests",
-		value:     42,
-		host:      "host-a",
-		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
-		timestamp: 123,
+		name:       "requests",
+		value:      42,
+		metricType: metrics.CountType,
+		host:       "host-a",
+		tags:       tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
+		timestamp:  123,
 	}
 
 	require.False(t, testObserveMetricAndReportDrop(h, sample))
@@ -45,6 +52,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	// Mutating the scalar fields here must not change the queued observation.
 	sample.name = "reused"
 	sample.value = -1
+	sample.metricType = metrics.GaugeType
 	sample.host = "host-b"
 	sample.timestamp = 456
 
@@ -52,6 +60,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	require.True(t, queued.hasMetric)
 	assert.Equal(t, "requests", queued.metric.name)
 	assert.Equal(t, 42.0, queued.metric.value)
+	assert.Equal(t, metrics.CountType, queued.metric.metricType)
 	assert.Equal(t, "host-a", queued.metric.host)
 	assert.Equal(t, int64(123), queued.metric.timestamp)
 	assert.Equal(t, []string{"service:web", "env:prod"}, queued.metric.tags.UnsafeToReadOnlySliceString())
@@ -77,6 +86,7 @@ func TestMetricHandoffRetainsImmutableCompositeTags(t *testing.T) {
 	decision := prepareMetricHandoff(queued.source, queued.metric, filter, nil)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, sample.tags, decision.metric.tags)
+	assert.Equal(t, sample.metricType, decision.metric.GetMetricType())
 	assert.Equal(t, storageKeyForContextKey(queued.source, queued.metric.contextKey), decision.metric.storageKey)
 }
 
@@ -146,4 +156,37 @@ func TestMetricHandoffDefersTagDependentRule(t *testing.T) {
 	queued := <-ch
 	require.True(t, queued.metric.precheck.needsTags)
 	assert.Nil(t, prepareMetricHandoff(queued.source, queued.metric, filter, nil).metric)
+}
+
+func TestMetricTypesReachStorageThroughLiveAndReplayIngest(t *testing.T) {
+	for _, source := range []string{"check", "dogstatsd", "parquet"} {
+		t.Run(source, func(t *testing.T) {
+			filter, err := newDefaultMetricsFilterRules()
+			require.NoError(t, err)
+			obs := &observerImpl{
+				engine: newEngine(engineConfig{storage: newTimeSeriesStorageWith(StorageConfig{})}),
+				obsCh:  make(chan observation, 32), metricFilter: filter, ingestMetricsEnabled: true,
+			}
+			done := make(chan struct{})
+			go func() { obs.run(); close(done) }()
+			t.Cleanup(func() { close(obs.obsCh); <-done })
+			handle := obs.innerHandle(source)
+			types := []metrics.MetricType{observerdef.UnknownType, metrics.GaugeType, metrics.CountType, metrics.CounterType, metrics.MonotonicCountType, metrics.RateType, metrics.HistogramType, metrics.DistributionType}
+			for _, typ := range types {
+				sample := &metricObs{name: "metric." + typ.String(), metricType: typ, value: 1, timestamp: 100}
+				if source == "parquet" {
+					obs.IngestMetricSync(source, sample, testContextKeyFor(sample))
+				} else {
+					handle.ObserveMetric(sample, testContextKeyFor(sample))
+				}
+			}
+			obs.Flush()
+			metas := obs.engine.storage.ListSeries(observerdef.SeriesFilter{Namespace: source})
+			require.Len(t, metas, len(types))
+			for _, meta := range metas {
+				assert.Equal(t, "metric."+meta.MetricType.String(), meta.Name)
+				assert.Equal(t, meta.MetricType, obs.engine.storage.GetSeriesMeta(meta.Ref).MetricType)
+			}
+		})
+	}
 }

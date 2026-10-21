@@ -70,4 +70,31 @@ int test_path_id_rename_and_invalidation() {
     return 1;
 }
 
+SEC("test/path_id_pair")
+int test_path_id_pair() {
+    const u32 mount_id = 32;
+    const u64 inode = 1;
+
+    // no invalidation, before and after are the same
+    struct path_id_pair_t pair = get_path_id_pair(inode, mount_id, 1, PATH_ID_INVALIDATE_TYPE_NONE);
+    assert_equals(pair.before, PATH_ID(0, 0), "path id before should be the initial one");
+    assert_equals(pair.after, PATH_ID(0, 0), "path id after should be the same as before");
+
+    // local invalidation, only the low id changes
+    pair = get_path_id_pair(inode, mount_id, 1, PATH_ID_INVALIDATE_TYPE_LOCAL);
+    assert_equals(pair.before, PATH_ID(0, 0), "path id before should be left unchanged");
+    assert_equals(pair.after, PATH_ID(0, 1), "path id after should have low id incremented");
+
+    // global invalidation, only the high id changes
+    pair = get_path_id_pair(inode, mount_id, 1, PATH_ID_INVALIDATE_TYPE_GLOBAL);
+    assert_equals(pair.before, PATH_ID(0, 1), "path id before should be left unchanged");
+    assert_equals(pair.after, PATH_ID(1, 1), "path id after should have high id incremented");
+
+    // get_path_id should return the id before the invalidation
+    u32 path_id = get_path_id(inode, mount_id, 1, PATH_ID_INVALIDATE_TYPE_LOCAL);
+    assert_equals(path_id, PATH_ID(1, 1), "get_path_id should return the path id before the invalidation");
+
+    return 1;
+}
+
 #endif /* _PATH_ID_TEST_H_ */

@@ -3,7 +3,6 @@ load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:go_test default
-# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
 exports_files([
     "types_linux.go",
@@ -85,7 +84,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
             "//pkg/ebpf/bytecode",
-            "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/names",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
@@ -97,7 +96,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
             "//pkg/ebpf/bytecode",
-            "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/names",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",

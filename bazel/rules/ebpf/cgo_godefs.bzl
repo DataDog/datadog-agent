@@ -171,7 +171,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         hdrs = hdrs,
         c_compiler = select({
             "@platforms//os:windows": "@winlibs_mingw64//:gcc",
-            "//conditions:default": "@llvm_toolchain_llvm//:bin/clang",
+            "//conditions:default": "@llvm//tools:clang",
         }),
         target_compatible_with = compat,
     )
