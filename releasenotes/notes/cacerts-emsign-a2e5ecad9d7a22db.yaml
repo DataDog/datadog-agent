@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    Update the embedded CA certificate bundle to the Mozilla bundle dated 2026-10-20.
+    This removes the ``emSign ECC Root CA - G3``, ``emSign ECC Root CA - C3`` and
+    ``emSign Root CA - C1`` root certificates, which Mozilla removed from its root store.
+    The CA bundles vendored by the ``certifi``, ``pip``, ``boto`` and ``botocore`` Python
+    packages are replaced with this bundle as well.

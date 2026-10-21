@@ -444,6 +444,22 @@ build do
     patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/__init__.py"
   end
 
+  # certifi, pip, boto and botocore each vendor a CA bundle, and certifi has no Python 2 release
+  # newer than 2021.10.8, which still ships roots Mozilla has since distrusted.
+  if windows_target?
+    site_packages = "#{python_2_embedded}/Lib/site-packages"
+    embedded_cacert = "#{python_2_embedded}/ssl/certs/cacert.pem"
+  else
+    site_packages = "#{install_dir}/embedded/lib/python2.7/site-packages"
+    embedded_cacert = "#{install_dir}/embedded/ssl/certs/cacert.pem"
+  end
+  block "Replace vendored CA bundles with the embedded one" do
+    raise "certifi CA bundle not found under #{site_packages}" unless File.exist?("#{site_packages}/certifi/cacert.pem")
+    ["certifi/cacert.pem", "pip*/**/_vendor/certifi/cacert.pem", "botocore/cacert.pem", "boto/cacerts/cacerts.txt"]
+      .flat_map { |pattern| Dir.glob("#{site_packages}/#{pattern}") }
+      .each { |bundle| FileUtils.cp(embedded_cacert, bundle) }
+  end
+
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   if windows_target?
     command "#{python} -m pip check"
