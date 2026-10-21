@@ -530,6 +530,14 @@ go_deps.module_override(
     path = "github.com/tinylib/msgp",
 )
 
+# datadogV2 (~1.4M generated lines) peaks at 6.4 GiB per compile, way above GoCompilePkg's 250MB default, and gets
+# compiled in a dozen configurations by `bazel test //...`: book memory accordingly to keep containers from OOMing.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:datadog-api-client-go-datadogV2-memory.patch"],
+    path = "github.com/DataDog/datadog-api-client-go/v2",
+)
+
 # zstd's vendored C (divsufsort.c) compiles assert() calls whose __FILE__ expands to
 # the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
 # makes zstd.a non-reproducible build-to-build, so every test linking it always misses

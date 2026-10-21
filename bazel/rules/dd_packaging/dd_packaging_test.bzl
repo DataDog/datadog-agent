@@ -684,6 +684,46 @@ def _test_data_reaches_packaged(name):
 def _test_data_reaches_packaged_impl(env, target):
     _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
 
+# Test 14: a cc_shared_library depending on a dd_cc_packaged through dynamic_deps
+# gets the wrapped library in its runfiles.
+def _test_dynamic_dep_runfiles(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_so",
+        shared_lib_name = "libdynamic_dep_runfiles.so",
+        deps = [":" + name + "_lib"],
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+    )
+    util.helper_target(
+        cc_library,
+        name = name + "_consumer_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_subject",
+        dynamic_deps = [":" + name + "_packaged"],
+        deps = [":" + name + "_consumer_lib"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_dynamic_dep_runfiles_impl,
+        target = name + "_subject",
+    )
+
+def _test_dynamic_dep_runfiles_impl(env, target):
+    env.expect.that_target(target).runfiles().contains_predicate(
+        matching.str_endswith("libdynamic_dep_runfiles.so"),
+    )
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -703,5 +743,6 @@ def dd_packaging_test_suite(name):
             _test_cc_import_reaches_packaged,
             _test_go_chain_reaches_packaged,
             _test_data_reaches_packaged,
+            _test_dynamic_dep_runfiles,
         ],
     )

@@ -146,6 +146,18 @@ func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion s
 		return nil, err
 	}
 
+	for _, list := range d.cache.Resources {
+		if list.GroupVersion != groupVersion {
+			continue
+		}
+		for _, apiResource := range list.APIResources {
+			if apiResource.Name == resource {
+				collector.Metadata().Kind = apiResource.Kind
+				break
+			}
+		}
+	}
+
 	return d.isSupportCollector(collector)
 }
 

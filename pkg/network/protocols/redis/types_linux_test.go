@@ -9,17 +9,17 @@ import (
 )
 
 func TestCgoAlignment_EbpfEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfEvent](t)
+	ebpftest.AssertCgoAlignment[EbpfEvent](t)
 }
 
 func TestCgoAlignment_EbpfKeyedEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfKeyedEvent](t)
+	ebpftest.AssertCgoAlignment[EbpfKeyedEvent](t)
 }
 
 func TestCgoAlignment_EbpfKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfKey](t)
+	ebpftest.AssertCgoAlignment[EbpfKey](t)
 }
 
 func TestCgoAlignment_EbpfTx(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfTx](t)
+	ebpftest.AssertCgoAlignment[EbpfTx](t)
 }
