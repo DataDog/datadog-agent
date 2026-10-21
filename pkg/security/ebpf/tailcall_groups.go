@@ -20,6 +20,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -193,7 +194,7 @@ func (t *tailCallGroupsModifier) patch(m *manager.Manager) error {
 		hookFuncs[probe.EBPFFuncName] = true
 	}
 
-	plan := planTailCallGroups(progSpecs, mapSpecs, t.routes, hookFuncs, btf.LoadKernelSpec)
+	plan := planTailCallGroups(progSpecs, mapSpecs, t.routes, probes.AllFentryTailCallRouteCallers(), hookFuncs, btf.LoadKernelSpec)
 	if plan == nil {
 		return nil
 	}
@@ -238,7 +239,7 @@ type tailCallPlan struct {
 
 // planTailCallGroups splits the hook points using program arrays in groups of programs that can share them. It
 // returns nil if no tracing program uses a program array.
-func planTailCallGroups(progSpecs map[string]*lib.ProgramSpec, mapSpecs map[string]*lib.MapSpec, allRoutes []manager.TailCallRoute, hookFuncs map[string]bool, loadKernelSpec func() (*btf.Spec, error)) *tailCallPlan {
+func planTailCallGroups(progSpecs map[string]*lib.ProgramSpec, mapSpecs map[string]*lib.MapSpec, allRoutes []manager.TailCallRoute, routeCallers []probes.TailCallRouteCallers, hookFuncs map[string]bool, loadKernelSpec func() (*btf.Spec, error)) *tailCallPlan {
 	programArrays := make(map[string]bool)
 	for name, spec := range mapSpecs {
 		if spec.Type == lib.ProgramArray {
@@ -291,8 +292,16 @@ func planTailCallGroups(progSpecs map[string]*lib.ProgramSpec, mapSpecs map[stri
 		return nil
 	}
 
+	callers := make(map[manager.TailCallRoute][]string)
+	for _, rc := range routeCallers {
+		for _, route := range routes {
+			if route.ProgArrayName == rc.ProgArrayName && route.Key == rc.Key {
+				callers[route] = rc.Callers
+			}
+		}
+	}
 	for _, group := range plan.groups {
-		group.resolveRoutes(routes, plan.refs)
+		group.resolveRoutes(routes, plan.refs, callers)
 	}
 
 	// the group reaching the most targets uses the original program arrays and targets, which avoids loading copies
@@ -361,7 +370,7 @@ func groupTailCallCallers(progSpecs map[string]*lib.ProgramSpec, refs map[string
 }
 
 // resolveRoutes computes the routes, targets and program arrays reachable from the callers of the group
-func (g *tailCallGroup) resolveRoutes(routes []manager.TailCallRoute, refs map[string][]string) {
+func (g *tailCallGroup) resolveRoutes(routes []manager.TailCallRoute, refs map[string][]string, callers map[manager.TailCallRoute][]string) {
 	programs := slices.Clone(g.callers)
 	included := make([]bool, len(routes))
 
@@ -377,6 +386,12 @@ func (g *tailCallGroup) resolveRoutes(routes []manager.TailCallRoute, refs map[s
 				return slices.Contains(refs[prog], route.ProgArrayName)
 			})
 			if !reachable {
+				continue
+			}
+
+			if routeCallers, ok := callers[route]; ok && !slices.ContainsFunc(routeCallers, func(caller string) bool {
+				return slices.Contains(programs, caller)
+			}) {
 				continue
 			}
 
