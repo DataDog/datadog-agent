@@ -41,6 +41,9 @@ Security Notes
   This removes the ``emSign ECC Root CA - G3``, ``emSign ECC Root CA - C3`` and
   ``emSign Root CA - C1`` root certificates, which Mozilla removed from its root store.
 
+- Update the embedded ``pip`` to 26.2.2. Its vendored ``certifi`` CA bundle no longer
+  includes the ``emSign ECC Root CA - G3`` root certificate.
+
 
 .. _Release Notes_7.84.4:
 
