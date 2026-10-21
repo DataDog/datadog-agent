@@ -442,7 +442,7 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     }
 
     struct tcp_skb_cb *tcp_skb = (struct tcp_skb_cb *)BPF_CORE_READ(skb, cb);
-    u32 skb_pcount = BPF_CORE_READ(tcp_skb, tcp_gso_segs);
+    u16 skb_pcount = BPF_CORE_READ(tcp_skb, tcp_gso_segs);
     return handle_retransmit(sk, skb_pcount);
 }
 
