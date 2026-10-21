@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 ISSUE_NAME = "Invalid Config"
 ISSUE_TYPE = "invalid_config"
+ISSUE_CATEGORY = "configuration"
 RESOURCE_TYPE = "agent_health_issues"
 
 lock = threading.Lock()
@@ -17,6 +18,7 @@ issues = {
             "issue_id": os.environ["STALE_NODE_ISSUE_ID"],
             "issue_name": ISSUE_NAME,
             "issue_type": ISSUE_TYPE,
+            "category": ISSUE_CATEGORY,
         }
     ],
     "cluster": [
@@ -24,6 +26,7 @@ issues = {
             "issue_id": os.environ["STALE_CLUSTER_ISSUE_ID"],
             "issue_name": ISSUE_NAME,
             "issue_type": ISSUE_TYPE,
+            "category": ISSUE_CATEGORY,
         }
     ],
 }

@@ -31,6 +31,7 @@ import (
 const (
 	remotePersistenceIssueName      = "Invalid Config"
 	remotePersistenceIssueType      = "invalid_config"
+	remotePersistenceIssueCategory  = "configuration"
 	remotePersistenceIssueIDPrefix  = "invalid-config:"
 	remotePersistenceDaemonSetName  = "dda-linux-datadog"
 	remotePersistenceClusterIDMap   = "datadog-cluster-id"
@@ -42,6 +43,7 @@ type remoteBackendIssue struct {
 	IssueID   string `json:"issue_id"`
 	IssueName string `json:"issue_name"`
 	IssueType string `json:"issue_type"`
+	Category  string `json:"category"`
 }
 
 type remoteBackendRequest struct {
@@ -93,12 +95,14 @@ func (suite *admissionProbeSuite) TestRemotePersistenceReconciliation() {
 			IssueID:   activeIssueID,
 			IssueName: remotePersistenceIssueName,
 			IssueType: remotePersistenceIssueType,
+			Category:  remotePersistenceIssueCategory,
 		}})
 		t.Cleanup(func() {
 			suite.setRemoteBackendIssues(t, "node", []remoteBackendIssue{{
 				IssueID:   staleNodeIssueID,
 				IssueName: remotePersistenceIssueName,
 				IssueType: remotePersistenceIssueType,
+				Category:  remotePersistenceIssueCategory,
 			}})
 		})
 
@@ -324,6 +328,7 @@ func assertIssueState(t testing.TB, issue *healthplatform.Issue, issueID string,
 	assert.Equal(t, issueID, issue.GetId())
 	assert.Equal(t, remotePersistenceIssueName, issue.GetIssueName())
 	assert.Equal(t, remotePersistenceIssueType, issue.GetIssueType())
+	assert.Equal(t, remotePersistenceIssueCategory, issue.GetCategory())
 	require.NotNil(t, issue.GetPersistedIssue())
 	assert.Equal(t, state, issue.GetPersistedIssue().GetState())
 }
