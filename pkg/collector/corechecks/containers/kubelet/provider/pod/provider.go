@@ -256,7 +256,7 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *wor
 	restartCount := float64(cStatus.RestartCount)
 	sender.Gauge(common.KubeletMetricsPrefix+"containers.restarts", restartCount, "", tagList)
 	if p.agentPerformance != nil {
-		p.agentPerformance.RecordMetric(agentperformance.ContainerRestarts, &restartCount, pod, cStatus.Name, "")
+		p.agentPerformance.RecordContainerRestarts(restartCount, pod, cStatus.Name)
 	}
 
 	for key, state := range map[string]workloadmeta.KubernetesContainerState{"state": cStatus.State, "last_state": cStatus.LastTerminationState} {
@@ -264,9 +264,8 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *wor
 			reason := strings.ToLower(state.Terminated.Reason)
 			termTags := utils.ConcatenateStringTags(tagList, "reason:"+reason)
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".terminated", 1, "", termTags)
-			terminated := 1.0
 			if p.agentPerformance != nil {
-				p.agentPerformance.RecordMetric(agentperformance.ContainerTerminated, &terminated, pod, cStatus.Name, reason)
+				p.agentPerformance.RecordContainerTerminated(pod, cStatus.Name, reason, state.Terminated.ExitCode)
 			}
 		}
 		if state.Waiting != nil && slices.Contains(includeContainerStateReason["waiting"], strings.ToLower(state.Waiting.Reason)) {

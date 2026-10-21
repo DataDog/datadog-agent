@@ -8,6 +8,7 @@ package agentperformance
 
 import (
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -81,7 +82,7 @@ func newRecorder(tm telemetry.Component) *Recorder {
 		containersTerminated: tm.NewGauge(
 			subsystem,
 			ContainerTerminated,
-			[]string{kindTag, tags.KubePod, tags.ContainerName, "reason"},
+			[]string{kindTag, tags.KubePod, tags.ContainerName, "reason", "exit_code"},
 			"Kubernetes container terminated states for Datadog Agent containers",
 		),
 		memoryUsage: tm.NewGauge(
@@ -159,12 +160,12 @@ func (t *Recorder) RecordCPUUsage(containerID string, containerName string, tota
 		return
 	}
 
-	kind, ok := agentPodKind(pod)
-	if !ok || pod.Name == "" {
+	kind, podName, ok := agentPodMetricLabels(pod)
+	if !ok {
 		return
 	}
 
-	t.cpuUsage.Add((*total-previousSample.total)/float64(elapsed), kind, pod.Name, containerName)
+	t.cpuUsage.Add((*total-previousSample.total)/float64(elapsed), kind, podName, containerName)
 }
 
 // ResetKubeletMetrics clears kubelet-sourced state aggregates.
@@ -172,22 +173,49 @@ func (t *Recorder) ResetKubeletMetrics() {
 	t.resetKubeletMetrics()
 }
 
-// RecordMetric records a container metric when it belongs to
-// a Datadog Agent, Cluster Agent, or Cluster Check Runner pod.
-func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, containerName string, reason string) {
-	if value == nil || pod == nil {
-		return
-	}
-
-	kind, ok := agentPodKind(pod)
+// RecordContainerRestarts records Kubernetes container restarts for an Agent pod.
+func (t *Recorder) RecordContainerRestarts(value float64, pod *workloadmeta.KubernetesPod, containerName string) {
+	kind, podName, ok := agentPodMetricLabels(pod)
 	if !ok {
 		return
 	}
+	t.containersRestarts.Add(value, kind, podName, containerName)
+}
 
-	if pod.Name == "" {
+// RecordContainerTerminated records a terminated state for an Agent pod.
+func (t *Recorder) RecordContainerTerminated(pod *workloadmeta.KubernetesPod, containerName string, reason string, exitCode int32) {
+	if reason == "" {
 		return
 	}
-	t.record(metricName, *value, kind, pod.Name, containerName, reason)
+	kind, podName, ok := agentPodMetricLabels(pod)
+	if !ok {
+		return
+	}
+	t.containersTerminated.Add(1, kind, podName, containerName, reason, strconv.FormatInt(int64(exitCode), 10))
+}
+
+// RecordMemoryUsage records container runtime memory usage for an Agent pod.
+func (t *Recorder) RecordMemoryUsage(value *float64, pod *workloadmeta.KubernetesPod, containerName string) {
+	if value == nil {
+		return
+	}
+	kind, podName, ok := agentPodMetricLabels(pod)
+	if !ok {
+		return
+	}
+	t.memoryUsage.Add(*value, kind, podName, containerName)
+}
+
+// RecordMemoryLimit records a container runtime memory limit for an Agent pod.
+func (t *Recorder) RecordMemoryLimit(value *float64, pod *workloadmeta.KubernetesPod, containerName string) {
+	if value == nil {
+		return
+	}
+	kind, podName, ok := agentPodMetricLabels(pod)
+	if !ok {
+		return
+	}
+	t.memoryLimits.Add(*value, kind, podName, containerName)
 }
 
 func (t *Recorder) resetRuntimeMetrics() {
@@ -209,20 +237,12 @@ func (t *Recorder) resetKubeletMetrics() {
 	}
 }
 
-func (t *Recorder) record(metricName string, value float64, kind string, podName string, containerName string, reason string) {
-	switch metricName {
-	case ContainerRestarts:
-		t.containersRestarts.Add(value, kind, podName, containerName)
-	case ContainerTerminated:
-		if reason == "" {
-			return
-		}
-		t.containersTerminated.Add(value, kind, podName, containerName, reason)
-	case MemoryUsage:
-		t.memoryUsage.Add(value, kind, podName, containerName)
-	case MemoryLimit:
-		t.memoryLimits.Add(value, kind, podName, containerName)
+func agentPodMetricLabels(pod *workloadmeta.KubernetesPod) (string, string, bool) {
+	kind, ok := agentPodKind(pod)
+	if !ok || pod.Name == "" {
+		return "", "", false
 	}
+	return kind, pod.Name, true
 }
 
 func agentPodKind(pod *workloadmeta.KubernetesPod) (string, bool) {

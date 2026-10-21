@@ -144,6 +144,7 @@ profiles:
           - pod_name
           - container_name
           - reason
+          - exit_code
       - name: agent_performance.memory_usage
         preserve_tags:
           - kind
