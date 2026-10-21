@@ -48,6 +48,7 @@ const SINGLE_KNOB_MODULES: &[&str] = &[
     "traceroute.enabled",
     "privileged_logs.enabled",
     "noisy_neighbor.enabled",
+    "jvm_memory.enabled",
     "windows_crash_detection.enabled",
 ];
 

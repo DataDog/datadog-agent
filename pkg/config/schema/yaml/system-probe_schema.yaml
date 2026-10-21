@@ -1753,6 +1753,16 @@ properties:
         node_type: setting
         type: boolean
         default: true
+  jvm_memory:
+    node_type: section
+    type: object
+    description: Configuration for the jvm_memory check, which reports the memory pools and garbage collection pauses of HotSpot JVMs through their USDT probes.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enables the jvm_memory system-probe module and schedules the jvm_memory check in the core Agent.
   log_file_max_rolls:
     node_type: setting
     type: integer

@@ -64,3 +64,14 @@ ebpf_program_suite(
         "//pkg/ebpf/c:ebpf_c_headers",
     ],
 )
+
+ebpf_program_suite(
+    name = "jvm-memory",
+    src = "jvm-memory-kern.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":corecheck_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)
