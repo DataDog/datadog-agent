@@ -4,7 +4,7 @@ Use the Agent's existing delegated authentication lifecycle with a generic JWT
 token source. Azure, GCP, Kubernetes, and third-party JWT issuers all use the ETS
 **custom OIDC** handler. No static Datadog API key is needed in Agent config.
 
-This is a hackathon prototype. Live cloud and staging validation is still required.
+This is a hackathon prototype, validated against staging with real workload tokens.
 Issuer registration, JWKS hosting/discovery, and intake mappings are prerequisites;
 this change does not provision them.
 
@@ -185,7 +185,33 @@ The bundled metadata clients use fixed endpoints, a 10-second timeout, a 64-KiB
 response limit, no proxy, and no redirects. ETS exchanges use Agent proxy/CA
 settings but require HTTPS and refuse redirects for OIDC proofs.
 
-## Staging validation plan
+## Staging validation results
+
+On 2026-10-21, locally compiled Agents delivered uniquely tagged DogStatsD metrics
+to a dedicated staging org through all three sources. Independent API queries
+confirmed the metric points:
+
+- Kubernetes: a macOS Agent read projected service-account tokens copied from a
+  staging pod. Token rotation and repeated credential refresh succeeded without
+  restarting the Agent. This exercised the file source; it was not an Agent
+  DaemonSet deployment.
+- GCP: a Linux Agent on a GCP VM acquired its attached service account's metadata
+  ID token and exchanged it through custom OIDC.
+- Azure: the same Linux Agent build on an Azure VM acquired a user-assigned managed
+  identity token. The provider used `org_uuid_source: request` and an exact `oid`
+  intake mapping. The token contained no Datadog org claim or org audience: the
+  token-only exchange returned 401, while the Agent's explicit-org exchange,
+  credential refresh, and metric delivery succeeded. Startup recovery also
+  succeeded after the new mapping propagated, without an Agent restart.
+
+All three Agent configurations used the default explicit destination-org routing.
+Kubernetes and GCP retained their existing signed-audience provider registrations;
+Azure exercised request-mode registration without signed org binding. The Linux
+build excluded Python and unrelated optional integrations, so these checks validate
+authentication and metric delivery, not full release packaging or every Agent
+product. The broader negative-case checklist below remains useful for further QA.
+
+## Staging validation checklist
 
 Use CAVM development/sandbox Azure and GCP accounts. Prefer a dedicated staging
 Kubernetes namespace after confirming its issuer/JWKS is reachable by ETS. If it
