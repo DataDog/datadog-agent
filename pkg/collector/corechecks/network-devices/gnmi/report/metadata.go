@@ -122,7 +122,7 @@ func ReportMetadata(s Sender, cfg *config.CheckConfig, snapshot []client.CachedV
 	return true, nil
 }
 
-// ReportInterfaceStatus emits snmp.interface.status for each interface in the snapshot.
+// ReportInterfaceStatus emits <metric_prefix>.interface.status for each interface in the snapshot.
 func ReportInterfaceStatus(s Sender, cfg *config.CheckConfig, snapshot []client.CachedValue) error {
 	if s == nil {
 		return errors.New("sender is nil")
@@ -137,6 +137,7 @@ func ReportInterfaceStatus(s Sender, cfg *config.CheckConfig, snapshot []client.
 		return nil
 	}
 
+	s = withMetricPrefix(s, cfg)
 	baseTags := buildBaseTags(cfg, snapshot)
 	for _, iface := range interfaces {
 		status := string(computeInterfaceStatus(iface.AdminStatus, iface.OperStatus))

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The gNMI integration supports a per-instance ``metric_prefix`` option with
+    values ``snmp`` (the default) or ``gnmi``. The option controls device metric
+    names, including derived metrics and interface status, without changing
+    health metrics, tags, metadata, or profile definitions.

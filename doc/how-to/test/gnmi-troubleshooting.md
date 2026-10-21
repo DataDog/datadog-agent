@@ -36,6 +36,15 @@ they reuse the same profiles under `conf.d/gnmi.d/profiles/`.
 CLI flags (`--address`, `--port`, `--username`, and so on) override values loaded
 from the instance config.
 
+## Device metric prefix
+
+Set `metric_prefix: gnmi` on an instance in `conf.d/gnmi.d/conf.yaml` to emit
+`gnmi.*` device metrics instead of the default `snmp.*`. Only `snmp` and `gnmi`
+are supported. Profiles keep their `snmp.*` names: the check and `preview-metrics`
+apply the selected prefix when emitting profile metrics, derived metrics, and
+interface status. Custom metric namespaces, `datadog.gnmi.*` health metrics, tags,
+and metadata are unchanged.
+
 ## Commands
 
 ### `agent gnmi subscribe`

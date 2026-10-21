@@ -42,6 +42,7 @@ func ReportDerivedMetrics(s Sender, cfg *config.CheckConfig, snapshot []client.C
 		return errors.New("bandwidth state is nil")
 	}
 
+	s = withMetricPrefix(s, cfg)
 	baseTags := buildBaseTags(cfg, snapshot)
 	deviceID := buildDeviceID(cfg)
 	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile, snapshot)

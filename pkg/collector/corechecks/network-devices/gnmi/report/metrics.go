@@ -23,7 +23,36 @@ const defaultDeviceNamespace = "default"
 const integrationSourceGNMITag = "integration_source:gnmi"
 const deviceNamespaceTag = "device_namespace:" + defaultDeviceNamespace
 
-// ReportMetrics submits snmp.* metrics from a client snapshot using profile mappings.
+// metricPrefixSender applies the instance namespace at emission time, leaving profile
+// names intact for derived-metric matching and custom metric namespaces unchanged.
+type metricPrefixSender struct {
+	Sender
+	prefix string
+}
+
+func withMetricPrefix(s Sender, cfg *config.CheckConfig) Sender {
+	if cfg.Instance.MetricPrefix != "gnmi" {
+		return s
+	}
+	return metricPrefixSender{Sender: s, prefix: cfg.Instance.MetricPrefix}
+}
+
+func (s metricPrefixSender) metricName(name string) string {
+	if strings.HasPrefix(name, "snmp.") {
+		return s.prefix + strings.TrimPrefix(name, "snmp")
+	}
+	return name
+}
+
+func (s metricPrefixSender) Gauge(name string, value float64, hostname string, tags []string) {
+	s.Sender.Gauge(s.metricName(name), value, hostname, tags)
+}
+
+func (s metricPrefixSender) MonotonicCount(name string, value float64, hostname string, tags []string) {
+	s.Sender.MonotonicCount(s.metricName(name), value, hostname, tags)
+}
+
+// ReportMetrics submits device metrics using profile mappings and the configured prefix.
 // metricSnapshot contains the values to emit; inventorySnapshot supplies interface metadata
 // used for resource tagging and may be a superset of metricSnapshot.
 func ReportMetrics(s Sender, cfg *config.CheckConfig, metricSnapshot []client.CachedValue, inventorySnapshot []client.CachedValue) error {
@@ -37,6 +66,7 @@ func ReportMetrics(s Sender, cfg *config.CheckConfig, metricSnapshot []client.Ca
 		inventorySnapshot = metricSnapshot
 	}
 
+	s = withMetricPrefix(s, cfg)
 	baseTags := buildBaseTags(cfg, inventorySnapshot)
 	deviceID := buildDeviceID(cfg)
 	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile, inventorySnapshot)

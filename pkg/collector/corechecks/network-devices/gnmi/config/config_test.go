@@ -37,6 +37,7 @@ profile: cisco
 				Username:              "admin",
 				Password:              "secret",
 				Profile:               "cisco",
+				MetricPrefix:          "snmp",
 				MinCollectionInterval: DefaultMinCollectionInterval,
 				CollectTopology:       false,
 				UseTLS:                true,
@@ -62,6 +63,7 @@ use_tls: false
 				Username:              "ops",
 				Password:              "s3cret",
 				Profile:               "juniper",
+				MetricPrefix:          "snmp",
 				MinCollectionInterval: 30,
 				Tags:                  []string{"env:prod"},
 				CollectTopology:       true,
@@ -152,6 +154,25 @@ insecure_skip_verify: true
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, *got)
+		})
+	}
+}
+
+func TestParseInstanceConfigMetricPrefix(t *testing.T) {
+	for _, prefix := range []string{"", "snmp", "gnmi", "custom", "gnmi.", "GNMI"} {
+		t.Run(prefix, func(t *testing.T) {
+			raw := "address: router\nusername: admin\npassword: secret\nprofile: interface-stats\nmetric_prefix: " + prefix + "\n"
+			instance, err := ParseInstanceConfig(integration.Data(raw))
+			if prefix != "" && prefix != "snmp" && prefix != "gnmi" {
+				require.ErrorContains(t, err, "invalid `metric_prefix`")
+				return
+			}
+			require.NoError(t, err)
+			expected := prefix
+			if expected == "" {
+				expected = "snmp"
+			}
+			assert.Equal(t, expected, instance.MetricPrefix)
 		})
 	}
 }
