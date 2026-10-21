@@ -24,6 +24,51 @@ Enhancement Notes
 
 - Agents are now built with Go ``1.26.10``.
 
+- Agents are now built with Go ``1.26.9``.
+
+
+.. _Release Notes_7.84.5_Security Notes:
+
+Security Notes
+--------------
+
+- Update Agent Data Plane to 1.6.4 to reject server certificate chains
+  containing compromised eMudhra public keys for direct and proxied HTTPS
+  connections, including FIPS builds.
+
+- Update ``rustls-webpki`` to 0.103.16, which rejects certificate chains that
+  include a small set of distrusted intermediate CA public keys.
+
+- Update the embedded CA certificate bundle to the Mozilla bundle dated 2026-10-20.
+  This removes the ``emSign ECC Root CA - G3``, ``emSign ECC Root CA - C3`` and
+  ``emSign Root CA - C1`` root certificates, which Mozilla removed from its root store.
+
+- Update the embedded ``pip`` to 26.2.2. Its vendored ``certifi`` CA bundle no longer
+  includes the ``emSign ECC Root CA - G3`` root certificate.
+
+
+.. _Release Notes_7.84.5:
+
+7.84.5
+======
+
+.. _Release Notes_7.84.5_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-21
+
+- Please refer to the `7.84.5 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7845>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.5_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.26.10``.
+
 
 .. _Release Notes_7.84.5_Security Notes:
 
