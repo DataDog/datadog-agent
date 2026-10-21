@@ -510,8 +510,8 @@ func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
 	}
 }
 
-// newSeriesV3Serializer builds a serializer for the use_v3_api.series routing tests.
-func newSeriesV3Serializer(t *testing.T, config model.BuildableConfig) *Serializer {
+// newV3Serializer builds a serializer for the use_v3_api routing tests.
+func newV3Serializer(t *testing.T, config model.BuildableConfig) *Serializer {
 	t.Helper()
 	logger := logmock.New(t)
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
@@ -528,7 +528,7 @@ func TestSeriesV3ModeFalse(t *testing.T) {
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("use_v3_api.series.enabled", "false")
 
-	s := newSeriesV3Serializer(t, config)
+	s := newV3Serializer(t, config)
 	pipelines := s.buildPipelines(metricsKindSeries)
 	require.Len(t, pipelines, 1)
 	for conf, ctx := range pipelines {
@@ -551,7 +551,7 @@ func TestSeriesV3ModeDatadogOnly(t *testing.T) {
 		"http://my-proxy.example.test": {"alt_key"},
 	})
 
-	s := newSeriesV3Serializer(t, config)
+	s := newV3Serializer(t, config)
 	pipelines := s.buildPipelines(metricsKindSeries)
 	require.Len(t, pipelines, 2)
 
@@ -588,7 +588,7 @@ func TestSeriesV3PerURLOverride(t *testing.T) {
 		"http://third-party.example.test": "false",
 	})
 
-	s := newSeriesV3Serializer(t, config)
+	s := newV3Serializer(t, config)
 	pipelines := s.buildPipelines(metricsKindSeries)
 	require.Len(t, pipelines, 2)
 
@@ -622,7 +622,7 @@ func TestSeriesV3VectorDivertedDefaultsToV2(t *testing.T) {
 	config.SetInTest("vector.metrics.enabled", true)
 	config.SetInTest("vector.metrics.url", "http://vector.example.test:8080")
 
-	s := newSeriesV3Serializer(t, config)
+	s := newV3Serializer(t, config)
 	pipelines := s.buildPipelines(metricsKindSeries)
 	require.Len(t, pipelines, 1)
 	for conf, ctx := range pipelines {
@@ -642,7 +642,7 @@ func TestSeriesV3VectorOptIn(t *testing.T) {
 	config.SetInTest("vector.metrics.url", "http://vector.example.test:8080")
 	config.SetInTest("vector.metrics.use_v3_api.series", true)
 
-	s := newSeriesV3Serializer(t, config)
+	s := newV3Serializer(t, config)
 	pipelines := s.buildPipelines(metricsKindSeries)
 	require.Len(t, pipelines, 1)
 	for conf, ctx := range pipelines {
@@ -704,6 +704,126 @@ func TestSketchV3BetaShadowSuppressedWhenCompressorImplIsZlib(t *testing.T) {
 		assert.False(t, conf.V3)
 		assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
 		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
+
+// TestSketchesV3Mode covers use_v3_api.distributions.enabled / endpoints routing, and the
+// experimental endpoints list that is still honored as an opt-in.
+func TestSketchesV3Mode(t *testing.T) {
+	const ddURL = "https://app.datadoghq.com"
+	const proxyURL = "http://my-proxy.example.test"
+
+	tests := []struct {
+		name   string
+		config map[string]any
+		wantV3 map[string]bool
+	}{
+		{
+			name:   "default is v2",
+			wantV3: map[string]bool{ddURL: false, proxyURL: false},
+		},
+		{
+			name:   "true",
+			config: map[string]any{"use_v3_api.distributions.enabled": "true"},
+			wantV3: map[string]bool{ddURL: true, proxyURL: true},
+		},
+		{
+			name:   "datadog_only",
+			config: map[string]any{"use_v3_api.distributions.enabled": "datadog_only"},
+			wantV3: map[string]bool{ddURL: true, proxyURL: false},
+		},
+		{
+			name:   "per-URL opt-in",
+			config: map[string]any{"use_v3_api.distributions.endpoints": map[string]string{proxyURL: "true"}},
+			wantV3: map[string]bool{ddURL: false, proxyURL: true},
+		},
+		{
+			name: "per-URL opt-out",
+			config: map[string]any{
+				"use_v3_api.distributions.enabled":   "true",
+				"use_v3_api.distributions.endpoints": map[string]string{proxyURL: "false"},
+			},
+			wantV3: map[string]bool{ddURL: true, proxyURL: false},
+		},
+		{
+			name: "experimental endpoints still opt in",
+			config: map[string]any{
+				"use_v3_api.distributions.enabled":                           "false",
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{proxyURL},
+			},
+			wantV3: map[string]bool{ddURL: false, proxyURL: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := configmock.New(t)
+			config.SetInTest("dd_url", ddURL)
+			config.SetInTest("api_key", "test_key")
+			config.SetInTest("additional_endpoints", map[string][]string{proxyURL: {"alt_key"}})
+			config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0)
+			for k, v := range tt.config {
+				config.SetInTest(k, v)
+			}
+
+			s := newV3Serializer(t, config)
+			got := map[string]bool{}
+			for conf, ctx := range s.buildPipelines(metricsKindSketches) {
+				for _, dest := range ctx.Destinations {
+					got[dest.Resolver.GetConfigName()] = conf.V3
+					if conf.V3 {
+						assert.Equal(t, endpoints.V3SketchSeriesEndpoint, dest.Endpoint)
+					} else {
+						assert.Equal(t, endpoints.SketchSeriesEndpoint, dest.Endpoint)
+					}
+				}
+			}
+			assert.Equal(t, tt.wantV3, got)
+		})
+	}
+}
+
+// TestSketchesV3VectorDivertedStaysV2 covers the vector/OPW short-circuit: sketches
+// diverted through vector.metrics.url never use v3, whatever the v3 settings say.
+func TestSketchesV3VectorDivertedStaysV2(t *testing.T) {
+	config := configmock.New(t)
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("vector.metrics.enabled", true)
+	config.SetInTest("vector.metrics.url", "http://vector.example.test:8080")
+	config.SetInTest("use_v3_api.distributions.enabled", "true")
+	config.SetInTest("serializer_experimental_use_v3_api.sketches.endpoints", []string{"https://app.datadoghq.com"})
+
+	s := newV3Serializer(t, config)
+	pipelines := s.buildPipelines(metricsKindSketches)
+	require.Len(t, pipelines, 1)
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		assert.False(t, conf.V3)
+		assert.Equal(t, endpoints.SketchSeriesEndpoint, ctx.Destinations[0].Endpoint)
+	}
+}
+
+// TestSketchesV3ForcedToV2WhenCompressorImplIsZlib is the sketches analogue of
+// TestSeriesV3ForcedToV2WhenCompressorImplIsZlib.
+func TestSketchesV3ForcedToV2WhenCompressorImplIsZlib(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+	config.SetInTest("dd_url", "https://app.datadoghq.com")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("use_v3_api.distributions.enabled", "true")
+	config.SetInTest("serializer_compressor_kind", "zstd")
+
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	s := NewSerializer(f, nil, implzlib.New(), config, logger, "")
+	require.Equal(t, compression.ZlibEncoding, s.Strategy.ContentEncoding(), "test precondition: compressor must be zlib")
+
+	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 1})
+	require.Len(t, pipelines, 1)
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		assert.False(t, conf.V3, "a zlib compressor must force sketches to v2")
+		assert.Equal(t, endpoints.SketchSeriesEndpoint, ctx.Destinations[0].Endpoint)
 	}
 }
 
@@ -806,6 +926,10 @@ func TestSketchesV2Domains(t *testing.T) {
 				"multi_region_failover.enabled":                         true,
 				"multi_region_failover.dd_url":                          "http://mrf.example.test",
 			},
+		},
+		{
+			name:   "sketches on v3 via use_v3_api",
+			config: map[string]any{"use_v3_api.distributions.enabled": "true"},
 		},
 		{
 			name:     "zlib forces v2",
