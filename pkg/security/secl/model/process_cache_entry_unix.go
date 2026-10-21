@@ -141,7 +141,7 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 }
 
 func (pc *ProcessCacheEntry) copyCGroupAndContainerFrom(parent *ProcessCacheEntry) {
-	if parent.CGroup.CGroupPathKey.IsNull() || !pc.CGroup.IsNull() {
+	if parent.CGroup.IsNull() || !pc.CGroup.IsNull() {
 		return
 	}
 

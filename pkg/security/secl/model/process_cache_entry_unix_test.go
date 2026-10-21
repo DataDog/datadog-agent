@@ -232,6 +232,19 @@ func TestCGroupAndContainerInheritedAsPair(t *testing.T) {
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
 	})
 
+	// ebpfless entries only have a cgroup ID, no path key
+	t.Run("cgroup-id-only-parent-inherits-both", func(t *testing.T) {
+		parent := newPCE(1, nil, false)
+		parent.CGroup = CGroupContext{CGroupID: "/kubepods.slice/cri-containerd-abcdef.scope"}
+		parent.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+		child := newPCE(2, nil, false)
+
+		child.SetForkParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, containerutils.ContainerID("abcdef"), child.ContainerContext.ContainerID)
+	})
+
 	t.Run("host-parent-does-not-clear-own-container", func(t *testing.T) {
 		hostParent := newPCE(1, nil, false)
 		hostParent.CGroup = CGroupContext{
