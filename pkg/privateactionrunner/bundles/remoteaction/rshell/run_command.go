@@ -19,10 +19,8 @@ import (
 	"path"
 	"runtime"
 	"slices"
-	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
-	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
 	"github.com/DataDog/rshell/privilegedhelper"
@@ -338,7 +336,7 @@ func (h *RunCommandHandler) Run(
 	log.Infof("rshell runCommand (mode=%s): backendAllowedCommands=%v effectiveAllowedCommands=%v elevatableCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v procPath=%s systemdTarget=%+v disableDetailedTelemetry=%v",
 		h.mode, backendCommands, effectiveAllowedCommands, inputs.ElevatableCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices, procPath, systemdTarget, h.disableCommandTelemetry)
 
-	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
+	prog, err := interp.ParseScript(inputs.Command, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
