@@ -1,11 +1,11 @@
 ---
 name: anomalydetection-run-gensim-scenario
 description: >-
-  Record gensim episodes with the anomaly-detection recorder on either a remote Linux VM (--backend vm, default)
-  or an AWS EKS cluster (--backend eks) and fetch validated Parquet recordings for the Agent Anomaly Detection
-  team's testbench evals. Use for "record a gensim scenario on a VM", "record gensim episodes on EKS",
-  "set up the gensim VM", or "record a batch of episodes and fetch the parquet". Not a general-purpose gensim
-  or Agent benchmarking workflow.
+  Record gensim episodes with the anomaly-detection recorder on either an AWS EKS cluster (--backend eks)
+  or a remote Linux VM (--backend vm) and fetch validated Parquet recordings for the Agent Anomaly Detection
+  team's testbench evals. Use for "record a gensim scenario", "record a gensim scenario on a VM", "record gensim
+  episodes on EKS", "set up the gensim VM", or "record a batch of episodes and fetch the parquet". Not a
+  general-purpose gensim or Agent benchmarking workflow.
 allowed-tools: Bash, Read, AskUserQuestion
 ---
 
@@ -13,9 +13,9 @@ allowed-tools: Bash, Read, AskUserQuestion
 
 Owner: Agent Anomaly Detection (`@DataDog/agent-anomaly-detection`).
 
-Accept `--backend vm|eks` (default `vm` when omitted so existing invocations keep working). Use `--backend eks` for
-controlled, repeatable multi-episode benchmark batches, and `--backend vm` for interactive debugging or lightweight
-single-node experiments.
+Accept `--backend vm|eks`. If the user does not specify a backend, **ask them to choose between `eks` and `vm`**:
+- `eks` is for production benchmark recordings and automatically uploads the recorded archive to S3.
+- `vm` is for interactive debugging or lightweight single-node experiments.
 
 Run the bundled helpers one at a time and check their exit status. They do not automatically tear down infrastructure so
 you can reuse a healthy VM or EKS cluster across a batch. Do not claim a live AWS or VM run unless the user explicitly
@@ -25,14 +25,14 @@ authorized one and you actually performed it.
 
 | Backend | When to choose | Execution model |
 |---|---|---|
-| `vm` (default) | Interactive debugging, single-worker kind inspection, quick shortened trials | SSH helpers in `scripts/vm.sh`, `scripts/scenario.sh`, `scripts/fetch.sh` |
-| `eks` (recommended for final batches) | Controlled, repeatable benchmark batches with S3 artifact archival | `dda inv aws.eks.gensim.{submit,status,fetch,stop-all,destroy}` |
+| `eks` (production) | Production benchmark recordings and batches; automatically uploads recordings to S3 | `dda inv aws.eks.gensim.{submit,status,fetch,stop-all,destroy}` |
+| `vm` | Interactive debugging, single-worker kind inspection, quick shortened trials | SSH helpers in `scripts/vm.sh`, `scripts/scenario.sh`, `scripts/fetch.sh` |
 
 Ask for missing inputs and resolve ambiguity before changing resources:
 
 | Input | Requirement |
 |---|---|
-| Backend & target | `--backend vm` (disposable `user@host` or authorized new AWS VM) or `--backend eks` (authorized EKS stack name, default `gensim-eks`, plus S3 bucket) |
+| Backend & target | Ask if not provided: `--backend eks` (production recordings, automatically uploads to S3; authorized EKS stack name, default `gensim-eks`, plus S3 bucket) or `--backend vm` (disposable `user@host` or authorized new AWS VM) |
 | Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml` |
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full`; confirm pipeline and amd64 platform |
