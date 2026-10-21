@@ -1,0 +1,370 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build gnmi
+
+// Package gnmi implements the 'agent gnmi' troubleshooting subcommands.
+package gnmi
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+	"go.yaml.in/yaml/v2"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
+	gnmicfg "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// passwordEnvVar names the environment variable read for the gNMI password.
+// The password is never accepted as a command-line flag, so it cannot leak
+// through the process list or shell history.
+const passwordEnvVar = "DD_GNMI_PASSWORD"
+
+type cliParams struct {
+	*command.GlobalParams
+
+	address            string
+	port               int
+	username           string
+	profile            string
+	collectTopology    bool
+	useTLS             bool
+	useTLSSet          bool
+	insecureSkipVerify bool
+	encoding           string
+	instanceIndex      int
+	confFile           string
+	interval           time.Duration
+	fastReconnect      bool
+	listPaths          bool
+}
+
+type gnmiInstanceFile struct {
+	Instances []map[string]interface{} `yaml:"instances"`
+}
+
+// Commands returns a slice of subcommands for the 'agent' command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	params := &cliParams{
+		GlobalParams:  globalParams,
+		port:          0,
+		useTLS:        true,
+		instanceIndex: -1,
+		interval:      2 * time.Second,
+	}
+
+	gnmiCmd := &cobra.Command{
+		Use:   "gnmi",
+		Short: "gNMI troubleshooting tools",
+	}
+
+	subscribeCmd := &cobra.Command{
+		Use:   "subscribe",
+		Short: "Subscribe to a gNMI target and print cached values on stdout",
+		Long: `Open a gNMI subscribe stream and periodically print connection status and
+cached path values. Useful for debugging transport, auth, and profile issues
+without running the full agent.
+
+Provide connection settings with flags, or load an instance from conf.d/gnmi.d/conf.yaml
+with --instance.
+
+The password is never accepted as a flag, so that it does not show up in the
+process list or shell history. It is read from the instance configuration
+(--instance) or, if set, from the ` + "`" + passwordEnvVar + "`" + ` environment variable.`,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			params.useTLSSet = cmd.Flags().Changed("use-tls")
+			return runOneShot(globalParams, runSubscribe, params)
+		},
+	}
+
+	registerTargetFlags(subscribeCmd, params)
+	subscribeCmd.Flags().BoolVar(&params.listPaths, "list-paths", false, "Print subscription paths and exit without subscribing")
+
+	gnmiCmd.AddCommand(subscribeCmd)
+	gnmiCmd.AddCommand(previewMetricsCommand(globalParams, params))
+	return []*cobra.Command{gnmiCmd}
+}
+
+func runOneShot(globalParams *command.GlobalParams, oneShotFunc any, params any) error {
+	return fxutil.OneShot(
+		oneShotFunc,
+		fx.Supply(params),
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewAgentParams(
+				globalParams.ConfFilePath,
+				config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+			),
+			LogParams: log.ForOneShot(command.LoggerName, "off", true),
+		}),
+		core.Bundle(),
+	)
+}
+
+func runSubscribe(params *cliParams, config config.Component) error {
+	if err := validateSubscribeParams(params); err != nil {
+		return err
+	}
+
+	instance, profile, err := resolveSubscribeTarget(config, params)
+	if err != nil {
+		return err
+	}
+
+	encoding, err := instance.ResolvedEncoding()
+	if err != nil {
+		return err
+	}
+	if params.encoding != "" {
+		encoding, err = gnmicfg.ParseEncoding(params.encoding)
+		if err != nil {
+			return err
+		}
+	}
+
+	clientCfg := client.Config{
+		Address:            instance.Address,
+		Port:               instance.Port,
+		Username:           instance.Username,
+		Password:           instance.Password,
+		Profile:            *profile,
+		CollectTopology:    instance.CollectTopology,
+		UseTLS:             instance.UseTLS,
+		InsecureSkipVerify: instance.InsecureSkipVerify,
+		// Match the check's request; 0 (ad-hoc target) selects the client default.
+		SampleInterval: time.Duration(instance.MinCollectionInterval) * time.Second,
+		Encoding:       encoding,
+	}
+
+	paths := client.SubscriptionPaths(clientCfg)
+	if params.listPaths {
+		for _, spec := range paths {
+			fmt.Println(spec.String())
+		}
+		return nil
+	}
+
+	opts := []client.Option{}
+	if params.fastReconnect {
+		opts = append(opts, client.WithReconnectDelays(200*time.Millisecond, 2*time.Second))
+	}
+
+	gnmiClient, err := client.New(clientCfg, opts...)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("target=%s:%d transport=%s encoding=%s profile=%q paths=%d\n",
+		instance.Address,
+		instance.Port,
+		gnmiClient.TransportMode(),
+		gnmicfg.EncodingName(clientCfg.Encoding),
+		profile.Name,
+		len(paths),
+	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	if err := gnmiClient.Start(ctx); err != nil {
+		return err
+	}
+	defer gnmiClient.Close() //nolint:errcheck
+
+	ticker := time.NewTicker(params.interval)
+	defer ticker.Stop()
+
+	printSnapshot(gnmiClient)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			printSnapshot(gnmiClient)
+		}
+	}
+}
+
+func validateSubscribeParams(params *cliParams) error {
+	if params == nil {
+		return errors.New("subscribe parameters are required")
+	}
+	if params.interval <= 0 {
+		return errors.New("interval must be greater than zero")
+	}
+	return nil
+}
+
+func resolveSubscribeTarget(config config.Component, params *cliParams) (*gnmicfg.InstanceConfig, *gnmicfg.ProfileDefinition, error) {
+	if params.confFile != "" {
+		confdPath := filepath.Dir(filepath.Dir(params.confFile))
+		config.Set("confd_path", confdPath, pkgconfigmodel.SourceCLI)
+	}
+
+	instance := gnmicfg.InstanceConfig{
+		Port:               params.port,
+		CollectTopology:    params.collectTopology,
+		UseTLS:             params.useTLS,
+		InsecureSkipVerify: params.insecureSkipVerify,
+	}
+
+	if params.instanceIndex >= 0 {
+		loaded, err := loadInstanceFromConfig(config, params.confFile, params.instanceIndex)
+		if err != nil {
+			return nil, nil, err
+		}
+		instance = *loaded
+	}
+
+	if params.address != "" {
+		instance.Address = params.address
+	}
+	if params.username != "" {
+		instance.Username = params.username
+	}
+	if password := os.Getenv(passwordEnvVar); password != "" {
+		instance.Password = password
+	}
+	if params.profile != "" {
+		instance.Profile = params.profile
+	}
+	if params.port > 0 {
+		instance.Port = params.port
+	} else if instance.Port == 0 {
+		instance.Port = gnmicfg.DefaultPort
+	}
+	if params.instanceIndex < 0 || params.useTLSSet {
+		instance.UseTLS = params.useTLS
+	}
+	if params.collectTopology {
+		instance.CollectTopology = params.collectTopology
+	}
+	if params.insecureSkipVerify {
+		instance.InsecureSkipVerify = params.insecureSkipVerify
+	}
+	if params.encoding != "" {
+		instance.Encoding = params.encoding
+	}
+
+	if instance.Address == "" {
+		return nil, nil, errors.New("address is required (use --address or --instance)")
+	}
+	if instance.Username == "" {
+		return nil, nil, errors.New("username is required")
+	}
+	if instance.Password == "" {
+		return nil, nil, fmt.Errorf("password is required: set it in the instance configuration (--instance) or in the %s environment variable", passwordEnvVar)
+	}
+	if instance.Profile == "" {
+		return nil, nil, errors.New("profile is required")
+	}
+	if instance.InsecureSkipVerify && !instance.UseTLS {
+		return nil, nil, errors.New("insecure-skip-verify requires TLS")
+	}
+
+	profile, err := gnmicfg.LoadProfile(instance.Profile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &instance, profile, nil
+}
+
+func loadInstanceFromConfig(config config.Component, confFile string, index int) (*gnmicfg.InstanceConfig, error) {
+	confPath := confFile
+	if confPath == "" {
+		confPath = filepath.Join(config.GetString("confd_path"), "gnmi.d", "conf.yaml")
+	}
+	buf, err := os.ReadFile(confPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w (use -c to point at the directory containing datadog.yaml, or pass --conf-file to the gNMI conf.yaml directly)", confPath, err)
+	}
+
+	var instances gnmiInstanceFile
+	if err := yaml.Unmarshal(buf, &instances); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", confPath, err)
+	}
+	if index < 0 || index >= len(instances.Instances) {
+		return nil, fmt.Errorf("instance index %d out of range (found %d instance(s) in %s)", index, len(instances.Instances), confPath)
+	}
+
+	rawInstance, err := yaml.Marshal(instances.Instances[index])
+	if err != nil {
+		return nil, fmt.Errorf("encode instance %d from %s: %w", index, confPath, err)
+	}
+	instance, err := gnmicfg.ParseInstanceConfig(integration.Data(rawInstance))
+	if err != nil {
+		return nil, fmt.Errorf("parse instance %d from %s: %w", index, confPath, err)
+	}
+	return instance, nil
+}
+
+func printSnapshot(gnmiClient *client.Client) {
+	connStatus := gnmiClient.ConnectionStatus()
+	fmt.Printf("--- stream=%s synchronized=%t reconnect=%d samples=%d",
+		gnmiClient.StreamState(),
+		gnmiClient.Synchronized(),
+		gnmiClient.ReconnectAttempts(),
+		gnmiClient.ReceivedSamples(),
+	)
+	if connStatus.LastError != "" {
+		fmt.Printf(" last_error=%q", connStatus.LastError)
+	}
+	if !connStatus.NextReconnectAt.IsZero() {
+		fmt.Printf(" next_reconnect=%s", connStatus.NextReconnectAt.Format(time.RFC3339))
+	}
+	fmt.Println()
+
+	snapshot := gnmiClient.Snapshot()
+	sort.Slice(snapshot, func(i, j int) bool {
+		left := formatCacheKey(snapshot[i])
+		right := formatCacheKey(snapshot[j])
+		return left < right
+	})
+
+	if len(snapshot) == 0 {
+		fmt.Println("(no cached values yet)")
+		return
+	}
+
+	for _, item := range snapshot {
+		fmt.Printf("%s value=%v updated=%s\n",
+			formatCacheKey(item),
+			item.Entry.Value,
+			item.Entry.Timestamp.Format(time.RFC3339),
+		)
+	}
+}
+
+func formatCacheKey(item client.CachedValue) string {
+	key := item.Key.Path
+	if len(item.Key.Keys) == 0 {
+		return key
+	}
+
+	parts := make([]string, 0, len(item.Key.Keys))
+	for segment, value := range item.Key.Keys {
+		parts = append(parts, fmt.Sprintf("%s=%s", segment, value))
+	}
+	sort.Strings(parts)
+	return key + "{" + strings.Join(parts, ",") + "}"
+}

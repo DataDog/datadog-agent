@@ -58,6 +58,8 @@ go_library(
         "//comp/metadata/inventorychecks/def",
         "//comp/metadata/inventorychecks/fx",
         "//comp/networkconfigmanagement/def",
+        "//comp/networkdevices/gnmistatus/def",
+        "//comp/networkdevices/gnmistatus/fx",
         "//comp/networkpath/traceroute/def",
         "//comp/networkpath/traceroute/fx-remote",
         "//comp/serializer/logscompression/fx",

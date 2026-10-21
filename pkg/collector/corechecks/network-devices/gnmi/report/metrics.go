@@ -1,0 +1,292 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package report translates gNMI cache snapshots into Datadog metrics.
+package report
+
+import (
+	"errors"
+	"math"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	ndmutils "github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
+)
+
+const defaultDeviceNamespace = "default"
+const integrationSourceGNMITag = "integration_source:gnmi"
+const deviceNamespaceTag = "device_namespace:" + defaultDeviceNamespace
+
+// ReportMetrics submits snmp.* metrics from a client snapshot using profile mappings.
+// metricSnapshot contains the values to emit; inventorySnapshot supplies interface metadata
+// used for resource tagging and may be a superset of metricSnapshot.
+func ReportMetrics(s Sender, cfg *config.CheckConfig, metricSnapshot []client.CachedValue, inventorySnapshot []client.CachedValue) error {
+	if s == nil {
+		return errors.New("sender is nil")
+	}
+	if cfg == nil {
+		return errors.New("check config is nil")
+	}
+	if inventorySnapshot == nil {
+		inventorySnapshot = metricSnapshot
+	}
+
+	baseTags := buildBaseTags(cfg, inventorySnapshot)
+	deviceID := buildDeviceID(cfg)
+	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile, inventorySnapshot)
+	byPath := indexSnapshotByPath(metricSnapshot)
+
+	for _, metric := range cfg.Profile.Metrics {
+		values := byPath[normalizeProfilePath(metric.Path)]
+		for _, cached := range values {
+			tags := buildMetricTags(baseTags, metric, cached.Key.Keys)
+			tags = enrichInterfaceMetricTags(tags, deviceID, metric, cached.Key.Keys, interfaceInventory)
+			value, ok := decodeMetricValue(cached.Entry.Value, metric.ValueMap)
+			if !ok {
+				continue
+			}
+			submitMetric(s, metric, value, tags)
+		}
+	}
+
+	return nil
+}
+
+func indexSnapshotByPath(snapshot []client.CachedValue) map[string][]client.CachedValue {
+	byPath := make(map[string][]client.CachedValue, len(snapshot))
+	for _, cached := range snapshot {
+		for _, path := range snapshotPathAliases(cached.Key.Path) {
+			byPath[path] = append(byPath[path], cached)
+		}
+	}
+	return byPath
+}
+
+func normalizeProfilePath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return trimmed
+	}
+	if trimmed[0] != '/' {
+		return "/" + trimmed
+	}
+	return trimmed
+}
+
+func buildBaseTags(cfg *config.CheckConfig, snapshot []client.CachedValue) []string {
+	address := cfg.Instance.Address
+	deviceID := buildDeviceID(cfg)
+	hostname := ResolveDeviceHostname(snapshot, cfg.Profile.Metadata)
+	tags := []string{
+		deviceNamespaceTag,
+		"device_ip:" + address,
+		"device_id:" + deviceID,
+		"snmp_device:" + address,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
+	}
+	if cfg.Profile.Name != "" {
+		tags = append(tags, "snmp_profile:"+cfg.Profile.Name)
+	}
+	if hostname != "" {
+		tags = append(tags, "snmp_host:"+hostname)
+	}
+	return tags
+}
+
+func buildDeviceIDTags(cfg *config.CheckConfig) []string {
+	if cfg == nil {
+		return nil
+	}
+	tags := []string{
+		deviceNamespaceTag,
+		"snmp_device:" + cfg.Instance.Address,
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// buildDeviceID returns the NDM device identifier used for metadata and metric tags.
+// It always uses the configured address verbatim (hostname or IP).
+func buildDeviceID(cfg *config.CheckConfig) string {
+	if cfg == nil {
+		return defaultDeviceNamespace + ":"
+	}
+	return buildDeviceIDFromConfigAddress(cfg.Instance.Address)
+}
+
+func buildDeviceIDFromConfigAddress(address string) string {
+	return defaultDeviceNamespace + ":" + address
+}
+
+// buildInterfaceID matches the ID derived by the NDM backend from interface
+// metadata's device ID, raw ID type, and raw ID.
+func buildInterfaceID(deviceID, rawIDType, rawID string) string {
+	return deviceID + ":" + rawIDType + "-" + rawID
+}
+
+func buildMetricTags(baseTags []string, metric config.MetricConfig, keys map[string]string) []string {
+	tags := ndmutils.CopyStrings(baseTags)
+	for segment, keyName := range metric.Tags {
+		if keyName == "" {
+			continue
+		}
+		value, ok := keys[keyName]
+		if !ok || value == "" {
+			continue
+		}
+		tags = append(tags, segment+":"+value)
+	}
+	return tags
+}
+
+type interfaceMetricPath struct {
+	path    string
+	keyName string
+}
+
+func interfaceMetricPathsFromProfile(profile config.ProfileDefinition) []interfaceMetricPath {
+	paths := make([]interfaceMetricPath, 0, len(profile.Metrics))
+	for _, metric := range profile.Metrics {
+		keyName, ok := metric.Tags["interface"]
+		if !ok || keyName == "" {
+			continue
+		}
+		paths = append(paths, interfaceMetricPath{path: normalizeProfilePath(metric.Path), keyName: keyName})
+	}
+	return paths
+}
+
+func interfaceInventoryByName(deviceID string, profile config.ProfileDefinition, snapshot []client.CachedValue) map[string]devicemetadata.InterfaceMetadata {
+	interfaces := buildInterfaceMetadata(deviceID, profile.Metadata, snapshot, interfaceMetricPathsFromProfile(profile))
+	inventory := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Name == "" {
+			continue
+		}
+		inventory[iface.Name] = iface
+	}
+	return inventory
+}
+
+func enrichInterfaceMetricTags(
+	tags []string,
+	deviceID string,
+	metric config.MetricConfig,
+	keys map[string]string,
+	inventory map[string]devicemetadata.InterfaceMetadata,
+) []string {
+	interfaceName := interfaceNameFromMetricTags(metric, keys)
+	if interfaceName == "" {
+		return tags
+	}
+
+	iface, ok := inventory[interfaceName]
+	if !ok || iface.Name == "" {
+		return tags
+	}
+
+	if iface.Description != "" {
+		tags = append(tags, "interface_alias:"+iface.Description)
+	}
+	return append(tags, internalInterfaceResourceTag(deviceID, iface.Name))
+}
+
+func interfaceNameFromMetricTags(metric config.MetricConfig, keys map[string]string) string {
+	keyName, ok := metric.Tags["interface"]
+	if !ok || keyName == "" {
+		return ""
+	}
+	return keys[keyName]
+}
+
+func internalInterfaceResourceTag(deviceID string, interfaceName string) string {
+	return "dd.internal.resource:ndm_interface:" + buildInterfaceID(deviceID, gnmiInterfaceRawIDType, interfaceName)
+}
+
+func internalDeviceResourceTag(deviceID string) string {
+	return "dd.internal.resource:ndm_device:" + deviceID
+}
+
+func decodeMetricValue(value any, valueMap map[string]int) (float64, bool) {
+	if len(valueMap) > 0 {
+		if mapped, ok := decodeMappedValue(value, valueMap); ok {
+			return mapped, true
+		}
+	}
+	return decodeNumericValue(value)
+}
+
+func decodeMappedValue(value any, valueMap map[string]int) (float64, bool) {
+	strValue, ok := value.(string)
+	if !ok {
+		return 0, false
+	}
+	mapped, ok := valueMap[strValue]
+	if !ok {
+		return 0, false
+	}
+	return float64(mapped), true
+}
+
+func decodeNumericValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return float64(typed), true
+	case int8:
+		return float64(typed), true
+	case int16:
+		return float64(typed), true
+	case int32:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case uint:
+		return float64(typed), true
+	case uint8:
+		return float64(typed), true
+	case uint16:
+		return float64(typed), true
+	case uint32:
+		return float64(typed), true
+	case uint64:
+		return float64(typed), true
+	case float32:
+		return finiteMetricValue(float64(typed))
+	case float64:
+		return finiteMetricValue(typed)
+	case bool:
+		if typed {
+			return 1, true
+		}
+		return 0, true
+	case string:
+		parsed, err := strconv.ParseFloat(typed, 64)
+		if err != nil {
+			return 0, false
+		}
+		return finiteMetricValue(parsed)
+	default:
+		return 0, false
+	}
+}
+
+func finiteMetricValue(value float64) (float64, bool) {
+	return value, !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func submitMetric(s Sender, metric config.MetricConfig, value float64, tags []string) {
+	switch metric.Type {
+	case config.MetricTypeGauge:
+		s.Gauge(metric.Metric, value, "", tags)
+	case config.MetricTypeMonotonicCount:
+		// <metric>.rate is emitted by ReportDerivedMetrics from device timestamps.
+		s.MonotonicCount(metric.Metric, value, "", tags)
+	}
+}

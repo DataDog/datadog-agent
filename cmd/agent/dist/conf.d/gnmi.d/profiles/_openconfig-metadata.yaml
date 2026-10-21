@@ -1,0 +1,36 @@
+# OpenConfig gNMI paths used for NDM device and interface metadata.
+#
+# Include this profile from metric profiles with:
+#   extends:
+#     - _openconfig-metadata
+
+metadata:
+  device:
+    keys:
+      component: name
+    component_type: /openconfig/components/component/state/type
+    hostname: /openconfig/system/state/hostname
+    vendor_name: /openconfig/components/component/state/mfg-name
+    serial_number: /openconfig/components/component/state/serial-no
+    platform: /openconfig/components/component/state/model-name
+    software_version: /openconfig/system/state/software-version
+    hardware_version: /openconfig/components/component/state/part-no
+  interface:
+    keys:
+      interface: name
+    name: /openconfig/interfaces/interface/state/name
+    description: /openconfig/interfaces/interface/state/description
+    admin_status: /openconfig/interfaces/interface/state/admin-status
+    oper_status: /openconfig/interfaces/interface/state/oper-status
+    mac_address: /openconfig/interfaces/interface/ethernet/state/hw-mac-address
+    ifindex: /openconfig/interfaces/interface/state/ifindex
+    type: /openconfig/interfaces/interface/state/type
+  ip_address:
+    keys:
+      interface: name
+      subinterface: index
+      address: ip
+    ip: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip
+    prefix_length: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length
+    ipv6: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/ip
+    ipv6_prefix_length: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/prefix-length
