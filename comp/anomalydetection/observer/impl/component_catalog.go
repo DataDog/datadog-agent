@@ -130,7 +130,8 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
 		scorer := DefaultAnomalyScorerConfig()
 		scorer.CorrelationEvents = true
-		scorer.CooldownSecs = 0
+		// Keep the live cooldown default; set cooldown_secs: 0 in --config
+		// when inspecting severity transitions without the de-escalation hold.
 		settings.configs["anomaly_scorer"] = scorer
 	}
 	return settings
