@@ -61,6 +61,8 @@ func NewRuntimeSecurityManager(supportsRingBuffers bool, supportsTaskStorage boo
 	if !supportsTaskStorage {
 		modifiers = append(modifiers, ddmodifiers.NewHelperCallRemover(asm.FnTaskStorageGet, asm.FnTaskStorageDelete, asm.FnGetCurrentTaskBtf))
 	}
+	// must be the last modifier, so that the tail call targets it copies include the changes of the other modifiers
+	modifiers = append(modifiers, newTailCallGroupsModifier())
 
 	return &Manager{
 		Manager: ddebpf.NewManagerWithDefault(manager, "cws", modifiers...),

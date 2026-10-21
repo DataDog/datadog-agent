@@ -347,15 +347,6 @@ func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 		return errors.New("fentry enabled but not supported")
 	}
 
-	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
-	if err != nil {
-		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
-	}
-
-	if tailCallsBroken {
-		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
-	}
-
 	if !kernelVersion.HaveFentrySupportWithStructArgs() {
 		return errors.New("fentry enabled but not supported with struct args")
 	}
