@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0
-	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/fx v1.24.0
@@ -26,7 +26,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.213 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.82.0 // indirect
@@ -94,7 +94,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/acobaugh/osrelease v0.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
@@ -351,6 +351,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e

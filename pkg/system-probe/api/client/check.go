@@ -307,7 +307,7 @@ func doReq(client *http.Client, req *http.Request, module types.ModuleName) (bod
 	}
 	if resp.StatusCode != http.StatusOK {
 		checkTelemetry.responseErrors.IncWithTags(map[string]string{checkLabelName: string(module)})
-		return nil, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
+		return nil, &StatusCodeError{URL: req.URL.String(), StatusCode: resp.StatusCode, Body: string(body)}
 	}
 
 	return body, err

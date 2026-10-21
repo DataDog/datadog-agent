@@ -362,7 +362,7 @@ func TestContainerGPUMappingFailurePct(t *testing.T) {
 				wmetaMock.Set(container)
 			}
 
-			check.getGPUToContainersMap()
+			check.getGPUToContainersMap(time.Now())
 
 			telemetryMock, ok := check.telemetry.component.(telemetry.Mock)
 			require.True(t, ok)
@@ -408,7 +408,7 @@ func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
 	}
 	wmetaMock.Set(workloadContainer)
 
-	gpuToContainers := check.getGPUToContainersMap()
+	gpuToContainers := check.getGPUToContainersMap(time.Now())
 
 	assert.Empty(t, gpuToContainers[testutil.GPUUUIDs[0]], "the reservation pod must not be reported as the GPU's user")
 	require.Len(t, gpuToContainers[testutil.GPUUUIDs[1]], 1)

@@ -9,7 +9,6 @@ package observerimpl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"path/filepath"
 	"sort"
@@ -299,7 +298,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
 	if err != nil {
-		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
+		return Provides{}, err
 	}
 
 	obsTelemetry := newObserverTelemetry(deps.Telemetry)
@@ -320,6 +319,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		extractors:      extractors,
 		detectors:       detectors,
 		correlators:     correlators,
+		metricFilter:    compiledMetricFilter,
 		scorer:          scorer,
 		scheduler:       &currentBehaviorPolicy{},
 		baseline:        settings.Baseline,
@@ -1142,6 +1142,10 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	name := sample.GetName()
 	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
+	metricType := sample.GetMetricType()
+	if !filter.isMetricTypeAllowed(metricType) {
+		return metricIngestDecision{source: normalizedSource}
+	}
 	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
@@ -1153,7 +1157,7 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 		normalizedSource,
 		name,
 		sample.GetValue(),
-		sample.GetMetricType(),
+		metricType,
 		host,
 		sample.GetTags(),
 		sample.GetTimestampUnix(),
@@ -1285,6 +1289,12 @@ func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, conte
 	name := sample.GetName()
 	host := sample.GetHost()
 	source := normalizeMetricSource(name, h.source)
+	if !h.filter.isMetricTypeAllowed(sample.GetMetricType()) {
+		if h.telemetry != nil {
+			h.recordFilteredMetric(source)
+		}
+		return false
+	}
 	precheck := h.filter.precheck(name, source, host)
 	if precheck.reject {
 		if h.telemetry != nil {
