@@ -21,15 +21,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 const (
 	// ddInjectorV3CountersTestVersion is the first APM inject release shipping a ddinjector
-	// driver (1.0.0) that exposes the V3 counters.
-	ddInjectorV3CountersTestRegistry = "install.datadoghq.com"
-	ddInjectorV3CountersTestVersion  = "0.72.0-1"
+	// driver (1.0.0) that exposes the V3 counters. Release packages are not published to the
+	// beta registry, so it is pulled from the stable one.
+	ddInjectorV3CountersTestVersion = "0.72.0-1"
 )
 
 // runDefaultSkipListProcessScript launches a copy of whoami.exe named after an entry of the
@@ -193,7 +193,7 @@ func (s *testInjectorStats) TestDefaultSkipListCounter() {
 	s.installCurrentAgentVersionWithAPMInject(
 		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
-			"DD_INSTALLER_REGISTRY_URL":                           ddInjectorV3CountersTestRegistry,
+			"DD_INSTALLER_REGISTRY_URL":                           consts.StableS3OCIRegistry,
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": ddInjectorV3CountersTestVersion,
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
 		}),
@@ -226,10 +226,12 @@ func (s *testInjectorStats) TestDefaultSkipListCounter() {
 
 // assertDriverVersion verifies that the stats report the file version of the installed driver.
 func (s *testInjectorStats) assertDriverVersion(stats map[string]interface{}) {
-	versionParts, err := windowscommon.GetFileVersion(s.Env().RemoteHost, `C:\Windows\System32\drivers\ddinjector.sys`)
+	// The agent reports the fixed file version (VS_FIXEDFILEINFO), not the free-form
+	// FileVersion string, so compare against the same numeric parts.
+	output, err := s.Env().RemoteHost.Execute(`$v = (Get-Item "C:\Windows\System32\drivers\ddinjector.sys").VersionInfo; "{0}.{1}.{2}.{3}" -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart`)
 	s.Require().NoError(err)
-	expected := strings.Join(versionParts, ".")
-	s.Require().NotEmpty(expected, "the DDInjector driver should carry a file version")
+	expected := strings.TrimSpace(output)
+	s.Require().NotEqual("0.0.0.0", expected, "the DDInjector driver should carry a file version")
 	s.Assert().Equal(expected, stats["driver_version"], "driver_version should match the installed driver: %+v", stats)
 }
 
