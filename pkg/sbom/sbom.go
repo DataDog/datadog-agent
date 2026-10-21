@@ -116,7 +116,11 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 	var report *cyclonedx_v1_4.Bom
 
 	if result.Error != nil {
-		log.Errorf("SBOM generation failed for image: %v", result.Error)
+		// Unsupported images (e.g. nydus) are expected; the scanner already
+		// reports them when dropping the request.
+		if !errors.Is(result.Error, ErrScanNotSupported) {
+			log.Errorf("SBOM generation failed for image: %v", result.Error)
+		}
 		status = workloadmeta.Failed
 		reportedError = result.Error.Error()
 	} else {
