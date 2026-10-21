@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The inventory connectivity check for APM traces now treats HTTP 404 from
+    ``GET /_health`` on ``trace.agent.<site>`` as success. Trace intake no longer
+    serves that path, but a 404 still means the endpoint was reached. Connection
+    errors, timeouts, 401, 403, and 5xx remain failures.

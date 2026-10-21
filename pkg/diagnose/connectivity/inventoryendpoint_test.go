@@ -362,6 +362,57 @@ func TestCheckGet(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid status code: 401")
 }
 
+func TestCheckGetNotFoundOK(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		notFoundOK bool
+		wantErr    string
+	}{
+		{
+			name:       "404 with notFoundOK is success",
+			statusCode: http.StatusNotFound,
+			notFoundOK: true,
+		},
+		{
+			name:       "404 without notFoundOK fails",
+			statusCode: http.StatusNotFound,
+			wantErr:    "invalid status code: 404",
+		},
+		{
+			name:       "403 with notFoundOK fails",
+			statusCode: http.StatusForbidden,
+			notFoundOK: true,
+			wantErr:    "invalid status code: 403",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer ts.Close()
+
+			endpoint := resolvedEndpoint{
+				url:        ts.URL,
+				method:     http.MethodGet,
+				apiKey:     "test-api-key",
+				notFoundOK: tt.notFoundOK,
+			}
+
+			result, err := endpoint.checkGet(context.Background(), &http.Client{})
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				assert.Equal(t, "Success", result)
+				return
+			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
 func TestRun(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "test-api-key")

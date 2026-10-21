@@ -33,6 +33,10 @@ type endpointDescription struct {
 	configPrefix      string
 	altURLOverrideKey string
 	handlesFailover   bool
+	// notFoundOK treats HTTP 404 as success. The trace intake no longer serves
+	// GET /_health (it used to when the catch-all forwarded to trace-edge); a 404
+	// still proves the endpoint was reached.
+	notFoundOK bool
 }
 
 func getEndpointsDescriptions() []endpointDescription {
@@ -42,7 +46,7 @@ func getEndpointsDescriptions() []endpointDescription {
 		{name: "Agent package yum", route: "https://yum.datadoghq.com", method: http.MethodHead},
 		{name: "Agent package apt", route: "https://apt.datadoghq.com", method: http.MethodHead},
 		{name: "Agent keys", route: "https://keys.datadoghq.com", method: http.MethodHead},
-		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url"},
+		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url", notFoundOK: true},
 		{name: "LLM obs", prefix: "llmobs-intake", routePath: "api/v2/llmobs", method: http.MethodPost},
 		{name: "Remote configuration", prefix: "config", configPrefix: "remote_configuration", altURLOverrideKey: "remote_configuration.rc_dd_url", handlesFailover: true, routePath: "_health", method: http.MethodGet},
 	}
@@ -54,6 +58,7 @@ type resolvedEndpoint struct {
 	method     string
 	apiKey     string
 	isFailover bool
+	notFoundOK bool
 }
 
 func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain) []resolvedEndpoint {
@@ -72,10 +77,11 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 
 		return []resolvedEndpoint{
 			{
-				name:   e.name,
-				url:    route,
-				method: e.method,
-				apiKey: getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
+				name:       e.name,
+				url:        route,
+				method:     e.method,
+				apiKey:     getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
+				notFoundOK: e.notFoundOK,
 			},
 		}
 	}
@@ -93,6 +99,7 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain)
 			method:     e.method,
 			apiKey:     getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
 			isFailover: domain.isFailover,
+			notFoundOK: e.notFoundOK,
 		})
 	}
 	return routes
@@ -332,6 +339,9 @@ func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (st
 	})
 	if err != nil {
 		return "Failed to connect", fmt.Errorf("%s\n%w", strings.Join(httpTraces, "\n"), err)
+	}
+	if e.notFoundOK && statusCode == http.StatusNotFound {
+		return "Success", nil
 	}
 	return validateStatusCode(statusCode)
 }
