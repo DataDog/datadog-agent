@@ -27,7 +27,7 @@ require (
 	github.com/DataDog/rshell v0.0.30
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.4
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.339.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.100.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.3
 	github.com/cenkalti/backoff/v7 v7.0.1
