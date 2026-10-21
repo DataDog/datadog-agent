@@ -466,6 +466,37 @@ func TestUnmarshal(t *testing.T) {
 	}
 }
 
+func TestUnmarshalRecordsExplicitQueueNumConsumers(t *testing.T) {
+	tests := []struct {
+		name      string
+		configMap map[string]any
+		want      bool
+	}{
+		{
+			name:      "sending_queue not set",
+			configMap: map[string]any{},
+			want:      false,
+		},
+		{
+			name:      "sending_queue without num_consumers",
+			configMap: map[string]any{"sending_queue": map[string]any{"batch": nil}},
+			want:      false,
+		},
+		{
+			name:      "num_consumers set to the exporterhelper default",
+			configMap: map[string]any{"sending_queue": map[string]any{"num_consumers": exporterhelper.NewDefaultQueueConfig().NumConsumers}},
+			want:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := CreateDefaultConfig().(*Config)
+			require.NoError(t, cfg.Unmarshal(confmap.NewFromStringMap(tt.configMap)))
+			assert.Equal(t, tt.want, cfg.IsQueueNumConsumersSet())
+		})
+	}
+}
+
 // Test that the factory creates the default configuration
 func TestCreateDefaultConfig(t *testing.T) {
 	cfg := CreateDefaultConfig()
