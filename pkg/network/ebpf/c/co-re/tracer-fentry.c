@@ -429,42 +429,21 @@ int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
     return handle_skb_consume_udp(sk, skb, len);
 }
 
-SEC("fentry/tcp_retransmit_skb")
-int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    log_debug("fexntry/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {};
-    args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    if (args.retrans_out_pre < 0) {
-        return 0;
-    }
-
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
-
-    return 0;
-}
-
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     log_debug("fexit/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     if (err < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-    if (args == NULL) {
-        return 0;
-    }
-    u32 retrans_out_pre = args->retrans_out_pre;
-    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
 
+    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
     if (retrans_out < 0) {
         return 0;
     }
 
-    return handle_retransmit(sk, retrans_out-retrans_out_pre);
+    struct tcp_skb_cb *tcp_skb = (struct tcp_skb_cb *)BPF_CORE_READ(skb, cb);
+    u32 skb_pcount = BPF_CORE_READ(tcp_skb, tcp_gso_segs);
+    return handle_retransmit(sk, skb_pcount);
 }
 
 SEC("fentry/tcp_connect")

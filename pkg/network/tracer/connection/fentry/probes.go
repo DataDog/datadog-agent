@@ -73,8 +73,6 @@ const (
 
 	udpv6DestroySock = "udpv6_destroy_sock"
 
-	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
-	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
 
@@ -124,7 +122,6 @@ var programs = map[string]struct{}{
 	tcpCloseReturn:             {},
 	tcpConnect:                 {},
 	tcpFinishConnect:           {},
-	tcpRetransmit:              {},
 	tcpRetransmitRet:           {},
 	tcpEnterLoss:               {},
 	tcpEnterRecovery:           {},
@@ -224,7 +221,6 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn, inetCskAcceptReturnPre6100, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
-		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 		enableProgram(enabled, tcpEnterLoss)
 		enableProgram(enabled, tcpEnterRecovery)
