@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    APM : In the Datadog Distribution of OpenTelemetry Collector (DDOT), traces
+    ignored through ``DD_APM_IGNORE_RESOURCES`` (or the ``datadog`` exporter's
+    ``traces::ignore_resources``) are now also excluded from APM trace metrics
+    computed by the ``datadog`` connector, matching the Datadog Agent: a trace
+    whose root resource matches is dropped with all its spans.
