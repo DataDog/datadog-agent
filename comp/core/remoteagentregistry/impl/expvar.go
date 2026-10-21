@@ -29,6 +29,8 @@ const (
 	remoteAgentsExpvarName = "remote_agents"
 	adpAgentFlavor         = "agent_data_plane"
 	remoteExpvarCacheTTL   = time.Second
+	// Retire origin-labeled series after this long without appearing in a successful telemetry scrape.
+	remoteExpvarOriginIdleTTL = 10 * time.Minute
 )
 
 // expvarMapping describes one compatibility mapping from a RAR Prometheus metric family to a legacy expvar path.
@@ -164,6 +166,9 @@ type remoteExpvarCache struct {
 	fetchedAt time.Time
 	values    map[string]map[string]int64
 	counters  map[remoteCounterKey]*remoteCounterState
+	// retiredTotals preserves cumulative expvar values after their per-series counter state is deleted.
+	// Its keys are the reporting dimensions (agent name and fixed mapping ID), not series labels.
+	retiredTotals map[string]map[string]int64
 }
 
 type remoteCounterKey struct {
@@ -177,6 +182,8 @@ type remoteCounterState struct {
 	initialized bool
 	lastRaw     int64
 	total       int64
+	lastSeen    time.Time
+	hasOrigin   bool
 }
 
 // registerExpvars publishes remote agent values and wraps compatible local expvars. The Go expvar registry is global,
@@ -279,16 +286,19 @@ func (ra *remoteAgentRegistry) getRemoteExpvarValues() map[string]map[string]int
 	if cache.counters == nil {
 		cache.counters = make(map[remoteCounterKey]*remoteCounterState)
 	}
+	if cache.retiredTotals == nil {
+		cache.retiredTotals = make(map[string]map[string]int64)
+	}
 
 	// Update values since, presumably, more time has elapsed than we'd feel comforatble caching for
-	values := collectRemoteExpvarValues(ra, cache.counters)
+	values := collectRemoteExpvarValuesAt(ra, cache, time.Now())
 	cache.values = values
 	cache.fetchedAt = time.Now()
 	return values
 }
 
-// Collect Prometheus endpoint response from RAR for ADP and convert to Expvar
-func collectRemoteExpvarValues(ra *remoteAgentRegistry, counters map[remoteCounterKey]*remoteCounterState) map[string]map[string]int64 {
+// Collect Prometheus endpoint response from RAR for ADP and convert to Expvar.
+func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCache, now time.Time) map[string]map[string]int64 {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
 		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
 	}
@@ -301,55 +311,93 @@ func collectRemoteExpvarValues(ra *remoteAgentRegistry, counters map[remoteCount
 		if !ok {
 			return remoteExpvarAgentResponse{}
 		}
+		series, parsed := expvarSeriesFromPromText(payload.PromText)
+		if !parsed {
+			return remoteExpvarAgentResponse{}
+		}
 		return remoteExpvarAgentResponse{
-			agent:  details,
-			series: expvarSeriesFromPromText(payload.PromText),
+			agent:   details,
+			series:  series,
+			success: true,
 		}
 	}
 
 	responses := callAgentsForServiceFiltered(ra, TelemetryServiceName, isADPAgent, client, processor)
+	successfulAgents := make(map[string]struct{})
+	activeAgents := make(map[string]struct{})
+	for _, agent := range ra.GetRegisteredAgents() {
+		if isADPAgent(agent) {
+			activeAgents[remoteAgentIdentity(agent)] = struct{}{}
+		}
+	}
 	for _, response := range responses {
 		if response.agent.SanitizedDisplayName == "" {
 			continue
 		}
+		identity := remoteAgentIdentity(response.agent)
+		if response.success {
+			successfulAgents[identity] = struct{}{}
+		}
 		for _, series := range response.series {
 			key := remoteCounterKey{
-				agentIdentity: remoteAgentIdentity(response.agent),
+				agentIdentity: identity,
 				agentName:     response.agent.SanitizedDisplayName,
 				mappingID:     series.mappingID,
 				labels:        series.labels,
 			}
-			state := counters[key]
+			state := cache.counters[key]
 			if state == nil {
 				state = &remoteCounterState{}
-				counters[key] = state
+				cache.counters[key] = state
 			}
 			state.observe(series.value)
+			state.lastSeen = now
+			// The origin label is optional and is emitted when dogstatsd_origin is enabled.
+			// Only origin-labeled series use absence-based expiry; otherwise PID unregistration
+			// is the lifecycle signal for retiring per-series state.
+			state.hasOrigin = series.hasOrigin
 		}
 	}
 
-	// Instantiate and established observed metrics and their frequency per agent type
 	values := make(map[string]map[string]int64)
-	for key, state := range counters {
-		if !state.initialized {
+	addValue := func(agentName, mappingID string, value int64) {
+		if values[agentName] == nil {
+			values[agentName] = make(map[string]int64)
+		}
+		values[agentName][mappingID] = saturatingAdd(values[agentName][mappingID], value)
+	}
+	for agentName, totals := range cache.retiredTotals {
+		for mappingID, total := range totals {
+			addValue(agentName, mappingID, total)
+		}
+	}
+	for key, state := range cache.counters {
+		_, registered := activeAgents[key.agentIdentity]
+		_, scrapeSucceeded := successfulAgents[key.agentIdentity]
+		originSeriesExpired := state.hasOrigin && scrapeSucceeded && now.Sub(state.lastSeen) >= remoteExpvarOriginIdleTTL
+		if !registered || originSeriesExpired {
+			addRetiredExpvarTotal(cache.retiredTotals, key.agentName, key.mappingID, state.total)
+			addValue(key.agentName, key.mappingID, state.total)
+			delete(cache.counters, key)
 			continue
 		}
-		if values[key.agentName] == nil {
-			values[key.agentName] = make(map[string]int64)
+		if state.initialized {
+			addValue(key.agentName, key.mappingID, state.total)
 		}
-		values[key.agentName][key.mappingID] = saturatingAdd(values[key.agentName][key.mappingID], state.total)
 	}
 	return values
 }
 
 type remoteExpvarAgentResponse struct {
-	agent  remoteagentregistry.RegisteredAgent
-	series []remoteExpvarSeries
+	agent   remoteagentregistry.RegisteredAgent
+	series  []remoteExpvarSeries
+	success bool
 }
 
 type remoteExpvarSeries struct {
 	mappingID string
 	labels    string
+	hasOrigin bool
 	value     int64
 }
 
@@ -365,14 +413,15 @@ func remoteAgentIdentity(agent remoteagentregistry.RegisteredAgent) string {
 	return identity
 }
 
-func (s *remoteCounterState) observe(raw int64) {
+func (s *remoteCounterState) observe(raw int64) bool {
 	if !s.initialized {
 		s.initialized = true
 		s.lastRaw = raw
 		s.total = raw
-		return
+		return true
 	}
 
+	changed := raw != s.lastRaw
 	if raw >= s.lastRaw {
 		s.total = saturatingAdd(s.total, raw-s.lastRaw)
 	} else {
@@ -381,15 +430,23 @@ func (s *remoteCounterState) observe(raw int64) {
 		s.total = saturatingAdd(s.total, raw)
 	}
 	s.lastRaw = raw
+	return changed
+}
+
+func addRetiredExpvarTotal(totals map[string]map[string]int64, agentName, mappingID string, value int64) {
+	if totals[agentName] == nil {
+		totals[agentName] = make(map[string]int64)
+	}
+	totals[agentName][mappingID] = saturatingAdd(totals[agentName][mappingID], value)
 }
 
 // Map Prometheus metrics to ExpVar format
-func expvarSeriesFromPromText(promText string) []remoteExpvarSeries {
+func expvarSeriesFromPromText(promText string) ([]remoteExpvarSeries, bool) {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
 	if err != nil {
 		log.Warnf("Failed to parse Prometheus text for expvar compatibility: %v", err)
-		return nil
+		return nil, false
 	}
 
 	var series []remoteExpvarSeries
@@ -409,11 +466,12 @@ func expvarSeriesFromPromText(promText string) []remoteExpvarSeries {
 			series = append(series, remoteExpvarSeries{
 				mappingID: mapping.id,
 				labels:    canonicalLabels(metric.GetLabel()),
+				hasOrigin: hasLabel(metric.GetLabel(), "origin"),
 				value:     value,
 			})
 		}
 	}
-	return series
+	return series, true
 }
 
 func counterValue(metric *dto.Metric) (int64, bool) {
@@ -444,6 +502,15 @@ func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 		}
 	}
 	return true
+}
+
+func hasLabel(labels []*dto.LabelPair, name string) bool {
+	for _, label := range labels {
+		if label != nil && label.GetName() == name {
+			return true
+		}
+	}
+	return false
 }
 
 func canonicalLabels(labels []*dto.LabelPair) string {
