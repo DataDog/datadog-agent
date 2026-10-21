@@ -106,7 +106,7 @@ type checkTelemetryMetrics struct {
 // The returned state must be shared across check cancellations and reloads.
 func NewReadiness() *Readiness {
 	handle := health.RegisterReadiness(CheckName, health.Once)
-	timer := time.AfterFunc(5*time.Minute, func() {
+	timer := time.AfterFunc(2*time.Minute, func() {
 		select {
 		case <-handle.C:
 		default:

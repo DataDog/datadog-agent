@@ -70,7 +70,7 @@ func applyAMDTestSettings(t *testing.T, settings map[string]any) {
 func setupNVIDIACheckOnHost(t *testing.T, sysRoot string, settings map[string]any) *Check {
 	t.Helper()
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
-	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t), nil)
 	check, ok := checkGeneric.(*Check)
 	require.True(t, ok)
 

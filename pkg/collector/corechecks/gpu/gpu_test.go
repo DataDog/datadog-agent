@@ -423,10 +423,7 @@ func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
 func initReadiness(t *testing.T) *Readiness {
 	t.Helper()
 	readiness := NewReadiness()
-	t.Cleanup(func() {
-		readiness.timer.Stop()
-		require.NoError(t, readiness.handle.Deregister())
-	})
+	t.Cleanup(func() { readiness.CleanupForTest(t) })
 	return readiness
 }
 
@@ -539,7 +536,7 @@ func TestReadinessBeforeCheckConfiguration(t *testing.T) {
 				// Readiness must block even before autodiscovery configures the check.
 				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				synctest.Wait()
-				time.Sleep(4 * time.Minute)
+				time.Sleep(time.Minute)
 				synctest.Wait()
 				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				if reload {
@@ -1163,7 +1160,7 @@ func TestLostGPUStillReportsDeviceTotal(t *testing.T) {
 		pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", "15s")
 	})
 
-	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{})
+	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{}, nil)
 
 	runCheck := func(runTime time.Time) float64 {
 		mockSender.ResetCalls()
@@ -1328,7 +1325,7 @@ func TestRunEmitsSharedProcessTags(t *testing.T) {
 
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 
-	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil, nil)
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
 
 	deviceUUID := testutil.GPUUUIDs[0]
@@ -1418,7 +1415,7 @@ func TestRunEmitsSharedProcessTagsMultiGPUContainer(t *testing.T) {
 
 	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 
-	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil, nil)
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
 
 	// One container assigned to two GPUs, with a different process using each of them

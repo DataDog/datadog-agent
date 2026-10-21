@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    When GPU Monitoring is enabled, the Agent waits for NVML initialization
+    or a two-minute timeout before reporting readiness.
