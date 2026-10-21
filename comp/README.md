@@ -734,7 +734,7 @@ Package rctelemetryreporter provides a component that sends RC-specific metrics 
 
 ### [comp/remote-config/rcx509client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcx509client)
 
-Package rcx509client defines the Agent's Remote Config x509 client component.
+Package rcx509client defines the Agent's Remote Config x509 client component
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
