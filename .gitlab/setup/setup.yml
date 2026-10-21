@@ -3,8 +3,15 @@ setup_agent_version:
   stage: setup
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+  variables:
+    # Understood by both ci-identities-gitlab-job-client and the AWS CLI.
+    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
   script:
     - source /root/.bashrc
+    - $CI_PROJECT_DIR/tools/ci/setup_ci_identities_aws.sh
     - inv -e agent.version -m 6 --version-cached
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
   needs: []
