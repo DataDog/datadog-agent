@@ -75,32 +75,32 @@ func newRecorder(tm telemetry.Component) *Recorder {
 		containersRestarts: tm.NewGauge(
 			subsystem,
 			ContainerRestarts,
-			[]string{kindTag, tags.KubePod},
-			"Sum of kubernetes.containers.restarts for Datadog Agent pods",
+			[]string{kindTag, tags.KubePod, tags.ContainerName},
+			"Kubernetes container restarts for Datadog Agent containers",
 		),
 		containersTerminated: tm.NewGauge(
 			subsystem,
 			ContainerTerminated,
-			[]string{kindTag, tags.KubePod, "reason"},
-			"Sum of kubernetes.containers.*.terminated for Datadog Agent pods",
+			[]string{kindTag, tags.KubePod, tags.ContainerName, "reason"},
+			"Kubernetes container terminated states for Datadog Agent containers",
 		),
 		memoryUsage: tm.NewGauge(
 			subsystem,
 			MemoryUsage,
-			[]string{kindTag, tags.KubePod},
-			"Sum of container runtime memory usage for Datadog Agent pods",
+			[]string{kindTag, tags.KubePod, tags.ContainerName},
+			"Container runtime memory usage for Datadog Agent containers",
 		),
 		memoryLimits: tm.NewGauge(
 			subsystem,
 			MemoryLimit,
-			[]string{kindTag, tags.KubePod},
-			"Sum of container runtime memory limits for Datadog Agent pods",
+			[]string{kindTag, tags.KubePod, tags.ContainerName},
+			"Container runtime memory limits for Datadog Agent containers",
 		),
 		cpuUsage: tm.NewGauge(
 			subsystem,
 			CPUUsage,
-			[]string{kindTag, tags.KubePod},
-			"Sum of CPU cores used by Datadog Agent pod containers, derived from cumulative CPU time",
+			[]string{kindTag, tags.KubePod, tags.ContainerName},
+			"CPU cores used by Datadog Agent containers, derived from cumulative CPU time",
 		),
 		previousCPUSamples: make(map[string]cpuSample),
 		currentCPUSamples:  make(map[string]cpuSample),
@@ -134,9 +134,9 @@ func (t *Recorder) MarkCPUContainerPresent(containerID string) {
 	}
 }
 
-// RecordCPUUsage adds a container's delta-derived CPU cores to its eligible Agent pod aggregate.
+// RecordCPUUsage records a container's delta-derived CPU cores for an eligible Agent pod.
 // It must be called from a WithRuntimeMetrics callback.
-func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp time.Time, pod *workloadmeta.KubernetesPod) {
+func (t *Recorder) RecordCPUUsage(containerID string, containerName string, total *float64, timestamp time.Time, pod *workloadmeta.KubernetesPod) {
 	t.MarkCPUContainerPresent(containerID)
 	if containerID == "" || total == nil {
 		return
@@ -164,7 +164,7 @@ func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp 
 		return
 	}
 
-	t.cpuUsage.Add((*total-previousSample.total)/float64(elapsed), kind, pod.Name)
+	t.cpuUsage.Add((*total-previousSample.total)/float64(elapsed), kind, pod.Name, containerName)
 }
 
 // ResetKubeletMetrics clears kubelet-sourced state aggregates.
@@ -172,9 +172,9 @@ func (t *Recorder) ResetKubeletMetrics() {
 	t.resetKubeletMetrics()
 }
 
-// RecordMetric adds a metric to the COAT aggregate when it belongs to
+// RecordMetric records a container metric when it belongs to
 // a Datadog Agent, Cluster Agent, or Cluster Check Runner pod.
-func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, reason string) {
+func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workloadmeta.KubernetesPod, containerName string, reason string) {
 	if value == nil || pod == nil {
 		return
 	}
@@ -187,7 +187,7 @@ func (t *Recorder) RecordMetric(metricName string, value *float64, pod *workload
 	if pod.Name == "" {
 		return
 	}
-	t.record(metricName, *value, kind, pod.Name, reason)
+	t.record(metricName, *value, kind, pod.Name, containerName, reason)
 }
 
 func (t *Recorder) resetRuntimeMetrics() {
@@ -209,19 +209,19 @@ func (t *Recorder) resetKubeletMetrics() {
 	}
 }
 
-func (t *Recorder) record(metricName string, value float64, kind string, podName string, reason string) {
+func (t *Recorder) record(metricName string, value float64, kind string, podName string, containerName string, reason string) {
 	switch metricName {
 	case ContainerRestarts:
-		t.containersRestarts.Add(value, kind, podName)
+		t.containersRestarts.Add(value, kind, podName, containerName)
 	case ContainerTerminated:
 		if reason == "" {
 			return
 		}
-		t.containersTerminated.Add(value, kind, podName, reason)
+		t.containersTerminated.Add(value, kind, podName, containerName, reason)
 	case MemoryUsage:
-		t.memoryUsage.Add(value, kind, podName)
+		t.memoryUsage.Add(value, kind, podName, containerName)
 	case MemoryLimit:
-		t.memoryLimits.Add(value, kind, podName)
+		t.memoryLimits.Add(value, kind, podName, containerName)
 	}
 }
 

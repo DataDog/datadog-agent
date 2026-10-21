@@ -169,7 +169,7 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 
 	if containerStats.CPU != nil {
 		if p.agentPerformance != nil {
-			p.agentPerformance.RecordCPUUsage(container.ID, containerStats.CPU.Total, collectionTime, ownerPod)
+			p.agentPerformance.RecordCPUUsage(container.ID, container.Name, containerStats.CPU.Total, collectionTime, ownerPod)
 		}
 
 		p.sendMetric(sender.Rate, "container.cpu.usage", containerStats.CPU.Total, tags)
@@ -186,8 +186,8 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 
 	if containerStats.Memory != nil {
 		if p.agentPerformance != nil {
-			p.agentPerformance.RecordMetric(agentperformance.MemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
-			p.agentPerformance.RecordMetric(agentperformance.MemoryLimit, containerStats.Memory.Limit, ownerPod, "")
+			p.agentPerformance.RecordMetric(agentperformance.MemoryUsage, containerStats.Memory.UsageTotal, ownerPod, container.Name, "")
+			p.agentPerformance.RecordMetric(agentperformance.MemoryLimit, containerStats.Memory.Limit, ownerPod, container.Name, "")
 		}
 
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)

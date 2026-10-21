@@ -137,23 +137,28 @@ profiles:
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.container_terminated
         preserve_tags:
           - kind
           - pod_name
+          - container_name
           - reason
       - name: agent_performance.memory_usage
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.memory_limit
         preserve_tags:
           - kind
           - pod_name
+          - container_name
       - name: agent_performance.cpu_usage
         preserve_tags:
           - kind
           - pod_name
+          - container_name
   schedule:
     start_after: 30
     iterations: 0

@@ -88,13 +88,13 @@ func TestRecordAgentMetricUsesPodMetadata(t *testing.T) {
 	agentPerformance.ResetKubeletMetrics()
 
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.RecordMetric(MemoryUsage, ptr(100), newTestPod(clusterAgentComponent, "metadata-pod"), "")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(50), newTestPod(clusterChecksAgentComponentHelm, "clusterchecks-agent-helm-pod"), "")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(25), newTestPod(clusterChecksAgentComponentOperator, "clusterchecks-agent-operator-pod"), "")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(99), newTestPod("unrelated-component", "other-pod"), "")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(98), newTestPod(clusterAgentComponent, ""), "")
-		agentPerformance.RecordMetric(ContainerTerminated, ptr(1), newTestPod(clusterAgentComponent, "metadata-pod"), "oomkilled")
-		agentPerformance.RecordMetric(ContainerTerminated, ptr(99), newTestPod(clusterAgentComponent, "metadata-pod"), "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(100), newTestPod(clusterAgentComponent, "metadata-pod"), "container", "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(50), newTestPod(clusterChecksAgentComponentHelm, "clusterchecks-agent-helm-pod"), "container", "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(25), newTestPod(clusterChecksAgentComponentOperator, "clusterchecks-agent-operator-pod"), "container", "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(99), newTestPod("unrelated-component", "other-pod"), "container", "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(98), newTestPod(clusterAgentComponent, ""), "container", "")
+		agentPerformance.RecordMetric(ContainerTerminated, ptr(1), newTestPod(clusterAgentComponent, "metadata-pod"), "container", "oomkilled")
+		agentPerformance.RecordMetric(ContainerTerminated, ptr(99), newTestPod(clusterAgentComponent, "metadata-pod"), "container", "")
 	})
 
 	assertGaugeValue(t, tel, MemoryUsage, clusterAgentComponent, "metadata-pod", 100)
@@ -105,16 +105,29 @@ func TestRecordAgentMetricUsesPodMetadata(t *testing.T) {
 	assertTerminatedGaugeValue(t, tel, clusterAgentComponent, "metadata-pod", "oomkilled", 1)
 }
 
-func TestRecorderTelemetryAggregatesNodeAgentPodMetrics(t *testing.T) {
+func TestRecorderTelemetrySeparatesNodeAgentContainers(t *testing.T) {
 	tel := telemetrymock.New(t)
 	agentPerformance := newRecorder(tel)
 	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.RecordMetric(MemoryUsage, ptr(10), nodeAgentPod, "")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(5), nodeAgentPod, "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(10), nodeAgentPod, "agent", "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(5), nodeAgentPod, "process-agent", "")
+		agentPerformance.RecordMetric(MemoryLimit, ptr(20), nodeAgentPod, "agent", "")
+		agentPerformance.RecordMetric(MemoryLimit, ptr(8), nodeAgentPod, "process-agent", "")
+		agentPerformance.RecordMetric(ContainerRestarts, ptr(2), nodeAgentPod, "agent", "")
+		agentPerformance.RecordMetric(ContainerRestarts, ptr(3), nodeAgentPod, "process-agent", "")
+		agentPerformance.RecordMetric(ContainerTerminated, ptr(1), nodeAgentPod, "agent", "oomkilled")
+		agentPerformance.RecordMetric(ContainerTerminated, ptr(1), nodeAgentPod, "process-agent", "oomkilled")
 	})
 
-	assertGaugeValue(t, tel, MemoryUsage, "agent", "node-agent-pod", 15)
+	assertContainerGaugeValue(t, tel, MemoryUsage, nodeAgentComponent, "node-agent-pod", "agent", 10)
+	assertContainerGaugeValue(t, tel, MemoryUsage, nodeAgentComponent, "node-agent-pod", "process-agent", 5)
+	assertContainerGaugeValue(t, tel, MemoryLimit, nodeAgentComponent, "node-agent-pod", "agent", 20)
+	assertContainerGaugeValue(t, tel, MemoryLimit, nodeAgentComponent, "node-agent-pod", "process-agent", 8)
+	assertContainerGaugeValue(t, tel, ContainerRestarts, nodeAgentComponent, "node-agent-pod", "agent", 2)
+	assertContainerGaugeValue(t, tel, ContainerRestarts, nodeAgentComponent, "node-agent-pod", "process-agent", 3)
+	assertContainerTerminatedGaugeValue(t, tel, nodeAgentComponent, "node-agent-pod", "agent", "oomkilled", 1)
+	assertContainerTerminatedGaugeValue(t, tel, nodeAgentComponent, "node-agent-pod", "process-agent", "oomkilled", 1)
 }
 
 func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
@@ -122,8 +135,8 @@ func TestRecorderTelemetryKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) 
 	agentPerformance := newRecorder(tel)
 	const podName = "agent-pod"
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.RecordMetric(MemoryUsage, ptr(10), newTestPod(clusterAgentComponent, podName), "")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(5), newNodeAgentTestPod(podName), "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(10), newTestPod(clusterAgentComponent, podName), "container", "")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(5), newNodeAgentTestPod(podName), "container", "")
 	})
 
 	assertGaugeValue(t, tel, MemoryUsage, clusterAgentComponent, podName, 10)
@@ -140,7 +153,7 @@ func TestRecorderRuntimeMetricsCallbackSerializesCPUSnapshots(t *testing.T) {
 
 	go func() {
 		firstResult <- recorder.WithRuntimeMetrics(func() error {
-			recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), time.Unix(100, 0), newNodeAgentTestPod("node-agent-pod"))
+			recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), time.Unix(100, 0), newNodeAgentTestPod("node-agent-pod"))
 			close(firstCallbackEntered)
 			<-releaseFirstCallback
 			return expectedErr
@@ -163,7 +176,7 @@ func TestRecorderCPUUsageFirstSampleDoesNotEmitGauge(t *testing.T) {
 	recorder := newRecorder(tel)
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), time.Unix(100, 0), newNodeAgentTestPod("node-agent-pod"))
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), time.Unix(100, 0), newNodeAgentTestPod("node-agent-pod"))
 	})
 
 	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
@@ -187,39 +200,40 @@ func TestRecorderCPUUsageInvalidTotalsDoNotEmitOrReplaceBaseline(t *testing.T) {
 			collectionStart := time.Unix(0, 0)
 
 			withRuntimeMetrics(t, recorder, func() {
-				recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
+				recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), collectionStart, pod)
 			})
 
 			withRuntimeMetrics(t, recorder, func() {
-				recorder.RecordCPUUsage("node-agent-container", ptr(tt.invalidTotal), collectionStart.Add(10*time.Second), pod)
+				recorder.RecordCPUUsage("node-agent-container", "container", ptr(tt.invalidTotal), collectionStart.Add(10*time.Second), pod)
 			})
 			assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 
 			withRuntimeMetrics(t, recorder, func() {
-				recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+				recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
 			})
 			assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.125)
 		})
 	}
 }
 
-func TestRecorderCPUUsageAggregatesNodeAgentContainers(t *testing.T) {
+func TestRecorderCPUUsageSeparatesNodeAgentContainers(t *testing.T) {
 	tel := telemetrymock.New(t)
 	recorder := newRecorder(tel)
 	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
 	collectionStart := time.Unix(100, 0)
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container-1", ptr(float64(time.Second)), collectionStart, nodeAgentPod)
-		recorder.RecordCPUUsage("node-agent-container-2", ptr(float64(2*time.Second)), collectionStart, nodeAgentPod)
+		recorder.RecordCPUUsage("node-agent-container-1", "agent", ptr(float64(time.Second)), collectionStart, nodeAgentPod)
+		recorder.RecordCPUUsage("node-agent-container-2", "process-agent", ptr(float64(2*time.Second)), collectionStart, nodeAgentPod)
 	})
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container-1", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), nodeAgentPod)
-		recorder.RecordCPUUsage("node-agent-container-2", ptr(float64(4*time.Second)), collectionStart.Add(10*time.Second), nodeAgentPod)
+		recorder.RecordCPUUsage("node-agent-container-1", "agent", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), nodeAgentPod)
+		recorder.RecordCPUUsage("node-agent-container-2", "process-agent", ptr(float64(4*time.Second)), collectionStart.Add(10*time.Second), nodeAgentPod)
 	})
 
-	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.45)
+	assertContainerGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", "agent", 0.25)
+	assertContainerGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", "process-agent", 0.2)
 }
 
 func TestRecorderCPUUsageKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
@@ -230,13 +244,13 @@ func TestRecorderCPUUsageKeepsNodeAndClusterAgentsSeparateByKind(t *testing.T) {
 	clusterAgentPod := newTestPod(clusterAgentComponent, "agent-pod")
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, nodeAgentPod)
-		recorder.RecordCPUUsage("cluster-agent-container", ptr(float64(2*time.Second)), collectionStart, clusterAgentPod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), collectionStart, nodeAgentPod)
+		recorder.RecordCPUUsage("cluster-agent-container", "container", ptr(float64(2*time.Second)), collectionStart, clusterAgentPod)
 	})
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), nodeAgentPod)
-		recorder.RecordCPUUsage("cluster-agent-container", ptr(float64(3*time.Second)), collectionStart.Add(10*time.Second), clusterAgentPod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), nodeAgentPod)
+		recorder.RecordCPUUsage("cluster-agent-container", "container", ptr(float64(3*time.Second)), collectionStart.Add(10*time.Second), clusterAgentPod)
 	})
 
 	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "agent-pod", 0.25)
@@ -250,17 +264,17 @@ func TestRecorderCPUUsageDecreasedCounterReestablishesBaseline(t *testing.T) {
 	collectionStart := time.Unix(100, 0)
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second)), collectionStart, pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(3*time.Second)), collectionStart, pod)
 	})
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart.Add(10*time.Second), pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), collectionStart.Add(10*time.Second), pod)
 	})
 
 	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
 	})
 
 	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.25)
@@ -273,7 +287,7 @@ func TestRecorderCPUUsageRetainsBaselineForListedContainerWithoutCPUStats(t *tes
 	collectionStart := time.Unix(100, 0)
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), collectionStart, pod)
 	})
 
 	withRuntimeMetrics(t, recorder, func() {
@@ -281,7 +295,7 @@ func TestRecorderCPUUsageRetainsBaselineForListedContainerWithoutCPUStats(t *tes
 	})
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(20*time.Second), pod)
 	})
 
 	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.125)
@@ -294,11 +308,11 @@ func TestRecorderCPUUsageEmptyLaterSnapshotClearsOldContribution(t *testing.T) {
 	collectionStart := time.Unix(100, 0)
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(time.Second)), collectionStart, pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(time.Second)), collectionStart, pod)
 	})
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(3*time.Second+500*time.Millisecond)), collectionStart.Add(10*time.Second), pod)
 	})
 	assertGaugeValue(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod", 0.25)
 
@@ -306,7 +320,7 @@ func TestRecorderCPUUsageEmptyLaterSnapshotClearsOldContribution(t *testing.T) {
 	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 
 	withRuntimeMetrics(t, recorder, func() {
-		recorder.RecordCPUUsage("node-agent-container", ptr(float64(6*time.Second)), collectionStart.Add(30*time.Second), pod)
+		recorder.RecordCPUUsage("node-agent-container", "container", ptr(float64(6*time.Second)), collectionStart.Add(30*time.Second), pod)
 	})
 	assertGaugeMissing(t, tel, CPUUsage, nodeAgentComponent, "node-agent-pod")
 }
@@ -317,12 +331,12 @@ func TestRecorderTelemetryAggregatesSelectedComponents(t *testing.T) {
 	agentPerformance.resetKubeletMetrics()
 
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(MemoryUsage, 5, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(MemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
-		agentPerformance.record(ContainerRestarts, 2, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
-		agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "oomkilled")
-		agentPerformance.record(ContainerTerminated, 99, clusterAgentComponent, "cluster-agent-pod", "")
+		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(MemoryUsage, 5, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(MemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "container", "")
+		agentPerformance.record(ContainerRestarts, 2, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "container", "")
+		agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "container", "oomkilled")
+		agentPerformance.record(ContainerTerminated, 99, clusterAgentComponent, "cluster-agent-pod", "container", "")
 	})
 
 	assertGaugeValue(t, tel, MemoryUsage, clusterAgentComponent, "cluster-agent-pod", 15)
@@ -337,14 +351,14 @@ func TestRecorderTelemetryResetClearsStaleValues(t *testing.T) {
 
 	nodeAgentPod := newNodeAgentTestPod("node-agent-pod")
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(MemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
-		agentPerformance.record(ContainerRestarts, 2, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "")
-		agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "error")
-		agentPerformance.RecordMetric(MemoryUsage, ptr(30), nodeAgentPod, "")
-		agentPerformance.RecordMetric(MemoryLimit, ptr(40), nodeAgentPod, "")
-		agentPerformance.RecordMetric(ContainerRestarts, ptr(3), nodeAgentPod, "")
-		agentPerformance.RecordMetric(ContainerTerminated, ptr(2), nodeAgentPod, "error")
+		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(MemoryLimit, 20, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "container", "")
+		agentPerformance.record(ContainerRestarts, 2, clusterChecksAgentComponentOperator, "clusterchecks-agent-pod", "container", "")
+		agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "container", "error")
+		agentPerformance.RecordMetric(MemoryUsage, ptr(30), nodeAgentPod, "container", "")
+		agentPerformance.RecordMetric(MemoryLimit, ptr(40), nodeAgentPod, "container", "")
+		agentPerformance.RecordMetric(ContainerRestarts, ptr(3), nodeAgentPod, "container", "")
+		agentPerformance.RecordMetric(ContainerTerminated, ptr(2), nodeAgentPod, "container", "error")
 	})
 	agentPerformance.resetKubeletMetrics()
 	withRuntimeMetrics(t, agentPerformance, func() {})
@@ -364,10 +378,10 @@ func TestRecorderTelemetrySplitResets(t *testing.T) {
 	agentPerformance := newRecorder(tel)
 
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(MemoryLimit, 20, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(ContainerRestarts, 2, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "containercannotrun")
+		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(MemoryLimit, 20, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(ContainerRestarts, 2, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(ContainerTerminated, 1, clusterAgentComponent, "cluster-agent-pod", "container", "containercannotrun")
 	})
 
 	withRuntimeMetrics(t, agentPerformance, func() {})
@@ -378,8 +392,8 @@ func TestRecorderTelemetrySplitResets(t *testing.T) {
 	assertTerminatedGaugeValue(t, tel, clusterAgentComponent, "cluster-agent-pod", "containercannotrun", 1)
 
 	withRuntimeMetrics(t, agentPerformance, func() {
-		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "")
-		agentPerformance.record(MemoryLimit, 20, clusterAgentComponent, "cluster-agent-pod", "")
+		agentPerformance.record(MemoryUsage, 10, clusterAgentComponent, "cluster-agent-pod", "container", "")
+		agentPerformance.record(MemoryLimit, 20, clusterAgentComponent, "cluster-agent-pod", "container", "")
 	})
 	agentPerformance.resetKubeletMetrics()
 
@@ -426,6 +440,11 @@ func ptr(v float64) *float64 {
 
 func assertGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, kind string, podName string, expected float64) {
 	t.Helper()
+	assertContainerGaugeValue(t, tel, metricName, kind, podName, "container", expected)
+}
+
+func assertContainerGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, kind string, podName string, containerName string, expected float64) {
+	t.Helper()
 
 	metrics, err := tel.GetGaugeMetric(subsystem, metricName)
 	if !assert.NoError(t, err) {
@@ -433,13 +452,13 @@ func assertGaugeValue(t *testing.T, tel telemetry.Mock, metricName string, kind 
 	}
 
 	for _, metric := range metrics {
-		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName {
+		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName && metric.Tags()[tags.ContainerName] == containerName {
 			assert.Equal(t, expected, metric.Value())
 			return
 		}
 	}
 
-	assert.Failf(t, "missing metric", "metric %s for %s/%s not found", metricName, kind, podName)
+	assert.Failf(t, "missing metric", "metric %s for %s/%s/%s not found", metricName, kind, podName, containerName)
 }
 
 func assertGaugeMissing(t *testing.T, tel telemetry.Mock, metricName string, kind string, podName string) {
@@ -476,6 +495,11 @@ func assertTerminatedGaugeMissing(t *testing.T, tel telemetry.Mock, kind string,
 
 func assertTerminatedGaugeValue(t *testing.T, tel telemetry.Mock, kind string, podName string, reason string, expected float64) {
 	t.Helper()
+	assertContainerTerminatedGaugeValue(t, tel, kind, podName, "container", reason, expected)
+}
+
+func assertContainerTerminatedGaugeValue(t *testing.T, tel telemetry.Mock, kind string, podName string, containerName string, reason string, expected float64) {
+	t.Helper()
 
 	metrics, err := tel.GetGaugeMetric(subsystem, ContainerTerminated)
 	if !assert.NoError(t, err) {
@@ -483,11 +507,11 @@ func assertTerminatedGaugeValue(t *testing.T, tel telemetry.Mock, kind string, p
 	}
 
 	for _, metric := range metrics {
-		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName && metric.Tags()["reason"] == reason {
+		if metric.Tags()[kindTag] == kind && metric.Tags()[tags.KubePod] == podName && metric.Tags()[tags.ContainerName] == containerName && metric.Tags()["reason"] == reason {
 			assert.Equal(t, expected, metric.Value())
 			return
 		}
 	}
 
-	assert.Failf(t, "missing metric", "terminated metric for %s/%s/%s not found", kind, podName, reason)
+	assert.Failf(t, "missing metric", "terminated metric for %s/%s/%s/%s not found", kind, podName, containerName, reason)
 }
