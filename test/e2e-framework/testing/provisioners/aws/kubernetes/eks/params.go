@@ -24,9 +24,10 @@ type ProvisionerParams struct {
 
 // GetProvisionerParams return ProvisionerParams from options opts setup
 func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
+	// Apply the default before caller options so WithInternetAccess can override it.
 	params := &ProvisionerParams{
 		awsEnv:            nil,
-		runOptions:        []eks.RunOption{},
+		runOptions:        []eks.RunOption{eks.WithEKSOptions(eks.WithoutInternetAccess())},
 		extraConfigParams: runner.ConfigMap{},
 	}
 	err := optional.ApplyOptions(params, opts)

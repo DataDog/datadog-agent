@@ -4,6 +4,10 @@
 #         untriaged (reason not documented yet).
 # Policy: see "Avoiding external dependencies" in test/new-e2e/codereview_guideline.md.
 entries:
+- file: test/e2e-framework/scenarios/aws/eks/args_test.go
+  function: TestDefaultEKSOptions
+  status: justified
+  reason: Unit test verifies explicit internet opt-outs override provisioner defaults; provisions no infrastructure.
 - file: test/e2e-framework/scenarios/aws/ec2/run_args.go
   function: ParamsFromEnvironment
   status: justified

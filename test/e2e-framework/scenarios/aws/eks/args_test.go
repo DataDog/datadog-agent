@@ -89,3 +89,29 @@ func TestNewParamsNodeGroupsWithoutAutoMode(t *testing.T) {
 	assert.True(t, params.LinuxNodeGroup)
 	assert.True(t, params.WindowsNodeGroup)
 }
+
+func TestDefaultEKSOptions(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		options     []Option
+		wantBlocked bool
+		wantError   bool
+	}{
+		{name: "default", wantBlocked: true},
+		{name: "node group preserves default", options: []Option{WithLinuxNodeGroup()}, wantBlocked: true},
+		{name: "explicit internet opt-out", options: []Option{WithLinuxNodeGroup(), WithInternetAccess()}},
+		{name: "auto mode requires opt-out", options: []Option{WithAutoMode()}, wantError: true},
+		{name: "auto mode with opt-out", options: []Option{WithAutoMode(), WithInternetAccess()}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runParams := GetRunParams(WithEKSOptions(WithoutInternetAccess()), WithEKSOptions(tc.options...))
+			params, err := NewParams(runParams.eksOptions...)
+			if tc.wantError {
+				require.ErrorContains(t, err, "WithoutInternetAccess")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantBlocked, params.WithoutInternetAccess)
+		})
+	}
+}
