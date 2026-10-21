@@ -108,7 +108,7 @@ genrule(
 sh_test(
     name = "macos_dir_test",
     srcs = ["macos_dir_test.sh"],
-    args = ["$(rootpath @llvm_toolchain_llvm//:install-name-tool)"],
+    args = ["$(rootpath @llvm//tools:llvm-install-name-tool)"],
     data = [
         ":bar",
         ":baz_so",
@@ -116,7 +116,7 @@ sh_test(
         ":rewrite_tree_with_install_name_tool.sh",
         ":rewrite_with_install_name_tool.sh",
         ":rpath_helpers.sh",
-        "@llvm_toolchain_llvm//:install-name-tool",
+        "@llvm//tools:llvm-install-name-tool",
     ],
     target_compatible_with = ["@platforms//os:macos"],
 )

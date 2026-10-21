@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	composeVersion = "v2.27.0"
 	defaultTimeout = 300
 )
 
@@ -279,10 +278,10 @@ EOF`),
 	return groupCmd, err
 }
 
-// assertCompose verifies that docker-compose at composeVersion is already
+// assertCompose verifies that docker-compose at os.ComposeVersion is already
 // present on the host. Actual installs happen either via the pre-baked AWS e2e
-// AMI or via docker.InstallCompose, called explicitly by Azure/GCP
-// provisioners before NewManager. This method never installs — runtime
+// AMI or via PackageManager.RuntimeInstallDocker, called explicitly by GCP,
+// Azure and local provisioners before NewManager. This method never installs — runtime
 // installs on AWS are disallowed.
 //
 // Version validation runs in Go (via ApplyT) so a missing or wrong version
@@ -302,10 +301,10 @@ func (d *Manager) assertCompose() (command.Command, error) {
 	}
 
 	validated := versionCmd.StdoutOutput().ApplyT(func(out string) (string, error) {
-		if !strings.Contains(out, composeVersion) {
+		if !strings.Contains(out, os.ComposeVersion) {
 			return "", fmt.Errorf(
-				"docker-compose %s expected on host but got %q; runtime installs are not allowed on AWS — use docker.InstallCompose on Azure/GCP",
-				composeVersion, strings.TrimSpace(out),
+				"docker-compose %s expected on host but got %q; runtime installs are not allowed on AWS — use PackageManager.RuntimeInstallDocker on GCP/Azure/local",
+				os.ComposeVersion, strings.TrimSpace(out),
 			)
 		}
 		return ":", nil

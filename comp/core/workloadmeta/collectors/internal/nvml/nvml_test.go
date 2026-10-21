@@ -26,6 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpucontainers "github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -760,9 +761,9 @@ func writeCDISpec(t *testing.T, uid, contents string) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(
 		filepath.Join(dir, "k8s.gpu.nvidia.com-claim_"+uid+".yaml"), []byte(contents), 0o600))
-	old := cdiSpecDirs
-	cdiSpecDirs = []string{dir}
-	t.Cleanup(func() { cdiSpecDirs = old })
+	old := gpucontainers.CDISpecDirs
+	gpucontainers.CDISpecDirs = []string{dir}
+	t.Cleanup(func() { gpucontainers.CDISpecDirs = old })
 }
 
 func TestCDIDeviceNodes(t *testing.T) {

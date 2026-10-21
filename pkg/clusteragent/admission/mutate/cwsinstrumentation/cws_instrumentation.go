@@ -518,7 +518,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationMeasured(exec *core
 	injected, err := ci.injectCWSCommandInstrumentation(exec, name, ns, userInfo, apiClient)
 	totalTime := time.Since(start).Seconds()
 	if totalTime > ci.timeout.Seconds() {
-		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, exec.Container, userInfo.Username, totalTime)
+		var container, username string
+		if exec != nil {
+			container = exec.Container
+		}
+		if userInfo != nil {
+			username = userInfo.Username
+		}
+		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, container, username, totalTime)
 	}
 	metrics.CWSResponseDuration.Observe(totalTime, ci.mode.String(), webhookForCommandsName, "total", strconv.FormatBool(err == nil), strconv.FormatBool(injected))
 	return injected, err
