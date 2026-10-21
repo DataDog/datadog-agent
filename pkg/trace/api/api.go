@@ -129,9 +129,14 @@ type HTTPReceiver struct {
 	rateLimiterResponse int // HTTP status code when refusing
 
 	// wg tracks open server connections (see trackConnState), so that Stop can
-	// wait for every request handler to return.
+	// wait for request handlers to return during shutdown.
 	wg   sync.WaitGroup
 	exit chan struct{}
+
+	// payloadMu synchronizes payload sends with Stop. Once payloadsStopped is
+	// set under the exclusive lock, the caller can safely close out and outV1.
+	payloadMu       sync.RWMutex
+	payloadsStopped bool
 
 	// shutdownTimeout bounds the graceful server shutdown in Stop.
 	shutdownTimeout time.Duration
@@ -140,7 +145,7 @@ type HTTPReceiver struct {
 	// telling handlers still blocked on the out channels to drop their payloads.
 	shutdownTimedOut chan struct{}
 
-	// droppedOnShutdown counts payloads dropped because shutdownTimedOut was closed.
+	// droppedOnShutdown counts payloads dropped during or after shutdown.
 	droppedOnShutdown atomic.Int64
 
 	// recvsem is a semaphore that controls the number goroutines that can
@@ -515,16 +520,21 @@ func (r *HTTPReceiver) Stop() error {
 	if err != nil {
 		log.Warnf("Error shutting down HTTPReceiver: %v", err)
 		// Some handlers are still running. Unblock those waiting to hand off a
-		// payload and force-close remaining connections so the wait below can't hang.
+		// payload and force-close remaining connections to cancel their requests.
 		close(r.shutdownTimedOut)
 		if cerr := r.server.Close(); cerr != nil {
 			log.Warnf("Error closing HTTPReceiver: %v", cerr)
 		}
 	}
-	// Wait for in-flight handlers: the caller closes the out channels as soon
-	// as Stop returns, and a late send would panic. Handlers honor request
-	// cancellation, so this is quick once connections are closed; the bound
-	// only guards against one that doesn't hanging shutdown forever.
+	// Wait for sends already in progress and prevent any future ones. On a
+	// shutdown timeout, shutdownTimedOut has already unblocked pending sends.
+	r.payloadMu.Lock()
+	r.payloadsStopped = true
+	r.payloadMu.Unlock()
+
+	// Give handlers time to finish after their connections close. Payload sends
+	// are disabled, so returning at the deadline is safe even if a handler is
+	// still decoding or looking up tags.
 	done := make(chan struct{})
 	go func() {
 		r.wg.Wait()
@@ -556,10 +566,16 @@ func (r *HTTPReceiver) trackConnState(_ net.Conn, state http.ConnState) {
 	}
 }
 
-// sendPayload sends p on out, or drops it if the graceful shutdown times out
-// first. Stop waits for all connections to close before returning, so out
-// can't be closed while a handler is sending.
+// sendPayload sends p on out, or drops it during shutdown. Stop disables sends
+// under payloadMu before returning, so out cannot be closed during a send even
+// if a handler outlives the shutdown deadlines.
 func sendPayload[T any](r *HTTPReceiver, out chan<- T, p T) {
+	r.payloadMu.RLock()
+	defer r.payloadMu.RUnlock()
+	if r.payloadsStopped {
+		r.droppedOnShutdown.Inc()
+		return
+	}
 	select {
 	case out <- p:
 	case <-r.shutdownTimedOut:

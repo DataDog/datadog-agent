@@ -300,6 +300,107 @@ func TestStopWithBlockedHandler(t *testing.T) {
 	}
 }
 
+func TestStopWithLateHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		feature string
+	}{
+		{name: "v1"},
+		{name: "v0", feature: "disable-convert-traces"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := newTestReceiverConfigNoPort()
+			if tc.feature != "" {
+				conf.Features[tc.feature] = struct{}{}
+			}
+			conf.HasContainerFeatures = true
+			conf.MaxConnections = 10
+
+			// Pause after decoding and replying, where closing the connection
+			// cannot interrupt the handler's remaining work.
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			unblock := func() { releaseOnce.Do(func() { close(release) }) }
+			conf.ContainerTags = func(string) ([]string, error) {
+				close(entered)
+				<-release
+				return nil, nil
+			}
+			r := startTestReceiver(t, conf)
+			r.shutdownTimeout = 100 * time.Millisecond
+			stopStarted := false
+			t.Cleanup(func() {
+				unblock()
+				if !stopStarted {
+					r.Stop()
+				}
+			})
+
+			bts, err := testutil.GetTestTraces(1, 1, true).MarshalMsg(nil)
+			require.NoError(t, err)
+			req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/v0.4/traces", r.Addr()), bytes.NewReader(bts))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/msgpack")
+			req.Header.Set(header.ContainerID, "test-container")
+			go func() {
+				client := http.Client{Timeout: 5 * time.Second}
+				if resp, err := client.Do(req); err == nil {
+					resp.Body.Close()
+				}
+			}()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("trace handler did not reach container tag lookup")
+			}
+
+			stopped := make(chan error, 1)
+			stopStarted = true
+			go func() { stopped <- r.Stop() }()
+			select {
+			case err := <-stopped:
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
+			case <-time.After(5 * time.Second):
+				t.Fatal("Stop did not return while a handler remained blocked")
+			}
+
+			// Match Agent.loop: close the channels while the handler is still
+			// running, then let it attempt its final payload handoff.
+			close(r.out)
+			close(r.outV1)
+			unblock()
+			done := make(chan struct{})
+			go func() {
+				r.wg.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("trace handler did not return after being released")
+			}
+			assert.EqualValues(t, 1, r.droppedOnShutdown.Load())
+		})
+	}
+}
+
+func TestSendPayloadAfterStop(t *testing.T) {
+	r := startTestReceiver(t, newTestReceiverConfigNoPort())
+	p, pV1 := &Payload{}, &PayloadV1{}
+	sendPayload(r, r.out, p)
+	sendPayload(r, r.outV1, pV1)
+	require.NoError(t, r.Stop())
+	close(r.out)
+	close(r.outV1)
+	assert.Same(t, p, <-r.out)
+	assert.Same(t, pV1, <-r.outV1)
+
+	assert.NotPanics(t, func() { sendPayload(r, r.out, &Payload{}) })
+	assert.NotPanics(t, func() { sendPayload(r, r.outV1, &PayloadV1{}) })
+	assert.EqualValues(t, 2, r.droppedOnShutdown.Load())
+}
+
 func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 

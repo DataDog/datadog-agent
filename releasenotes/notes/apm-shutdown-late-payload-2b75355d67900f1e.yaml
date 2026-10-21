@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    APM : Prevent a ``send on closed channel`` panic when a trace handler
+    finishes after both HTTP receiver shutdown deadlines have expired.
