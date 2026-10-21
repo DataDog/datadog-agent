@@ -33,10 +33,14 @@ func Path(taskID string) string {
 	return filepath.Join(runDir(), markerPrefix+taskID)
 }
 
+func validTaskID(taskID string) bool {
+	return taskID != "" && taskID != "." && taskID != ".." && !strings.ContainsAny(taskID, `/\`)
+}
+
 // Write records that the daemon has persisted the result of taskID.
 func Write(taskID string) error {
-	if taskID == "" {
-		return errors.New("empty task id")
+	if !validTaskID(taskID) {
+		return fmt.Errorf("invalid task id %q", taskID)
 	}
 	if err := os.MkdirAll(runDir(), 0755); err != nil {
 		return fmt.Errorf("could not create run directory: %w", err)
@@ -47,7 +51,7 @@ func Write(taskID string) error {
 // Wait blocks until the marker for taskID exists, ctx is done, or timeout elapses, and
 // removes the marker once seen. It reports whether the marker was seen.
 func Wait(ctx context.Context, taskID string, timeout time.Duration) bool {
-	if taskID == "" {
+	if !validTaskID(taskID) {
 		return false
 	}
 	deadline := time.NewTimer(timeout)

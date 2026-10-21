@@ -286,7 +286,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
-	waitForDaemonToRecordTask(ctx, env.TaskID)
+	waitForDaemonToRecordTask(ctx, env)
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
 	// Save and remove stable extensions before uninstalling the stable agent.
@@ -378,7 +378,7 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	}
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
-	waitForDaemonToRecordTask(ctx, env.TaskID)
+	waitForDaemonToRecordTask(ctx, env)
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
 	if err := removeAgentExtensions(hookCtx, true); err != nil {
@@ -1050,11 +1050,14 @@ const daemonTaskRecordTimeout = 2 * time.Minute
 // waitForDaemonToRecordTask holds off the Agent restart until the daemon that requested this
 // experiment step has recorded the task result. Stopping the services stops the daemon too,
 // and a daemon stopped before recording the result keeps reporting the task as running.
-// Daemons that pass no task ID are not waited for.
-func waitForDaemonToRecordTask(ctx context.Context, taskID string) {
+// Daemons that pass no task ID are not waited for. The task ID is cleared afterwards so
+// installer processes started from here, such as a rollback, do not wait for it again.
+func waitForDaemonToRecordTask(ctx context.Context, e *env.Env) {
+	taskID := e.TaskID
 	if taskID == "" {
 		return
 	}
+	defer e.ClearTaskID()
 	if taskmarker.Wait(ctx, taskID, daemonTaskRecordTimeout) {
 		log.Infof("Daemon recorded task %s, restarting the Agent", taskID)
 		return

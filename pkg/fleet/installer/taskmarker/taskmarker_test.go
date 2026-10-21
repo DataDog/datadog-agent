@@ -84,9 +84,14 @@ func TestWaitWithoutTaskIDReturnsImmediately(t *testing.T) {
 	assert.Less(t, time.Since(start), time.Second)
 }
 
-func TestWriteRejectsEmptyTaskID(t *testing.T) {
-	withRunPath(t)
-	assert.Error(t, Write(""))
+func TestRejectsInvalidTaskIDs(t *testing.T) {
+	runPath := withRunPath(t)
+	for _, id := range []string{"", ".", "..", "../escape", `..\escape`, "a/b"} {
+		assert.Error(t, Write(id), "Write(%q)", id)
+		assert.False(t, Wait(context.Background(), id, 10*time.Millisecond), "Wait(%q)", id)
+	}
+	_, err := os.Stat(filepath.Join(filepath.Dir(runPath), "escape"))
+	assert.True(t, os.IsNotExist(err))
 }
 
 func TestRemoveStaleKeepsRecentMarkersAndOtherFiles(t *testing.T) {

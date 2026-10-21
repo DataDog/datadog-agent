@@ -156,6 +156,7 @@ dd_agent_go_test(
             "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",
+            "//pkg/fleet/installer/taskmarker",
         ],
         "//conditions:default": [],
     }),
