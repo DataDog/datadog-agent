@@ -1062,11 +1062,10 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	})
 }
 
-func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineTruncated(t *testing.T) {
+func TestDecoderWithDockerJSONPartialLineMarksOversizedLogicalLineTruncated(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.max_message_size_bytes", 1000, pkgconfigmodel.SourceAgentRuntime)
 	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
-	mockConfig.Set("logs_config.auto_multi_line_detection_tagging", true, pkgconfigmodel.SourceAgentRuntime)
 
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	d := InitializeDecoderForTest(source, dockerfile.New())
