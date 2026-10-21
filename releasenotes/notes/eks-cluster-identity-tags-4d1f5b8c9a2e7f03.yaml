@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    On Amazon EKS, the Cluster Agent now resolves the authoritative cluster identity
+    through ``eks:DescribeCluster`` and exposes it to node Agents. The
+    ``eks_cluster_arn``, ``eks_cluster_account``, and ``eks_cluster_region`` tags are
+    attached to container-sourced data (including APM traces) and to host metadata
+    alongside ``kube_cluster_name``. The account and Region use cluster-scoped tag keys
+    distinct from the node-derived ``aws_account`` and ``region`` host tags, so a
+    cross-account node group reports where the node runs and who owns the cluster as two
+    clearly labelled values rather than colliding under one key. No node-local metadata is
+    used to infer cluster ownership. The tags are omitted when the identity cannot be
+    resolved (non-EKS clusters, missing ``eks:DescribeCluster`` permission, or an
+    unreachable Cluster Agent), and they appear on a node Agent only once that Agent can
+    reach the Cluster Agent.
+
+    The Cluster Agent's credentials must allow ``eks:DescribeCluster``. Grant it through
+    EKS Pod Identity or IAM Roles for Service Accounts (IRSA); the node instance role
+    (for example ``AmazonEKSWorkerNodePolicy``) also works only when the Cluster Agent pod
+    can reach the node's instance metadata service, which is not the case on clusters that
+    restrict pod IMDS access. Without the permission the feature is a no-op and no identity
+    tag is emitted.
