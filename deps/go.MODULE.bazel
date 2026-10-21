@@ -15,6 +15,15 @@ inject_repo(
 )
 
 go_deps.from_file(go_work = "//:go.work")
+
+# The libdd-rc source overlay's injected BUILD file references this apparent
+# repository name directly. Keep it root-visible even though the pinned
+# libdd-rc Go module also declares websocket transitively.
+go_deps.module(
+    path = "github.com/coder/websocket",
+    sum = "h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=",
+    version = "v1.8.15",
+)
 go_deps.gazelle_default_attributes(
     # Using default attributes causes build_file_generation to change to `on`,
     # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
@@ -108,6 +117,7 @@ use_repo(
     "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
     "com_github_cloudfoundry_community_go_cfclient_v2",
+    "com_github_coder_websocket",
     "com_github_containerd_cgroups_v3",
     "com_github_containerd_containerd_api",
     "com_github_containerd_containerd_v2",
@@ -135,6 +145,7 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
+    "com_github_datadog_libdd_rc_ffi_hosts_go",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",

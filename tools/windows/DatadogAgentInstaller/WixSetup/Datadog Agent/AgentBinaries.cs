@@ -23,6 +23,8 @@ namespace WixSetup.Datadog_Agent
         public string Procmgr => $@"{_binSource}\dd-procmgr.exe";
         public string ParControl => $@"{_binSource}\par-control.exe";
         public string AgentDataPlane => $@"{_binSource}\agent-data-plane.exe";
+        public string RcX509Ffi => $@"{_binSource}\rc_x509_ffi.dll";
+        public string AwsLcFipsCrypto => $@"{_binSource}\aws_lc_fips_0_14_2_crypto.dll";
 
         public AgentBinaries(string binSource, string installerSource)
         {

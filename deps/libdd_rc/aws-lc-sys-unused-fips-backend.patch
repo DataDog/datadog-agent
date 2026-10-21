@@ -1,0 +1,27 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 5ec81af..cb6f681 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -94,7 +94,7 @@ repository = "https://github.com/aws/aws-lc-rs"
+ 
+ [lib]
+ name = "aws_lc_sys"
+-path = "src/lib.rs"
++path = "src/unused_fips_backend.rs"
+ 
+ [[test]]
+ name = "sanity-tests"
+diff --git a/src/unused_fips_backend.rs b/src/unused_fips_backend.rs
+new file mode 100644
+index 0000000..1b5c8fe
+--- /dev/null
++++ b/src/unused_fips_backend.rs
+@@ -0,0 +1,8 @@
++// aws-lc-rs imports aws-lc-fips-sys instead of aws-lc-sys whenever its
++// `fips` feature is enabled. The libdd-rc graph enables both dependency edges
++// through upstream feature unification, but this crate is consequently never
++// referenced. Keep a valid Rust target for that redundant edge without
++// invoking aws-lc-sys's native build.
++
++#![allow(dead_code)]
++

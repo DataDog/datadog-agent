@@ -78,13 +78,13 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                 self.assertIn(plist, uninstall)
 
     def test_windows_fips_packaging_does_not_expect_adp_sidecar_dlls(self):
-        agent_installer = (
-            REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"
-        ).read_text()
-        omnibus_project = (REPO_ROOT / "omnibus/config/projects/agent.rb").read_text()
+        adp_build = (REPO_ROOT / "deps/agent_data_plane/BUILD.bazel").read_text()
+        adp_module = (REPO_ROOT / "deps/agent_data_plane/agent_data_plane.MODULE.bazel").read_text()
 
-        self.assertNotIn("aws_lc_fips", agent_installer)
-        self.assertNotIn("aws_lc_fips", omnibus_project)
+        # ADP's Windows FIPS archive remains a self-contained executable. Other
+        # Agent components may legitimately package their own AWS-LC runtime.
+        self.assertNotIn("aws_lc_fips", adp_build)
+        self.assertNotIn("aws_lc_fips", adp_module)
 
     def test_windows_adp_procmgr_config_is_embedded_for_fleet_installer(self):
         generated_path = (

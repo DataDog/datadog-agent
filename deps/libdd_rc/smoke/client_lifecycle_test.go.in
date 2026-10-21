@@ -1,0 +1,18 @@
+package smoke
+
+import (
+	"testing"
+
+	"github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509"
+)
+
+func TestClientLifecycle(t *testing.T) {
+	client, err := rcx509.NewClient("ws://127.0.0.1:1", "datadog-agent", "bazel-smoke-test")
+	if err != nil {
+		t.Fatalf("initialize rc-x509 client: %v", err)
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close rc-x509 client: %v", err)
+	}
+}

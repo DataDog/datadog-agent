@@ -1,0 +1,237 @@
+diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
+--- a/builder/cmake_builder.rs
++++ b/builder/cmake_builder.rs
+@@ -75,6 +75,91 @@ const fn cmake_nasm_small_flags(value: bool) -> &'static str {
+     }
+ }
+
++/// CMake and Ninja execute from a nested build directory, while Bazel's MSVC
++/// flags contain paths relative to the execroot. Make those declared external
++/// inputs independent of the subprocess working directory.
++fn bazel_execroot() -> PathBuf {
++    for env_var in ["CC", "CXX", "AR", "LD", "GO_EXECUTABLE"] {
++        let Ok(tool) = env::var(env_var) else {
++            continue;
++        };
++        let normalized = tool.replace('\\', "/");
++        if let Some(external) = normalized.find("/external/") {
++            return PathBuf::from(&tool[..external]);
++        }
++    }
++    panic!("failed to determine Bazel execroot from declared tool paths");
++}
++
++fn prepare_bazel_flags_for_cmake(flags: &str) -> String {
++    let execroot = bazel_execroot();
++    let mut prepared = flags
++        .split_whitespace()
++        .map(|flag| {
++            // Bazel invokes link.exe directly, where the linker expands its
++            // private %_PDB% placeholder. CMake's Ninja generator adds a
++            // cmd.exe layer that expands it first; an unset value leaves an
++            // empty filename that link.exe interprets as `.obj`.
++            if flag.eq_ignore_ascii_case("/PDBALTPATH:%_PDB%") {
++                return "/PDBALTPATH:aws-lc.pdb".to_owned();
++            }
++            let (prefix, path) = flag
++                .strip_prefix("/external:I")
++                .map_or(("", flag), |path| ("/external:I", path));
++            if path.starts_with("external/") || path.starts_with("external\\") {
++                format!("{prefix}{}", execroot.join(path).display())
++            } else {
++                flag.to_owned()
++            }
++        })
++        .collect::<Vec<_>>();
++
++    // Bazel names the CRT libraries explicitly, while CMake additionally
++    // links standard Windows libraries such as kernel32.lib by name. The
++    // hermetic toolchain intentionally has no ambient LIB setting, so expose
++    // only the declared SDK/MSVC library directories to those subprocesses.
++    let mut library_paths = Vec::new();
++    for flag in &prepared {
++        let normalized = flag.replace('\\', "/");
++        let lowercase = normalized.to_ascii_lowercase();
++        if let Some(prefix) = lowercase.strip_suffix("/ucrt/x64/ucrt.lib") {
++            let root = &normalized[..prefix.len()];
++            library_paths.push(format!("{root}/ucrt/x64"));
++            library_paths.push(format!("{root}/um/x64"));
++        } else if lowercase.ends_with("/msvcrt.lib") {
++            if let Some((parent, _)) = normalized.rsplit_once('/') {
++                library_paths.push(parent.to_owned());
++            }
++        }
++    }
++    for library_path in library_paths {
++        let library_path = library_path.replace('/', "\\");
++        let flag = format!("/LIBPATH:{library_path}");
++        if !prepared
++            .iter()
++            .any(|existing| existing.eq_ignore_ascii_case(&flag))
++        {
++            prepared.push(flag);
++        }
++    }
++
++    prepared.join(" ")
++}
++
++fn cmake_out_dir(out_dir: &Path) -> PathBuf {
++    #[cfg(windows)]
++    {
++        return out_dir
++            .parent()
++            .expect("Bazel OUT_DIR must have a parent")
++            .join("o");
++    }
++    #[cfg(not(windows))]
++    {
++        out_dir.to_owned()
++    }
++}
++
+ pub(crate) struct CmakeBuilder {
+     manifest_dir: PathBuf,
+     out_dir: PathBuf,
+@@ -88,6 +173,27 @@ impl CmakeBuilder {
+         build_prefix: Option<String>,
+         output_lib_type: OutputLibType,
+     ) -> Self {
++        #[cfg(windows)]
++        let manifest_dir = {
++            // CMake canonicalizes 8.3 paths when generating build.ninja, which
++            // restores long physical paths. Put CMake's disposable source and
++            // build trees in a short sibling inside this Bazel package, then
++            // copy the final artifacts back to the declared OUT_DIR.
++            let cmake_out_dir = cmake_out_dir(&out_dir);
++            if cmake_out_dir.exists() {
++                std::fs::remove_dir_all(&cmake_out_dir)
++                    .expect("failed to clear staged CMake output");
++            }
++            let staged = cmake_out_dir.join("s");
++            std::fs::create_dir_all(&staged).expect("failed to create staged CMake source");
++            let options = fs_extra::dir::CopyOptions::new()
++                .overwrite(true)
++                .copy_inside(true)
++                .content_only(true);
++            fs_extra::dir::copy(&manifest_dir, &staged, &options)
++                .expect("failed to stage CMake source");
++            staged
++        };
+         Self {
+             manifest_dir,
+             out_dir,
+@@ -101,5 +207,9 @@ impl CmakeBuilder {
+     fn get_cmake_config(&self) -> cmake::Config {
+         let mut config = cmake::Config::new(&self.manifest_dir);
++        #[cfg(windows)]
++        {
++            config.out_dir(cmake_out_dir(&self.out_dir));
++        }
+         if is_fips_build() && target_vendor() == "apple" {
+             // Bazel's hermetic LLVM driver brings its bundled libc++ into the
+             // Apple linker process. Xcode's linker expects the host libc++ and
+@@ -210,6 +320,40 @@ impl CmakeBuilder {
+             }
+         }
+
++        if target_os() == "windows" {
++            for env_var in ["CFLAGS", "CXXFLAGS", "LDFLAGS"] {
++                if let Some(flags) = optional_env_optional_crate_target(env_var) {
++                    let flags = prepare_bazel_flags_for_cmake(&flags);
++                    // AWS-LC's CMake targets replace CMAKE_C_FLAGS rather than
++                    // inheriting Bazel's /external:I inputs. MSVC also resolves
++                    // libraries named by CMake through LIB. Populate both from
++                    // the same action-scoped paths already present in the flags.
++                    if let Some((search_env, prefix)) = match env_var {
++                        "CFLAGS" => Some(("INCLUDE", "/external:I")),
++                        "LDFLAGS" => Some(("LIB", "/LIBPATH:")),
++                        _ => None,
++                    } {
++                        let paths = flags
++                            .split_whitespace()
++                            .filter_map(|flag| {
++                                flag.get(..prefix.len())
++                                    .filter(|candidate| candidate.eq_ignore_ascii_case(prefix))
++                                    .map(|_| PathBuf::from(&flag[prefix.len()..]))
++                            })
++                            .collect::<Vec<_>>();
++                        if !paths.is_empty() {
++                            let paths = env::join_paths(paths).unwrap_or_else(|error| {
++                                panic!("failed to construct {search_env}: {error}")
++                            });
++                            set_env(search_env, paths);
++                        }
++                    }
++                    set_env_for_target(env_var, &flags);
++                    set_env(env_var, &flags);
++                }
++            }
++        }
++
+         let mut cmake_cfg = self.get_cmake_config();
+         if is_fips_build() {
+             if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
+@@ -483,11 +627,26 @@ impl CmakeBuilder {
+     fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
++        if let Ok(perl_executable) = env::var("PERL_EXECUTABLE") {
++            cmake_cfg.define("PERL_EXECUTABLE", perl_executable);
++        }
++
+         if is_fips_build() {
+             cmake_cfg.generator("Ninja");
++            // Expose the underlying command when Ninja fails in Windows CI.
++            cmake_cfg.build_arg("-v");
+-            let env_map = self
+-                .collect_vcvarsall_bat()
+-                .map_err(|x| panic!("{}", x))
+-                .unwrap();
+-            for (key, value) in env_map {
+-                cmake_cfg.env(key, value);
++            // Bazel supplies a complete hermetic MSVC environment without a
++            // Visual Studio installation or vcvarsall.bat. Preserve Cargo's
++            // normal discovery when any part of that environment is absent.
++            let has_explicit_msvc_environment =
++                ["CC", "CXX", "AR", "CFLAGS", "CXXFLAGS", "LDFLAGS"]
++                    .iter()
++                    .all(|name| env::var_os(name).is_some());
++            if !has_explicit_msvc_environment {
++                let env_map = self
++                    .collect_vcvarsall_bat()
++                    .map_err(|x| panic!("{}", x))
++                    .unwrap();
++                for (key, value) in env_map {
++                    cmake_cfg.env(key, value);
++                }
+             }
+         }
+@@ -742,8 +901,27 @@ impl CmakeBuilder {
+     }
+
+     fn build_library(&self) -> PathBuf {
+-        self.prepare_cmake_build()
++        let output = self
++            .prepare_cmake_build()
+             .configure_arg("--no-warn-unused-cli")
+-            .build()
++            .build();
++        #[cfg(windows)]
++        {
++            let source = cmake_out_dir(&self.out_dir).join("build").join("artifacts");
++            let target = self.artifact_output_dir();
++            std::fs::create_dir_all(&target).expect("failed to create final artifact directory");
++            for entry in std::fs::read_dir(source).expect("failed to read CMake artifacts") {
++                let entry = entry.expect("failed to read CMake artifact entry");
++                if entry
++                    .file_type()
++                    .expect("failed to inspect CMake artifact")
++                    .is_file()
++                {
++                    std::fs::copy(entry.path(), target.join(entry.file_name()))
++                        .expect("failed to copy CMake artifact into OUT_DIR");
++                }
++            }
++        }
++        output
+     }
+ }
