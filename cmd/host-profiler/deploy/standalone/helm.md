@@ -48,9 +48,7 @@ In [`helm/collector-values.yaml`](helm/collector-values.yaml), set `presets.reso
 - **Explicit:** set `presets.resourceDetection.env.enabled: true` and `OTEL_RESOURCE_ATTRIBUTES` under `extraEnvs` to `k8s.cluster.name=<CLUSTER_NAME>`.
 - **Automatic:** enable `eks`, `aks`, or `gcp`. The preset enables `k8s.cluster.name` for these detectors.
 
-Before enabling a cloud detector, check its requirements in the [resourcedetection docs](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#supported-detectors): [EKS](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#amazon-eks), [AKS](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#azure-aks), or [GKE](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#gcp-metadata).
-
-If your CNI enforces these policies for link-local traffic, add an allow rule for the metadata endpoint (typically `169.254.169.254:80`). The Helm EKS preset also needs pod access to IMDS; its API fallback needs node-name configuration the preset doesn't expose.
+Cloud detector requirements vary by provider. See the [OpenTelemetry resource detection docs](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#supported-detectors) to enable one.
 
 ## Collector health metrics
 

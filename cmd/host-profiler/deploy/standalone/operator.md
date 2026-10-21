@@ -48,10 +48,7 @@ If your cluster does not enforce NetworkPolicy resources, these manifests do not
 
 In [`operator/collector.yaml`](operator/collector.yaml), uncomment the detector and its config. For an explicit name, uncomment `env` and `OTEL_RESOURCE_ATTRIBUTES` in `spec.env`.
 
-Check the detector requirements before enabling one: [EKS](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#amazon-eks), [AKS](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#azure-aks), or [GKE](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#gcp-metadata).
-
-If your CNI enforces these policies for link-local traffic, add an allow rule for the metadata endpoint (typically `169.254.169.254:80`).
-
+Cloud detector requirements vary by provider. See the [OpenTelemetry resource detection docs](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#supported-detectors) to enable one.
 ## Collector health metrics
 
 Health metrics are not sent to Datadog by default because they can incur additional charges: they are emitted by each host and may affect Infrastructure Monitoring billing, depending on your plan and whether the host is already billed by Datadog. See [host billing](https://docs.datadoghq.com/account_management/billing/#hosts) and [usage details](https://docs.datadoghq.com/account_management/plan_and_usage/usage_details/).
