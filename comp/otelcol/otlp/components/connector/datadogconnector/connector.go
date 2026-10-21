@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -71,10 +72,13 @@ type traceToMetricConnector struct {
 
 	// isStarted tracks whether Start() has been called.
 	isStarted bool
+
+	// rootFilter drops traces whose root resource matches the trace-agent's ignore_resources.
+	rootFilter *filters.Blacklister
 }
 
 // newTraceToMetricConnector creates a new connector with native OTel span ingestion
-func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, concentrator *stats.Concentrator, tagger types.TaggerClient, hostnameOpt option.Option[string]) (*traceToMetricConnector, error) {
+func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Config, metricsConsumer consumer.Metrics, metricsClient statsd.ClientInterface, concentrator *stats.Concentrator, tagger types.TaggerClient, hostnameOpt option.Option[string], agentIgnoreResources []string) (*traceToMetricConnector, error) {
 	set.Logger.Info("Building datadog connector for traces to metrics")
 	statsout := make(chan *pb.StatsPayload, 100)
 	set.MeterProvider = noop.NewMeterProvider() // disable metrics for the connector
@@ -111,6 +115,7 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 		metricsConsumer: metricsConsumer,
 		obfuscator:      obfuscate.NewObfuscator(oconf),
 		exit:            make(chan struct{}),
+		rootFilter:      filters.NewBlacklister(agentIgnoreResources),
 	}, nil
 }
 
@@ -202,6 +207,11 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// head-sampling weight without any connector-local logic.
 	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
 	for _, input := range inputs {
+		if root := input.Traces[0].Root; root != nil {
+			if allowed, _ := c.rootFilter.Allows(root); !allowed {
+				continue
+			}
+		}
 		c.concentrator.Add(input)
 	}
 	return nil

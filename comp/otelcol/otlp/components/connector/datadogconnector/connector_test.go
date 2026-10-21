@@ -951,3 +951,44 @@ func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
 	}
 	assert.Equal(t, before, marshalTraces(t, shared))
 }
+
+func TestAgentIgnoreResourcesDropsWholeTrace(t *testing.T) {
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, "(GET|POST) /health")
+	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+	require.NoError(t, err)
+	connector := tconn.(*traceToMetricConnector)
+
+	now := time.Now()
+	td := ptrace.NewTraces()
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	addSpan := func(traceID byte, spanID, parentID byte, kind ptrace.SpanKind, attrs map[string]string) {
+		span := spans.AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{15: traceID})
+		span.SetSpanID(pcommon.SpanID{spanID})
+		if parentID != 0 {
+			span.SetParentSpanID(pcommon.SpanID{parentID})
+		}
+		span.SetKind(kind)
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(now.Add(-time.Second)))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(now))
+		for k, v := range attrs {
+			span.Attributes().PutStr(k, v)
+		}
+	}
+	addSpan(1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck"})
+	addSpan(1, 2, 1, ptrace.SpanKindClient, map[string]string{"db.system": "postgresql", "db.statement": "SELECT 1"})
+	addSpan(2, 3, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/users"})
+
+	require.NoError(t, connector.ConsumeTraces(t.Context(), td))
+
+	var resources []string
+	for _, csp := range connector.concentrator.Flush(true).Stats {
+		for _, b := range csp.Stats {
+			for _, s := range b.Stats {
+				resources = append(resources, s.Resource)
+			}
+		}
+	}
+	assert.Equal(t, []string{"GET /users"}, resources)
+}

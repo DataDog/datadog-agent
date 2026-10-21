@@ -19,6 +19,7 @@ go_library(
         "//pkg/opentelemetry-mapping-go/otlp/metrics",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/config",
+        "//pkg/trace/filters",
         "//pkg/trace/otel/stats",
         "//pkg/trace/stats",
         "//pkg/util/option",

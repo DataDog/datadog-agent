@@ -22,16 +22,20 @@ type factory struct {
 	tagger       types.TaggerClient
 	concentrator *stats.Concentrator
 	hostname     option.Option[string]
+	// agentIgnoreResources is the trace-agent's apm_config.ignore_resources, applied to trace roots
+	agentIgnoreResources []string
 }
 
 // SourceProviderFunc is a function that returns the source of the host.
 type SourceProviderFunc func(context.Context) (string, error)
 
-// NewConnectorFactory creates a factory for datadog connector for use in OTel agent
-func NewConnectorFactory(componentType component.Type, metricsStability, traceStability component.StabilityLevel, tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator) connector.Factory {
+// NewConnectorFactory creates a factory for datadog connector for use in OTel agent.
+// agentIgnoreResources excludes from stats the traces whose root resource matches, like the trace-agent.
+func NewConnectorFactory(componentType component.Type, metricsStability, traceStability component.StabilityLevel, tagger types.TaggerClient, hostGetter SourceProviderFunc, concentrator *stats.Concentrator, agentIgnoreResources ...string) connector.Factory {
 	f := &factory{
-		tagger:       tagger,
-		concentrator: concentrator,
+		tagger:               tagger,
+		concentrator:         concentrator,
+		agentIgnoreResources: agentIgnoreResources,
 	}
 
 	if hostGetter != nil {
@@ -70,7 +74,7 @@ func (f *factory) createTracesToMetricsConnector(_ context.Context, params conne
 	if err != nil {
 		return nil, err
 	}
-	c, err = newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.concentrator, f.tagger, f.hostname)
+	c, err = newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.concentrator, f.tagger, f.hostname, f.agentIgnoreResources)
 	if err != nil {
 		return nil, err
 	}
