@@ -5,6 +5,7 @@ go_library(
     name = "log",
     srcs = [
         "klog_redirect.go",
+        "lazy.go",
         "levels.go",
         "log.go",
         "log_limit.go",
@@ -43,5 +44,6 @@ dd_agent_go_test(
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

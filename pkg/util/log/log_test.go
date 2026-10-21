@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -142,28 +143,93 @@ func setupScrubbing(t *testing.T) {
 	t.Cleanup(func() { scrubber.DefaultScrubber = oldScrubber })
 }
 
-func TestFormatErrorfScrubbing(t *testing.T) {
+func TestLazyErrorfScrubbing(t *testing.T) {
 	setupScrubbing(t)
 
-	err := formatErrorf("%s", "a SECRET message")
+	err := lazyErrorf("%s", "a SECRET message")
 	assert.Equal(t, "a ****** message", err.Error())
 }
 
-func TestFormatErrorScrubbing(t *testing.T) {
+func TestLazyErrorvScrubbing(t *testing.T) {
 	setupScrubbing(t)
 
-	err := formatError("a big SECRET")
+	err := lazyErrorv("a big SECRET")
 	assert.Equal(t, "a big ******", err.Error())
 }
 
-func TestFormatErrorcScrubbing(t *testing.T) {
+func TestLazyErrorcScrubbing(t *testing.T) {
 	setupScrubbing(t)
 
-	err := formatErrorc("super-SECRET")
+	err := lazyErrorc("super-SECRET")
 	assert.Equal(t, "super-******", err.Error())
 
-	err = formatErrorc("secrets", "key", "a SECRET", "SECRET-key2", "SECRET2")
+	err = lazyErrorc("secrets", "key", "a SECRET", "SECRET-key2", "SECRET2")
 	assert.Equal(t, "secrets (key:a ******, ******-key2:******2)", err.Error())
+}
+
+func TestLazyErrorBuildsOnce(t *testing.T) {
+	setupScrubbing(t)
+
+	err := lazyErrorf("%s", "a SECRET message")
+	assert.Equal(t, "a ****** message", err.Error())
+	assert.Equal(t, "a ****** message", err.Error(), "the message is built and scrubbed only once")
+}
+
+// canaryStringer counts how many times it was formatted.
+type canaryStringer struct {
+	formatted *atomic.Int32
+}
+
+func (c canaryStringer) String() string {
+	c.formatted.Add(1)
+	return "canary"
+}
+
+// TestDisabledErrorfStackDepthDoesNotFormat verifies the error f variants
+// skip formatting when the level is disabled, and only build the returned
+// error's message if the caller uses it.
+func TestDisabledErrorfStackDepthDoesNotFormat(t *testing.T) {
+	SetupLogger(Default(), ErrorStr)
+
+	formatted := atomic.NewInt32(0)
+	canary := canaryStringer{formatted: formatted}
+
+	err := WarnfStackDepth(1, "value %v", canary)
+	assert.Equal(t, int32(0), formatted.Load(), "the message must not be formatted while warn is disabled")
+
+	assert.Equal(t, "value canary", err.Error())
+	assert.Equal(t, int32(1), formatted.Load(), "the message is formatted when the error is used")
+}
+
+// TestDisabledErrorfDoesNotFormat verifies the plain error f variants skip
+// formatting when the level is disabled.
+func TestDisabledErrorfDoesNotFormat(t *testing.T) {
+	SetupLogger(Default(), CriticalStr)
+
+	formatted := atomic.NewInt32(0)
+	err := Errorf("value %v", canaryStringer{formatted: formatted})
+	assert.Equal(t, int32(0), formatted.Load(), "the message must not be formatted while error is disabled")
+
+	assert.Equal(t, "value canary", err.Error())
+	assert.Equal(t, int32(1), formatted.Load())
+}
+
+// TestEnabledWarnfReturnsScrubbedError verifies the error returned when the
+// level is enabled carries the scrubbed message, not the raw one handed to
+// the logger pipeline.
+func TestEnabledWarnfReturnsScrubbedError(t *testing.T) {
+	setupScrubbing(t)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, WarnLvl)
+	require.NoError(t, err)
+	SetupLogger(l, WarnStr)
+
+	err = Warnf("a SECRET message")
+	w.Flush()
+
+	assert.Equal(t, "a ****** message", err.Error(), "the returned error carries the scrubbed message")
 }
 
 func TestWarnNotNil(t *testing.T) {
