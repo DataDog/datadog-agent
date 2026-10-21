@@ -45,7 +45,7 @@ gauges retain their latest value. This is not a guarantee of distinct gauge
 points for checks completing faster than the wire's one-second resolution.
 
 On backward wall-clock movement, periodic flushes use the last generated numeric
-commit second plus one. A same-second final shutdown uses the same rule. This
+commit second plus one. A same-second final shutdown or check removal uses the same rule. This
 preserves ordering and progress without waiting or retaining an outage-sized
 backlog. It does **not** repair the machine's clock: a large rollback can produce
 future-dated numeric points that an intake may reject. Rollback is logged with
@@ -60,7 +60,9 @@ release context metadata. Monotonic metrics also release names/tags, retaining
 the existing metric object and a compact context-key/run-index entry. Recreating
 metadata on the next sample reuses the baseline. Baseline timeout starts only
 after the original completed-run expiry threshold, not on every periodic tick.
-Bucket baselines and open sketches keep their associated contexts.
+Bucket baselines and open sketches keep their associated contexts. Pending
+sketches pin metadata through run-based expiry without resetting the original
+run age; after the bucket drains, that metadata is eligible for normal expiry.
 
 Time-based flushing does not impose a hard cardinality or byte limit. Retained
 baselines, a very high arrival rate, run-scoped histograms, and detached output
@@ -72,7 +74,8 @@ existing metric-lifetime behavior.
 
 The shared bounded accepted-input drain runs before synchronous final flushing.
 Final flushing drains pending numeric state and every accepted sketch bucket,
-including buckets ahead of wall time following a clock rollback. Sketch point
+including buckets ahead of wall time following a clock rollback. Check removal
+performs the same terminal drain before releasing the sampler. Sketch point
 timestamps remain unchanged. A producer submitting after the captured shutdown
 drain boundary is outside that guarantee.
 

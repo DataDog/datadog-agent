@@ -1156,3 +1156,21 @@ func TestPeriodicExplicitTimestampsSurviveClockPolicy(t *testing.T) {
 	require.Equal(t, float64(42), series[0].Points[0].Ts)
 	require.Equal(t, float64(43), series[1].Points[0].Ts)
 }
+
+func TestPeriodicPendingSketchPinsMetadataUntilFlushed(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.DistributionType, 7, 200, false)
+	// Model a wall-clock rollback: several runs finish while the old bucket
+	// remains ahead of wall time. Run-based expiry must not orphan its sketch.
+	for ts := 100.0; ts < 105; ts++ {
+		cs.commitAt(ts, false, false, nil)
+		require.Equal(t, 1, cs.contextResolver.length())
+	}
+	cs.commitAt(201, false, false, nil)
+	_, sketches := cs.flush()
+	require.Len(t, sketches, 1)
+	require.Equal(t, int64(1), sketches[0].Points[0].Sketch.Basic.Cnt)
+	require.Equal(t, int64(200), sketches[0].Points[0].Ts)
+	// Pinning metadata must not reset its original completed-run age.
+	require.Zero(t, cs.contextResolver.length())
+}

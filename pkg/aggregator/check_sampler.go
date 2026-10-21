@@ -294,7 +294,18 @@ func (cs *CheckSampler) expire(timestamp float64, advance bool) {
 	if !advance {
 		index-- // cleanup for the most recent, already counted final commit
 	}
-	expiredContextKeys := cs.contextResolver.expireContextsAt(index)
+	// An open or future-dated sketch still needs its metadata, even after
+	// several empty check runs. Pin it without resetting its original run age.
+	var retained map[ckey.ContextKey]struct{}
+	for _, bucket := range cs.sketchMap {
+		if retained == nil {
+			retained = make(map[ckey.ContextKey]struct{})
+		}
+		for key := range bucket {
+			retained[key] = struct{}{}
+		}
+	}
+	expiredContextKeys := cs.contextResolver.expireContextsAt(index, retained)
 	for key, lastSeen := range cs.retiredBaselines {
 		if lastSeen <= index-cs.contextResolver.expireCountInterval {
 			expiredContextKeys = append(expiredContextKeys, key)

@@ -591,6 +591,12 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	var batches []batch
 	agg.mu.Lock()
 	for checkID, sampler := range agg.checkSamplers {
+		if sampler.deregistered {
+			// This sampler will never receive another periodic flush. Drain its
+			// deferred numeric state and every sketch before releasing metadata.
+			sampler.commitAt(float64(time.Now().UnixNano())/1e9, false, true, &agg.flushFilterList)
+			sampler.commitSketchesBefore(math.MaxInt64, &agg.flushFilterList)
+		}
 		series, sketches := sampler.flush()
 		batches = append(batches, batch{series, sketches})
 		if sampler.deregistered {

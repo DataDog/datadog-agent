@@ -952,3 +952,49 @@ func TestPeriodicShutdownDrainsFutureSketch(t *testing.T) {
 	require.Equal(t, future, sketches[0].Points[0].Ts)
 	require.Equal(t, int64(7), sketches[0].Points[0].Sketch.Basic.Cnt)
 }
+
+func TestPeriodicDeregistrationDrainsDeferredInput(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "streaming"}[streaming], func(t *testing.T) {
+			deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+			demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+			agg := demux.Aggregator()
+			agg.handleRegisterSampler("retiring")
+			synctest.Test(t, func(t *testing.T) {
+				now := time.Now()
+				for _, value := range []float64{7, 11} {
+					agg.handleSenderSample(senderMetricSample{id: "retiring", metricSample: &metrics.MetricSample{Name: "retiring.count", Mtype: metrics.CountType, Value: value}})
+					agg.handleSenderSample(senderMetricSample{id: "retiring", commit: true})
+				}
+				require.True(t, agg.checkSamplers["retiring"].deferredFinal)
+				agg.handleSenderBucket(senderHistogramBucket{id: "retiring", bucket: &metrics.HistogramBucket{Name: "retiring.distribution", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: float64(now.Unix() + 3600)}})
+				agg.checkSamplers["retiring"].deregistered = true
+				var series metrics.Series
+				var sketches metrics.SketchSeriesList
+				if streaming {
+					done := make(chan struct{})
+					close(done)
+					agg.Flush(flushTrigger{trigger: trigger{time: now}, seriesSink: &series, sketchesSink: &sketches, serializationDone: done})
+				} else {
+					series, sketches = agg.GetSeriesAndSketches(now)
+				}
+				var count float64
+				seen := map[int64]bool{}
+				for _, s := range series {
+					if s.Name == "retiring.count" {
+						for _, point := range s.Points {
+							require.False(t, seen[int64(point.Ts)])
+							seen[int64(point.Ts)] = true
+							count += point.Value
+						}
+					}
+				}
+				require.Equal(t, float64(18), count)
+				require.Len(t, sketches, 1)
+				require.Equal(t, int64(7), sketches[0].Points[0].Sketch.Basic.Cnt)
+				require.Equal(t, now.Unix()+3600, sketches[0].Points[0].Ts)
+				require.NotContains(t, agg.checkSamplers, checkid.ID("retiring"))
+			})
+		})
+	}
+}
