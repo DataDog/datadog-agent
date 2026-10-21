@@ -10,6 +10,7 @@ package packages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 )
 
@@ -50,6 +52,67 @@ func stubConfigExperimentWatcher(t *testing.T) *int {
 	}
 	t.Cleanup(func() { launchConfigExperimentWatcher = original })
 	return calls
+}
+
+// stubInstallerHandBack replaces the detached hand-back launcher with a recorder, so tests that
+// exercise the stop and promote hooks don't spawn a real process. Returns the number of times it
+// was called.
+func stubInstallerHandBack(t *testing.T, err error) *int {
+	t.Helper()
+
+	calls := new(int)
+	original := launchInstallerHandBack
+	launchInstallerHandBack = func(context.Context) error {
+		*calls++
+		return err
+	}
+	t.Cleanup(func() { launchInstallerHandBack = original })
+	return calls
+}
+
+// stubLaunchdWithExperimentDaemon behaves like stubLaunchdFailing, but reports the experiment
+// daemon as loaded.
+func stubLaunchdWithExperimentDaemon(t *testing.T, verb, match string) *[][]string {
+	t.Helper()
+
+	var calls [][]string
+	original := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			calls = append(calls, args)
+			if len(args) > 0 && args[0] == "print" {
+				if args[len(args)-1] == "system/"+installerJob+"-exp" {
+					return nil, nil
+				}
+				return []byte(notLoadedOutput), exitError(113)
+			}
+			if verb != "" && len(args) > 0 && args[0] == verb && strings.Contains(strings.Join(args, " "), match) {
+				return nil, errors.New("injected failure")
+			}
+			return nil, nil
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = original })
+	return &calls
+}
+
+// touchesInstaller reports whether any recorded launchctl call other than print names the
+// installer daemon, in either variant.
+func touchesInstaller(calls [][]string) bool {
+	for _, args := range calls {
+		if len(args) > 0 && args[0] == "print" {
+			continue
+		}
+		for _, argument := range args {
+			if strings.Contains(argument, installerJob) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // stubDeadlinePath points the deadline file at a temporary path.
@@ -215,20 +278,28 @@ func TestPromoteConfigExperimentRestartsTheStableSet(t *testing.T) {
 	}
 }
 
-// TestExperimentJobsMatchTheEmbeddedDefinitions guards the two label lists against drifting apart
-// from the definitions that ship: a job missing from agentJobs would never be swapped, and would
-// keep running the stable configuration for the whole life of an experiment.
+// TestExperimentJobsMatchTheEmbeddedDefinitions guards the label lists against drifting apart
+// from the definitions that ship: a job missing from configExperimentJobs would never be swapped,
+// and would keep running the stable configuration for the whole life of an experiment.
 func TestExperimentJobsMatchTheEmbeddedDefinitions(t *testing.T) {
+	// The hooks never swap the installer daemon they run in, but an experiment does.
 	assert.NotContains(t, agentJobs, installerJob)
-	assert.NotContains(t, agentJobs, procmgrJob)
-	assert.Contains(t, stableJobs, installerJob)
-	assert.Contains(t, stableJobs, procmgrJob)
-	assert.Len(t, stableJobs, len(agentJobs)+2)
+	assert.Equal(t, append(append([]string{}, agentJobs...), installerJob), configExperimentJobs)
+	// The procmgr daemon runs on its stable job throughout an experiment.
+	assert.NotContains(t, configExperimentJobs, procmgrJob)
+	assert.Equal(t, append([]string{procmgrJob}, configExperimentJobs...), stableJobs)
 
-	for i, label := range agentJobs {
+	for i, label := range configExperimentJobs {
 		assert.Equal(t, label+"-exp", experimentJobs[i])
 	}
-	assert.Len(t, experimentJobs, len(agentJobs))
+	assert.Len(t, experimentJobs, len(configExperimentJobs))
+
+	embeddedStable, err := embedded.LaunchdJobs(embedded.LaunchdStable)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, embeddedStable, stableJobs)
+	embeddedExperiment, err := embedded.LaunchdJobs(embedded.LaunchdExperiment)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, embeddedExperiment, configExperimentJobs)
 }
 
 // stubLaunchdFailing behaves like stubLaunchd, but fails any call whose verb and joined
@@ -682,7 +753,7 @@ func TestRevertIsANoopForANewerExperiment(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, deadline.Write(time.Hour))
 
-	reverted, err := revertExperimentIfStillPending(context.Background(), deadline, stale, "stale exit")
+	reverted, err := revertExperimentIfStillPending(context.Background(), configExperimentJobSet(), deadline, stale, "stale exit")
 	require.NoError(t, err)
 	assert.False(t, reverted)
 	assert.Empty(t, *calls, "a stale watcher touched launchd")
@@ -792,9 +863,9 @@ func TestWatcherStopsWaitingWhenTheExperimentIsReplaced(t *testing.T) {
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	holdInstallerLock(t, stubConfigExperimentLock(t))
-	original := watcherLockPoll
-	watcherLockPoll = 20 * time.Millisecond
-	t.Cleanup(func() { watcherLockPoll = original })
+	original := installerLockPoll
+	installerLockPoll = 20 * time.Millisecond
+	t.Cleanup(func() { installerLockPoll = original })
 
 	deadline := launchd.Deadline{Path: path}
 	require.NoError(t, deadline.Write(time.Hour))
@@ -807,4 +878,403 @@ func TestWatcherStopsWaitingWhenTheExperimentIsReplaced(t *testing.T) {
 	assert.False(t, reverted)
 	assert.Empty(t, *calls, "a superseded watcher touched launchd")
 	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
+
+// TestStopAndPromoteHandTheInstallerBackOnlyWhenTheExperimentDaemonIsLoaded covers who hands the
+// installer daemon back. The hooks may run inside the daemon's job, so they must never swap it
+// themselves; with the experiment daemon loaded they launch the detached hand-back, and with only
+// the stable daemon there is nothing to hand back.
+func TestStopAndPromoteHandTheInstallerBackOnlyWhenTheExperimentDaemonIsLoaded(t *testing.T) {
+	hooks := map[string]func(HookContext) error{
+		"stop":    preStopConfigExperimentDatadogAgent,
+		"promote": postPromoteConfigExperimentDatadogAgent,
+	}
+	for name, hook := range hooks {
+		for _, experimentDaemon := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/experimentDaemon=%t", name, experimentDaemon), func(t *testing.T) {
+				var calls *[][]string
+				if experimentDaemon {
+					calls = stubLaunchdWithExperimentDaemon(t, "", "")
+				} else {
+					calls = stubLaunchd(t)
+				}
+				stubJobDir(t)
+				stubDeadlinePath(t)
+				stubConfigExperimentWatcher(t)
+				handBacks := stubInstallerHandBack(t, nil)
+				require.NoError(t, postStartConfigExperimentDatadogAgent(testHookContext(t)))
+				*calls = nil
+
+				require.NoError(t, hook(testHookContext(t)))
+				assert.False(t, touchesInstaller(*calls), "the hook swapped the installer daemon it runs in: %v", *calls)
+				if experimentDaemon {
+					assert.Equal(t, 1, *handBacks)
+				} else {
+					assert.Zero(t, *handBacks)
+				}
+			})
+		}
+	}
+}
+
+// TestStopHandsTheInstallerBackEvenWhenTheAgentCannotBeRestored pins that a failed restore still
+// brings the stable daemon back: its resume hook is what reverts an experiment left half torn down.
+func TestStopHandsTheInstallerBackEvenWhenTheAgentCannotBeRestored(t *testing.T) {
+	stubLaunchdWithExperimentDaemon(t, "bootstrap", "")
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	original := configExperimentRestoreBackoff
+	configExperimentRestoreBackoff = 0
+	t.Cleanup(func() { configExperimentRestoreBackoff = original })
+	handBacks := stubInstallerHandBack(t, nil)
+
+	assert.Error(t, preStopConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Equal(t, 1, *handBacks)
+}
+
+// TestStopReportsAHandBackThatFailsToLaunch pins that the stop is reported failed when the
+// experiment daemon would be left running with nothing to hand it back.
+func TestStopReportsAHandBackThatFailsToLaunch(t *testing.T) {
+	stubLaunchdWithExperimentDaemon(t, "", "")
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubInstallerHandBack(t, errors.New("injected failure"))
+
+	assert.ErrorContains(t, preStopConfigExperimentDatadogAgent(testHookContext(t)), "injected failure")
+}
+
+// TestHandBackWaitsForTheInstallerCommandThenRestoresTheStableDaemon covers the hand-back: it must
+// not stop the experiment daemon while the command that ran the stop or promote hook is still
+// running, then swap it back to its stable job and leave no experiment definition behind.
+func TestHandBackWaitsForTheInstallerCommandThenRestoresTheStableDaemon(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+	release := holdInstallerLock(t, stubConfigExperimentLock(t))
+	original := installerLockPoll
+	installerLockPoll = 20 * time.Millisecond
+	t.Cleanup(func() { installerLockPoll = original })
+	experimentPlist := filepath.Join(dir, installerJob+"-exp.plist")
+	require.NoError(t, os.WriteFile(experimentPlist, []byte("leftover"), 0644))
+
+	done := make(chan error, 1)
+	go func() { done <- handBackInstaller(context.Background()) }()
+
+	select {
+	case <-done:
+		t.Fatal("the hand-back ran while an installer command held the lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+	assert.Empty(t, *calls, "the hand-back touched launchd while an installer command held the lock")
+
+	release()
+	require.NoError(t, <-done)
+	bootedOut := launchctlCalls(*calls, "bootout")
+	require.NotEmpty(t, bootedOut)
+	assert.Equal(t, "system/"+installerJob+"-exp", bootedOut[0])
+	assert.Contains(t, launchctlCalls(*calls, "kickstart"), "system/"+installerJob)
+	assert.NoFileExists(t, experimentPlist)
+	assert.FileExists(t, filepath.Join(dir, installerJob+".plist"))
+}
+
+// TestHandBackLeavesTheDaemonToANewerExperiment covers an experiment daemon that started a new
+// experiment before the hand-back got the lock: that experiment's watcher owns the daemon now.
+func TestHandBackLeavesTheDaemonToANewerExperiment(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	stubConfigExperimentLock(t)
+	require.NoError(t, launchd.Deadline{Path: path}.Write(time.Hour))
+
+	require.NoError(t, handBackInstaller(context.Background()))
+	assert.Empty(t, *calls, "the hand-back touched launchd during a newer experiment")
+}
+
+// TestHandOverWaitsForTheInstallerCommandThenStartsTheExperimentDaemon covers the watcher's first
+// step: it must not stop the stable daemon while the command that ran the start hook is still
+// running, then swap it to its experiment job, stable first so the two never run at once.
+func TestHandOverWaitsForTheInstallerCommandThenStartsTheExperimentDaemon(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	path := stubDeadlinePath(t)
+	release := holdInstallerLock(t, stubConfigExperimentLock(t))
+	original := installerLockPoll
+	installerLockPoll = 20 * time.Millisecond
+	t.Cleanup(func() { installerLockPoll = original })
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+
+	type result struct {
+		handedOver bool
+		err        error
+	}
+	done := make(chan result, 1)
+	go func() {
+		handedOver, err := handOverInstaller(context.Background(), deadline, token)
+		done <- result{handedOver, err}
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("the hand-over ran while an installer command held the lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+	assert.Empty(t, *calls, "the hand-over touched launchd while an installer command held the lock")
+
+	release()
+	r := <-done
+	require.NoError(t, r.err)
+	assert.True(t, r.handedOver)
+	bootedOut := launchctlCalls(*calls, "bootout")
+	require.NotEmpty(t, bootedOut)
+	assert.Equal(t, "system/"+installerJob, bootedOut[0], "the stable daemon must leave before its experiment twin starts")
+	assert.Equal(t, []string{"system/" + installerJob + "-exp"}, launchctlCalls(*calls, "kickstart"))
+	assert.FileExists(t, filepath.Join(dir, installerJob+"-exp.plist"))
+	assert.False(t, touchesAgent(*calls), "the hand-over touched an agent job: %v", *calls)
+}
+
+// touchesAgent reports whether any recorded launchctl call names an agent job.
+func touchesAgent(calls [][]string) bool {
+	for _, args := range calls {
+		for _, argument := range args {
+			for _, label := range agentJobs {
+				if strings.Contains(argument, label) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// TestHandOverIsANoopWhenTheExperimentIsOver covers a watcher whose experiment was stopped while
+// it waited for the start command: there is no daemon to hand over.
+func TestHandOverIsANoopWhenTheExperimentIsOver(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	stubConfigExperimentLock(t)
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+	require.NoError(t, deadline.Clear())
+
+	handedOver, err := handOverInstaller(context.Background(), deadline, token)
+	require.NoError(t, err)
+	assert.False(t, handedOver)
+	assert.Empty(t, *calls)
+}
+
+// TestHandOverRevertsEverythingWhenTheSwapFails covers a hand-over that leaves the host with no
+// daemon: the watcher reverts every job, the daemon included, and discards the experiment.
+func TestHandOverRevertsEverythingWhenTheSwapFails(t *testing.T) {
+	calls := stubLaunchdFailing(t, "bootstrap", installerJob+"-exp")
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	stubConfigExperimentLock(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+
+	handedOver, err := handOverInstaller(context.Background(), deadline, token)
+	require.NoError(t, err)
+	assert.False(t, handedOver)
+	assert.NoFileExists(t, path, "the deadline survived the revert")
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration was not discarded")
+	kickstarted := launchctlCalls(*calls, "kickstart")
+	for _, label := range configExperimentJobs {
+		assert.Contains(t, kickstarted, "system/"+label, "the stable job %s was not restored", label)
+	}
+}
+
+// TestResumeLeavesTheExperimentDaemonAlone covers the experiment daemon starting, which runs the
+// resume hook like any daemon start. Its experiment is running as intended, with a live watcher, so
+// resuming would bounce the experiment and stop the watcher supervising it.
+func TestResumeLeavesTheExperimentDaemonAlone(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+	original := stopSurvivingWatchers
+	stopSurvivingWatchers = func(context.Context) error {
+		t.Error("the experiment daemon's resume stopped the watcher")
+		return nil
+	}
+	t.Cleanup(func() { stopSurvivingWatchers = original })
+	t.Setenv(experimentDaemonEnv, "true")
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Empty(t, *calls, "the experiment daemon's resume touched launchd")
+	assert.Zero(t, *watcherCalls)
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
+
+// TestResumeNeverSwapsTheStableDaemon covers the stable daemon resuming an experiment after a
+// reboot: it runs in the installer's stable job, so it resumes the agent jobs only and leaves the
+// daemon to the watcher it launches.
+func TestResumeNeverSwapsTheStableDaemon(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+	original := stopSurvivingWatchers
+	stopSurvivingWatchers = func(context.Context) error { return nil }
+	t.Cleanup(func() { stopSurvivingWatchers = original })
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Equal(t, 1, *watcherCalls)
+	assert.False(t, touchesInstaller(*calls), "the stable daemon's resume swapped itself: %v", *calls)
+}
+
+// TestResumeRevertRemovesTheExperimentDaemonDefinition covers a reboot mid-experiment whose
+// deadline expired before the stable daemon came back: the revert must also remove the experiment
+// daemon's definition the reboot left on disk, without swapping the stable daemon it runs in.
+func TestResumeRevertRemovesTheExperimentDaemonDefinition(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	path := stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, launchd.Deadline{Path: path}.Write(-time.Minute))
+	experimentPlist := filepath.Join(dir, installerJob+"-exp.plist")
+	require.NoError(t, os.WriteFile(experimentPlist, []byte("leftover"), 0644))
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Empty(t, experimentDeploymentID(t, dirs))
+	assert.NoFileExists(t, experimentPlist)
+	assert.False(t, touchesInstaller(*calls), "the stable daemon's resume swapped itself: %v", *calls)
+}
+
+// TestInstallerSwapsOutwaitTheDaemonsExitTimeOut pins that a bootout of the installer daemon waits
+// longer than the ExitTimeOut launchd gives it: the daemon finishes the request it is handling
+// before it exits, so it can leave the domain only once launchd kills it, and a wait of the same
+// length gives up just before.
+func TestInstallerSwapsOutwaitTheDaemonsExitTimeOut(t *testing.T) {
+	stubLaunchd(t)
+	definition, err := embedded.GetLaunchdJob(installerJob, embedded.LaunchdStable)
+	require.NoError(t, err)
+	require.Contains(t, string(definition), "<key>ExitTimeOut</key>\n        <integer>10</integer>")
+
+	for _, jobs := range []launchd.JobSet{installerJobSet(), configExperimentJobSet()} {
+		assert.Greater(t, jobs.Client.BootoutSettleTimeout, 10*time.Second)
+	}
+}
+
+// stubLaunchdOnBootout behaves like stubLaunchd, and calls onBootout whenever target is booted out.
+func stubLaunchdOnBootout(t *testing.T, target string, onBootout func()) *[][]string {
+	t.Helper()
+
+	var calls [][]string
+	original := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			calls = append(calls, args)
+			if len(args) > 0 && args[0] == "print" {
+				return []byte(notLoadedOutput), exitError(113)
+			}
+			if len(args) > 0 && args[0] == "bootout" && args[len(args)-1] == target {
+				onBootout()
+			}
+			return nil, nil
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = original })
+	return &calls
+}
+
+// lockIsFree reports whether the installer's lock can be taken right now, and releases it again.
+func lockIsFree(t *testing.T, path string) bool {
+	t.Helper()
+
+	lock, err := db.New(context.Background(), path, db.WithTimeout(100*time.Millisecond))
+	if err != nil {
+		return false
+	}
+	require.NoError(t, lock.Close())
+	return true
+}
+
+// TestHandOverStopsTheDaemonWithTheLockReleased pins what keeps the start task from being reported
+// as running forever: once the start command exits, the daemon still finishes the request through
+// an installer command that takes the same lock, so the hand-over must not hold it while stopping
+// the daemon.
+func TestHandOverStopsTheDaemonWithTheLockReleased(t *testing.T) {
+	lockPath := stubConfigExperimentLock(t)
+	var checked, free bool
+	stubLaunchdOnBootout(t, "system/"+installerJob, func() {
+		checked = true
+		free = lockIsFree(t, lockPath)
+	})
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	deadline := launchd.Deadline{Path: path}
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+
+	handedOver, err := handOverInstaller(context.Background(), deadline, token)
+	require.NoError(t, err)
+	assert.True(t, handedOver)
+	require.True(t, checked, "the stable daemon was never booted out")
+	assert.True(t, free, "the stable daemon was stopped while the hand-over held the installer lock")
+}
+
+// TestHandBackStopsTheDaemonWithTheLockReleased is TestHandOverStopsTheDaemonWithTheLockReleased
+// for the hand-back: the stop or promote task must be able to finish before the experiment daemon
+// is stopped.
+func TestHandBackStopsTheDaemonWithTheLockReleased(t *testing.T) {
+	lockPath := stubConfigExperimentLock(t)
+	var checked, free bool
+	stubLaunchdOnBootout(t, "system/"+installerJob+"-exp", func() {
+		checked = true
+		free = lockIsFree(t, lockPath)
+	})
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	require.NoError(t, handBackInstaller(context.Background()))
+	require.True(t, checked, "the experiment daemon was never booted out")
+	assert.True(t, free, "the experiment daemon was stopped while the hand-back held the installer lock")
+}
+
+// TestHandOverHandsBackAnExperimentStoppedDuringTheSwap covers the window the released lock opens:
+// a stop that clears the deadline while the daemon is being handed over leaves nothing for the
+// experiment daemon to run, so it is handed straight back.
+func TestHandOverHandsBackAnExperimentStoppedDuringTheSwap(t *testing.T) {
+	stubConfigExperimentLock(t)
+	path := stubDeadlinePath(t)
+	deadline := launchd.Deadline{Path: path}
+	calls := stubLaunchdOnBootout(t, "system/"+installerJob, func() {
+		require.NoError(t, deadline.Clear())
+	})
+	stubJobDir(t)
+	require.NoError(t, deadline.Write(time.Hour))
+	token, err := deadline.Read()
+	require.NoError(t, err)
+
+	handedOver, err := handOverInstaller(context.Background(), deadline, token)
+	require.NoError(t, err)
+	assert.False(t, handedOver)
+	kickstarted := launchctlCalls(*calls, "kickstart")
+	require.NotEmpty(t, kickstarted)
+	assert.Equal(t, "system/"+installerJob, kickstarted[len(kickstarted)-1], "the stable daemon should be running again")
 }

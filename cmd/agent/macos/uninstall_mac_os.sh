@@ -56,6 +56,7 @@ $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
 # The -exp jobs only exist while a configuration experiment is running.
+$sudo_cmd launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
@@ -77,6 +78,7 @@ $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.installer.plist
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.installer-exp.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist

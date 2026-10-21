@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -30,6 +31,21 @@ import (
 // watchConfigExperimentCommand is the package-command name the detached watcher process runs,
 // dispatched through runDatadogAgentPackageCommand (see packages_darwin.go's packageCommands).
 const watchConfigExperimentCommand = "watchConfigExperiment"
+
+// handBackInstallerCommand is the package-command name of the detached process that hands the
+// installer daemon back to its stable job after a configuration experiment is stopped or promoted.
+const handBackInstallerCommand = "handBackInstaller"
+
+// experimentDaemonEnv is set, to "true", only in the experiment daemon's job definition (see
+// com.datadoghq.installer.plist.tmpl). The installer commands the daemon runs, and the hooks they
+// run, inherit it. The resume hook reads it.
+const experimentDaemonEnv = "DD_INSTALLER_EXPERIMENT_DAEMON"
+
+// runByExperimentDaemon reports whether this process descends from the experiment daemon, as
+// opposed to the stable one or an installer command run by hand.
+func runByExperimentDaemon() bool {
+	return os.Getenv(experimentDaemonEnv) == "true"
+}
 
 var datadogAgentPackage = hooks{
 	preInstall:  preInstallDatadogAgent,
@@ -83,30 +99,39 @@ func (l agentLayout) convenienceLinks() map[string]string {
 	}
 }
 
-// agentJobs are the launchd jobs that are defined in both variants, in the order they are loaded.
-// These are the jobs a configuration experiment swaps.
+// agentJobs are the launchd jobs the configuration experiment hooks swap themselves, in the order
+// they are loaded.
 var agentJobs = []string{
 	"com.datadoghq.agent",
 	"com.datadoghq.sysprobe",
 	"com.datadoghq.data-plane",
 }
 
-// installerJob is the daemon that drives experiments. It has no experiment variant: the process
-// that starts and stops an experiment cannot be part of the set it swaps, or it would stop itself
-// halfway through.
+// installerJob is the daemon that drives experiments. A configuration experiment swaps it too, so
+// the daemon runs under the experiment configuration like the Agent, but never from a hook: a hook
+// runs inside the daemon's own job, and launchd kills everything left in a job's process group when
+// it stops the job, so a hook that swapped the daemon would stop itself halfway through. A detached
+// process does it instead: the watcher hands the daemon over to the experiment (handOverInstaller),
+// and a hand-back process returns it once the experiment is stopped or promoted (handBackInstaller).
 const installerJob = "com.datadoghq.installer"
 
+// configExperimentJobs are every job a configuration experiment swaps, in the order they are
+// loaded. The installer daemon is last, so it is the last job to come back to the stable set.
+var configExperimentJobs = append(append([]string{}, agentJobs...), installerJob)
+
+// procmgrJob is the process manager daemon. It has no experiment variant: a configuration
+// experiment leaves it running on its stable job.
 const procmgrJob = "com.datadoghq.procmgr"
 
 // stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = append(append([]string{procmgrJob}, agentJobs...), installerJob)
+var stableJobs = append([]string{procmgrJob}, configExperimentJobs...)
 
 // experimentJobs are the jobs an experiment runs under, by full label.
 var experimentJobs = experimentLabels()
 
 func experimentLabels() []string {
-	labels := make([]string, 0, len(agentJobs))
-	for _, label := range agentJobs {
+	labels := make([]string, 0, len(configExperimentJobs))
+	for _, label := range configExperimentJobs {
 		labels = append(labels, label+string(launchd.Experiment))
 	}
 	return labels
@@ -118,9 +143,34 @@ var (
 	launchdJobDir = launchd.System.Dir()
 )
 
-// agentJobSet is the swappable set, in the system domain. It excludes the installer daemon.
+// agentJobSet is the set the hooks swap, in the system domain. It excludes the installer daemon.
 func agentJobSet() launchd.JobSet {
 	return launchd.JobSet{Labels: agentJobs, Dir: launchdJobDir, Client: launchdClient()}
+}
+
+// installerJobSet is the installer daemon alone, in the system domain.
+func installerJobSet() launchd.JobSet {
+	return launchd.JobSet{Labels: []string{installerJob}, Dir: launchdJobDir, Client: installerLaunchdClient()}
+}
+
+// configExperimentJobSet is every job a configuration experiment swaps, in the system domain. Only
+// a process outside the installer daemon's job may swap it: see installerJob.
+func configExperimentJobSet() launchd.JobSet {
+	return launchd.JobSet{Labels: configExperimentJobs, Dir: launchdJobDir, Client: installerLaunchdClient()}
+}
+
+// installerBootoutSettleTimeout bounds how long a bootout of the installer daemon waits for it to
+// leave the domain. On SIGTERM the daemon first finishes the request it is handling, and launchd
+// only kills it once the ExitTimeOut in its definition (10 seconds,
+// com.datadoghq.installer.plist.tmpl) runs out, so the default settle timeout, of the same length,
+// can give up just before it leaves.
+const installerBootoutSettleTimeout = 30 * time.Second
+
+// installerLaunchdClient is launchdClient, waiting long enough for the installer daemon to leave.
+func installerLaunchdClient() *launchd.Client {
+	client := launchdClient()
+	client.BootoutSettleTimeout = installerBootoutSettleTimeout
+	return client
 }
 
 // stableJob returns the job definition record for a label in the system domain.
@@ -434,8 +484,9 @@ func prePromoteExperimentDatadogAgent(_ HookContext) error {
 }
 
 // postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set, then
-// launches the detached watcher process that supervises it. The installer has already published
-// the experiment configuration directory by the time it runs.
+// launches the detached watcher process that hands the installer daemon over too, once this hook's
+// installer command has finished, and supervises the whole set. The installer has already
+// published the experiment configuration directory by the time it runs.
 //
 // A watcher that fails to launch is treated the same as a failed start: an experiment running
 // with no process watching its deadline or its exit is exactly the gap this feature exists to
@@ -466,14 +517,25 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
 	return nil
 }
 
-// launchConfigExperimentWatcher starts the detached watcher process, mirroring the Windows
-// experiment watchdog's launchPackageCommandInBackground: it re-execs the installer binary with
-// the hidden `package-command` subcommand, detached from this process's context so it outlives
-// the hook that launched it.
+// launchConfigExperimentWatcher starts the detached watcher process.
 //
 // Indirected so tests can stub it without spawning a real process, the same way launchdClient is
 // indirected for launchd.
 var launchConfigExperimentWatcher = func(ctx context.Context) error {
+	return startDetachedPackageCommand(ctx, watchConfigExperimentCommand)
+}
+
+// launchInstallerHandBack starts the detached process that hands the installer daemon back to its
+// stable job. Indirected for the same reason as launchConfigExperimentWatcher.
+var launchInstallerHandBack = func(ctx context.Context) error {
+	return startDetachedPackageCommand(ctx, handBackInstallerCommand)
+}
+
+// startDetachedPackageCommand mirrors the Windows experiment watchdog's
+// launchPackageCommandInBackground: it re-execs the installer binary with the hidden
+// `package-command` subcommand, detached from this process's context and in a session of its own,
+// so it outlives both the hook that launched it and the daemon job that hook runs in.
+func startDetachedPackageCommand(ctx context.Context, command string) error {
 	installerBin, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("could not get the installer executable path: %w", err)
@@ -483,11 +545,11 @@ var launchConfigExperimentWatcher = func(ctx context.Context) error {
 		return fmt.Errorf("could not resolve the installer executable path: %w", err)
 	}
 	installer := exec.NewInstallerExec(env.FromEnv(), installerBin)
-	return installer.StartPackageCommandDetached(ctx, agentPackage, watchConfigExperimentCommand)
+	return installer.StartPackageCommandDetached(ctx, agentPackage, command)
 }
 
 // runDatadogAgentPackageCommand dispatches commands run by a detached process launched via
-// launchConfigExperimentWatcher. Registered into packageCommands in packages_darwin.go.
+// startDetachedPackageCommand. Registered into packageCommands in packages_darwin.go.
 func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, command)
 	defer func() { span.Finish(err) }()
@@ -495,24 +557,50 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 	switch command {
 	case watchConfigExperimentCommand:
 		return watchExperiment(ctx)
+	case handBackInstallerCommand:
+		return handBackInstaller(ctx)
 	default:
 		return fmt.Errorf("unknown package command: %s", command)
 	}
 }
 
 // preStopConfigExperimentDatadogAgent hands the Agent back to the stable job set, before the
-// installer discards the experiment configuration directory.
+// installer discards the experiment configuration directory, then has the installer daemon handed
+// back too.
 //
 // The context is detached from cancellation: the experiment is being torn down, and stopping
 // halfway would leave the host running neither set.
 func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	ctx.Context = context.WithoutCancel(ctx.Context)
-	return configExperiment{jobs: agentJobSet()}.Stop(ctx)
+	stopErr := configExperiment{jobs: agentJobSet()}.Stop(ctx)
+	return errors.Join(stopErr, handBackInstallerAfterHook(ctx))
 }
 
 // postPromoteConfigExperimentDatadogAgent hands the Agent back to the stable job set, which now
-// reads the promoted configuration.
+// reads the promoted configuration, then has the installer daemon handed back too.
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	ctx.Context = context.WithoutCancel(ctx.Context)
-	return configExperiment{jobs: agentJobSet()}.Promote(ctx)
+	promoteErr := configExperiment{jobs: agentJobSet()}.Promote(ctx)
+	return errors.Join(promoteErr, handBackInstallerAfterHook(ctx))
+}
+
+// handBackInstallerAfterHook launches the detached hand-back process when the experiment daemon is
+// loaded, whoever runs the hook: the experiment daemon itself, or an operator running the installer
+// by hand. It is launched even when the Agent could not be handed back: the stable daemon that
+// comes back runs the resume hook, which reverts an experiment left half torn down.
+//
+// With no experiment daemon loaded, as when the stable daemon runs the hook, there is nothing to
+// hand back: the installer daemon is already on its stable job.
+func handBackInstallerAfterHook(ctx context.Context) error {
+	loaded, err := launchdClient().Loaded(ctx, installerJob+string(launchd.Experiment))
+	if err != nil {
+		return fmt.Errorf("could not tell whether the experiment daemon is loaded: %w", err)
+	}
+	if !loaded {
+		return nil
+	}
+	if err := launchInstallerHandBack(ctx); err != nil {
+		return fmt.Errorf("could not launch the installer daemon hand-back: %w", err)
+	}
+	return nil
 }
