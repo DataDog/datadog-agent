@@ -574,6 +574,16 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SecurityProfileV2ClearLocalProfilesOnStart bool
 
+	// description: SecurityProfileV2TagResolutionMaxPendingEvents is the maximum number of events, across all cgroups, queued while waiting for tag resolution.
+	// visibility: private
+	// default_value: 2048
+	SecurityProfileV2TagResolutionMaxPendingEvents int
+
+	// description: SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup is the maximum number of events per cgroup queued while waiting for tag resolution.
+	// visibility: private
+	// default_value: 256
+	SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup int
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -1099,6 +1109,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
 		SecurityProfileV2ClearLocalProfilesOnStart:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.clear_local_profiles_on_start"),
 
+		SecurityProfileV2TagResolutionMaxPendingEvents:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events"),
+		SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup"),
+
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
 		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
@@ -1336,6 +1349,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.SecurityProfileV2ProfilingStartupDelay < 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profiling_startup_delay: %s, must not be negative", c.SecurityProfileV2ProfilingStartupDelay)
+	}
+
+	if c.SecurityProfileV2TagResolutionMaxPendingEvents < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEvents)
+	}
+
+	if c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup)
 	}
 
 	c.sanitizePlatform()

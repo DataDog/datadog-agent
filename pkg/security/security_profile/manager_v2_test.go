@@ -810,11 +810,13 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 // newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the
 // containers its tagger doesn't know.
-func newTagResolutionTestManagerV2(t *testing.T) *ManagerV2 {
+func newTagResolutionTestManagerV2(t *testing.T, maxPendingPerCgroup, maxPending int) *ManagerV2 {
 	t.Helper()
 
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.RuntimeEnabled = true
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup = maxPendingPerCgroup
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents = maxPending
 	m.profilePendingEvents = make(map[containerutils.CGroupID]*pendingProfile)
 	m.resolvedCgroups = make(map[containerutils.CGroupID]struct{})
 	m.queueSize = atomic.NewUint64(0)
@@ -841,38 +843,43 @@ func newUntaggedTestEventV2(i int) *model.Event {
 }
 
 func TestManagerV2_ProcessEvent_capsPendingEventsPerCgroup(t *testing.T) {
-	m := newTagResolutionTestManagerV2(t)
+	const maxPendingPerCgroup = 4
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, 100)
 
-	for i := 0; i < maxPendingEventsPerCgroup+10; i++ {
+	for i := 0; i < maxPendingPerCgroup+10; i++ {
 		m.ProcessEvent(newUntaggedTestEventV2(0))
 	}
 	m.ProcessEvent(newUntaggedTestEventV2(1))
 
 	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
 	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(1))
-	assert.Equal(t, maxPendingEventsPerCgroup, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+	assert.Equal(t, maxPendingPerCgroup, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
 	assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(1)].events.Len(), "a full cgroup shouldn't keep the others from queueing")
-	assert.EqualValues(t, maxPendingEventsPerCgroup+1, m.queueSize.Load())
+	assert.EqualValues(t, maxPendingPerCgroup+1, m.queueSize.Load())
 	assert.EqualValues(t, 10, m.tagResolutionCappedCgroup.Load())
 	assert.Zero(t, m.tagResolutionCappedTotal.Load())
 }
 
 func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
-	m := newTagResolutionTestManagerV2(t)
+	const (
+		maxPendingPerCgroup = 4
+		maxPending          = 8
+	)
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, maxPending)
 
-	fullCgroups := maxPendingEventsTotal / maxPendingEventsPerCgroup
+	fullCgroups := maxPending / maxPendingPerCgroup
 	for c := 0; c < fullCgroups; c++ {
-		for i := 0; i < maxPendingEventsPerCgroup; i++ {
+		for i := 0; i < maxPendingPerCgroup; i++ {
 			m.ProcessEvent(newUntaggedTestEventV2(c))
 		}
 	}
-	require.EqualValues(t, maxPendingEventsTotal, m.queueSize.Load())
+	require.EqualValues(t, maxPending, m.queueSize.Load())
 
 	m.ProcessEvent(newUntaggedTestEventV2(fullCgroups))
 
 	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(fullCgroups))
 	assert.Zero(t, m.profilePendingEvents[untaggedTestCGroupID(fullCgroups)].events.Len())
-	assert.EqualValues(t, maxPendingEventsTotal, m.queueSize.Load())
+	assert.EqualValues(t, maxPending, m.queueSize.Load())
 	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
 }

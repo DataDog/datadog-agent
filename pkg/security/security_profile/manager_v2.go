@@ -55,12 +55,6 @@ type pendingProfile struct {
 	events    *list.List
 }
 
-// Some containers never resolve tags (e.g. Docker-in-Docker), so the queue is bounded.
-const (
-	maxPendingEventsPerCgroup = 256
-	maxPendingEventsTotal     = 2048
-)
-
 // sampleCookieEntry maps a kernel dedup cookie to the profile and tree nodes it refreshes.
 type sampleCookieEntry struct {
 	profile       *profile.Profile
@@ -817,11 +811,12 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 		return
 	}
 
-	if pendingEvents.events.Len() >= maxPendingEventsPerCgroup {
+	// some containers never resolve tags (e.g. Docker-in-Docker), so the queue is bounded
+	if pendingEvents.events.Len() >= m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup {
 		m.tagResolutionCappedCgroup.Inc()
 		return
 	}
-	if m.queueSize.Load() >= maxPendingEventsTotal {
+	if m.queueSize.Load() >= uint64(m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents) {
 		m.tagResolutionCappedTotal.Inc()
 		return
 	}
