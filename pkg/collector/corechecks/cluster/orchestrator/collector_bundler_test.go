@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1461,45 +1461,53 @@ func TestCollectorBundleCRDChangeHandler(t *testing.T) {
 }
 
 func TestCollectorBundleInitializeWatchesCRDs(t *testing.T) {
-	client := k8sfake.NewClientset()
-	crdClient := crdfake.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset has no type schema for CRDs
-	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client, CRDInformerClient: crdClient}
-	stopCh := make(chan struct{})
-	t.Cleanup(func() { close(stopCh) })
+	synctest.Test(t, func(t *testing.T) {
+		client := k8sfake.NewClientset()
+		crdClient := crdfake.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset has no type schema for CRDs
+		apiClient := &apiserver.APIClient{Cl: client, InformerCl: client, CRDInformerClient: crdClient}
+		stopCh := make(chan struct{})
 
-	cb := CollectorBundle{
-		collectors:            []collectors.K8sCollector{k8s.NewCRDCollector()},
-		collectedGroups:       map[string]struct{}{"datadoghq.com": {}},
-		extraSyncTimeout:      defaultExtraSyncTimeout,
-		initializedCollectors: map[string]struct{}{},
-		runCfg: &collectors.CollectorRunConfig{
-			Config: &orchcfg.OrchestratorConfig{},
-			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-				APIClient:                   apiClient,
-				OrchestratorInformerFactory: getOrchestratorInformerFactory(apiClient),
+		cb := CollectorBundle{
+			collectors:            []collectors.K8sCollector{k8s.NewCRDCollector()},
+			collectedGroups:       map[string]struct{}{"datadoghq.com": {}},
+			extraSyncTimeout:      defaultExtraSyncTimeout,
+			initializedCollectors: map[string]struct{}{},
+			runCfg: &collectors.CollectorRunConfig{
+				Config: &orchcfg.OrchestratorConfig{},
+				K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+					APIClient:                   apiClient,
+					OrchestratorInformerFactory: getOrchestratorInformerFactory(apiClient),
+				},
 			},
-		},
-		startedInformers: map[cache.SharedInformer]struct{}{},
-		stopCh:           stopCh,
-	}
+			startedInformers: map[cache.SharedInformer]struct{}{},
+			stopCh:           stopCh,
+		}
 
-	cb.Initialize()
-	require.False(t, cb.crdsChanged.Load())
+		cb.Initialize()
+		synctest.Wait()
+		require.False(t, cb.crdsChanged.Load())
 
-	crd := &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: v1.ObjectMeta{Name: "datadogmetrics.datadoghq.com"},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group:    "datadoghq.com",
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{Name: "v1alpha1", Served: true}},
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			Conditions: []apiextensionsv1.CustomResourceDefinitionCondition{{Type: apiextensionsv1.Established, Status: apiextensionsv1.ConditionTrue}},
-		},
-	}
-	_, err := crdClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, v1.CreateOptions{})
-	require.NoError(t, err)
+		crd := &apiextensionsv1.CustomResourceDefinition{
+			ObjectMeta: v1.ObjectMeta{Name: "datadogmetrics.datadoghq.com"},
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group:    "datadoghq.com",
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{Name: "v1alpha1", Served: true}},
+			},
+			Status: apiextensionsv1.CustomResourceDefinitionStatus{
+				Conditions: []apiextensionsv1.CustomResourceDefinitionCondition{{Type: apiextensionsv1.Established, Status: apiextensionsv1.ConditionTrue}},
+			},
+		}
+		_, err := crdClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, v1.CreateOptions{})
+		require.NoError(t, err)
 
-	require.Eventually(t, cb.crdsChanged.Load, 5*time.Second, 10*time.Millisecond)
+		// Waits until the informer delivered the event and every bubble goroutine is idle.
+		synctest.Wait()
+		require.True(t, cb.crdsChanged.Load())
+
+		// Stop the informers so the bubble goroutines exit before the test returns.
+		close(stopCh)
+		synctest.Wait()
+	})
 }
 
 type discoveryFetchMock struct {
