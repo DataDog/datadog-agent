@@ -517,7 +517,7 @@ func start(log log.Component,
 		if config.GetBool("autoscaling.cluster.enabled") {
 			products = append(products, state.ProductClusterAutoscalingValues)
 		}
-		if config.GetBool("kubeactions.enabled") {
+		if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.remote_config.enabled") {
 			products = append(products, state.ProductK8SActions)
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
@@ -618,9 +618,10 @@ func start(log log.Component,
 		}
 	}
 
-	// Kubernetes Actions
+	// Kubernetes Actions (remote-config delivery path). The Private Action Runner
+	// delivery path is gated separately by private_action_runner.enabled.
 	var kubeactionsRetriever *kubeactions.ConfigRetriever
-	if config.GetBool("kubeactions.enabled") {
+	if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.remote_config.enabled") {
 		if rcClient == nil {
 			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
