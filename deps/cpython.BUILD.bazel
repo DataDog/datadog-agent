@@ -15,6 +15,9 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 
 DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
 
+# The interpreter alone is not enough to run it remotely: it needs its stdlib next to it.
+DEFAULT_PYTHON_FILES = "@python_{}//:files".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
+
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
     "bzip2": "1.0.8",
@@ -220,6 +223,7 @@ configure_make(
         ":redacted_compat.h",
         "@@//deps/cpython:fix_sysconfigdata.py",
         DEFAULT_PYTHON,
+        DEFAULT_PYTHON_FILES,
     ],
     configure_options = [
         "--enable-ipv6",
