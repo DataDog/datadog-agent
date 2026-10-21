@@ -1,5 +1,5 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License 2.0.
+// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
@@ -209,6 +209,7 @@ func (ra *remoteAgentRegistry) registerExpvars() {
 	}
 }
 
+// Increment ExpVar quantity
 func wrapExpvar(mapping expvarMapping) bool {
 	if len(mapping.expvarPath) < 2 {
 		return false
@@ -228,10 +229,11 @@ func wrapExpvar(mapping expvarMapping) bool {
 	leaf := mapping.expvarPath[len(mapping.expvarPath)-1]
 	local, ok := parent.Get(leaf).(*expvar.Int)
 	if !ok {
-		log.Debugf("Not exposing remote agent values at expvar %q: expected an *expvar.Int", strings.Join(mapping.expvarPath, "/"))
+		log.Warnf("Not exposing remote agent values at expvar %q: expected an *expvar.Int", strings.Join(mapping.expvarPath, "/"))
 		return false
 	}
 
+	// Wrap the local leaf so reads return the combined Core Agent and remote ADP value.
 	parent.Set(leaf, expvar.Func(func() any {
 		total := local.Value()
 		if registry := remoteExpvarRegistry.Load(); registry != nil {
@@ -244,6 +246,8 @@ func wrapExpvar(mapping expvarMapping) bool {
 	return true
 }
 
+// getRemoteAgentExpvars formats remote compatibility values as nested expvar data grouped by remote-agent name.
+// The values are obtained through the shared cache and do not include local Core Agent values.
 func (ra *remoteAgentRegistry) getRemoteAgentExpvars() map[string]any {
 	values := make(map[string]any)
 	for agentName, agentValues := range ra.getRemoteExpvarValues() {
@@ -260,24 +264,30 @@ func (ra *remoteAgentRegistry) getRemoteAgentExpvars() map[string]any {
 	return values
 }
 
+// Retrieves Expvar values from cache
 func (ra *remoteAgentRegistry) getRemoteExpvarValues() map[string]map[string]int64 {
 	cache := &ra.expvarCache
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
+	// Return early to avoid unnecessary updates and allocations
 	if cache.values != nil && time.Since(cache.fetchedAt) < remoteExpvarCacheTTL {
 		return cache.values
 	}
+
+	// Instantiate counters if they're not currently present
 	if cache.counters == nil {
 		cache.counters = make(map[remoteCounterKey]*remoteCounterState)
 	}
 
+	// Update values since, presumably, more time has elapsed than we'd feel comforatble caching for
 	values := collectRemoteExpvarValues(ra, cache.counters)
 	cache.values = values
 	cache.fetchedAt = time.Now()
 	return values
 }
 
+// Collect Prometheus endpoint response from RAR for ADP and convert to Expvar
 func collectRemoteExpvarValues(ra *remoteAgentRegistry, counters map[remoteCounterKey]*remoteCounterState) map[string]map[string]int64 {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
 		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
@@ -318,6 +328,7 @@ func collectRemoteExpvarValues(ra *remoteAgentRegistry, counters map[remoteCount
 		}
 	}
 
+	// Instantiate and established observed metrics and their frequency per agent type
 	values := make(map[string]map[string]int64)
 	for key, state := range counters {
 		if !state.initialized {
@@ -372,6 +383,7 @@ func (s *remoteCounterState) observe(raw int64) {
 	s.lastRaw = raw
 }
 
+// Map Prometheus metrics to ExpVar format
 func expvarSeriesFromPromText(promText string) []remoteExpvarSeries {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
