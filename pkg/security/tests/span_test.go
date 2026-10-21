@@ -288,7 +288,7 @@ func assertSpanFields(t *testing.T, sc *traceJSON, expectedSpanID, expectedTrace
 var _ = declare(TestDDTraceGoSpan, testOpts{discardRuntime: true})
 
 // TestDDTraceGoSpan tests the full dd-trace-go integration: dd-trace-go creates
-// a real span which internally sets pprof labels ("span id", "local root span id"),
+// a real span which internally sets pprof labels ("span id", "trace id"),
 // and the eBPF Go labels reader extracts them from the goroutine's label storage.
 func TestDDTraceGoSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -329,21 +329,19 @@ func TestDDTraceGoSpan(t *testing.T) {
 		return "/usr/bin/touch"
 	}
 
-	// parseDDTraceIDs scans the tester's stdout for the span/local-root-span
-	// IDs that dd-trace-go generated at runtime. Returns (0, 0) when not
-	// found (used by the no-span negative path).
-	parseDDTraceIDs := func(out []byte) (spanID, lrsID uint64) {
+	parseDDTraceIDs := func(out []byte) (spanID uint64, traceID utils.TraceID) {
 		for _, line := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(line, "ddtrace_span_id=") {
-				val := strings.TrimPrefix(line, "ddtrace_span_id=")
+			if val, ok := strings.CutPrefix(line, "ddtrace_span_id="); ok {
 				spanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
 			}
-			if strings.HasPrefix(line, "ddtrace_local_root_span_id=") {
-				val := strings.TrimPrefix(line, "ddtrace_local_root_span_id=")
-				lrsID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+			if val, ok := strings.CutPrefix(line, "ddtrace_trace_id_hi="); ok {
+				traceID.Hi, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+			}
+			if val, ok := strings.CutPrefix(line, "ddtrace_trace_id_lo="); ok {
+				traceID.Lo, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
 			}
 		}
-		return spanID, lrsID
+		return spanID, traceID
 	}
 
 	t.Run("ddtrace_span", func(t *testing.T) {
@@ -359,14 +357,15 @@ func TestDDTraceGoSpan(t *testing.T) {
 				"-ddtrace-span-file-path", testFile,
 			}
 
-			var expectedSpanID, expectedLocalRootSpanID uint64
+			var expectedSpanID uint64
+			var expectedTraceID utils.TraceID
 
 			test.WaitSignalFromRule(t, func() error {
 				out, err := test.runSpanTester(cmdFunc, spanTester, args)
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
-				expectedSpanID, expectedLocalRootSpanID = parseDDTraceIDs(out)
+				expectedSpanID, expectedTraceID = parseDDTraceIDs(out)
 				if expectedSpanID == 0 {
 					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
 				}
@@ -380,7 +379,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedTrace(t, jsonStr,
 						strconv.FormatUint(expectedSpanID, 10),
-						utils.TraceID{Lo: expectedLocalRootSpanID}.HexString(),
+						expectedTraceID.HexString(),
 						nil)
 				}
 			}, "test_ddtrace_span_rule_open")
@@ -401,14 +400,15 @@ func TestDDTraceGoSpan(t *testing.T) {
 				"-ddtrace-span-exec-target", touchPathFor(kind),
 			}
 
-			var expectedSpanID, expectedLocalRootSpanID uint64
+			var expectedSpanID uint64
+			var expectedTraceID utils.TraceID
 
 			test.WaitSignalFromRule(t, func() error {
 				out, err := test.runSpanTester(cmdFunc, spanTester, args)
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
-				expectedSpanID, expectedLocalRootSpanID = parseDDTraceIDs(out)
+				expectedSpanID, expectedTraceID = parseDDTraceIDs(out)
 				if expectedSpanID == 0 {
 					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
 				}
@@ -426,7 +426,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
 						strconv.FormatUint(expectedSpanID, 10),
-						utils.TraceID{Lo: expectedLocalRootSpanID}.HexString(),
+						expectedTraceID.HexString(),
 						nil,
 						spanLocations{onTopLevelProcess: true})
 				}
@@ -525,14 +525,15 @@ func TestDDTraceGoSpan(t *testing.T) {
 			// Read the tester's stdout for the span IDs dd-trace-go
 			// generated at runtime; they're the ground truth for what the
 			// fork-parent ancestor + serialized dd field should carry.
-			var parentSpanID, parentLocalRootSpanID uint64
+			var parentSpanID uint64
+			var parentTraceID utils.TraceID
 
 			test.WaitSignalFromRule(t, func() error {
 				out, err := test.runSpanTester(cmdFunc, spanTester, args)
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
-				parentSpanID, parentLocalRootSpanID = parseDDTraceIDs(out)
+				parentSpanID, parentTraceID = parseDDTraceIDs(out)
 				if parentSpanID == 0 {
 					return fmt.Errorf("parent dd-trace-go span never produced a non-zero span_id: %s", out)
 				}
@@ -545,8 +546,8 @@ func TestDDTraceGoSpan(t *testing.T) {
 				sc := event.FieldHandlers.ResolveSpanContext(event)
 				assert.Equal(t, parentSpanID, sc.SpanID,
 					"exec event should carry dd-trace-go's parent span_id")
-				assert.Equal(t, strconv.FormatUint(parentLocalRootSpanID, 10), sc.TraceID.String(),
-					"exec event should carry dd-trace-go's local_root_span_id")
+				assert.Equal(t, parentTraceID, sc.TraceID,
+					"exec event should carry dd-trace-go's trace_id")
 
 				// (2) The fork-parent entry in the ancestor lineage carries it
 				// as well, from the capture at fork time.
@@ -565,16 +566,16 @@ func TestDDTraceGoSpan(t *testing.T) {
 					"an ancestor should carry the dd-trace-go parent span captured at fork time")
 				assert.Equal(t, parentSpanID, ancestorSpanID,
 					"fork-parent ancestor SpanID should equal dd-trace-go's parent span_id")
-				assert.Equal(t, parentLocalRootSpanID, ancestorTraceIDLo,
-					"fork-parent ancestor TraceID.Lo should equal dd-trace-go's local_root_span_id")
-				assert.Equal(t, uint64(0), ancestorTraceIDHi,
-					"dd-trace-go pprof labels only populate the low 64 bits of trace_id")
+				assert.Equal(t, parentTraceID.Lo, ancestorTraceIDLo,
+					"fork-parent ancestor TraceID.Lo should equal dd-trace-go's trace_id low half")
+				assert.Equal(t, parentTraceID.Hi, ancestorTraceIDHi,
+					"fork-parent ancestor TraceID.Hi should equal dd-trace-go's trace_id high half")
 
 				jsonStr, err := test.marshalEvent(event)
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
 						strconv.FormatUint(parentSpanID, 10),
-						utils.TraceID{Lo: parentLocalRootSpanID}.HexString(),
+						parentTraceID.HexString(),
 						nil,
 						spanLocations{onTopLevelProcess: true, onAncestor: true})
 				}

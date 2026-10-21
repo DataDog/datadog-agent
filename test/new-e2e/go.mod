@@ -21,7 +21,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.78.3
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
 	github.com/DataDog/rshell v0.0.30
@@ -104,7 +104,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.78.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
-	github.com/DataDog/dd-trace-go/v2 v2.11.1 // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.11.2 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
@@ -118,7 +118,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/ProtonMail/go-crypto v1.5.2 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
@@ -210,7 +210,7 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.28.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
+	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.2.5 // indirect
@@ -305,10 +305,10 @@ require (
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2 // indirect
-	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

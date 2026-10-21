@@ -172,7 +172,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.66.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.67.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.5 // indirect
@@ -182,7 +182,7 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/alecthomas/repr v0.5.2 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
