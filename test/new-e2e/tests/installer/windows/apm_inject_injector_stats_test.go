@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -141,6 +143,10 @@ func (s *testInjectorStats) TestQueryStatsAfterInjection() {
 	for k, v1 := range initialStats {
 		v2, ok := updatedStats[k]
 		s.Require().True(ok, "updated injector stats should have key: %s", k)
+		// The driver version is not a counter; only counters are expected to move.
+		if k == "driver_version" {
+			continue
+		}
 		if v1.(float64) != v2.(float64) {
 			diffFound = true
 			break
@@ -202,6 +208,7 @@ func (s *testInjectorStats) TestDefaultSkipListCounter() {
 	}()
 
 	before := s.queryInjectorStats(true)
+	s.assertDriverVersion(before)
 
 	output, err := s.Env().RemoteHost.Execute(runDefaultSkipListProcessScript)
 	s.Require().NoError(err)
@@ -215,6 +222,15 @@ func (s *testInjectorStats) TestDefaultSkipListCounter() {
 		s.Require().True(ok, "%s should be a number: %+v", counter, after)
 		s.Assert().Greater(afterValue, beforeValue, "%s should count the skipped process", counter)
 	}
+}
+
+// assertDriverVersion verifies that the stats report the file version of the installed driver.
+func (s *testInjectorStats) assertDriverVersion(stats map[string]interface{}) {
+	versionParts, err := windowscommon.GetFileVersion(s.Env().RemoteHost, `C:\Windows\System32\drivers\ddinjector.sys`)
+	s.Require().NoError(err)
+	expected := strings.Join(versionParts, ".")
+	s.Require().NotEmpty(expected, "the DDInjector driver should carry a file version")
+	s.Assert().Equal(expected, stats["driver_version"], "driver_version should match the installed driver: %+v", stats)
 }
 
 // verifyStatsStructure verifies that the stats JSON contains expected fields
