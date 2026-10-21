@@ -11,6 +11,7 @@ package ddinjector
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 	"unsafe"
 
@@ -18,11 +19,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
 	// ddInjectorDeviceName is the device name for the APM injector driver
 	ddInjectorDeviceName = `\\.\DDInjector`
+
+	// ddInjectorDriverFile is the driver binary, relative to the system directory. The ddinjector
+	// INF installs it to DIRID 12 (%SystemRoot%\System32\drivers).
+	ddInjectorDriverFile = `drivers\ddinjector.sys`
 )
 
 // maxKnownVersion is the highest counter contract version this agent knows how
@@ -265,6 +271,25 @@ func clearV3Gauges(counters *InjectorCounters) {
 	counters.ProcessesSkippedSignaturePolicy.Set(0)
 	counters.ProcessesSignaturePolicyUnknown.Set(0)
 	counters.ProcessesSkippedShortName.Set(0)
+}
+
+// DriverVersion returns the file version of the installed ddinjector driver binary.
+func DriverVersion() (string, error) {
+	systemDir, err := windows.GetSystemDirectory()
+	if err != nil {
+		return "", fmt.Errorf("failed to get the system directory: %w", err)
+	}
+	info, err := winutil.GetFileVersionInfoStrings(filepath.Join(systemDir, ddInjectorDriverFile))
+	if err != nil {
+		return "", fmt.Errorf("failed to read the ddinjector version resource: %w", err)
+	}
+	if info.FileVersionNumeric != "" {
+		return info.FileVersionNumeric, nil
+	}
+	if info.FileVersion != "" {
+		return info.FileVersion, nil
+	}
+	return "", errors.New("ddinjector version resource carries no file version")
 }
 
 // Close closes the handle to ddinjector.

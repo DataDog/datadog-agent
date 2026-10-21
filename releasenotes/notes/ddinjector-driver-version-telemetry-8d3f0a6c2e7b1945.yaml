@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    On Windows, the ``ddinjector`` system-probe telemetry now tags every
+    ``injector.*`` metric with the ``ddinjector_version`` of the installed driver, and
+    reports it as the ``driver_version`` injector stat.

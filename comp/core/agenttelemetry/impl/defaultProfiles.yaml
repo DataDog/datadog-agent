@@ -540,34 +540,92 @@ profiles:
       zero_metric: true
     metrics:
       - name: injector.processes_added_to_injection_tracker
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_removed_from_injection_tracker
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_subsystem
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_container
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_protected
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_system
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_excluded
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_attempts
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_attempt_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_max_time_us
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_successes
+        preserve_tags:
+          - ddinjector_version
       - name: injector.injection_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_caching_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.import_directory_restoration_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_memory_allocation_failures
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_injection_context_allocated
+        preserve_tags:
+          - ddinjector_version
       - name: injector.pe_injection_context_cleanedup
+        preserve_tags:
+          - ddinjector_version
       - name: injector.crashes_during_injection
+        preserve_tags:
+          - ddinjector_version
       - name: injector.crashes_post_injection
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_crash_boots_detected
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_driver_self_disabled
+        preserve_tags:
+          - ddinjector_version
       - name: injector.boot_recovery_stability_timer_fired
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_automatically_added_to_skip_list
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_default
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_custom
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_crash_recovery
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_signature_policy
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_signature_policy_unknown
+        preserve_tags:
+          - ddinjector_version
       - name: injector.processes_skipped_short_name
+        preserve_tags:
+          - ddinjector_version
   schedule:
     start_after: 30
     iterations: 0

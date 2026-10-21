@@ -27,6 +27,9 @@ import (
 const (
 	// minInjectorQueryDelay is the minimum delay between queries to the injector driver.
 	minInjectorQueryDelay = 5 * time.Second
+
+	// unknownDriverVersion tags the injector metrics until the driver version has been read.
+	unknownDriverVersion = "unknown"
 )
 
 func init() { registerModule(Injector) }
@@ -57,6 +60,16 @@ type injectorModule struct {
 	counters          ddinjector.InjectorCounters
 	sysProbeConfig    sysprobeconfig.Component
 	lastOpenErrorTime atomic.Int64
+
+	// gauges back the counters, tagged with driverVersion. Both are guarded by collectMutex.
+	gauges        []versionedGauge
+	driverVersion string
+}
+
+// versionedGauge binds a counter to the series of its gauge for the current driver version.
+type versionedGauge struct {
+	gauge   telemetry.Gauge
+	counter *telemetry.SimpleGauge
 }
 
 // Register registers the endpoint for this module
@@ -85,9 +98,14 @@ func (m *injectorModule) GetStats() map[string]interface{} {
 		return map[string]interface{}{}
 	}
 
+	// Collect rebinds the counters when the driver version changes.
+	m.collectMutex.Lock()
+	defer m.collectMutex.Unlock()
+
 	// If last_check_timestamp is 0, the Collect callback has not yet been trigered.
 	return map[string]interface{}{
 		"last_check_timestamp":                       m.lastCheck.Load(),
+		"driver_version":                             m.driverVersion,
 		"processes_added_to_injection_tracker":       m.counters.ProcessesAddedToInjectionTracker.Get(),
 		"processes_removed_from_injection_tracker":   m.counters.ProcessesRemovedFromInjectionTracker.Get(),
 		"processes_skipped_subsystem":                m.counters.ProcessesSkippedSubsystem.Get(),
@@ -125,124 +143,125 @@ func (m *injectorModule) GetStats() map[string]interface{} {
 
 func (m *injectorModule) initializeMetrics() {
 	const subsystem = "injector"
+	m.driverVersion = unknownDriverVersion
 
-	m.counters.ProcessesAddedToInjectionTracker = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesAddedToInjectionTracker,
 		subsystem, "processes_added_to_injection_tracker",
 		"Number of processes added to injection tracker")
 
-	m.counters.ProcessesRemovedFromInjectionTracker = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesRemovedFromInjectionTracker,
 		subsystem, "processes_removed_from_injection_tracker",
 		"Number of processes removed from injection tracker")
 
-	m.counters.ProcessesSkippedSubsystem = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedSubsystem,
 		subsystem, "processes_skipped_subsystem",
 		"Number of skipped subsystem processes")
 
-	m.counters.ProcessesSkippedContainer = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedContainer,
 		subsystem, "processes_skipped_container",
 		"Number of skipped container processes")
 
-	m.counters.ProcessesSkippedProtected = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedProtected,
 		subsystem, "processes_skipped_protected",
 		"Number of skipped protected processes")
 
-	m.counters.ProcessesSkippedSystem = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedSystem,
 		subsystem, "processes_skipped_system",
 		"Number of skipped system processes")
 
-	m.counters.ProcessesSkippedExcluded = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedExcluded,
 		subsystem, "processes_skipped_excluded",
 		"Number of skipped processes due to exclusion")
 
-	m.counters.InjectionAttempts = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.InjectionAttempts,
 		subsystem, "injection_attempts",
 		"Number of injection attempts")
 
-	m.counters.InjectionAttemptFailures = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.InjectionAttemptFailures,
 		subsystem, "injection_attempt_failures",
 		"Number of injection attempt failures")
 
-	m.counters.InjectionMaxTimeUs = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.InjectionMaxTimeUs,
 		subsystem, "injection_max_time_us",
 		"Maximum injection time in microseconds")
 
-	m.counters.InjectionSuccesses = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.InjectionSuccesses,
 		subsystem, "injection_successes",
 		"Number of successful injections")
 
-	m.counters.InjectionFailures = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.InjectionFailures,
 		subsystem, "injection_failures",
 		"Number of failed injections")
 
-	m.counters.PeCachingFailures = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.PeCachingFailures,
 		subsystem, "pe_caching_failures",
 		"Number of PE caching failures")
 
-	m.counters.ImportDirectoryRestorationFailures = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ImportDirectoryRestorationFailures,
 		subsystem, "import_directory_restoration_failures",
 		"Number of import directory restoration failures")
 
-	m.counters.PeMemoryAllocationFailures = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.PeMemoryAllocationFailures,
 		subsystem, "pe_memory_allocation_failures",
 		"Number of PE memory allocation failures")
 
-	m.counters.PeInjectionContextAllocated = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.PeInjectionContextAllocated,
 		subsystem, "pe_injection_context_allocated",
 		"Number of PE injection contexts allocated")
 
-	m.counters.PeInjectionContextCleanedup = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.PeInjectionContextCleanedup,
 		subsystem, "pe_injection_context_cleanedup",
 		"Number of PE injection contexts cleaned up")
 
 	// v2 counters: crash / boot-recovery telemetry. Registered unconditionally;
 	// they remain 0 against V1-only drivers.
-	m.counters.CrashesDuringInjection = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.CrashesDuringInjection,
 		subsystem, "crashes_during_injection",
 		"Number of crashes observed during injection")
 
-	m.counters.CrashesPostInjection = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.CrashesPostInjection,
 		subsystem, "crashes_post_injection",
 		"Number of crashes observed after injection")
 
-	m.counters.BootRecoveryCrashBootsDetected = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.BootRecoveryCrashBootsDetected,
 		subsystem, "boot_recovery_crash_boots_detected",
 		"Number of crash boots detected by boot recovery")
 
-	m.counters.BootRecoveryDriverSelfDisabled = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.BootRecoveryDriverSelfDisabled,
 		subsystem, "boot_recovery_driver_self_disabled",
 		"Number of times the driver self-disabled via boot recovery")
 
-	m.counters.BootRecoveryStabilityTimerFired = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.BootRecoveryStabilityTimerFired,
 		subsystem, "boot_recovery_stability_timer_fired",
 		"Number of times the boot recovery stability timer fired")
 
 	// v3 counters: skip-list sources and signature policy. Registered
 	// unconditionally; they remain 0 against drivers older than V3.
-	m.counters.ProcessesAutomaticallyAddedToSkipList = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesAutomaticallyAddedToSkipList,
 		subsystem, "processes_automatically_added_to_skip_list",
 		"Number of processes automatically added to the skip list by crash recovery")
 
-	m.counters.ProcessesSkippedDefault = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedDefault,
 		subsystem, "processes_skipped_default",
 		"Number of processes skipped due to the default skip list")
 
-	m.counters.ProcessesSkippedCustom = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedCustom,
 		subsystem, "processes_skipped_custom",
 		"Number of processes skipped due to the custom skip list")
 
-	m.counters.ProcessesSkippedCrashRecovery = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedCrashRecovery,
 		subsystem, "processes_skipped_crash_recovery",
 		"Number of processes skipped due to the crash-recovery skip list")
 
-	m.counters.ProcessesSkippedSignaturePolicy = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedSignaturePolicy,
 		subsystem, "processes_skipped_signature_policy",
 		"Number of processes skipped due to a binary signature policy")
 
-	m.counters.ProcessesSignaturePolicyUnknown = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSignaturePolicyUnknown,
 		subsystem, "processes_signature_policy_unknown",
 		"Number of processes whose binary signature policy could not be determined")
 
-	m.counters.ProcessesSkippedShortName = m.telemetry.NewSimpleGauge(
+	m.newVersionedGauge(&m.counters.ProcessesSkippedShortName,
 		subsystem, "processes_skipped_short_name",
 		"Number of processes skipped because their image path kept an 8.3 short name")
 }
@@ -293,9 +312,38 @@ func (m *injectorModule) Collect(_ chan<- prometheus.Metric) {
 	}
 	defer injector.Close()
 
+	version, err := ddinjector.DriverVersion()
+	if err != nil {
+		log.Debugf("error getting Injector driver version: %v", err)
+		version = unknownDriverVersion
+	}
+	m.setDriverVersion(version)
+
 	err = injector.GetCounters(&m.counters)
 	if err != nil {
 		log.Errorf("error getting Injector counters: %v", err)
 		return
 	}
+}
+
+// newVersionedGauge creates a gauge tagged with the driver version and binds counter to its
+// series for the current version.
+func (m *injectorModule) newVersionedGauge(counter *telemetry.SimpleGauge, subsystem, name, help string) {
+	gauge := m.telemetry.NewGauge(subsystem, name, []string{"ddinjector_version"}, help)
+	*counter = gauge.WithValues(m.driverVersion)
+	m.gauges = append(m.gauges, versionedGauge{gauge: gauge, counter: counter})
+}
+
+// setDriverVersion rebinds the counters to the series of version, deleting the series of the
+// previous version so a driver upgrade does not leave stale ones behind. The new series start
+// at 0 until the next counters query. Must be called with collectMutex held.
+func (m *injectorModule) setDriverVersion(version string) {
+	if version == m.driverVersion {
+		return
+	}
+	for _, g := range m.gauges {
+		g.gauge.Delete(m.driverVersion)
+		*g.counter = g.gauge.WithValues(version)
+	}
+	m.driverVersion = version
 }
