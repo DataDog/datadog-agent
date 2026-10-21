@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkubeadm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kubeadm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
@@ -1658,17 +1660,28 @@ var idleWorkloads = []struct {
 // workloads, reads in use from then on. The restart fails the restart count
 // check of WaitForAgentReady, so the test runs last, after
 // TestZZDumpAgentDiagnostics, and deletes the Agent pod when it ends, for a
-// later run on the same stack to start from a new pod.
+// later run on the same stack to start from a new pod. A suite that collects
+// coverage keeps the pod for its teardown.
 func (s *packageInUseSuite) TestZZRunningBeforeSystemProbe() {
 	t := s.T()
 	shell := s.startHostShell()
 	agent := s.nodeAgent(t)
 	restarts := systemProbeStatus(t, agent).RestartCount
-	t.Cleanup(func() {
-		if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
-			t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
-		}
-	})
+
+	// The restart resets the coverage counters of system-probe, so a suite
+	// that collects coverage saves them first, and its teardown saves those of
+	// the new process next to them.
+	on, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	dir, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if on && dir != "" {
+		s.Require().NoError(s.SaveCoverage(dir), "save the coverage before the restart of system-probe")
+	} else {
+		t.Cleanup(func() {
+			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
+				t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
+			}
+		})
+	}
 
 	// The fake intake holds the reports of every test of the suite by now, and
 	// its queries slow down with them. Only the reports sent after the restart

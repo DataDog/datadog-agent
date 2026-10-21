@@ -39,6 +39,8 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/eks",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kubeadm",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
