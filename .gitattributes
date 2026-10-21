@@ -1,5 +1,9 @@
 # Set go source line endings to LF on all platforms so gofmt can be used
 *.go text=auto eol=lf
+# Pin C# source to LF (the endings they are stored with) so they are not
+# converted at checkout on runners with core.autocrlf enabled, which otherwise
+# makes them show up as dirty in security_go_generate_check.
+*.cs text eol=lf
 go.sum -diff -merge linguist-generated=true
 *.pb.go -diff -merge
 *.pb.go linguist-generated=true
