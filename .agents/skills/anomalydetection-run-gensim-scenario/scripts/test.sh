@@ -233,7 +233,7 @@ with tarfile.open(ep_mount / "chart.tar.gz", "w:gz") as tar:
     'set -euo pipefail\n'
     'scen="$2"\n'
     'mkdir -p results\n'
-    'printf \'{"episode":"authcore-pgbouncer","scenario":"%s","cycle":1,"start_time":"2026-01-01T00:00:00Z","end_time":"2026-01-01T00:02:00Z","success":false}\\n\' "$scen" > "results/${scen}-1.json"\n'
+    'printf \'{"episode":"authcore-pgbouncer","scenario":"%s","cycle":1,"start_time":"2026-01-01T00:00:00.000+00:00","end_time":"2026-01-01T00:02:00+00:00","success":false}\\n\' "$scen" > "results/${scen}-1.json"\n'
 )
 (ep_mount / "pool-saturation.yaml").write_text("name: pool-saturation\n")
 (ep_mount / "conn-spike.yaml").write_text("name: conn-spike\n")
@@ -425,6 +425,8 @@ if grep -q "eks-secret-api-key" "$eks_root/calls.log" || grep -q "eks-secret-app
     echo "EKS secret leaked into command arguments" >&2
     exit 1
 fi
+grep -q '"alert_type": "success"' "$eks_root/calls.log"
+if grep -q '"alert_type": "error"' "$eks_root/calls.log"; then exit 1; fi
 
 python3 - "$eks_root/k8s/status.json" "$eks_root/s3/runs.jsonl" <<'PY'
 import json
@@ -520,7 +522,9 @@ st = json.loads(open(sys.argv[1]).read())
 assert st["overallStatus"] == "failed"
 assert st["episodes"][0]["status"] == "failed"
 assert st["episodes"][0]["uploadStatus"] == "failed"
+assert st["episodes"][0]["artifactKey"] == ""
 PY
+grep -q '"alert_type": "error"' "$eks_root/calls.log"
 
 # 3. Checksum mismatch and missing second-pod logs in recording.py validate --backend eks
 bad_eks="$workspace/eks-bad-checksum"

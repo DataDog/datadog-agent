@@ -166,7 +166,9 @@ emit_dd_event() {
   local title="gensim: ${episode}/${scenario} ${outcome}"
   local text="Duration: ${duration}s, Parquet files: ${parquet_count}, Image: ${AGENT_IMAGE}, SHA: ${GENSIM_SHA}"
   local alert_type="success"
-  [ "$outcome" != "success" ] && alert_type="error"
+  if [ "$outcome" != "success" ] && [ "$outcome" != "done" ]; then
+    alert_type="error"
+  fi
   printf 'header = "DD-API-KEY: %s"\n' "${DD_API_KEY}" | curl -s -K - -X POST "https://api.${DD_SITE}/api/v1/events" \
     -H "Content-Type: application/json" \
     -d "{ \
@@ -337,8 +339,8 @@ EOF
       COLLECTION_STATUS="failed"
       COLLECTION_ERRORS=$(printf '%s' "$COLLECTION_ERRORS" | jq -c --arg sc "$SCENARIO" '. + ["missing episode result JSON for scenario " + $sc]')
     else
-      END_EPOCH=$(jq -r '(.end_time // "") | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601' "$EPISODE_RESULT_FILE" 2>/dev/null || echo "")
-      START_EPOCH=$(jq -r '(.start_time // "") | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601' "$EPISODE_RESULT_FILE" 2>/dev/null || echo "")
+      END_EPOCH=$(jq -r '(.end_time // "") | sub("(\\.[0-9]+)?(Z|\\+00:00)$"; "Z") | fromdateiso8601' "$EPISODE_RESULT_FILE" 2>/dev/null || echo "")
+      START_EPOCH=$(jq -r '(.start_time // "") | sub("(\\.[0-9]+)?(Z|\\+00:00)$"; "Z") | fromdateiso8601' "$EPISODE_RESULT_FILE" 2>/dev/null || echo "")
       if [ -z "$END_EPOCH" ] || [ -z "$START_EPOCH" ] || [ "$START_EPOCH" -ge "$END_EPOCH" ]; then
         COLLECTION_STATUS="failed"
         COLLECTION_ERRORS=$(printf '%s' "$COLLECTION_ERRORS" | jq -c '. + ["episode result JSON has invalid start_time or end_time"]')
@@ -542,13 +544,11 @@ EOF
       cp "$WORKSPACE_ROOT/results/agent-before.json" "$WORKSPACE_ROOT/zip-staging/tmp/gensim-archive/metadata/agent-before.json"
       cp "$WORKSPACE_ROOT/results/agent-after.json" "$WORKSPACE_ROOT/zip-staging/tmp/gensim-archive/metadata/agent-after.json"
 
-      (
-        cd "$WORKSPACE_ROOT/zip-staging"
-        zip -r "${ZIP_PATH}" tmp/gensim-archive/ -q
-      )
-
       echo "Uploading ${ZIP_NAME} to ${DEST}..."
-      if aws s3 cp "${ZIP_PATH}" "${DEST}"; then
+      if (
+        cd "$WORKSPACE_ROOT/zip-staging" &&
+        zip -r "${ZIP_PATH}" tmp/gensim-archive/ -q
+      ) && aws s3 cp "${ZIP_PATH}" "${DEST}"; then
         echo "Uploaded to ${DEST}"
         EP_END_TS=$(date +%s)
         EP_DUR=$((EP_END_TS - EP_START))
@@ -595,6 +595,7 @@ EOF
         echo "ERROR: S3 upload failed for ${ZIP_NAME}" >&2
         UPLOAD_STATUS="failed"
         COLLECTION_ERRORS=$(printf '%s' "$COLLECTION_ERRORS" | jq -c --arg z "$ZIP_NAME" '. + ["S3 upload failed for " + $z]')
+        ZIP_NAME=""
       fi
       rm -rf "$WORKSPACE_ROOT/zip-staging" "${ZIP_PATH}"
     fi
