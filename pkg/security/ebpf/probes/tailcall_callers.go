@@ -147,6 +147,18 @@ func AllFentryTailCallRouteCallers() []TailCallRouteCallers {
 			Callers:       cgroupWriteCallers,
 		},
 
+		// span fill programs, the generic one is used by most hook points
+		{
+			ProgArrayName: "span_fill_progs",
+			Key:           SpanFillSetsockoptKey,
+			Callers:       syscallExitFuncs("setsockopt"),
+		},
+		{
+			ProgArrayName: "span_fill_progs",
+			Key:           SpanFillExitKey,
+			Callers:       []string{"hook_do_exit", tailCallFnc("flush_network_stats_exit")},
+		},
+
 		// network stats flush programs
 		{
 			ProgArrayName: "flush_network_stats_progs",
