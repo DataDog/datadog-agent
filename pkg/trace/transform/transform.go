@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -350,6 +351,7 @@ func OtelSpanToDDSpan(
 	}
 
 	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
+	SetLLMObsContextFromTracestate(ddspan)
 	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
 		if scopeConventionGateEnabled {
@@ -402,6 +404,69 @@ func OtelSpanToDDSpan(
 	}
 
 	return ddspan
+}
+
+// SetLLMObsContextFromTracestate preserves the AI trace identity across an OTel
+// service boundary. The AI trace ID is independent of the APM trace ID. The
+// SDK propagates it in decimal, while the AI ingestion contract uses padded hex.
+// Only GenAI spans participate; ordinary APM spans must not opt into AI ingestion.
+func SetLLMObsContextFromTracestate(span *pb.Span) {
+	if span.Meta["gen_ai.operation.name"] == "" && span.Meta["gen_ai.provider.name"] == "" && span.Meta["gen_ai.system"] == "" && span.Meta["openinference.span.kind"] == "" {
+		return
+	}
+	var ddState string
+	seenDD := false
+	for member := range strings.SplitSeq(span.Meta["w3c.tracestate"], ",") {
+		key, value, ok := strings.Cut(strings.TrimSpace(member), "=")
+		if ok && key == "dd" {
+			// Duplicate Datadog members are malformed; do not choose an identity.
+			if seenDD {
+				return
+			}
+			seenDD = true
+			ddState = value
+		}
+	}
+	if ddState == "" {
+		return
+	}
+	fields := make(map[string]string)
+	for field := range strings.SplitSeq(ddState, ";") {
+		key, value, ok := strings.Cut(field, ":")
+		if !ok || !strings.HasPrefix(key, "t.llmobs_") {
+			continue
+		}
+		if _, exists := fields[key]; exists {
+			return
+		}
+		fields[key] = value
+	}
+	wireTraceID := fields["t.llmobs_trace_id"]
+	if len(wireTraceID) == 0 || len(wireTraceID) > 39 || strings.IndexFunc(wireTraceID, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return
+	}
+	traceID, ok := new(big.Int).SetString(wireTraceID, 10)
+	if !ok || traceID.Sign() <= 0 || traceID.BitLen() > 128 {
+		return
+	}
+	wireParentID := fields["t.llmobs_parent_id"]
+	if len(wireParentID) == 0 || len(wireParentID) > 20 || strings.IndexFunc(wireParentID, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return
+	}
+	parentID, err := strconv.ParseUint(wireParentID, 10, 64)
+	if err != nil || parentID == 0 {
+		return
+	}
+	if span.Meta["llmobs_trace_id"] == "" && span.Meta["llmobs_parent_id"] == "" {
+		span.Meta["llmobs_trace_id"] = fmt.Sprintf("%032x", traceID)
+		span.Meta["llmobs_parent_id"] = strconv.FormatUint(parentID, 10)
+	}
+	// An upstream SDK's explicit sampling rejection must survive the bridge.
+	if fields["t.llmobs_sd"] == "0" {
+		span.Meta["dd_llmobs_enabled"] = "false"
+	} else if fields["t.llmobs_sd"] == "1" && span.Meta["dd_llmobs_enabled"] == "" {
+		span.Meta["dd_llmobs_enabled"] = "true"
+	}
 }
 
 // TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.

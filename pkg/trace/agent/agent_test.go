@@ -5044,3 +5044,75 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestProcessInferenceSpanIdentity(t *testing.T) {
+	for _, role := range []string{"frontend", "prefill", "decode"} {
+		for _, resourceTags := range []bool{false, true} {
+			t.Run(role+"/resource_tags="+strconv.FormatBool(resourceTags), func(t *testing.T) {
+				cfg := config.New()
+				cfg.Endpoints[0].APIKey = "test"
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				a := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+				span := &pb.Span{
+					TraceID: 1, SpanID: 2, ParentID: 1, Service: "dynamo", Name: "handle_payload",
+					Start: time.Now().Add(-time.Second).UnixNano(), Duration: time.Millisecond.Nanoseconds(),
+					Meta: map[string]string{"gen_ai.operation.name": "invoke_workflow"},
+				}
+				ordinary := proto.Clone(span).(*pb.Span)
+				ordinary.SpanID = 3
+				ordinary.Meta = nil
+				tags := []string{"inference_workload:model", "inference_workload_component:" + role, "pod_name:model-" + role + "-abc", "kube_namespace:models", "image_name:ignored"}
+				payload := &api.Payload{
+					TracerPayload: testutil.TracerPayloadWithChunk(&pb.TraceChunk{Spans: pb.Trace{span, ordinary}}),
+					Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}), ContainerTags: tags,
+				}
+				if resourceTags {
+					payload.ContainerTags = nil
+					payload.TracerPayload.Tags = map[string]string{tagContainersTags: strings.Join(tags, ",")}
+				}
+				a.Process(payload)
+				assert.Equal(t, "model", span.Meta["inference_workload"])
+				assert.Equal(t, role, span.Meta["inference_workload_component"])
+				assert.Equal(t, "model-"+role+"-abc", span.Meta["pod_name"])
+				assert.Equal(t, "models", span.Meta["kube_namespace"])
+				assert.NotContains(t, span.Meta, "image_name")
+				assert.NotContains(t, ordinary.Meta, "inference_workload")
+			})
+		}
+	}
+	t.Run("client pod is not an inference workload", func(t *testing.T) {
+		assert.Nil(t, inferenceTagsFromContainerTags([]string{"pod_name:cronjob-123", "kube_namespace:models"}))
+	})
+}
+
+func TestProcessInferenceSpanIdentityV1(t *testing.T) {
+	for _, fromResource := range []bool{false, true} {
+		t.Run("resource_tags="+strconv.FormatBool(fromResource), func(t *testing.T) {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			a := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			st := idx.NewStringTable()
+			span := testutil.GetTestSpanV1(st)
+			span.SetStringAttribute("gen_ai.operation.name", "invoke_workflow")
+			chunk := testutil.TraceChunkV1WithSpanAndPriority(span, int32(sampler.PriorityUserKeep))
+			tags := []string{"inference_workload:model", "inference_workload_component:decode", "pod_name:model-decode-abc"}
+			payload := &api.PayloadV1{
+				TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+				Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}), ContainerTags: tags,
+			}
+			if fromResource {
+				payload.ContainerTags = nil
+				payload.TracerPayload.SetStringAttribute(tagContainersTags, strings.Join(tags, ","))
+			}
+			a.ProcessV1(payload)
+			for key, expected := range map[string]string{"inference_workload": "model", "inference_workload_component": "decode", "pod_name": "model-decode-abc"} {
+				value, exists := span.GetAttributeAsString(key)
+				assert.True(t, exists)
+				assert.Equal(t, expected, value)
+			}
+		})
+	}
+}

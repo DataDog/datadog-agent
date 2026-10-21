@@ -4654,3 +4654,15 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 		})
 	}
 }
+
+func TestOTLPLegacyInferenceContext(t *testing.T) {
+	receiver := &OTLPReceiver{conf: config.New()}
+	span := ptrace.NewSpan()
+	span.SetName("handle_payload")
+	span.Attributes().PutStr("gen_ai.operation.name", "invoke_workflow")
+	span.TraceState().FromRaw("dd=s:1;t.llmobs_trace_id:123;t.llmobs_parent_id:42;t.llmobs_sd:1")
+	got := receiver.convertSpan(pcommon.NewResource(), pcommon.NewInstrumentationScope(), span)
+	assert.Equal(t, "0000000000000000000000000000007b", got.Meta["llmobs_trace_id"])
+	assert.Equal(t, "42", got.Meta["llmobs_parent_id"])
+	assert.Equal(t, "true", got.Meta["dd_llmobs_enabled"])
+}

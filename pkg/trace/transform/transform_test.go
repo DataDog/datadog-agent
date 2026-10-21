@@ -22,6 +22,7 @@ import (
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -1807,4 +1808,54 @@ func TestMarshalEventsReadOnly(t *testing.T) {
 	assert.Equal(t, uint32(5), events.At(0).DroppedAttributesCount())
 	assert.Equal(t, uint32(0), events.At(1).DroppedAttributesCount())
 	assert.Equal(t, uint32(1), events.At(2).DroppedAttributesCount())
+}
+
+func TestOtelSpanToDDSpanLLMObsContext(t *testing.T) {
+	const valid = "dd=s:1;t.llmobs_trace_id:1339673755198158349044581307228491536;t.llmobs_parent_id:18446744073709551615;t.llmobs_sd:1,other=value"
+	for _, tc := range []struct {
+		name, state string
+		wantContext bool
+	}{
+		{"SDK context", valid, true},
+		{"no AI context", "dd=s:1", false},
+		{"zero trace ID", "dd=t.llmobs_trace_id:0;t.llmobs_parent_id:12", false},
+		{"trace ID overflow", "dd=t.llmobs_trace_id:340282366920938463463374607431768211456;t.llmobs_parent_id:12", false},
+		{"invalid parent", "dd=t.llmobs_trace_id:123;t.llmobs_parent_id:abc", false},
+		{"parent overflow", "dd=t.llmobs_trace_id:123;t.llmobs_parent_id:18446744073709551616", false},
+		{"missing parent", "dd=t.llmobs_trace_id:123", false},
+		{"duplicate identity", "dd=t.llmobs_trace_id:123;t.llmobs_trace_id:456;t.llmobs_parent_id:12", false},
+		{"duplicate Datadog state", "dd=t.llmobs_trace_id:123;t.llmobs_parent_id:12,dd=s:1", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.AgentConfig{OTLPReceiver: &config.OTLP{}}
+			span := ptrace.NewSpan()
+			span.SetName("handle_payload")
+			span.TraceState().FromRaw(tc.state)
+			span.Attributes().PutStr("gen_ai.operation.name", "invoke_workflow")
+			got := OtelSpanToDDSpan(span, pcommon.NewResource(), pcommon.NewInstrumentationScope(), cfg)
+			if tc.wantContext {
+				assert.Equal(t, "0102030405060708090a0b0c0d0e0f10", got.Meta["llmobs_trace_id"])
+				assert.Equal(t, "18446744073709551615", got.Meta["llmobs_parent_id"])
+			} else {
+				assert.NotContains(t, got.Meta, "llmobs_trace_id")
+				assert.NotContains(t, got.Meta, "llmobs_parent_id")
+			}
+		})
+	}
+	t.Run("ordinary APM spans remain ordinary", func(t *testing.T) {
+		span := &pb.Span{Meta: map[string]string{"w3c.tracestate": valid}}
+		SetLLMObsContextFromTracestate(span)
+		assert.NotContains(t, span.Meta, "llmobs_trace_id")
+	})
+	t.Run("explicit identity is preserved", func(t *testing.T) {
+		span := &pb.Span{Meta: map[string]string{"w3c.tracestate": valid, "gen_ai.operation.name": "chat", "llmobs_trace_id": "explicit", "llmobs_parent_id": "42"}}
+		SetLLMObsContextFromTracestate(span)
+		assert.Equal(t, "explicit", span.Meta["llmobs_trace_id"])
+		assert.Equal(t, "42", span.Meta["llmobs_parent_id"])
+	})
+	t.Run("upstream sampling rejection is preserved", func(t *testing.T) {
+		span := &pb.Span{Meta: map[string]string{"w3c.tracestate": strings.Replace(valid, "llmobs_sd:1", "llmobs_sd:0", 1), "gen_ai.operation.name": "chat"}}
+		SetLLMObsContextFromTracestate(span)
+		assert.Equal(t, "false", span.Meta["dd_llmobs_enabled"])
+	})
 }

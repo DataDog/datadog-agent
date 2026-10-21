@@ -97,6 +97,9 @@ var (
 		for _, ddKey := range ContainerMappings {
 			m[ddKey] = struct{}{}
 		}
+		// Inference identity is derived by the tagger and has no OTel alias.
+		m["inference_workload"] = struct{}{}
+		m["inference_workload_component"] = struct{}{}
 		return m
 	})()
 
@@ -195,6 +198,9 @@ var (
 		"task_version":                {},
 		"task_arn":                    {},
 		"version":                     {},
+
+		"inference_workload":           {},
+		"inference_workload_component": {},
 	}
 
 	// HTTPMappings defines the mapping between OpenTelemetry semantic conventions

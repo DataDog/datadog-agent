@@ -716,6 +716,7 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 	if in.TraceState().AsRaw() != "" {
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
+	transform.SetLLMObsContextFromTracestate(span)
 	if lib.Name() != "" {
 		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())
 	}

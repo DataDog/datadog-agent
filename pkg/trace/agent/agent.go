@@ -427,6 +427,44 @@ func (a *Agent) loop() {
 	}
 }
 
+// inferenceTagsFromContainerTags selects the identity of the emitting inference
+// pod. Put these tags on each AI span, not just the APM payload: the AI span
+// mapper does not inherit the payload's infrastructure tags. In particular, do
+// not attribute a router's remote workers to the router's own spans.
+func inferenceTagsFromContainerTags(containerTags []string) map[string]string {
+	hasInferenceWorkload := false
+	for _, tag := range containerTags {
+		if value, ok := strings.CutPrefix(tag, "inference_workload:"); ok && value != "" {
+			hasInferenceWorkload = true
+			break
+		}
+	}
+	if !hasInferenceWorkload {
+		return nil
+	}
+	tags := make(map[string]string, 4)
+	for _, tag := range containerTags {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok || value == "" {
+			continue
+		}
+		switch key {
+		case "inference_workload", "inference_workload_component", "pod_name", "kube_namespace":
+			tags[key] = value
+		}
+	}
+	return tags
+}
+
+func hasGenAIAttributesV1(span *idx.InternalSpan) bool {
+	for _, key := range [...]string{"gen_ai.operation.name", "gen_ai.provider.name", "gen_ai.system", "openinference.span.kind"} {
+		if value, ok := span.GetAttributeAsString(key); ok && value != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // setRootSpanTags sets up any necessary tags on the root span.
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
@@ -519,6 +557,10 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	inferenceTags := inferenceTagsFromContainerTags(p.ContainerTags)
+	if inferenceTags == nil && p.TracerPayload.Tags[tagContainersTags] != "" {
+		inferenceTags = inferenceTagsFromContainerTags(strings.Split(p.TracerPayload.Tags[tagContainersTags], ","))
+	}
 
 	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
 	a.discardSpans(p)
@@ -562,6 +604,11 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
+			if span.Meta["gen_ai.operation.name"] != "" || span.Meta["gen_ai.provider.name"] != "" || span.Meta["gen_ai.system"] != "" || span.Meta["openinference.span.kind"] != "" {
+				for key, value := range inferenceTags {
+					traceutil.SetMeta(span, key, value)
+				}
+			}
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
 					chunk.Origin = v
@@ -705,6 +752,12 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	}
 
 	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	inferenceTags := inferenceTagsFromContainerTags(p.ContainerTags)
+	if inferenceTags == nil {
+		if tags, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags); ok && tags != "" {
+			inferenceTags = inferenceTagsFromContainerTags(strings.Split(tags, ","))
+		}
+	}
 
 	// discard spans is a special case for serverless to programmatically remove spans that should not appear in the trace.
 	a.discardSpansV1(p)
@@ -748,6 +801,11 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 		// Extra sanitization steps of the trace.
 		for _, span := range chunk.Spans {
+			if hasGenAIAttributesV1(span) {
+				for key, value := range inferenceTags {
+					span.SetStringAttribute(key, value)
+				}
+			}
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
 					chunk.SetOrigin(v)
