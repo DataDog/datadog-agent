@@ -8,13 +8,17 @@
 package orchestrator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	crdfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -783,7 +787,7 @@ func TestFilterCRCollectorsByPermission(t *testing.T) {
 	})
 }
 
-func TestCollectorBundleRetryDiscovery(t *testing.T) {
+func TestCollectorBundleRefreshDiscovery(t *testing.T) {
 	var (
 		appsGroup = discoveryGroup{
 			Group: &v1.APIGroup{
@@ -907,12 +911,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Second fetch
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		expectedCollectors = collectorNamesOf(appsGroup, batchGroup)
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
@@ -939,7 +943,7 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		// Retries discovering nothing new skip 1, 2 then 4 runs
 		expectedCalls := []int{1, 2, 2, 2, 3, 3, 3, 3, 3, 4}
 		for run, calls := range expectedCalls {
-			cb.RetryDiscovery()
+			cb.RefreshDiscovery()
 			require.Equal(t, calls, fetchMock.calls, "run %d", run+1)
 			require.Equal(t, expectedCollectors, collectorNames(cb), "run %d", run+1)
 		}
@@ -966,12 +970,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Empty(t, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Second fetch
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		expectedCollectors := collectorNamesOf(appsGroup, batchGroup)
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
@@ -1003,12 +1007,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Second fetch
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		expectedCollectors = collectorNamesOf(crGroup1, crGroup2)
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
@@ -1035,12 +1039,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Empty(t, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Second fetch
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		expectedCollectors := collectorNamesOf(crGroup1, crGroup2)
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
@@ -1071,12 +1075,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Actual retry
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		expectedCollectors = collectorNamesOf(crdGroup, crdArgoGroup, crdDatadogGroup)
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
@@ -1102,12 +1106,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Empty(t, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Second fetch
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		expectedCollectors := collectorNamesOf(crdGroup, crdArgoGroup, crdDatadogGroup)
 		require.Equal(t, expectedCollectors, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
@@ -1137,7 +1141,7 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 
 		// What would trigger a skip run and retry with a supported group should not trigger a retry there.
 		for range 2 {
-			cb.RetryDiscovery()
+			cb.RefreshDiscovery()
 			require.Equal(t, collectorNamesOf(crdGroup), collectorNames(cb))
 			require.Equal(t, 1, fetchMock.calls)
 		}
@@ -1162,12 +1166,12 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Skipped run
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Empty(t, collectorNames(cb))
 		require.Equal(t, 1, fetchMock.calls)
 
 		// Second fetch, no change the selected collectors
-		cb.RetryDiscovery()
+		cb.RefreshDiscovery()
 		require.Empty(t, collectorNames(cb))
 		require.Equal(t, 2, fetchMock.calls)
 	})
@@ -1190,7 +1194,7 @@ func TestCollectorBundleRetryDiscovery(t *testing.T) {
 
 		// The next two calls must be no-ops.
 		for range 2 {
-			cb.RetryDiscovery()
+			cb.RefreshDiscovery()
 			require.Equal(t, configuredCollectors, collectorNames(cb))
 			require.Equal(t, 1, fetchMock.calls)
 		}
@@ -1293,6 +1297,209 @@ func TestCollectorBundleInitialize(t *testing.T) {
 
 	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)
 	require.Equal(t, expectedStartedInformers, cb.startedInformers)
+}
+
+func TestCollectorBundleRefreshDiscoveryAfterCRDChange(t *testing.T) {
+	var (
+		crdGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:     "apiextensions.k8s.io",
+				Versions: []v1.GroupVersionForDiscovery{{GroupVersion: "apiextensions.k8s.io/v1", Version: "v1"}},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "apiextensions.k8s.io/v1",
+				APIResources: []v1.APIResource{{Name: "customresourcedefinitions"}},
+			},
+		}
+		datadogGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:     "datadoghq.com",
+				Versions: []v1.GroupVersionForDiscovery{{GroupVersion: "datadoghq.com/v1alpha1", Version: "v1alpha1"}},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "datadoghq.com/v1alpha1",
+				APIResources: []v1.APIResource{{Name: "datadogmetrics"}},
+			},
+		}
+		configuredGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:     "group1",
+				Versions: []v1.GroupVersionForDiscovery{{GroupVersion: "group1/v1", Version: "v1"}},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "group1/v1",
+				APIResources: []v1.APIResource{{Name: "cr-kind-1"}},
+			},
+		}
+		beforeCRDs = discoveryFetchMockResult{
+			groups:    []*v1.APIGroup{crdGroup.Group},
+			resources: []*v1.APIResourceList{crdGroup.Resources},
+		}
+		afterCRDs = discoveryFetchMockResult{
+			groups:    []*v1.APIGroup{crdGroup.Group, datadogGroup.Group, configuredGroup.Group},
+			resources: []*v1.APIResourceList{crdGroup.Resources, datadogGroup.Resources, configuredGroup.Resources},
+		}
+	)
+
+	newBundle := func(t *testing.T, fetchMock *discoveryFetchMock) *CollectorBundle {
+		cb := newRetryTestBundle(t, []string{"customresourcedefinitions"}, false, fetchMock.fetch, nil)
+		cb.check.instance.CRDCollectors = []string{"group1/v1/cr-kind-1"}
+		cb.prepare()
+		require.Equal(t, collectorNamesOf(crdGroup), collectorNames(cb))
+		return cb
+	}
+
+	t.Run("CRDs installed after the check started are collected", func(t *testing.T) {
+		fetchMock := newDiscoveryFetchMock(beforeCRDs, afterCRDs)
+		cb := newBundle(t, fetchMock)
+
+		// Complete discovery and no CRD change, no refresh
+		cb.RefreshDiscovery()
+		require.Equal(t, 1, fetchMock.calls)
+
+		cb.crdsChanged.Store(true)
+		cb.RefreshDiscovery()
+		require.Equal(t, 2, fetchMock.calls)
+		require.Equal(t, collectorNamesOf(crdGroup, datadogGroup, configuredGroup), collectorNames(cb))
+		require.False(t, cb.crdsChanged.Load())
+
+		// The change was handled
+		cb.RefreshDiscovery()
+		require.Equal(t, 2, fetchMock.calls)
+	})
+
+	t.Run("Failed refresh after a CRD change is retried with a backoff", func(t *testing.T) {
+		fetchMock := newDiscoveryFetchMock(beforeCRDs, discoveryFetchMockResult{err: errors.New("discovery total failure")}, afterCRDs)
+		cb := newBundle(t, fetchMock)
+
+		cb.crdsChanged.Store(true)
+		cb.RefreshDiscovery()
+		require.Equal(t, 2, fetchMock.calls)
+		require.True(t, cb.crdsChanged.Load())
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery retry failed, skipping 1 check run(s) before retrying: discovery total failure")
+
+		// Skipped run
+		cb.RefreshDiscovery()
+		require.Equal(t, 2, fetchMock.calls)
+
+		cb.RefreshDiscovery()
+		require.Equal(t, 3, fetchMock.calls)
+		require.Equal(t, collectorNamesOf(crdGroup, datadogGroup, configuredGroup), collectorNames(cb))
+		require.False(t, cb.crdsChanged.Load())
+	})
+
+	t.Run("CRD change during incomplete discovery is handled by the same retry", func(t *testing.T) {
+		partial := discoveryFetchMockResult{
+			err:       newGroupDiscoveryError(schema.GroupVersion{Group: "group1", Version: "v1"}),
+			groups:    beforeCRDs.groups,
+			resources: beforeCRDs.resources,
+		}
+		fetchMock := newDiscoveryFetchMock(partial, afterCRDs)
+		cb := newBundle(t, fetchMock)
+
+		cb.crdsChanged.Store(true)
+
+		// Skipped run of the discovery backoff
+		cb.RefreshDiscovery()
+		require.Equal(t, 1, fetchMock.calls)
+		require.True(t, cb.crdsChanged.Load())
+
+		cb.RefreshDiscovery()
+		require.Equal(t, 2, fetchMock.calls)
+		require.Equal(t, collectorNamesOf(crdGroup, datadogGroup, configuredGroup), collectorNames(cb))
+		require.False(t, cb.crdsChanged.Load())
+
+		cb.RefreshDiscovery()
+		require.Equal(t, 2, fetchMock.calls)
+	})
+}
+
+func TestCollectorBundleCRDChangeHandler(t *testing.T) {
+	newCRD := func(group string, established bool, servedVersions ...string) *apiextensionsv1.CustomResourceDefinition {
+		crd := &apiextensionsv1.CustomResourceDefinition{Spec: apiextensionsv1.CustomResourceDefinitionSpec{Group: group}}
+		for _, version := range servedVersions {
+			crd.Spec.Versions = append(crd.Spec.Versions, apiextensionsv1.CustomResourceDefinitionVersion{Name: version, Served: true})
+		}
+		crd.Spec.Versions = append(crd.Spec.Versions, apiextensionsv1.CustomResourceDefinitionVersion{Name: "v0", Served: false})
+		status := apiextensionsv1.ConditionFalse
+		if established {
+			status = apiextensionsv1.ConditionTrue
+		}
+		crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{{Type: apiextensionsv1.Established, Status: status}}
+		return crd
+	}
+
+	tests := []struct {
+		name     string
+		add      bool
+		oldObj   interface{}
+		newObj   interface{}
+		expected bool
+	}{
+		{name: "Added established CRD", add: true, newObj: newCRD("datadoghq.com", true, "v1"), expected: true},
+		{name: "Added CRD not established yet", add: true, newObj: newCRD("datadoghq.com", false, "v1"), expected: false},
+		{name: "Added CRD of a group not collected", add: true, newObj: newCRD("example.com", true, "v1"), expected: false},
+		{name: "CRD becomes established", oldObj: newCRD("datadoghq.com", false, "v1"), newObj: newCRD("datadoghq.com", true, "v1"), expected: true},
+		{name: "CRD serves a new version", oldObj: newCRD("datadoghq.com", true, "v1"), newObj: newCRD("datadoghq.com", true, "v1", "v2"), expected: true},
+		{name: "CRD stops serving a version", oldObj: newCRD("datadoghq.com", true, "v1", "v2"), newObj: newCRD("datadoghq.com", true, "v1"), expected: false},
+		{name: "CRD resync", oldObj: newCRD("datadoghq.com", true, "v1"), newObj: newCRD("datadoghq.com", true, "v1"), expected: false},
+		{name: "Not a CRD", add: true, newObj: &v1.APIGroup{}, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cb := &CollectorBundle{collectedGroups: map[string]struct{}{"datadoghq.com": {}}}
+			handler := cb.crdChangeHandler()
+			if tt.add {
+				handler.OnAdd(tt.newObj, false)
+			} else {
+				handler.OnUpdate(tt.oldObj, tt.newObj)
+			}
+			require.Equal(t, tt.expected, cb.crdsChanged.Load())
+		})
+	}
+}
+
+func TestCollectorBundleInitializeWatchesCRDs(t *testing.T) {
+	client := k8sfake.NewClientset()
+	crdClient := crdfake.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset has no type schema for CRDs
+	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client, CRDInformerClient: crdClient}
+	stopCh := make(chan struct{})
+	t.Cleanup(func() { close(stopCh) })
+
+	cb := CollectorBundle{
+		collectors:            []collectors.K8sCollector{k8s.NewCRDCollector()},
+		collectedGroups:       map[string]struct{}{"datadoghq.com": {}},
+		extraSyncTimeout:      defaultExtraSyncTimeout,
+		initializedCollectors: map[string]struct{}{},
+		runCfg: &collectors.CollectorRunConfig{
+			Config: &orchcfg.OrchestratorConfig{},
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   apiClient,
+				OrchestratorInformerFactory: getOrchestratorInformerFactory(apiClient),
+			},
+		},
+		startedInformers: map[cache.SharedInformer]struct{}{},
+		stopCh:           stopCh,
+	}
+
+	cb.Initialize()
+	require.False(t, cb.crdsChanged.Load())
+
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{Name: "datadogmetrics.datadoghq.com"},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group:    "datadoghq.com",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{Name: "v1alpha1", Served: true}},
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			Conditions: []apiextensionsv1.CustomResourceDefinitionCondition{{Type: apiextensionsv1.Established, Status: apiextensionsv1.ConditionTrue}},
+		},
+	}
+	_, err := crdClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, v1.CreateOptions{})
+	require.NoError(t, err)
+
+	require.Eventually(t, cb.crdsChanged.Load, 5*time.Second, 10*time.Millisecond)
 }
 
 type discoveryFetchMock struct {

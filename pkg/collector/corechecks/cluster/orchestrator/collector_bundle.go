@@ -12,11 +12,15 @@ import (
 	"context"
 	"expvar"
 	"slices"
+	"sync/atomic"
 	"time"
 
+	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sdiscovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -96,6 +100,8 @@ type CollectorBundle struct {
 	// startedInformers makes sure an informer shared by several collectors is started once.
 	startedInformers         map[cache.SharedInformer]struct{}
 	terminatedResourceBundle *TerminatedResourceBundle
+	// crdsChanged is set by the CRD informer when a CRD of a collected group starts serving new versions.
+	crdsChanged atomic.Bool
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -407,6 +413,12 @@ func (cb *CollectorBundle) Initialize() {
 				}
 			}
 
+			if collector.Metadata().Name == utilTypes.CrdName {
+				if _, err := informer.AddEventHandler(cb.crdChangeHandler()); err != nil {
+					log.Warnf("Failed to add CRD change handler, custom resources added later will not be collected until the check restarts: %s", err)
+				}
+			}
+
 			// we run each enabled informer individually, because starting them through the factory
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
@@ -438,27 +450,32 @@ func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, er
 	}
 }
 
-// RetryDiscovery refreshes the API discovery and adds the collectors it makes available. It does nothing once
-// [CollectorBundle.isDiscoveryComplete] reports true.
-//
-// Retries follow the backoff of [CollectorBundle.discoveryRetrier]. The backoff restarts when a retry discovers new
-// resources.
-func (cb *CollectorBundle) RetryDiscovery() {
-	if cb.isDiscoveryComplete() {
+// RefreshDiscovery refreshes the API discovery while [CollectorBundle.isDiscoveryComplete] reports false or after a CRD
+// change, and adds the collectors it makes available, following the backoff of [CollectorBundle.discoveryRetrier].
+func (cb *CollectorBundle) RefreshDiscovery() {
+	if cb.isDiscoveryComplete() && !cb.crdsChanged.Load() {
 		return
 	}
 
 	if !cb.discoveryRetrier.CanRun() {
 		cb.discoveryRetrier.SkipRun()
-		log.Debugf("Kubernetes API discovery is incomplete, skipping %d more check run(s) before retrying: %s", cb.discoveryRetrier.RunsToSkip(), cb.discoveryRetrier.LastError())
+		log.Debugf("Kubernetes API discovery is incomplete or a CRD changed, skipping %d more check run(s) before refreshing: %s", cb.discoveryRetrier.RunsToSkip(), cb.discoveryRetrier.LastError())
 		return
 	}
 
+	// Swap before refreshing so a CRD changing during the refresh triggers another one.
+	crdsChanged := cb.crdsChanged.Swap(false)
+
 	updated, err := cb.collectorDiscovery.Refresh()
-	if updated || cb.isDiscoveryComplete() {
+	// A total failure leaves the cache untouched, so count it as failed to retry a CRD change instead of dropping it.
+	failed := !cb.isDiscoveryComplete() || (err != nil && !k8sdiscovery.IsGroupDiscoveryFailedError(err))
+	if updated || !failed {
 		cb.discoveryRetrier.Reset()
 	}
-	if !cb.isDiscoveryComplete() {
+	if failed {
+		if crdsChanged {
+			cb.crdsChanged.Store(true)
+		}
 		cb.discoveryRetrier.Fail(err)
 		_ = cb.check.Warnf("Kubernetes API discovery retry failed, skipping %d check run(s) before retrying: %s", cb.discoveryRetrier.RunsToSkip(), err)
 	}
@@ -466,6 +483,55 @@ func (cb *CollectorBundle) RetryDiscovery() {
 	if updated {
 		cb.prepareCollectors()
 	}
+}
+
+// crdChangeHandler returns the CRD informer handler flagging the bundle for a custom resource refresh.
+func (cb *CollectorBundle) crdChangeHandler() cache.ResourceEventHandler {
+	return cache.ResourceEventHandlerFuncs{
+		// Initial list CRDs count too: CRDs installed between preparing the bundle and leading are only reported there.
+		AddFunc: func(obj interface{}) {
+			if cb.servesNewVersions(nil, obj) {
+				cb.crdsChanged.Store(true)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if cb.servesNewVersions(oldObj, newObj) {
+				cb.crdsChanged.Store(true)
+			}
+		},
+	}
+}
+
+// servesNewVersions reports whether a CRD of a collected group is established and serves versions it did not before.
+// CRDs are only in the API discovery once established, so a newly created CRD triggers on the update establishing it.
+func (cb *CollectorBundle) servesNewVersions(oldObj, newObj interface{}) bool {
+	newCRD, ok := newObj.(*apiextensionsv1.CustomResourceDefinition)
+	if !ok || !apihelpers.IsCRDConditionTrue(newCRD, apiextensionsv1.Established) {
+		return false
+	}
+	if _, found := cb.collectedGroups[newCRD.Spec.Group]; !found {
+		return false
+	}
+
+	// A CRD seen for the first time, or becoming established, serves all its versions newly.
+	oldCRD, ok := oldObj.(*apiextensionsv1.CustomResourceDefinition)
+	if !ok || !apihelpers.IsCRDConditionTrue(oldCRD, apiextensionsv1.Established) {
+		return true
+	}
+	oldVersions := servedCRDVersions(oldCRD)
+	return slices.ContainsFunc(servedCRDVersions(newCRD), func(version string) bool {
+		return !slices.Contains(oldVersions, version)
+	})
+}
+
+func servedCRDVersions(crd *apiextensionsv1.CustomResourceDefinition) []string {
+	versions := make([]string, 0, len(crd.Spec.Versions))
+	for _, version := range crd.Spec.Versions {
+		if version.Served {
+			versions = append(versions, version.Name)
+		}
+	}
+	return versions
 }
 
 // Run is used to sequentially run all collectors in the bundle.
