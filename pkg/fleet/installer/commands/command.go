@@ -189,7 +189,7 @@ const commandTelemetryStopFlushTimeout = 2 * time.Second
 // their DD_APM_TELEMETRY_* environment variables taking precedence over datadog.yaml.
 func (c telemetryConfigFields) telemetryEndpoint() (url string, enabled bool) {
 	url = c.APMConfig.Telemetry.DDURL
-	if envURL, ok := os.LookupEnv("DD_APM_TELEMETRY_DD_URL"); ok {
+	if envURL, ok := os.LookupEnv("DD_APM_TELEMETRY_DD_URL"); ok && envURL != "" {
 		url = envURL
 	}
 	enabled = c.APMConfig.Telemetry.Enabled == nil || *c.APMConfig.Telemetry.Enabled

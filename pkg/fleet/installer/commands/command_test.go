@@ -308,6 +308,7 @@ func TestTelemetryEndpoint(t *testing.T) {
 		{name: "yaml disabled", yamlEnabled: &disabled, expectedEnabled: false},
 		{name: "yaml enabled", yamlEnabled: &enabled, expectedEnabled: true},
 		{name: "env url overrides yaml", yamlURL: "https://yaml.example", envURL: telemetryStrPtr("https://env.example"), expectedURL: "https://env.example", expectedEnabled: true},
+		{name: "empty env url keeps yaml", yamlURL: "https://yaml.example", envURL: telemetryStrPtr(""), expectedURL: "https://yaml.example", expectedEnabled: true},
 		{name: "env disabled overrides yaml", yamlEnabled: &enabled, envEnabled: telemetryStrPtr("false"), expectedEnabled: false},
 		{name: "invalid env enabled keeps yaml", yamlEnabled: &disabled, envEnabled: telemetryStrPtr("nope"), expectedEnabled: false},
 	}
