@@ -400,6 +400,69 @@ func withRuntimeMetrics(t testing.TB, recorder *Recorder, callback func()) {
 	}
 }
 
+func TestRecordContainerMemory(t *testing.T) {
+	tel := telemetrymock.New(t)
+	agentPerformance := newRecorder(tel)
+
+	pod := newNodeAgentTestPod("node-agent-pod")
+	pod.Containers = []workloadmeta.OrchestratorContainer{
+		{ID: "agent-id", Name: "agent"},
+		{ID: "trace-agent-id", Name: "trace-agent"},
+	}
+
+	assert.NoError(t, agentPerformance.WithRuntimeMetrics(func() error {
+		agentPerformance.RecordContainerMemory("agent-id", ptr(300), ptr(1000), pod)
+		// No limit: only the usage is recorded, and it does not leak into another container's ratio.
+		agentPerformance.RecordContainerMemory("trace-agent-id", ptr(200), nil, pod)
+		// Not a container of the pod.
+		agentPerformance.RecordContainerMemory("unknown-id", ptr(99), ptr(99), pod)
+		// Not an Agent pod.
+		agentPerformance.RecordContainerMemory("agent-id", ptr(98), ptr(98), newTestPod("unrelated-component", "other-pod"))
+		return nil
+	}))
+
+	assertContainerGauge(t, tel, ContainerMemoryUsage, "node-agent-pod", "agent", 300)
+	assertContainerGauge(t, tel, ContainerMemoryLimit, "node-agent-pod", "agent", 1000)
+	assertContainerGauge(t, tel, ContainerMemoryUsage, "node-agent-pod", "trace-agent", 200)
+	assertContainerGaugeCount(t, tel, ContainerMemoryLimit, 1)
+	assertContainerGaugeCount(t, tel, ContainerMemoryUsage, 2)
+
+	// The next snapshot drops containers that are gone.
+	assert.NoError(t, agentPerformance.WithRuntimeMetrics(func() error {
+		agentPerformance.RecordContainerMemory("agent-id", ptr(400), ptr(1000), pod)
+		return nil
+	}))
+	assertContainerGauge(t, tel, ContainerMemoryUsage, "node-agent-pod", "agent", 400)
+	assertContainerGaugeCount(t, tel, ContainerMemoryUsage, 1)
+}
+
+func assertContainerGauge(t *testing.T, tel telemetry.Mock, metricName string, podName string, containerName string, expected float64) {
+	t.Helper()
+
+	metrics, err := tel.GetGaugeMetric(subsystem, metricName)
+	if !assert.NoError(t, err) {
+		return
+	}
+	for _, metric := range metrics {
+		if metric.Tags()[tags.KubePod] == podName && metric.Tags()[tags.KubeContainerName] == containerName {
+			assert.Equal(t, nodeAgentComponent, metric.Tags()[kindTag])
+			assert.Equal(t, expected, metric.Value())
+			return
+		}
+	}
+	assert.Failf(t, "missing metric", "metric %s for %s/%s not found", metricName, podName, containerName)
+}
+
+func assertContainerGaugeCount(t *testing.T, tel telemetry.Mock, metricName string, expected int) {
+	t.Helper()
+
+	metrics, err := tel.GetGaugeMetric(subsystem, metricName)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Len(t, metrics, expected)
+}
+
 func newNodeAgentTestPod(podName string) *workloadmeta.KubernetesPod {
 	pod := newTestPod(nodeAgentComponent, podName)
 	pod.Labels[datadogComponentLabelKey] = nodeAgentComponent
