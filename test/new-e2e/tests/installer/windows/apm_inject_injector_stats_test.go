@@ -23,6 +23,28 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
+const (
+	// ddInjectorV3CountersTestVersion is the first APM inject release shipping a ddinjector
+	// driver (1.0.0) that exposes the V3 counters.
+	ddInjectorV3CountersTestRegistry = "install.datadoghq.com"
+	ddInjectorV3CountersTestVersion  = "0.72.0-1"
+)
+
+// runDefaultSkipListProcessScript launches a copy of whoami.exe named after an entry of the
+// driver's default skip list. It runs outside System32, which the driver filters before the
+// skip list, so the process is attributed to the default skip list.
+const runDefaultSkipListProcessScript = `
+$fixtureRoot = "C:\ddinjector-e2e"
+New-Item -Path $fixtureRoot -ItemType Directory -Force | Out-Null
+$dst = Join-Path $fixtureRoot "docker.exe"
+Copy-Item "C:\Windows\System32\whoami.exe" $dst -Force
+
+$env:DD_INJECT_LOG_SINKS = "stdout"
+$env:DD_INJECT_LOG_LEVEL = "debug"
+
+& $dst
+`
+
 type testInjectorStats struct {
 	baseAPMInjectSuite
 }
@@ -159,6 +181,42 @@ func (s *testInjectorStats) queryInjectorStats(forceRefresh bool) map[string]int
 	return stats
 }
 
+// TestDefaultSkipListCounter tests that the V3 skip-list counters track a process skipped by the
+// driver's default skip list.
+func (s *testInjectorStats) TestDefaultSkipListCounter() {
+	s.installCurrentAgentVersionWithAPMInject(
+		WithExtraEnvVars(map[string]string{
+			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
+			"DD_INSTALLER_REGISTRY_URL":                           ddInjectorV3CountersTestRegistry,
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": ddInjectorV3CountersTestVersion,
+			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
+		}),
+	)
+	s.assertSuccessfulPromoteExperiment()
+	s.enableInjectorTelemetry()
+	s.waitForServiceRunning()
+	s.assertDriverInjections(true)
+	defer func() {
+		_, err := s.Env().RemoteHost.Execute(`Remove-Item -Path "C:\ddinjector-e2e" -Recurse -Force -ErrorAction SilentlyContinue`)
+		s.Assert().NoError(err, "should clean up the DDInjector skip list fixture")
+	}()
+
+	before := s.queryInjectorStats(true)
+
+	output, err := s.Env().RemoteHost.Execute(runDefaultSkipListProcessScript)
+	s.Require().NoError(err)
+	s.Require().NotContains(output, "main executable path", "a process on the default skip list should not be injected")
+
+	after := s.queryInjectorStats(true)
+	for _, counter := range []string{"processes_skipped_default", "processes_skipped_excluded"} {
+		beforeValue, ok := before[counter].(float64)
+		s.Require().True(ok, "%s should be a number: %+v", counter, before)
+		afterValue, ok := after[counter].(float64)
+		s.Require().True(ok, "%s should be a number: %+v", counter, after)
+		s.Assert().Greater(afterValue, beforeValue, "%s should count the skipped process", counter)
+	}
+}
+
 // verifyStatsStructure verifies that the stats JSON contains expected fields
 func (s *testInjectorStats) verifyStatsStructure(stats map[string]interface{}) {
 	// Verify that all expected counter fields are present
@@ -180,6 +238,13 @@ func (s *testInjectorStats) verifyStatsStructure(stats map[string]interface{}) {
 		"pe_memory_allocation_failures",
 		"pe_injection_context_allocated",
 		"pe_injection_context_cleanedup",
+		"processes_automatically_added_to_skip_list",
+		"processes_skipped_default",
+		"processes_skipped_custom",
+		"processes_skipped_crash_recovery",
+		"processes_skipped_signature_policy",
+		"processes_signature_policy_unknown",
+		"processes_skipped_short_name",
 	}
 
 	for _, field := range expectedFields {
