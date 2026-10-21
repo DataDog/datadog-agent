@@ -138,6 +138,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/mo
 
 replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
 
+replace github.com/DataDog/datadog-agent/pkg/config/schema => ../../pkg/config/schema
+
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../pkg/config/setup/constants
@@ -175,3 +177,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winu
 replace github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 
 replace github.com/DataDog/datadog-agent/comp/core/status => ../../comp/core/status
+
+replace github.com/DataDog/datadog-agent/pkg/zstd => ../../pkg/zstd

@@ -194,6 +194,10 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		if _, statErr := os.Stat(processRoot); statErr != nil {
 			return ErrProcessDoesNotExist
 		}
+		// container runtime processes do not exist in container
+		if namespacedPath == "/runc" {
+			return ErrProcessDoesNotExist
+		}
 
 		return NewUnknownAttachmentError(fmt.Errorf("error creating file path for PID %d: %w", pid, err))
 	}
