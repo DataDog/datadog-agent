@@ -1,0 +1,34 @@
+Subject: [PATCH] Stop waiting on an initializing parent package in importlib
+
+The 3.13.16 backport of gh-130094 (python/cpython#155915) makes
+_find_and_load_unlocked() re-import a parent package that is still
+initializing while it holds the submodule's module lock. When one thread
+runs pkg/__init__.py (holding pkg's lock) and that file imports pkg.sub,
+while a second thread imports pkg.sub directly, each thread waits on the
+other's lock and importlib raises _DeadlockError. The Agent imports Python
+checks from several goroutines, so some checks fail to load at startup.
+
+Remove that block to restore the 3.13.15 behavior. The rest of the
+backport (copying sys.meta_path before iterating it) is kept.
+Reported upstream as python/cpython#160045; drop this patch once a
+3.13 release fixes it.
+---
+ Lib/importlib/_bootstrap.py | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/Lib/importlib/_bootstrap.py b/Lib/importlib/_bootstrap.py
+--- a/Lib/importlib/_bootstrap.py
++++ b/Lib/importlib/_bootstrap.py
+@@ -1321,12 +1321,6 @@
+             msg = f'{_ERR_MSG_PREFIX}{name!r}; {parent!r} is not a package'
+             raise ModuleNotFoundError(msg, name=name) from None
+         parent_spec = parent_module.__spec__
+-        if getattr(parent_spec, '_initializing', False):
+-            _call_with_frames_removed(import_, parent)
+-        # Crazy side-effects (again)!
+-        module = sys.modules.get(name)
+-        if module is not None:
+-            return module
+         child = name.rpartition('.')[2]
+     spec = _find_spec(name, path)
+     if spec is None:

@@ -26,10 +26,7 @@ PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Py
 
 # Patch versions the automated upgrade must never select, mapped to the reason.
 # Drop an entry once the version is older than the current one.
-EXCLUDED_PYTHON_VERSIONS = {
-    # The Agent imports Python checks from several goroutines, so some checks randomly fail to load.
-    "3.13.16": "the python/cpython#130094 backport makes concurrent imports raise _DeadlockError",
-}
+EXCLUDED_PYTHON_VERSIONS: dict[str, str] = {}
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
