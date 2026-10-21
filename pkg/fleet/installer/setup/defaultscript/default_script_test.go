@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
@@ -102,6 +103,65 @@ func TestSetConfigProcessAgent(t *testing.T) {
 			assert.Equal(t, tc.processCollection, pc.ProcessCollection.Enabled, "process_collection.enabled")
 			assert.Equal(t, tc.containerCollection, pc.ContainerCollection.Enabled, "container_collection.enabled")
 			assert.Equal(t, tc.processDiscovery, pc.ProcessDiscovery.Enabled, "process_discovery.enabled")
+		})
+	}
+}
+
+func TestShouldInstallAPMLibraryC(t *testing.T) {
+	cOverride := func(install bool) map[string]bool {
+		return map[string]bool{common.DatadogAPMLibraryCPackage: install}
+	}
+	tests := []struct {
+		name       string
+		env        env.Env
+		goos       string
+		ssiEnabled bool
+		expected   bool
+	}{
+		{name: "linux with ssi", goos: "linux", ssiEnabled: true, expected: true},
+		{
+			name:       "linux with ssi and other languages only",
+			env:        env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"java": "1"}},
+			goos:       "linux",
+			ssiEnabled: true,
+			expected:   true,
+		},
+		{name: "linux without ssi", goos: "linux", ssiEnabled: false, expected: false},
+		{name: "windows with ssi", goos: "windows", ssiEnabled: true, expected: false},
+		{name: "centos 6 with ssi", env: env.Env{IsCentos6: true}, goos: "linux", ssiEnabled: true, expected: false},
+		{
+			name:     "explicitly requested without ssi",
+			env:      env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
+			goos:     "linux",
+			expected: true,
+		},
+		{
+			name:       "false override opts out on linux with ssi",
+			env:        env.Env{DefaultPackagesInstallOverride: cOverride(false)},
+			goos:       "linux",
+			ssiEnabled: true,
+			expected:   false,
+		},
+		{
+			name: "false override wins over explicit request",
+			env: env.Env{
+				ApmLibraries:                   map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""},
+				DefaultPackagesInstallOverride: cOverride(false),
+			},
+			goos:       "linux",
+			ssiEnabled: true,
+			expected:   false,
+		},
+		{
+			name:     "true override installs without ssi",
+			env:      env.Env{DefaultPackagesInstallOverride: cOverride(true)},
+			goos:     "windows",
+			expected: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, shouldInstallAPMLibraryC(&tt.env, tt.goos, tt.ssiEnabled))
 		})
 	}
 }
