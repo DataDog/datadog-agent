@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Extend the opt-in Private Action Runner startup gate to check the API key's
+    PAR enrollment scope after Remote Configuration prerequisites pass. Every
+    new gated start requires this approval, including runners with saved
+    identities. Ordinary installation defaults and enrollment behavior are unchanged.

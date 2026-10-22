@@ -32,12 +32,19 @@ func NewComponent(r Requires) Provides {
 		return Provides{Comp: c}
 	}
 	rc, _ := r.RC.Get()
-	source := engine.NewSource(r.Config, rc)
+	rcSource := engine.NewSource(r.Config, rc)
+	discovery := engine.NewDiscovery(r.Config, rcSource)
+	source := engine.NewScopedSource(rcSource, discovery)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	r.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
-			go func() { defer close(done); engine.Run(ctx, r.Config, source) }()
+			go func() {
+				defer close(done)
+				discovery.Start()
+				defer discovery.Stop()
+				engine.Run(ctx, r.Config, source)
+			}()
 			return nil
 		},
 		OnStop: func(stop context.Context) error {

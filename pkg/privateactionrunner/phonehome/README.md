@@ -1,8 +1,10 @@
-# RC-gated PAR startup POC
+# RC- and AAA-gated PAR startup POC
 
-PR 2 adds only a core-owned startup gate. RC's last successful `Enabled && Authorized`
-permits starting PAR, including a fresh installation. It performs no discovery HTTP
-and does not change Go enrollment, persistence, retries or Rust bootstrap.
+PR 2 adds an independently useful RC-only startup gate. PR 3 composes it with AAA
+`GET /api/v2/validate`: after RC's last successful `Enabled && Authorized`, require
+`private_action_runner_enroll` before **every new PAR start**, including a stopped
+runner with a saved identity. Neither gate changes Go enrollment/persistence/retries
+or Rust bootstrap. Running children and potential credential holders are left alone.
 
 This is an explicitly opted-in, specially configured Linux node-Agent POC. **Ordinary
 packages are not gated:** shipping `par-control` registrations still auto-start.
@@ -27,8 +29,8 @@ Use a separate test supervisor, not an overlay on a running installation.
 
 ## Lifecycle and limits
 
-RC nil/false waits without starting PAR. A later positive RC response opens the gate
-without a core restart. Failed RC polls retain the last successful response indefinitely;
+RC nil/false waits without starting PAR or calling AAA. A later positive RC response
+allows AAA discovery without a core restart; a PAR-scope grant then permits startup. Failed RC polls retain the last successful response indefinitely;
 this POC adds no freshness framework. The gate checks RC again immediately before Start.
 
 There is **at most one Start RPC per core process lifetime**. Acknowledgement means only
@@ -50,11 +52,26 @@ The previous recovery experiment is retained in backup refs, outside this scoped
 Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
 No new `datadog-agent status` fields are added here; those belong to PR 4.
 
+## AAA discovery (PR 3)
+
+The PAR-owned core worker uses the same RC source as startup; it does not duplicate
+RC freshness or identity rules. Requests use only `DD-API-KEY`, a 10-second timeout,
+Agent proxy/TLS transport, bounded JSON parsing and no redirects. Polling has jitter,
+backoff and Retry-After handling; cancellation and gate rechecks prevent late grants.
+AAA grants expire after two minutes, independently of RC's retained-last-success policy.
+Nil discovery fails closed, rather than restoring the RC-only behavior accidentally.
+
+Discovery ends when core hands startup to the supervisor, not when enrollment is
+confirmed. The established Go enrollment path owns everything after that handoff.
+A subsequent deliberate core restart with stopped children requires fresh AAA approval,
+even with a saved identity. No post-enrollment revocation or automatic relaunch is added.
+
 ## Validation
 
 `dda inv test --targets=./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl,./comp/privateactionrunner/impl`
 
-Tests cover the production RC-only source with all four flag combinations, delayed grants,
-FQDN/config mismatch, cancellation, no duplicate Start after an uncertain result, leaving
-existing processes untouched, legacy-journal migration blocking, and the unchanged standalone
-enrollment path. Mock supervisor tests do not prove Linux process startup or live enrollment.
+Tests retain RC-only source coverage and add real loopback RC/AAA requests for all eight
+permission combinations, each with and without an existing identity file. They cover delayed
+grants, dispatch/launch gate loss, expired/late grants, cancellation, backoff/Retry-After,
+strict parsing and redirects. Supervisor calls are mocked; these are not Linux process or
+live enrollment tests.
