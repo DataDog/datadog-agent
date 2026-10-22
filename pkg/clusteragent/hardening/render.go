@@ -64,11 +64,7 @@ func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string
 	case ControlReadOnlyRootFS:
 		sc.ReadOnlyRootFilesystem = ptr.To(true)
 	case ControlSeccompRuntimeDefault:
-		profile := sc.SeccompProfile
-		if profile == nil && spec.SecurityContext != nil {
-			profile = spec.SecurityContext.SeccompProfile
-		}
-		if profile != nil && profile.Type == corev1.SeccompProfileTypeLocalhost {
+		if profile := seccompProfile(spec, sc); profile != nil && profile.Type == corev1.SeccompProfileTypeLocalhost {
 			return nil, "container has a Localhost seccomp profile"
 		}
 		sc.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
@@ -76,6 +72,37 @@ func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string
 		return nil, fmt.Sprintf("unknown control %q", req.Control)
 	}
 	return sc, ""
+}
+
+// setsControl reports whether the target container in spec already applies
+// req's control on its own, at least as strictly as req would.
+func setsControl(req *Request, spec *corev1.PodSpec) bool {
+	c := FindContainer(spec, req.Target.Container)
+	if c == nil {
+		return false
+	}
+	sc := ptr.Deref(c.SecurityContext, corev1.SecurityContext{})
+	switch req.Control {
+	case ControlCapabilities:
+		caps := ptr.Deref(sc.Capabilities, corev1.Capabilities{})
+		return hasCapability(caps.Drop, "ALL") && !slices.ContainsFunc(caps.Add, func(a corev1.Capability) bool {
+			return !slices.Contains(req.Parameters.CapabilitiesAdd, normalizeCapability(string(a)))
+		})
+	case ControlReadOnlyRootFS:
+		return ptr.Deref(sc.ReadOnlyRootFilesystem, false)
+	case ControlSeccompRuntimeDefault:
+		profile := seccompProfile(spec, &sc)
+		return profile != nil && profile.Type == corev1.SeccompProfileTypeRuntimeDefault
+	}
+	return false
+}
+
+// seccompProfile returns the seccomp profile a container with sc runs with in spec.
+func seccompProfile(spec *corev1.PodSpec, sc *corev1.SecurityContext) *corev1.SeccompProfile {
+	if sc.SeccompProfile == nil && spec.SecurityContext != nil {
+		return spec.SecurityContext.SeccompProfile
+	}
+	return sc.SeccompProfile
 }
 
 // isGranted reports whether a container declaring caps runs with capability

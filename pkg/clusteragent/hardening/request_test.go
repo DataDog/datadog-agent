@@ -21,7 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-const testCluster = "cluster-1"
+const (
+	testCluster = "cluster-1"
+	testDigest  = "33720bb7ebaf56d8cfc80a99b420c230cd5625d7383813057431170a4033662a"
+	testImageID = "registry.example.com/shop/web@sha256:" + testDigest
+)
 
 // rawRequest returns a valid request as JSON, after mutate edits its fields.
 func rawRequest(t *testing.T, mutate func(m map[string]any)) []byte {
@@ -31,9 +35,10 @@ func rawRequest(t *testing.T, mutate func(m map[string]any)) []byte {
 		"control": "capabilities",
 		"k8s_target": map[string]any{
 			"cluster": testCluster, "kind": "Deployment", "namespace": "shop",
-			"name": "web", "uid": "uid-1", "container": "app",
+			"name": "web", "container": "app", "image_id": testImageID,
 		},
 		"parameters": map[string]any{"capabilities_add": []string{"cap_net_bind_service"}},
+		"created_at": time.Now().Add(-time.Minute).Format(time.RFC3339),
 		"expires_at": time.Now().Add(time.Hour).Format(time.RFC3339),
 	}
 	if mutate != nil {
@@ -64,10 +69,14 @@ func TestParseRequest(t *testing.T) {
 		"malformed capability": func(m map[string]any) { m["parameters"] = map[string]any{"capabilities_add": []string{"NET BIND"}} },
 		"unknown capability":   func(m map[string]any) { m["parameters"] = map[string]any{"capabilities_add": []string{"FOO"}} },
 		"statefulset":          func(m map[string]any) { target(m)["kind"] = "StatefulSet" },
-		"missing uid":          func(m map[string]any) { delete(target(m), "uid") },
+		"uid":                  func(m map[string]any) { target(m)["uid"] = "uid-1" },
 		"missing container":    func(m map[string]any) { delete(target(m), "container") },
+		"missing image_id":     func(m map[string]any) { delete(target(m), "image_id") },
+		"image_id by tag":      func(m map[string]any) { target(m)["image_id"] = "registry.example.com/shop/web:1.2" },
+		"image_id short":       func(m map[string]any) { target(m)["image_id"] = "web@sha256:abc" },
 		"empty cluster":        func(m map[string]any) { target(m)["cluster"] = "" },
 		"other cluster":        func(m map[string]any) { target(m)["cluster"] = "cluster-2" },
+		"missing created_at":   func(m map[string]any) { delete(m, "created_at") },
 		"missing expires_at":   func(m map[string]any) { delete(m, "expires_at") },
 	}
 	for name, mutate := range invalid {
@@ -76,6 +85,46 @@ func TestParseRequest(t *testing.T) {
 			assert.Error(t, err)
 		})
 	}
+}
+
+func TestParseRequestValidate(t *testing.T) {
+	r, err := parseRequest(rawRequest(t, func(m map[string]any) { m["action"] = "validate" }), testCluster)
+	require.NoError(t, err)
+	assert.False(t, r.Active(time.Now()), "a validate request is never applied")
+}
+
+// TestParseRequestRFCExample parses Appendix G's H1 example verbatim.
+func TestParseRequestRFCExample(t *testing.T) {
+	raw := `{
+		"id": "hr-01JBA7K3Q2M8N4P6R9T1V5X7Z0",
+		"action": "trial",
+		"control": "capabilities",
+		"k8s_target": {
+			"cluster": "3b6f2c1e-9d4a-4f7e-8c25-1a0e7d9b5f42",
+			"kind": "Deployment",
+			"namespace": "payments",
+			"name": "checkout-api",
+			"container": "api",
+			"image_id": "registry.example.com/payments/checkout-api@sha256:33720bb7ebaf56d8cfc80a99b420c230cd5625d7383813057431170a4033662a"
+		},
+		"parameters": {
+			"capabilities_add": ["NET_BIND_SERVICE"]
+		},
+		"created_at": "2026-10-21T15:00:00Z",
+		"expires_at": "2026-10-28T15:00:00Z"
+	}`
+	r, err := parseRequest([]byte(raw), "3b6f2c1e-9d4a-4f7e-8c25-1a0e7d9b5f42")
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 10, 21, 15, 0, 0, 0, time.UTC), r.CreatedAt)
+	assert.Equal(t, "33720bb7ebaf56d8cfc80a99b420c230cd5625d7383813057431170a4033662a", Digest(r.Target.ImageID))
+}
+
+func TestDigest(t *testing.T) {
+	assert.Equal(t, testDigest, Digest(testImageID))
+	assert.Equal(t, testDigest, Digest("docker-pullable://web@sha256:"+testDigest), "a Docker imageID")
+	assert.Equal(t, testDigest, Digest("web:1.2@sha256:"+testDigest), "a tag and a digest")
+	assert.Empty(t, Digest("sha256:"+testDigest), "an image config id is not a registry digest")
+	assert.Empty(t, Digest("web:1.2"))
 }
 
 // TestParseRequestEmptyClusterNeverMatches guards against an unconfigured

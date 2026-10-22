@@ -10,6 +10,7 @@ package hardening
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,13 +26,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-const cluster = "cluster-1"
+const (
+	cluster = "cluster-1"
+	digest  = "33720bb7ebaf56d8cfc80a99b420c230cd5625d7383813057431170a4033662a"
+)
 
 func request(id, action, control, deployment string, expiresIn time.Duration, params string) []byte {
 	return []byte(fmt.Sprintf(`{"id":%q,"action":%q,"control":%q,
-		"k8s_target":{"cluster":%q,"kind":"Deployment","namespace":"shop","name":%q,"uid":"uid-1","container":"app"},
-		"parameters":%s,"expires_at":%q}`,
-		id, action, control, cluster, deployment, params, time.Now().Add(expiresIn).Format(time.RFC3339)))
+		"k8s_target":{"cluster":%q,"kind":"Deployment","namespace":"shop","name":%q,"container":"app",
+			"image_id":"registry.example.com/shop/web@sha256:%s"},
+		"parameters":%s,"created_at":%q,"expires_at":%q}`,
+		id, action, control, cluster, deployment, digest, params,
+		time.Now().Add(-time.Minute).Format(time.RFC3339), time.Now().Add(expiresIn).Format(time.RFC3339)))
 }
 
 func newWebhook(t *testing.T, reqs ...[]byte) *Webhook {
@@ -104,8 +110,28 @@ func TestWebhookInactiveRequests(t *testing.T) {
 	_, err := w.mutate(p, "shop", nil)
 	require.NoError(t, err)
 	assert.Nil(t, hardening.FindContainer(&p.Spec, "app").SecurityContext)
-	for _, id := range []string{"expired", "reverted", "unknown"} {
-		assert.Equal(t, "skipped: request is not active", applied(t, p)[id])
+	assert.Equal(t, map[string]string{
+		"expired":  "skipped: request expired",
+		"reverted": "skipped: request action is revert",
+		"unknown":  hardening.AppliedUnknown,
+	}, applied(t, p), "an unknown request is told apart from an expired one")
+}
+
+func TestWebhookImageDigest(t *testing.T) {
+	for image, want := range map[string]string{
+		"web:1.2": "applied",
+		"mirror.example.com/web@sha256:" + digest:            "applied",
+		"web@sha256:" + strings.Repeat("0", 64):              "skipped: image pins another digest than the request's image_id",
+		"registry.example.com/shop/web:1.2@sha256:" + digest: "applied",
+	} {
+		t.Run(image, func(t *testing.T) {
+			w := newWebhook(t, request("req-1", "trial", "read_only_root_fs", "web", time.Hour, `{}`))
+			p := pod("req-1", nil)
+			hardening.FindContainer(&p.Spec, "app").Image = image
+			_, err := w.mutate(p, "shop", nil)
+			require.NoError(t, err)
+			assert.Equal(t, want, applied(t, p)["req-1"])
+		})
 	}
 }
 
