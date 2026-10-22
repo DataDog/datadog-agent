@@ -104,10 +104,8 @@ extensions:
       idle_conn_timeout: 90000000000
       max_idle_conns: 100
   ddflare/dd-autoconfigured:
-    cors: null
     endpoint: localhost:7777
     read_header_timeout: 0
-    tls: null
     transport: tcp
     write_timeout: 0
   health_check/dd-autoconfigured:
@@ -116,7 +114,6 @@ extensions:
       exporter_failure_threshold: 5
       interval: 5m
     component_health: null
-    cors: null
     endpoint: localhost:13133
     grpc: null
     http: null
@@ -125,7 +122,6 @@ extensions:
     path: /
     read_header_timeout: 60000000000
     response_body: null
-    tls: null
     transport: tcp
     use_v2: false
     write_timeout: 30000000000
@@ -135,14 +131,12 @@ extensions:
     mutex_profile_fraction: 0
     save_to_file: ""
   zpages/dd-autoconfigured:
-    cors: null
     endpoint: localhost:55679
     expvar:
       enabled: false
     keepalive:
       idle_timeout: 60000000000
     read_header_timeout: 60000000000
-    tls: null
     transport: tcp
     write_timeout: 30000000000
 processors:
@@ -228,13 +222,11 @@ receivers:
       enabled: false
       max_connections: 512
       server_config:
-        cors: null
         endpoint: 127.0.0.1:9090
         keepalive:
           idle_timeout: 60000000000
         read_header_timeout: 60000000000
         read_timeout: 600000000000
-        tls: null
         transport: tcp
         write_timeout: 30000000000
     config:
@@ -252,6 +244,7 @@ receivers:
         translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
+        log_level: info
       scrape_configs:
         - always_scrape_classic_histograms: false
           enable_compression: true
