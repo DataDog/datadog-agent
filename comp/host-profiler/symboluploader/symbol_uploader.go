@@ -447,7 +447,7 @@ func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpo
 	err = g.Wait()
 	if err != nil {
 		reportError(reasonIntakeError, 1, e.Path())
-		slog.Debug("Failed to upload symbols",
+		slog.Error("Failed to upload symbols",
 			slog.String("error", err.Error()),
 			slog.String("executable", e.String()))
 		return false
