@@ -11,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -41,7 +40,7 @@ func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
 func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedMetrics)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.GaugeInterval, &m.warnedMetrics)
 }
 
 const (
@@ -52,13 +51,6 @@ const (
 	// gaugeIntervalAttributeKey declares the reporting cadence in whole seconds.
 	// Gauge start timestamps do not describe a reporting interval.
 	gaugeIntervalAttributeKey = "datadog.gauge.interval"
-)
-
-// Disabled by default; the attribute remains a tag regardless of the gate state.
-var gaugeIntervalGate = featuregate.GlobalRegistry().MustRegister(
-	"datadog.EnableGaugeInterval",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterDescription("Use datadog.gauge.interval as the reporting interval for number metrics mapped to Datadog gauges."),
 )
 
 // metricWarnings tracks which one-shot errors have been emitted for a
@@ -80,6 +72,7 @@ func mapNumberMetrics(
 	slice pmetric.NumberDataPointSlice,
 	logger *zap.Logger,
 	inferInterval bool,
+	gaugeInterval bool,
 	warnedMetrics *sync.Map,
 ) {
 	for i := 0; i < slice.Len(); i++ {
@@ -108,7 +101,7 @@ func mapNumberMetrics(
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
 		}
 
-		if dt == Gauge && gaugeIntervalGate.IsEnabled() {
+		if dt == Gauge && gaugeInterval {
 			if declared, ok := p.Attributes().Get(gaugeIntervalAttributeKey); ok && declared.Type() == pcommon.ValueTypeInt && declared.Int() > 0 {
 				interval = declared.Int()
 			}

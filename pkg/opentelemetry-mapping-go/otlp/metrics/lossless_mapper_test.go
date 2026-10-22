@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -192,19 +192,9 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 func TestMapNumberMetricsGaugeInterval(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
-			setGaugeIntervalGate(t, enabled)
 			testMapNumberMetricsGaugeInterval(t, enabled)
 		})
 	}
-}
-
-func setGaugeIntervalGate(t *testing.T, enabled bool) {
-	t.Helper()
-	previous := gaugeIntervalGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), enabled))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), previous))
-	})
 }
 
 func testMapNumberMetricsGaugeInterval(t *testing.T, enabled bool) {
@@ -229,6 +219,9 @@ func testMapNumberMetricsGaugeInterval(t *testing.T, enabled bool) {
 			for _, tt := range tests {
 				t.Run(fmt.Sprintf("lossless=%t/infer=%t/%s", lossless, inferInterval, tt.name), func(t *testing.T) {
 					cfg := translatorConfig{InferDeltaInterval: inferInterval}
+					if enabled {
+						require.NoError(t, WithGaugeInterval()(&cfg))
+					}
 					m := newDefaultMapper(nil, zap.NewNop(), cfg)
 					if lossless {
 						m = newLossLessMapper(cfg, zap.NewNop())
@@ -280,17 +273,19 @@ func testMapNumberMetricsGaugeInterval(t *testing.T, enabled bool) {
 func TestMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
-			setGaugeIntervalGate(t, enabled)
-			testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t)
+			testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t, enabled)
 		})
 	}
 }
 
-func testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T) {
+func testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T, enabled bool) {
 	for _, lossless := range []bool{false, true} {
 		for _, asRate := range []bool{false, true} {
 			t.Run(fmt.Sprintf("lossless=%t/rate=%t", lossless, asRate), func(t *testing.T) {
 				cfg := translatorConfig{InferDeltaInterval: true}
+				if enabled {
+					require.NoError(t, WithGaugeInterval()(&cfg))
+				}
 				m := newDefaultMapper(nil, zap.NewNop(), cfg)
 				if lossless {
 					m = newLossLessMapper(cfg, zap.NewNop())
@@ -324,14 +319,19 @@ func TestGaugeIntervalCumulativeUpDownCounter(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		for _, lossless := range []bool{false, true} {
 			t.Run(fmt.Sprintf("enabled=%t/lossless=%t", enabled, lossless), func(t *testing.T) {
-				setGaugeIntervalGate(t, enabled)
 				defaultTr := newTranslator(t, zap.NewNop())
-				var tr Provider = defaultTr
-				if lossless {
-					var err error
-					tr, err = NewMinimalTranslator(zap.NewNop(), defaultTr.attributesTranslator, WithFallbackSourceProvider(testProvider(fallbackHostname)))
-					require.NoError(t, err)
+				options := []TranslatorOption{WithFallbackSourceProvider(testProvider(fallbackHostname))}
+				if enabled {
+					options = append(options, WithGaugeInterval())
 				}
+				var tr Provider
+				var err error
+				if lossless {
+					tr, err = NewMinimalTranslator(zap.NewNop(), defaultTr.attributesTranslator, options...)
+				} else {
+					tr, err = NewDefaultTranslator(componenttest.NewNopTelemetrySettings(), defaultTr.attributesTranslator, options...)
+				}
+				require.NoError(t, err)
 				md := pmetric.NewMetrics()
 				metric := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 				metric.SetName("test.updown")
@@ -344,7 +344,7 @@ func TestGaugeIntervalCumulativeUpDownCounter(t *testing.T) {
 				dp.SetIntValue(42)
 				dp.Attributes().PutInt(gaugeIntervalAttributeKey, 15)
 				consumer := newTestConsumer()
-				_, err := tr.MapMetrics(context.Background(), md, &consumer, nil)
+				_, err = tr.MapMetrics(context.Background(), md, &consumer, nil)
 				require.NoError(t, err)
 				require.Len(t, consumer.data.Metrics.TimeSeries, 1)
 				actual := consumer.data.Metrics.TimeSeries[0]
