@@ -145,6 +145,7 @@ func (s *agentRunner) Kill() {
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	s.Kill()
 	cmd := exec.Command(filepath.Join(s.bindir, "trace-agent"), "--config", path)
+	cmd.Env = envWithoutProxy(os.Environ())
 	s.log.Reset()
 	cmd.Stdout = s.log
 	cmd.Stderr = io.Discard
@@ -164,6 +165,34 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 		}
 	}()
 	return ch
+}
+
+// proxyEnvVars are the environment variables the agent reads its proxy settings from. CI runners
+// may set them, which would route the agent's traffic to the fake backend through a real proxy and
+// override the proxy settings of the tests' configs.
+var proxyEnvVars = map[string]struct{}{
+	"DD_PROXY_HTTP":     {},
+	"DD_PROXY_HTTPS":    {},
+	"DD_PROXY_NO_PROXY": {},
+	"HTTP_PROXY":        {},
+	"HTTPS_PROXY":       {},
+	"NO_PROXY":          {},
+	"http_proxy":        {},
+	"https_proxy":       {},
+	"no_proxy":          {},
+}
+
+// envWithoutProxy returns env without the proxy environment variables.
+func envWithoutProxy(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		k, _, _ := strings.Cut(kv, "=")
+		if _, ok := proxyEnvVars[k]; ok {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 // createConfigFile creates a config file from the given config, altering the
