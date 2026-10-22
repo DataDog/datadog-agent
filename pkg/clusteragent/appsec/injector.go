@@ -67,13 +67,24 @@ func Start(ctx context.Context, logger logComp.Component, datadogConfig config.C
 		for typ, pattern := range injector.patterns {
 			if _, enabled := config.Proxies[typ]; enabled {
 				go injector.run(ctx, typ, pattern)
-			} else {
+			} else if cleanupAllowed(typ, config.Proxies) {
 				go cleanupPattern(ctx, logger, injector.k8sClient, pattern)
 			}
 		}
 	})
 
 	return nil
+}
+
+// cleanupAllowed reports whether a disabled proxy type can be cleaned up at startup. istio and
+// istio-gateway share one EnvoyFilter, so neither removes it while the other is enabled.
+func cleanupAllowed(typ appsecconfig.ProxyType, proxies map[appsecconfig.ProxyType]struct{}) bool {
+	sibling := map[appsecconfig.ProxyType]appsecconfig.ProxyType{
+		appsecconfig.ProxyTypeIstio:        appsecconfig.ProxyTypeIstioGateway,
+		appsecconfig.ProxyTypeIstioGateway: appsecconfig.ProxyTypeIstio,
+	}[typ]
+	_, siblingEnabled := proxies[sibling]
+	return !siblingEnabled
 }
 
 func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger logComp.Component) (map[appsecconfig.ProxyType]struct{}, error) {

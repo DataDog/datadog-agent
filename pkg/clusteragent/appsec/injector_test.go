@@ -636,3 +636,58 @@ func TestRun_logsGenuineFailureAtError(t *testing.T) {
 	require.Equal(t, 1, logger.errorfCalls)
 	require.Zero(t, logger.infofCalls)
 }
+
+func TestCleanupAllowed(t *testing.T) {
+	proxies := func(types ...appsecconfig.ProxyType) map[appsecconfig.ProxyType]struct{} {
+		m := make(map[appsecconfig.ProxyType]struct{}, len(types))
+		for _, typ := range types {
+			m[typ] = struct{}{}
+		}
+		return m
+	}
+
+	for _, tc := range []struct {
+		name    string
+		typ     appsecconfig.ProxyType
+		enabled map[appsecconfig.ProxyType]struct{}
+		want    bool
+	}{
+		{name: "istio with istio-gateway enabled", typ: appsecconfig.ProxyTypeIstio, enabled: proxies(appsecconfig.ProxyTypeIstioGateway), want: false},
+		{name: "istio-gateway with istio enabled", typ: appsecconfig.ProxyTypeIstioGateway, enabled: proxies(appsecconfig.ProxyTypeIstio), want: false},
+		{name: "istio with nothing enabled", typ: appsecconfig.ProxyTypeIstio, enabled: proxies(), want: true},
+		{name: "istio-gateway with envoy-gateway enabled", typ: appsecconfig.ProxyTypeIstioGateway, enabled: proxies(appsecconfig.ProxyTypeEnvoyGateway), want: true},
+		{name: "envoy-gateway with istio enabled", typ: appsecconfig.ProxyTypeEnvoyGateway, enabled: proxies(appsecconfig.ProxyTypeIstio, appsecconfig.ProxyTypeIstioGateway), want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, cleanupAllowed(tc.typ, tc.enabled))
+		})
+	}
+}
+
+// cleanupRecordingPattern records whether each Deleted call received a cleanup context.
+type cleanupRecordingPattern struct {
+	mockInjectionPattern
+	cleanup []bool
+}
+
+func (p *cleanupRecordingPattern) Deleted(ctx context.Context, _ *unstructured.Unstructured) error {
+	p.cleanup = append(p.cleanup, appsecconfig.IsCleanup(ctx))
+	return nil
+}
+
+func TestCleanupPattern_MarksCleanupContext(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"}
+	newClass := func(name string) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion("gateway.networking.k8s.io/v1")
+		obj.SetKind("GatewayClass")
+		obj.SetName(name)
+		return obj
+	}
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), newClass("a"), newClass("b"))
+	pattern := &cleanupRecordingPattern{mockInjectionPattern: mockInjectionPattern{resource: gvr}}
+
+	cleanupPattern(context.Background(), logmock.New(t), client, pattern)
+
+	assert.Equal(t, []bool{true, true}, pattern.cleanup)
+}

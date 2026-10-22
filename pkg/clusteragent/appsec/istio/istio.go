@@ -150,18 +150,9 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		return nil // Not an Istio gateway class, skip
 	}
 
-	// Distinguish watch-event mode (GatewayClass was actually deleted) from cleanup mode
-	// (cleanupPattern iterates live resources and calls Deleted without removing them).
-	// The cross-pattern coordination check only applies to watch events: in cleanup mode
+	// The coordination checks only apply to watch events: in cleanup mode (cleanupPattern)
 	// we always proceed to delete the EnvoyFilter so it is not left behind.
-	_, errGet := i.client.Resource(gatewayClassGVR).Get(ctx, obj.GetName(), metav1.GetOptions{})
-	if errGet != nil && !k8serrors.IsNotFound(errGet) {
-		// On a transient API error we cannot determine the calling context. Return the error
-		// so the work item is requeued; this prevents accidentally entering cleanup mode and
-		// prematurely deleting the shared EnvoyFilter during watch-event processing.
-		return fmt.Errorf("could not determine calling context for GatewayClass %s: %w", obj.GetName(), errGet)
-	}
-	isWatchEvent := k8serrors.IsNotFound(errGet)
+	isWatchEvent := !appsecconfig.IsCleanup(ctx)
 
 	if isWatchEvent {
 		// Cross-pattern coordination: check if native Istio Gateways still exist
@@ -172,6 +163,15 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		}
 		if nativeGatewaysExist {
 			i.logger.Debug("Skipping EnvoyFilter deletion: Istio native gateways still exist")
+			return nil
+		}
+
+		gatewayClassesExist, err := anyIstioGatewayClassExists(ctx, i.client, obj.GetName())
+		if err != nil {
+			return fmt.Errorf("could not check for remaining Istio gateway classes: %w", err)
+		}
+		if gatewayClassesExist {
+			i.logger.Debug("Skipping EnvoyFilter deletion: other Istio GatewayClasses still exist")
 			return nil
 		}
 	}

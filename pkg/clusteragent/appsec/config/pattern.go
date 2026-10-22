@@ -85,8 +85,20 @@ type InjectionPattern interface {
 	Namespace() string
 	// Added is called when an object is added or at startup for existing objects. It should be idempotent.
 	Added(ctx context.Context, obj *unstructured.Unstructured) error
-	// Deleted is called when an object is deleted. It should be idempotent.
+	// Deleted is called when an object is deleted, or on live objects during cleanup (see IsCleanup). It should be idempotent.
 	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
+}
+
+type cleanupContextKey struct{}
+
+// WithCleanup marks ctx as a cleanup pass, where Deleted is called on objects that still exist.
+func WithCleanup(ctx context.Context) context.Context {
+	return context.WithValue(ctx, cleanupContextKey{}, true)
+}
+
+// IsCleanup reports whether ctx was marked with WithCleanup.
+func IsCleanup(ctx context.Context) bool {
+	return ctx.Value(cleanupContextKey{}) != nil
 }
 
 // Starter optional reconciler (e.g. nginx ConfigMap sync).
