@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -51,6 +52,13 @@ const (
 	// gaugeIntervalAttributeKey declares the reporting cadence in whole seconds.
 	// Gauge start timestamps do not describe a reporting interval.
 	gaugeIntervalAttributeKey = "datadog.gauge.interval"
+)
+
+// Disabled by default; the attribute remains a tag regardless of the gate state.
+var gaugeIntervalGate = featuregate.GlobalRegistry().MustRegister(
+	"datadog.EnableGaugeInterval",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Use datadog.gauge.interval as the reporting interval for number metrics mapped to Datadog gauges."),
 )
 
 // metricWarnings tracks which one-shot errors have been emitted for a
@@ -100,7 +108,7 @@ func mapNumberMetrics(
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
 		}
 
-		if dt == Gauge {
+		if dt == Gauge && gaugeIntervalGate.IsEnabled() {
 			if declared, ok := p.Attributes().Get(gaugeIntervalAttributeKey); ok && declared.Type() == pcommon.ValueTypeInt && declared.Int() > 0 {
 				interval = declared.Int()
 			}

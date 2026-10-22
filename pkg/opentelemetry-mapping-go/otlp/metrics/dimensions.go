@@ -86,9 +86,6 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 func getTags(labels pcommon.Map) []string {
 	tags := make([]string, 0, labels.Len())
 	labels.Range(func(key string, value pcommon.Value) bool {
-		if key == gaugeIntervalAttributeKey {
-			return true
-		}
 		v := value.AsString()
 		tags = append(tags, utils.FormatKeyValueTag(key, v))
 		return true
