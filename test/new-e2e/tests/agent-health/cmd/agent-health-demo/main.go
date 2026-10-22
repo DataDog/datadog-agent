@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -374,9 +375,13 @@ func agentKey(name string) string {
 	return commonconfig.DDAgentConfigNamespace + ":" + name
 }
 
+// kubeConfigServerHost matches the API server host in a kubeconfig.
+var kubeConfigServerHost = regexp.MustCompile(`server: https://([^:/\s]+)`)
+
 // extractHostIP reads the host IP from the stack outputs: prefer the explicit
 // "hostIP" output, then fall back to the standard e2e-framework
-// "dd-Host-<name>".address shape.
+// "dd-Host-<name>".address shape, then to the API server of an exported kind
+// cluster kubeconfig, which points at the VM running kind.
 func extractHostIP(up auto.UpResult) string {
 	if v, ok := up.Outputs["hostIP"]; ok {
 		if s, ok := v.Value.(string); ok && s != "" {
@@ -390,6 +395,17 @@ func extractHostIP(up auto.UpResult) string {
 		if m, ok := out.Value.(map[string]interface{}); ok {
 			if addr, ok := m["address"].(string); ok && addr != "" {
 				return addr
+			}
+		}
+	}
+	for _, out := range up.Outputs {
+		m, ok := out.Value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if kubeConfig, ok := m["kubeConfig"].(string); ok {
+			if match := kubeConfigServerHost.FindStringSubmatch(kubeConfig); match != nil {
+				return match[1]
 			}
 		}
 	}

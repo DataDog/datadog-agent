@@ -98,6 +98,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
+	metricsevaluatorfx "github.com/DataDog/datadog-agent/comp/core/metricsevaluator/fx"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
@@ -506,6 +507,7 @@ func getSharedFxOption() fx.Option {
 		networkpathrcproviderfx.Module(),
 		ndmrcconfigfx.Module(),
 		configfilesdiscoveryfx.Module(),
+		metricsevaluatorfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
