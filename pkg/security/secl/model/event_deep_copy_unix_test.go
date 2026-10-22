@@ -620,3 +620,26 @@ func TestEvent_DeepCopyCycles(t *testing.T) {
 		checkCopy(t, original, copied)
 	})
 }
+
+func BenchmarkDeepCopy(b *testing.B) {
+	entry := newDeepCopyTestEntry(1, "init")
+	singleProcess := &Event{}
+	singleProcess.ProcessCacheEntry = entry
+	singleProcess.ProcessContext = &entry.ProcessContext
+	singleProcess.Exec.Process = &entry.Process
+
+	for _, bench := range []struct {
+		name  string
+		event *Event
+	}{
+		{"5_processes", newDeepCopyTestEvent(5)},
+		{"1_process", singleProcess},
+	} {
+		b.Run(bench.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = bench.event.DeepCopy()
+			}
+		})
+	}
+}
