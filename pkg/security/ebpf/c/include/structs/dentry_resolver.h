@@ -63,7 +63,7 @@ struct dentry_resolver_input_t {
     u64 event_type;
     struct {
         u32 cgroup_write_pid;
-        u32 cgroup_flags;
+        s32 cgroup_write_retval;
     } cgroup_write_ctx;
     int callback;
     int ret;

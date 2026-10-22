@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -1938,6 +1939,15 @@ func TestUsesCustomResourceMetrics(t *testing.T) {
 	}
 }
 
+func TestDefaultCollectors(t *testing.T) {
+	collectors := defaultCollectors()
+	assert.Contains(t, collectors, "endpoints")
+	assert.Contains(t, collectors, "horizontalpodautoscalers")
+	for _, c := range excludedDefaultCollectors {
+		assert.NotContains(t, collectors, c)
+	}
+}
+
 func TestAllowDeny(t *testing.T) {
 	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
@@ -2385,7 +2395,7 @@ func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T)
 func TestDiscoverCustomResources_ClusterAggregatesOnly(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection}, fakeTagger, nil)
-	c := &apiserver.APIClient{Cl: fakeclientset.NewSimpleClientset()}
+	c := &apiserver.APIClient{InformerCl: fakeclientset.NewSimpleClientset()}
 
 	cr := k.discoverCustomResources(c, []string{"pods"}, nil)
 
@@ -2443,10 +2453,19 @@ func draAPIResourceList(version string) []*apiv1.APIResourceList {
 	}}
 }
 
+// hpaV2APIResourceList builds the discovery result for a cluster serving
+// autoscaling/v2 HorizontalPodAutoscalers.
+func hpaV2APIResourceList() []*apiv1.APIResourceList {
+	return []*apiv1.APIResourceList{{
+		GroupVersion: "autoscaling/v2",
+		APIResources: []apiv1.APIResource{{Name: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true}},
+	}}
+}
+
 func newDRATestClient(t *testing.T) *apiserver.APIClient {
 	t.Helper()
 	return &apiserver.APIClient{
-		Cl:                fakeclientset.NewSimpleClientset(),
+		InformerCl:        fakeclientset.NewSimpleClientset(),
 		DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
 	}
 }
@@ -2655,12 +2674,7 @@ func TestApiResourceAvailable(t *testing.T) {
 func TestDiscoverCustomResources_ExtendedHPACollector(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
-	resources := []*apiv1.APIResourceList{{
-		GroupVersion: "autoscaling/v2",
-		APIResources: []apiv1.APIResource{{Name: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true}},
-	}}
-
-	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, resources)
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, hpaV2APIResourceList())
 
 	assert.Contains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
 	var found bool
@@ -2671,6 +2685,31 @@ func TestDiscoverCustomResources_ExtendedHPACollector(t *testing.T) {
 
 	cr = k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, nil)
 	assert.NotContains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
+}
+
+// TestDiscoverCustomResources_UsesInformerClients pins that no store is given
+// the low-timeout client: its timeout would close every watch of the store's
+// reflector after kubernetes_apiserver_client_timeout, and keep failing the
+// initial list of large resources.
+func TestDiscoverCustomResources_UsesInformerClients(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	c := newDRATestClient(t)
+	c.Cl = fakeclientset.NewSimpleClientset()
+
+	for name, resources := range map[string][]*apiv1.APIResourceList{
+		"legacy replacement factories": nil,
+		"extended HPA and DRA":         append(hpaV2APIResourceList(), draAPIResourceList("v1")...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			cr := k.discoverCustomResources(c, []string{"pods", "resourceclaims", "resourceslices"}, resources)
+
+			require.NotEmpty(t, cr.clients)
+			for key, client := range cr.clients {
+				assert.False(t, client == any(c.Cl), "store %s must use an informer client", key)
+			}
+		})
+	}
 }
 
 // TestDiscoverCustomResources_ResourceReplacements guards the stores replacing
@@ -2755,4 +2794,29 @@ func TestDiscoverCustomResources_ResourceReplacements(t *testing.T) {
 			}
 		})
 	}
+}
+
+// unstructuredFactory is the minimal custom resource factory
+// GetCustomResourceClientsAndCollectors needs.
+type unstructuredFactory struct{ customresource.RegistryFactory }
+
+func (unstructuredFactory) Name() string { return "widgets" }
+
+func (unstructuredFactory) ExpectedType() interface{} {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("example.com/v1")
+	u.SetKind("Widget")
+	return u
+}
+
+// TestGetCustomResourceClientsAndCollectors_UsesInformerClient pins that the
+// custom_resource stores are given the dynamic informer client, not the
+// low-timeout one (left nil here, so using it would panic).
+func TestGetCustomResourceClientsAndCollectors_UsesInformerClient(t *testing.T) {
+	c := &apiserver.APIClient{DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())}
+
+	clients, collectors := customresources.GetCustomResourceClientsAndCollectors([]customresource.RegistryFactory{unstructuredFactory{}}, c)
+
+	assert.Equal(t, []string{"example.com/v1, Resource=widgets"}, collectors)
+	assert.NotNil(t, clients["example.com/v1, Resource=widgets"])
 }

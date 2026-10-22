@@ -109,12 +109,12 @@ pkg_files(
 
 dd_cc_packaged(
     name = "sepol_pkg",
-    dest_dir = "embedded/lib",
-    input = ":sepol",
-    installed_files = [
+    data = [
         ":hdr_files",
         ":policy_hdr_files",
     ],
+    dest_dir = "embedded/lib",
+    input = ":sepol",
     visibility = ["//visibility:public"],
 )
 
