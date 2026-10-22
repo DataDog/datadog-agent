@@ -93,10 +93,9 @@ func (m *EBPFCheck) Run() error {
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
 
-	// Collect even when the lines won't be logged, so map entry counts and
-	// counter readings stay current for when debug logging is turned on.
 	allSeries := m.collectSeries(stats)
 	if !log.ShouldLog(log.DebugLvl) {
+		log.Warn("ebpf-check metrics are emitted over debug logs. Debug logging is disabled so no metrics are reported")
 		return nil
 	}
 
