@@ -9,6 +9,7 @@ from invoke.context import Context
 from tasks.new_e2e_tests import _stacks_cleaned_up_by_job, cleanup_job_stacks
 from tasks.tools.e2e_stacks import (
     RECORDED_STACKS_FILE,
+    StacksCleanupReason,
     destroy_remote_stack_api,
     init_job_consumers,
     read_recorded_stacks,
@@ -52,23 +53,16 @@ class TestInitJobConsumers(unittest.TestCase):
 
 class TestStacksCleanupReason(unittest.TestCase):
     def test_canceled_job(self):
-        self.assertIsNotNone(stacks_cleanup_reason("canceled", False, None))
-        self.assertIsNotNone(stacks_cleanup_reason("canceled", True, [job("x", "running")]))
+        self.assertEqual(stacks_cleanup_reason("canceled", False), StacksCleanupReason.JOB_CANCELED)
+        self.assertEqual(stacks_cleanup_reason("canceled", True), StacksCleanupReason.JOB_CANCELED)
 
     def test_regular_job(self):
-        self.assertIsNotNone(stacks_cleanup_reason("success", False, None))
-        self.assertIsNotNone(stacks_cleanup_reason("failed", False, None))
+        self.assertEqual(stacks_cleanup_reason("success", False), StacksCleanupReason.JOB_OVER)
+        self.assertEqual(stacks_cleanup_reason("failed", False), StacksCleanupReason.JOB_OVER)
 
-    def test_init_job_consumers_canceled(self):
-        consumers = [job("x", "canceled"), job("x 1/2", "skipped")]
-        self.assertIsNotNone(stacks_cleanup_reason("success", True, consumers))
-        self.assertIsNotNone(stacks_cleanup_reason("failed", True, consumers))
-
-    def test_init_job_consumer_pending(self):
-        self.assertIsNone(stacks_cleanup_reason("success", True, [job("x", "canceled"), job("x 1/2", "created")]))
-
-    def test_init_job_without_consumer(self):
-        self.assertIsNone(stacks_cleanup_reason("success", True, []))
+    def test_init_job(self):
+        self.assertEqual(stacks_cleanup_reason("success", True), StacksCleanupReason.NO_ACTIVE_CONSUMER)
+        self.assertEqual(stacks_cleanup_reason("failed", True), StacksCleanupReason.NO_ACTIVE_CONSUMER)
 
 
 @patch("tasks.new_e2e_tests.running_in_ci", new=MagicMock(return_value=True))
@@ -106,6 +100,16 @@ class TestCleanupJobStacks(unittest.TestCase):
     def test_init_job_with_pending_consumer(self):
         destroy = self.run_task("success", [job("new-e2e-containers-eks", "created")])
         destroy.assert_not_called()
+
+    def test_init_job_with_one_pending_consumer(self):
+        destroy = self.run_task(
+            "success", [job("new-e2e-containers-eks", "canceled"), job("new-e2e-containers-eks 1/2", "created")]
+        )
+        destroy.assert_not_called()
+
+    def test_init_job_without_consumer(self):
+        destroy = self.run_task("success", [job("new-e2e-other", "created")])
+        destroy.assert_called_once()
 
     def test_canceled_job(self):
         destroy = self.run_task("canceled", [job("new-e2e-containers-eks", "created")])

@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 from invoke import Context
 
@@ -85,17 +86,19 @@ def init_job_consumers(init_job_name: str, jobs: list) -> list:
     ]
 
 
-def stacks_cleanup_reason(job_status: str, init_only: bool, consumers: list | None) -> str | None:
-    """Returns why the stacks of a job must be cleaned up from its after_script, or None to keep them.
+class StacksCleanupReason(Enum):
+    """Why the stacks of a job are cleaned up from its after_script."""
 
-    The stacks are cleaned up at the end of every job, except for init jobs (E2E_INIT_ONLY) whose stacks are kept
-    for the jobs consuming them, unless the init job or all of its consumers were canceled.
-    """
+    JOB_CANCELED = "the job was canceled"
+    JOB_OVER = "the job is over"
+    NO_ACTIVE_CONSUMER = "no job will consume the stacks"
+
+
+def stacks_cleanup_reason(job_status: str, init_only: bool) -> StacksCleanupReason:
+    """Returns why the stacks of a job are cleaned up, init jobs with active consumers keep them instead."""
 
     if job_status == "canceled":
-        return "the job was canceled"
-    if not init_only:
-        return "the job is over"
-    if consumers and all(job.status in FINAL_UNUSED_JOB_STATUSES for job in consumers):
-        return "every job consuming the stacks was canceled: " + ", ".join(job.name for job in consumers)
-    return None
+        return StacksCleanupReason.JOB_CANCELED
+    if init_only:
+        return StacksCleanupReason.NO_ACTIVE_CONSUMER
+    return StacksCleanupReason.JOB_OVER
