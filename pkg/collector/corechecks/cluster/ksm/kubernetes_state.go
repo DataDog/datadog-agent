@@ -1577,11 +1577,29 @@ func (k *KSMCheck) isKnownMetric(name string) bool {
 	return false
 }
 
-// defaultCollectors returns the KSM default resource collectors with
-// "endpoints" added back for backward compatibility (upstream KSM v2.18
-// replaced "endpoints" with "endpointslices" in its defaults).
+// excludedDefaultCollectors are KSM default resources left out of the check
+// defaults. The check maps none of their metrics, and their stores watch
+// admissionregistration.k8s.io/v1 resources only served since Kubernetes 1.30
+// (validating) or 1.36 (mutating), so on most clusters they would only add
+// failing watches. They can still be enabled through the collectors option.
+// Keep in sync with excludedDefaultKSMCollectors in
+// pkg/clusteragent/clusterchecks/ksm_sharding.go, which expands the defaults
+// of sharded instances.
+var excludedDefaultCollectors = []string{
+	"mutatingadmissionpolicies",
+	"mutatingadmissionpolicybindings",
+	"validatingadmissionpolicies",
+	"validatingadmissionpolicybindings",
+}
+
+// defaultCollectors returns the KSM default resource collectors, minus
+// excludedDefaultCollectors, with "endpoints" added back for backward
+// compatibility (upstream KSM v2.18 replaced "endpoints" with
+// "endpointslices" in its defaults).
 func defaultCollectors() []string {
-	collectors := options.DefaultResources.AsSlice()
+	collectors := slices.DeleteFunc(options.DefaultResources.AsSlice(), func(c string) bool {
+		return slices.Contains(excludedDefaultCollectors, c)
+	})
 	if _, found := options.DefaultResources["endpoints"]; !found {
 		collectors = append(collectors, "endpoints")
 	}

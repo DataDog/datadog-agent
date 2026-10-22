@@ -1256,7 +1256,7 @@ func TestCollectorBundleInitialize(t *testing.T) {
 				OrchestratorInformerFactory: getOrchestratorInformerFactory(apiClient),
 			},
 		},
-		startedInformers: map[cache.SharedInformer]struct{}{},
+		startedInformers: map[cache.Store]struct{}{},
 		stopCh:           stopCh,
 	}
 
@@ -1270,8 +1270,8 @@ func TestCollectorBundleInitialize(t *testing.T) {
 	expectedInitializedCollectors := map[string]struct{}{
 		"apps/v1/deployments": {},
 	}
-	expectedStartedInformers := map[cache.SharedInformer]struct{}{
-		cb.collectors[0].Informer(): {},
+	expectedStartedInformers := map[cache.Store]struct{}{
+		cb.collectors[0].Informer().GetStore(): {},
 	}
 
 	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)
@@ -1286,9 +1286,9 @@ func TestCollectorBundleInitialize(t *testing.T) {
 		"apps/v1/deployments": {},
 		"batch/v1/jobs":       {},
 	}
-	expectedStartedInformers = map[cache.SharedInformer]struct{}{
-		cb.collectors[0].Informer(): {},
-		cb.collectors[1].Informer(): {},
+	expectedStartedInformers = map[cache.Store]struct{}{
+		cb.collectors[0].Informer().GetStore(): {},
+		cb.collectors[1].Informer().GetStore(): {},
 	}
 
 	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)

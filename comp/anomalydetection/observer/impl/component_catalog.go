@@ -130,7 +130,8 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
 		scorer := DefaultAnomalyScorerConfig()
 		scorer.CorrelationEvents = true
-		scorer.CooldownSecs = 0
+		// Keep the live cooldown default; set cooldown_secs: 0 in --config
+		// when inspecting severity transitions without the de-escalation hold.
 		settings.configs["anomaly_scorer"] = scorer
 	}
 	return settings
@@ -454,6 +455,14 @@ type CatalogEntry struct {
 // each raw anomaly into an evaluation period. It is deliberately absent from
 // the production component catalog.
 const TestbenchPassthroughComponentName = "passthrough"
+
+// StorageConfigForComponents returns bounded storage defaults derived from the
+// enabled, configured detectors, using the same retention policy as the Agent.
+// Replay callers should apply their testbench component defaults first.
+func StorageConfigForComponents(settings ComponentSettings) StorageConfig {
+	detectors, _, _, _, _ := defaultCatalog().Instantiate(settings)
+	return storageConfigFromAgentConfig(nil, detectors)
+}
 
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
 // per-component overrides (e.g. from a testbench --config params file). Each

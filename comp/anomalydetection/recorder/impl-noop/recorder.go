@@ -21,3 +21,5 @@ type noopRecorder struct{}
 func (n *noopRecorder) GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc {
 	return handleFunc
 }
+
+func (n *noopRecorder) RecordLog(string, observer.LogView) {}

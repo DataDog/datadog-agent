@@ -668,6 +668,7 @@ func deepCopyCgroupWriteEvent(fieldToCopy CgroupWriteEvent) CgroupWriteEvent {
 	copied := CgroupWriteEvent{}
 	copied.File = deepCopyFileEvent(fieldToCopy.File)
 	copied.Pid = fieldToCopy.Pid
+	copied.Retval = fieldToCopy.Retval
 	return copied
 }
 func deepCopyChdirEvent(fieldToCopy ChdirEvent) ChdirEvent {
