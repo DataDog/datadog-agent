@@ -390,7 +390,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
   used outside their file.
 - Rule implementation functions are always private: `_myrule_impl` for `myrule`.
 - `print()` is for debugging only. Never leave `print()` calls in committed code unless guarded by `if DEBUG:` with
-  `DEBUG = False`.
+  `DEBUG = False`, or denoting an actionable warning, whose message then starts with `WARNING: `.
 - **Prefer rules over macros.** Macros expand before analysis, making `bazel query` output hard to interpret and aspects
   unaware of them. Use macros only for targets intended to be referenced directly at the CLI.
 - Internal macro targets (not meant to be used directly) must have:

@@ -10,6 +10,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -243,6 +244,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	result.Metrics = []observerdef.MetricOutput{{
 		Name:       metricName,
 		Value:      1,
+		MetricType: pkgmetrics.CountType,
 		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
 		HasContext: true,
 		Context: observerdef.MetricContext{

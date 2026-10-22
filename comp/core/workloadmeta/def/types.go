@@ -87,6 +87,9 @@ const (
 	// SourceNVML represents entities detected by the NVML GPU collector.
 	SourceNVML Source = "nvml"
 
+	// SourceAMDGPU represents entities detected by the AMD GPU (amdgpu sysfs) collector.
+	SourceAMDGPU Source = "amdgpu"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
@@ -675,8 +678,12 @@ type Container struct {
 	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
 	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
 	// populated node-locally by resolving the container's CDI device
-	// allocations to NVML UUIDs (physical GPUs and MIG instances).
-	GPUDeviceIDs []string `proto:"ignore"`
+	// allocations to NVML UUIDs (physical GPUs and MIG instances). With KAI
+	// Scheduler (gpu.kai_scheduler.enabled), it also holds the GPUs of
+	// fractional pods, read from their reservation pods. It is sent to remote
+	// workloadmeta clients, as system-probe needs it to attribute GPU process
+	// metrics to the right device.
+	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.

@@ -61,6 +61,10 @@ type MetricView interface {
 // This interface exists to prevent data races. Implementations must not store
 // the LogView itself. Copy any needed values synchronously.
 type LogView interface {
+	// GetSource returns the original log source (for example "containerd",
+	// "nginx", "kubelet", or "datadog-agent") used by log processing rules.
+	// This is distinct from the observer handle namespace (such as "logs").
+	GetSource() string
 	GetContent() string
 	GetStatus() string
 	Tags() []string
@@ -94,9 +98,10 @@ type LogObserver interface {
 // The storage keeps sum/count summaries so aggregation is specified at read
 // time, not write time.
 type MetricOutput struct {
-	Name  string
-	Value float64
-	Host  string
+	MetricType metrics.MetricType
+	Name       string
+	Value      float64
+	Host       string
 	// Tags is an immutable view retained by the observer storage.
 	Tags       tagset.CompositeTags
 	Context    MetricContext // stored on the series when HasContext is true
@@ -533,11 +538,13 @@ func WorkloadSeriesFilter() SeriesFilter {
 // SeriesMeta describes a series discovered via ListSeries.
 // The Ref field is a stable numeric identifier for use in hot-path methods.
 type SeriesMeta struct {
-	Ref       SeriesRef
-	Namespace string
-	Name      string
-	Host      string
-	Tags      tagset.CompositeTags
+	// MetricType is the first known input type, shared by all points in the series.
+	MetricType metrics.MetricType
+	Ref        SeriesRef
+	Namespace  string
+	Name       string
+	Host       string
+	Tags       tagset.CompositeTags
 }
 
 // Aggregate specifies which statistic to extract from summary stats.

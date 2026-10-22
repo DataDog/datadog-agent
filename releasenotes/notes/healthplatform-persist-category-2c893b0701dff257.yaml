@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Fix Agent health issue resolution reports omitting the issue category,
+    including when replayed after an Agent restart.

@@ -75,10 +75,10 @@ func NewBoundPorts(cfg *config.Config) *BoundPorts {
 	}
 }
 
-// ephemeralPortRange returns the system's ephemeral (dynamic) port range by
+// EphemeralPortRange returns the system's ephemeral (dynamic) port range by
 // reading net.inet.ip.portrange.{first,last} from sysctl. Falls back to the
 // IANA default (49152-65535) if the sysctl call fails.
-func ephemeralPortRange() (first, last uint16) {
+func EphemeralPortRange() (first, last uint16) {
 	f, err := unix.SysctlUint32("net.inet.ip.portrange.first")
 	if err != nil || f == 0 {
 		f = 49152
@@ -102,7 +102,7 @@ func readListeningPorts(cfg *config.Config) (map[boundPortsKey]struct{}, error) 
 	// Read the OS ephemeral range for UDP filtering. network.IsPortInEphemeralRange
 	// always returns EphemeralFalse on Darwin (no Linux /proc equivalent), so we
 	// read the range directly from sysctl.
-	ephFirst, ephLast := ephemeralPortRange()
+	ephFirst, ephLast := EphemeralPortRange()
 
 	if cfg.CollectTCPv4Conns || cfg.CollectTCPv6Conns {
 		tcpPorts, err := readTCPListeningPorts()

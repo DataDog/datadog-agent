@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -59,4 +60,38 @@ func TestSynchronousLogStreamUsesBoundedStorage(t *testing.T) {
 	obs.FinishReplayStream()
 
 	require.Equal(t, int64(storagePointRetentionSecs+1), storage.TotalSampleCount(""))
+}
+
+// Slowly sampled metrics must warm up before retention starts discarding their
+// history, and storage must stay bounded after a long stream.
+func TestStreamingStorageWarmsSparseBOCPD(t *testing.T) {
+	for _, warmup := range []int{40, 60} {
+		cfg := DefaultBOCPDConfig()
+		cfg.WarmupPoints = warmup
+		settings := ComponentSettings{configs: map[string]any{"bocpd": cfg}}
+		storageCfg := StorageConfigForComponents(settings)
+		storage := newTimeSeriesStorageWith(storageCfg)
+		detector := NewBOCPDDetector(cfg)
+		for i := 1; i <= 1000; i++ {
+			ts := int64(i * 15)
+			storage.Add("parquet", "requests", float64(100+i%3), ts, nil)
+			detector.Detect(storage, ts)
+			if i == warmup {
+				require.True(t, detector.Ready(), "warmup=%d", warmup)
+			}
+		}
+		require.LessOrEqual(t, storage.TotalSampleCount(""), int64(cfg.MaxRunLength+1))
+		require.GreaterOrEqual(t, storage.TotalSampleCount(""), int64(warmup))
+	}
+}
+
+func TestStreamingStorageUsesConfiguredEnabledDetectors(t *testing.T) {
+	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
+		"bocpd":         json.RawMessage(`{"enabled":true,"warmup_points":80,"max_run_length":240}`),
+		"holt_residual": json.RawMessage(`{"enabled":false,"warmup_points":1000}`),
+	})
+	require.NoError(t, err)
+	cfg := StorageConfigForComponents(settings)
+	require.Equal(t, 240, cfg.MaxPointsPerSeries)
+	require.Equal(t, int64(3616), cfg.PointRetentionSecs)
 }

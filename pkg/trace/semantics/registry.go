@@ -65,7 +65,8 @@ func DefaultRegistry() Registry {
 }
 
 // UpdateRegistry atomically replaces the live registry.
-// Callers are responsible for refreshing any derived state (e.g. concentrator peer tag keys) after the swap.
+// The swap is not announced: any state derived from the registry (e.g. the
+// concentrator's peer tag keys) must detect it by comparing Fingerprint().
 // Called by RemoteConfigHandler only after successful validation.
 func UpdateRegistry(r Registry) {
 	globalRegistry.Store(&r)

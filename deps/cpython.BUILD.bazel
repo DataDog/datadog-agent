@@ -220,12 +220,7 @@ configure_make(
         ":redacted_compat.h",
         "@@//deps/cpython:fix_sysconfigdata.py",
         DEFAULT_PYTHON,
-    ] + select({
-        "@platforms//os:macos": [
-            "@llvm_toolchain_llvm//:ar",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=no",  # pip is installed as a separate target
@@ -284,14 +279,6 @@ configure_make(
             dep.upper() + "_LIBS": lib
             for dep, lib in python_dep_libs.items()
         },
-    }) | select({
-        "@platforms//os:macos": {
-            # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the same flags
-            # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
-            # See also: https://github.com/bazelbuild/bazel/issues/5127
-            "AR": "$(execpath @llvm_toolchain_llvm//:ar)",
-        },
-        "//conditions:default": {},
     }),
     includes = ["python{}".format(PYTHON_MAJOR_MINOR)],
     lib_source = ":all_srcs",
@@ -389,7 +376,7 @@ foreign_cc_runnable(
 # Python we ship instead of the host Python for extension module compilation.
 # Python extension modules link against these shared libs and need them present
 # in {install_dir}/embedded/lib before any Python invocation (e.g. pip, setuptools).
-# Collected automatically by walking python_pkg's installed_files and dynamic_deps.
+# Collected automatically by walking python_pkg's data and dynamic_deps.
 dd_collect_dependencies(
     name = "_runtime_deps",
     srcs = [":python_pkg"],
@@ -496,8 +483,7 @@ pkg_files(
     prefix = "embedded",
 )
 
-# Grouped helper for python_pkg installed_files: installed_files is non-configurable,
-# so the Linux-only libpython_symlink select lives here instead.
+# Grouped helper for python_pkg data, holding the Linux-only libpython_symlink select.
 pkg_filegroup(
     name = "_python_pkg_common_files",
     srcs = [
@@ -510,6 +496,7 @@ pkg_filegroup(
 
 dd_cc_packaged(
     name = "python_pkg",
+    data = [":_python_pkg_common_files"],
     dest_dir = "embedded/lib",
     input = ":python_unix_shared",
     installed_executables = {
@@ -519,7 +506,6 @@ dd_cc_packaged(
         "@platforms//os:linux": {":python_stable_lib_linux": "embedded/lib"},
         "//conditions:default": {},
     }),
-    installed_files = [":_python_pkg_common_files"],
     visibility = ["//visibility:public"],
 )
 
