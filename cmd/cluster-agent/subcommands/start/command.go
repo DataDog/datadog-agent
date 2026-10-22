@@ -224,7 +224,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[integrations.Component]()
 				}),
 				agenttelemetryfx.Module(),
-				healthplatform.Bundle(),
+				healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
 
 				statusimpl.Module(),
 				collectorimpl.Module(),

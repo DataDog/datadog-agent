@@ -100,7 +100,7 @@ func NewComponent(reqs Requires) egressdef.Component {
 		doneCh:      make(chan struct{}),
 	}
 
-	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
+	// Register before OnStart so persisted state can pre-populate resolvedCh.
 	reqs.Store.RegisterIssuesObserver(storedef.IssuesObserver{
 		ResolvedCh: e.resolvedCh,
 	})

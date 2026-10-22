@@ -1,0 +1,278 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -39,6 +39,7 @@
+ #include "oscap_helpers.h"
+ 
+ #include <stdlib.h>
++#include <errno.h>
+ #include <string.h>
+ #include <stdio.h>
+ 
+@@ -62,7 +63,6 @@
+ #include <unistd.h>
+ #include <libgen.h>
+ 
+-#define SCE_SCRIPT "oscap-run-sce-script"
+ 
+ struct sce_check_result
+ {
+@@ -365,6 +365,65 @@
+ }
+ 
+ 
++/*
++ * parse_shebang reads the interpreter and its optional argument from the
++ * first line of a script, as the kernel does: "#!", the interpreter path,
++ * and at most one argument. It edits line in place, and leaves *interp and
++ * *arg as they are when line does not start with "#!".
++ */
++static void parse_shebang(char *line, char **interp, char **arg)
++{
++	if (strncmp(line, "#!", 2) != 0)
++		return;
++	char *p = line + 2;
++	p[strcspn(p, "\r\n")] = '\0';
++	p += strspn(p, " \t");
++	*interp = p;
++	p += strcspn(p, " \t");
++	if (*p != '\0') {
++		*p++ = '\0';
++		p += strspn(p, " \t");
++		char *end = p + strlen(p);
++		while (end > p && (end[-1] == ' ' || end[-1] == '\t'))
++			*--end = '\0';
++		if (*p != '\0')
++			*arg = p;
++	}
++}
++
++/*
++ * exec_script_interpreter runs script through the interpreter named on its
++ * first line, as the kernel does for an executable script. A script without
++ * that line runs under /bin/sh, as execvp runs it. It returns only if
++ * execve fails.
++ *
++ * It serves scripts that cannot be executed directly: those without exec
++ * rights, those in an OSCAP_TEMP_DIR on a noexec mount, which the CIS
++ * benchmarks recommend for /tmp, and those without a "#!" line.
++ */
++static void exec_script_interpreter(const char *script, char **env)
++{
++	char line[PATH_MAX + 64] = "";
++	char *interp = "/bin/sh";
++	char *arg = NULL;
++	FILE *f = fopen(script, "r");
++
++	if (f != NULL) {
++		if (fgets(line, sizeof(line), f) != NULL)
++			parse_shebang(line, &interp, &arg);
++		fclose(f);
++	}
++
++	char *argv[4];
++	int i = 0;
++	argv[i++] = interp;
++	if (arg != NULL)
++		argv[i++] = arg;
++	argv[i++] = (char *)script;
++	argv[i] = NULL;
++	execve(interp, argv, env);
++}
++
+ xccdf_test_result_type_t sce_engine_eval_rule(struct xccdf_policy *policy, const char *rule_id, const char *id, const char *href,
+ 		struct xccdf_value_binding_iterator *value_binding_it,
+ 		struct xccdf_check_import_iterator *check_import_it,
+@@ -373,7 +432,6 @@
+ 	dI("Executing SCE check '%s'", href);
+ 	struct sce_parameters* parameters = (struct sce_parameters*)usr;
+ 	const char* xccdf_directory = parameters->xccdf_directory;
+-	bool use_sce_wrapper = false; // use osca-run-sce-script ?
+ 
+ 	char* tmp_href = oscap_sprintf("%s/%s", xccdf_directory, href);
+ 
+@@ -391,20 +449,13 @@
+ 		return XCCDF_RESULT_NOT_CHECKED;
+ 	}
+ 
+-	if (access(tmp_href, F_OK | X_OK))
+-	{
+-		// use the sce wrapper if it's not possible to acquire +x rights
+-		use_sce_wrapper = true;
+-		dI("%s isn't executable, oscap-run-sce-script will be used.", tmp_href);
+-	}
+-
+ 	// all the result codes are shifted by 100, because otherwise syntax errors in scripts
+ 	// or even their nonexistence would cause XCCDF_RESULT_PASS to be the result
+ 
+ 	char* argvp[3] = {
+ 		tmp_href,
+-		tmp_href, // the second tmp_href is added in case we use the wrapper (oscap-run-sce-script)
+-		NULL      // which need the path of the script to eval as first parameter.
++		tmp_href, // an executable script also gets its path as first argument
++		NULL
+ 	};
+ 
+ 	// bound values in KEY=VALUE form, ready to be passed as environment variables
+@@ -565,22 +616,12 @@
+ #endif
+ 
+ 			// we are the child process
+-			if(use_sce_wrapper) {
+-#if defined(OS_FREEBSD)
+-				size_t k;
++			execve(tmp_href, argvp, env_values);
+ 
+-				// Setup environment beforehand as FreeBSD does not have execvpe()
+-				for (k = 0; k < env_value_count; k++) {
+-					putenv(env_values[k]);
+-				}
+-
+-				execvp("oscap-run-sce-script", argvp);
+-#else
+-				execvpe("oscap-run-sce-script", argvp, env_values);
+-#endif
+-			} else {
+-				execve(tmp_href, argvp, env_values);
+-			}
++			// a script without exec rights or on a noexec mount fails with
++			// EACCES, and one without "#!" with ENOEXEC
++			if (errno == EACCES || errno == ENOEXEC)
++				exec_script_interpreter(tmp_href, env_values);
+ 
+ 			free_env_values(env_values, index_of_first_env_value_not_compiled_in, env_value_count);
+ 
+--- a/tests/sce/CMakeLists.txt
++++ b/tests/sce/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ if(ENABLE_SCE)
+ 	add_oscap_test("test_prefer_sce.sh")
+ 	add_oscap_test("test_sce.sh")
++	add_oscap_test("test_sce_interpreter.sh" LABELS freebsd linux)
+ 	add_oscap_test("test_passing_vars.sh")
+ 	add_oscap_test("test_check_engine_results.sh")
+ 	add_oscap_test("test_sce_in_ds.sh")
+diff --git a/tests/sce/interpreter_env.sh b/tests/sce/interpreter_env.sh
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/interpreter_env.sh
+@@ -0,0 +1,7 @@
++#!/usr/bin/env bash
++#
++# This is an SCE script used to test an interpreter line with an argument.
++# It passes when bash runs it.
++
++[[ -n $BASH_VERSION ]] && exit "$XCCDF_RESULT_PASS"
++exit "$XCCDF_RESULT_FAIL"
+diff --git a/tests/sce/interpreter_exec_none.sh b/tests/sce/interpreter_exec_none.sh
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/interpreter_exec_none.sh
+@@ -0,0 +1,5 @@
++# shellcheck shell=sh
++# This is an SCE script used to test an executable script without an
++# interpreter line, which SCE runs with /bin/sh.
++
++exit "$XCCDF_RESULT_PASS"
+diff --git a/tests/sce/interpreter_none.sh b/tests/sce/interpreter_none.sh
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/interpreter_none.sh
+@@ -0,0 +1,5 @@
++# shellcheck shell=sh
++# This is an SCE script used to test a script without an interpreter line,
++# which SCE runs with /bin/sh.
++
++exit "$XCCDF_RESULT_PASS"
+diff --git a/tests/sce/interpreter_sh.sh b/tests/sce/interpreter_sh.sh
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/interpreter_sh.sh
+@@ -0,0 +1,6 @@
++#!/bin/sh
++#
++# This is an SCE script used to test the interpreter SCE runs a script with
++# when it cannot execute the script.
++
++exit "$XCCDF_RESULT_PASS"
+diff --git a/tests/sce/test_sce_interpreter.sh b/tests/sce/test_sce_interpreter.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/test_sce_interpreter.sh
+@@ -0,0 +1,41 @@
++#!/usr/bin/env bash
++
++# Test that SCE runs a script it cannot execute, as on a noexec mount, and
++# an executable script without an interpreter line, through the interpreter
++# named on the first line of the script, or /bin/sh for a script without
++# that line.
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_sce_interpreter {
++	local xccdf="$1"
++
++	local dir
++	dir=$(mktemp -d)
++	local result="$dir/results.xml"
++
++	cp "$srcdir/$xccdf" "$srcdir"/interpreter_*.sh "$dir"
++	chmod 600 "$dir"/interpreter_*.sh
++	chmod 700 "$dir/interpreter_exec_none.sh"
++
++	# SCE runs the interpreters itself. A failing oscap-run-sce-script
++	# first in PATH makes the test fail wherever SCE runs that helper.
++	mkdir "$dir/bin"
++	printf '#!/bin/sh\nexit 1\n' >"$dir/bin/oscap-run-sce-script"
++	chmod 700 "$dir/bin/oscap-run-sce-script"
++	PATH="$dir/bin:$PATH" $OSCAP xccdf eval --results "$result" "$dir/$xccdf"
++
++	assert_exists 4 "//rule-result/result[text()='pass']"
++
++	rm -r "$dir"
++	return 0
++}
++
++# Testing.
++test_init
++
++test_run "SCE interpreter" test_sce_interpreter test_sce_interpreter.xccdf.xml
++
++test_exit
+diff --git a/tests/sce/test_sce_interpreter.xccdf.xml b/tests/sce/test_sce_interpreter.xccdf.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/test_sce_interpreter.xccdf.xml
+@@ -0,0 +1,31 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_moc.elpmaxe.www_benchmark_test">
++  <status>incomplete</status>
++  <version>1.0</version>
++  <model system="urn:xccdf:scoring:default"/>
++  <model system="urn:xccdf:scoring:flat"/>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_1">
++    <title>Interpreter line</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="interpreter_sh.sh"/>
++    </check>
++  </Rule>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_2">
++    <title>Interpreter line with an argument</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="interpreter_env.sh"/>
++    </check>
++  </Rule>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_3">
++    <title>No interpreter line</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="interpreter_none.sh"/>
++    </check>
++  </Rule>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_4">
++    <title>Executable without an interpreter line</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="interpreter_exec_none.sh"/>
++    </check>
++  </Rule>
++</Benchmark>
