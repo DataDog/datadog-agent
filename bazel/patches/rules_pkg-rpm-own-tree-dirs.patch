@@ -1,0 +1,60 @@
+diff --git a/pkg/rpm/augment_rpm_files_install.py b/pkg/rpm/augment_rpm_files_install.py
+index 13855b4..e2a0a08 100644
+--- a/pkg/rpm/augment_rpm_files_install.py
++++ b/pkg/rpm/augment_rpm_files_install.py
+@@ -32,6 +32,14 @@ _FILE_MODE_STANZA_FMT = """
+ {0} "{1}"
+ """.strip()
+ 
++_INSTALL_DIR_STANZA_FMT = """
++install -d '%{{buildroot}}/{0}'
++""".strip()
++
++_DIR_MODE_STANZA_FMT = """
++%dir "{0}"
++""".strip()
++
+ # Cheapo arg parsing.  Currently this script is single-purpose.
+ 
+ # JSON file containing the TreeArtifact manifest info.
+@@ -67,6 +75,11 @@ with open(dir_data_path, 'r') as fh:
+             # destination.
+             path_relative_to_install_dest = os.path.relpath(root, start=d["src"])
+ 
++            if d.get("own_dirs"):
++                dir_dest = os.path.normpath(os.path.join(d["dest"], path_relative_to_install_dest))
++                dir_install_script_segments.append(_INSTALL_DIR_STANZA_FMT.format(dir_dest))
++                dir_files_segments.append(_DIR_MODE_STANZA_FMT.format(dir_dest))
++
+             for f in files:
+                 full_dest = os.path.join(d["dest"], path_relative_to_install_dest, f)
+                 dir_install_script_segments.append(_INSTALL_FILE_STANZA_FMT.format(
+diff --git a/pkg/rpm_pfg.bzl b/pkg/rpm_pfg.bzl
+index 3f66dde..f02b097 100644
+--- a/pkg/rpm_pfg.bzl
++++ b/pkg/rpm_pfg.bzl
+@@ -207,6 +207,7 @@ def _process_files(pfi, origin_label, grouping_label, file_base, rpm_ctx):
+                 # us from having to having to maintain tag processing
+                 # code in multiple places.
+                 "tags": file_base,
++                "own_dirs": pfi.attributes.get("rpm_own_tree_dirs", False),
+             })
+         else:
+             if dest in rpm_ctx.dest_check_map:
+@@ -945,6 +946,16 @@ pkg_rpm_impl = rule(
+ 
+     Is the equivalent to `%config(missingok, noreplace)` in the `%files` list.
+ 
++    The files of a TreeArtifact are listed in the `%files` list, but its
++    directories are not, so the package does not own them and they are left
++    behind on uninstall. Set `rpm_own_tree_dirs` to `True` in the attributes
++    of the packaging rule mapping the TreeArtifact to also add a `%dir` entry
++    for the TreeArtifact destination and every directory below it:
++
++    ```
++    attributes = pkg_attributes(rpm_own_tree_dirs = True),
++    ```
++
+     This rule produces 2 artifacts: an .rpm and a .changes file. The DefaultInfo will
+     include both. If you need downstream rule to specifically depend on only the .rpm or
+     .changes file then you can use `filegroup` to select distinct output groups.

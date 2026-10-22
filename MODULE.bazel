@@ -142,6 +142,10 @@ single_version_override(
 # Temporary until rules_pkg > 1.3.0 is in BCR
 archive_override(
     module_name = "rules_pkg",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_pkg-rpm-own-tree-dirs.patch",
+    ],
     sha256 = "4ee2a57a0adbb5c70d9b180ea40167093ba7b890d5ac4bdd50fd45c89db92697",
     strip_prefix = "rules_pkg-ad778d2f59b297486933936242cedbb0b5521d8d",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/ad778d2f59b297486933936242cedbb0b5521d8d.tar.gz"],  # main as of Oct 10, 2026
