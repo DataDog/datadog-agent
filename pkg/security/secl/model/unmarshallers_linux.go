@@ -1682,7 +1682,7 @@ func (e *SetNSEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 20 {
+	if len(data)-read < 16 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1690,9 +1690,8 @@ func (e *SetNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.NSType = int(int32(binary.NativeEndian.Uint32(data[read+4 : read+8])))
 	e.MntNS = binary.NativeEndian.Uint32(data[read+8 : read+12])
 	e.NetNS = binary.NativeEndian.Uint32(data[read+12 : read+16])
-	e.EffectiveNSType = int(binary.NativeEndian.Uint32(data[read+16 : read+20]))
 
-	return read + 20, nil
+	return read + 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
