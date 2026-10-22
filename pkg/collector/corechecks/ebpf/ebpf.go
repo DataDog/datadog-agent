@@ -9,10 +9,11 @@
 package ebpf
 
 import (
+	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -39,9 +40,14 @@ type EBPFCheckConfig struct {
 
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
-	config             *EBPFCheckConfig
-	sysProbeClient     *sysprobeclient.CheckClient
+	config         *EBPFCheckConfig
+	sysProbeClient *sysprobeclient.CheckClient
+	// previousMapEntries holds each map's entry count from the previous run,
+	// keyed by series.
 	previousMapEntries map[string]int64
+	// previousCounts holds each counter's cumulative reading from the previous
+	// run, keyed by series and metric name.
+	previousCounts map[string]float64
 	core.CheckBase
 }
 
@@ -55,6 +61,7 @@ func newCheck() check.Check {
 		CheckBase:          core.NewCheckBase(CheckName),
 		config:             &EBPFCheckConfig{},
 		previousMapEntries: make(map[string]int64),
+		previousCounts:     make(map[string]float64),
 	}
 }
 
@@ -75,7 +82,8 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	return nil
 }
 
-// Run executes the check
+// Run executes the check. Every metric it gathers is written to the agent log
+// as structured lines rather than submitted as a metric, one line per series.
 func (m *EBPFCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
@@ -85,43 +93,85 @@ func (m *EBPFCheck) Run() error {
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
 
-	sender, err := m.GetSender()
-	if err != nil {
-		return fmt.Errorf("get metric sender: %s", err)
+	// Collect even when the lines won't be logged, so map entry counts and
+	// counter readings stay current for when debug logging is turned on.
+	allSeries := m.collectSeries(stats)
+	if !log.ShouldLog(log.DebugLvl) {
+		return nil
 	}
+
+	now := time.Now()
+	var errs []error
+	for _, s := range allSeries {
+		line, err := s.marshal(now)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("marshal ebpf check series %q: %w", s.key, err))
+			continue
+		}
+		log.Debugf("ebpf check metrics: %s", line)
+	}
+	return errors.Join(errs...)
+}
+
+// collectSeries turns one system-probe stats payload into the series reported
+// for that run, in no particular order: one per map, one per program
+// (including its kprobe stats), one per module holding the per-module totals,
+// and one global series holding the overall totals.
+func (m *EBPFCheck) collectSeries(stats ebpfcheck.EBPFStats) []*series {
+	set := newSeriesSet()
+	global := set.get(nil)
+
+	// count records a cumulative counter as the amount it grew since the
+	// previous run: the first reading is reported as-is,
+	// and a reading lower than the previous one is a counter reset, so it is
+	// also reported as-is. Readings not seen in this run are dropped.
+	nextCounts := make(map[string]float64)
+	count := func(s *series, name string, value float64) {
+		key := s.key + name
+		nextCounts[key] = value
+		if prev, ok := m.previousCounts[key]; ok && value >= prev {
+			value -= prev
+		}
+		s.add(name, metricTypeCount, value, nil)
+	}
+	defer func() { m.previousCounts = nextCounts }()
 
 	totalMapMaxSize, totalMapRSS := uint64(0), uint64(0)
 	moduleTotalMapMaxSize, moduleTotalMapRSS := make(map[string]uint64), make(map[string]uint64)
-	reportBaseMap := func(mapStats ebpfcheck.EBPFMapStats) {
+	for _, mapStats := range stats.Maps {
 		totalMapMaxSize += mapStats.MaxSize
 		totalMapRSS += mapStats.RSS
 		if mapStats.Module == "unknown" {
-			return
+			continue
 		}
 
-		tags := []string{
-			"map_name:" + mapStats.Name,
-			"map_type:" + mapStats.Type,
-			"module:" + mapStats.Module,
-		}
-		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
+		s := set.get(map[string]string{
+			"map_name": mapStats.Name,
+			"map_type": mapStats.Type,
+			"module":   mapStats.Module,
+		})
+		s.gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize))
 		if mapStats.RSS > 0 {
-			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
+			s.gauge("ebpf.maps.memory_rss", float64(mapStats.RSS))
 		}
 
 		maxEntries := float64(mapStats.MaxEntries)
-		maxEntriesTags := tags
+		var maxEntriesTags map[string]string
 		switch mapStats.Type {
 		case "Hash", "PerCPUHash":
-			maxEntriesTags = append(slices.Clone(tags), "no_prealloc:"+strconv.FormatBool(mapStats.NoPrealloc))
+			maxEntriesTags = map[string]string{"no_prealloc": strconv.FormatBool(mapStats.NoPrealloc)}
 		}
-		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", maxEntriesTags)
+		s.add("ebpf.maps.max_entries", metricTypeGauge, maxEntries, maxEntriesTags)
 		if mapStats.Entries >= 0 {
 			entries := float64(mapStats.Entries)
-			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)
-			sender.Gauge("ebpf.maps.occupation", entries/maxEntries, "", tags)
-			sender.Gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[mapStats.Name])/maxEntries, "", tags)
-			m.previousMapEntries[mapStats.Name] = mapStats.Entries
+			s.gauge("ebpf.maps.entry_count", entries)
+			// A map with no declared maximum has no meaningful occupation, and
+			// dividing by it would yield NaN, which JSON cannot represent.
+			if mapStats.MaxEntries > 0 {
+				s.gauge("ebpf.maps.occupation", entries/maxEntries)
+				s.gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[s.key])/maxEntries)
+			}
+			m.previousMapEntries[s.key] = mapStats.Entries
 		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
@@ -129,27 +179,23 @@ func (m *EBPFCheck) Run() error {
 		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type)
 	}
 
-	for _, mapInfo := range stats.Maps {
-		reportBaseMap(mapInfo)
-	}
-
 	if totalMapMaxSize > 0 {
-		sender.Gauge("ebpf.maps.memory_max_total", float64(totalMapMaxSize), "", nil)
+		global.gauge("ebpf.maps.memory_max_total", float64(totalMapMaxSize))
 	}
 	if totalMapRSS > 0 {
-		sender.Gauge("ebpf.maps.memory_rss_total", float64(totalMapRSS), "", nil)
+		global.gauge("ebpf.maps.memory_rss_total", float64(totalMapRSS))
 	}
 	for mod, max := range moduleTotalMapMaxSize {
 		if mod == "unknown" {
 			continue
 		}
-		sender.Gauge("ebpf.maps.memory_max_permodule_total", float64(max), "", []string{"module:" + mod})
+		set.get(map[string]string{"module": mod}).gauge("ebpf.maps.memory_max_permodule_total", float64(max))
 	}
 	for mod, rss := range moduleTotalMapRSS {
 		if mod == "unknown" {
 			continue
 		}
-		sender.Gauge("ebpf.maps.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+		set.get(map[string]string{"module": mod}).gauge("ebpf.maps.memory_rss_permodule_total", float64(rss))
 	}
 
 	totalProgRSS := uint64(0)
@@ -162,11 +208,11 @@ func (m *EBPFCheck) Run() error {
 			continue
 		}
 
-		tags := []string{
-			"program_name:" + progInfo.Name,
-			"program_type:" + progInfo.Type,
-			"module:" + progInfo.Module,
-		}
+		s := set.get(map[string]string{
+			"program_name": progInfo.Name,
+			"program_type": progInfo.Type,
+			"module":       progInfo.Module,
+		})
 		var debuglogs []string
 		if log.ShouldLog(log.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type}
@@ -181,7 +227,7 @@ func (m *EBPFCheck) Run() error {
 			if v == 0 {
 				continue
 			}
-			sender.Gauge("ebpf.programs."+k, v, "", tags)
+			s.gauge("ebpf.programs."+k, v)
 			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
@@ -199,7 +245,7 @@ func (m *EBPFCheck) Run() error {
 			if v == 0 {
 				continue
 			}
-			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
+			count(s, "ebpf.programs."+k, v)
 			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
@@ -210,16 +256,18 @@ func (m *EBPFCheck) Run() error {
 		}
 	}
 
+	// Kprobe stats share their program's identity, so they land on the
+	// program's series.
 	for _, kprobeStatsInfo := range stats.KprobeStats {
 		if kprobeStatsInfo.Module == "unknown" {
 			continue
 		}
 
-		tags := []string{
-			"program_name:" + kprobeStatsInfo.Name,
-			"program_type:" + kprobeStatsInfo.Type,
-			"module:" + kprobeStatsInfo.Module,
-		}
+		s := set.get(map[string]string{
+			"program_name": kprobeStatsInfo.Name,
+			"program_type": kprobeStatsInfo.Type,
+			"module":       kprobeStatsInfo.Module,
+		})
 
 		var debuglogs []string
 		if log.ShouldLog(log.TraceLvl) {
@@ -236,7 +284,7 @@ func (m *EBPFCheck) Run() error {
 			if v == 0 {
 				continue
 			}
-			sender.MonotonicCountWithFlushFirstValue("ebpf.kprobes."+k, v, "", tags, true)
+			count(s, "ebpf.kprobes."+k, v)
 			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
@@ -248,20 +296,20 @@ func (m *EBPFCheck) Run() error {
 	}
 
 	if totalProgRSS > 0 {
-		sender.Gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), "", nil)
+		global.gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS))
 	}
 	for mod, rss := range moduleTotalProgRSS {
 		if mod == "unknown" {
 			continue
 		}
-		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+		set.get(map[string]string{"module": mod}).gauge("ebpf.programs.memory_rss_permodule_total", float64(rss))
 	}
 	for mod, xlatedLen := range moduleTotalXlatedLen {
 		if mod == "unknown" {
 			continue
 		}
 		if xlatedLen > 0 {
-			sender.Gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), "", []string{"module:" + mod})
+			set.get(map[string]string{"module": mod}).gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen))
 		}
 	}
 	for mod, verifiedCount := range moduleTotalVerifiedCount {
@@ -269,10 +317,9 @@ func (m *EBPFCheck) Run() error {
 			continue
 		}
 		if verifiedCount > 0 {
-			sender.Gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), "", []string{"module:" + mod})
+			set.get(map[string]string{"module": mod}).gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount))
 		}
 	}
 
-	sender.Commit()
-	return nil
+	return set.nonEmpty()
 }
