@@ -21,6 +21,10 @@ TAIL_CALL_FNC(update_proc_cache_cgroup, void *ctx) {
     return 0;
 }
 
+// trace__cgroup_write only records the requested cgroup migration: the process cache and the
+// user space resolvers are updated by trace__cgroup_write_ret, once the kernel reported that the
+// migration succeeded. Updating them before would let a failed write (to a cgroup the caller is
+// not allowed to migrate to, for instance) poison the cgroup/container context of the process.
 static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
@@ -51,11 +55,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     bpf_printk("trace__cgroup_write %d\n", pid);
 #endif
 
-    struct proc_cache_t new_entry = {};
-    struct proc_cache_t *old_entry;
-    u8 new_cookie = 0;
-    u64 cookie = 0;
-
     // Retrieve the cgroup mount id to filter on
     u32 cgroup_mount_id_filter = get_cgroup_mount_id_filter();
     if (cgroup_mount_id_filter == CGROUP_MOUNT_ID_UNSET) {
@@ -63,33 +62,18 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-    // Retrieve the cookie of the process
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
-    if (pid_entry) {
-        cookie = pid_entry->cookie;
-        // Select the old cache entry
-        old_entry = get_proc_from_cookie(cookie);
-        if (old_entry) {
-            new_entry.cgroup = old_entry->cgroup;
-            copy_proc_entry(&old_entry->entry, &new_entry.entry);
-        }
-    } else {
-        new_cookie = 1;
-        cookie = rand64();
-    }
+    struct syscall_cache_t syscall = {
+        .type = EVENT_CGROUP_WRITE,
+        .cgroup_write = {
+            .pid = pid,
+        },
+    };
+    struct dentry_resolver_input_t *resolver = &syscall.resolver;
 
     struct dentry *container_d;
 #ifdef DEBUG_CGROUP
     char *container_id;
 #endif
-
-    struct dentry_resolver_input_t cgroup_dentry_resolver = {0};
-    struct dentry_resolver_input_t *resolver = &cgroup_dentry_resolver;
-
-    resolver->key.ino = 0;
-    resolver->key.mount_id = 0;
-    resolver->key.path_id = 0;
-    resolver->dentry = NULL;
 
     switch (cgroup_write_type) {
     case CGROUP_DEFAULT: {
@@ -139,11 +123,58 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-    new_entry.cgroup.path_key = resolver->key;
-
 #ifdef DEBUG_CGROUP
     bpf_printk("container id: %s\n", container_id);
 #endif
+
+    cache_syscall(ctx, &syscall);
+
+    return 0;
+}
+
+static __attribute__((always_inline)) int trace__cgroup_write_ret(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CGROUP_WRITE);
+    if (!syscall) {
+        return 0;
+    }
+
+    int retval = CTX_PARMRET(ctx);
+    if (retval < 0) {
+        // the migration failed, the process remains in its previous cgroup
+        pop_syscall(EVENT_CGROUP_WRITE);
+        return 0;
+    }
+
+    u32 pid = syscall->cgroup_write.pid;
+
+    struct dentry_resolver_input_t cgroup_dentry_resolver = {0};
+    struct dentry_resolver_input_t *resolver = &cgroup_dentry_resolver;
+    resolver->key = syscall->resolver.key;
+    resolver->dentry = syscall->resolver.dentry;
+
+    pop_syscall(EVENT_CGROUP_WRITE);
+
+    struct proc_cache_t new_entry = {};
+    struct proc_cache_t *old_entry;
+    u8 new_cookie = 0;
+    u64 cookie = 0;
+
+    // Retrieve the cookie of the process
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+    if (pid_entry) {
+        cookie = pid_entry->cookie;
+        // Select the old cache entry
+        old_entry = get_proc_from_cookie(cookie);
+        if (old_entry) {
+            new_entry.cgroup = old_entry->cgroup;
+            copy_proc_entry(&old_entry->entry, &new_entry.entry);
+        }
+    } else {
+        new_cookie = 1;
+        cookie = rand64();
+    }
+
+    new_entry.cgroup.path_key = resolver->key;
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
@@ -160,6 +191,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     resolver->ret = 0;
     resolver->flags = 0;
     resolver->cgroup_write_ctx.cgroup_write_pid = pid;
+    resolver->cgroup_write_ctx.cgroup_write_retval = retval;
     resolver->original_key = resolver->key;
 
     cache_dentry_resolver_input(resolver);
@@ -180,6 +212,7 @@ static __always_inline int dr_cgroup_write_callback(void *ctx) {
     }
     event->path_key = inputs->original_key;
     event->pid = inputs->cgroup_write_ctx.cgroup_write_pid;
+    event->retval = inputs->cgroup_write_ctx.cgroup_write_retval;
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
@@ -198,9 +231,19 @@ int hook_cgroup_procs_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
 
+HOOK_EXIT("cgroup_procs_write")
+int rethook_cgroup_procs_write(ctx_t *ctx) {
+    return trace__cgroup_write_ret(ctx);
+}
+
 HOOK_ENTRY("cgroup1_procs_write")
 int hook_cgroup1_procs_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
+}
+
+HOOK_EXIT("cgroup1_procs_write")
+int rethook_cgroup1_procs_write(ctx_t *ctx) {
+    return trace__cgroup_write_ret(ctx);
 }
 
 HOOK_ENTRY("cgroup_tasks_write")
@@ -208,9 +251,19 @@ int hook_cgroup_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
 
+HOOK_EXIT("cgroup_tasks_write")
+int rethook_cgroup_tasks_write(ctx_t *ctx) {
+    return trace__cgroup_write_ret(ctx);
+}
+
 HOOK_ENTRY("cgroup1_tasks_write")
 int hook_cgroup1_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
+}
+
+HOOK_EXIT("cgroup1_tasks_write")
+int rethook_cgroup1_tasks_write(ctx_t *ctx) {
+    return trace__cgroup_write_ret(ctx);
 }
 
 static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32 mount_id);
