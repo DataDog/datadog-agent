@@ -36,7 +36,6 @@ type Config struct {
 	RShellAllowedPathsConfigured       bool
 	DDHost                             string
 	DDApiHost                          string
-	APIKey                             string
 	Modes                              []modes.Mode
 	OrgId                              int64
 	PrivateKey                         *ecdsa.PrivateKey
@@ -46,10 +45,6 @@ type Config struct {
 
 	// RemoteConfig related fields
 	DatadogSite string
-
-	// NetworkPcapLogsDDURL overrides the host:port captures are uploaded to.
-	// Empty means "cnm-intake.<DatadogSite>".
-	NetworkPcapLogsDDURL string
 
 	// the following are constants with default values. They are part of the config struct to allow for the ability to be overwritten in the YAML config file if needed
 	MaxBackoff                 time.Duration

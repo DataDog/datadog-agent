@@ -13,6 +13,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -49,12 +50,13 @@ func NewWorkflowRunner(
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	fileUpload fileupload.Component,
 	ipcClient ipc.HTTPClient,
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor, err := NewWorkflowTaskExecutor(configuration, coreConfig, rcClient, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	taskExecutor, err := NewWorkflowTaskExecutor(configuration, coreConfig, rcClient, verifier, traceroute, eventPlatform, fileUpload, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, err
 	}

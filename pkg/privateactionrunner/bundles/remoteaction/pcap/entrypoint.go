@@ -6,7 +6,7 @@
 package com_datadoghq_remoteaction_pcap
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -16,10 +16,11 @@ type PcapBundle struct {
 }
 
 // NewPcap constructs a PcapBundle and registers the runCapture action.
-func NewPcap(cfg *config.Config) types.Bundle {
+// Captures are uploaded with fileUpload.
+func NewPcap(fileUpload fileupload.Component) types.Bundle {
 	return &PcapBundle{
 		actions: map[string]types.Action{
-			"runCapture": NewRunCaptureHandler(cfg),
+			"runCapture": NewRunCaptureHandler(fileUpload),
 		},
 	}
 }

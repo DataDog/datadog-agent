@@ -876,7 +876,9 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
+	// No file upload forwarder: its only user, the packet capture bundle, is
+	// not registered in the Cluster Agent.
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka)
 	if err != nil {
 		return nil, err
 	}

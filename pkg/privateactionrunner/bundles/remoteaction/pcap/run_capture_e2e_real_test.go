@@ -16,13 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
+	fileuploadimpl "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 // TestRunCapture_RealEndToEnd runs a real capture against a live system-probe
-// and uploads it with the real uploader to a real intake. It proves the intake
+// and uploads it with the real file upload forwarder to a real intake. It proves the intake
 // accepts the upload (202), not that the attachment reaches storage.
 //
 // Enable with:
@@ -66,12 +68,8 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
 	handler := &RunCaptureHandler{
-		uploader: newNetworkPcapUploader(&config.Config{
-			APIKey:               apiKey,
-			DatadogSite:          site,
-			NetworkPcapLogsDDURL: intakeHost,
-		}),
-		capture: &socketCaptureTrigger{},
+		uploader: newRealUploader(t, apiKey, site, intakeHost),
+		capture:  &socketCaptureTrigger{},
 	}
 
 	out, err := handler.capture.Capture(context.Background(), RunCaptureInputs{
@@ -85,7 +83,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	require.Greater(t, out.PacketCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
 
 	captureID := "e2e-test-" + uuid.New().String()
-	err = handler.uploader.Upload(context.Background(), out.PcapPath, captureID)
+	err = uploadCapture(context.Background(), handler.uploader, out.PcapPath, captureID)
 	require.NoError(t, err, "expected the real networkpcap intake to accept the upload (202); a failure here means the agent-side upload path is broken against a real, reachable intake, independent of any S3/Husky-landing question")
 
 	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, out.FileSizeBytes, intakeHost)
@@ -129,11 +127,7 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 	systemProbeConfig := configmock.NewSystemProbe(t)
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
-	handler := NewRunCaptureHandler(&config.Config{
-		APIKey:               apiKey,
-		DatadogSite:          site,
-		NetworkPcapLogsDDURL: intakeHost,
-	})
+	handler := NewRunCaptureHandler(newRealUploader(t, apiKey, site, intakeHost))
 
 	// Deliberately low so the cap, not the duration, is what ends the capture —
 	// otherwise a quiet host would pass without the bound ever being exercised.
@@ -166,4 +160,16 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 
 	t.Logf("captured %d packets (%d bytes) in %ds, uploaded capture_id=%s to https://%s/api/v2/networkpcap",
 		res.PacketCount, res.FileSizeBytes, res.DurationSecs, res.CaptureID, intakeHost)
+}
+
+// newRealUploader returns the real file upload forwarder, sending to
+// intakeHost with apiKey.
+func newRealUploader(t *testing.T, apiKey, site, intakeHost string) fileupload.Component {
+	t.Helper()
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"api_key":                            apiKey,
+		"site":                               site,
+		"network_pcap.forwarder.logs_dd_url": intakeHost,
+	})
+	return fileuploadimpl.NewComponent(fileuploadimpl.Requires{Config: cfg}).Comp
 }

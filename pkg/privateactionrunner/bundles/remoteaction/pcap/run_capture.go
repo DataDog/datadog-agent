@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,14 +56,14 @@ type captureOutcome struct {
 
 // RunCaptureHandler handles the runCapture action.
 type RunCaptureHandler struct {
-	uploader *networkPcapUploader
+	uploader fileupload.Component
 	capture  captureTrigger
 }
 
 // NewRunCaptureHandler constructs a RunCaptureHandler.
-func NewRunCaptureHandler(cfg *config.Config) *RunCaptureHandler {
+func NewRunCaptureHandler(uploader fileupload.Component) *RunCaptureHandler {
 	return &RunCaptureHandler{
-		uploader: newNetworkPcapUploader(cfg),
+		uploader: uploader,
 		capture:  newCaptureTrigger(),
 	}
 }
@@ -144,7 +144,7 @@ func (h *RunCaptureHandler) Run(
 	if out.PcapPath != "" {
 		defer os.Remove(out.PcapPath)
 
-		if err := h.uploader.Upload(ctx, out.PcapPath, captureID); err != nil {
+		if err := uploadCapture(ctx, h.uploader, out.PcapPath, captureID); err != nil {
 			return nil, fmt.Errorf("sending capture %s to event platform: %w", captureID, err)
 		}
 	}
