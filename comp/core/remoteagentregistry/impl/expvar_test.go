@@ -40,22 +40,24 @@ dogstatsd__processed{message_type="events",state="error",origin="host"} 6
 dogstatsd__processed{message_type="service_checks",state="ok",origin="host"} 60
 dogstatsd__processed{message_type="service_checks",state="error",origin="host"} 7
 dogstatsd__processed{message_type="logs",state="ok",origin="host"} 100
-# TYPE transactions__dropped counter
-transactions__dropped{domain="metrics",endpoint="series"} 8
 # TYPE transactions__retry_queue_size gauge
 transactions__retry_queue_size{domain="metrics"} 4
 # TYPE transactions__success counter
-transactions__success{domain="metrics",endpoint="series",proto_version="v2"} 9
+transactions__success{domain="metrics",endpoint="/api/v1/series",proto_version="HTTP/2.0"} 9
+transactions__success{domain="metrics",endpoint="/api/v1/validate",proto_version="HTTP/2.0"} 1000
 # TYPE transactions__errors counter
-transactions__errors{domain="metrics",endpoint="series",error_type="dns_error"} 1
-transactions__errors{domain="metrics",endpoint="series",error_type="tls_error"} 2
-transactions__errors{domain="metrics",endpoint="series",error_type="connection_error"} 3
-transactions__errors{domain="metrics",endpoint="series",error_type="wrote_request_error"} 4
-transactions__errors{domain="metrics",endpoint="series",error_type="sent_request_error"} 5
-transactions__errors{domain="metrics",endpoint="series",error_type="cant_send"} 6
-transactions__errors{domain="metrics",endpoint="series",error_type="gt_400"} 7
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="dns_error"} 1
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="tls_error"} 2
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="connection_error"} 3
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="wrote_request_error"} 4
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="sent_request_error"} 5
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="cant_send"} 6
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="gt_400"} 7
+transactions__errors{domain="metrics",endpoint="/api/v1/validate",error_type="dns_error"} 1000
+transactions__errors{domain="metrics",endpoint="/api/v1/validate",error_type="cant_send"} 1000
 # TYPE transactions__http_errors counter
-transactions__http_errors{domain="metrics",endpoint="series",code="500"} 2
+transactions__http_errors{domain="metrics",endpoint="/api/v1/series",code="500"} 2
+transactions__http_errors{domain="metrics",endpoint="/api/v1/validate",code="500"} 1000
 # TYPE aggregator__dogstatsd_contexts gauge
 aggregator__dogstatsd_contexts 11
 # TYPE aggregator__processed counter
@@ -101,7 +103,7 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(7), values["dogstatsd_service_check_parse_errors"])
 	assert.Equal(t, int64(4), values["forwarder_retry_queue_size"])
 	assert.Equal(t, int64(9), values["forwarder_success"])
-	assert.Equal(t, int64(18), values["forwarder_errors"], "phase-scoped error types should not be counted as transaction errors")
+	assert.Equal(t, int64(18), values["forwarder_errors"], "phase-scoped error types and API-key validation requests should not be counted as transaction errors")
 	assert.Equal(t, int64(1), values["forwarder_dns_errors"])
 	assert.Equal(t, int64(2), values["forwarder_tls_errors"])
 	assert.Equal(t, int64(3), values["forwarder_connection_errors"])
@@ -125,6 +127,37 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(25), values["aggregator_service_check_flush_time"])
 	assert.NotContains(t, values, "forwarder_dropped_on_input", "the broader ADP dropped counter is not equivalent to the legacy expvar")
 	assert.Len(t, values, len(expvarMappings))
+}
+
+func TestExpvarSeriesDistinguishesNoMatchFromMatchedZero(t *testing.T) {
+	noMatch, parsed := expvarSeriesFromPromText(`# TYPE dogstatsd__processed counter
+dogstatsd__processed{message_type="logs",state="ok"} 0
+`)
+	require.True(t, parsed)
+	assert.Empty(t, noMatch)
+
+	matchedZero, parsed := expvarSeriesFromPromText(`# TYPE dogstatsd__processed counter
+dogstatsd__processed{message_type="metrics",state="ok"} 0
+`)
+	require.True(t, parsed)
+	require.Len(t, matchedZero, 1)
+	assert.Equal(t, "dogstatsd_metric_packets", matchedZero[0].mappingID)
+	assert.Zero(t, matchedZero[0].value)
+}
+
+func TestExpvarMappingsDeclareLabelPolicy(t *testing.T) {
+	seen := make(map[string]struct{}, len(expvarMappings))
+	for _, mapping := range expvarMappings {
+		_, duplicate := seen[mapping.id]
+		require.Falsef(t, duplicate, "duplicate mapping id %q", mapping.id)
+		seen[mapping.id] = struct{}{}
+
+		if len(mapping.selectors) == 0 {
+			require.Truef(t, mapping.matchAllLabelSets, "mapping %q must opt into matching all label sets", mapping.id)
+		} else {
+			require.Falsef(t, mapping.matchAllLabelSets, "mapping %q has both selectors and match-all enabled", mapping.id)
+		}
+	}
 }
 
 func TestExpvarSeriesFromPromTextRejectsTypeMismatchAndMalformedText(t *testing.T) {

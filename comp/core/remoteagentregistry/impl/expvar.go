@@ -34,24 +34,27 @@ const (
 // The metric names are the names emitted by ADP's RAR remapping, not the names from ADP's direct /compat/metrics
 // endpoint.
 type expvarMapping struct {
-	id         string
-	metricName string
-	expvarPath []string
-	selectors  []labelSelector
-	metricType dto.MetricType
+	id                string
+	metricName        string
+	expvarPath        []string
+	selectors         []labelSelector
+	matchAllLabelSets bool
+	metricType        dto.MetricType
 }
 
 type labelSelector struct {
-	name   string
-	values map[string]struct{}
+	name           string
+	values         map[string]struct{}
+	excludedValues map[string]struct{}
 }
 
 var expvarMappings = []expvarMapping{
 	{
-		id:         "dogstatsd_udp_packets",
-		metricName: "dogstatsd__udp_packets",
-		expvarPath: []string{"dogstatsd-udp", "Packets"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "dogstatsd_udp_packets",
+		metricName:        "dogstatsd__udp_packets",
+		expvarPath:        []string{"dogstatsd-udp", "Packets"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "dogstatsd_udp_packet_reading_errors",
@@ -78,10 +81,11 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "dogstatsd_uds_origin_detection_error",
-		metricName: "dogstatsd__uds_origin_detection_error",
-		expvarPath: []string{"dogstatsd-uds", "OriginDetectionErrors"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "dogstatsd_uds_origin_detection_error",
+		metricName:        "dogstatsd__uds_origin_detection_error",
+		expvarPath:        []string{"dogstatsd-uds", "OriginDetectionErrors"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "dogstatsd_metric_packets",
@@ -144,15 +148,19 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "forwarder_retry_queue_size",
-		metricName: "transactions__retry_queue_size",
-		expvarPath: []string{"forwarder", "Transactions", "RetryQueueSize"},
-		metricType: dto.MetricType_GAUGE,
+		id:                "forwarder_retry_queue_size",
+		metricName:        "transactions__retry_queue_size",
+		expvarPath:        []string{"forwarder", "Transactions", "RetryQueueSize"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_GAUGE,
 	},
+	// Exclude API-key validation requests: ADP counts them as transactions, while the Core Agent's
+	// legacy Forwarder expvars do not.
 	{
 		id:         "forwarder_success",
 		metricName: "transactions__success",
 		expvarPath: []string{"forwarder", "Transactions", "Success"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
@@ -162,55 +170,75 @@ var expvarMappings = []expvarMapping{
 		id:         "forwarder_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "Errors"},
-		selectors:  selectors(labelSelectorValues("error_type", "cant_send", "gt_400", "sent_request_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "cant_send", "gt_400", "sent_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_dns_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "DNSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "dns_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "dns_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_tls_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "TLSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "tls_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "tls_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_connection_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "ConnectionErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "connection_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "connection_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_wrote_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "WroteRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "wrote_request_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "wrote_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_sent_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "SentRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "sent_request_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "sent_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_http_errors",
 		metricName: "transactions__http_errors",
 		expvarPath: []string{"forwarder", "Transactions", "HTTPErrors"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "aggregator_dogstatsd_contexts",
-		metricName: "aggregator__dogstatsd_contexts",
-		expvarPath: []string{"aggregator", "DogstatsdContexts"},
-		metricType: dto.MetricType_GAUGE,
+		id:                "aggregator_dogstatsd_contexts",
+		metricName:        "aggregator__dogstatsd_contexts",
+		expvarPath:        []string{"aggregator", "DogstatsdContexts"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_GAUGE,
 	},
 	{
 		id:         "aggregator_dogstatsd_metric_sample",
@@ -255,10 +283,11 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "aggregator_number_of_flush",
-		metricName: "aggregator__number_of_flush",
-		expvarPath: []string{"aggregator", "NumberOfFlush"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "aggregator_number_of_flush",
+		metricName:        "aggregator__number_of_flush",
+		expvarPath:        []string{"aggregator", "NumberOfFlush"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "aggregator_flush_count_series",
@@ -317,6 +346,14 @@ func labelSelectorValues(name string, values ...string) labelSelector {
 		allowed[value] = struct{}{}
 	}
 	return labelSelector{name: name, values: allowed}
+}
+
+func labelSelectorExcludingValues(name string, values ...string) labelSelector {
+	excluded := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		excluded[value] = struct{}{}
+	}
+	return labelSelector{name: name, excludedValues: excluded}
 }
 
 func selectors(values ...labelSelector) []labelSelector {
@@ -586,7 +623,7 @@ func expvarSeriesFromPromText(promText string) ([]remoteExpvarSeries, bool) {
 			continue
 		}
 		for _, metric := range family.GetMetric() {
-			if metric == nil || !matchesSelectors(metric.GetLabel(), mapping.selectors) {
+			if metric == nil || !matchesMappingLabels(metric.GetLabel(), mapping) {
 				continue
 			}
 			value, ok := metricValue(metric, mapping.metricType)
@@ -638,6 +675,16 @@ func gaugeValue(metric *dto.Metric) (int64, bool) {
 	return int64(value), true
 }
 
+func matchesMappingLabels(labels []*dto.LabelPair, mapping expvarMapping) bool {
+	if len(mapping.selectors) == 0 {
+		return mapping.matchAllLabelSets
+	}
+	if mapping.matchAllLabelSets {
+		return false
+	}
+	return matchesSelectors(labels, mapping.selectors)
+}
+
 func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 	values := make(map[string]string, len(labels))
 	for _, label := range labels {
@@ -650,7 +697,12 @@ func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 		if !ok {
 			return false
 		}
-		if _, ok := selector.values[value]; !ok {
+		if len(selector.values) > 0 {
+			if _, ok := selector.values[value]; !ok {
+				return false
+			}
+		}
+		if _, excluded := selector.excludedValues[value]; excluded {
 			return false
 		}
 	}
