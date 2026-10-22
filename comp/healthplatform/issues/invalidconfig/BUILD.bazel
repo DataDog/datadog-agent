@@ -23,7 +23,6 @@ go_library(
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_dustin_go_humanize//english",
         "@com_github_qri_io_jsonpointer//:jsonpointer",
-        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_google_protobuf//types/known/structpb",
     ],
 )

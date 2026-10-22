@@ -70,7 +70,7 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 		manifestBuffer:        NewManifestBuffer(chk),
 		activatedCollectors:   map[string]struct{}{},
 		initializedCollectors: map[string]struct{}{},
-		startedInformers:      map[cache.SharedInformer]struct{}{},
+		startedInformers:      map[cache.Store]struct{}{},
 	}
 	bundle.importCollectorsFromInventory()
 	bundle.prepareExtraSyncTimeout()
@@ -113,7 +113,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle.stopCh = make(chan struct{})
 	bundle.initializedCollectors = map[string]struct{}{}
-	bundle.startedInformers = map[cache.SharedInformer]struct{}{}
+	bundle.startedInformers = map[cache.Store]struct{}{}
 	bundle.Initialize()
 
 	_, err := bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{

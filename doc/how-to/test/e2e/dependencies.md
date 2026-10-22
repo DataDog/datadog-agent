@@ -162,5 +162,5 @@ Uploading is **not self-service**: write access is held by `agent-qa` admins, be
 None of the three mechanisms above exist on Azure or GCP:
 
 - **Container images**: no pull-through cache (`InternalDockerhubMirror()` falls back to plain `registry-1.docker.io`). Use the most reliable mirror available instead — `mirror.gcr.io` on GCP; Azure has no blessed equivalent, ask #agent-devx-help.
-- **Prebaked images**: no `-e2e` AMI equivalent. `docker.InstallDocker` / `docker.InstallCompose` (`test/e2e-framework/components/docker/install.go`) install Docker at provision time as the accepted exception for these clouds.
+- **Prebaked images**: no `-e2e` AMI equivalent. `PackageManager.RuntimeInstallDocker` (`test/e2e-framework/components/os/`) installs Docker and a pinned docker-compose at provision time as the accepted exception for these clouds. It fails on AWS.
 - **S3 artifact bucket**: `HostArtifactClient` returns `not implemented` (see above), with no fallback.

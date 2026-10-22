@@ -11,12 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/qri-io/jsonpointer"
-	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -53,23 +51,11 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 }
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
-	// Validate effective customer settings, including locally resolved secrets.
-	raw := c.cfg.AllSettingsWithoutDefault()
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	normalized, err := normalizeForSchema(raw)
-	if err != nil {
-		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
-	}
-	violations, schemaErr := schema.ValidateCoreConfigDetailed(normalized)
+	violations, schemaErr := schema.ValidateConfig(c.cfg, model.CoreSchema)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	violations = slices.DeleteFunc(violations, func(violation schema.Violation) bool {
-		return c.isUnresolvedSecret(normalized, violation)
-	})
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -106,30 +92,6 @@ func BuildContext(cfg model.Reader, configPath string, violation schema.Violatio
 		ctx[contextKeyViolation] = string(encoded)
 	}
 	return ctx
-}
-
-// Skip type errors for placeholders, but validate ENC-looking values returned by the secret backend.
-func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
-	if violation.ActualType != "string" {
-		return false
-	}
-	pointer, err := jsonpointer.Parse(violation.Path)
-	if err != nil {
-		return false
-	}
-	value, err := pointer.Eval(normalized)
-	text, ok := value.(string)
-	if err != nil || !ok || !scrubber.IsEnc(text) {
-		return false
-	}
-	// A compound setting carries the source on its enclosing map or list.
-	for i := len(pointer); i > 0; i-- {
-		key := strings.Join(pointer[:i], ".")
-		if c.cfg.IsSetting(key) {
-			return c.cfg.GetSource(key) != model.SourceSecret
-		}
-	}
-	return false
 }
 
 func scrubViolationPath(path string) string {
@@ -203,17 +165,4 @@ func (c *checker) instanceIssueID(settingPath string) string {
 	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
 	fmt.Fprintf(h, "%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), settingPath)
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
-}
-
-// normalizeForSchema coerces a Go-native config map into JSON-native types.
-func normalizeForSchema(in map[string]any) (map[string]any, error) {
-	b, err := yaml.Marshal(in)
-	if err != nil {
-		return nil, err
-	}
-	var normalized map[string]any
-	if err := yaml.Unmarshal(b, &normalized); err != nil {
-		return nil, err
-	}
-	return normalized, nil
 }

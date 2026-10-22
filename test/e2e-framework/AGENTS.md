@@ -81,6 +81,9 @@ Every `platforms.json` image is a Packer-built AMI with Docker, the AWS CLI, `jq
 descriptors carry no `-e2e` suffix: that distinction only exists in ami-builder, whose
 `platforms_key` maps its `-e2e` builds to our keys. Passing no OS at all is also
 correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025`).
+There is no generic runtime install: `PackageManager.RuntimeInstallDocker` 
+(Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
+and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.

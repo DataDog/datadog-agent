@@ -77,14 +77,15 @@ func (tcr *Resolver) PushNetworkNamespaceHandleRequest(nsID uint32, pid uint32) 
 
 func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 	for {
+		// select picks a random ready case, so a cancelled context alone wouldn't stop the queue from being drained
+		if tcr.ctx.Err() != nil {
+			return
+		}
+
 		select {
 		case <-tcr.ctx.Done():
 			return
-		case request, ok := <-tcr.tcRequests:
-			if !ok {
-				return
-			}
-
+		case request := <-tcr.tcRequests:
 			if err := tcr.setupNewTCClassifier(request.Device); err != nil {
 				var qnde QueuedNetworkDeviceError
 				if errors.As(err, &qnde) {

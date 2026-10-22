@@ -140,6 +140,95 @@ apm_config:
 		})
 	})
 
+	// The sampling decision maker sent by a Datadog SDK exporting OTLP must reach the intake,
+	// through the agent's processing and payload encoding.
+	t.Run("sampling-decision-maker", func(t *testing.T) {
+		port := testutil.FreeTCPPort(t)
+		c := fmt.Sprintf(`
+otlp_config:
+  traces:
+    internal_port: %d
+  receiver:
+    grpc:
+      endpoint: 0.0.0.0:5111
+apm_config:
+  env: my-env
+`, port)
+		if err := r.RunAgent([]byte(c)); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+		if err != nil {
+			log.Fatal("Error dialing: ", err)
+		}
+		client := ptraceotlp.NewGRPCClient(conn)
+		now := uint64(time.Now().UnixNano())
+		resource := func(service string, traceID byte, traceState string, attrs map[string]interface{}) testutil.OTLPResourceSpan {
+			return testutil.OTLPResourceSpan{
+				LibName:    "test",
+				LibVersion: "0.1t",
+				Attributes: map[string]interface{}{"service.name": service},
+				Spans: []*testutil.OTLPSpan{{
+					Name:       "/path",
+					Kind:       ptrace.SpanKindServer,
+					Start:      now,
+					End:        now + 200000000,
+					TraceID:    [16]byte{15: traceID}, // the agent keeps the low 64 bits
+					SpanID:     [8]byte{7: traceID},
+					TraceState: traceState,
+					Attributes: attrs,
+				}},
+			}
+		}
+		// service -> expected decision maker
+		want := map[string]string{
+			"dm-attribute":  "-12", // Datadog SDK: decision maker attribute
+			"dm-tracestate": "-11", // Datadog SDK: decision maker only in the W3C tracestate
+			"dm-none":       "-4",  // upstream OTel SDK: priority without a decision maker
+		}
+		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			resource("dm-attribute", 1, "", map[string]interface{}{"_sampling_priority_v1": 2, "_dd.p.dm": "-12"}),
+			resource("dm-tracestate", 2, "dd=s:2;t.dm:-11", map[string]interface{}{"_sampling_priority_v1": 2}),
+			resource("dm-none", 3, "", map[string]interface{}{"sampling.priority": 2}),
+		})
+		if _, err = client.Export(context.Background(), pack); err != nil {
+			log.Fatal("Error calling: ", err)
+		}
+
+		// service -> decision maker found at the intake (classic span meta and chunk tag, or idx SamplingMechanism)
+		got := map[string]string{}
+		timeout := time.After(5 * time.Second)
+		for len(got) < len(want) {
+			select {
+			case p := <-r.Out():
+				v, ok := p.(*pb.AgentPayload)
+				if !ok {
+					continue
+				}
+				for _, tp := range v.TracerPayloads {
+					for _, chunk := range tp.Chunks {
+						assert.Equal(t, int32(2), chunk.Priority)
+						got[chunk.Spans[0].Service] = chunk.Spans[0].Meta["_dd.p.dm"]
+						if dm, ok := chunk.Tags["_dd.p.dm"]; ok {
+							assert.Equal(t, got[chunk.Spans[0].Service], dm, "chunk tag and span meta must agree")
+						}
+					}
+				}
+				for _, tp := range v.IdxTracerPayloads {
+					for _, chunk := range tp.Chunks {
+						assert.Equal(t, int32(2), chunk.GetPriority())
+						got[idxStr(tp.Strings, chunk.Spans[0].GetServiceRef())] = fmt.Sprintf("-%d", chunk.GetSamplingMechanism())
+					}
+				}
+			case <-timeout:
+				t.Fatalf("timed out waiting for traces, got %v, log was:\n%s", got, r.AgentLog())
+			}
+		}
+		assert.Equal(t, want, got)
+	})
+
 	// regression test for DataDog/datadog-agent#11297
 	t.Run("duplicate-spanID", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
