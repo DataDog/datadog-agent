@@ -608,6 +608,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 		return
 	}
 
+	// The copy of the SBOM that runtime usage merges into keeps the repo tags
+	// and digests the image had at the first merge, so take those it has now.
+	cyclosbom = sbomutil.UpdateSBOMRepoMetadata(cyclosbom, img.RepoTags, img.RepoDigests)
+
 	// UncompressSBOM returns a BOM of its own, which every repo entity shares.
 	if cyclosbom.Status == workloadmeta.Success && sbomutil.UsageWindowOpen(cyclosbom.CycloneDXBOM, p.now(), p.imageUsageWindow) {
 		sbomutil.HideUnobserved(cyclosbom.CycloneDXBOM)

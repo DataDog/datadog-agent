@@ -8,6 +8,7 @@ package sbom
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1648,6 +1649,109 @@ var idleWorkloads = []struct {
 	{"sbom-node", "node", "coreutils", []string{"getent", "hosts", "localhost"}},
 	{"sbom-ruby", "ruby", "coreutils", []string{"getent", "hosts", "localhost"}},
 	{"sbom-golang", "golang", "busybox", []string{"apk", "--version"}},
+}
+
+// TestRepoTagsOfEnrichedImage names an image whose SBOM carries runtime usage,
+// then removes the name, and checks that every SBOM the Agent sends for the
+// image lists in its CycloneDX metadata the repo tags it reports. Its name runs
+// it before the TestZZ tests, which restart system-probe and flush the fake
+// intake.
+func (s *packageInUseSuite) TestRepoTagsOfEnrichedImage() {
+	t := s.T()
+	d, found := lo.Find(pkgInUseDistros, func(d pkgInUseDistro) bool { return d.name == "ubi9" })
+	s.Require().True(found, "no ubi9 workload")
+	const alias = "sbom-e2e-alias"
+	name := d.repo + ":" + alias
+	s.keepActive(d)
+
+	payloads := func(c require.TestingT) []*aggregator.SBOMPayload {
+		agg := fetchSBOMs(c, s.Fakeintake)
+		var ps []*aggregator.SBOMPayload
+		for _, id := range agg.GetNames() {
+			if !strings.HasPrefix(id, d.repo+"@") {
+				continue
+			}
+			for _, p := range agg.GetPayloadsByName(id) {
+				if p.GetType() == sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS && p.Status == sbom.SBOMStatus_SUCCESS && p.GetCyclonedx() != nil {
+					ps = append(ps, p)
+				}
+			}
+		}
+		return ps
+	}
+	enriched := func(p *aggregator.SBOMPayload) bool {
+		return lo.ContainsBy(p.GetCyclonedx().GetComponents(), func(comp *cyclonedx_v1_4.Component) bool {
+			_, ok := lastSeenRunning(comp)
+			return ok
+		})
+	}
+
+	// start is the newest SBOM of the image fakeintake holds when the test
+	// starts, so that the checks below read the SBOMs sent during the test.
+	var start time.Time
+	for _, p := range payloads(t) {
+		if p.GetCollectedTime().After(start) {
+			start = p.GetCollectedTime()
+		}
+	}
+	var repoDigest string
+	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		repoDigest = ""
+		for _, p := range payloads(c) {
+			if p.GetCollectedTime().After(start) && enriched(p) && len(p.GetRepoDigests()) > 0 {
+				repoDigest = p.GetRepoDigests()[0]
+			}
+		}
+		assert.NotEmptyf(c, repoDigest, "no %s SBOM with usage since %s yet", d.name, start)
+	}, 14*time.Minute, 15*time.Second, "%s SBOMs never carried usage", d.name)
+
+	// consistent returns the SBOMs of the image collected after start, and
+	// checks that each lists in its metadata the tags of the repo it reports.
+	consistent := func(c *assert.CollectT) []*aggregator.SBOMPayload {
+		var later []*aggregator.SBOMPayload
+		for _, p := range payloads(c) {
+			if !p.GetCollectedTime().After(start) {
+				continue
+			}
+			later = append(later, p)
+			var listed []string
+			for _, repoTag := range propertyValues(p.GetCyclonedx().GetMetadata().GetComponent().GetProperties(), propRepoTag) {
+				if tag, ok := strings.CutPrefix(repoTag, d.repo+":"); ok {
+					listed = append(listed, tag)
+				}
+			}
+			assert.ElementsMatchf(c, p.GetRepoTags(), listed, "the %s SBOM collected at %s reports the tags %v and lists %v", d.name, p.GetCollectedTime(), p.GetRepoTags(), listed)
+		}
+		return later
+	}
+
+	shell := s.startHostShell()
+	t.Cleanup(func() {
+		s.hostExec(t, shell, "ctr -n k8s.io images rm "+name+" >/dev/null 2>&1 || true")
+	})
+	s.hostExec(t, shell, "ctr -n k8s.io images tag "+repoDigest+" "+name)
+	if !s.EventuallyWithTf(func(c *assert.CollectT) {
+		named := lo.Filter(consistent(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return enriched(p) && slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, named, "no %s SBOM with usage and the tag %s yet", d.name, alias)
+	}, 5*time.Minute, 10*time.Second, "%s SBOMs never listed %s", d.name, name) {
+		return
+	}
+
+	s.hostExec(t, shell, "ctr -n k8s.io images rm "+name)
+	var removed time.Time
+	for _, p := range payloads(t) {
+		if p.GetCollectedTime().After(removed) {
+			removed = p.GetCollectedTime()
+		}
+	}
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		unnamed := lo.Filter(consistent(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return enriched(p) && p.GetCollectedTime().After(removed) && !slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, unnamed, "no %s SBOM with usage since the removal of %s yet", d.name, name)
+	}, 5*time.Minute, 10*time.Second, "%s SBOMs never dropped %s", d.name, name)
 }
 
 // TestZZRunningBeforeSystemProbe checks that system-probe credits the packages
