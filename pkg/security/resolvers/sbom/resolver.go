@@ -293,6 +293,15 @@ type SBOM struct {
 
 	root     containerRoot
 	rootRead time.Time // when root was last read, while unknown
+
+	// execs counts the execs in the container, scanExecs the ones before the last
+	// scan. awaitingExec is set while a scan that found no process on the root of
+	// the container waits for the next exec, and execRescanned once an exec
+	// queued the scan again.
+	execs         uint64
+	scanExecs     uint64
+	awaitingExec  bool
+	execRescanned bool
 }
 
 // containerRoot is the root mount of a container and the mounts of its mount
@@ -549,7 +558,12 @@ func (r *Resolver) Start(ctx context.Context) error {
 func (r *Resolver) scanFailed(sbom *SBOM, err error) {
 	r.removePendingScan(sbom.ContainerID)
 
-	if errors.Is(err, errNoProcessForContainerID) || errors.Is(err, errNoContainerRoot) {
+	if errors.Is(err, errNoContainerRoot) {
+		seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
+		r.awaitExec(sbom)
+		return
+	}
+	if errors.Is(err, errNoProcessForContainerID) {
 		seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 		return
 	}
@@ -559,6 +573,27 @@ func (r *Resolver) scanFailed(sbom *SBOM, err error) {
 	sbom.Unlock()
 	seclog.Warnf("Failed to generate SBOM for '%s', next try in %s: %v", sbom.ContainerID, delay, err)
 	time.AfterFunc(delay, func() { r.retryScan(sbom) })
+}
+
+// awaitExec makes sbom, whose scan found no process on the root of the container,
+// wait for an exec in the container to be scanned again. The runtime moves the
+// first process of a container into its cgroup before it switches the process
+// to the root of the container, which is done by the time the process runs the
+// entrypoint. An exec since the scan started queues it again at once.
+func (r *Resolver) awaitExec(sbom *SBOM) {
+	sbom.Lock()
+	if sbom.execRescanned || sbom.state.Load() != pendingState {
+		sbom.Unlock()
+		return
+	}
+	exec := sbom.execs != sbom.scanExecs
+	sbom.execRescanned = exec
+	sbom.awaitingExec = !exec
+	sbom.Unlock()
+
+	if exec {
+		r.retryScan(sbom)
+	}
 }
 
 // retryScan queues sbom for a scan again, if it is still waiting for one and
@@ -1339,6 +1374,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	// Only count a cache miss when we actually do the scan
 	r.sbomsCacheMiss.Inc()
 
+	sb.scanExecs = sb.execs
 	report, scanErr := r.scanWorkload(sb)
 	if scanErr != nil {
 		return scanErr
@@ -1817,6 +1853,31 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	if !ok {
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, r.workloadKeyOf(id, workload))
 		r.queueWorkload(sbom)
+	}
+}
+
+// OnExec queues the scan of the container of pc again if an earlier scan found no
+// process on the root of the container and waits for an exec in the container.
+func (r *Resolver) OnExec(pc *model.ProcessContext) {
+	if pc.ContainerContext.ContainerID == "" {
+		return
+	}
+	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
+	if sbom == nil {
+		return
+	}
+
+	sbom.Lock()
+	sbom.execs++
+	awaiting := sbom.awaitingExec
+	if awaiting {
+		sbom.awaitingExec = false
+		sbom.execRescanned = true
+	}
+	sbom.Unlock()
+
+	if awaiting {
+		r.retryScan(sbom)
 	}
 }
 
