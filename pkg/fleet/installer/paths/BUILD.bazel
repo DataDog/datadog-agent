@@ -5,6 +5,7 @@ go_library(
     name = "paths",
     srcs = [
         "installer_paths.go",
+        "installer_paths_darwin.go",
         "installer_paths_utils.go",
         "installer_paths_windows.go",
         "remove_all_other.go",

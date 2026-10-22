@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "launchd",
+    srcs = ["launchd.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
