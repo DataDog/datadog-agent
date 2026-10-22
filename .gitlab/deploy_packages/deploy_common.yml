@@ -14,7 +14,7 @@
     - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
     - !reference [.setup_dd_pkg]
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" ${DD_PKG_EXTRA_ARGS}
 
 .deploy_packages_deb:
   extends: .deploy_packages
@@ -31,4 +31,5 @@
   variables:
     ARTIFACTS_PREFIX: suse_
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
+    DD_PKG_EXTRA_ARGS: --suse
 
