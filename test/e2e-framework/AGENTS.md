@@ -98,6 +98,12 @@ Register explicit opt-outs in `test/new-e2e/internet-access.yaml`. Direct scenar
 callers do not inherit these provisioner defaults. EKS Auto Mode requires an
 explicit opt-out; EKS Fargate pods are not covered by the egress restriction.
 
+EKS private networking must allow all IPv4 CIDRs associated with the VPC, not
+just its primary CIDR: nodes and custom-CNI pods can use secondary networks.
+The restricted security groups also allow HTTPS to regional S3 through its
+gateway endpoint, which ECR needs for image layers. Keep the node, pod, and
+control-plane egress rules aligned through `eks.NoInternetEgressRules`.
+
 ### Kubernetes resource ownership
 
 Pulumi resource names and component parents only make Pulumi URNs unique. Kubernetes
