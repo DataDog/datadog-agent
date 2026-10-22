@@ -56,19 +56,34 @@ func concurrencyPolicyFromConfig(config config.Component, log log.Component) con
 	workers := config.GetInt("forwarder_num_workers")
 	requests := maxConcurrentRequestsFromConfig(config, log)
 
-	// HTTP/1 sends one request per connection, so allow one connection per
-	// request a worker may have in flight. HTTP/2 (`auto`) multiplexes the
-	// requests of a worker over one connection.
-	connections := workers
-	if config.GetString("forwarder_http_protocol") == "http1" {
-		connections = workers * int(requests)
-	}
-
 	return staticConcurrencyPolicy{
 		workers:     workers,
-		connections: connections,
+		connections: connectionsFromConfig(config, log, workers, requests),
 		requests:    requests,
 	}
+}
+
+// connectionsFromConfig returns the number of connections per domain. HTTP/2
+// (`auto`) multiplexes the requests of a worker over one connection, so it uses
+// one connection per worker. HTTP/1 sends one request per connection: it also
+// uses one connection per worker unless forwarder_http1_max_connections is set,
+// clamped between the number of workers and the number of requests that can be
+// in flight.
+func connectionsFromConfig(config config.Component, log log.Component, workers int, requests int64) int {
+	if config.GetString("forwarder_http_protocol") != "http1" {
+		return workers
+	}
+	want := config.GetInt("forwarder_http1_max_connections")
+	if want <= 0 {
+		return workers
+	}
+	maxUseful := workers * int(requests)
+	connections := min(max(want, workers), maxUseful)
+	if connections != want {
+		log.Warnf("forwarder_http1_max_connections '%d' is outside [forwarder_num_workers, forwarder_num_workers * forwarder_max_concurrent_requests] = [%d, %d], using %d",
+			want, workers, maxUseful, connections)
+	}
+	return connections
 }
 
 // newLocalConcurrencyDomainFromConfig returns the concurrency domain to use for

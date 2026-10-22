@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Add the ``forwarder_http1_max_connections`` setting. When
+    ``forwarder_http_protocol`` is ``http1``, it sets the maximum number of
+    connections per domain, so the forwarder can send more than one request at a
+    time per worker. The default, ``0``, keeps the current behavior of one
+    connection per worker. Values are kept between ``forwarder_num_workers`` and
+    ``forwarder_num_workers`` times ``forwarder_max_concurrent_requests``. The
+    setting is ignored for ``auto``. Each connection is kept open to your proxy
+    or the intake, so use a small value, for example 2 to 4, and check their
+    connection limits first.

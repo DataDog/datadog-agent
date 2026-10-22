@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func TestNewDomainForwarder(t *testing.T) {
@@ -650,86 +651,111 @@ func TestForwarderBurstAbsorptionCliff(t *testing.T) {
 	}
 }
 
-// TestHTTP1ConcurrencyHonorsMaxConcurrentRequests checks that with forwarder_http_protocol
-// set to http1 the forwarder client allows one connection per request the worker may have
-// in flight (forwarder_max_concurrent_requests, default 10), since HTTP/1 sends one request
-// per connection, and that it keeps those connections idle between bursts instead of
-// closing and redialing them. The server holds every request of a burst until all of them
-// are in flight, so the result does not depend on timing.
-func TestHTTP1ConcurrencyHonorsMaxConcurrentRequests(t *testing.T) {
-	cfg := mock.New(t)
-	log := logmock.New(t)
-	cfg.SetInTest("forwarder_http_protocol", "http1")
-	const requests = 10
-	require.Equal(t, requests, cfg.GetInt("forwarder_max_concurrent_requests"))
-	require.Equal(t, 1, cfg.GetInt("forwarder_num_workers"))
+// TestHTTP1MaxConnections checks how many connections per domain the forwarder
+// client opens over HTTP/1 and that it keeps them idle between bursts instead of
+// closing and redialing them. Each burst sends forwarder_max_concurrent_requests
+// requests at once. The server holds them until the expected number is in flight,
+// waits a little longer to catch extra ones, then releases them.
+func TestHTTP1MaxConnections(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		protocol       string
+		maxConnections int
+		want           int
+	}{
+		{"http1 default keeps one connection", "http1", 0, 1},
+		{"http1 opt-in 4", "http1", 4, 4},
+		{"http1 opt-in 8, above the default idle pool", "http1", 8, 8},
+		{"auto ignores it", "auto", 4, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.New(t)
+			log := logmock.New(t)
+			cfg.SetInTest("forwarder_http_protocol", tc.protocol)
+			if tc.maxConnections != 0 {
+				cfg.SetInTest("forwarder_http1_max_connections", tc.maxConnections)
+			}
+			requests := cfg.GetInt("forwarder_max_concurrent_requests")
+			require.Equal(t, 10, requests)
+			require.Equal(t, 1, cfg.GetInt("forwarder_num_workers"))
 
-	type gate struct {
-		allIn, release chan struct{}
-		once           sync.Once
-	}
-	var mu sync.Mutex
-	var cur *gate
-	var inflight, peak int
-	var newConns atomic.Int32
+			maxConns := concurrencyPolicyFromConfig(cfg, log).maxConns()
+			require.Equal(t, tc.want, maxConns)
+			defaults := httputils.CreateHTTPTransport(cfg)
+			transport := NewHTTPTransport(cfg, maxConns, log)
+			assert.Equal(t, tc.want, transport.MaxConnsPerHost)
+			assert.Equal(t, max(defaults.MaxIdleConnsPerHost, tc.want), transport.MaxIdleConnsPerHost, "idle pool per host")
+			assert.Equal(t, defaults.MaxIdleConns, transport.MaxIdleConns, "idle pool")
 
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mu.Lock()
-		g := cur
-		inflight++
-		peak = max(peak, inflight)
-		if inflight == requests {
-			g.once.Do(func() { close(g.allIn) })
-		}
-		mu.Unlock()
-		<-g.release
-		mu.Lock()
-		inflight--
-		mu.Unlock()
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
-		if state == http.StateNew {
-			newConns.Add(1)
-		}
-	}
-	srv.Start()
-	t.Cleanup(srv.Close)
+			type gate struct {
+				allIn, release chan struct{}
+				once           sync.Once
+			}
+			var mu sync.Mutex
+			var cur *gate
+			var inflight, peak int
+			var newConns atomic.Int32
 
-	client := NewHTTPClient(cfg, concurrencyPolicyFromConfig(cfg, log).maxConns(), log)
-
-	// burst sends requests concurrently and returns how many were in flight at
-	// the server at the same time.
-	burst := func() int {
-		g := &gate{allIn: make(chan struct{}), release: make(chan struct{})}
-		mu.Lock()
-		cur, peak = g, 0
-		mu.Unlock()
-
-		var wg sync.WaitGroup
-		for i := 0; i < requests; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				resp, err := client.Get(srv.URL)
-				if err == nil {
-					resp.Body.Close()
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				mu.Lock()
+				g := cur
+				inflight++
+				peak = max(peak, inflight)
+				if inflight == tc.want {
+					g.once.Do(func() { close(g.allIn) })
 				}
-			}()
-		}
-		select {
-		case <-g.allIn:
-		case <-time.After(5 * time.Second):
-		}
-		close(g.release)
-		wg.Wait()
+				mu.Unlock()
+				<-g.release
+				mu.Lock()
+				inflight--
+				mu.Unlock()
+				w.WriteHeader(http.StatusAccepted)
+			}))
+			srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+				if state == http.StateNew {
+					newConns.Add(1)
+				}
+			}
+			srv.Start()
+			t.Cleanup(srv.Close)
 
-		mu.Lock()
-		defer mu.Unlock()
-		return peak
+			client := NewHTTPClient(cfg, maxConns, log)
+
+			// burst sends requests concurrently and returns how many were in
+			// flight at the server at the same time.
+			burst := func() int {
+				g := &gate{allIn: make(chan struct{}), release: make(chan struct{})}
+				mu.Lock()
+				cur, peak = g, 0
+				mu.Unlock()
+
+				var wg sync.WaitGroup
+				for i := 0; i < requests; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						resp, err := client.Get(srv.URL)
+						if err == nil {
+							resp.Body.Close()
+						}
+					}()
+				}
+				select {
+				case <-g.allIn:
+					time.Sleep(50 * time.Millisecond) // let extra requests show up
+				case <-time.After(5 * time.Second):
+				}
+				close(g.release)
+				wg.Wait()
+
+				mu.Lock()
+				defer mu.Unlock()
+				return peak
+			}
+
+			assert.Equal(t, tc.want, burst(), "requests in flight at the server, first burst")
+			assert.Equal(t, tc.want, burst(), "requests in flight at the server, second burst")
+			assert.Equal(t, int32(tc.want), newConns.Load(), "connections accepted by the server over two bursts")
+		})
 	}
-
-	assert.Equal(t, requests, burst(), "requests in flight at the server, first burst")
-	assert.Equal(t, requests, burst(), "requests in flight at the server, second burst")
-	assert.Equal(t, int32(requests), newConns.Load(), "connections accepted by the server over two bursts")
 }

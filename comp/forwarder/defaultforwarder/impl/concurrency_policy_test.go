@@ -32,22 +32,47 @@ func TestConcurrencyPolicyFromConfig(t *testing.T) {
 	assert.NotSame(t, d.newRequestSemaphore(), d.newRequestSemaphore())
 }
 
-func TestConcurrencyPolicyFromConfigHTTP1(t *testing.T) {
+func TestConcurrencyPolicyFromConfigHTTP1MaxConnections(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		protocol       string
+		maxConnections int
+		workers        int
+		requests       int
+		want           int
+	}{
+		{"http1 unset keeps one connection per worker", "http1", 0, 3, 5, 3},
+		{"http1 negative keeps one connection per worker", "http1", -1, 3, 5, 3},
+		{"http1 opt-in", "http1", 4, 1, 10, 4},
+		{"http1 opt-in with several workers is per domain", "http1", 4, 3, 5, 4},
+		{"http1 below workers is raised to workers", "http1", 2, 3, 5, 3},
+		{"http1 above workers x requests is lowered", "http1", 50, 3, 5, 15},
+		{"auto ignores it", "auto", 4, 3, 5, 3},
+		{"invalid protocol ignores it", "h2c", 4, 3, 5, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetInTest("forwarder_http_protocol", tc.protocol)
+			mockConfig.SetInTest("forwarder_num_workers", tc.workers)
+			mockConfig.SetInTest("forwarder_max_concurrent_requests", tc.requests)
+			if tc.maxConnections != 0 {
+				mockConfig.SetInTest("forwarder_http1_max_connections", tc.maxConnections)
+			}
+
+			p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+			assert.Equal(t, tc.workers, p.numWorkers())
+			assert.Equal(t, tc.want, p.maxConns())
+			assert.Equal(t, tc.want, p.newDomain("remote").maxConns())
+
+			local := newLocalConcurrencyDomainFromConfig(mockConfig, logmock.New(t))
+			assert.Equal(t, 1, local.maxConns())
+		})
+	}
+}
+
+func TestHTTP1MaxConnectionsDefault(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetInTest("forwarder_http_protocol", "http1")
-	mockConfig.SetInTest("forwarder_num_workers", 3)
-	mockConfig.SetInTest("forwarder_max_concurrent_requests", 5)
-
-	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
-	assert.Equal(t, 3, p.numWorkers())
-	assert.Equal(t, 15, p.maxConns())
-
-	d := p.newDomain("remote")
-	assert.Equal(t, 3, d.numWorkers())
-	assert.Equal(t, 15, d.maxConns())
-
-	local := newLocalConcurrencyDomainFromConfig(mockConfig, logmock.New(t))
-	assert.Equal(t, 1, local.maxConns())
+	assert.Equal(t, 0, mockConfig.GetInt("forwarder_http1_max_connections"))
 }
 
 func TestNewLocalConcurrencyDomainFromConfig(t *testing.T) {

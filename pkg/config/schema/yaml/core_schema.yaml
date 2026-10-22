@@ -569,10 +569,27 @@ properties:
     visibility: public
     description: |-
       The maximum number of concurrent requests that each worker can have queued up
-      at any one time. With `forwarder_http_protocol: http1`, the Agent opens one
-      connection per request, up to `forwarder_num_workers` times this value per domain.
-      With `auto`, HTTP/2 sends each request before the previous response arrives. If
-      `auto` falls back to HTTP/1, each request waits for the previous request to complete.
+      at any one time. If the connection is over HTTP/1 each request will be waiting
+      for the previous request to complete before sending the next one. With HTTP/2
+      each request can be sent before waiting for the response.
+    tags:
+    - template_section:Common
+  forwarder_http1_max_connections:
+    node_type: setting
+    type: integer
+    default: 0
+    visibility: public
+    description: |-
+      The maximum number of connections per domain when `forwarder_http_protocol` is
+      `http1`. HTTP/1 sends one request per connection, so by default (0) the forwarder
+      opens `forwarder_num_workers` connections per domain and sends at most that many
+      requests at a time. Set a small value, for example 2 to 4, to send more requests
+      at a time, for example behind a proxy that does not support HTTP/2. Each
+      connection is opened to your proxy or the intake and kept open, so check their
+      connection limits first. Values below `forwarder_num_workers` use
+      `forwarder_num_workers`. Values above `forwarder_num_workers` times
+      `forwarder_max_concurrent_requests` use that product, since extra connections
+      would stay unused. Ignored when `forwarder_http_protocol` is `auto`.
     tags:
     - template_section:Common
   forwarder_storage_max_size_in_bytes:
