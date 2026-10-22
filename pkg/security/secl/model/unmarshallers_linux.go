@@ -1063,7 +1063,8 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
-	read += 4
+	e.Retval = int32(binary.NativeEndian.Uint32(data[read+4 : read+8]))
+	read += 8
 
 	return read, nil
 }

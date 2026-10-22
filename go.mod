@@ -44,7 +44,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.12.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.213
+	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.0.0-00010101000000-000000000000
@@ -209,7 +209,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
-	github.com/DataDog/datadog-traceroute v1.0.20
+	github.com/DataDog/datadog-traceroute v1.0.21
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.11.2
 	github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7
@@ -231,12 +231,12 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/aptly-dev/aptly v1.6.3
-	github.com/aquasecurity/trivy v0.75.0
+	github.com/aquasecurity/trivy v0.76.0
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.4
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.339.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.130.3
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.4
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.3
@@ -412,7 +412,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.21.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.22.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.34
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -433,6 +433,7 @@ require (
 	go.opentelemetry.io/collector/consumer/xconsumer v0.162.0
 	go.opentelemetry.io/collector/exporter v1.68.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.162.0
+	go.opentelemetry.io/collector/exporter/exportertest v0.162.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.162.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.162.0
 	go.opentelemetry.io/collector/extension v1.68.0
@@ -1114,7 +1115,6 @@ require (
 	go.opentelemetry.io/collector/consumer/consumertest v0.162.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.162.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.162.0 // indirect
-	go.opentelemetry.io/collector/exporter/exportertest v0.162.0 // indirect
 	go.opentelemetry.io/collector/exporter/nopexporter v0.162.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.162.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.68.0 // indirect

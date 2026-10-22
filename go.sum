@@ -2530,8 +2530,8 @@ github.com/CycloneDX/cyclonedx-go v0.12.0 h1:/7Jum36UA6V043tQZ/fE3jf+Nf9gn/qxUFf
 github.com/CycloneDX/cyclonedx-go v0.12.0/go.mod h1:V2577HhxDDCDLYfkm55WJrz16nHTfyQZwcWUBSG7Z28=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.213 h1:c+sSA2qAaw1BrQd9cQcDIuVbFDz95rC9CA98A0mc76A=
-github.com/DataDog/agent-payload/v5 v5.0.213/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
+github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 h1:y9MeSee2LelHW4BfqIZG0j9rpGudLmm0TzTlnZoAvrE=
+github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421/go.mod h1:W6yXZM1qJnPKp4jnAG6B5W5lT8rJJFBCLk/WbeeqvTc=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9 h1:SqGEmv63IrjqqDmXf49ZjlZnyBiHiBbF/1AVaM3q+wI=
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9/go.mod h1:UmLcF4Qcn6yaiqp5xrsVwEfeBSD2YTWkWLv69SIlvtE=
 github.com/DataDog/cast v1.8.0 h1:uooY8bMzq+cjgiNP1VTquCWve5emgk8fRspZojJwQa8=
@@ -2546,8 +2546,8 @@ github.com/DataDog/datadog-go/v5 v5.9.1 h1:jOxw/TaxGWok8RIxbpqn2p3RzSnQr/m3Q6Tga
 github.com/DataDog/datadog-go/v5 v5.9.1/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
 github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b h1:h7DnP0VdoS4L2uYCiuJv2HQJbgkkGIhZhWZuLEHW5VY=
 github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b/go.mod h1:QVHJwTn0Kf7BGjFULw5mJkQjjCSOF7eWFmwHBiX9sKk=
-github.com/DataDog/datadog-traceroute v1.0.20 h1:GqDf+MmbFzCGhqIRCTrCZV1pOaVuG/3zFn/C8GXdLh0=
-github.com/DataDog/datadog-traceroute v1.0.20/go.mod h1:gtDOEd1qCVGULNYdHULzFBbdDLJwpP+nJMKSXiuVi78=
+github.com/DataDog/datadog-traceroute v1.0.21 h1:k4m+Jo5IsuPOXb93UOUQBGaS21OXAYjFznwVK9fQ+rA=
+github.com/DataDog/datadog-traceroute v1.0.21/go.mod h1:fnzf/ys0XIpqaeQiief5KKFhaq0Cb13p+brZ76mOgsw=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b2wcIaW6NXauhcA/ZoH012oRVEiqu8dBEd0gAMsgU=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
 github.com/DataDog/dd-trace-go/v2 v2.11.2 h1:HbANttl9UJGen/tRb+pX3nPNa4IQy2vXvUDlhZaQHeI=
@@ -2765,8 +2765,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.6 h1:FpBq24TG6WVSObTNhQO
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.6/go.mod h1:ONzdPVYC95oBOu0VWNEsKEntcoemP3xVKjT+qWml1s4=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.6 h1:Qmn60RWuk9+bd2ddvJJqwf3Cpac3VvGMOdbGemtUhX4=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.6/go.mod h1:h/YJhe4AVyQxEUMluph10iqV7mjajH7A9L+BHF5ppis=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.4 h1:1PZfVMz36He601uRm1PiKyDcsEKBk76QYwyISwjOjjY=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.4/go.mod h1:RttUwBa++DWLLpzTAQdcQzqI9uBF9cfRI/ek8gXzLR4=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.339.0 h1:QeML374NiRru1tMjY46LznOzY7VMbWstpnhrFPgscvM=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.339.0/go.mod h1:RttUwBa++DWLLpzTAQdcQzqI9uBF9cfRI/ek8gXzLR4=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.66.4 h1:qnnwXADWCoti36pKognFfw3L4bPYW1wIlsm4JqYmjDY=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.66.4/go.mod h1:uDza1Eipo/Olii3CCgLglHmAni24PScSAhpfIKbUl0c=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.100.3 h1:GjuFwluSUe4XNiZjFpKvQI3te7PAsrrv9V7zPHMWGPk=
@@ -5062,8 +5062,8 @@ github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
-gitlab.com/gitlab-org/api/client-go/v3 v3.21.0 h1:OhcaOlODpHa/5YqJDQhsMpGeNm/vaFePxjzv3mTx/Vo=
-gitlab.com/gitlab-org/api/client-go/v3 v3.21.0/go.mod h1:UQl7jIdE6nbYNDtc4XWXeiam0V4MJx459e637POlpnQ=
+gitlab.com/gitlab-org/api/client-go/v3 v3.22.0 h1:C/+VaOCQbhtkGgdJwD6R/nId/Y3xJvm8e3mBl4qhKaA=
+gitlab.com/gitlab-org/api/client-go/v3 v3.22.0/go.mod h1:UQl7jIdE6nbYNDtc4XWXeiam0V4MJx459e637POlpnQ=
 go.einride.tech/aip v0.66.0/go.mod h1:qAhMsfT7plxBX+Oy7Huol6YUvZ0ZzdUz26yZsQwfl1M=
 go.einride.tech/aip v0.67.1/go.mod h1:ZGX4/zKw8dcgzdLsrvpOOGxfxI2QSk12SlP7d6c0/XI=
 go.einride.tech/aip v0.68.0/go.mod h1:7y9FF8VtPWqpxuAxl0KQWqaULxW4zFIesD6zF5RIHHg=

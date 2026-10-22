@@ -88,6 +88,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 
 replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../config/nodetreemodel
 
+replace github.com/DataDog/datadog-agent/pkg/config/schema => ../../config/schema
+
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
@@ -111,3 +113,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 
 replace github.com/DataDog/datadog-agent/pkg/trace => ../../trace
+
+replace github.com/DataDog/datadog-agent/pkg/zstd => ../../zstd
