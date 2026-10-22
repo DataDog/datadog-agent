@@ -92,11 +92,20 @@ type kueueWorkloadEntry struct {
 	podSetAssignments []kueuePodSetAssignmentEntry
 }
 
+type autoscalerEntry struct {
+	namespace      string
+	name           string
+	autoscalerKind workloadmeta.AutoscalerKind
+	targetKind     workloadmeta.AutoscalerTargetKind
+	targetName     string
+}
+
 type metadataSnapshot struct {
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 	kueueWorkloads       map[string]kueueWorkloadEntry
+	autoscalers          map[string]autoscalerEntry
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -133,6 +142,7 @@ func newMetadataSnapshot() metadataSnapshot {
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
+		autoscalers:          make(map[string]autoscalerEntry),
 	}
 }
 
@@ -286,6 +296,10 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
 				changed = true
 			}
+		case *workloadmeta.KubernetesAutoscaler:
+			if srv.metadata.processAutoscalerEvent(event.Type, entity) {
+				changed = true
+			}
 		default:
 			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
@@ -417,6 +431,29 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	return false
 }
 
+func (s *metadataSnapshot) processAutoscalerEvent(eventType workloadmeta.EventType, autoscaler *workloadmeta.KubernetesAutoscaler) bool {
+	key := autoscaler.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.autoscalers[key] = autoscalerEntry{
+			namespace:      autoscaler.Namespace,
+			name:           autoscaler.Name,
+			autoscalerKind: autoscaler.AutoscalerKind,
+			targetKind:     autoscaler.TargetKind,
+			targetName:     autoscaler.TargetName,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.autoscalers[key]; exists {
+			delete(s.autoscalers, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for autoscaler %s", eventType, key)
+	}
+	return false
+}
+
 func kueuePodSetAssignmentEntries(assignments []workloadmeta.KueuePodSetAssignment) []kueuePodSetAssignmentEntry {
 	entries := make([]kueuePodSetAssignmentEntry, 0, len(assignments))
 	for _, assignment := range assignments {
@@ -492,6 +529,10 @@ func (srv *KubeMetadataStreamServer) buildKueueWorkloadsSnapshot() map[string]ku
 	return srv.buildMetadataSnapshot().kueueWorkloads
 }
 
+func (srv *KubeMetadataStreamServer) buildAutoscalersSnapshot() map[string]autoscalerEntry {
+	return srv.buildMetadataSnapshot().autoscalers
+}
+
 func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
 	snapshot, _ := srv.buildMetadataSnapshotWithVersion()
 	return snapshot
@@ -510,6 +551,7 @@ func (s metadataSnapshot) clone() metadataSnapshot {
 	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
+	maps.Copy(snapshot.autoscalers, s.autoscalers)
 	return snapshot
 }
 
@@ -530,7 +572,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).AddKind(workloadmeta.KindKubernetesAutoscaler).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -571,6 +613,7 @@ type metadataDiff struct {
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
 	kueueWorkloads       []*pb.KueueWorkload
+	autoscalers          []*pb.KubernetesAutoscaler
 }
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
@@ -579,20 +622,22 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
+		autoscalers:          computeAutoscalerDiff(old.autoscalers, current.autoscalers),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.autoscalers) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
 	return &pb.KubeMetadataStreamResponse{
-		IsFullState:          isFullState,
-		NamespaceMetadata:    d.namespaces,
-		KueueQueues:          d.kueueQueues,
-		KueueResourceFlavors: d.kueueResourceFlavors,
-		KueueWorkloads:       d.kueueWorkloads,
+		IsFullState:           isFullState,
+		NamespaceMetadata:     d.namespaces,
+		KueueQueues:           d.kueueQueues,
+		KueueResourceFlavors:  d.kueueResourceFlavors,
+		KueueWorkloads:        d.kueueWorkloads,
+		KubernetesAutoscalers: d.autoscalers,
 	}
 }
 
@@ -712,6 +757,25 @@ func computeKueueWorkloadDiff(old, current map[string]kueueWorkloadEntry) []*pb.
 	return diff
 }
 
+func computeAutoscalerDiff(old, current map[string]autoscalerEntry) []*pb.KubernetesAutoscaler {
+	var diff []*pb.KubernetesAutoscaler
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || prev != cur {
+			diff = append(diff, protoAutoscaler(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoAutoscaler(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
 func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) *pb.KueueQueue {
 	return &pb.KueueQueue{
 		Namespace:    entry.namespace,
@@ -747,6 +811,17 @@ func protoKueueWorkload(entry kueueWorkloadEntry, eventType pb.KubeMetadataEvent
 		Uid:               entry.uid,
 		PodSetAssignments: protoKueuePodSetAssignments(entry.podSetAssignments),
 		Type:              eventType,
+	}
+}
+
+func protoAutoscaler(entry autoscalerEntry, eventType pb.KubeMetadataEventType) *pb.KubernetesAutoscaler {
+	return &pb.KubernetesAutoscaler{
+		Namespace:      entry.namespace,
+		Name:           entry.name,
+		AutoscalerKind: string(entry.autoscalerKind),
+		TargetKind:     string(entry.targetKind),
+		TargetName:     entry.targetName,
+		Type:           eventType,
 	}
 }
 

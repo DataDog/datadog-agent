@@ -1197,6 +1197,53 @@ func TestStreamingProvider_isActive_unimplemented(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
+func TestStreamingProvider_AutoscalerKinds(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{dcaStream: newDCAStreamClient("node-a", nil), wmeta: wmetaMock}
+	hpa := &pb.KubernetesAutoscaler{
+		Namespace:      "default",
+		Name:           "hpa-a",
+		AutoscalerKind: "hpa",
+		TargetKind:     "deployment",
+		TargetName:     "app-a",
+		Type:           pb.KubeMetadataEventType_SET,
+	}
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState:           true,
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{hpa},
+	})
+	seenPods := make(map[string]string)
+	provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), seenPods)
+
+	kubeletPod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-a"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "pod-a", Namespace: "default"},
+		Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "app-a-6b7d9c5f4"}},
+	}
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: kubeletPod,
+	}})
+
+	// The pod event carries the kinds of the autoscalers of the pod's workload
+	provider.handleWmetaPodEvents(makePodBundle(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: kubeletPod}), seenPods)
+	pod, err := wmetaMock.GetKubernetesPod("uid-a")
+	require.NoError(t, err)
+	assert.Equal(t, []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA}, pod.AutoscalerKinds)
+
+	// Removing the autoscaler re-enriches the pod
+	hpa.Type = pb.KubeMetadataEventType_UNSET
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{KubernetesAutoscalers: []*pb.KubernetesAutoscaler{hpa}})
+	provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), seenPods)
+	pod, err = wmetaMock.GetKubernetesPod("uid-a")
+	require.NoError(t, err)
+	assert.Empty(t, pod.AutoscalerKinds)
+}
+
 func TestDCAStreamClient_ApplyResponse(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -1474,6 +1521,85 @@ func TestDCAStreamClient_ApplyResponse_IncrementalWorkloadBeforeFullStateIgnored
 	assert.Empty(t, sc.kueueWorkloads)
 	update := sc.drainPendingUpdate()
 	assert.Empty(t, update.updatedKueueWorkloads)
+}
+
+func TestDCAStreamClient_ApplyResponse_Autoscalers(t *testing.T) {
+	namespace := "default"
+	sc := newDCAStreamClient("node-a", nil)
+	targetA := workloadmeta.AutoscalerTarget{Kind: workloadmeta.AutoscalerTargetDeployment, Namespace: namespace, Name: "app-a"}
+	targetB := workloadmeta.AutoscalerTarget{Kind: workloadmeta.AutoscalerTargetDeployment, Namespace: namespace, Name: "app-b"}
+
+	// Initial full state
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{{
+			Namespace:      namespace,
+			Name:           "hpa-a",
+			AutoscalerKind: "hpa",
+			TargetKind:     "deployment",
+			TargetName:     "app-a",
+			Type:           pb.KubeMetadataEventType_SET,
+		}},
+	})
+	update := sc.drainPendingUpdate()
+	assert.True(t, update.updateIsFullState)
+	assert.Empty(t, update.updatedAutoscalerTargets)
+	assert.Equal(t, []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA}, sc.getAutoscalerKinds(targetA))
+
+	// Incremental SET of another kind on the same target
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{{
+			Namespace:      namespace,
+			Name:           "vpa-a",
+			AutoscalerKind: "vpa",
+			TargetKind:     "deployment",
+			TargetName:     "app-a",
+			Type:           pb.KubeMetadataEventType_SET,
+		}},
+	})
+	update = sc.drainPendingUpdate()
+	assert.False(t, update.updateIsFullState)
+	assert.Equal(t, map[workloadmeta.AutoscalerTarget]struct{}{targetA: {}}, update.updatedAutoscalerTargets)
+	assert.Equal(t, []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA, workloadmeta.AutoscalerKindVPA}, sc.getAutoscalerKinds(targetA))
+
+	// Retarget: both the previous and the new target are updated
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{{
+			Namespace:      namespace,
+			Name:           "hpa-a",
+			AutoscalerKind: "hpa",
+			TargetKind:     "deployment",
+			TargetName:     "app-b",
+			Type:           pb.KubeMetadataEventType_SET,
+		}},
+	})
+	update = sc.drainPendingUpdate()
+	assert.Equal(t, map[workloadmeta.AutoscalerTarget]struct{}{targetA: {}, targetB: {}}, update.updatedAutoscalerTargets)
+	assert.Equal(t, []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindVPA}, sc.getAutoscalerKinds(targetA))
+	assert.Equal(t, []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA}, sc.getAutoscalerKinds(targetB))
+
+	// UNSET updates the target it had
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{{
+			Namespace:      namespace,
+			Name:           "hpa-a",
+			AutoscalerKind: "hpa",
+			TargetKind:     "deployment",
+			TargetName:     "app-b",
+			Type:           pb.KubeMetadataEventType_UNSET,
+		}},
+	})
+	update = sc.drainPendingUpdate()
+	assert.Equal(t, map[workloadmeta.AutoscalerTarget]struct{}{targetB: {}}, update.updatedAutoscalerTargets)
+	assert.Empty(t, sc.getAutoscalerKinds(targetB))
+
+	// A full state replaces the cache
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{IsFullState: true})
+	update = sc.drainPendingUpdate()
+	assert.True(t, update.updateIsFullState)
+	assert.Empty(t, sc.getAutoscalerKinds(targetA))
+	assert.Empty(t, sc.autoscalers)
+	assert.Empty(t, sc.autoscalersByTarget)
 }
 
 func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueQueue) {

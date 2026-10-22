@@ -782,6 +782,128 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 	}, diff)
 }
 
+// TestStartAutoscalers checks that the workloadmeta subscription includes
+// autoscalers. Event processing is covered by TestProcessAutoscalerEvents.
+func TestStartAutoscalers(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	ch := srv.subscribeToNamespaceEvents("node1")
+	srv.Start(ctx)
+
+	wmetaMock.Set(newTestAutoscaler("app-a"))
+	assertNotified(t, "node1", ch)
+	assert.Contains(t, srv.buildAutoscalersSnapshot(), "hpa/ns1/my-hpa")
+}
+
+func TestProcessAutoscalerEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	ch := srv.subscribeToNamespaceEvents("node1")
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-a")}})
+	assertNotified(t, "node1", ch)
+	assert.Equal(t, autoscalerEntry{
+		namespace:      "ns1",
+		name:           "my-hpa",
+		autoscalerKind: workloadmeta.AutoscalerKindHPA,
+		targetKind:     workloadmeta.AutoscalerTargetDeployment,
+		targetName:     "app-a",
+	}, srv.buildAutoscalersSnapshot()["hpa/ns1/my-hpa"])
+
+	// Setting the same autoscaler again doesn't produce a diff
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-a")}})
+	assertNotNotified(t, "node1", ch)
+
+	// Target change
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-b")}})
+	assertNotified(t, "node1", ch)
+	assert.Equal(t, "app-b", srv.buildAutoscalersSnapshot()["hpa/ns1/my-hpa"].targetName)
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: newTestAutoscaler("app-b")}})
+	assertNotified(t, "node1", ch)
+	assert.Empty(t, srv.buildAutoscalersSnapshot())
+}
+
+func TestComputeAutoscalerDiff(t *testing.T) {
+	old := map[string]autoscalerEntry{
+		"hpa/ns1/hpa-a": {
+			namespace:      "ns1",
+			name:           "hpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindHPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-a",
+		},
+		"vpa/ns1/vpa-a": {
+			namespace:      "ns1",
+			name:           "vpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindVPA,
+			targetKind:     workloadmeta.AutoscalerTargetStatefulSet,
+			targetName:     "sts-a",
+		},
+		"wpa/ns1/wpa-a": {
+			namespace:      "ns1",
+			name:           "wpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindWPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-a",
+		},
+	}
+	current := map[string]autoscalerEntry{
+		"hpa/ns1/hpa-a": { // Changed
+			namespace:      "ns1",
+			name:           "hpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindHPA,
+			targetKind:     workloadmeta.AutoscalerTargetArgoRollout,
+			targetName:     "rollout-a",
+		},
+		"wpa/ns1/wpa-a": old["wpa/ns1/wpa-a"], // Same as before
+		"dpa/ns1/dpa-a": { // New
+			namespace:      "ns1",
+			name:           "dpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindDPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-b",
+		},
+		// vpa/ns1/vpa-a no longer exists
+	}
+
+	diff := computeAutoscalerDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.KubernetesAutoscaler{
+		{
+			Namespace:      "ns1",
+			Name:           "hpa-a",
+			AutoscalerKind: "hpa",
+			TargetKind:     "argo_rollout",
+			TargetName:     "rollout-a",
+			Type:           pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:      "ns1",
+			Name:           "dpa-a",
+			AutoscalerKind: "dpa",
+			TargetKind:     "deployment",
+			TargetName:     "app-b",
+			Type:           pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:      "ns1",
+			Name:           "vpa-a",
+			AutoscalerKind: "vpa",
+			TargetKind:     "statefulset",
+			TargetName:     "sts-a",
+			Type:           pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {
@@ -808,6 +930,13 @@ func TestFullStateResponse(t *testing.T) {
 		podSetAssignments: []kueuePodSetAssignmentEntry{
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
+	}
+	metadata.autoscalers["hpa/ns1/my-hpa"] = autoscalerEntry{
+		namespace:      "ns1",
+		name:           "my-hpa",
+		autoscalerKind: workloadmeta.AutoscalerKindHPA,
+		targetKind:     workloadmeta.AutoscalerTargetDeployment,
+		targetName:     "app-a",
 	}
 
 	resp := fullStateResponse(pods, metadata)
@@ -848,6 +977,16 @@ func TestFullStateResponse(t *testing.T) {
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 				},
 				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{
+			{
+				Namespace:      "ns1",
+				Name:           "my-hpa",
+				AutoscalerKind: "hpa",
+				TargetKind:     "deployment",
+				TargetName:     "app-a",
+				Type:           pb.KubeMetadataEventType_SET,
 			},
 		},
 	}
@@ -959,6 +1098,22 @@ func testNamespaceSetEvents() []workloadmeta.Event {
 				},
 			},
 		},
+	}
+}
+
+func newTestAutoscaler(targetName string) *workloadmeta.KubernetesAutoscaler {
+	return &workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesAutoscaler,
+			ID:   "hpa/ns1/my-hpa",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "my-hpa",
+			Namespace: "ns1",
+		},
+		AutoscalerKind: workloadmeta.AutoscalerKindHPA,
+		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
+		TargetName:     targetName,
 	}
 }
 
