@@ -8,7 +8,6 @@ pkg_files(
     name = "config_files",
     srcs = [
         "//pkg/config:agent_config",
-        "//pkg/config:system_probe_config",
     ],
     attributes = pkg_attributes(mode = "0644"),
     prefix = etc_dir(),
