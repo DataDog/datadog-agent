@@ -360,6 +360,86 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	}}, 0, nil
 }
 
+// fabricHealthIssues maps the 2-bit NVML fabric health mask fields to the
+// fabric_issue tag value reported when the field is set to TRUE.
+var fabricHealthIssues = []struct {
+	issue string
+	shift uint32
+	width uint32
+	value uint32
+}{
+	{"bandwidth_degraded", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE},
+	{"route_recovery", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE},
+	{"route_unhealthy", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_UNHEALTHY, nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE},
+	{"access_timeout_recovery", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ACCESS_TIMEOUT_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE},
+}
+
+// fabricConfigIssues maps the NVML incorrect-configuration values to fabric_issue tag values.
+var fabricConfigIssues = map[uint32]string{
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_SYSGUID:    "misconfigured_sysguid",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_CHASSIS_SN: "misconfigured_chassis_sn",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NO_PARTITION:         "misconfigured_no_partition",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS: "misconfigured_insufficient_nvlinks",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW:  "misconfigured_incompatible_gpu_fw",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION:     "misconfigured_invalid_location",
+}
+
+// fabricHealthSample reports whether the GPU joined its NVLink fabric and the
+// fabric health. GPUs without a fabric (no NVSwitch) are unsupported.
+func fabricHealthSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+		return nil, 0, errUnsupportedDevice
+	}
+	info, err := device.GetGpuFabricInfoV3()
+	if err != nil {
+		return nil, 0, err
+	}
+	if info.State == nvml.GPU_FABRIC_STATE_NOT_SUPPORTED {
+		return nil, 0, errUnsupportedDevice
+	}
+	return fabricHealthToSamples(info), 0, nil
+}
+
+func fabricHealthToSamples(info nvml.GpuFabricInfo_v3) []Sample {
+	registered := info.State == nvml.GPU_FABRIC_STATE_COMPLETED && nvml.Return(info.Status) == nvml.SUCCESS
+	samples := []Sample{&Metric{
+		Name:  "fabric.registered",
+		Value: boolToFloat(registered),
+		Type:  metrics.GaugeType,
+	}}
+
+	if info.HealthSummary != nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED {
+		unhealthy := info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY ||
+			info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY
+		samples = append(samples, &Metric{
+			Name:  "fabric.health.unhealthy",
+			Value: boolToFloat(unhealthy),
+			Type:  metrics.GaugeType,
+		})
+	}
+
+	// Issues are only reported while set, to avoid one series per possible issue on every GPU.
+	var issues []string
+	for _, field := range fabricHealthIssues {
+		if (info.HealthMask>>field.shift)&field.width == field.value {
+			issues = append(issues, field.issue)
+		}
+	}
+	configValue := (info.HealthMask >> nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION) & nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION
+	if issue, ok := fabricConfigIssues[configValue]; ok {
+		issues = append(issues, issue)
+	}
+	for _, issue := range issues {
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{"fabric_issue:" + issue}},
+			Name:       "fabric.health.issue",
+			Value:      1,
+			Type:       metrics.GaugeType,
+		})
+	}
+	return samples
+}
+
 func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	var samplesOut []Sample
 
@@ -850,6 +930,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			Name: "needs_recovery",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return needsRecoverySample(device)
+			},
+		},
+		{
+			Name: "fabric_health",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				return fabricHealthSample(device)
 			},
 		},
 		// Process memory APIs (stateless - just current snapshot)

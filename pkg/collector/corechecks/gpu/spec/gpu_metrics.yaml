@@ -641,6 +641,66 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  fabric.registered:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU completed its registration with the NVLink fabric
+        (1) or not (0), as reported by NVML. Only emitted for GPUs attached to
+        an NVLink fabric (NVSwitch systems such as HGX and GB200 NVL72).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  fabric.health.unhealthy:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether NVML reports the GPU's NVLink fabric health summary as
+        unhealthy or limited capacity (1) or healthy (0). Requires a driver
+        that reports the fabric health summary (R580 or later).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  fabric.health.issue:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Set to 1 for each NVLink fabric health issue NVML reports for the GPU
+        (degraded bandwidth, route recovery, unhealthy route, access timeout
+        recovery or incorrect configuration), tagged with fabric_issue. Only
+        emitted while the issue is set.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - fabric_issue
+    validator:
+      values: [1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   fan_speed:
     metadata:
       metric_type: gauge
