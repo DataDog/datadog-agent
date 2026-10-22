@@ -52,7 +52,6 @@ dd_agent_go_test(
         "//pkg/serializer/mocks",
         "//pkg/util/cloudproviders",
         "//pkg/util/dmi",
-        "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",

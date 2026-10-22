@@ -69,7 +69,8 @@ func TestProviderSpecificFirstRunDelay(t *testing.T) {
 	s := serializermock.NewMetricSerializer(t)
 	getPayload := func() marshaler.JSONMarshaler { return &testPayload{} }
 	regular := CreateInventoryPayload(conf, l, s, getPayload, "regular.json")
-	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json", WithFirstRunDelay(0))
+	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json")
+	immediate.SetFirstRunDelay(0)
 
 	assert.Equal(t, time.Hour, regular.firstRunDelay)
 	assert.Zero(t, immediate.firstRunDelay)

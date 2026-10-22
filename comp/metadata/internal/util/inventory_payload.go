@@ -115,22 +115,17 @@ type InventoryPayload struct {
 	FlareFileName string
 }
 
-// InventoryPayloadOption customizes a payload without modifying shared configuration.
-type InventoryPayloadOption func(*inventoryPayloadOptions)
-
-type inventoryPayloadOptions struct {
-	firstRunDelay time.Duration
-}
-
-// WithFirstRunDelay sets a provider-specific startup delay. Providers without a
+// SetFirstRunDelay sets a provider-specific startup delay. Providers without a
 // host-registration dependency can use zero to report immediately after startup.
-func WithFirstRunDelay(delay time.Duration) InventoryPayloadOption {
-	return func(o *inventoryPayloadOptions) { o.firstRunDelay = delay }
+func (i *InventoryPayload) SetFirstRunDelay(delay time.Duration) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.firstRunDelay = delay
 }
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
 // needs to be generated.
-func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string, options ...InventoryPayloadOption) InventoryPayload {
+func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string) InventoryPayload {
 	minInterval := time.Duration(conf.GetInt("inventories_min_interval")) * time.Second
 	if minInterval <= 0 {
 		minInterval = defaultMinInterval
@@ -141,10 +136,6 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		maxInterval = defaultMaxInterval
 	}
 
-	opts := inventoryPayloadOptions{firstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second}
-	for _, option := range options {
-		option(&opts)
-	}
 	return InventoryPayload{
 		Enabled:       InventoryEnabled(conf),
 		conf:          conf,
@@ -152,7 +143,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		serializer:    s,
 		getPayload:    getPayload,
 		createdAt:     time.Now(),
-		firstRunDelay: opts.firstRunDelay,
+		firstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second,
 		FlareFileName: flareFileName,
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,

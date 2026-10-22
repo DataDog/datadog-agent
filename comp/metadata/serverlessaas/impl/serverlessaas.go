@@ -73,7 +73,8 @@ func NewComponent(deps Requires) Provides {
 		MetricSerializer: deps.Serializer,
 		onSubmitted:      c.recordSubmission,
 	}
-	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, metadataSerializer, c.getPayload, "agent.json", util.WithFirstRunDelay(0))
+	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, metadataSerializer, c.getPayload, "agent.json")
+	c.payload.SetFirstRunDelay(0)
 	c.payload.Enabled = c.payload.Enabled && deps.Config.GetBool("serverless.aas_extension_metadata_enabled")
 	if c.payload.Enabled {
 		c.fields = buildFields()

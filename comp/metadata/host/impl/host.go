@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -135,13 +134,9 @@ func NewComponent(deps Requires) Provides {
 		serializer:    deps.Serializer,
 		backoffPolicy: bo,
 	}
-	var provider runnerdef.Provider
-	if util.HostMetadataEnabled(deps.Config) {
-		provider = runnerdef.NewProvider(h.collect)
-	}
 	return Provides{
 		Comp:             &h,
-		MetadataProvider: provider,
+		MetadataProvider: runnerdef.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
 			Config:   h.config,
