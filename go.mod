@@ -35,7 +35,7 @@ replace (
 require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.25.0
-	code.cloudfoundry.org/bbs/models v1.20.0
+	code.cloudfoundry.org/bbs/models v1.21.0
 	code.cloudfoundry.org/garden v0.8.0
 	code.cloudfoundry.org/lager/v3 v3.91.0
 	dario.cat/mergo v1.0.2
