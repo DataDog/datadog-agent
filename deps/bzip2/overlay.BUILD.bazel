@@ -146,9 +146,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "bz2_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":bz2",
-    installed_files = [":hdr_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
 )

@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -157,6 +159,24 @@ func TestGetAndPutBackPoolEventRoundTrip(t *testing.T) {
 		assert.Equal(t, uint64(0), event2.TimestampRaw)
 		assert.Equal(t, p.fieldHandlers, event2.FieldHandlers)
 	})
+}
+
+func TestNewLoadModuleEventFromProcFSSnapshotTimes(t *testing.T) {
+	modulePath := filepath.Join(t.TempDir(), "mod.ko")
+	require.NoError(t, os.WriteFile(modulePath, nil, 0o644))
+	mtime := time.Date(2024, 5, 6, 7, 8, 9, 123456789, time.UTC)
+	require.NoError(t, os.Chtimes(modulePath, mtime, mtime))
+	var st unix.Stat_t
+	require.NoError(t, unix.Stat(modulePath, &st))
+
+	timeResolver, err := ktime.NewResolver()
+	require.NoError(t, err)
+	p := newTestEBPFProbe()
+	p.Resolvers = &resolvers.EBPFResolvers{TimeResolver: timeResolver}
+
+	event := p.newLoadModuleEventFromProcFSSnapshot(utils.ProcFSModule{Name: "mod"}, modulePath, newSyntheticUnknownLoaderEntry())
+	assert.Equal(t, uint64(st.Ctim.Nano()), event.LoadModule.File.CTime)
+	assert.Equal(t, uint64(st.Mtim.Nano()), event.LoadModule.File.MTime)
 }
 
 func TestSameProcessAsCached(t *testing.T) {
@@ -624,6 +644,35 @@ func TestReadsFile(t *testing.T) {
 			if got := readsFile(open); got != tc.want {
 				t.Errorf("readsFile = %v, want %v", got, tc.want)
 			}
+		})
+	}
+}
+
+// TestProcfsScript checks that the replay takes the script of a process read
+// from procfs, and leaves the processes of exec events, which name their
+// script, as they are.
+func TestProcfsScript(t *testing.T) {
+	args := &model.ArgsEntry{Values: []string{"/usr/bin/python3", "/opt/app/daemon.py"}}
+	tests := []struct {
+		name   string
+		source uint64
+		args   *model.ArgsEntry
+		want   string
+	}{
+		{"snapshot", model.ProcessCacheEntryFromSnapshot, args, "/opt/app/daemon.py"},
+		{"procfs", model.ProcessCacheEntryFromProcFS, args, "/opt/app/daemon.py"},
+		{"exec event", model.ProcessCacheEntryFromEvent, args, ""},
+		{"kernel map", model.ProcessCacheEntryFromKernelMap, args, ""},
+		{"no arguments", model.ProcessCacheEntryFromSnapshot, nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &model.ProcessCacheEntry{}
+			entry.Comm = "daemon.py"
+			entry.FileEvent.SetPathnameStr("/usr/bin/python3.12")
+			entry.Source = tt.source
+			entry.ArgsEntry = tt.args
+			assert.Equal(t, tt.want, procfsScript(entry))
 		})
 	}
 }

@@ -1095,6 +1095,22 @@ int test_exec_in_pthread(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+void *thread_coredump(void *arg) {
+    // send the signal to the current thread only, so that the core is dumped by a thread that isn't the thread group leader
+    syscall(SYS_tgkill, getpid(), syscall(SYS_gettid), SIGQUIT);
+    return NULL;
+}
+
+int test_coredump_in_pthread(int argc, char **argv) {
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_coredump, NULL) != 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    return EXIT_SUCCESS;
+}
+
 int test_sleep(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "%s: Please pass a duration in seconds.\n", __FUNCTION__);
@@ -2537,6 +2553,8 @@ int main(int argc, char **argv) {
             exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "coredump-in-pthread") == 0) {
+            exit_code = test_coredump_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {

@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	pgcomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/integration/postgres"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -60,7 +61,8 @@ func TestPostgresScanFixtures(t *testing.T) {
 
 func TestDataSecurityPostgresScan(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &postgresScanSuite{}, e2e.WithPulumiProvisioner(postgresScanProvisioner(), nil))
+	e2e.Run(t, &postgresScanSuite{}, e2e.WithPulumiProvisioner(
+		postgresScanProvisioner(agentparams.WithIntegration("datasecurity.d", datasecurityCheckYAML())), nil))
 }
 
 func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {

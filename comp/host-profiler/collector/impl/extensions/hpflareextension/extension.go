@@ -22,7 +22,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-var _ extensioncapabilities.ConfigWatcher = (*DDExtension)(nil)
+var _ extensioncapabilities.ConfigSnapshotWatcher = (*DDExtension)(nil)
 var _ http.Handler = (*DDExtension)(nil)
 
 // Response is the response struct for API queries
@@ -38,14 +38,18 @@ type DDExtension struct {
 	server    *server
 }
 
-// NotifyConfig implements the ConfigWatcher interface, which allows this extension
+// NotifyConfigSnapshot implements the ConfigSnapshotWatcher interface, which allows this extension
 // to be notified of the Collector's effective configuration. See interface:
-// https://github.com/open-telemetry/opentelemetry-collector/blob/d0fde2f6b98f13cbbd8657f8188207ac7d230ed5/extension/extension.go#L46.
+// https://github.com/open-telemetry/opentelemetry-collector/blob/v0.162.0/extension/extensioncapabilities/interfaces.go#L88.
 // This method is called during the startup process by the Collector's Service right after
 // calling Start.
-func (ext *DDExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
+func (ext *DDExtension) NotifyConfigSnapshot(_ context.Context, configSnapshot extensioncapabilities.ConfigSnapshot) error {
+	var conf *confmap.Conf
+	if configSnapshot != nil {
+		conf = configSnapshot.Effective()
+	}
 	if conf == nil {
-		msg := "received a nil config in ddExtension.NotifyConfig"
+		msg := "received a nil config in ddExtension.NotifyConfigSnapshot"
 		return errors.New(msg)
 	}
 	var err error

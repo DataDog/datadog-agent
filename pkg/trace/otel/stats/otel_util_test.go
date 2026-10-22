@@ -539,6 +539,32 @@ func TestOTLPTracesToConcentratorInputsSkipsResourceWhenSpanIsClientComputed(t *
 	assert.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
 }
 
+func TestOTLPTracesToConcentratorInputsIgnoreResourcesRegex(t *testing.T) {
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	for i, route := range []string{"/healthcheck", "/users"} {
+		span := spans.AppendEmpty()
+		span.SetTraceID(testTraceID)
+		span.SetSpanID(pcommon.SpanID{byte(i + 1)})
+		span.SetKind(ptrace.SpanKindServer)
+		span.Attributes().PutStr("http.request.method", "GET")
+		span.Attributes().PutStr(string(semconv.HTTPRouteKey), route)
+	}
+
+	conf := config.New()
+	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	conf.Ignore["resource"] = []string{"(GET|POST) /health"}
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil, nil)
+	require.Len(t, inputs, 1)
+	require.Len(t, inputs[0].Traces[0].TraceChunk.Spans, 1)
+	assert.Equal(t, "GET /users", inputs[0].Traces[0].TraceChunk.Spans[0].Resource)
+}
+
 func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
