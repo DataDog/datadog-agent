@@ -37,11 +37,12 @@ const (
 // The metric names are the names emitted by ADP's RAR remapping, not the names from ADP's direct /compat/metrics
 // endpoint.
 type expvarMapping struct {
-	id         string
-	metricName string
-	expvarPath []string
-	selectors  []labelSelector
-	metricType dto.MetricType
+	id              string
+	metricName      string
+	expvarPath      []string
+	selectors       []labelSelector
+	metricType      dto.MetricType
+	createIfMissing bool
 }
 
 type labelSelector struct {
@@ -49,7 +50,7 @@ type labelSelector struct {
 	values map[string]struct{}
 }
 
-var dogstatsdExpvarMappings = []expvarMapping{
+var expvarMappings = []expvarMapping{
 	{
 		id:         "dogstatsd_udp_packets",
 		metricName: "dogstatsd__udp_packets",
@@ -78,6 +79,12 @@ var dogstatsdExpvarMappings = []expvarMapping{
 			labelSelectorValues("transport", "unix", "unixgram"),
 			labelSelectorValues("state", "error"),
 		),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "dogstatsd_uds_origin_detection_errors",
+		metricName: "dogstatsd__uds_origin_detection_errors",
+		expvarPath: []string{"dogstatsd-uds", "OriginDetectionErrors"},
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
@@ -140,6 +147,73 @@ var dogstatsdExpvarMappings = []expvarMapping{
 		),
 		metricType: dto.MetricType_COUNTER,
 	},
+	// ADP exposes a broader dropped count; keep the legacy expvar path but document the semantic difference.
+	{
+		id:              "forwarder_dropped_on_input",
+		metricName:      "transactions__dropped",
+		expvarPath:      []string{"forwarder", "Transactions", "DroppedOnInput"},
+		metricType:      dto.MetricType_COUNTER,
+		createIfMissing: true,
+	},
+	{
+		id:         "forwarder_retry_queue_size",
+		metricName: "transactions__retry_queue_size",
+		expvarPath: []string{"forwarder", "Transactions", "RetryQueueSize"},
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "forwarder_success",
+		metricName: "transactions__success",
+		expvarPath: []string{"forwarder", "Transactions", "Success"},
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_errors",
+		metricName: "transactions__errors",
+		expvarPath: []string{"forwarder", "Transactions", "Errors"},
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_dns_errors",
+		metricName: "transactions__errors",
+		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "DNSErrors"},
+		selectors:  selectors(labelSelectorValues("error_type", "dns_lookup_failure")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_tls_errors",
+		metricName: "transactions__errors",
+		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "TLSErrors"},
+		selectors:  selectors(labelSelectorValues("error_type", "tls_handshake_failure")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_connection_errors",
+		metricName: "transactions__errors",
+		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "ConnectionErrors"},
+		selectors:  selectors(labelSelectorValues("error_type", "connection_failure")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_wrote_request_errors",
+		metricName: "transactions__errors",
+		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "WroteRequestErrors"},
+		selectors:  selectors(labelSelectorValues("error_type", "writing_failure")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_sent_request_errors",
+		metricName: "transactions__errors",
+		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "SentRequestErrors"},
+		selectors:  selectors(labelSelectorValues("error_type", "invalid_request")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "forwarder_http_errors",
+		metricName: "transactions__http_errors",
+		expvarPath: []string{"forwarder", "Transactions", "HTTPErrors"},
+		metricType: dto.MetricType_COUNTER,
+	},
 }
 
 func labelSelectorValues(name string, values ...string) labelSelector {
@@ -165,13 +239,14 @@ type remoteExpvarCache struct {
 	mu        sync.Mutex
 	fetchedAt time.Time
 	values    map[string]map[string]int64
-	counters  map[remoteCounterKey]*remoteCounterState
+	counters  map[remoteSeriesKey]*remoteCounterState
+	gauges    map[remoteSeriesKey]int64
 	// retiredTotals preserves cumulative expvar values after their per-series counter state is deleted.
 	// Its keys are the reporting dimensions (agent name and fixed mapping ID), not series labels.
 	retiredTotals map[string]map[string]int64
 }
 
-type remoteCounterKey struct {
+type remoteSeriesKey struct {
 	agentIdentity string
 	agentName     string
 	mappingID     string
@@ -205,7 +280,7 @@ func (ra *remoteAgentRegistry) registerExpvars() {
 
 	wrappedExpvarsMu.Lock()
 	defer wrappedExpvarsMu.Unlock()
-	for _, mapping := range dogstatsdExpvarMappings {
+	for _, mapping := range expvarMappings {
 		key := strings.Join(mapping.expvarPath, "/")
 		if _, wrapped := wrappedExpvars[key]; wrapped {
 			continue
@@ -222,19 +297,38 @@ func wrapExpvar(mapping expvarMapping) bool {
 		return false
 	}
 
-	parent, ok := expvar.Get(mapping.expvarPath[0]).(*expvar.Map)
+	rootName := mapping.expvarPath[0]
+	root := expvar.Get(rootName)
+	parent, ok := root.(*expvar.Map)
+	if root == nil && mapping.createIfMissing {
+		parent = expvar.NewMap(rootName)
+		ok = true
+	}
 	if !ok {
 		return false
 	}
 	for _, key := range mapping.expvarPath[1 : len(mapping.expvarPath)-1] {
-		parent, ok = parent.Get(key).(*expvar.Map)
+		child := parent.Get(key)
+		if child == nil && mapping.createIfMissing {
+			childMap := new(expvar.Map).Init()
+			parent.Set(key, childMap)
+			parent = childMap
+			continue
+		}
+		parent, ok = child.(*expvar.Map)
 		if !ok {
 			return false
 		}
 	}
 
 	leaf := mapping.expvarPath[len(mapping.expvarPath)-1]
-	local, ok := parent.Get(leaf).(*expvar.Int)
+	leafVar := parent.Get(leaf)
+	local, ok := leafVar.(*expvar.Int)
+	if leafVar == nil && mapping.createIfMissing {
+		local = new(expvar.Int)
+		parent.Set(leaf, local)
+		ok = true
+	}
 	if !ok {
 		log.Warnf("Not exposing remote agent values at expvar %q: expected an *expvar.Int", strings.Join(mapping.expvarPath, "/"))
 		return false
@@ -259,7 +353,7 @@ func (ra *remoteAgentRegistry) getRemoteAgentExpvars() map[string]any {
 	values := make(map[string]any)
 	for agentName, agentValues := range ra.getRemoteExpvarValues() {
 		agentVars := make(map[string]any)
-		for _, mapping := range dogstatsdExpvarMappings {
+		for _, mapping := range expvarMappings {
 			if value, ok := agentValues[mapping.id]; ok {
 				setNested(agentVars, mapping.expvarPath, value)
 			}
@@ -284,7 +378,10 @@ func (ra *remoteAgentRegistry) getRemoteExpvarValues() map[string]map[string]int
 
 	// Instantiate counters if they're not currently present
 	if cache.counters == nil {
-		cache.counters = make(map[remoteCounterKey]*remoteCounterState)
+		cache.counters = make(map[remoteSeriesKey]*remoteCounterState)
+	}
+	if cache.gauges == nil {
+		cache.gauges = make(map[remoteSeriesKey]int64)
 	}
 	if cache.retiredTotals == nil {
 		cache.retiredTotals = make(map[string]map[string]int64)
@@ -337,13 +434,23 @@ func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCac
 		identity := remoteAgentIdentity(response.agent)
 		if response.success {
 			successfulAgents[identity] = struct{}{}
+			// Gauges are the latest successful snapshot, unlike counters which are accumulated.
+			for key := range cache.gauges {
+				if key.agentIdentity == identity {
+					delete(cache.gauges, key)
+				}
+			}
 		}
 		for _, series := range response.series {
-			key := remoteCounterKey{
+			key := remoteSeriesKey{
 				agentIdentity: identity,
 				agentName:     response.agent.SanitizedDisplayName,
 				mappingID:     series.mappingID,
 				labels:        series.labels,
+			}
+			if series.metricType == dto.MetricType_GAUGE {
+				cache.gauges[key] = series.value
+				continue
 			}
 			state := cache.counters[key]
 			if state == nil {
@@ -385,6 +492,13 @@ func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCac
 			addValue(key.agentName, key.mappingID, state.total)
 		}
 	}
+	for key, value := range cache.gauges {
+		if _, registered := activeAgents[key.agentIdentity]; !registered {
+			delete(cache.gauges, key)
+			continue
+		}
+		addValue(key.agentName, key.mappingID, value)
+	}
 	return values
 }
 
@@ -395,10 +509,11 @@ type remoteExpvarAgentResponse struct {
 }
 
 type remoteExpvarSeries struct {
-	mappingID string
-	labels    string
-	hasOrigin bool
-	value     int64
+	mappingID  string
+	metricType dto.MetricType
+	labels     string
+	hasOrigin  bool
+	value      int64
 }
 
 func isADPAgent(agent remoteagentregistry.RegisteredAgent) bool {
@@ -450,7 +565,7 @@ func expvarSeriesFromPromText(promText string) ([]remoteExpvarSeries, bool) {
 	}
 
 	var series []remoteExpvarSeries
-	for _, mapping := range dogstatsdExpvarMappings {
+	for _, mapping := range expvarMappings {
 		family, ok := metricFamilies[mapping.metricName]
 		if !ok || family.GetType() != mapping.metricType {
 			continue
@@ -459,19 +574,31 @@ func expvarSeriesFromPromText(promText string) ([]remoteExpvarSeries, bool) {
 			if metric == nil || !matchesSelectors(metric.GetLabel(), mapping.selectors) {
 				continue
 			}
-			value, ok := counterValue(metric)
+			value, ok := metricValue(metric, mapping.metricType)
 			if !ok {
 				continue
 			}
 			series = append(series, remoteExpvarSeries{
-				mappingID: mapping.id,
-				labels:    canonicalLabels(metric.GetLabel()),
-				hasOrigin: hasLabel(metric.GetLabel(), "origin"),
-				value:     value,
+				mappingID:  mapping.id,
+				metricType: mapping.metricType,
+				labels:     canonicalLabels(metric.GetLabel()),
+				hasOrigin:  hasLabel(metric.GetLabel(), "origin"),
+				value:      value,
 			})
 		}
 	}
 	return series, true
+}
+
+func metricValue(metric *dto.Metric, metricType dto.MetricType) (int64, bool) {
+	switch metricType {
+	case dto.MetricType_COUNTER:
+		return counterValue(metric)
+	case dto.MetricType_GAUGE:
+		return gaugeValue(metric)
+	default:
+		return 0, false
+	}
 }
 
 func counterValue(metric *dto.Metric) (int64, bool) {
@@ -480,6 +607,17 @@ func counterValue(metric *dto.Metric) (int64, bool) {
 	}
 	value := metric.Counter.GetValue()
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value != math.Trunc(value) || value >= float64(math.MaxInt64) {
+		return 0, false
+	}
+	return int64(value), true
+}
+
+func gaugeValue(metric *dto.Metric) (int64, bool) {
+	if metric == nil || metric.Gauge == nil {
+		return 0, false
+	}
+	value := metric.Gauge.GetValue()
+	if math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) || value >= float64(math.MaxInt64) || value < -float64(math.MaxInt64)-1 {
 		return 0, false
 	}
 	return int64(value), true
