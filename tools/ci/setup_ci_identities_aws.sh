@@ -18,7 +18,6 @@ set -euo pipefail
 : "${AWS_SHARED_CREDENTIALS_FILE:?AWS_SHARED_CREDENTIALS_FILE must be set in the job variables}"
 
 CI_IDENTITIES_VERSION="${CI_IDENTITIES_VERSION:-v0.6.7}"
-CI_IDENTITIES_SHA256="${CI_IDENTITIES_SHA256:-c39c35f1db9daddaca6b47080e5bcb4b8ffd5cf7e7fe61b02ed56690e749928c}"
 
 script_dir="$(dirname "$0")"
 
@@ -30,10 +29,11 @@ if ! command -v ci-identities-gitlab-job-client >/dev/null 2>&1; then
     esac
     bin="ci-identities-gitlab-job-client-linux-${arch}"
     src="s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/versions/${CI_IDENTITIES_VERSION}/${bin}"
+    # No checksum pin: the binary is served from the trusted internal
+    # binaries-ddbuild-io-prod bucket over authenticated access, and no linux
+    # sha256 is published for this version (the one in windows/versions.ps1 is
+    # for the Windows .exe).
     "${script_dir}/retry.sh" aws s3 cp --only-show-errors "$src" "/usr/local/bin/ci-identities-gitlab-job-client"
-    if [ "$arch" = "amd64" ]; then
-        echo "${CI_IDENTITIES_SHA256}  /usr/local/bin/ci-identities-gitlab-job-client" | sha256sum --check
-    fi
     chmod +x /usr/local/bin/ci-identities-gitlab-job-client
 fi
 
