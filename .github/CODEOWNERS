@@ -794,6 +794,8 @@
 /pkg/rshell/                                                         @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /.github/workflows/rshell-analysis.yml                               @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /.github/workflows/rshell.yml                                        @DataDog/dd-agent-mcp @DataDog/fleet-remediation
+/.gitlab/test/rshell.yml                                             @DataDog/fleet-remediation
+/.gitlab/rshell/                                                     @DataDog/fleet-remediation
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks                @DataDog/action-platform @Datadog/network-path
@@ -995,6 +997,7 @@
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx
 /tasks/process_agent.py                                         @DataDog/container-experiences
 /tasks/privateactionrunner.py                                   @DataDog/action-platform
+/tasks/rshell.py                                                @DataDog/fleet-remediation
 /tasks/system_probe.py                                          @DataDog/ebpf-platform
 /tasks/ebpf.py                                                  @DataDog/ebpf-platform
 /tasks/kmt.py                                                   @DataDog/ebpf-platform
