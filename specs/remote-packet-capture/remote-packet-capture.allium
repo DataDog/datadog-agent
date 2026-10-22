@@ -1,0 +1,207 @@
+-- allium: 3
+-- Scope: remote capture action, capture-stream validation, upload, cleanup attempts.
+-- REQ-PCAP-004, REQ-PCAP-005, REQ-PCAP-006, REQ-PCAP-008, REQ-PCAP-011.
+-- Domain-level phases abstract calls, not durable jobs or persisted workflow state.
+-- Excludes: packet decoder algorithm, HTTP representation, deployment and upstream
+-- action authorization. Header privacy and delivery are boundary contracts below.
+-- Evidence pin and uncertainty ledger: ../README.md and ../traceability.md.
+
+value CaptureInput {
+    duration_seconds: Integer
+    packet_limit: Integer
+    byte_limit: Integer
+}
+
+contract CaptureSubmission {
+    submit: (input: CaptureInput) -> CaptureAction
+}
+
+contract HeaderOnlyCapture {
+    @invariant ExcludeApplicationPayload
+        -- REQ-PCAP-003: write only the contiguous complete recognized header
+        -- prefix of each packet. Stop at malformed, unknown, application or
+        -- encrypted layers. Preserve complete outer and inner tunnel headers.
+        -- First fragments may retain a complete supported transport header;
+        -- non-first fragments end at their network/fragment headers.
+    @invariant BoundCompleteRecords
+        -- REQ-PCAP-004: the file has a 24-byte header; a smaller requested cap
+        -- still produces that header. Stop before a record would exceed the
+        -- cap; never split a record to fit. This excludes failed output writes,
+        -- whose incomplete artifacts must not be uploaded by the action.
+    @invariant CaptureTermination
+        -- REQ-PCAP-005: duration, packet/byte cap, disconnect, cancellation,
+        -- end-of-input or read/write failure ends the drain. Finalization closes
+        -- the capture handle. Cancellation of a context alone does not prove
+        -- an arbitrary output writer will unblock; see the uncertainty ledger.
+}
+
+contract CaptureDelivery {
+    @invariant RetryOriginalArtifact
+        -- REQ-PCAP-008: upload retries reopen the same artifact; never re-capture.
+        -- Transport errors, timeout/throttle responses and server errors permit
+        -- at most four attempts per endpoint; other rejections fail immediately.
+        -- Cancellation interrupts waiting and requests. An attempted upload may
+        -- have reached intake even if its acknowledgment was lost: no deduplication
+        -- or exactly-once guarantee is inferred here.
+    @invariant ReliableEndpointOutcome
+        -- REQ-PCAP-009: all selected endpoints are attempted. Any reliable endpoint
+        -- failure fails delivery; an unreliable endpoint failure is logged.
+        -- The failover endpoint participates only while logs failover is active.
+}
+
+entity CaptureAction {
+    duration_seconds: Integer
+    packet_limit: Integer
+    byte_limit: Integer
+    status: requested | capturing | ready | delivering | succeeded | failed
+    temporary_file_created: Boolean
+    cleanup_attempted: Boolean
+    delivery_accepted: Boolean
+    failure: String when status = failed
+
+    transitions status {
+        requested -> capturing
+        requested -> failed
+        capturing -> ready
+        capturing -> failed
+        ready -> delivering
+        delivering -> succeeded
+        delivering -> failed
+        terminal: succeeded, failed
+    }
+}
+
+config {
+    max_duration_seconds: Integer = 120
+    max_packets: Integer = 2_000_000
+    max_file_bytes: Integer = 167_772_160
+}
+
+rule SubmitCapture {
+    when: CaptureRequested(input)
+    ensures: CaptureAction.created(
+        duration_seconds: input.duration_seconds,
+        packet_limit: if input.packet_limit > 0 and input.packet_limit <= config.max_packets: input.packet_limit else: config.max_packets,
+        byte_limit: if input.byte_limit > 0 and input.byte_limit <= config.max_file_bytes: input.byte_limit else: config.max_file_bytes,
+        status: requested,
+        temporary_file_created: false,
+        cleanup_attempted: false,
+        delivery_accepted: false
+    )
+}
+
+rule RejectInvalidDuration {
+    when: action: CaptureAction.status becomes requested
+    requires: action.duration_seconds < 1 or action.duration_seconds > config.max_duration_seconds
+    ensures: action.status = failed
+    ensures: action.failure = "duration outside supported range"
+}
+
+rule BeginCapture {
+    when: action: CaptureAction.status becomes requested
+    requires: action.duration_seconds >= 1 and action.duration_seconds <= config.max_duration_seconds
+    ensures: action.status = capturing
+}
+
+rule ReceiveTemporaryFile {
+    when: TemporaryFileCreated(action)
+    requires: action.status = capturing
+    ensures: action.temporary_file_created = true
+}
+
+rule FailCapture {
+    when: CaptureFailed(action, reason)
+    requires: action.status = capturing
+    ensures: action.status = failed
+    ensures: action.failure = reason
+    ensures: action.cleanup_attempted = action.temporary_file_created
+    @guidance
+        -- CaptureFailed includes setup/transport errors, body copy/sync/close
+        -- errors and a positive capture-error count. No upload follows.
+}
+
+rule FinishCaptureStream {
+    when: CaptureStreamAccepted(action)
+    requires: action.status = capturing
+    requires: action.temporary_file_created
+    ensures: action.status = ready
+    @guidance
+        -- Accepted means body copy, sync, stat and close succeeded, and the
+        -- parsed capture-error counter was not positive. Missing/malformed
+        -- trailer values parse as zero; acceptance does not validate metadata
+        -- completeness or decode the PCAP. See the uncertainty ledger.
+}
+
+rule BeginDelivery {
+    when: action: CaptureAction.status becomes ready
+    ensures: action.status = delivering
+}
+
+rule CompleteDelivery {
+    when: DeliveryAccepted(action)
+    requires: action.status = delivering
+    ensures: action.delivery_accepted = true
+    ensures: action.cleanup_attempted = true
+    ensures: action.status = succeeded
+}
+
+rule FailDelivery {
+    when: DeliveryFailed(action, reason)
+    requires: action.status = delivering
+    ensures: action.cleanup_attempted = true
+    ensures: action.status = failed
+    ensures: action.failure = reason
+}
+
+invariant EffectiveLimitsRemainBounded {
+    for action in CaptureActions:
+        action.packet_limit >= 1 and action.packet_limit <= config.max_packets
+        and action.byte_limit >= 1 and action.byte_limit <= config.max_file_bytes
+}
+
+invariant SuccessfulActionWaitsForDelivery {
+    for action in CaptureActions:
+        action.status = succeeded implies action.delivery_accepted
+}
+
+invariant CompletedActionsAttemptTemporaryCleanup {
+    for action in CaptureActions:
+        action.status in {succeeded, failed} and action.temporary_file_created
+        implies action.cleanup_attempted
+}
+
+surface CaptureSubmissionBoundary {
+    provides:
+        CaptureRequested(input)
+
+    contracts:
+        fulfils CaptureSubmission
+}
+
+surface RemoteCaptureAction {
+    context action: CaptureAction
+
+    exposes:
+        action.status
+        action.failure when action.status = failed
+
+    provides:
+        TemporaryFileCreated(action) when action.status = capturing
+        CaptureFailed(action, reason) when action.status = capturing
+        CaptureStreamAccepted(action) when action.status = capturing
+        DeliveryAccepted(action) when action.status = delivering
+        DeliveryFailed(action, reason) when action.status = delivering
+
+    contracts:
+        fulfils HeaderOnlyCapture
+        fulfils CaptureDelivery
+
+    @guarantee BestEffortCleanup
+        -- REQ-PCAP-011: cleanup_attempted records a deletion attempt, not proof
+        -- of removal. The code ignores os.Remove failures; no stronger guarantee
+        -- is asserted. Cancellation is a failure input, not rollback of an upload.
+}
+
+open question "Which limits should govern concurrent capture requests? The code bounds each request but provides no host-wide admission cap."
+open question "Should missing or malformed terminal statistics fail the action rather than parse as zero?"
+open question "Should a file limit smaller than the mandatory PCAP header be rejected instead of producing a header larger than the limit?"
