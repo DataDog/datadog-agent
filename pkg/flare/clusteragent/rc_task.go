@@ -100,5 +100,9 @@ func HandleRCFlareTask(
 	rcSource := flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
 
 	_, err = NewCreator(cfg, statusComp, diagnoseComp, ipcComp).Send(filePath, caseID, userHandle, rcSource)
+	if err != nil {
+		// Send keeps the archive on failure for local flares; nobody retries a remote-config upload by hand.
+		removeFlareArchive(filePath)
+	}
 	return err
 }

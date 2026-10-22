@@ -155,8 +155,12 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
 	source := helpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
-	_, err = f.Send(filePath, caseID, userHandle, source)
-	return true, err
+	if _, err := f.Send(filePath, caseID, userHandle, source); err != nil {
+		// Remove the archive on failure too: nobody retries a remote-config upload by hand.
+		f.removeArchive(filePath)
+		return true, err
+	}
+	return true, nil
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
@@ -218,13 +222,17 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 		return response, err
 	}
 	if !f.params.KeepArchiveAfterSend && flarePath != "" {
-		if removeErr := os.Remove(flarePath); removeErr != nil {
-			f.log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
-		} else {
-			f.log.Infof("Removed local flare archive %s", flarePath)
-		}
+		f.removeArchive(flarePath)
 	}
 	return response, nil
+}
+
+func (f *flare) removeArchive(flarePath string) {
+	if err := os.Remove(flarePath); err != nil {
+		f.log.Warnf("Could not remove local flare archive %s: %v", flarePath, err)
+	} else {
+		f.log.Infof("Removed local flare archive %s", flarePath)
+	}
 }
 
 // Create creates a new flare and returns the path to the final archive file.

@@ -72,15 +72,37 @@ func (s FlareSource) WithFlareSourceTags(flareSource string, tags []string) Flar
 	return s
 }
 
-func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
-	//No need to close the reader, http.Client does it for us
+type flareBody struct {
+	*io.PipeReader
+	done <-chan struct{}
+}
+
+func (b *flareBody) release() {
+	b.PipeReader.Close() //nolint:errcheck
+	<-b.done
+}
+
+type responseBody struct {
+	io.ReadCloser
+	request *flareBody
+}
+
+func (b *responseBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.request.release()
+	return err
+}
+
+func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) *flareBody {
 	bodyReader, bodyWriter := io.Pipe()
+	done := make(chan struct{})
 
 	writer := multipart.NewWriter(bodyWriter)
 	writer.SetBoundary(multipartBoundary) //nolint:errcheck
 
 	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
 	go func() {
+		defer close(done)
 		// defer order matters to avoid empty result when reading the form.
 		defer bodyWriter.Close()
 		defer writer.Close()
@@ -130,7 +152,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		writer.WriteField("hostname", hostname)                       //nolint:errcheck
 	}()
 
-	return bodyReader
+	return &flareBody{PipeReader: bodyReader, done: done}
 }
 
 func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
@@ -155,15 +177,19 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 
 	// Manually set the Body and ContentLenght. http.NewRequest doesn't do all of this
 	// for us, since a PipeReader is not one of the Reader types it knows how to handle.
-	request.Body = getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname, source)
+	body := getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname, source)
+	request.Body = body
 
 	// -1 here means 'unknown' and makes this a 'chunked' request. See https://github.com/golang/go/issues/18117
 	request.ContentLength = -1
 
+	// Release the archive on Do error, otherwise when the response is closed: the transport may close the body late, and Windows cannot delete an open file.
 	resp, err := client.Do(request)
 	if err != nil {
+		body.release()
 		return resp, err
 	}
+	resp.Body = &responseBody{ReadCloser: resp.Body, request: body}
 
 	// Convert 5xx HTTP error status codes to Go errors for retry logic
 	if resp.StatusCode >= 500 && resp.StatusCode < 600 {

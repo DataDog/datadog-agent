@@ -102,8 +102,9 @@ func TestHandleRCFlareTask_SendError(t *testing.T) {
 		sendFlareFunc = origSend
 	})
 
+	archivePath := filepath.Join(t.TempDir(), "fake-flare.zip")
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
-		return "/tmp/fake-flare.zip", nil
+		return archivePath, nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
 		return "", errors.New("send failed")
@@ -176,37 +177,52 @@ func TestRenameClusterAgentFlareArchive_RenameFailureKeepsOriginal(t *testing.T)
 	assert.FileExists(t, originalPath)
 }
 
-func TestHandleRCFlareTask_NoCleanupOnSendError(t *testing.T) {
+func TestHandleRCFlareTask_RemovesArchiveOnSendError(t *testing.T) {
 	origCreate := createDCAArchiveFunc
 	origSend := sendFlareFunc
+	origIdentity := getClusterAgentIdentityFunc
 	t.Cleanup(func() {
 		createDCAArchiveFunc = origCreate
 		sendFlareFunc = origSend
+		getClusterAgentIdentityFunc = origIdentity
 	})
 
-	tmpFile, err := os.CreateTemp("", "flare-*.zip")
-	require.NoError(t, err)
-	tmpFile.Close()
-	tmpPath := tmpFile.Name()
-	t.Cleanup(func() { os.Remove(tmpPath) })
-
+	tmpDir := t.TempDir()
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
-		return tmpPath, nil
+		f, err := os.CreateTemp(tmpDir, "datadog-agent-*-info.zip")
+		if err != nil {
+			return "", err
+		}
+		return f.Name(), f.Close()
 	}
-	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+	// Stub the identity so the test covers removal of the renamed archive.
+	getClusterAgentIdentityFunc = func() (string, string, string, error) {
+		return "cluster", "namespace", "pod", nil
+	}
+	var sentPaths []string
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, archivePath, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+		require.FileExists(t, archivePath)
+		sentPaths = append(sentPaths, archivePath)
 		return "", errors.New("send failed")
 	}
 
 	cfg := configmock.New(t)
-	task := buildAgentTaskConfig(t, "flare", "uuid-6", map[string]string{
-		"case_id":     "12345",
-		"user_handle": "test@example.com",
-	})
+	for _, uuid := range []string{"uuid-6", "uuid-7", "uuid-8"} {
+		task := buildAgentTaskConfig(t, "flare", uuid, map[string]string{
+			"case_id":     "12345",
+			"user_handle": "test@example.com",
+		})
+		err := HandleRCFlareTask(task, cfg, nil, nil, nil)
+		assert.ErrorContains(t, err, "send failed")
+	}
 
-	err = HandleRCFlareTask(task, cfg, nil, nil, nil)
-	assert.ErrorContains(t, err, "send failed")
-	_, statErr := os.Stat(tmpPath)
-	assert.NoError(t, statErr, "flare archive should be kept when upload fails")
+	require.Len(t, sentPaths, 3)
+	for _, p := range sentPaths {
+		assert.Contains(t, filepath.Base(p), "cluster__namespace__pod__")
+	}
+	entries, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "flare archives should be removed when the upload fails")
 }
 
 func TestHandleRCFlareTask_SourceAndTagsForwarded(t *testing.T) {
@@ -291,9 +307,10 @@ func TestHandleRCFlareTask_LogFile(t *testing.T) {
 	})
 
 	var capturedLogFile string
+	archivePath := filepath.Join(t.TempDir(), "fake-flare.zip")
 	createDCAArchiveFunc = func(_ bool, _, logFile string, _ ProfileData, _ flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		capturedLogFile = logFile
-		return "/tmp/fake-flare.zip", nil
+		return archivePath, nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
 		return "ok", nil
@@ -333,9 +350,10 @@ func TestHandleRCFlareTask_ProfilingArgs(t *testing.T) {
 
 	var capturedArgs flaretypes.FlareArgs
 
+	archivePath := filepath.Join(t.TempDir(), "fake-flare.zip")
 	createDCAArchiveFunc = func(_ bool, _, _ string, _ ProfileData, args flaretypes.FlareArgs, _ status.Component, _ diagnose.Component, _ ipc.Component) (string, error) {
 		capturedArgs = args
-		return "/tmp/fake-flare.zip", nil
+		return archivePath, nil
 	}
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
 		return "ok", nil
