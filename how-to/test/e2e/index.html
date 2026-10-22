@@ -4068,6 +4068,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#gcp-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        GCP authentication
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#workspace-support" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -4162,6 +4173,14 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>e2e.setup<span class="w"> </span>--with-azure<span class="w"> </span>--with-gcp
 </span></code></pre></div>
 <p>The configuration is persisted to <code>~/.test_infra_config.yaml</code> (chmod <code>0600</code>, since it contains the auto-generated Pulumi passphrase). Re-running <code>dda inv e2e.setup</code> is idempotent — it prints <code>✓ already configured</code> checks and exits.</p>
+<h3 id="gcp-authentication">GCP authentication<a class="headerlink" href="#gcp-authentication" title="Permanent link">&para;</a></h3>
+<p>Local GCP provisioning uses Application Default Credentials (ADC), configured with
+<code>gcloud auth application-default login</code>. GKE access through <code>gke-gcloud-auth-plugin</code>
+also requires a valid gcloud CLI login, configured separately with <code>gcloud auth login</code>.
+The framework checks the CLI credentials before creating a local GKE cluster and
+returns instructions to log in again if they have expired.</p>
+<p>CI supplies a service account key through <code>GOOGLE_APPLICATION_CREDENTIALS</code>; the
+framework activates that account for gcloud as before and skips the local CLI check.</p>
 <h3 id="workspace-support">Workspace support<a class="headerlink" href="#workspace-support" title="Permanent link">&para;</a></h3>
 <p>The e2e test framework tooling supports being run from Datadog workspaces just like developer laptops. </p>
 <div class="admonition warning">
