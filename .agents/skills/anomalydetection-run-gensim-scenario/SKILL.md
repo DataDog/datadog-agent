@@ -114,6 +114,13 @@ only when:
 - multi-pod collection/upload fails or local validation needs to be re-run against an already downloaded `$OUT`, or
 - inspecting VM vs EKS Helm differences or running the live acceptance checklist.
 
+0. **Authenticate to AWS once, before any other step** (especially before launching several `submit` calls in
+parallel). If the SSO session is expired, every `dda`/`aws-vault` call opens its own browser login and hangs. Ask the
+user to run `! aws sso login --profile sso-agent-sandbox-account-admin-8h`, then verify with
+`aws-vault exec sso-agent-sandbox-account-admin-8h -- aws sts get-caller-identity --query Account --output text`.
+When launching a batch from a shell loop, stagger the starts (e.g. `sleep 15`) and redirect each `dda` call's stdin
+from `/dev/null`, otherwise it consumes the loop's input and only the first stack launches.
+
 1. Submit the episode or batch in the background (first-time cluster provisioning takes >10 minutes; never run under a
 short foreground timeout). `--episodes` is `<dir under postmortems/ or synthetics/>:<episodes/*.yaml name without extension>`,
 e.g. `703_shopify_bfcm_incident:kafka-partition-saturation`. Source `"$ENV_FILE"` (`set -a; . "$ENV_FILE"; set +a`) in
