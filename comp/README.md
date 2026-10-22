@@ -991,7 +991,7 @@ Package privateactionrunner provides a component that enables private actions ex
 
 *Datadog Team*: action-platform
 
-Package phonehome defines the core-owned PAR launch/reconciliation component.
+Package phonehome defines the opt-in core-owned PAR startup gate.
 
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
