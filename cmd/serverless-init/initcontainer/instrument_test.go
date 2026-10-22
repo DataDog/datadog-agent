@@ -17,6 +17,11 @@ func TestNodeTracerIsAutoInstrumented(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Create("/dd_tracer/node/")
 
+	// Pin a known-empty baseline: AutoInstrumentTracer appends to the existing
+	// env, and CI runners may already set these, which would break the exact match.
+	t.Setenv("NODE_OPTIONS", "")
+	t.Setenv("NODE_PATH", "")
+
 	AutoInstrumentTracer(fs)
 
 	assert.Equal(t, "--require dd-trace/init", os.Getenv("NODE_OPTIONS"))
@@ -38,6 +43,10 @@ func TestDotNetTracerIsAutoInstrumented(t *testing.T) {
 func TestJavaTracerIsAutoInstrumented(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Create("/dd_tracer/java/")
+
+	// Pin a known-empty baseline: AutoInstrumentTracer appends to the existing
+	// env, and CI runners may already set this, which would break the exact match.
+	t.Setenv("JAVA_TOOL_OPTIONS", "")
 
 	AutoInstrumentTracer(fs)
 

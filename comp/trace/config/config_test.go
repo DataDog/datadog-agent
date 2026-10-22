@@ -630,7 +630,32 @@ func TestDisableLoggingConfig(t *testing.T) {
 	assert.Equal(t, "", cfg.LogFilePath)
 }
 
+// unsetProxyEnvForTest unsets every proxy-related env var for the duration of the
+// test. CI runners (CircleCI, and the ddbuild Kubernetes runners) set
+// HTTP_PROXY / HTTPS_PROXY / NO_PROXY, which override the proxy config loaded from
+// test data. A set-but-empty value still counts as "present", so unset rather than
+// blank them.
+func unsetProxyEnvForTest(t *testing.T) {
+	for _, env := range []string{
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
+		"http_proxy", "https_proxy", "no_proxy",
+	} {
+		oldValue, ok := os.LookupEnv(env)
+		os.Unsetenv(env)
+		t.Cleanup(func() {
+			if ok {
+				os.Setenv(env, oldValue)
+			}
+		})
+	}
+}
+
 func TestFullYamlConfig(t *testing.T) {
+	// CI runners set HTTP_PROXY/HTTPS_PROXY/NO_PROXY, which override the proxy
+	// settings loaded from testdata/full.yaml and break the proxy assertions
+	// below. Unset them (a set-but-empty value still counts as "present") so this
+	// test reflects only the config file.
+	unsetProxyEnvForTest(t)
 
 	config := fxutil.Test[Component](t, fx.Options(
 		corecomp.MockModule(),

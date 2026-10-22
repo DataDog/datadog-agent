@@ -26,17 +26,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func unsetEnvForTest(t *testing.T, env string) {
-	oldValue, ok := os.LookupEnv(env)
-	os.Unsetenv(env)
+func unsetEnvForTest(t *testing.T, envs ...string) {
+	for _, env := range envs {
+		oldValue, ok := os.LookupEnv(env)
+		os.Unsetenv(env)
 
-	t.Cleanup(func() {
-		if !ok {
-			os.Unsetenv(env)
-		} else {
-			os.Setenv(env, oldValue)
-		}
-	})
+		t.Cleanup(func() {
+			if !ok {
+				os.Unsetenv(env)
+			} else {
+				os.Setenv(env, oldValue)
+			}
+		})
+	}
+}
+
+// unsetProxyEnvForTest clears every proxy-related env var for the duration of the
+// test. CI runners (CircleCI, and now the ddbuild Kubernetes runners) set
+// HTTP_PROXY / HTTPS_PROXY / NO_PROXY, which leak into the proxy config tests and
+// make them non-hermetic.
+func unsetProxyEnvForTest(t *testing.T) {
+	unsetEnvForTest(t,
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
+		"http_proxy", "https_proxy", "no_proxy",
+	)
 }
 
 func TestDefaults(t *testing.T) {
@@ -420,8 +433,8 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// CircleCI sets NO_PROXY, so unset it for this test
-			unsetEnvForTest(t, "NO_PROXY")
+			// CI runners set proxy env vars (HTTP_PROXY/HTTPS_PROXY/NO_PROXY); unset them so this test is hermetic
+			unsetProxyEnvForTest(t)
 
 			config := Conf()
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
@@ -1232,8 +1245,8 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
+	// CI runners set proxy env vars (HTTP_PROXY/HTTPS_PROXY/NO_PROXY); unset them so this test is hermetic
+	unsetProxyEnvForTest(t)
 
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1289,8 +1302,8 @@ secret_backend_arguments:
 `)
 
 func TestConfigAssignAtPathSimple(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
+	// CI runners set proxy env vars (HTTP_PROXY/HTTPS_PROXY/NO_PROXY); unset them so this test is hermetic
+	unsetProxyEnvForTest(t)
 
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
@@ -1316,8 +1329,8 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigMustMatchOrigin(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
+	// CI runners set proxy env vars (HTTP_PROXY/HTTPS_PROXY/NO_PROXY); unset them so this test is hermetic
+	unsetProxyEnvForTest(t)
 
 	testMinimalConf := []byte(`apm_config:
   apm_dd_url: ENC[some_url]
@@ -1385,8 +1398,8 @@ use_proxy_for_cloud_metadata: true
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
-	// CircleCI sets NO_PROXY, so unset it for this test
-	unsetEnvForTest(t, "NO_PROXY")
+	// CI runners set proxy env vars (HTTP_PROXY/HTTPS_PROXY/NO_PROXY); unset them so this test is hermetic
+	unsetProxyEnvForTest(t)
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly

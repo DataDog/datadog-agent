@@ -268,10 +268,20 @@ func TestProcessAgentChecks(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("without process-agent running", func(t *testing.T) {
-		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getProcessChecks(mock.Fb, func() (string, error) { return "fake:1337", nil })
+		// Enable the process checks so getProcessChecks actually tries to reach the
+		// (absent) process-agent and reports it as unreachable. Otherwise they
+		// short-circuit to "'<setting>' is disabled", since these default to false.
+		cfg := config.Mock(t)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 
-		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		// Use a hostname that fails to resolve even with AppGate enabled, otherwise
+		// this test times out instead of failing fast.
+		getProcessChecks(mock.Fb, func() (string, error) { return "[invalid][host]:1337", nil })
+
+		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		cfg := config.Mock(t)
