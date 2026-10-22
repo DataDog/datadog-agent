@@ -107,9 +107,19 @@ func TestEBPFLessExecWithoutForkPIDReuse(t *testing.T) {
 }
 
 func TestEBPFLessExecWithoutForkInvalidParent(t *testing.T) {
-	for _, tc := range []struct{ pid, ppid uint32 }{{200, 0}, {200, 200}, {1, 0}} {
-		r := &EBPFLessResolver{entryCache: make(map[CacheResolverKey]*model.ProcessCacheEntry)}
-		entry := addEBPFLessTestExec(r, CacheResolverKey{Pid: tc.pid, NSID: 1}, tc.ppid, "/bin/sh", 200)
-		assert.Nil(t, entry.Ancestor)
+	for _, tc := range []struct {
+		name      string
+		pid, ppid uint32
+	}{
+		{name: "unknown parent", pid: 200},
+		{name: "self parent", pid: 200, ppid: 200},
+		{name: "root without parent", pid: 1},
+		{name: "root with apparent parent", pid: 1, ppid: 100},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &EBPFLessResolver{entryCache: make(map[CacheResolverKey]*model.ProcessCacheEntry)}
+			entry := addEBPFLessTestExec(r, CacheResolverKey{Pid: tc.pid, NSID: 1}, tc.ppid, "/bin/sh", 200)
+			assert.Nil(t, entry.Ancestor)
+		})
 	}
 }

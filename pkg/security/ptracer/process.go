@@ -66,8 +66,10 @@ type SocketInfo struct {
 type Process struct {
 	Pid                      int
 	Tgid                     int
-	startTime                uint64
-	forkPPID                 uint32
+	startTime                uint64 // /proc/<tgid>/stat starttime in clock ticks; zero if unavailable
+	forkPPID                 uint32 // known process parent, not necessarily the creating TID
+	creationHandled          bool   // creation hooks completed, or an initial tracee with no creation event
+	creationWaitTimedOut     bool   // resumed without creation; inherited resources must not be reapplied
 	CGroupID                 containerutils.CGroupID
 	ContainerID              containerutils.ContainerID
 	containerContextResolved bool
@@ -97,15 +99,17 @@ func NewProcess(pid int) *Process {
 }
 
 func (p *Process) identity() processIdentity {
-	return processIdentity{pid: uint32(p.Tgid), startTime: p.startTime}
+	// A nonleader exec changes its TID to the TGID, not the process generation.
+	return processIdentity{tgid: uint32(p.Tgid), startTime: p.startTime}
 }
 
 func (p *Process) execPPID() uint32 {
 	if p.forkPPID != 0 {
 		return p.forkPPID
 	}
-	// The fork may not have been handled yet, or this may be an initial
-	// tracee. Resolve its parent while it is stopped at exec, not at flush.
+	// Creation may have timed out, or this may be an initial tracee.
+	// Resolve at the exec stop, not at network delivery: queuing delays must
+	// not change the observed parent. This preserves lineage without a fork.
 	return getPidPPID(p.Pid)
 }
 

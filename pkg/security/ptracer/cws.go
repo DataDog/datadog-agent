@@ -63,18 +63,22 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts                *Opts
-	wg                  sync.WaitGroup
-	cancel              context.Context
-	cancelFnc           context.CancelFunc
-	containerID         containerutils.ContainerID
-	cgroupID            containerutils.CGroupID
-	probeAddr           string
-	client              net.Conn
-	clientReady         chan bool
-	msgDataChan         chan []byte
-	pendingMsgData      []byte // owned by the network sender, retained across reconnects
-	syscallMessages     *syscallMessageBuffer
+	opts        *Opts
+	wg          sync.WaitGroup
+	cancel      context.Context
+	cancelFnc   context.CancelFunc
+	containerID containerutils.ContainerID
+	cgroupID    containerutils.CGroupID
+	probeAddr   string
+	client      net.Conn
+	clientReady chan bool
+	msgDataChan chan []byte
+	// The network sender owns this single dequeued payload until its write
+	// succeeds. Keep it across reconnects; requeueing at the tail breaks FIFO.
+	inFlightMsgData []byte
+	// The tracing thread owns lifecycle metadata, not a telemetry queue.
+	// This guard filters late forks after a child-creation wait has expired.
+	lifecycleGuard      *processLifecycleGuard
 	helloMsg            *ebpfless.Message
 	processCache        *ProcessCache
 	traceesReported     []int
@@ -203,6 +207,9 @@ func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
 	return nil
 }
 
+// enqueueMsgData never waits for the network: a stalled probe must not hold
+// tracees stopped. A full outbound queue drops the new message rather than
+// blocking the tracing thread.
 func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) {
 	select {
 	case ctx.msgDataChan <- data:
@@ -242,23 +249,25 @@ func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
 	}
 }
 
-// returns nil if client needs to be reconnected
+// sendMessagesLoop returns nil when the connection needs to be re-established.
+// The in-flight payload survives that return and is retried after the next hello,
+// before any later queued message. This preserves FIFO retries, not exactly-once
+// delivery: the protocol has no per-message acknowledgement.
 func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
 	for {
-		if ctx.pendingMsgData != nil {
-			// Retry the failed message before dequeuing anything else. Putting
-			// a failed fork back at the queue's tail would let exec overtake it.
-			if err := ctx.sendMsgData(ctx.pendingMsgData); err != nil {
+		if ctx.inFlightMsgData != nil {
+			// In particular, an exec must not overtake a fork whose write failed.
+			if err := ctx.sendMsgData(ctx.inFlightMsgData); err != nil {
 				logger.Debugf("error sending msg: %v", err)
 				return nil
 			}
-			ctx.pendingMsgData = nil
+			ctx.inFlightMsgData = nil
 		}
 		select {
 		case <-ctx.cancel.Done():
 			return errors.New("Exiting")
 		case data := <-ctx.msgDataChan:
-			ctx.pendingMsgData = data
+			ctx.inFlightMsgData = data
 		}
 	}
 }
@@ -410,9 +419,6 @@ func initCWSPtracerAttach(pids []int, probeAddr string, opts Opts) (*CWSPtracerC
 
 // CWSCleanup cleans up the ptracer
 func (ctx *CWSPtracerCtx) CWSCleanup() {
-	if ctx.syscallMessages != nil {
-		ctx.syscallMessages.close()
-	}
 	ctx.cancelFnc()
 	ctx.wg.Wait()
 	if ctx.stopSignalForwarder != nil {
@@ -474,7 +480,10 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 				initial = append(initial, process.identity())
 			}
 		}
-		ctx.syscallMessages = newSyscallMessageBuffer(initial, ctx.enqueueMsgData)
+		// Seed roots explicitly: they have no instrumented creation event.
+		// Only ptrace events use this guard; concurrent procfs snapshots are
+		// not authoritative creation notifications and use the outbound FIFO directly.
+		ctx.lifecycleGuard = newProcessLifecycleGuard(initial, ctx.enqueueMsgData)
 		ctx.handleClientConnection()
 	}
 
@@ -483,11 +492,6 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 	}
 
 	exitCode, err := ctx.Trace()
-	if ctx.syscallMessages != nil {
-		// Flush before the existing network-drain grace period, including
-		// messages belonging to short-lived children with missing forks.
-		ctx.syscallMessages.close()
-	}
 	if err != nil {
 		return 0, err
 	}
