@@ -144,6 +144,7 @@ variables:
   S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   # dd-pkg CLI version downloaded at runtime by .setup_dd_pkg
   DD_PKG_VERSION: "0.9.8"
+  PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
