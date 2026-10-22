@@ -45,6 +45,7 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 	require.NotNil(t, result.Comp)
 	if runtime.GOOS == "windows" {
 		require.Empty(t, lc.hooks)
+		require.Nil(t, result.Comp.Status())
 		return
 	}
 	require.Len(t, lc.hooks, 1)
@@ -70,5 +71,5 @@ func TestOptOutDoesNotRegisterBackgroundWork(t *testing.T) {
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
 	result := NewComponent(Requires{Config: cfg, Lifecycle: lc})
 	require.Empty(t, lc.hooks)
-	require.NotNil(t, result.Comp)
+	require.Nil(t, result.Comp.Status())
 }

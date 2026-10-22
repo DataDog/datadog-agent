@@ -8,8 +8,8 @@ package phonehome
 
 // team: action-platform
 
-// Component owns the core phone-home lifecycle.
-type Component interface{}
+// Component owns lifecycle and exposes sanitized enrollment state, not action readiness.
+type Component interface{ Status() *State }
 
 // State contains no identity, response body or credential.
 type State struct {

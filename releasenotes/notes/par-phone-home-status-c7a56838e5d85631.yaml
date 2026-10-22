@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Show enrollment progress and retry information in the Private Action Runner
+    section of ``datadog-agent status`` when the phone-home proof of concept is
+    enabled.

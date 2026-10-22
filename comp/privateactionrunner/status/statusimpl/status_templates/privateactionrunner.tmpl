@@ -1,5 +1,24 @@
 {{- with .privateActionRunnerStatus -}}
   Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}
+{{- with .PhoneHome }}
+  Phone-home POC: {{ .State }} ({{ .Reason }})
+  Scope checked: {{ .ScopeChecked }}; scope ready: {{ .ScopeReady }}
+  Enrollment outcome: {{ .EnrollmentOutcome }}
+  Safe to retry: {{ .RetrySafe }}; reconciliation required: {{ .ReconciliationRequired }}
+  Credential-retention helper: {{ .HelperRetained }}
+{{- if .EnrollmentRetryAfter }}
+  Enrollment Retry-After (not replay authorization): {{ .EnrollmentRetryAfter }}
+{{- end }}
+{{- if .NextDiscovery }}
+  Next discovery: {{ .NextDiscovery }}
+{{- end }}
+{{- if .NextEnrollmentAttempt }}
+  Next enrollment attempt: {{ .NextEnrollmentAttempt }}
+{{- end }}
+{{- if .NextRetry }}
+  Next reconciliation: {{ .NextRetry }}
+{{- end }}
+{{- end }}
 {{- if .Enabled }}
   URN: {{ .URN }}
   Self Enroll: {{ .SelfEnroll }}

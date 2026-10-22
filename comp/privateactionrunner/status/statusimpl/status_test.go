@@ -8,11 +8,13 @@ package statusimpl
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -97,6 +99,66 @@ func TestStatusDisabled(t *testing.T) {
 		assert.Contains(t, output, "Disabled")
 		assert.NotContains(t, output, "URN")
 	})
+}
+
+type phoneHomeStub struct{ state *phonehome.State }
+
+func (s phoneHomeStub) Status() *phonehome.State { return s.state }
+
+func TestPhoneHomeStatusExcludesRCDiagnostics(t *testing.T) {
+	cfg := config.NewMock(t)
+	provider := statusProvider{config: cfg, phoneHome: phoneHomeStub{state: &phonehome.State{
+		State: "waiting", Reason: "missing_enrollment_scope", RCReady: true, RCReason: "rc_ready",
+	}}}
+	stats := make(map[string]interface{})
+	require.NoError(t, provider.JSON(false, stats))
+	parStats := stats["privateActionRunnerStatus"].(map[string]interface{})
+	ph := parStats["PhoneHome"].(map[string]interface{})
+	require.Equal(t, "waiting", ph["State"])
+	require.NotContains(t, ph, "RCReady")
+	require.NotContains(t, ph, "RCReason")
+	var text, html bytes.Buffer
+	require.NoError(t, provider.Text(false, &text))
+	require.NoError(t, provider.HTML(false, &html))
+	for _, output := range []string{text.String(), html.String()} {
+		require.Contains(t, output, "waiting (missing_enrollment_scope)")
+		require.NotContains(t, output, "RC prerequisite")
+	}
+	for _, source := range []phonehome.Component{nil, phoneHomeStub{}} {
+		provider.phoneHome = source
+		stats = make(map[string]interface{})
+		require.NoError(t, provider.JSON(false, stats))
+		require.NotContains(t, stats["privateActionRunnerStatus"], "PhoneHome")
+	}
+}
+
+func TestPhoneHomeStatusTemplates(t *testing.T) {
+	provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &phonehome.State{
+		State: "waiting", Reason: "missing_enrollment_scope", NextRetry: time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
+	}}}
+	var text, html bytes.Buffer
+	require.NoError(t, provider.Text(false, &text))
+	require.NoError(t, provider.HTML(false, &html))
+	for _, output := range []string{text.String(), html.String()} {
+		require.Contains(t, output, "waiting (missing_enrollment_scope)")
+		require.Contains(t, output, "Next reconciliation:")
+	}
+}
+
+func TestPhoneHomeRecoveryStatusTemplates(t *testing.T) {
+	provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &phonehome.State{
+		State: "blocked", Reason: "quota", ScopeChecked: true, ScopeReady: true, EnrollmentOutcome: "quota", RetrySafe: true, NextDiscovery: "2026-10-06T10:01:00Z", NextEnrollmentAttempt: "2026-10-06T10:05:00Z",
+	}}}
+	var text, html bytes.Buffer
+	require.NoError(t, provider.Text(false, &text))
+	require.NoError(t, provider.HTML(false, &html))
+	for _, output := range []string{text.String(), html.String()} {
+		require.Contains(t, output, "Scope checked: true; scope ready: true")
+		require.Contains(t, output, "Enrollment outcome: quota")
+		require.Contains(t, output, "Safe to retry: true; reconciliation required: false")
+		require.Contains(t, output, "Next discovery: 2026-10-06T10:01:00Z")
+		require.Contains(t, output, "Next enrollment attempt: 2026-10-06T10:05:00Z")
+	}
 }
 
 func TestProviderNameAndSection(t *testing.T) {

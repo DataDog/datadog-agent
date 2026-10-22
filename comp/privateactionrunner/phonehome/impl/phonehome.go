@@ -30,14 +30,21 @@ type Requires struct {
 	RC        option.Option[rcservice.Component]
 }
 
-// Provides registers the core phone-home lifecycle without owning Go enrollment.
+// Provides exposes sanitized status without taking ownership of Go enrollment.
 type Provides struct{ Comp phonehome.Component }
 
-type component struct{}
+type component struct{ cfg config.Component }
+
+func (c *component) Status() *phonehome.State {
+	if !enrollment.PhoneHomePOC() || !c.cfg.GetBool(par.Enabled) {
+		return nil
+	}
+	return engine.Status()
+}
 
 // NewComponent installs a cancellable background controller, not a startup wait.
 func NewComponent(r Requires) Provides {
-	c := &component{}
+	c := &component{cfg: r.Config}
 	if !enrollment.PhoneHomePOC() || !r.Config.GetBool(par.Enabled) {
 		return Provides{Comp: c}
 	}

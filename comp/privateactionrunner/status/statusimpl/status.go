@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,7 +28,8 @@ var templatesFS embed.FS
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config    config.Component
+	PhoneHome phonehome.Component `optional:"true"`
 }
 
 type provides struct {
@@ -43,13 +45,15 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	config config.Component
+	config    config.Component
+	phoneHome phonehome.Component
 }
 
 func newStatusProvider(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config: deps.Config,
+			config:    deps.Config,
+			phoneHome: deps.PhoneHome,
 		}),
 	}
 }
@@ -88,6 +92,21 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	parStatus := make(map[string]interface{})
+	if s.phoneHome != nil {
+		if state := s.phoneHome.Status(); state != nil {
+			// Keep presentation separate from the controller's RC diagnostics.
+			parStatus["PhoneHome"] = map[string]interface{}{
+				"State": state.State, "Reason": state.Reason,
+				"ScopeChecked": state.ScopeChecked, "ScopeReady": state.ScopeReady,
+				"EnrollmentOutcome": state.EnrollmentOutcome,
+				"RetrySafe":         state.RetrySafe, "ReconciliationRequired": state.ReconciliationRequired,
+				"HelperRetained":       state.HelperRetained,
+				"EnrollmentRetryAfter": state.EnrollmentRetryAfter,
+				"NextDiscovery":        state.NextDiscovery, "NextEnrollmentAttempt": state.NextEnrollmentAttempt,
+				"NextRetry": state.NextRetry,
+			}
+		}
+	}
 
 	enabled := s.config.GetBool(par.Enabled)
 	parStatus["Enabled"] = enabled
