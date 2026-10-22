@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add an experimental, opt-in Linux core-Agent gate that starts split-mode
+    Private Action Runner only after Remote Configuration is enabled for the
+    organization and authorized for the API key. This requires an isolated,
+    on-demand supervisor configuration; ordinary installation defaults and
+    enrollment behavior are unchanged.

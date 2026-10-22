@@ -987,6 +987,12 @@ last-written timestamp so callers can measure how long the agent was offline.
 
 Package privateactionrunner provides a component that enables private actions executions
 
+### [comp/privateactionrunner/phonehome](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome)
+
+*Datadog Team*: action-platform
+
+Package phonehome defines the opt-in core-owned PAR startup gate.
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products

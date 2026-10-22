@@ -51,6 +51,7 @@ dd_agent_go_test(
     srcs = [
         "executor_config_test.go",
         "privateactionrunner_test.go",
+        "standalone_enrollment_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -62,6 +63,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/executor",
         "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/util",
+        "//pkg/util/flavor",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
