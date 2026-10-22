@@ -1,0 +1,14 @@
+---
+deprecations:
+  - |
+    The SBOM settings ``sbom.host.additional_directories`` and
+    ``sbom.container_image.additional_directories``, and their environment
+    variables ``DD_SBOM_HOST_ADDITIONAL_DIRECTORIES`` and
+    ``DD_SBOM_CONTAINER_IMAGE_ADDITIONAL_DIRECTORIES``, are deprecated and
+    ignored. They narrowed SBOM scans with application analyzers to the files
+    their patterns matched, and dropped package data that scans with the
+    ``os`` analyzer alone read from directories. A scan they narrowed now reads
+    every file its analyzers need, and takes longer with application
+    analyzers. When SBOM collection is enabled, the Agent logs a warning for
+    each one that is set. Remove them from your configuration. A future
+    release deletes them.

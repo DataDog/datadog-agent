@@ -79,9 +79,6 @@ func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 		artifactOption = ddtrivy.TrivyOptionsOS(parallel)
 	} else {
 		artifactOption = ddtrivy.TrivyOptionsAll(parallel)
-		// OnlyDirs filters the static paths an OS-only scan walks, so only
-		// application scans take the additional directories.
-		artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
 	}
 
 	// agent specific config, needed so that we don't download the Java DB at runtime

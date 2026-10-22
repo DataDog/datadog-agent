@@ -482,8 +482,8 @@ func TestRetryChannelFull(t *testing.T) {
 func TestConfiguredDeprecatedSettings(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		cfg := configmock.New(t)
-		for _, key := range deprecatedSettings {
-			assert.True(t, cfg.IsKnown(key), "%s is missing from the schema", key)
+		for _, s := range deprecatedSettings {
+			assert.True(t, cfg.IsKnown(s.key), "%s is missing from the schema", s.key)
 		}
 		assert.Empty(t, configuredDeprecatedSettings(cfg))
 	})
@@ -498,14 +498,21 @@ sbom:
     max_disk_size: 1000
   container_image:
     overlayfs_disable_cache: false
+    additional_directories: [/opt/app]
+  host:
+    additional_directories: [/opt/app]
 `)
 		assert.Equal(t, deprecatedSettings, configuredDeprecatedSettings(cfg))
 	})
 
 	t.Run("env", func(t *testing.T) {
 		t.Setenv("DD_SBOM_CACHE_MAX_DISK_SIZE", "1000")
+		t.Setenv("DD_SBOM_HOST_ADDITIONAL_DIRECTORIES", "/opt/app")
 		cfg := configmock.New(t)
-		assert.Equal(t, []string{"sbom.cache.max_disk_size"}, configuredDeprecatedSettings(cfg))
+		assert.Equal(t, []deprecatedSetting{
+			{"sbom.cache.max_disk_size", cacheReason},
+			{"sbom.host.additional_directories", dirsReason},
+		}, configuredDeprecatedSettings(cfg))
 	})
 }
 

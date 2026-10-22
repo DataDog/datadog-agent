@@ -25,7 +25,6 @@ type ScanOptions struct {
 	Fast             bool
 	UseMount         bool
 	OverlayFsScan    bool
-	AdditionalDirs   []string
 }
 
 // OSOnly reports whether the scan runs the OS package analyzers alone, that is

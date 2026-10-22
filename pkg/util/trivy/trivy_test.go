@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/ddtrivy"
 )
@@ -183,16 +184,6 @@ func TestGetDefaultArtifactOption(t *testing.T) {
 			assert.True(t, got.OfflineJar)
 		})
 	}
-
-	t.Run("os with additional directories", func(t *testing.T) {
-		got := getDefaultArtifactOption(sbom.ScanOptions{Analyzers: []string{OSAnalyzers}, AdditionalDirs: []string{"srv/app/**"}})
-		assert.Empty(t, got.WalkerOption.OnlyDirs)
-	})
-
-	t.Run("os and languages with additional directories", func(t *testing.T) {
-		got := getDefaultArtifactOption(sbom.ScanOptions{Analyzers: []string{OSAnalyzers, LanguagesAnalyzers}, AdditionalDirs: []string{"srv/app/**"}})
-		assert.Contains(t, got.WalkerOption.OnlyDirs, "srv/app/**")
-	})
 }
 
 func TestScanWithOSFallback(t *testing.T) {
@@ -534,5 +525,25 @@ func TestReportOSFallback(t *testing.T) {
 		} else {
 			assert.Empty(t, values)
 		}
+	}
+}
+
+// TestAdditionalDirectoriesIgnored checks that the deprecated
+// additional_directories settings leave OnlyDirs empty.
+func TestAdditionalDirectoriesIgnored(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+sbom:
+  host:
+    analyzers: [os, languages]
+    additional_directories: [/opt/app]
+  container_image:
+    analyzers: [os]
+    additional_directories: [/opt/app]
+`)
+	for name, opts := range map[string]sbom.ScanOptions{
+		"host":            sbom.ScanOptionsFromConfigForHosts(cfg),
+		"container image": sbom.ScanOptionsFromConfigForContainers(cfg),
+	} {
+		assert.Empty(t, getDefaultArtifactOption(opts).WalkerOption.OnlyDirs, name)
 	}
 }
