@@ -6,8 +6,8 @@
 // Package ioscmd parses a JSON description of a block of Cisco IOS commands
 // and renders it into the CLI lines to send to a device.
 //
-// The JSON format is defined by the TypeScript types in
-// ios_commands.ts in this package.
+// A block is a JSON array of commands, each an object whose "type" field is
+// the command's CLI keyword (e.g. "show ip route", "hostname", "interface").
 package ioscmd
 
 import (
@@ -20,8 +20,8 @@ import (
 // CommandBlock is an ordered list of top-level commands.
 type CommandBlock []Command
 
-// Command is a top-level command: a ShowCommand, *HostnameCommand, or
-// *InterfaceCommand.
+// Command is a top-level command: a ShowCommand, an exec command such as
+// *PingCommand, or a configuration command such as *InterfaceCommand.
 type Command interface {
 	// isConfig reports whether the command must be run in global configuration mode.
 	isConfig() bool
@@ -87,7 +87,7 @@ func (b CommandBlock) Render() ([]string, error) {
 }
 
 // UnmarshalJSON decodes a JSON array of commands, dispatching on each
-// command's "type" (and, for show commands, "target") field.
+// command's "type" field.
 func (b *CommandBlock) UnmarshalJSON(data []byte) error {
 	var raws []json.RawMessage
 	if err := json.Unmarshal(data, &raws); err != nil {
@@ -108,10 +108,9 @@ func (b *CommandBlock) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// discriminator holds the fields used to pick the concrete type of a command.
+// discriminator holds the field used to pick the concrete type of a command.
 type discriminator struct {
-	Type   string `json:"type"`
-	Target string `json:"target"`
+	Type string `json:"type"`
 }
 
 func peek(raw json.RawMessage) (discriminator, error) {
@@ -125,26 +124,48 @@ func peek(raw json.RawMessage) (discriminator, error) {
 	return d, nil
 }
 
+// commandTypes maps each top-level command type to a constructor for its
+// concrete type.
+var commandTypes = map[string]func() Command{
+	"show running-config":      func() Command { return &ShowRunningConfig{} },
+	"show startup-config":      func() Command { return &ShowSimple{} },
+	"show interfaces":          func() Command { return &ShowInterfaces{} },
+	"show interfaces counters": func() Command { return &ShowInterfacesCounters{} },
+	"show ip interface":        func() Command { return &ShowIPInterface{} },
+	"show ip route":            func() Command { return &ShowIPRoute{} },
+	"show ip arp":              func() Command { return &ShowIPArp{} },
+	"show vlan":                func() Command { return &ShowVlan{} },
+	"show cdp neighbors":       func() Command { return &ShowNeighbors{} },
+	"show lldp neighbors":      func() Command { return &ShowNeighbors{} },
+	"show mac address-table":   func() Command { return &ShowMacAddressTable{} },
+	"show version":             func() Command { return &ShowSimple{} },
+	"show inventory":           func() Command { return &ShowSimple{} },
+	"show clock":               func() Command { return &ShowSimple{} },
+	"show logging":             func() Command { return &ShowSimple{} },
+	"show users":               func() Command { return &ShowSimple{} },
+	"show boot":                func() Command { return &ShowSimple{} },
+	"show dhcp lease":          func() Command { return &ShowSimple{} },
+
+	"ping":                               func() Command { return &PingCommand{} },
+	"traceroute":                         func() Command { return &PingCommand{} },
+	"copy running-config startup-config": func() Command { return &CopyRunningConfigCommand{} },
+
+	"hostname":  func() Command { return &HostnameCommand{} },
+	"cdp run":   func() Command { return &GlobalToggleCommand{} },
+	"lldp run":  func() Command { return &GlobalToggleCommand{} },
+	"interface": func() Command { return &InterfaceCommand{} },
+}
+
 func decodeCommand(raw json.RawMessage) (Command, error) {
 	d, err := peek(raw)
 	if err != nil {
 		return nil, err
 	}
-	var cmd Command
-	switch d.Type {
-	case "show":
-		newShow, ok := showTargets[d.Target]
-		if !ok {
-			return nil, fmt.Errorf("unknown show target %q", d.Target)
-		}
-		cmd = newShow()
-	case "hostname":
-		cmd = &HostnameCommand{}
-	case "interface":
-		cmd = &InterfaceCommand{}
-	default:
+	newCmd, ok := commandTypes[d.Type]
+	if !ok {
 		return nil, fmt.Errorf("unknown command type %q", d.Type)
 	}
+	cmd := newCmd()
 	if err := decodeStrict(raw, cmd); err != nil {
 		return nil, fmt.Errorf("%s: %w", d.Type, err)
 	}

@@ -69,7 +69,7 @@ func (f *fakeIPCClient) NewIPCEndpoint(_ string) (ipc.Endpoint, error) {
 }
 
 // showVersion is a command block that renders to "show version".
-var showVersion = []any{map[string]any{"type": "show", "target": "version"}}
+var showVersion = []any{map[string]any{"type": "show version"}}
 
 func makeRunCommandTask(deviceID string, command any, credentialSet string) *types.Task {
 	task := &types.Task{}

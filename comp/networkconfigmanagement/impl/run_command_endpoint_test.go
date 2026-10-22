@@ -19,7 +19,7 @@ import (
 )
 
 // showVersion is a command block that renders to "show version".
-const showVersion = `[{"type":"show","target":"version"}]`
+const showVersion = `[{"type":"show version"}]`
 
 func doRunCommandRequest(t *testing.T, comp *networkDeviceConfigImpl, req RunCommandRequest) (*httptest.ResponseRecorder, types.RunCommandResponse) {
 	t.Helper()
@@ -130,7 +130,7 @@ func TestRunCommandEndpointHandler_MultiLineBlock(t *testing.T) {
 
 	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
 		DeviceID:      device.DeviceID(),
-		Command:       json.RawMessage(`[{"type":"hostname","hostname":"r1"},{"type":"show","target":"version"}]`),
+		Command:       json.RawMessage(`[{"type":"hostname","hostname":"r1"},{"type":"show version"}]`),
 		CredentialSet: "admin",
 	})
 
@@ -146,12 +146,12 @@ func TestRunCommandEndpointHandler_MultiLineBlock(t *testing.T) {
 func TestRunCommandEndpointHandler_InvalidCommand(t *testing.T) {
 	for name, command := range map[string]string{
 		"plain_string":   `"show version"`,
-		"object":         `{"type":"show","target":"version"}`,
+		"object":         `{"type":"show version"}`,
 		"unknown_type":   `[{"type":"reload"}]`,
-		"unknown_field":  `[{"type":"show","target":"version","extra":1}]`,
+		"unknown_field":  `[{"type":"show version","extra":1}]`,
 		"empty_block":    `[]`,
-		"injection":      `[{"type":"show","target":"interfaces","interface":"Gi1/0/1|python$IFS-c$IFS'print(\"gotcha\")'"}]`,
-		"zone_injection": `[{"type":"interface","name":"Gi1/0/1","commands":[{"type":"ipv6_addr","prefix":"fe80::1%x\nreload","modifier":"link-local"}]}]`,
+		"injection":      `[{"type":"show interfaces","interface":"Gi1/0/1|python$IFS-c$IFS'print(\"gotcha\")'"}]`,
+		"zone_injection": `[{"type":"interface","name":"Gi1/0/1","commands":[{"type":"ipv6 address","prefix":"fe80::1%x\nreload","modifier":"link-local"}]}]`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			comp, reqs := createTestComponent(t)

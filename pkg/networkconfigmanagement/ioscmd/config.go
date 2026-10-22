@@ -29,6 +29,26 @@ func (c HostnameCommand) render() ([]string, error) {
 	return []string{"hostname " + c.Hostname}, nil
 }
 
+// GlobalToggleCommand is a global boolean setting such as `cdp run`:
+// `<type>` if Value is true, or `no <type>` if it is false.
+type GlobalToggleCommand struct {
+	// Type is "cdp run" or "lldp run".
+	Type  string `json:"type"`
+	Value *bool  `json:"value"`
+}
+
+func (GlobalToggleCommand) isConfig() bool { return true }
+
+func (c GlobalToggleCommand) render() ([]string, error) {
+	if err := checkOneOf("type", c.Type, "cdp run", "lldp run"); err != nil {
+		return nil, err
+	}
+	if c.Value == nil {
+		return nil, fmt.Errorf("%s: value is required", c.Type)
+	}
+	return []string{negate(!*c.Value, c.Type)}, nil
+}
+
 // InterfaceCommand is `interface <name>` followed by indented sub-commands.
 type InterfaceCommand struct {
 	// Type is always "interface".
@@ -103,7 +123,7 @@ func decodeSubCommand(raw json.RawMessage) (InterfaceSubCommand, error) {
 		return nil, err
 	}
 	var sub InterfaceSubCommand
-	if _, ok := toggleKeywords[d.Type]; ok {
+	if toggleTypes[d.Type] {
 		sub = &ToggleCommand{}
 	} else if newSub, ok := subCommandTypes[d.Type]; ok {
 		sub = newSub()
@@ -124,23 +144,24 @@ type InterfaceSubCommand interface {
 
 var subCommandTypes = map[string]func() InterfaceSubCommand{
 	"description":                   func() InterfaceSubCommand { return &DescriptionCommand{} },
-	"ip_addr":                       func() InterfaceSubCommand { return &IPAddressCommand{} },
-	"ip_addr_dhcp":                  func() InterfaceSubCommand { return &IPAddressDHCPCommand{} },
-	"no_ip_addr":                    func() InterfaceSubCommand { return &NoIPAddressCommand{} },
-	"ipv6_addr":                     func() InterfaceSubCommand { return &IPv6AddressCommand{} },
-	"ip_helper_address":             func() InterfaceSubCommand { return &IPHelperAddressCommand{} },
-	"vrf_forwarding":                func() InterfaceSubCommand { return &VrfForwardingCommand{} },
-	"switchport_mode":               func() InterfaceSubCommand { return &SwitchportModeCommand{} },
-	"switchport_access_vlan":        func() InterfaceSubCommand { return &VlanSettingCommand{} },
-	"switchport_voice_vlan":         func() InterfaceSubCommand { return &VlanSettingCommand{} },
-	"switchport_trunk_native_vlan":  func() InterfaceSubCommand { return &VlanSettingCommand{} },
-	"switchport_trunk_allowed_vlan": func() InterfaceSubCommand { return &SwitchportTrunkAllowedVlanCommand{} },
+	"ip address":                    func() InterfaceSubCommand { return &IPAddressCommand{} },
+	"ip address dhcp":               func() InterfaceSubCommand { return &IPAddressDHCPCommand{} },
+	"no ip address":                 func() InterfaceSubCommand { return &NoIPAddressCommand{} },
+	"ipv6 address":                  func() InterfaceSubCommand { return &IPv6AddressCommand{} },
+	"ip helper-address":             func() InterfaceSubCommand { return &IPHelperAddressCommand{} },
+	"vrf forwarding":                func() InterfaceSubCommand { return &VrfForwardingCommand{} },
+	"switchport mode":               func() InterfaceSubCommand { return &SwitchportModeCommand{} },
+	"switchport access vlan":        func() InterfaceSubCommand { return &VlanSettingCommand{} },
+	"switchport voice vlan":         func() InterfaceSubCommand { return &VlanSettingCommand{} },
+	"switchport trunk native vlan":  func() InterfaceSubCommand { return &VlanSettingCommand{} },
+	"switchport trunk allowed vlan": func() InterfaceSubCommand { return &SwitchportTrunkAllowedVlanCommand{} },
 	"speed":                         func() InterfaceSubCommand { return &SpeedCommand{} },
 	"duplex":                        func() InterfaceSubCommand { return &DuplexCommand{} },
 	"mtu":                           func() InterfaceSubCommand { return &MtuCommand{} },
-	"ip_mtu":                        func() InterfaceSubCommand { return &MtuCommand{} },
-	"channel_group":                 func() InterfaceSubCommand { return &ChannelGroupCommand{} },
-	"ip_access_group":               func() InterfaceSubCommand { return &IPAccessGroupCommand{} },
+	"ip mtu":                        func() InterfaceSubCommand { return &MtuCommand{} },
+	"channel-group":                 func() InterfaceSubCommand { return &ChannelGroupCommand{} },
+	"ip access-group":               func() InterfaceSubCommand { return &IPAccessGroupCommand{} },
+	"service-policy output":         func() InterfaceSubCommand { return &ServicePolicyOutputCommand{} },
 }
 
 // negate prefixes cmd with "no " if remove is true.
@@ -151,37 +172,36 @@ func negate(remove bool, cmd string) string {
 	return cmd
 }
 
-// toggleKeywords maps each ToggleCommand type to its CLI keyword.
-var toggleKeywords = map[string]string{
-	"shutdown":                "shutdown",
-	"switchport":              "switchport",
-	"negotiation_auto":        "negotiation auto",
-	"cdp_enable":              "cdp enable",
-	"lldp_transmit":           "lldp transmit",
-	"lldp_receive":            "lldp receive",
-	"spanning_tree_portfast":  "spanning-tree portfast",
-	"spanning_tree_bpduguard": "spanning-tree bpduguard enable",
-	"ip_redirects":            "ip redirects",
-	"ip_proxy_arp":            "ip proxy-arp",
-	"ipv6_enable":             "ipv6 enable",
+// toggleTypes is the set of ToggleCommand types.
+var toggleTypes = map[string]bool{
+	"shutdown":                       true,
+	"switchport":                     true,
+	"negotiation auto":               true,
+	"cdp enable":                     true,
+	"lldp transmit":                  true,
+	"lldp receive":                   true,
+	"spanning-tree portfast":         true,
+	"spanning-tree bpduguard enable": true,
+	"ip redirects":                   true,
+	"ip proxy-arp":                   true,
+	"ipv6 enable":                    true,
 }
 
-// ToggleCommand is a boolean setting: `<keyword>` if Value is true, or
-// `no <keyword>` if it is false.
+// ToggleCommand is a boolean interface setting: `<type>` if Value is true, or
+// `no <type>` if it is false.
 type ToggleCommand struct {
 	Type  string `json:"type"`
 	Value *bool  `json:"value"`
 }
 
 func (c ToggleCommand) render() (string, error) {
-	keyword, ok := toggleKeywords[c.Type]
-	if !ok {
+	if !toggleTypes[c.Type] {
 		return "", fmt.Errorf("unknown toggle type %q", c.Type)
 	}
 	if c.Value == nil {
 		return "", fmt.Errorf("%s: value is required", c.Type)
 	}
-	return negate(!*c.Value, keyword), nil
+	return negate(!*c.Value, c.Type), nil
 }
 
 // DescriptionCommand is `description <text>`, or `no description` if Value is null.
@@ -206,7 +226,7 @@ func (c DescriptionCommand) render() (string, error) {
 
 // IPAddressCommand is `ip address <addr> <mask> [secondary]`.
 type IPAddressCommand struct {
-	// Type is always "ip_addr".
+	// Type is always "ip address".
 	Type      string `json:"type"`
 	Addr      string `json:"addr"`
 	Mask      string `json:"mask"`
@@ -229,7 +249,7 @@ func (c IPAddressCommand) render() (string, error) {
 
 // IPAddressDHCPCommand is `ip address dhcp`.
 type IPAddressDHCPCommand struct {
-	// Type is always "ip_addr_dhcp".
+	// Type is always "ip address dhcp".
 	Type string `json:"type"`
 }
 
@@ -237,7 +257,7 @@ func (IPAddressDHCPCommand) render() (string, error) { return "ip address dhcp",
 
 // NoIPAddressCommand is `no ip address`, which removes all IPv4 addresses.
 type NoIPAddressCommand struct {
-	// Type is always "no_ip_addr".
+	// Type is always "no ip address".
 	Type string `json:"type"`
 }
 
@@ -246,7 +266,7 @@ func (NoIPAddressCommand) render() (string, error) { return "no ip address", nil
 // IPv6AddressCommand is `ipv6 address <prefix> [eui-64]` or
 // `ipv6 address <addr> link-local`.
 type IPv6AddressCommand struct {
-	// Type is always "ipv6_addr".
+	// Type is always "ipv6 address".
 	Type string `json:"type"`
 	// Prefix is in CIDR notation, except with the "link-local" modifier, where
 	// it is a bare fe80::/10 address.
@@ -287,7 +307,7 @@ func (c IPv6AddressCommand) render() (string, error) {
 
 // IPHelperAddressCommand is `[no] ip helper-address <addr>`.
 type IPHelperAddressCommand struct {
-	// Type is always "ip_helper_address".
+	// Type is always "ip helper-address".
 	Type   string `json:"type"`
 	Addr   string `json:"addr"`
 	Remove bool   `json:"remove,omitempty"`
@@ -303,14 +323,14 @@ func (c IPHelperAddressCommand) render() (string, error) {
 // VrfForwardingCommand is `vrf forwarding <name>`, or `no vrf forwarding`
 // if Value is null.
 type VrfForwardingCommand struct {
-	// Type is always "vrf_forwarding".
+	// Type is always "vrf forwarding".
 	Type  string           `json:"type"`
 	Value Nullable[string] `json:"value"`
 }
 
 func (c VrfForwardingCommand) render() (string, error) {
 	if !c.Value.Set {
-		return "", errors.New("vrf_forwarding: value is required")
+		return "", errors.New("vrf forwarding: value is required")
 	}
 	if c.Value.Value == nil {
 		return "no vrf forwarding", nil
@@ -323,7 +343,7 @@ func (c VrfForwardingCommand) render() (string, error) {
 
 // SwitchportModeCommand is `switchport mode <mode>`.
 type SwitchportModeCommand struct {
-	// Type is always "switchport_mode".
+	// Type is always "switchport mode".
 	Type string `json:"type"`
 	// Mode is one of "access", "trunk", "dynamic auto", "dynamic desirable".
 	Mode string `json:"mode"`
@@ -336,43 +356,35 @@ func (c SwitchportModeCommand) render() (string, error) {
 	return "switchport mode " + c.Mode, nil
 }
 
-// vlanSettingKeywords maps each VlanSettingCommand type to its CLI keyword.
-var vlanSettingKeywords = map[string]string{
-	"switchport_access_vlan":       "switchport access vlan",
-	"switchport_voice_vlan":        "switchport voice vlan",
-	"switchport_trunk_native_vlan": "switchport trunk native vlan",
-}
-
 // VlanSettingCommand is a single-VLAN setting such as
 // `switchport access vlan <id>`, or its `no` form if Value is null.
 type VlanSettingCommand struct {
-	// Type is "switchport_access_vlan", "switchport_voice_vlan", or
-	// "switchport_trunk_native_vlan".
+	// Type is "switchport access vlan", "switchport voice vlan", or
+	// "switchport trunk native vlan".
 	Type  string        `json:"type"`
 	Value Nullable[int] `json:"value"`
 }
 
 func (c VlanSettingCommand) render() (string, error) {
-	keyword, ok := vlanSettingKeywords[c.Type]
-	if !ok {
-		return "", fmt.Errorf("unknown VLAN setting type %q", c.Type)
+	if err := checkOneOf("type", c.Type, "switchport access vlan", "switchport voice vlan", "switchport trunk native vlan"); err != nil {
+		return "", err
 	}
 	if !c.Value.Set {
 		return "", fmt.Errorf("%s: value is required", c.Type)
 	}
 	if c.Value.Value == nil {
-		return "no " + keyword, nil
+		return "no " + c.Type, nil
 	}
 	if err := checkVlan("value", *c.Value.Value); err != nil {
 		return "", err
 	}
-	return keyword + " " + strconv.Itoa(*c.Value.Value), nil
+	return c.Type + " " + strconv.Itoa(*c.Value.Value), nil
 }
 
 // SwitchportTrunkAllowedVlanCommand is
 // `switchport trunk allowed vlan [add | remove | except] <vlans>`.
 type SwitchportTrunkAllowedVlanCommand struct {
-	// Type is always "switchport_trunk_allowed_vlan".
+	// Type is always "switchport trunk allowed vlan".
 	Type string `json:"type"`
 	// Action is "set" (the default), "add", "remove", or "except".
 	Action string `json:"action,omitempty"`
@@ -445,18 +457,18 @@ func (c DuplexCommand) render() (string, error) {
 
 // MtuCommand is `mtu <bytes>` or `ip mtu <bytes>`, or the `no` form if Value is null.
 type MtuCommand struct {
-	// Type is "mtu" or "ip_mtu".
+	// Type is "mtu" or "ip mtu".
 	Type  string        `json:"type"`
 	Value Nullable[int] `json:"value"`
 }
 
 func (c MtuCommand) render() (string, error) {
-	var keyword string
+	var lo int
 	switch c.Type {
 	case "mtu":
-		keyword = "mtu"
-	case "ip_mtu":
-		keyword = "ip mtu"
+		lo = 64
+	case "ip mtu":
+		lo = 68
 	default:
 		return "", fmt.Errorf("unknown MTU type %q", c.Type)
 	}
@@ -464,12 +476,12 @@ func (c MtuCommand) render() (string, error) {
 		return "", fmt.Errorf("%s: value is required", c.Type)
 	}
 	if c.Value.Value == nil {
-		return "no " + keyword, nil
+		return "no " + c.Type, nil
 	}
-	if *c.Value.Value <= 0 {
-		return "", fmt.Errorf("%s must be positive, got %d", c.Type, *c.Value.Value)
+	if v := *c.Value.Value; v < lo || v > 9216 {
+		return "", fmt.Errorf("%s must be between %d and 9216, got %d", c.Type, lo, v)
 	}
-	return keyword + " " + strconv.Itoa(*c.Value.Value), nil
+	return c.Type + " " + strconv.Itoa(*c.Value.Value), nil
 }
 
 // ChannelGroup is the value of a ChannelGroupCommand.
@@ -482,14 +494,14 @@ type ChannelGroup struct {
 // ChannelGroupCommand is `channel-group <group> mode <mode>`, or
 // `no channel-group` if Value is null.
 type ChannelGroupCommand struct {
-	// Type is always "channel_group".
+	// Type is always "channel-group".
 	Type  string                 `json:"type"`
 	Value Nullable[ChannelGroup] `json:"value"`
 }
 
 func (c ChannelGroupCommand) render() (string, error) {
 	if !c.Value.Set {
-		return "", errors.New("channel_group: value is required")
+		return "", errors.New("channel-group: value is required")
 	}
 	if c.Value.Value == nil {
 		return "no channel-group", nil
@@ -506,7 +518,7 @@ func (c ChannelGroupCommand) render() (string, error) {
 
 // IPAccessGroupCommand is `[no] ip access-group <acl> {in | out}`.
 type IPAccessGroupCommand struct {
-	// Type is always "ip_access_group".
+	// Type is always "ip access-group".
 	Type      string `json:"type"`
 	ACL       string `json:"acl"`
 	Direction string `json:"direction"`
@@ -521,4 +533,19 @@ func (c IPAccessGroupCommand) render() (string, error) {
 		return "", err
 	}
 	return negate(c.Remove, "ip access-group "+c.ACL+" "+c.Direction), nil
+}
+
+// ServicePolicyOutputCommand is `[no] service-policy output <policy>`.
+type ServicePolicyOutputCommand struct {
+	// Type is always "service-policy output".
+	Type   string `json:"type"`
+	Policy string `json:"policy"`
+	Remove bool   `json:"remove,omitempty"`
+}
+
+func (c ServicePolicyOutputCommand) render() (string, error) {
+	if err := checkName("policy", c.Policy); err != nil {
+		return "", err
+	}
+	return negate(c.Remove, "service-policy output "+c.Policy), nil
 }

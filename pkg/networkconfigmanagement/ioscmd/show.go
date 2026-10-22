@@ -18,25 +18,6 @@ type ShowCommand interface {
 	isShow()
 }
 
-// showTargets maps each show target to a constructor for its concrete type.
-var showTargets = map[string]func() ShowCommand{
-	"running-config":    func() ShowCommand { return &ShowConfig{} },
-	"startup-config":    func() ShowCommand { return &ShowConfig{} },
-	"interfaces":        func() ShowCommand { return &ShowInterfaces{} },
-	"ip interface":      func() ShowCommand { return &ShowIPInterface{} },
-	"ip route":          func() ShowCommand { return &ShowIPRoute{} },
-	"vlan":              func() ShowCommand { return &ShowVlan{} },
-	"cdp neighbors":     func() ShowCommand { return &ShowNeighbors{} },
-	"lldp neighbors":    func() ShowCommand { return &ShowNeighbors{} },
-	"mac address-table": func() ShowCommand { return &ShowMacAddressTable{} },
-	"version":           func() ShowCommand { return &ShowSimple{} },
-	"inventory":         func() ShowCommand { return &ShowSimple{} },
-	"clock":             func() ShowCommand { return &ShowSimple{} },
-	"logging":           func() ShowCommand { return &ShowSimple{} },
-	"users":             func() ShowCommand { return &ShowSimple{} },
-	"boot":              func() ShowCommand { return &ShowSimple{} },
-}
-
 // OutputPipe is an output filter, rendered as `| <type> <regex>`.
 type OutputPipe struct {
 	// Type is one of "section", "include", "exclude", "begin", "count".
@@ -72,18 +53,17 @@ func (p OutputPipe) render() (string, error) {
 
 // ShowBase holds the fields common to all show commands.
 type ShowBase struct {
-	// Type is always "show".
-	Type   string      `json:"type"`
-	Target string      `json:"target"`
-	Pipe   *OutputPipe `json:"pipe,omitempty"`
+	// Type is the show command, e.g. "show version".
+	Type string      `json:"type"`
+	Pipe *OutputPipe `json:"pipe,omitempty"`
 }
 
 func (ShowBase) isConfig() bool { return false }
 func (ShowBase) isShow()        {}
 
-// finish appends the pipe (if any) to cmd.
+// finish joins parts and appends the pipe (if any).
 func (s ShowBase) finish(parts ...string) ([]string, error) {
-	cmd := "show " + strings.Join(parts, " ")
+	cmd := strings.Join(parts, " ")
 	if s.Pipe != nil {
 		p, err := s.Pipe.render()
 		if err != nil {
@@ -94,21 +74,15 @@ func (s ShowBase) finish(parts ...string) ([]string, error) {
 	return []string{cmd}, nil
 }
 
-// ShowConfig is `show running-config [interface <name>]` or `show startup-config`.
-type ShowConfig struct {
+// ShowRunningConfig is `show running-config [interface <name>]`.
+type ShowRunningConfig struct {
 	ShowBase
 	Interface string `json:"interface,omitempty"`
 }
 
-func (s ShowConfig) render() ([]string, error) {
-	if err := checkOneOf("target", s.Target, "running-config", "startup-config"); err != nil {
-		return nil, err
-	}
-	parts := []string{s.Target}
+func (s ShowRunningConfig) render() ([]string, error) {
+	parts := []string{"show", "running-config"}
 	if s.Interface != "" {
-		if s.Target != "running-config" {
-			return nil, fmt.Errorf("interface filter is not supported for %s", s.Target)
-		}
 		if err := checkInterfaceName("interface", s.Interface); err != nil {
 			return nil, err
 		}
@@ -121,12 +95,12 @@ func (s ShowConfig) render() ([]string, error) {
 type ShowInterfaces struct {
 	ShowBase
 	Interface string `json:"interface,omitempty"`
-	// Detail is one of "status", "description", "counters", "switchport", "trunk".
+	// Detail is one of "status", "description", "switchport", "trunk".
 	Detail string `json:"detail,omitempty"`
 }
 
 func (s ShowInterfaces) render() ([]string, error) {
-	parts := []string{"interfaces"}
+	parts := []string{"show", "interfaces"}
 	if s.Interface != "" {
 		if err := checkInterfaceName("interface", s.Interface); err != nil {
 			return nil, err
@@ -134,7 +108,33 @@ func (s ShowInterfaces) render() ([]string, error) {
 		parts = append(parts, s.Interface)
 	}
 	if s.Detail != "" {
-		if err := checkOneOf("detail", s.Detail, "status", "description", "counters", "switchport", "trunk"); err != nil {
+		if err := checkOneOf("detail", s.Detail, "status", "description", "switchport", "trunk"); err != nil {
+			return nil, err
+		}
+		parts = append(parts, s.Detail)
+	}
+	return s.finish(parts...)
+}
+
+// ShowInterfacesCounters is `show interfaces [<name>] counters [<detail>]`.
+type ShowInterfacesCounters struct {
+	ShowBase
+	Interface string `json:"interface,omitempty"`
+	// Detail is one of "errors", "etherchannel", "protocol status", "trunk".
+	Detail string `json:"detail,omitempty"`
+}
+
+func (s ShowInterfacesCounters) render() ([]string, error) {
+	parts := []string{"show", "interfaces"}
+	if s.Interface != "" {
+		if err := checkInterfaceName("interface", s.Interface); err != nil {
+			return nil, err
+		}
+		parts = append(parts, s.Interface)
+	}
+	parts = append(parts, "counters")
+	if s.Detail != "" {
+		if err := checkOneOf("detail", s.Detail, "errors", "etherchannel", "protocol status", "trunk"); err != nil {
 			return nil, err
 		}
 		parts = append(parts, s.Detail)
@@ -150,7 +150,7 @@ type ShowIPInterface struct {
 }
 
 func (s ShowIPInterface) render() ([]string, error) {
-	parts := []string{"ip", "interface"}
+	parts := []string{"show", "ip", "interface"}
 	switch {
 	case s.Brief && s.Interface != "":
 		return nil, errors.New("brief and interface are mutually exclusive")
@@ -173,7 +173,7 @@ type ShowIPRoute struct {
 }
 
 func (s ShowIPRoute) render() ([]string, error) {
-	parts := []string{"ip", "route"}
+	parts := []string{"show", "ip", "route"}
 	if s.Vrf != "" {
 		if err := checkName("vrf", s.Vrf); err != nil {
 			return nil, err
@@ -189,6 +189,39 @@ func (s ShowIPRoute) render() ([]string, error) {
 	return s.finish(parts...)
 }
 
+// ShowIPArp is `show ip arp [vrf <vrf>] [<addr> | <interface>]`.
+type ShowIPArp struct {
+	ShowBase
+	Vrf       string `json:"vrf,omitempty"`
+	Addr      string `json:"addr,omitempty"`
+	Interface string `json:"interface,omitempty"`
+}
+
+func (s ShowIPArp) render() ([]string, error) {
+	parts := []string{"show", "ip", "arp"}
+	if s.Vrf != "" {
+		if err := checkName("vrf", s.Vrf); err != nil {
+			return nil, err
+		}
+		parts = append(parts, "vrf", s.Vrf)
+	}
+	switch {
+	case s.Addr != "" && s.Interface != "":
+		return nil, errors.New("addr and interface are mutually exclusive")
+	case s.Addr != "":
+		if err := checkIPv4("addr", s.Addr); err != nil {
+			return nil, err
+		}
+		parts = append(parts, s.Addr)
+	case s.Interface != "":
+		if err := checkInterfaceName("interface", s.Interface); err != nil {
+			return nil, err
+		}
+		parts = append(parts, s.Interface)
+	}
+	return s.finish(parts...)
+}
+
 // ShowVlan is `show vlan [brief | id <vlan>]`.
 type ShowVlan struct {
 	ShowBase
@@ -197,7 +230,7 @@ type ShowVlan struct {
 }
 
 func (s ShowVlan) render() ([]string, error) {
-	parts := []string{"vlan"}
+	parts := []string{"show", "vlan"}
 	switch {
 	case s.Brief && s.ID != 0:
 		return nil, errors.New("brief and id are mutually exclusive")
@@ -219,10 +252,10 @@ type ShowNeighbors struct {
 }
 
 func (s ShowNeighbors) render() ([]string, error) {
-	if err := checkOneOf("target", s.Target, "cdp neighbors", "lldp neighbors"); err != nil {
+	if err := checkOneOf("type", s.Type, "show cdp neighbors", "show lldp neighbors"); err != nil {
 		return nil, err
 	}
-	parts := []string{s.Target}
+	parts := []string{s.Type}
 	if s.Detail {
 		parts = append(parts, "detail")
 	}
@@ -237,7 +270,7 @@ type ShowMacAddressTable struct {
 }
 
 func (s ShowMacAddressTable) render() ([]string, error) {
-	parts := []string{"mac", "address-table"}
+	parts := []string{"show", "mac", "address-table"}
 	switch {
 	case s.Interface != "" && s.Vlan != 0:
 		return nil, errors.New("interface and vlan are mutually exclusive")
@@ -261,8 +294,9 @@ type ShowSimple struct {
 }
 
 func (s ShowSimple) render() ([]string, error) {
-	if err := checkOneOf("target", s.Target, "version", "inventory", "clock", "logging", "users", "boot"); err != nil {
+	if err := checkOneOf("type", s.Type, "show startup-config", "show version", "show inventory", "show clock",
+		"show logging", "show users", "show boot", "show dhcp lease"); err != nil {
 		return nil, err
 	}
-	return s.finish(s.Target)
+	return s.finish(s.Type)
 }

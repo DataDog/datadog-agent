@@ -5,6 +5,7 @@ go_library(
     name = "ioscmd",
     srcs = [
         "config.go",
+        "exec.go",
         "ioscmd.go",
         "show.go",
         "validate.go",
