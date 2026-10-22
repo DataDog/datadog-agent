@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,9 +29,16 @@ func (client *Client) newRequest(method, uri string, body io.Reader, useSessionA
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // do exec a request with authentication
-func (client *Client) do(req *http.Request) ([]byte, int, error) {
+func (client *Client) do(req *http.Request, timeout time.Duration) ([]byte, int, error) {
 	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
-	resp, err := client.httpClient.Do(req)
+	httpClient := client.httpClient
+	if timeout > 0 && timeout != httpClient.Timeout {
+		// shallow copy shares the transport (TLS config, connection pool) and cookie jar
+		withTimeout := *httpClient
+		withTimeout.Timeout = timeout
+		httpClient = &withTimeout
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -58,7 +65,8 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use similar
 // get implementations to execute GET requests to the given endpoint with the given query params
-func (client *Client) get(endpoint string, params map[string]string, useSessionAuth bool) ([]byte, error) {
+// timeout applies to each attempt
+func (client *Client) get(endpoint string, params map[string]string, useSessionAuth bool, timeout time.Duration) ([]byte, error) {
 	var bytes []byte
 	var statusCode int
 	var lastErr error
@@ -107,7 +115,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 		}
 		req.URL.RawQuery = query.Encode()
 
-		bytes, statusCode, err = client.do(req)
+		bytes, statusCode, err = client.do(req, timeout)
 
 		if err == nil && isValidStatusCode(statusCode) {
 			// Got a valid response, stop retrying
@@ -122,8 +130,8 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)
-func get[T Content](client *Client, endpoint string, params map[string]string, useSessionAuth bool) (*T, error) {
-	bytes, err := client.get(endpoint, params, useSessionAuth)
+func get[T Content](client *Client, endpoint string, params map[string]string, useSessionAuth bool, timeout time.Duration) (*T, error) {
+	bytes, err := client.get(endpoint, params, useSessionAuth, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +158,7 @@ func isValidStatusCode(code int) bool {
 // layers of stuff
 func getPaginatedAnalytics[T any](
 	client *Client,
+	cfg EndpointConfig,
 	tenant string,
 	feature string,
 	lookback string,
@@ -159,20 +168,14 @@ func getPaginatedAnalytics[T any](
 	metrics []string,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
 	var allMetrics []T
 
 	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, maxCount, fromCount)
+	for page := 0; page < cfg.MaxPages; page++ {
+		fromCount := page * cfg.MaxCount
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, cfg.MaxCount, fromCount)
 
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true, cfg.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get analytics metrics page %d: %v", page+1, err)
 		}
@@ -185,7 +188,7 @@ func getPaginatedAnalytics[T any](
 		allMetrics = append(allMetrics, metrics...)
 
 		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
+		if len(metrics) < cfg.MaxCount {
 			break
 		}
 	}

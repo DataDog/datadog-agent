@@ -179,8 +179,10 @@ http_archive(
     build_file = "//deps:popt.BUILD.bazel",
     sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
     strip_prefix = "popt-1.19",
+    # ftp.osuosl.org chains to emSign Root CA - G1, which Bazel's JDK does not trust.
+    # Fedora's lookaside serves this exact tarball (sha256 above) on a DigiCert chain.
     urls = [
-        "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-1.19.tar.gz",
+        "https://src.fedoraproject.org/repo/pkgs/rpms/popt/popt-1.19.tar.gz/sha512/5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639d55ee77ca31f29bb631c0b53368c1893bd96cf76422d257f7997a11f6466/popt-1.19.tar.gz",
     ],
 )
 

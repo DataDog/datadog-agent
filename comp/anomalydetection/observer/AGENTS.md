@@ -13,8 +13,10 @@ Data enters through lightweight **Handles** (non-blocking scalar snapshot on
 send). Metric handles reject name/source/host-only processing rules before
 enqueueing, retain immutable resolved-tag views, and defer tag-dependent
 filtering, muting, and context-key generation when needed to the dispatch
-goroutine; log handles still copy caller-owned content and tags before
-enqueueing.
+goroutine; log handles reject conclusive source-only rules and below-threshold
+severities before copying caller-owned content and tags, then defer tag-based
+`processing_rules`, per-source priority rate limiting, and log recording to the
+dispatch goroutine.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -34,7 +36,7 @@ and the testbench use the same engine.
 
 | File | Purpose |
 |------|---------|
-| `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
+| `def/component.go` | Component interface (GetHandle, DumpMetrics, SubscribeSeverityEvents) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |

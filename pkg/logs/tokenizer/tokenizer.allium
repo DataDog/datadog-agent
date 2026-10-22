@@ -12,7 +12,8 @@
 --   truncation, structural collapsing.
 -- Excludes:
 --   - Pattern matching across token sequences (lives in
---     adaptive_sampler.allium as the PatternMatching contract).
+--     pkg/logs/internal/decoder/preprocessor/adaptive_sampler.allium
+--     as the PatternMatching contract).
 --   - Any concrete token-type enum or implementation detail; the
 --     contract describes the observable behaviour of tokenize() as a
 --     pure function from bytes to a sequence of opaque tokens.
@@ -129,7 +130,8 @@ contract Tokenization {
         --
         -- The severity-keyword promotions (length 4-9) are
         -- load-bearing for is_important in the AdaptiveSampler's
-        -- ImportantLogBypass rule (adaptive_sampler.allium):
+        -- ImportantLogBypass rule (in
+        -- pkg/logs/internal/decoder/preprocessor/adaptive_sampler.allium):
         -- is_important is a scan over the promoted severity
         -- tokens, not a regex over content bytes.
 
