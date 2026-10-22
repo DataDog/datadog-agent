@@ -247,6 +247,8 @@ type usageOnlyKubeadmSuite struct {
 func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
+			// TODO: Mirror kubeadm/runtime packages, Flannel, and their images internally.
+			scenkubeadm.WithInternetAccess(),
 			scenkubeadm.WithVMOptions(
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),

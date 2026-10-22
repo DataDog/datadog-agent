@@ -78,6 +78,8 @@ func TestK8sTestSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			provkindvm.Provisioner(
 				provkindvm.WithRunOptions(
+					// TODO: Mirror Kubernetes component and workload images internally.
+					scenkindvm.WithInternetAccess(),
 					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 					}),
@@ -142,6 +144,8 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 
 	s.UpdateEnv(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
@@ -185,6 +189,8 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 
 	s.UpdateEnv(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),

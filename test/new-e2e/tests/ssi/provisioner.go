@@ -163,6 +163,8 @@ func localAgentImagesFromStackParams() []string {
 // kindProvisioner returns an AWS Kind VM provisioner
 func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	runOpts := []kindvm.RunOption{
+		// TODO: Mirror Kubernetes component and workload images internally.
+		kindvm.WithInternetAccess(),
 		kindvm.WithFakeintakeOptions(fakeintake.WithMemory(4096)),
 	}
 	if len(opts.AgentOptions) > 0 {

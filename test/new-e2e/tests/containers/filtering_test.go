@@ -107,6 +107,8 @@ func TestK8SLegacyFilteringSuite(t *testing.T) {
 	e2e.Run(t, &k8sLegacyFilteringSuite{}, e2e.WithProvisioner(
 		awskind.Provisioner(
 			awskind.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(legacyContainerExcludeConfig),
 				),
@@ -134,6 +136,8 @@ func TestK8SCELFilteringSuite(t *testing.T) {
 	e2e.Run(t, &k8sCELFilteringSuite{}, e2e.WithProvisioner(
 		awskind.Provisioner(
 			awskind.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(celContainerExcludeConfig),
 				),

@@ -4,6 +4,206 @@
 #         untriaged (reason not documented yet).
 # Policy: see "Avoiding external dependencies" in test/new-e2e/codereview_guideline.md.
 entries:
+- file: test/new-e2e/tests/agent-health/admission_probe_test.go
+  function: TestAdmissionProbeSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/agent-telemetry/errortracking_otel_agent_test.go
+  function: TestErrorTrackingOTelAgentSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/agent-telemetry/errortracking_otel_agent_test.go
+  function: errorTrackingOTelAgentSuite.TestDisabledByDefault
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/agent-telemetry/errortracking_cluster_agent_test.go
+  function: TestErrorTrackingClusterAgentSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/agent-telemetry/errortracking_cluster_agent_test.go
+  function: errorTrackingClusterAgentSuite.TestDisabledByDefault
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/containers/filtering_test.go
+  function: TestK8SCELFilteringSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/containers/filtering_test.go
+  function: TestK8SLegacyFilteringSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go
+  function: TestClusterAgentBinarySuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/cspm/cspm_test.go
+  function: TestCSPM
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/ddi/ddi_test.go
+  function: TestDDI
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/discovery/k8s_test.go
+  function: k8sProvisioner
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/npm/cilium_lb_conntracker_test.go
+  function: testCiliumLBConntracker
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/orchestrator/k8s_api_key_test.go
+  function: k8sSuite.TestZzzClusterAgentAPIKeyRefresh
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/orchestrator/k8s_test.go
+  function: TestKindSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/orchestrator/k8s_infra_mode_test.go
+  function: TestKindInfraModeSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/v3_series_test.go
+  function: TestOTelAgentV3Series
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/head_based_sampling_test.go
+  function: TestOTelAgentHeadBasedSampling
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/sampling_test.go
+  function: TestOTelAgentSampling
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/dogtel_gateway_test.go
+  function: dogtelGatewayProvisioner
+  status: debt
+  reason: Pulls public standalone OTel workload images; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/metrics_attributes_as_tags_test.go
+  function: TestOTelAgentMetricsAttributesAsTags
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/infraattributes_test.go
+  function: TestOTelAgentIA
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/loadbalancing_test.go
+  function: TestOTelAgentLoadBalancing
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/dogtel_standalone_test.go
+  function: dogtelCoexistProvisioner
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/dogtel_standalone_test.go
+  function: dogtelStandaloneProvisioner
+  status: debt
+  reason: Pulls public standalone OTel workload images; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/minimal_test.go
+  function: TestOTelAgentMinimal
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/gateway_test.go
+  function: TestOTelAgentGateway
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/span_derived_primary_tags_test.go
+  function: TestOTelAgentSpanDerivedPrimaryTags
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/receive_resource_spans_v2_test.go
+  function: TestOTelAgentSpanReceiverV2
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/complete_test.go
+  function: TestOTelAgentComplete
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/dogtel_secrets_test.go
+  function: dogtelSecretsStandaloneProvisioner
+  status: debt
+  reason: Pulls public standalone OTel workload images; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/no_dd_exporter_test.go
+  function: TestOTelAgentWithNoDDExporter
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/logs_tags_as_ddtags_test.go
+  function: TestOTelAgentLogsTagsAsDDTags
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otel-agent/host_metrics_receiver_test.go
+  function: TestOTelAgentHostmetricsReceiver
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/metrics_attributes_as_tags_test.go
+  function: TestOTLPIngestMetricsAttributesAsTags
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/pipelines_sampling_test.go
+  function: TestOTLPIngestSampling
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/pipelines_test.go
+  function: TestOTLPIngest
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
+  function: TestOTLPIngestOpNameV2Override
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
+  function: TestOTLPIngestOpNameV2SpanRecvrV1
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
+  function: TestOTLPIngestOpNameV2SpanRecvrV2
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/operation_and_resource_name_logic_v2_test.go
+  function: TestOTLPIngestOpV2OverrideRemapping
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/receive_resource_spans_v2_test.go
+  function: TestOTLPIngestSpanReceiverV2
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/otel/otlp-ingest/logs_tags_as_ddtags_test.go
+  function: TestOTLPIngestLogsTagsAsDDTags
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/process/k8s_test.go
+  function: K8sSuite.TestProcessCheckWithNPM
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/process/k8s_test.go
+  function: K8sSuite.TestProcessDiscoveryCheck
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/process/k8s_test.go
+  function: TestK8sTestSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/sbom/kind_helm_test.go
+  function: TestSBOMKindSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/ssi/provisioner.go
+  function: kindProvisioner
+  status: debt
+  reason: Pulls public Operator/CSI, injector-dev, and SSI workload images, including the gradual-rollout mock registry; mirror the images internally before removing this exception.
+- file: test/new-e2e/examples/kind_test.go
+  function: TestMyKindSuite
+  status: debt
+  reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/sbom/packageinuse_test.go
+  function: packageInUseProvisioner
+  status: debt
+  reason: Both package-in-use and usage-only suites bootstrap kubeadm using public containerd and Kubernetes packages, Flannel, and container images; prebake or mirror these dependencies internally.
+- file: test/new-e2e/tests/containers/kindvm_test.go
+  function: TestKindSuite
+  status: debt
+  reason: Deploys the upstream Argo Rollouts chart without image overrides; mirror its images internally before removing this exception.
 - file: test/new-e2e/tests/containers/eks_test.go
   function: TestEKSSuite
   status: debt
