@@ -19,6 +19,7 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -40,8 +41,8 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	}
 
 	devices := setupMockDevices(t)
-	deps := &CollectorDependencies{}
-	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
+	deps := &CollectorDependencies{Config: gpuconfig.Config{}}
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -196,19 +197,29 @@ func TestAllCollectorsWork(t *testing.T) {
 	devices := setupMockDevices(t,
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
-		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
+		testutil.WithArchitecture("blackwell"), // Ensure all functions are marked as supported
+		testutil.WithNvLinkErrorCounters())
 
-	eventsGatherer := NewDeviceEventsGatherer()
+	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 
+	spCache := &SystemProbeCache{}
+	spCache.SetStatsForTest(&model.GPUStats{})
+	prmCache := &PRMCache{}
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
-		PRMCache:             &PRMCache{},
+		SystemProbeCache:     spCache,
+		PRMCache:             prmCache,
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Config: gpuconfig.Config{
+			Enabled:            true,
+			EnableEBPFProbes:   true,
+			PRMEndpointEnabled: true,
+		},
 	}
 	seedPRMCacheForDevices(t, deps.PRMCache, devices)
-	collectors, err := BuildCollectors(devices, deps, nil)
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -306,22 +317,32 @@ func TestDisabledCollectors(t *testing.T) {
 				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
+				testutil.WithNvLinkErrorCounters(),
 			)
 
 			// Setup dependencies
-			eventsGatherer := NewDeviceEventsGatherer()
+			eventsGatherer := NewDeviceEventsGatherer(nil)
 			require.NoError(t, eventsGatherer.Start())
 			t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 
+			spCache := &SystemProbeCache{}
+			prmCache := &PRMCache{}
 			deps := &CollectorDependencies{
 				DeviceEventsGatherer: eventsGatherer,
-				PRMCache:             &PRMCache{},
+				SystemProbeCache:     spCache,
+				PRMCache:             prmCache,
 				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+				Config: gpuconfig.Config{
+					DisabledCollectors: tt.disabledCollectors,
+					Enabled:            true,
+					EnableEBPFProbes:   true,
+					PRMEndpointEnabled: true,
+				},
 			}
 			seedPRMCacheForDevices(t, deps.PRMCache, devices)
 
 			// Build collectors with disabled list
-			collectors, err := BuildCollectors(devices, deps, tt.disabledCollectors)
+			collectors, err := BuildCollectors(devices, deps)
 			require.NoError(t, err)
 
 			// Verify the correct number of collectors were created
@@ -353,20 +374,27 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	devices := setupMockDevices(t, testutil.WithMockAllFunctions())
 
 	// Setup dependencies with system-probe cache
-	eventsGatherer := NewDeviceEventsGatherer()
+	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 
 	spCache := &SystemProbeCache{}
+	prmCache := &PRMCache{}
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
 		SystemProbeCache:     spCache,
+		PRMCache:             prmCache,
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Config: gpuconfig.Config{
+			DisabledCollectors: []string{"ebpf"},
+			Enabled:            true,
+			EnableEBPFProbes:   true,
+		},
 	}
 
 	// Build collectors with ebpf disabled
-	collectors, err := BuildCollectors(devices, deps, []string{"ebpf"})
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 
 	// Verify no ebpf collectors were created
@@ -379,7 +407,8 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	require.Greater(t, len(collectors), 0, "should have created some collectors")
 
 	// Now test without disabling ebpf - should create ebpf collectors
-	collectors, err = BuildCollectors(devices, deps, []string{})
+	deps.Config.DisabledCollectors = nil
+	collectors, err = BuildCollectors(devices, deps)
 	require.NoError(t, err)
 
 	// Verify ebpf collectors were created
@@ -446,19 +475,25 @@ func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]stru
 	// helper again, which installs a fresh one. A t.Cleanup would not run until
 	// the whole test ends, leaving the first worker racing the second setup.
 	// Stop() joins the worker, so the two can never overlap.
-	eventsGatherer := NewDeviceEventsGatherer()
+	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
 	defer func() { require.NoError(t, eventsGatherer.Stop()) }()
 
+	prmCache := &PRMCache{}
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
-		PRMCache:             &PRMCache{},
 		SystemProbeCache:     spCache,
+		PRMCache:             prmCache,
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Config: gpuconfig.Config{
+			Enabled:            true,
+			EnableEBPFProbes:   spCache != nil,
+			PRMEndpointEnabled: true,
+		},
 	}
 	seedPRMCacheForDevices(t, deps.PRMCache, devices)
 
-	collectors, err := BuildCollectors(devices, deps, nil)
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 
 	names := make(map[string]struct{})
@@ -729,15 +764,20 @@ func TestConfiguredMetricPriority(t *testing.T) {
 	deps := &CollectorDependencies{
 		SystemProbeCache: spCache,
 		Workloadmeta:     testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Config: gpuconfig.Config{
+			DisabledCollectors: []string{string(deviceEvents)},
+			Enabled:            true,
+			EnableEBPFProbes:   true,
+		},
 	}
 
 	// Build collectors with deviceEvents disabled (not useful for this test)
-	collectors, err := BuildCollectors([]ddnvml.Device{device}, deps, []string{string(deviceEvents)})
+	collectors, err := BuildCollectors([]ddnvml.Device{device}, deps)
 	require.NoError(t, err)
 
 	// Set up the expected metric order. The first collector in the list should have the highest priority over the rest.
 	desiredMetricPriority := map[string][]CollectorName{
-		"sm_active":         {sampling, ebpf},
+		"sm_active":         {sampling, ebpf, gpm},
 		"gr_engine_active":  {gpm, sampling, ebpf},
 		"process.sm_active": {sampling, ebpf},
 	}

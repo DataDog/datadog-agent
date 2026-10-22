@@ -318,7 +318,12 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) (str
 		return "", err
 	}
 
-	s.log.Debugf("synthetics network path test event: %s", string(payloadBytes))
+	s.log.Debugf(
+		"synthetics network path test result: status=%s result_id=%s payload_size=%d",
+		res.Result.Status,
+		res.Result.ID,
+		len(payloadBytes),
+	)
 
 	m := message.NewMessage(payloadBytes, nil, "", 0)
 	if err := s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics); err != nil {
@@ -479,10 +484,11 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 			Name:        w.testCfg.cfg.LocationName,
 			DisplayName: w.testCfg.cfg.LocationDisplayName,
 		},
-		DD:     make(map[string]interface{}),
-		Result: result,
-		Test:   t,
-		V:      1,
+		DD:         make(map[string]interface{}),
+		Enrichment: w.testCfg.cfg.Enrichment,
+		Result:     result,
+		Test:       t,
+		V:          1,
 	}, nil
 }
 

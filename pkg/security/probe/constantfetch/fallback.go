@@ -1248,7 +1248,7 @@ func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12):
 		return 2332
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 2236
+		return 1236
 	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
 		return 2220
 	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):

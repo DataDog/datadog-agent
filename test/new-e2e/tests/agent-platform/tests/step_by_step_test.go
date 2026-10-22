@@ -96,7 +96,7 @@ func TestStepByStepScript(t *testing.T) {
 		t.Run("test step by step on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
-			slice := strings.Split(osDesc.Version, "-")
+			slice := strings.Split(strings.TrimSuffix(osDesc.Version, "-e2e"), "-")
 			var version float64
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
@@ -200,7 +200,6 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
 		tmpFileContent := fmt.Sprintf("deb %s %s %s", aptrepo, aptrepoDist, *majorVersion)
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", []byte(tmpFileContent))
 		require.NoError(t, err)

@@ -21,17 +21,17 @@ import (
 
 const sampleBufferSize = 2
 
-const legacySMActiveConfig = "gpu.legacy_sm_active"
-
 type gpmCollector struct {
-	lib                  ddnvml.SafeNVML
-	device               ddnvml.Device
-	parentPhysicalDevice *ddnvml.PhysicalDevice
-	migInstanceID        int // only for collectors for MIG devices, contains the instance ID of the MIG device
-	samples              [sampleBufferSize]nvml.GpmSample
-	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
-	nextSampleToCollect  int
-	emitLegacySMActive   bool
+	lib                      ddnvml.SafeNVML
+	device                   ddnvml.Device
+	parentPhysicalDevice     *ddnvml.PhysicalDevice
+	migInstanceID            int // only for collectors for MIG devices, contains the instance ID of the MIG device
+	samples                  [sampleBufferSize]nvml.GpmSample
+	metricsToCollect         map[nvml.GpmMetricId]gpmMetric
+	nextSampleToCollect      int
+	emitLegacySMActive       bool
+	emitGrEngineSMActive     bool
+	grEngineSMActivePriority MetricPriority
 }
 
 type gpmMetric struct {
@@ -95,8 +95,16 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 		device:           device,
 		metricsToCollect: clonedMetrics,
 	}
-	if deps != nil && deps.Config != nil {
-		collector.emitLegacySMActive = deps.Config.GetBool(legacySMActiveConfig)
+	if deps != nil {
+		collector.emitLegacySMActive = deps.Config.LegacySMActive
+		// GRAPHICS_UTIL is also reported as sm_active because it approximates the percentage of time during
+		// which at least one SM is executing work, unlike SM_UTIL which averages utilization across all SMs.
+		collector.emitGrEngineSMActive = !deps.Config.LegacySMActive
+		// Keep this source below sampling (Medium) and eBPF (MediumLow) by default.
+		collector.grEngineSMActivePriority = Low
+		if deps.Config.PreferGrEngineSMActive {
+			collector.grEngineSMActivePriority = High
+		}
 	}
 
 	if isMig {
@@ -265,6 +273,9 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 	if c.emitLegacySMActive {
 		metricCapacity++
 	}
+	if c.emitGrEngineSMActive {
+		metricCapacity++
+	}
 	samples := make([]Sample, 0, metricCapacity)
 	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
@@ -289,6 +300,14 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 		if c.emitLegacySMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_SM_UTIL {
 			samples = append(samples, &Metric{
 				baseSample: baseSample{priority: High},
+				Name:       "sm_active",
+				Value:      metric.Value,
+				Type:       metricData.metricType,
+			})
+		}
+		if c.emitGrEngineSMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
+			samples = append(samples, &Metric{
+				baseSample: baseSample{priority: c.grEngineSMActivePriority},
 				Name:       "sm_active",
 				Value:      metric.Value,
 				Type:       metricData.metricType,

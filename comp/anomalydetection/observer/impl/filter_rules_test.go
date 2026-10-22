@@ -13,6 +13,8 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +22,7 @@ import (
 func requireCounterMetricValueBySource(t *testing.T, source string, want float64, telemetryComp telemetry.Component) {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	metricName := "observer__" + telemetryFilteredMetrics
@@ -47,7 +49,7 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source string, telemetryComp telemetry.Component) {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	fullMetricName := "observer__" + metricName
@@ -68,21 +70,23 @@ func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source stri
 	}
 }
 
-type rawTagsTrackingMetric struct {
-	name        string
-	value       float64
-	tags        []string
-	timestamp   int64
-	rawTagsRead int
+type tagsTrackingMetric struct {
+	name      string
+	value     float64
+	tags      []string
+	timestamp int64
+	tagsRead  int
 }
 
-func (m *rawTagsTrackingMetric) GetName() string         { return m.name }
-func (m *rawTagsTrackingMetric) GetValue() float64       { return m.value }
-func (m *rawTagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
-func (m *rawTagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
-func (m *rawTagsTrackingMetric) GetRawTags() []string {
-	m.rawTagsRead++
-	return m.tags
+func (m *tagsTrackingMetric) GetName() string                   { return m.name }
+func (m *tagsTrackingMetric) GetValue() float64                 { return m.value }
+func (m *tagsTrackingMetric) GetHost() string                   { return "" }
+func (m *tagsTrackingMetric) GetTimestampUnix() int64           { return m.timestamp }
+func (m *tagsTrackingMetric) GetSampleRate() float64            { return 1.0 }
+func (m *tagsTrackingMetric) GetMetricType() metrics.MetricType { return observerdef.UnknownType }
+func (m *tagsTrackingMetric) GetTags() tagset.CompositeTags {
+	m.tagsRead++
+	return tagset.CompositeTagsFromSlice(m.tags)
 }
 
 func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
@@ -90,7 +94,7 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	tags := []string{"env:prod"}
-	h := seriesKeyHash("check", "system.cpu.user", tags)
+	h := testStorageKeyForIdentity("check", "system.cpu.user", "", tags)
 	filter.publishMutedSnapshot(map[uint64]struct{}{h: {}})
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "check", tags))
@@ -98,6 +102,43 @@ func TestMetricsFilterRulesMuteSetBlocksMatchingMetric(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", tags))
 	// LogMetricsExtractorName bypasses the mute check entirely
 	assert.True(t, filter.isAllowed("system.cpu.user", LogMetricsExtractorName, tags))
+}
+
+func TestPrepareMetricIngestStoresCanonicalSeriesKey(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	decision := prepareTestMetricIngest("dogstatsd", &metricObs{
+		name: "system.cpu.user",
+		host: "host-a",
+		tags: testCompositeTags([]string{"service:api", "env:prod"}),
+	}, filter)
+
+	require.NotNil(t, decision.metric)
+	assert.Equal(t,
+		testStorageKeyForIdentity("dogstatsd", "system.cpu.user", "host-a", []string{"env:prod", "service:api"}),
+		decision.metric.storageKey,
+	)
+}
+
+func TestPrepareMetricIngestRetainsCompositeTagViews(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+	first := []string{"service:api"}
+	second := []string{"env:prod"}
+	sample := &metricObs{
+		name: "system.cpu.user",
+		tags: tagset.NewCompositeTags(first, second),
+	}
+
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
+
+	require.NotNil(t, decision.metric)
+	gotFirst, gotSecond := decision.metric.tags.UnsafeGet()
+	require.Len(t, gotFirst, 1)
+	require.Len(t, gotSecond, 1)
+	assert.Same(t, &first[0], &gotFirst[0])
+	assert.Same(t, &second[0], &gotSecond[0])
 }
 
 func TestMetricsFilterRulesAllowWithoutRules(t *testing.T) {
@@ -156,6 +197,19 @@ func TestMetricsFilterRulesSourceFilter(t *testing.T) {
 
 	assert.False(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev"}))
 	assert.True(t, filter.isAllowed("system.cpu.user", "check", []string{"env:dev"}))
+}
+
+func TestMetricsFilterRulesHostFilter(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type: excludeAtMatch,
+		Name: "drop_noisy_host",
+		Host: "noisy-host",
+	}})
+	require.NoError(t, err)
+
+	assert.False(t, filter.isAllowedWithHost("system.cpu.user", "dogstatsd", "noisy-host", []string{"env:prod"}))
+	assert.True(t, filter.isAllowedWithHost("system.cpu.user", "dogstatsd", "other-host", []string{"env:prod"}))
+	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"host:noisy-host"}))
 }
 
 func TestMetricsFilterRulesOrderedEvaluationFirstMatchWins(t *testing.T) {
@@ -272,10 +326,10 @@ func TestPrepareMetricIngestDropsMatchingMetrics(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: []string{"env:dev"}}, filter)
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", tags: testCompositeTags([]string{"env:dev"})}, filter)
 	assert.Nil(t, dropped.metric)
 
-	kept := prepareMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: []string{"env:prod"}}, filter)
+	kept := prepareTestMetricIngest("dogstatsd", &metricObs{name: "system.cpu.user", value: 1, tags: testCompositeTags([]string{"env:prod"})}, filter)
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, "dogstatsd", kept.source)
 	assert.Equal(t, "system.cpu.user", kept.metric.name)
@@ -291,15 +345,15 @@ func TestPrepareMetricIngestRejectsNameAndSourceMatchWithoutReadingTags(t *testi
 	})
 	require.NoError(t, err)
 
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
 	assert.Equal(t, "dogstatsd", decision.source)
-	assert.Zero(t, sample.rawTagsRead)
+	assert.Zero(t, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
@@ -320,28 +374,28 @@ func TestPrepareMetricIngestReadsTagsWhenEarlierRuleNeedsThem(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name:      "system.cpu.user",
 		value:     1,
 		tags:      []string{"service:web", "env:prod"},
 		timestamp: 1000,
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	require.NotNil(t, decision.metric)
-	assert.Equal(t, []string{"env:prod", "service:web"}, decision.metric.tags)
-	assert.Equal(t, 1, sample.rawTagsRead)
+	assert.Equal(t, []string{"service:web", "env:prod"}, decision.metric.tags.UnsafeToReadOnlySliceString())
+	assert.Equal(t, 1, sample.tagsRead)
 
-	rejectedSample := &rawTagsTrackingMetric{
+	rejectedSample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:dev"},
 	}
-	decision = prepareMetricIngest("dogstatsd", rejectedSample, filter)
+	decision = prepareTestMetricIngest("dogstatsd", rejectedSample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, rejectedSample.rawTagsRead)
+	assert.Equal(t, 1, rejectedSample.tagsRead)
 }
 
-func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
+func TestPrepareMetricIngestTaglessIncludeHonorsMuteSetWithoutReadingTags(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        includeAtMatch,
 		Name:        "keep_system_cpu",
@@ -351,29 +405,29 @@ func TestPrepareMetricIngestTaglessIncludeStillHonorsMuteSet(t *testing.T) {
 
 	tags := []string{"env:prod", "service:web"}
 	filter.publishMutedSnapshot(map[uint64]struct{}{
-		seriesKeyHash("dogstatsd", "system.cpu.user", tags): {},
+		testStorageKeyForIdentity("dogstatsd", "system.cpu.user", "", tags): {},
 	})
-	sample := &rawTagsTrackingMetric{
+	sample := &tagsTrackingMetric{
 		name: "system.cpu.user",
 		tags: []string{"service:web", "env:prod"},
 	}
 
-	decision := prepareMetricIngest("dogstatsd", sample, filter)
+	decision := prepareTestMetricIngest("dogstatsd", sample, filter)
 	assert.Nil(t, decision.metric)
-	assert.Equal(t, 1, sample.rawTagsRead)
+	assert.Equal(t, 0, sample.tagsRead)
 }
 
 func TestPrepareMetricIngestAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
-	allowed := prepareMetricIngest("dogstatsd", &metricObs{
+	allowed := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:  "datadog.agent.running",
 		value: 1,
 	}, filter)
 	require.NotNil(t, allowed.metric)
 	assert.Equal(t, observerdef.AgentNamespace, allowed.source)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:  observerTelemetryMetricPrefix + "metrics.filtered",
 		value: 1,
 	}, filter)
@@ -390,7 +444,7 @@ func TestPrepareMetricIngestAllowsNormalizedAgentMetricsWhenIncludedEarlier(t *t
 	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
-	decision := prepareMetricIngest("dogstatsd", &metricObs{
+	decision := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
@@ -415,7 +469,7 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
-	kept := prepareMetricIngest("dogstatsd", &metricObs{
+	kept := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
@@ -423,7 +477,7 @@ func TestPrepareMetricIngestMixedAgentRulesKeepIncludedMetricAndDropOthers(t *te
 	require.NotNil(t, kept.metric)
 	assert.Equal(t, observerdef.AgentNamespace, kept.source)
 
-	dropped := prepareMetricIngest("dogstatsd", &metricObs{
+	dropped := prepareTestMetricIngest("dogstatsd", &metricObs{
 		name:      "datadog.agent.uptime",
 		value:     1,
 		timestamp: 1000,
@@ -465,13 +519,13 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	}()
 	t.Cleanup(stopFn)
 
-	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
-		tags:      []string{"env:prod"},
+		tags:      testCompositeTags([]string{"env:prod"}),
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "system.cpu.user",
 		value:     75,
 		timestamp: 1000,
@@ -500,12 +554,12 @@ func TestIngestMetricSyncAppliesMetricFilterBySource(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.cpu.user",
 		value:     75,
 		timestamp: 1000,
@@ -536,17 +590,27 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 		metricFilter:         filter,
 	}
 	obs.handleFunc = obs.innerHandle
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
 
-	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
+	obs.Flush()
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }
 
-func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *testing.T) {
+func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        excludeAtMatch,
 		Name:        "drop_everything",
@@ -570,14 +634,29 @@ func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *te
 		t.Run(tc.name, func(t *testing.T) {
 			telComp := telemetryimpl.NewMock(t)
 
-			h := &handle{
-				source:    "check",
-				telemetry: newObserverTelemetry(telComp),
-				filter:    filter,
+			obs := &observerImpl{
+				engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+				obsCh:                make(chan observation, len(tc.metricNames)),
+				telemetry:            newObserverTelemetry(telComp),
+				ingestMetricsEnabled: true,
+				metricFilter:         filter,
 			}
+			obs.handleFunc = obs.innerHandle
+			done := make(chan struct{})
+			go func() {
+				obs.run()
+				close(done)
+			}()
+			t.Cleanup(func() {
+				close(obs.obsCh)
+				<-done
+			})
+
+			h := obs.GetHandle("check")
 			for _, metricName := range tc.metricNames {
-				h.ObserveMetric(&metricObs{name: metricName})
+				testObserveMetric(h, &metricObs{name: metricName})
 			}
+			obs.Flush()
 
 			requireCounterMetricValueBySource(t, "check", 1.0, telComp)
 			requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
@@ -601,7 +680,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.cpu.user",
 		value:     75,
 		timestamp: 1000,
@@ -641,22 +720,22 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 	}()
 	t.Cleanup(stopFn)
 
-	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("dogstatsd"), &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "system.mem.used",
 		value:     1024,
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      observerTelemetryMetricPrefix + "metrics.filtered",
 		value:     1,
 		timestamp: 1000,
@@ -697,22 +776,22 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     1,
-		tags:      []string{"env:dev", "service:web"},
+		tags:      testCompositeTags([]string{"env:dev", "service:web"}),
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
-		tags:      []string{"env:dev"},
+		tags:      testCompositeTags([]string{"env:dev"}),
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("dogstatsd", &metricObs{
+	obs.ingestTestMetricSync("dogstatsd", &metricObs{
 		name:      "system.cpu.user",
 		value:     3,
-		tags:      []string{"service:web"},
+		tags:      testCompositeTags([]string{"service:web"}),
 		timestamp: 1000,
 	})
 
@@ -739,12 +818,12 @@ func TestNamePrefixFilterCountsFilteredMetrics(t *testing.T) {
 		metricFilter: filter,
 	}
 
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "kubernetes.cpu.usage",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
 		timestamp: 1000,
@@ -801,12 +880,12 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 	t.Cleanup(stopFn)
 
 	h := obs.GetHandle("dogstatsd")
-	h.ObserveMetric(&metricObs{
+	testObserveMetric(h, &metricObs{
 		name:      "datadog.agent.running",
 		value:     1,
 		timestamp: 1000,
 	})
-	h.ObserveMetric(&metricObs{
+	testObserveMetric(h, &metricObs{
 		name:      "datadog.agent.uptime",
 		value:     1,
 		timestamp: 1000,
@@ -856,12 +935,12 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 	}()
 	t.Cleanup(stopFn)
 
-	obs.GetHandle("check").ObserveMetric(&metricObs{
+	testObserveMetric(obs.GetHandle("check"), &metricObs{
 		name:      "system.cpu.user",
 		value:     1,
 		timestamp: 1000,
 	})
-	obs.IngestMetricSync("check", &metricObs{
+	obs.ingestTestMetricSync("check", &metricObs{
 		name:      "system.mem.used",
 		value:     2,
 		timestamp: 1000,
@@ -928,6 +1007,44 @@ func TestMetricsFilterRulesDuplicateRuleTagsBehaveAsIfUnique(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev"}))
 }
 
+func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type:        excludeAtMatch,
+		Name:        "drop_system_cpu",
+		NamePattern: "system.cpu.",
+	}})
+	require.NoError(t, err)
+
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	obs := &observerImpl{
+		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		obsCh:                make(chan observation, 1),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         filter,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	h, ok := obs.GetHandle("dogstatsd").(*handle)
+	require.True(t, ok)
+	require.False(t, testObserveMetricAndReportDrop(h, &metricObs{
+		name:      "system.mem.used",
+		value:     1,
+		timestamp: 1000,
+	}))
+	require.False(t, testObserveMetricAndReportDrop(h, &metricObs{
+		name:      "system.cpu.user",
+		value:     2,
+		timestamp: 1000,
+	}))
+
+	requireNoCounterMetricForNameBySource(t, telemetryObservationsDropped, "dogstatsd", telComp)
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
 func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        excludeAtMatch,
@@ -949,23 +1066,204 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 
 	h, ok := obs.GetHandle("dogstatsd").(*handle)
 	require.True(t, ok)
-	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.mem.used",
 		value:     1,
 		timestamp: 1000,
 	}))
-	assert.True(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.True(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "kubernetes.cpu.usage",
 		value:     2,
 		timestamp: 1000,
 	}))
-	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+	obs.Flush()
+
+	assert.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.cpu.user",
 		value:     3,
 		timestamp: 1000,
 	}))
+	obs.Flush()
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
+func TestParseAllowedMetricTypes(t *testing.T) {
+	t.Run("empty list allows all types including unknown", func(t *testing.T) {
+		filter, err := parseAllowedMetricTypes(nil)
+		require.NoError(t, err)
+		require.NoError(t, ValidateAllowedMetricTypes(nil))
+		assert.True(t, filter.isTypeAllowed(observerdef.UnknownType))
+		for mt := metrics.MetricType(0); mt < metrics.NumMetricTypes; mt++ {
+			assert.True(t, filter.isTypeAllowed(mt), "expected %s to be allowed", mt)
+		}
+	})
+
+	t.Run("configured list allows only specified types and rejects unknown when omitted", func(t *testing.T) {
+		filter, err := parseAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"})
+		require.NoError(t, err)
+		require.NoError(t, ValidateAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"}))
+
+		assert.True(t, filter.isTypeAllowed(metrics.GaugeType))
+		assert.True(t, filter.isTypeAllowed(metrics.CountType))
+		assert.True(t, filter.isTypeAllowed(metrics.MonotonicCountType))
+		assert.True(t, filter.isTypeAllowed(metrics.GaugeWithTimestampType))
+
+		assert.False(t, filter.isTypeAllowed(observerdef.UnknownType))
+		assert.False(t, filter.isTypeAllowed(metrics.RateType))
+		assert.False(t, filter.isTypeAllowed(metrics.CounterType))
+		assert.False(t, filter.isTypeAllowed(metrics.HistogramType))
+		assert.False(t, filter.isTypeAllowed(metrics.DistributionType))
+		assert.False(t, filter.isTypeAllowed(metrics.MetricType(-2)))
+		assert.False(t, filter.isTypeAllowed(metrics.NumMetricTypes))
+	})
+
+	t.Run("unknown can be explicitly allowed", func(t *testing.T) {
+		filter, err := parseAllowedMetricTypes([]string{"unknown", "Count"})
+		require.NoError(t, err)
+
+		assert.True(t, filter.isTypeAllowed(observerdef.UnknownType))
+		assert.True(t, filter.isTypeAllowed(metrics.CountType))
+		assert.False(t, filter.isTypeAllowed(metrics.GaugeType))
+	})
+
+	t.Run("invalid type returns error with all valid types", func(t *testing.T) {
+		err := ValidateAllowedMetricTypes([]string{"Gauge", "not_a_type"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `invalid metric type "not_a_type"`)
+		assert.Contains(t, err.Error(), "valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp")
+	})
+
+	t.Run("empty string entry returns error with all valid types", func(t *testing.T) {
+		err := ValidateAllowedMetricTypes([]string{"  "})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `invalid metric type ""`)
+		for _, name := range ValidMetricTypeNames() {
+			assert.Contains(t, err.Error(), name)
+		}
+	})
+}
+
+func TestAllowedMetricTypesFiltersLiveReplayAndLogDerivedMetrics(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  metrics:
+    allowed_types:
+      - Gauge
+      - Unknown
+    processing_rules:
+      - type: include_at_match
+        name: allow_all_names
+`)
+	filter, err := loadMetricFilter(cfg)
+	require.NoError(t, err)
+
+	telComp := telemetryimpl.NewMock(t)
+	storage := newTimeSeriesStorage()
+	connErrExtractor := &ConnectionErrorExtractor{}
+	eng := newEngine(engineConfig{
+		storage:      storage,
+		metricFilter: filter,
+		extractors: []observerdef.LogMetricsExtractor{
+			NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+			NewLogPatternExtractor(DefaultLogPatternExtractorConfig()),
+			connErrExtractor,
+		},
+	})
+
+	obs := &observerImpl{
+		engine:               eng,
+		obsCh:                make(chan observation, 32),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         filter,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+
+	h := obs.GetHandle("dogstatsd")
+	// Disallowed Count metric must be rejected before rule evaluation or tag access.
+	h.ObserveMetric(&precheckOnlyMetricView{
+		name:       "requests.count",
+		host:       "host-a",
+		metricType: metrics.CountType,
+	}, 0)
+
+	// Allowed Gauge and Unknown metrics should be ingested.
+	testObserveMetric(h, &metricObs{
+		name:       "cpu.gauge",
+		value:      42,
+		metricType: metrics.GaugeType,
+		host:       "host-a",
+		timestamp:  1000,
+	})
+	testObserveMetric(h, &metricObs{
+		name:       "legacy.unknown",
+		value:      7,
+		metricType: observerdef.UnknownType,
+		host:       "host-a",
+		timestamp:  1000,
+	})
+	obs.Flush()
+
+	// Replay path: Count is rejected, Gauge is accepted.
+	obs.IngestMetricSync("parquet", &metricObs{
+		name:       "replay.count",
+		value:      10,
+		metricType: metrics.CountType,
+		host:       "host-a",
+		timestamp:  1000,
+	}, 111)
+	obs.IngestMetricSync("parquet", &metricObs{
+		name:       "replay.gauge",
+		value:      20,
+		metricType: metrics.GaugeType,
+		host:       "host-a",
+		timestamp:  1000,
+	}, 222)
+
+	// Log ingestion: JSON numeric field produces GaugeType (allowed), while
+	// pattern and connection error extractors produce CountType (filtered out).
+	eng.IngestLog("logs", &logObs{
+		content:     `{"latency_ms": 12.5, "msg": "connection refused"}`,
+		status:      "error",
+		hostname:    "host-a",
+		timestampMs: 1_000_000,
+	})
+
+	dogstatsdSeries := storage.ListSeriesMetadata("dogstatsd")
+	require.Len(t, dogstatsdSeries, 2)
+
+	parquetSeries := storage.ListSeriesMetadata("parquet")
+	require.Len(t, parquetSeries, 1)
+	assert.Equal(t, "replay.gauge", parquetSeries[0].Name)
+
+	// Gauge metric from JSON log field is stored, while Count metrics from log pattern
+	// and connection error extractors are filtered out.
+	assert.NotEmpty(t, storage.ListSeriesMetadata(LogMetricsExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata(LogPatternExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
+
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }

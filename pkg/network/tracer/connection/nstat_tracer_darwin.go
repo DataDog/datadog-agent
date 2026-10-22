@@ -1,0 +1,1656 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build darwin
+
+package connection
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"math/bits"
+	"net"
+	"net/netip"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/cilium/ebpf"
+	"github.com/google/gopacket/layers"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/nstat"
+	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	nstatQueryInterval       = time.Second
+	nstatPollInterval        = 250 * time.Millisecond
+	nstatPendingRemovalTTL   = 5 * time.Second
+	nstatDescriptionBatch    = 8
+	nstatSubscriptionTimeout = 2 * time.Second
+	nstatUnmatchedTTL        = 2 * time.Second
+	nstatUnmatchedLimit      = 4096
+	nstatDatagramBufferSize  = 65535
+	nstatTCPRTTScale         = 32
+	nstatTCPRTTVarianceScale = 16
+
+	// Counts queries carry no descriptor, so a pending connect is described
+	// again at this interval to observe conn_probe_failed before it closes.
+	// The kernel sets the flag about five seconds into a connect, so refreshes
+	// stop once the window has passed.
+	nstatConnectProbeRefresh = time.Second
+	nstatConnectProbeWindow  = 15 * time.Second
+
+	// A source without a tuple is described again after nstatDescriptionRetryMin,
+	// doubling up to nstatDescriptionRetryMax. Counts showing activity reset
+	// the delay, since a source usually gains its tuple when it connects or
+	// first sends. A connect usually follows the first description within
+	// milliseconds, and its packets are captured before a slower retry, so
+	// retries due before the next full scan (every nstatDescriptionRetry)
+	// are tracked separately and wake the run loop.
+	nstatDescriptionRetry    = 100 * time.Millisecond
+	nstatDescriptionRetryMin = 10 * time.Millisecond
+	nstatDescriptionRetryMax = 5 * time.Second
+
+	// QueryAll reports counts for every live source each second. An
+	// unpublished source silent for this long is described again so the
+	// kernel can answer ENOENT if its removal was lost.
+	nstatSilentSourceProbe = 30 * time.Second
+
+	tcpStateClosed      = 0
+	tcpStateListen      = 1
+	tcpStateSynSent     = 2
+	tcpStateSynReceived = 3
+	tcpStateEstablished = 4
+)
+
+// darwinDirectionEvidence ranks direction signals from weakest to strongest.
+// Stronger evidence may replace weaker evidence, while equal or weaker
+// evidence cannot flip an established direction.
+type darwinDirectionEvidence uint8
+
+const (
+	directionEvidenceNone darwinDirectionEvidence = iota
+	directionEvidencePeer
+	directionEvidenceListener
+	directionEvidenceTCPState
+	directionEvidencePacket
+)
+
+type darwinTCPListenerKey struct {
+	address netip.Addr
+	port    uint16
+	family  network.ConnectionFamily
+}
+
+var nstatProviders = [...]uint32{
+	nstat.ProviderTCPKernel,
+	nstat.ProviderTCPUserland,
+	nstat.ProviderUDPKernel,
+	nstat.ProviderUDPUserland,
+}
+
+var nstatTracerTelemetry = struct {
+	datagrams          telemetry.Counter
+	events             telemetry.Counter
+	parserErrors       telemetry.Counter
+	kernelErrors       telemetry.Counter
+	descriptionErrors  telemetry.Counter
+	droppedSources     telemetry.Counter
+	removals           telemetry.Counter
+	lostRemovals       telemetry.Counter
+	expiredConnections telemetry.Counter
+	runtimeFailures    telemetry.Counter
+	directionConflicts telemetry.Counter
+	directionInferred  telemetry.Counter
+	pidZeroPublished   telemetry.Counter
+	ifaceZeroPublished telemetry.Counter
+	filteredSources    telemetry.Counter
+	unmatchedTuples    telemetry.Counter
+	latePacketMatches  telemetry.Counter
+	lateMatchDelay     telemetry.Histogram
+	tcpPublished       telemetry.Counter
+	connStatusUnknown  telemetry.Counter
+	connProbeMissed    telemetry.Counter
+	activeSources      telemetry.Gauge
+}{
+	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
+	events:             telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "events", nil, "NStat messages decoded"),
+	parserErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "parser_errors", []string{"reason"}, "NStat datagrams rejected"),
+	kernelErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "kernel_errors", []string{"request", "errno"}, "Error responses from the NStat kernel control, by request (subscribe, describe, or query) and errno"),
+	descriptionErrors:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "description_errors", nil, "NStat source description requests that failed"),
+	droppedSources:     telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "dropped_sources", nil, "NStat sources dropped at the tracking limit"),
+	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals: published (resolved), described but not published (filtered), never described (unresolved), or unpublished by connection expiry (expired)"),
+	lostRemovals:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "lost_removals", nil, "Unpublished NStat sources dropped because the kernel no longer had them and their removal never arrived"),
+	expiredConnections: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "expired_connections", nil, "NStat connections removed by connection expiry because their counts stopped arriving"),
+	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
+	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
+	directionInferred:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_inferred", []string{"result"}, "TCP directions inferred from ports, and inferences later overridden by direction evidence"),
+	pidZeroPublished:   telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "pid_zero_published", nil, "NStat connections published without a PID"),
+	ifaceZeroPublished: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "interface_zero_published", nil, "NStat connections published before the kernel reported their interface"),
+	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
+	unmatchedTuples:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "unmatched_tuples", []string{"result"}, "Unmatched TCP packets: new tuples tracked, or skipped because the tracking set was full"),
+	latePacketMatches:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "late_packet_matches", []string{"missed"}, "NStat connections created after packets for their tuple went unmatched"),
+	lateMatchDelay:     telemetryimpl.GetCompatComponent().NewHistogram("network_tracer__nstat", "late_packet_match_delay_seconds", []string{"missed"}, "Time from the first unmatched packet to the NStat connection for late packet matches", []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2}),
+	tcpPublished:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "tcp_published", []string{"captured"}, "TCP connections published after enumeration, by whether packet capture covers their interface"),
+	connStatusUnknown:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_status_unknown", nil, "TCP sources whose descriptor length matches no known connstatus layout"),
+	connProbeMissed:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_probe_missed", nil, "TCP connects still in SYN_SENT after the probe window without conn_probe_failed"),
+	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
+}
+
+type nstatControl interface {
+	Subscribe(provider uint32) (uint64, error)
+	QueryAll() error
+	RequestDescription(sourceRef uint64) error
+	Poll(timeout time.Duration) (bool, error)
+	Receive(buffer []byte) (int, error)
+	Close() error
+}
+
+type nstatSource struct {
+	provider uint32
+	flow     *nstat.Flow
+	counts   nstat.Counts
+	conn     *network.ConnectionStats
+
+	descriptionRequested     bool
+	nextDescription          time.Time
+	descriptionRetries       uint8
+	lastSeen                 time.Time
+	removed                  bool
+	removedAt                time.Time
+	retired                  bool
+	tcpStateObserved         bool
+	tcpEstablished           bool
+	tcpEstablishedAfterStart bool
+	connectSuccessesObserved bool
+	afterEnumeration         bool
+	closed                   bool
+	connProbeFailed          bool
+	connProbeDeadline        time.Time
+	connProbeExpired         bool
+	connStatusUnknown        bool
+	connectAttempts          uint32
+	connectSuccesses         uint32
+	direction                network.ConnectionDirection
+	directionEvidence        darwinDirectionEvidence
+	inferredDirection        network.ConnectionDirection
+	listenerKey              darwinTCPListenerKey
+	listenerIndexed          bool
+	loopbackFiltered         bool
+	peerlessFiltered         bool
+}
+
+type nstatTracer struct {
+	mu sync.Mutex
+
+	config    *config.Config
+	control   nstatControl
+	sources   map[uint64]*nstatSource
+	byCookie  map[uint64]*nstatSource
+	tuples    *darwinTupleIndex
+	unmatched *darwinUnmatchedTuples
+	listeners map[darwinTCPListenerKey]map[uint64]struct{}
+
+	// includeLoopback publishes loopback sources. Only tests set it; otherwise
+	// loopback connections are always filtered.
+	includeLoopback bool
+
+	// loopbackInterfaces holds the indexes of interfaces flagged loopback.
+	// Flows the kernel routes through them never leave the host, whatever
+	// their addresses.
+	loopbackInterfaces map[uint32]struct{}
+
+	ephemeralFirst uint16
+	ephemeralLast  uint16
+
+	// packetCoverage reports whether packet capture observes the interface
+	// with the given index. It is set before Start and nil when no packet
+	// sidecar runs.
+	packetCoverage func(ifIndex uint32) bool
+
+	// Sources without any flow description take priority over retries for
+	// partially described sources. Both queues are FIFO so retries cannot
+	// repeatedly overtake an older request.
+	descriptionQueue      []uint64
+	descriptionRetryQueue []uint64
+	descriptionQueued     map[uint64]struct{}
+	// fastRetries holds the due time of description retries that fall
+	// before the next full scan.
+	fastRetries map[uint64]time.Time
+
+	subscriptionContexts map[uint64]struct{}
+	subscriptionReady    chan struct{}
+	subscriptionErrors   chan error
+	subscriptionOnce     sync.Once
+	enumerationComplete  bool
+
+	closeCallback func(*network.ConnectionStats)
+	cookieHasher  *cookieHasher
+	now           func() time.Time
+	subscribed    bool
+	started       bool
+	stopped       bool
+	runtimeErr    error
+
+	runtimeFailureCallback func(error)
+
+	exit        chan struct{}
+	stopOnce    sync.Once
+	failureOnce sync.Once
+	wg          sync.WaitGroup
+}
+
+//nolint:unused // The production backend selection is introduced in the integration commit.
+func newNStatTracer(cfg *config.Config) (*nstatTracer, error) {
+	control, err := nstat.OpenControl()
+	if err != nil {
+		return nil, err
+	}
+	tracer := newNStatTracerWithControl(cfg, control)
+	if err := tracer.subscribe(); err != nil {
+		_ = control.Close()
+		return nil, err
+	}
+	return tracer, nil
+}
+
+func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatTracer {
+	ephemeralFirst, ephemeralLast := ebpfless.EphemeralPortRange()
+	return &nstatTracer{
+		config:               cfg,
+		ephemeralFirst:       ephemeralFirst,
+		ephemeralLast:        ephemeralLast,
+		control:              control,
+		sources:              make(map[uint64]*nstatSource),
+		byCookie:             make(map[uint64]*nstatSource),
+		tuples:               newDarwinTupleIndex(),
+		unmatched:            newDarwinUnmatchedTuples(nstatUnmatchedTTL, nstatUnmatchedLimit),
+		listeners:            make(map[darwinTCPListenerKey]map[uint64]struct{}),
+		loopbackInterfaces:   darwinLoopbackInterfaces(),
+		descriptionQueued:    make(map[uint64]struct{}),
+		fastRetries:          make(map[uint64]time.Time),
+		subscriptionContexts: make(map[uint64]struct{}),
+		subscriptionReady:    make(chan struct{}),
+		subscriptionErrors:   make(chan error, 1),
+		cookieHasher:         newCookieHasher(),
+		now:                  time.Now,
+		exit:                 make(chan struct{}),
+	}
+}
+
+func (t *nstatTracer) Start(closeCallback func(*network.ConnectionStats)) error {
+	if err := t.subscribe(); err != nil {
+		return err
+	}
+
+	t.mu.Lock()
+	if t.stopped {
+		t.mu.Unlock()
+		return io.ErrClosedPipe
+	}
+	if t.started {
+		t.mu.Unlock()
+		return errors.New("nstat tracer already started")
+	}
+	t.started = true
+	t.closeCallback = closeCallback
+	t.wg.Add(1)
+	t.mu.Unlock()
+
+	go t.run()
+	timer := time.NewTimer(nstatSubscriptionTimeout)
+	defer timer.Stop()
+	select {
+	case <-t.subscriptionReady:
+		// A failed provider's error is sent before the remaining providers can
+		// close subscriptionReady, so it must win when both are ready.
+		select {
+		case err := <-t.subscriptionErrors:
+			t.Stop()
+			return err
+		default:
+			return nil
+		}
+	case err := <-t.subscriptionErrors:
+		t.Stop()
+		return err
+	case <-timer.C:
+		t.Stop()
+		return errors.New("timed out waiting for NStat provider subscriptions")
+	}
+}
+
+func (t *nstatTracer) subscribe() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.subscribed {
+		return nil
+	}
+	for _, provider := range nstatProviders {
+		if !nstatProviderEnabled(t.config, provider) {
+			continue
+		}
+		context, err := t.control.Subscribe(provider)
+		if err != nil {
+			return fmt.Errorf("subscribe to nstat provider %d: %w", provider, err)
+		}
+		if context != 0 {
+			t.subscriptionContexts[context] = struct{}{}
+		}
+	}
+	t.subscribed = true
+	if len(t.subscriptionContexts) == 0 {
+		t.markEnumerationCompleteLocked()
+	}
+	return nil
+}
+
+func (t *nstatTracer) run() {
+	defer t.wg.Done()
+	buffer := make([]byte, nstatDatagramBufferSize)
+	nextQuery := t.now().Add(nstatQueryInterval)
+	var nextScan, nextFastRetry time.Time
+
+	for {
+		select {
+		case <-t.exit:
+			return
+		default:
+		}
+
+		timeout := min(nextQuery.Sub(t.now()), nstatPollInterval)
+		if !nextFastRetry.IsZero() {
+			timeout = min(timeout, nextFastRetry.Sub(t.now()))
+		}
+		if timeout < 0 {
+			timeout = 0
+		}
+		ready, err := t.control.Poll(timeout)
+		if err != nil {
+			if !t.isStopping() {
+				t.handleRuntimeFailure(fmt.Errorf("poll nstat control: %w", err))
+			}
+			return
+		}
+		if ready {
+			if err := t.drainDatagrams(buffer); err != nil {
+				if !t.isStopping() {
+					t.handleRuntimeFailure(err)
+				}
+				return
+			}
+		}
+
+		now := t.now()
+		// Every reply wakes the loop, so the full source scans are paced
+		// separately. Added sources are queued as their events arrive.
+		scan := !now.Before(nextScan)
+		if scan {
+			t.queuePendingDescriptions(now)
+			nextScan = now.Add(nstatDescriptionRetry)
+		}
+		t.queueFastRetries(now)
+		t.pumpDescriptionRequests(now)
+		nextFastRetry = t.nextFastRetry()
+		if scan {
+			t.expirePendingRemovals(now)
+		}
+		if !now.Before(nextQuery) {
+			if err := t.queryAll(); err != nil {
+				if !t.isStopping() {
+					t.handleRuntimeFailure(fmt.Errorf("query nstat sources: %w", err))
+				}
+				return
+			}
+			nextQuery = now.Add(nstatQueryInterval)
+		}
+	}
+}
+
+func (t *nstatTracer) queryAll() error {
+	err := t.control.QueryAll()
+	if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) {
+		return nil
+	}
+	return err
+}
+
+func (t *nstatTracer) drainDatagrams(buffer []byte) error {
+	for {
+		n, err := t.control.Receive(buffer)
+		if err != nil {
+			if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) {
+				return nil
+			}
+			return fmt.Errorf("receive nstat datagram: %w", err)
+		}
+		if n == 0 {
+			return io.EOF
+		}
+		nstatTracerTelemetry.datagrams.Inc()
+		events, err := nstat.ParseDatagram(buffer[:n])
+		if err != nil {
+			if errors.Is(err, nstat.ErrABIMismatch) {
+				nstatTracerTelemetry.parserErrors.Inc("abi_mismatch")
+				return fmt.Errorf("nstat revision-%d ABI validation failed: %w", nstat.ABIRevision, err)
+			}
+			nstatTracerTelemetry.parserErrors.Inc("malformed")
+			log.Warnf("rejected malformed nstat datagram: %v", err)
+		}
+		nstatTracerTelemetry.events.Add(float64(len(events)))
+		for _, event := range events {
+			t.processEvent(event)
+		}
+	}
+}
+
+func (t *nstatTracer) setRuntimeFailureCallback(callback func(error)) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.runtimeFailureCallback = callback
+}
+
+func (t *nstatTracer) handleRuntimeFailure(err error) {
+	t.failureOnce.Do(func() {
+		log.Errorf("NStat connection tracer failed at runtime: %v", err)
+		nstatTracerTelemetry.runtimeFailures.Inc()
+
+		t.mu.Lock()
+		t.runtimeErr = err
+		closed := make([]*network.ConnectionStats, 0, len(t.sources))
+		for sourceRef, source := range t.sources {
+			if source.conn == nil {
+				t.removeTCPListener(sourceRef, source)
+				delete(t.sources, sourceRef)
+				delete(t.descriptionQueued, sourceRef)
+				continue
+			}
+			closed = append(closed, t.teardownSource(sourceRef, source))
+		}
+		nstatTracerTelemetry.activeSources.Set(0)
+		closeCallback := t.closeCallback
+		failureCallback := t.runtimeFailureCallback
+		t.mu.Unlock()
+
+		if closeCallback != nil {
+			for _, conn := range closed {
+				closeCallback(conn)
+			}
+		}
+		if failureCallback != nil {
+			failureCallback(err)
+		}
+	})
+}
+
+func (t *nstatTracer) isStopping() bool {
+	select {
+	case <-t.exit:
+		return true
+	default:
+		return false
+	}
+}
+
+func (t *nstatTracer) processEvent(event nstat.Event) {
+	var closed *network.ConnectionStats
+
+	t.mu.Lock()
+	switch event.Kind {
+	case nstat.EventError:
+		errno := strconv.FormatUint(uint64(event.Error), 10)
+		if _, subscribed := t.subscriptionContexts[event.Context]; subscribed {
+			nstatTracerTelemetry.kernelErrors.Inc("subscribe", errno)
+			delete(t.subscriptionContexts, event.Context)
+			select {
+			case t.subscriptionErrors <- fmt.Errorf("NStat provider subscription failed with kernel error %d", event.Error):
+			default:
+			}
+		} else if sourceRef, ok := nstat.DescriptionSourceRef(event.Context); ok {
+			nstatTracerTelemetry.kernelErrors.Inc("describe", errno)
+			if unix.Errno(event.Error) == unix.ENOENT {
+				t.removeVanishedSource(sourceRef)
+			}
+		} else {
+			// Only QueryAll errors land here. XNU fails it with ENOBUFS or
+			// ENOMEM when its replies stop fitting and it ends the walk early.
+			// The walk is newest-first, so the oldest sources miss their counts,
+			// the same ones on every query while the pressure lasts.
+			nstatTracerTelemetry.kernelErrors.Inc("query", errno)
+		}
+	case nstat.EventSuccess:
+		if _, subscribed := t.subscriptionContexts[event.Context]; subscribed {
+			delete(t.subscriptionContexts, event.Context)
+			if len(t.subscriptionContexts) == 0 {
+				t.markEnumerationCompleteLocked()
+			}
+		}
+	case nstat.EventAdded:
+		source := t.getSource(event.SourceRef)
+		if source != nil {
+			if event.Provider != 0 {
+				source.provider = event.Provider
+			}
+			if !source.descriptionRequested {
+				source.descriptionRequested = true
+				t.queueDescriptionLocked(event.SourceRef, source)
+			}
+		}
+	case nstat.EventDescription, nstat.EventCounts, nstat.EventUpdate:
+		source := t.getSource(event.SourceRef)
+		if source != nil {
+			if event.Flow != nil && source.flow != nil &&
+				event.Flow.UniquePID != 0 && source.flow.UniquePID != 0 &&
+				event.Flow.UniquePID != source.flow.UniquePID {
+				if source.conn != nil {
+					closed = t.closeAndRemoveSource(event.SourceRef, source)
+				} else {
+					t.removeTCPListener(event.SourceRef, source)
+					delete(t.sources, event.SourceRef)
+					delete(t.descriptionQueued, event.SourceRef)
+				}
+				source = t.getSource(event.SourceRef)
+			}
+			t.updateSource(event.SourceRef, source, event)
+			if source.removed && source.conn != nil {
+				closed = t.closeAndRemoveSource(event.SourceRef, source)
+			} else if source.removed && nstatSourceResolved(source) {
+				t.removeUnpublishedSource(event.SourceRef, source, "filtered")
+			}
+		}
+	case nstat.EventRemoved:
+		// XNU handles each request inside the send that issued it and queues a
+		// source's final counts and description before its removal, so only
+		// error replies arrive for this source reference after this event.
+		if source := t.sources[event.SourceRef]; source != nil {
+			if source.conn != nil {
+				closed = t.closeAndRemoveSource(event.SourceRef, source)
+			} else if !nstatSourceAwaitingTuple(source) {
+				t.removeUnpublishedSource(event.SourceRef, source, nstatUnpublishedResolution(source))
+			} else {
+				// XNU answers this request with ENOENT, which drops the source;
+				// nstatPendingRemovalTTL covers a lost reply.
+				source.removed = true
+				source.removedAt = t.now()
+				source.descriptionRequested = true
+				source.nextDescription = time.Time{}
+				t.queueDescriptionLocked(event.SourceRef, source)
+			}
+		}
+	}
+	callback := t.closeCallback
+	t.mu.Unlock()
+
+	if closed != nil && callback != nil {
+		callback(closed)
+	}
+}
+
+func (t *nstatTracer) queueDescriptionLocked(sourceRef uint64, source *nstatSource) {
+	if _, queued := t.descriptionQueued[sourceRef]; queued {
+		return
+	}
+	if source.flow == nil {
+		t.descriptionQueue = append(t.descriptionQueue, sourceRef)
+	} else {
+		t.descriptionRetryQueue = append(t.descriptionRetryQueue, sourceRef)
+	}
+	t.descriptionQueued[sourceRef] = struct{}{}
+}
+
+func (t *nstatTracer) queuePendingDescriptions(now time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for sourceRef, source := range t.sources {
+		if !now.Before(source.nextDescription) && t.wantsDescriptionLocked(source, now) {
+			t.queueDescriptionLocked(sourceRef, source)
+		}
+	}
+}
+
+func (t *nstatTracer) pumpDescriptionRequests(now time.Time) {
+	t.mu.Lock()
+	requests := make([]uint64, 0, nstatDescriptionBatch)
+	for len(requests) < nstatDescriptionBatch {
+		sourceRef, ok := t.popDescriptionRequestLocked()
+		if !ok {
+			break
+		}
+		delete(t.descriptionQueued, sourceRef)
+		source := t.sources[sourceRef]
+		if source == nil || now.Before(source.nextDescription) || !t.wantsDescriptionLocked(source, now) {
+			continue
+		}
+		source.descriptionRequested = true
+		switch {
+		case nstatSourceAwaitingTuple(source):
+			delay := nstatDescriptionDelay(source.descriptionRetries)
+			source.nextDescription = now.Add(delay)
+			if delay < nstatDescriptionRetry {
+				t.fastRetries[sourceRef] = source.nextDescription
+			}
+			if source.descriptionRetries < math.MaxUint8 {
+				source.descriptionRetries++
+			}
+		case source.conn != nil:
+			source.nextDescription = now.Add(nstatConnectProbeRefresh)
+		default:
+			source.nextDescription = now.Add(nstatSilentSourceProbe)
+		}
+		requests = append(requests, sourceRef)
+	}
+	t.mu.Unlock()
+
+	for _, sourceRef := range requests {
+		if err := t.control.RequestDescription(sourceRef); err != nil {
+			nstatTracerTelemetry.descriptionErrors.Inc()
+			log.Debugf("nstat description request for source %d failed: %v", sourceRef, err)
+			t.mu.Lock()
+			if source := t.sources[sourceRef]; source != nil {
+				source.nextDescription = time.Time{}
+				t.queueDescriptionLocked(sourceRef, source)
+			}
+			t.mu.Unlock()
+		}
+	}
+}
+
+// queueFastRetries queues the fast retries that are due. Entries for sources
+// that were removed or resolved meanwhile are dropped.
+func (t *nstatTracer) queueFastRetries(now time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for sourceRef, due := range t.fastRetries {
+		if now.Before(due) {
+			continue
+		}
+		delete(t.fastRetries, sourceRef)
+		if source := t.sources[sourceRef]; source != nil && t.wantsDescriptionLocked(source, now) {
+			t.queueDescriptionLocked(sourceRef, source)
+		}
+	}
+}
+
+// nextFastRetry returns the earliest pending fast retry, or zero if none.
+func (t *nstatTracer) nextFastRetry() time.Time {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var next time.Time
+	for _, due := range t.fastRetries {
+		if next.IsZero() || due.Before(next) {
+			next = due
+		}
+	}
+	return next
+}
+
+func (t *nstatTracer) popDescriptionRequestLocked() (uint64, bool) {
+	if len(t.descriptionQueue) > 0 {
+		sourceRef := t.descriptionQueue[0]
+		t.descriptionQueue = t.descriptionQueue[1:]
+		return sourceRef, true
+	}
+	if len(t.descriptionRetryQueue) > 0 {
+		sourceRef := t.descriptionRetryQueue[0]
+		t.descriptionRetryQueue = t.descriptionRetryQueue[1:]
+		return sourceRef, true
+	}
+	return 0, false
+}
+
+func (t *nstatTracer) getSource(sourceRef uint64) *nstatSource {
+	if source := t.sources[sourceRef]; source != nil {
+		return source
+	}
+	// Pending removals are expired by the run loop. Expiring them here would
+	// scan every source for each event about an untracked source, which at
+	// the limit includes counts for every dropped source on each query.
+	if len(t.sources) >= int(t.config.MaxTrackedConnections) {
+		nstatTracerTelemetry.droppedSources.Inc()
+		return nil
+	}
+	source := &nstatSource{afterEnumeration: t.enumerationComplete, lastSeen: t.now()}
+	t.sources[sourceRef] = source
+	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
+	return source
+}
+
+// markEnumerationCompleteLocked records that the subscribe dump finished so
+// later sources are treated as post-start connections.
+func (t *nstatTracer) markEnumerationCompleteLocked() {
+	t.enumerationComplete = true
+	t.subscriptionOnce.Do(func() { close(t.subscriptionReady) })
+}
+
+func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event nstat.Event) {
+	source.lastSeen = t.now()
+	if event.Provider != 0 {
+		source.provider = event.Provider
+	}
+	if event.Flow != nil {
+		if nstat.IsTCPProvider(source.provider) {
+			direction, evidence := source.observeTCPState(event.Flow.TCPState)
+			t.setSourceDirection(source, direction, evidence)
+			// The kernel clears the flag once the connect succeeds, so it is
+			// latched here for the close that may follow.
+			if event.Flow.ConnProbeFailed {
+				source.connProbeFailed = true
+			}
+			if !event.Flow.ConnStatusKnown && !source.connStatusUnknown {
+				source.connStatusUnknown = true
+				nstatTracerTelemetry.connStatusUnknown.Inc()
+			}
+		}
+		source.flow = mergeNStatFlow(source.flow, event.Flow)
+		t.syncTCPListener(sourceRef, source)
+	}
+	if event.Counts != nil {
+		if nstatSourceAwaitingTuple(source) && nstatCountsShowActivity(source.counts, *event.Counts) {
+			source.descriptionRetries = 0
+			source.nextDescription = time.Time{}
+		}
+		source.counts = *event.Counts
+		source.connectAttempts = max(source.connectAttempts, event.Counts.ConnectAttempts)
+		previousSuccesses := source.connectSuccesses
+		source.connectSuccesses = max(source.connectSuccesses, event.Counts.ConnectSuccesses)
+		if nstat.IsTCPProvider(source.provider) {
+			source.observeConnectSuccesses(previousSuccesses, source.connectSuccesses)
+		}
+	}
+	if source.flow == nil || (!nstat.IsTCPProvider(source.provider) && !nstat.IsUDPProvider(source.provider)) {
+		return
+	}
+	if source.conn == nil {
+		if source.retired || !nstatSourceResolved(source) || !nstatSourceEnabled(t.config, source) {
+			return
+		}
+		if !t.includeLoopback && t.flowIsLoopback(source.flow) {
+			if !source.loopbackFiltered {
+				source.loopbackFiltered = true
+				nstatTracerTelemetry.filteredSources.Inc("loopback")
+			}
+			return
+		}
+		if !nstatFlowHasPeer(source.flow) {
+			if !source.peerlessFiltered {
+				source.peerlessFiltered = true
+				nstatTracerTelemetry.filteredSources.Inc("no_peer")
+			}
+			return
+		}
+		source.conn = t.newConnection(sourceRef, source)
+		now := t.now()
+		source.nextDescription = now.Add(nstatConnectProbeRefresh)
+		source.connProbeDeadline = now.Add(nstatConnectProbeWindow)
+	}
+	t.applySource(source)
+}
+
+func (source *nstatSource) observeTCPState(state uint32) (network.ConnectionDirection, darwinDirectionEvidence) {
+	var direction network.ConnectionDirection
+	switch state {
+	case tcpStateSynSent:
+		direction = network.OUTGOING
+	case tcpStateSynReceived:
+		direction = network.INCOMING
+	}
+	if !source.tcpStateObserved {
+		// Sources seen during subscribe enumeration are a baseline, not a
+		// transition. Sources created after subscription readiness count a
+		// first ESTABLISHED as a post-start success.
+		source.tcpStateObserved = true
+		source.tcpEstablished = state >= tcpStateEstablished
+		if source.afterEnumeration && source.tcpEstablished {
+			source.tcpEstablishedAfterStart = true
+		}
+		return direction, directionEvidenceTCPState
+	}
+	if !source.tcpEstablished && state >= tcpStateEstablished {
+		source.markTCPEstablishedAfterStart()
+	}
+	return direction, directionEvidenceTCPState
+}
+
+// observeConnectSuccesses treats a first post-enumeration success, or a later
+// increase, as a TCP establishment that happened after system-probe start.
+func (source *nstatSource) observeConnectSuccesses(previous, current uint32) {
+	if !source.connectSuccessesObserved {
+		source.connectSuccessesObserved = true
+		if source.afterEnumeration && current > 0 {
+			source.markTCPEstablishedAfterStart()
+		}
+		return
+	}
+	if current > previous {
+		source.markTCPEstablishedAfterStart()
+	}
+}
+
+// markTCPEstablishedAfterStart records that this source established after start.
+func (source *nstatSource) markTCPEstablishedAfterStart() {
+	source.tcpEstablished = true
+	source.tcpEstablishedAfterStart = true
+}
+
+func nstatProviderEnabled(cfg *config.Config, provider uint32) bool {
+	switch {
+	case nstat.IsTCPProvider(provider):
+		return cfg.CollectTCPv4Conns || cfg.CollectTCPv6Conns
+	case nstat.IsUDPProvider(provider):
+		return cfg.CollectUDPv4Conns || cfg.CollectUDPv6Conns
+	default:
+		return false
+	}
+}
+
+func nstatSourceEnabled(cfg *config.Config, source *nstatSource) bool {
+	if source == nil || source.flow == nil {
+		return false
+	}
+	ipv6 := nstatFlowFamily(source.flow) == network.AFINET6
+	switch {
+	case nstat.IsTCPProvider(source.provider):
+		if ipv6 {
+			return cfg.CollectTCPv6Conns
+		}
+		return cfg.CollectTCPv4Conns
+	case nstat.IsUDPProvider(source.provider):
+		if ipv6 {
+			return cfg.CollectUDPv6Conns
+		}
+		return cfg.CollectUDPv4Conns
+	default:
+		return false
+	}
+}
+
+// flowIsLoopback trusts the interface the kernel reports for the flow, which
+// is the socket's last output interface and stays zero until it first sends.
+// Loopback addresses are checked as well because they cannot leave the host.
+func (t *nstatTracer) flowIsLoopback(flow *nstat.Flow) bool {
+	if _, ok := t.loopbackInterfaces[flow.InterfaceIndex]; ok {
+		return true
+	}
+	return flow.Local.Address.Unmap().IsLoopback() || flow.Remote.Address.Unmap().IsLoopback()
+}
+
+func darwinLoopbackInterfaces() map[uint32]struct{} {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		log.Warnf("nstat: unable to list interfaces, loopback filtering falls back to addresses: %s", err)
+		return nil
+	}
+	loopback := make(map[uint32]struct{})
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagLoopback != 0 && iface.Index > 0 {
+			loopback[uint32(iface.Index)] = struct{}{}
+		}
+	}
+	return loopback
+}
+
+// nstatFlowHasPeer reports whether the flow names a remote endpoint. NStat
+// counts unconnected UDP sockets per socket, so their traffic to any number of
+// peers carries no remote address and cannot form a connection tuple.
+func nstatFlowHasPeer(flow *nstat.Flow) bool {
+	return flow.Remote.Present &&
+		flow.Remote.Address.IsValid() &&
+		!flow.Remote.Address.IsUnspecified() &&
+		flow.Remote.Port != 0
+}
+
+func nstatSourceResolved(source *nstatSource) bool {
+	if source == nil || source.flow == nil {
+		return false
+	}
+	flow := source.flow
+	if nstat.IsTCPProvider(source.provider) {
+		return flow.Local.Present &&
+			flow.Local.Address.IsValid() &&
+			!flow.Local.Address.IsUnspecified() &&
+			flow.Local.Port != 0 &&
+			flow.Remote.Present &&
+			flow.Remote.Address.IsValid() &&
+			!flow.Remote.Address.IsUnspecified() &&
+			flow.Remote.Port != 0
+	}
+	if nstat.IsUDPProvider(source.provider) {
+		return flow.Local.Present && flow.Local.Address.IsValid() && flow.Local.Port != 0
+	}
+	return false
+}
+
+// nstatSourceAwaitingTuple reports whether a source still lacks the tuple it
+// needs to be published. A listener never gains a peer, so it is complete
+// once indexed for direction.
+func nstatSourceAwaitingTuple(source *nstatSource) bool {
+	return !nstatSourceResolved(source) && !source.listenerIndexed
+}
+
+// nstatDescriptionDelay doubles the retry delay for each description request
+// already sent, up to nstatDescriptionRetryMax.
+func nstatDescriptionDelay(retries uint8) time.Duration {
+	return min(nstatDescriptionRetryMin<<min(retries, 16), nstatDescriptionRetryMax)
+}
+
+func nstatCountsShowActivity(previous, current nstat.Counts) bool {
+	return current.ConnectAttempts > previous.ConnectAttempts ||
+		current.TXPackets > previous.TXPackets ||
+		current.RXPackets > previous.RXPackets
+}
+
+// nstatSourcePendingConnect reports a published TCP connect that is still in
+// SYN_SENT with no outcome observed yet, on a layout that carries the flag.
+func nstatSourcePendingConnect(source *nstatSource) bool {
+	return source.conn != nil && source.conn.Type == network.TCP &&
+		!source.removed && !source.closed && !source.connProbeFailed &&
+		!source.connProbeExpired && source.flow.ConnStatusKnown &&
+		source.flow.TCPState == tcpStateSynSent &&
+		!source.tcpEstablished && source.connectSuccesses == 0 &&
+		len(source.conn.TCPFailures) == 0
+}
+
+// wantsDescriptionLocked reports whether a source should be described again:
+// it still lacks its tuple, it is unpublished and has gone silent, or it is a
+// connect awaiting conn_probe_failed within the probe window.
+func (t *nstatTracer) wantsDescriptionLocked(source *nstatSource, now time.Time) bool {
+	if nstatSourceAwaitingTuple(source) {
+		return true
+	}
+	if source.conn == nil {
+		return !source.removed && now.Sub(source.lastSeen) >= nstatSilentSourceProbe
+	}
+	if !nstatSourcePendingConnect(source) {
+		return false
+	}
+	if now.Before(source.connProbeDeadline) {
+		return true
+	}
+	source.connProbeExpired = true
+	nstatTracerTelemetry.connProbeMissed.Inc()
+	return false
+}
+
+func mergeNStatFlow(current, update *nstat.Flow) *nstat.Flow {
+	if current == nil {
+		flow := *update
+		return &flow
+	}
+	merged := *current
+	if update.UniquePID != 0 {
+		merged.UniquePID = update.UniquePID
+	}
+	if update.EffectiveUniquePID != 0 {
+		merged.EffectiveUniquePID = update.EffectiveUniquePID
+	}
+	if update.PID != 0 {
+		merged.PID = update.PID
+	}
+	if update.EffectivePID != 0 {
+		merged.EffectivePID = update.EffectivePID
+	}
+	if update.InterfaceIndex != 0 {
+		merged.InterfaceIndex = update.InterfaceIndex
+	}
+	merged.TCPState = update.TCPState
+	merged.ConnStatusKnown = update.ConnStatusKnown
+	merged.ConnProbeFailed = update.ConnProbeFailed
+	merged.Local = mergeNStatEndpoint(merged.Local, update.Local)
+	merged.Remote = mergeNStatEndpoint(merged.Remote, update.Remote)
+	return &merged
+}
+
+func mergeNStatEndpoint(current, update nstat.Endpoint) nstat.Endpoint {
+	if !update.Present {
+		return current
+	}
+	if current.Present {
+		if update.Port == 0 {
+			update.Port = current.Port
+		}
+		if current.Address.IsValid() && !current.Address.IsUnspecified() &&
+			(!update.Address.IsValid() || update.Address.IsUnspecified()) {
+			update.Address = current.Address
+		}
+	}
+	return update
+}
+
+func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
+	flow := source.flow
+	conn := &network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Source: processutil.Address{Addr: flow.Local.Address},
+			Dest:   processutil.Address{Addr: flow.Remote.Address},
+			Pid:    flow.PID,
+			SPort:  flow.Local.Port,
+			DPort:  flow.Remote.Port,
+			Type:   network.UDP,
+			Family: network.AFINET,
+		},
+		Cookie:          sourceRef ^ bits.RotateLeft64(flow.UniquePID, 32),
+		Duration:        time.Duration(t.now().UnixNano()),
+		LastUpdateEpoch: uint64(t.now().UnixNano()),
+		InterfaceIndex:  flow.InterfaceIndex,
+	}
+	captured := false
+	if nstat.IsTCPProvider(source.provider) {
+		conn.Type = network.TCP
+		// Tags are aggregation keys, so completeness is decided once here and
+		// never changed for the lifetime of the connection.
+		captured = t.packetCoverage != nil && t.packetCoverage(flow.InterfaceIndex)
+		if !captured {
+			conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+		}
+	}
+	if flow.PID == 0 {
+		nstatTracerTelemetry.pidZeroPublished.Inc()
+	}
+	if flow.InterfaceIndex == 0 {
+		nstatTracerTelemetry.ifaceZeroPublished.Inc()
+	}
+	conn.Family = nstatFlowFamily(flow)
+	t.cookieHasher.Hash(conn)
+	t.byCookie[conn.Cookie] = source
+	t.tuples.add(conn)
+	if conn.Type == network.TCP {
+		// Sources enumerated at startup are pre-existing connections whose
+		// packets naturally precede their descriptions; only count new ones.
+		missed, delay, ok := t.unmatched.take(conn.ConnectionTuple, t.now())
+		if source.afterEnumeration {
+			nstatTracerTelemetry.tcpPublished.Inc(strconv.FormatBool(captured))
+			if ok {
+				nstatTracerTelemetry.latePacketMatches.Inc(missed.label())
+				nstatTracerTelemetry.lateMatchDelay.Observe(delay.Seconds(), missed.label())
+			}
+		}
+	}
+	return conn
+}
+
+func nstatFlowFamily(flow *nstat.Flow) network.ConnectionFamily {
+	address := flow.Local.Address
+	if !address.IsValid() {
+		address = flow.Remote.Address
+	}
+	if address.Is6() {
+		return network.AFINET6
+	}
+	return network.AFINET
+}
+
+func (t *nstatTracer) applySource(source *nstatSource) {
+	conn := source.conn
+	flow := source.flow
+	counts := source.counts
+	t.syncConnectionTupleFromNStat(conn, flow)
+	conn.LastUpdateEpoch = uint64(t.now().UnixNano())
+	conn.InterfaceIndex = flow.InterfaceIndex
+	conn.Monotonic.RecvBytes = counts.RXBytes
+	conn.Monotonic.SentBytes = saturatingSubtract(counts.TXBytes, uint64(counts.TXRetransmittedBytes))
+	conn.Monotonic.RecvPackets = counts.RXPackets
+	conn.Monotonic.SentPackets = counts.TXPackets
+
+	if conn.Type != network.TCP {
+		return
+	}
+	if t.hasTCPListener(conn) {
+		t.setSourceDirection(source, network.INCOMING, directionEvidenceListener)
+	}
+	t.reconcileSourceDirection(source)
+	if source.direction == network.UNKNOWN {
+		// A source first described after its handshake carries no SYN state.
+		// The inference stays out of source.direction so any real evidence wins.
+		conn.Direction = t.inferTCPDirectionFromPorts(conn.SPort, conn.DPort)
+		if conn.Direction != network.UNKNOWN && source.inferredDirection == network.UNKNOWN {
+			source.inferredDirection = conn.Direction
+			nstatTracerTelemetry.directionInferred.Inc("inferred")
+		}
+	}
+	conn.RTT = scaledMicroseconds(counts.AverageRTT, nstatTCPRTTScale)
+	conn.RTTVar = scaledMicroseconds(counts.RTTVariance, nstatTCPRTTVarianceScale)
+	if source.tcpEstablishedAfterStart {
+		conn.Monotonic.TCPEstablished = 1
+	}
+	if !source.closed && flow.TCPState == tcpStateClosed &&
+		source.connectAttempts > 0 && source.connectSuccesses == 0 {
+		t.markTCPClosed(source)
+	}
+}
+
+func (t *nstatTracer) syncTCPListener(sourceRef uint64, source *nstatSource) {
+	key, listening := nstatTCPListenerKey(source)
+	if source.listenerIndexed && (!listening || source.listenerKey != key) {
+		t.removeTCPListener(sourceRef, source)
+	}
+	if !listening || source.listenerIndexed {
+		return
+	}
+	sources := t.listeners[key]
+	if sources == nil {
+		sources = make(map[uint64]struct{})
+		t.listeners[key] = sources
+	}
+	sources[sourceRef] = struct{}{}
+	source.listenerKey = key
+	source.listenerIndexed = true
+
+	// Listener descriptions can arrive after their accepted connections.
+	// Revisit existing sockets once when a listener is first indexed.
+	for _, candidate := range t.sources {
+		if candidate.conn == nil || candidate.removed || !t.hasTCPListener(candidate.conn) {
+			continue
+		}
+		t.setSourceDirection(candidate, network.INCOMING, directionEvidenceListener)
+		t.reconcileSourceDirection(candidate)
+	}
+}
+
+func (t *nstatTracer) removeTCPListener(sourceRef uint64, source *nstatSource) {
+	if source == nil || !source.listenerIndexed {
+		return
+	}
+	sources := t.listeners[source.listenerKey]
+	delete(sources, sourceRef)
+	if len(sources) == 0 {
+		delete(t.listeners, source.listenerKey)
+	}
+	source.listenerIndexed = false
+	source.listenerKey = darwinTCPListenerKey{}
+}
+
+func nstatTCPListenerKey(source *nstatSource) (darwinTCPListenerKey, bool) {
+	if source == nil || source.removed || source.flow == nil ||
+		!nstat.IsTCPProvider(source.provider) ||
+		source.flow.TCPState != tcpStateListen ||
+		!source.flow.Local.Present ||
+		!source.flow.Local.Address.IsValid() ||
+		source.flow.Local.Port == 0 {
+		return darwinTCPListenerKey{}, false
+	}
+	return darwinTCPListenerKey{
+		address: normalizeDarwinAddress(source.flow.Local.Address),
+		port:    source.flow.Local.Port,
+		family:  nstatFlowFamily(source.flow),
+	}, true
+}
+
+func (t *nstatTracer) hasTCPListener(conn *network.ConnectionStats) bool {
+	if conn == nil || conn.Type != network.TCP {
+		return false
+	}
+	key := darwinTCPListenerKey{
+		address: normalizeDarwinAddress(conn.Source.Addr),
+		port:    conn.SPort,
+		family:  conn.Family,
+	}
+	if len(t.listeners[key]) > 0 {
+		return true
+	}
+	if conn.Family == network.AFINET6 {
+		key.address = netip.IPv6Unspecified()
+		return len(t.listeners[key]) > 0
+	}
+	key.address = netip.IPv4Unspecified()
+	if len(t.listeners[key]) > 0 {
+		return true
+	}
+	// A dual-stack wildcard listener is described as ::, but XNU describes
+	// the IPv4 connections it accepts as AF_INET.
+	key.address, key.family = netip.IPv6Unspecified(), network.AFINET6
+	return len(t.listeners[key]) > 0
+}
+
+func (t *nstatTracer) setSourceDirection(
+	source *nstatSource,
+	direction network.ConnectionDirection,
+	evidence darwinDirectionEvidence,
+) {
+	if source == nil || direction == network.UNKNOWN || evidence == directionEvidenceNone {
+		return
+	}
+	if evidence < source.directionEvidence {
+		return
+	}
+	if evidence == source.directionEvidence && source.direction != network.UNKNOWN {
+		if source.direction != direction {
+			nstatTracerTelemetry.directionConflicts.Inc()
+		}
+		return
+	}
+	if source.direction != network.UNKNOWN && source.direction != direction {
+		nstatTracerTelemetry.directionConflicts.Inc()
+	}
+	if source.direction == network.UNKNOWN && source.inferredDirection != network.UNKNOWN &&
+		source.inferredDirection != direction {
+		nstatTracerTelemetry.directionInferred.Inc("overridden")
+	}
+	source.direction = direction
+	source.directionEvidence = evidence
+	if source.conn != nil {
+		source.conn.Direction = direction
+	}
+}
+
+func (t *nstatTracer) reconcileSourceDirection(source *nstatSource) {
+	if source == nil || source.conn == nil || source.removed {
+		return
+	}
+	if source.direction != network.UNKNOWN {
+		source.conn.Direction = source.direction
+	}
+	peerMatch := t.tuples.matchExact(reverseDarwinTuple(source.conn.ConnectionTuple))
+	if !peerMatch.matched || peerMatch.ambiguous || peerMatch.cookie == source.conn.Cookie {
+		return
+	}
+	peer := t.byCookie[peerMatch.cookie]
+	if peer == nil || peer.conn == nil || peer.removed {
+		return
+	}
+	if source.direction != network.UNKNOWN {
+		t.setSourceDirection(peer, oppositeConnectionDirection(source.direction), directionEvidencePeer)
+	}
+	if peer.direction != network.UNKNOWN {
+		t.setSourceDirection(source, oppositeConnectionDirection(peer.direction), directionEvidencePeer)
+	}
+}
+
+// inferTCPDirectionFromPorts treats the endpoint with the more server-like
+// port as the server: well-known ports, then registered ports, then
+// ephemeral ports. Equally ranked ports stay UNKNOWN.
+func (t *nstatTracer) inferTCPDirectionFromPorts(localPort, remotePort uint16) network.ConnectionDirection {
+	local, remote := t.tcpPortRank(localPort), t.tcpPortRank(remotePort)
+	switch {
+	case local < remote:
+		return network.INCOMING
+	case local > remote:
+		return network.OUTGOING
+	default:
+		return network.UNKNOWN
+	}
+}
+
+func (t *nstatTracer) tcpPortRank(port uint16) int {
+	switch {
+	case port < 1024:
+		return 0
+	case port >= t.ephemeralFirst && port <= t.ephemeralLast:
+		return 2
+	default:
+		return 1
+	}
+}
+
+func oppositeConnectionDirection(direction network.ConnectionDirection) network.ConnectionDirection {
+	switch direction {
+	case network.OUTGOING:
+		return network.INCOMING
+	case network.INCOMING:
+		return network.OUTGOING
+	default:
+		return network.UNKNOWN
+	}
+}
+
+func (t *nstatTracer) syncConnectionTupleFromNStat(conn *network.ConnectionStats, flow *nstat.Flow) {
+	tupleChanged := false
+	if flow.PID != 0 {
+		conn.Pid = flow.PID
+	}
+	if flow.Local.Present {
+		if flow.Local.Address.IsValid() && !flow.Local.Address.IsUnspecified() &&
+			conn.Source.Addr != flow.Local.Address {
+			conn.Source = processutil.Address{Addr: flow.Local.Address}
+			tupleChanged = true
+		}
+		if flow.Local.Port != 0 && conn.SPort != flow.Local.Port {
+			conn.SPort = flow.Local.Port
+			tupleChanged = true
+		}
+	}
+	if flow.Remote.Present {
+		if flow.Remote.Address.IsValid() && !flow.Remote.Address.IsUnspecified() &&
+			conn.Dest.Addr != flow.Remote.Address {
+			conn.Dest = processutil.Address{Addr: flow.Remote.Address}
+			tupleChanged = true
+		}
+		if flow.Remote.Port != 0 && conn.DPort != flow.Remote.Port {
+			conn.DPort = flow.Remote.Port
+			tupleChanged = true
+		}
+	}
+	family := network.AFINET
+	if conn.Source.Addr.Is6() || conn.Dest.Addr.Is6() {
+		family = network.AFINET6
+	}
+	if conn.Family != family {
+		conn.Family = family
+		tupleChanged = true
+	}
+	if tupleChanged {
+		t.tuples.add(conn)
+	}
+}
+
+func (t *nstatTracer) enrichTCPPacket(
+	packet network.ConnectionTuple,
+	packetOutgoing bool,
+	captureTruncated bool,
+	tcp *layers.TCP,
+	analyzer *darwinPacketAnalyzer,
+) darwinTupleMatch {
+	t.mu.Lock()
+	match := t.tuples.match(packet)
+	if !match.matched || match.ambiguous {
+		if !match.ambiguous {
+			t.recordUnmatchedLocked(packet, tcp)
+		}
+		t.mu.Unlock()
+		return match
+	}
+	source := t.byCookie[match.cookie]
+	if source == nil || source.conn == nil || source.removed {
+		t.mu.Unlock()
+		return darwinTupleMatch{}
+	}
+	if match.packetReversed {
+		packetOutgoing = !packetOutgoing
+	}
+	t.mu.Unlock()
+
+	analysis := analyzer.process(match.cookie, packetOutgoing, captureTruncated, tcp)
+
+	t.mu.Lock()
+	currentMatch := t.tuples.match(packet)
+	source = t.byCookie[match.cookie]
+	if !currentMatch.matched || currentMatch.ambiguous || currentMatch.cookie != match.cookie ||
+		source == nil || source.conn == nil || source.removed {
+		sourceGone := source == nil || source.conn == nil || source.removed
+		t.mu.Unlock()
+		if sourceGone {
+			analyzer.remove(match.cookie)
+			return darwinTupleMatch{}
+		}
+		return currentMatch
+	}
+	conn := source.conn
+	if analysis.direction != network.UNKNOWN {
+		t.setSourceDirection(source, analysis.direction, directionEvidencePacket)
+		t.reconcileSourceDirection(source)
+	}
+	if analysis.retransmits > conn.Monotonic.Retransmits {
+		conn.Monotonic.Retransmits = analysis.retransmits
+	}
+	if analysis.reset {
+		if conn.TCPFailures == nil {
+			conn.TCPFailures = make(map[uint16]uint32)
+		}
+		conn.TCPFailures[nstatResetErrno(source, analysis.handshakeSeen)]++
+	}
+	conn.ProtocolStack.MergeWith(analysis.protocolStack)
+	conn.TLSTags.MergeWith(analysis.tlsTags)
+	t.mu.Unlock()
+	return currentMatch
+}
+
+// removeUnpublishedSource drops a source that never became a connection, so
+// it does not wait out the pending-removal TTL.
+func (t *nstatTracer) removeUnpublishedSource(sourceRef uint64, source *nstatSource, resolution string) {
+	t.removeTCPListener(sourceRef, source)
+	delete(t.sources, sourceRef)
+	delete(t.descriptionQueued, sourceRef)
+	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
+	nstatTracerTelemetry.removals.Inc(resolution)
+}
+
+// removeVanishedSource handles an ENOENT answer to a description request.
+// Unless the source was already removed, its removal was lost. Published
+// sources are left to connection expiry.
+func (t *nstatTracer) removeVanishedSource(sourceRef uint64) {
+	source := t.sources[sourceRef]
+	if source == nil || source.conn != nil {
+		return
+	}
+	if !source.removed {
+		nstatTracerTelemetry.lostRemovals.Inc()
+	}
+	t.removeUnpublishedSource(sourceRef, source, nstatUnpublishedResolution(source))
+}
+
+func nstatUnpublishedResolution(source *nstatSource) string {
+	switch {
+	case source.retired:
+		return "expired"
+	case nstatSourceAwaitingTuple(source):
+		return "unresolved"
+	default:
+		return "filtered"
+	}
+}
+
+// closeAndRemoveSource handles a close the kernel reported, so TCP sources
+// count as closed and may infer a connect failure.
+func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
+	conn := t.removeConnectionSource(sourceRef, source)
+	if conn.Type == network.TCP && !source.closed {
+		t.markTCPClosed(source)
+	}
+	t.finishConnection(conn)
+	return conn
+}
+
+// teardownSource delivers a connection the tracer stopped observing. The
+// socket may still be open, so no TCP close or failure is recorded.
+func (t *nstatTracer) teardownSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
+	conn := t.removeConnectionSource(sourceRef, source)
+	t.finishConnection(conn)
+	return conn
+}
+
+func (t *nstatTracer) removeConnectionSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
+	t.removeTCPListener(sourceRef, source)
+	delete(t.sources, sourceRef)
+	delete(t.descriptionQueued, sourceRef)
+	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
+	nstatTracerTelemetry.removals.Inc("resolved")
+	conn := source.conn
+	delete(t.byCookie, conn.Cookie)
+	t.tuples.remove(conn.Cookie)
+	return conn
+}
+
+func (t *nstatTracer) finishConnection(conn *network.ConnectionStats) {
+	if !conn.IsClosed {
+		conn.IsClosed = true
+		conn.Duration = time.Duration(t.now().UnixNano() - int64(conn.Duration))
+	}
+}
+
+func (t *nstatTracer) recordUnmatchedLocked(packet network.ConnectionTuple, tcp *layers.TCP) {
+	flags := darwinUnmatchedFlags{
+		syn:     tcp.SYN && !tcp.ACK,
+		rst:     tcp.RST,
+		payload: len(tcp.Payload) > 0,
+	}
+	inserted, ok := t.unmatched.record(packet, flags, t.now())
+	switch {
+	case !ok:
+		nstatTracerTelemetry.unmatchedTuples.Inc("full")
+	case inserted:
+		nstatTracerTelemetry.unmatchedTuples.Inc("tracked")
+	}
+}
+
+// nstatResetErrno classifies a RST as a refused connect only when neither
+// NStat nor packet capture saw the handshake complete. Packet capture alone
+// can miss the SYN, so a missing SYN is not evidence of a refusal.
+func nstatResetErrno(source *nstatSource, handshakeSeen bool) uint16 {
+	if handshakeSeen || source.tcpEstablished || source.connectSuccesses > 0 {
+		return network.TCPFailureErrnoConnReset
+	}
+	return network.TCPFailureErrnoConnRefused
+}
+
+func (t *nstatTracer) markTCPClosed(source *nstatSource) {
+	conn := source.conn
+	if nstatConnectTimedOut(source) {
+		if conn.TCPFailures == nil {
+			conn.TCPFailures = make(map[uint16]uint32)
+		}
+		conn.TCPFailures[network.TCPFailureErrnoTimedOut] = 1
+	}
+	source.closed = true
+	conn.Monotonic.TCPClosed = 1
+	conn.IsClosed = true
+	conn.Duration = time.Duration(t.now().UnixNano() - int64(conn.Duration))
+}
+
+// nstatConnectTimedOut infers ETIMEDOUT for a connect that closed without
+// establishing or a reset after the kernel exhausted its SYN connectivity
+// probes. Connects cancelled earlier, such as Happy Eyeballs losers, never
+// reach the probe limit.
+func nstatConnectTimedOut(source *nstatSource) bool {
+	return source.connProbeFailed && source.connectAttempts > 0 &&
+		source.connectSuccesses == 0 && !source.tcpEstablished &&
+		len(source.conn.TCPFailures) == 0
+}
+
+func (t *nstatTracer) expirePendingRemovals(now time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.expirePendingRemovalsLocked(now)
+}
+
+func (t *nstatTracer) expirePendingRemovalsLocked(now time.Time) {
+	for sourceRef, source := range t.sources {
+		if source.removed && now.Sub(source.removedAt) >= nstatPendingRemovalTTL {
+			t.removeTCPListener(sourceRef, source)
+			delete(t.sources, sourceRef)
+			delete(t.descriptionQueued, sourceRef)
+			nstatTracerTelemetry.removals.Inc("unresolved")
+		}
+	}
+	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
+}
+
+func (t *nstatTracer) Stop() {
+	if t == nil {
+		return
+	}
+	t.stopOnce.Do(func() {
+		t.mu.Lock()
+		t.stopped = true
+		t.mu.Unlock()
+		close(t.exit)
+		if err := t.control.Close(); err != nil {
+			log.Debugf("closing nstat control failed: %v", err)
+		}
+		t.wg.Wait()
+	})
+}
+
+func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.runtimeErr != nil {
+		return t.runtimeErr
+	}
+	connections := make([]network.ConnectionStats, 0, len(t.sources))
+	for _, source := range t.sources {
+		if source.removed || source.conn == nil {
+			continue
+		}
+		if filter != nil && !filter(source.conn) {
+			continue
+		}
+		conn := *source.conn
+		conn.Tags = source.conn.CloneTags()
+		if source.conn.TCPFailures != nil {
+			conn.TCPFailures = make(map[uint16]uint32, len(source.conn.TCPFailures))
+			for errno, count := range source.conn.TCPFailures {
+				conn.TCPFailures[errno] = count
+			}
+		}
+		connections = append(connections, conn)
+	}
+	buffer.Append(connections)
+	return nil
+}
+
+func (t *nstatTracer) FlushPending() {}
+
+// Remove unpublishes a connection the caller expired. Expiry means its counts
+// stopped arriving, not that the kernel removed the source, so the source
+// stays tracked until the kernel removes it. Dropping it would let its next
+// counts or final description publish it again under the same cookie, with
+// cumulative counters the caller has already reported.
+func (t *nstatTracer) Remove(conn *network.ConnectionStats) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	source := t.byCookie[conn.Cookie]
+	if source == nil || source.conn == nil {
+		return nil
+	}
+	delete(t.byCookie, conn.Cookie)
+	t.tuples.remove(conn.Cookie)
+	source.conn = nil
+	source.retired = true
+	nstatTracerTelemetry.expiredConnections.Inc()
+	return nil
+}
+
+func (t *nstatTracer) GetMap(string) (*ebpf.Map, error) { return nil, nil }
+
+func (t *nstatTracer) DumpMaps(_ io.Writer, _ ...string) error {
+	return errors.New("not implemented")
+}
+
+func (t *nstatTracer) Type() TracerType { return TracerTypeNStat }
+
+func (t *nstatTracer) darwinStatus() DarwinTracerStatus {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	status := nstatStatus()
+	status.SourceHealthy = t.runtimeErr == nil && !t.stopped
+	if t.runtimeErr != nil {
+		status.LastError = boundedDarwinStatusError(t.runtimeErr)
+	}
+	return status
+}
+
+func (t *nstatTracer) Pause() error  { return errors.New("not implemented") }
+func (t *nstatTracer) Resume() error { return errors.New("not implemented") }
+
+func (t *nstatTracer) Describe(_ chan<- *prometheus.Desc) {}
+func (t *nstatTracer) Collect(_ chan<- prometheus.Metric) {}
+
+func saturatingSubtract(value, subtract uint64) uint64 {
+	if subtract >= value {
+		return 0
+	}
+	return value - subtract
+}
+
+func scaledMicroseconds(value uint32, scale uint32) uint32 {
+	result := uint64(value) * 1000 / uint64(scale)
+	if result > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(result)
+}
+
+var _ Tracer = (*nstatTracer)(nil)

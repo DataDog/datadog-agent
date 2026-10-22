@@ -80,9 +80,10 @@ Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve 
 Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
 so a test never installs them at runtime. They are already the Linux defaults
 (`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+There is no generic runtime install: `PackageManager.RuntimeInstallDocker` (Docker and docker-compose) is the only one, for GCP, Azure and local VMs, and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
-`docs/public/how-to/test/e2e/custom-amis.md` and
-`docs/public/how-to/test/e2e/dependencies.md`.
+`doc/how-to/test/e2e/custom-amis.md` and
+`doc/how-to/test/e2e/dependencies.md`.
 
 ### Kubernetes resource ownership
 
@@ -113,6 +114,11 @@ Key helpers on BaseSuite:
 - `s.EventuallyWithT(fn, timeout, interval)` — retry assertions until they pass;
   use `require` (not `assert`) inside the callback so failures short-circuit the
   current retry iteration instead of accumulating silently
+- `s.Env().WaitForAgentReady(ctx, options...)` — for Kubernetes environments,
+  wait for selected Node Agent, Cluster Agent, Cluster Checks Runner, or auxiliary
+  DaemonSet pods to be ready without duplicating a `Test00UpAndRunning` loop. Call
+  it from `SetupSuite` when readiness is a prerequisite for every test; use
+  `WithAgentReadinessStableFor` when asynchronous Agent subsystems need warm-up time.
 
 ## Agent configuration
 
@@ -150,6 +156,14 @@ and the standalone driver — keep them in sync.
 
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
+
+## GCP authentication
+
+GCP provisioning uses ADC, while generated GKE kubeconfigs use the active gcloud
+CLI account through `gke-gcloud-auth-plugin`. Local GKE creation checks CLI credentials
+before provisioning because they can expire independently of ADC. When
+`GOOGLE_APPLICATION_CREDENTIALS` is supplied, preserve the existing service account
+activation path and skip the local CLI check.
 
 ## Agent installers outside Pulumi
 
@@ -190,6 +204,9 @@ When that's not enough, common advanced patterns:
 - **`s.UpdateEnv(provisioner)`** — re-provision the agent mid-suite (e.g., change
   config, toggle features) without destroying the underlying infra. Widely used
   but error-prone; may be removed in the future.
+- **`kindvm.WithPreAgentWorkloadApp(app)`** — deploy Kubernetes resources such
+  as CRDs before the Agent. Use it when Agent startup discovery must observe the
+  resource; it cannot be combined with a standalone OTel Agent deployment.
 
 ### Useful suite options
 
@@ -240,6 +257,33 @@ constraints shape how a macOS suite must be wired into CI:
 Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
 (installs by hand, `ec2.WithoutAgent()`) and
 `tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
+
+## Default image registry
+
+Two `config.Env` accessors decide where an image comes from; never hardcode a registry
+host in a component or scenario.
+
+| Accessor | Use for | AWS | GCP / Azure / local |
+|----------|---------|-----|---------------------|
+| `DatadogPublicRegistry()` | publicly released Datadog images (agent, cluster-agent, ddot-collector, operator, dogstatsd, fakeintake) | `<internal ECR>/ecr-public/datadog` | `gcr.io/datadoghq` |
+| `InternalDockerhubMirror()` | anything published to Docker Hub, including the unstable `agent-dev` images behind the FIPS and OTel variants | `<internal ECR>/dockerhub` | `registry-1.docker.io` |
+
+On AWS both are pull-through cache prefixes, so the pull stays inside the account. The AWS
+value is per-environment (`resources/aws/environmentDefaults.go`) and overridable through
+`ddinfra:aws/defaultDatadogPublicRegistry`; a test asserts every AWS environment sets it.
+
+`components/datadog/agent/docker_image.go` owns the resolution order: an explicit image tag
+> `ddagent:fullImagePath` > pipeline + SHA (`<InternalRegistry()>/agent-qa:<id>-<sha>`) >
+the OTel/FIPS dev repository > the default repository above. Only the last branch is
+registry-dependent, so a test targeting a pipeline is unaffected by any of this.
+
+Two deliberate exceptions, commented where they occur:
+
+- **Fargate** (`components/datadog/agent/ecsFargate.go`, `scenarios/aws/fakeintake/`) pins
+  `public.ecr.aws`. The ECS control plane pulls the image with the task execution role as
+  part of the service definition, so there is no host to authenticate against the cache on.
+- **`injector-dev`** (used by `tests/ssi`) is not published to public ECR, so those images
+  stay on `registry.datadoghq.com`/`gcr.io` and remain internet-dependent on AWS.
 
 ## Fakeintake image version
 

@@ -113,6 +113,7 @@ new-e2e-ssi-gke:
 
 new-e2e-ssi-gke-autopilot-init:
   extends: .new-e2e_ssi_extra_distribution_init
+  timeout: 1h 05m
   variables:
     E2E_PROVISIONER: gke-autopilot
     E2E_STACK_NAME_SUFFIX: gke-autopilot
@@ -133,6 +134,7 @@ new-e2e-ssi-gke-autopilot:
 
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init
+  timeout: 1h 05m
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
     - !reference [.new_e2e_template, before_script]
@@ -161,6 +163,7 @@ new-e2e-ssi-openshift:
 
 new-e2e-ssi-aks:
   extends: .new-e2e_ssi_extra_distribution
+  timeout: 1h 40m
   variables:
     E2E_PROVISIONER: aks
     E2E_STACK_NAME_SUFFIX: aks

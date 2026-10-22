@@ -334,10 +334,20 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
+    # The Agent Manager GUI assets are copied verbatim. On Windows we also skip
+    # fontawesome-webfont.svg: it is the last @font-face fallback in
+    # font-awesome.min.css and is only reachable by browsers that support
+    # neither woff2, woff nor ttf (pre-2011 mobile browsers), which cannot run on
+    # the Windows versions the MSI supports. This keeps ~430 KiB out of the
+    # Windows packages. On Linux/macOS we keep it, as we do not control which
+    # browser renders the GUI there.
+    gui_asset_ignore = ["BUILD.bazel"]
+    if _resolve_target_platform() == "win32":
+        gui_asset_ignore.append("fontawesome-webfont.svg")
     shutil.copytree(
         "./comp/core/gui/impl/views/private",
         os.path.join(dist_folder, "views"),
-        ignore=shutil.ignore_patterns("BUILD.bazel"),
+        ignore=shutil.ignore_patterns(*gui_asset_ignore),
         dirs_exist_ok=True,
     )
     if development:
@@ -560,8 +570,18 @@ def hacky_dev_image_build(
         from tasks.privateactionrunner import build as privateactionrunner_build
 
         privateactionrunner_build(ctx)
+        bazel(
+            "run",
+            "//pkg/privateactionrunner/par-control:install",
+            "--",
+            "--destdir=bin/privateactionrunner",
+        )
+        bazel("run", "//pkg/procmgr/rust:install", "--", "--destdir=bin/privateactionrunner")
         copy_extra_agents += (
             "COPY bin/privateactionrunner/privateactionrunner /opt/datadog-agent/embedded/bin/privateactionrunner\n"
+            "COPY bin/privateactionrunner/embedded/bin/par-control /opt/datadog-agent/embedded/bin/par-control\n"
+            "COPY bin/privateactionrunner/embedded/bin/dd-procmgrd /opt/datadog-agent/embedded/bin/dd-procmgrd\n"
+            "COPY bin/privateactionrunner/embedded/bin/dd-procmgr /opt/datadog-agent/embedded/bin/dd-procmgr\n"
         )
 
     copy_ebpf_assets = ""

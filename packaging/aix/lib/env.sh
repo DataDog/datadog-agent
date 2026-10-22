@@ -21,8 +21,10 @@ export PYTHON_VERSION PYTHON_MAJ_MIN
 
 # ── Rust SDK version ──────────────────────────────────────────────────────────
 # IBM Rust SDK for AIX. The SDK is installed at /opt/freeware/lib/RustSDK/<ver>/bin.
-# All stage scripts reference $RUST_VERSION; update only this one line to upgrade.
-RUST_VERSION="1.92"
+# Used for the Python-extension build stages; saluki's own Rust version is
+# installed separately by setup-host.sh. All stage scripts reference
+# $RUST_VERSION; update only this one line to upgrade.
+RUST_VERSION="1.96"
 export RUST_VERSION
 
 # ── Build tree layout ─────────────────────────────────────────────────────────
@@ -31,21 +33,40 @@ BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
 
 # ── Agent source tree ─────────────────────────────────────────────────────────
-# AGENT_SRC is resolved by walking up from the calling script's directory to
-# the nearest .git ancestor. $0 in a sourced file still refers to the calling
-# script's path, so no caller-provided variable is needed.
-_dir=$(cd "$(dirname "$0")" && pwd)
+# AGENT_SRC is resolved by walking up from the current directory to the nearest
+# .git ancestor. Scripts sourcing env.sh must be run from within the agent
+# repo (relying on the cwd makes the resolution independent of how the caller
+# is itself invoked).
+_dir=$PWD
 while [ "$_dir" != "/" ] && [ ! -e "$_dir/.git" ]; do
     _dir=$(dirname "$_dir")
 done
 if [ ! -e "$_dir/.git" ]; then
-    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$(dirname "$0")" >&2
+    printf 'ERROR: env.sh could not find a .git ancestor of %s\n' "$PWD" >&2
     printf '       Run the build from a checkout of the datadog-agent source repo.\n' >&2
     exit 1
 fi
 AGENT_SRC=$_dir
 unset _dir
 export AGENT_SRC
+
+# ── Agent Data Plane (saluki) version ────────────────────────────────────────
+# Pinned in deps/agent_data_plane/agent_data_plane.MODULE.bazel. Used by
+# 00-checkout.sh to clone saluki at this tag, and by setup-host.sh to install
+# the Rust SDK version saluki pins. Pre-set the variable to override.
+if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+    _adp_module="$AGENT_SRC/deps/agent_data_plane/agent_data_plane.MODULE.bazel"
+    if [ -f "$_adp_module" ]; then
+        AGENT_DATA_PLANE_VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' "$_adp_module" | head -1)
+    fi
+    if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+        printf 'ERROR: env.sh could not read AGENT_DATA_PLANE_VERSION from %s\n' "$_adp_module" >&2
+        printf '       Is the source tree complete? Pre-set the variable to override.\n' >&2
+        exit 1
+    fi
+fi
+unset _adp_module
+export AGENT_DATA_PLANE_VERSION
 
 # DESTDIR approach (critical — read before modifying):
 #   EMBEDDED     = final install path baked into all binaries at configure time
@@ -92,9 +113,12 @@ fi
 
 if [ -n "${AGENT_BUILD:-}" ]; then
     AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
+
+    # --- Output artifact path ---
+    BFF_PATH="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
 fi
 
-export AGENT_VERSION AGENT_BUILD AGENT_VRMF
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF BFF_PATH
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
@@ -133,7 +157,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-GOPATH=/home/gopath
+GOPATH="$BUILD_DIR/gopath"
 GOROOT=/opt/go
 CGO_ENABLED=1
 CGO_CFLAGS="-I/opt/freeware/include"
@@ -143,28 +167,30 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# On hosts with less than 6 GiB of RAM, restrict Go compilation to one package
-# at a time and cap the heap to prevent swap thrash. Each compile process can
-# use 3-4 GiB; without -p=1 multiple would compete for the same RAM.
-# On larger hosts, the default parallelism is fine.
+# On hosts with at least 4 GiB of RAM, allow one Go package compilation per
+# 4 GiB of memory and cap each compiler's heap at 3 GiB, leaving 1GiB of margin for each.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
-if [ -n "$_mem_kb" ] && [ "$_mem_kb" -lt 6291456 ]; then
-    GOFLAGS="-p=1"
-    GOMEMLIMIT=2GiB
+if [ -n "$_mem_kb" ] && [ "$_mem_kb" -ge 4194304 ]; then
+    GOFLAGS="-p=$((_mem_kb / 4194304))"
+    GOMEMLIMIT=3GiB
     export GOFLAGS GOMEMLIMIT
 fi
 unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
+# Keep Cargo's registry and cache on the build volume. Some Python packages
+# build Rust extensions through Cargo, and its default root-owned location can
+# exhaust the smaller root filesystem.
+CARGO_HOME=$BUILD_DIR/cargo-home
 # Give the build its own temp dir instead of the shared /tmp, so it is not
 # affected by a full /tmp or by unrelated files other processes leave there
 # (which can, for example, confuse cargo's workspace-root lookup during
 # wheel builds).
 TMPDIR=/opt/dd-build/buildtmp
-mkdir -p "$GOCACHE" "$TMPDIR"
+mkdir -p "$GOCACHE" "$CARGO_HOME" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE CARGO_HOME TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 

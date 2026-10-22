@@ -41,7 +41,7 @@ func TestDentryPathERPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -69,12 +69,12 @@ func TestDentryPathERPC(t *testing.T) {
 	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(testFile)
 
-		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check that the path is now available from the cache
-		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
@@ -105,7 +105,7 @@ func TestDentryPathMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -133,12 +133,12 @@ func TestDentryPathMap(t *testing.T) {
 	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(testFile)
 
-		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check that the path is now available from the cache
-		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
@@ -167,7 +167,7 @@ func TestDentryName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -196,11 +196,11 @@ func TestDentryName(t *testing.T) {
 		basename := path.Base(testFile)
 
 		// check that the path is now available from the cache
-		res := p.Resolvers.DentryResolver.ResolveName(event.Open.File.PathKey, true)
+		res := p.Resolvers.DentryResolver.ResolveName(event.Open.File.PathKey, true, dentry.CallerFile)
 		assert.Equal(test.t, basename, res)
 
 		// check that the path is now available from the cache
-		res, err = p.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
+		res, err = p.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 	}, "test_dentry_name_rule")
@@ -222,7 +222,7 @@ func TestDentryInvalidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -252,12 +252,12 @@ func TestDentryInvalidation(t *testing.T) {
 	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(testFile)
 
-		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check that the path is now available from the cache
-		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
@@ -284,12 +284,12 @@ func TestDentryInvalidation(t *testing.T) {
 	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(newFile)
 
-		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check that the path is now available from the cache
-		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey, dentry.CallerFile)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
@@ -309,7 +309,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -345,10 +345,10 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Get()); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromERPC(pathKey, true)
+	f, err := resolver.ResolveFromERPC(pathKey, true, dentry.CallerFile)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -356,7 +356,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromERPC(pathKey, true)
+		f, err := resolver.ResolveFromERPC(pathKey, true, dentry.CallerFile)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -365,7 +365,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }
 
 var _ = declare(BenchmarkMapDentryResolutionSegment, testOpts{disableERPCDentryResolution: true})
@@ -380,7 +380,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -416,10 +416,10 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Get()); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.ResolveNameFromMap(pathKey, true)
+	name, err := resolver.ResolveNameFromMap(pathKey, true, dentry.CallerFile)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -427,7 +427,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromMap(pathKey, true)
+		name, err = resolver.ResolveNameFromMap(pathKey, true, dentry.CallerFile)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -436,7 +436,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }
 
 var _ = declare(BenchmarkMapDentryResolutionPath, testOpts{disableERPCDentryResolution: true})
@@ -451,7 +451,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -486,10 +486,10 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Get()); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromMap(pathKey, true)
+	f, err := resolver.ResolveFromMap(pathKey, true, dentry.CallerFile)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -497,7 +497,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(pathKey, true)
+		f, err := resolver.ResolveFromMap(pathKey, true, dentry.CallerFile)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -506,5 +506,5 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }

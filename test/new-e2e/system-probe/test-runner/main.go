@@ -71,7 +71,7 @@ var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
-	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
+	regexp.MustCompile("pkg/network/usm/tests$"):      55 * time.Minute,
 	regexp.MustCompile("pkg/security.*"):              55 * time.Minute,
 }
 
@@ -305,6 +305,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			if err := cmd.Run(); err != nil {
 				// log but do not return error
 				fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
+			}
+
+			// gotestsum reruns failed tests via -rerun-fails, so mark retried testcases for CI Visibility.
+			if err := markRetriedTestCases(xmlpath); err != nil {
+				return fmt.Errorf("xml mark retries: %s", err)
 			}
 
 			if err := addProperties(xmlpath, props); err != nil {

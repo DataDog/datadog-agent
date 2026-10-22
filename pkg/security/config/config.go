@@ -9,10 +9,9 @@
 package config
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
-	"net"
+	"net/netip"
 	"slices"
 	"time"
 
@@ -422,7 +421,7 @@ type RuntimeSecurityConfig struct {
 	// Per-type event sampling config
 	// description: EventSamplingOpenEnabled defines if the agent should sample open events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingOpenEnabled bool
 
 	// description: EventSamplingOpenRate defines the rate at which the agent should sample open events
@@ -437,7 +436,7 @@ type RuntimeSecurityConfig struct {
 	EventSamplingOpenThreshold int
 	// description: EventSamplingConnectEnabled defines if the agent should sample connect events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingConnectEnabled bool
 
 	// description: EventSamplingConnectRate defines the rate at which the agent should sample connect events
@@ -452,7 +451,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: EventSamplingBindEnabled defines if the agent should sample bind events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingBindEnabled bool
 
 	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
@@ -465,20 +464,20 @@ type RuntimeSecurityConfig struct {
 	// default_value: 60
 	EventSamplingBindThreshold int
 
-	// description: EventSamplingDNSEnabled defines if the agent should sample DNS events
+	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
 	// visibility: private
-	// default_value: false
-	EventSamplingDNSEnabled bool
+	// default_value: true
+	EventSamplingSyscallsEnabled bool
 
-	// description: EventSamplingDNSRate defines the rate at which the agent should sample DNS events
+	// description: EventSamplingSyscallsRate defines the rate at which the agent should sample syscall events
 	// visibility: private
 	// default_value: 500
-	EventSamplingDNSRate int
+	EventSamplingSyscallsRate int
 
-	// description: EventSamplingDNSThreshold defines the ring buffer pressure percentage below which DNS events are always admitted when dynamic sampling is enabled
+	// description: EventSamplingSyscallsThreshold defines the ring buffer pressure percentage below which syscall events are always admitted when dynamic sampling is enabled
 	// visibility: private
 	// default_value: 60
-	EventSamplingDNSThreshold int
+	EventSamplingSyscallsThreshold int
 
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
@@ -555,6 +554,26 @@ type RuntimeSecurityConfig struct {
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
 
+	// description: SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration after the profile is created instead of waiting for the first persistence.
+	// visibility: private
+	// default_value: false
+	SecurityProfileV2ProfileReportingDelayTimeBased bool
+
+	// description: SecurityProfileV2ProfileReportingDelayDuration is the delay after a profile is created before it starts reporting out-of-profile events, used only when SecurityProfileV2ProfileReportingDelayTimeBased is true.
+	// visibility: private
+	// default_value: 0s
+	SecurityProfileV2ProfileReportingDelayDuration time.Duration
+
+	// description: SecurityProfileV2ProfilingStartupDelay is the delay after system-probe starts during which v2 workload profiling ignores events, so profiles don't capture noisy activity while system-probe is still stabilizing (OS resync, rule loading, programming approvers and discarders into the kernel). A zero value disables the delay.
+	// visibility: private
+	// default_value: 0s
+	SecurityProfileV2ProfilingStartupDelay time.Duration
+
+	// description: SecurityProfileV2ClearLocalProfilesOnStart, when true, deletes every locally stored security profile on startup. Testing aid.
+	// visibility: private
+	// default_value: false
+	SecurityProfileV2ClearLocalProfilesOnStart bool
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -587,12 +606,12 @@ type RuntimeSecurityConfig struct {
 
 	// description: AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
 	// visibility: private
-	// default_value: 1m
+	// default_value: 1s
 	AnomalyDetectionRateLimiterPeriod time.Duration
 
 	// description: AnomalyDetectionRateLimiterNumEventsAllowed is the number of anomaly detection events allowed per duration by the rate limiter
 	// visibility: private
-	// default_value: 10
+	// default_value: 2000
 	AnomalyDetectionRateLimiterNumEventsAllowed int
 
 	// description: AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter
@@ -620,24 +639,29 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SBOMResolverEnabled bool
 
-	// description: SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
+	// description: SBOMResolverWorkloadsCacheSize defines the count of unused image scans to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
 	// visibility: private
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
 
-	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	// description: SBOMResolverUsageEnabled defines if the SBOM resolver should report the runtime usage of packages
+	// visibility: private
+	// default_value: false
+	SBOMResolverUsageEnabled bool
+
+	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM, which the runtime usage enrichment of the host SBOM needs too
 	// visibility: private
 	// default_value: false
 	SBOMResolverHostEnabled bool
 
 	// description: SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	// visibility: private
-	// default_value: 1m
+	// default_value: 30m
 	SBOMResolverEnrichmentInterval time.Duration
 
 	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	// visibility: private
-	// default_value: 20s
+	// default_value: 1m
 	SBOMResolverForwardInterval time.Duration
 
 	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
@@ -839,7 +863,17 @@ type RuntimeSecurityConfig struct {
 	// description: IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	// visibility: private
 	// default_value: 169.254.169.254
-	IMDSIPv4 uint32
+	IMDSIPv4 string
+
+	// description: EKSPodIdentityIPv4 is used to provide a custom IPv4 address for the EKS Pod Identity Agent endpoint
+	// visibility: private
+	// default_value: 169.254.170.23
+	EKSPodIdentityIPv4 string
+
+	// description: EKSPodIdentityIPv6 is used to provide a custom IPv6 address for the EKS Pod Identity Agent endpoint
+	// visibility: private
+	// default_value: fd00:ec2::23
+	EKSPodIdentityIPv6 string
 
 	// description: EventGRPCServer defines which process should be used to send events and activity dumps
 	// visibility: private
@@ -876,6 +910,11 @@ func NewConfig() (*Config, error) {
 	rsConfig, err := NewRuntimeSecurityConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	// Only attach cap_capable when V2 profiles consume capability events.
+	if rsConfig.SecurityProfileV2Enabled && slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.CapabilitiesEventType) {
+		probeConfig.CapabilitiesMonitoringEnabled = true
 	}
 
 	return &Config{
@@ -994,11 +1033,13 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverUsageEnabled:       pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
 		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
-		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
+		SBOMResolverHostEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled") ||
+			pkgconfigsetup.Datadog().GetBool("sbom.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.host.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
+		SBOMResolverGeneratePolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -1021,19 +1062,19 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// event sampling (per-type)
-		EventSamplingOpenEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
-		EventSamplingOpenRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
-		EventSamplingOpenThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
-		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
-		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
-		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
-		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
-		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
-		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
-		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
-		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
+		EventSamplingOpenEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingOpenThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
+		EventSamplingConnectEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingConnectThreshold:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
+		EventSamplingSyscallsEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
+		EventSamplingSyscallsRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
+		EventSamplingSyscallsThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.threshold"),
+		EventSamplingDynamicEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -1053,6 +1094,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
+		SecurityProfileV2ProfileReportingDelayTimeBased: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.profile_reporting_delay.time_based"),
+		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
+		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
+		SecurityProfileV2ClearLocalProfilesOnStart:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.clear_local_profiles_on_start"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -1093,7 +1138,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
-		IMDSIPv4: parseIMDSIPv4(),
+		IMDSIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"),
+
+		// EKS Pod Identity
+		EKSPodIdentityIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv4"),
+		EKSPodIdentityIPv6: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv6"),
 
 		// event
 		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
@@ -1119,11 +1168,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
-	if rsConfig.SecurityProfileV2Enabled {
-		rsConfig.EventSamplingOpenEnabled = true
-		rsConfig.EventSamplingConnectEnabled = true
-		rsConfig.EventSamplingBindEnabled = true
-		rsConfig.EventSamplingDNSEnabled = true
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
+		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
+			if !slices.Contains(rsConfig.SecurityProfileV2EventTypes, et) {
+				rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, et)
+			}
+		}
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -1148,14 +1198,43 @@ func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
 	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
 }
 
-// parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
-func parseIMDSIPv4() uint32 {
-	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		return 0
+// CredentialEndpoint is an address and the credential source it serves
+type CredentialEndpoint struct {
+	Addr   netip.Addr
+	Source model.CredentialSource
+}
+
+// CredentialEndpoints returns the configured credential endpoints. An empty
+// address disables that endpoint.
+func (c *RuntimeSecurityConfig) CredentialEndpoints() ([]CredentialEndpoint, error) {
+	endpoints := []struct {
+		key    string
+		value  string
+		is4    bool
+		source model.CredentialSource
+	}{
+		{"runtime_security_config.imds_ipv4", c.IMDSIPv4, true, model.CredentialSourceIMDS},
+		{"runtime_security_config.eks_pod_identity_ipv4", c.EKSPodIdentityIPv4, true, model.CredentialSourceEKSPodIdentity},
+		{"runtime_security_config.eks_pod_identity_ipv6", c.EKSPodIdentityIPv6, false, model.CredentialSourceEKSPodIdentity},
 	}
-	return binary.LittleEndian.Uint32(parsedIP.To4())
+
+	var out []CredentialEndpoint
+	for _, endpoint := range endpoints {
+		if endpoint.value == "" {
+			continue
+		}
+
+		addr, err := netip.ParseAddr(endpoint.value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address for %s: %v", endpoint.key, endpoint.value)
+		}
+		if addr.Is4() != endpoint.is4 {
+			return nil, fmt.Errorf("wrong address family for %s: got %v", endpoint.key, endpoint.value)
+		}
+
+		out = append(out, CredentialEndpoint{Addr: addr, Source: endpoint.source})
+	}
+	return out, nil
 }
 
 // If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
@@ -1196,6 +1275,28 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
+// EventSamplingEnabledFor reports whether the sampler of eventType runs: its knob is on, and
+// security profile V2 is on for the type or, for opens, the SBOM resolver reports runtime usage.
+func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventType) bool {
+	var enabled bool
+	switch eventType {
+	case model.FileOpenEventType:
+		if c.EventSamplingOpenEnabled && c.SBOMResolverUsageEnabled {
+			return true
+		}
+		enabled = c.EventSamplingOpenEnabled
+	case model.ConnectEventType:
+		enabled = c.EventSamplingConnectEnabled
+	case model.BindEventType:
+		enabled = c.EventSamplingBindEnabled
+	case model.SyscallsEventType:
+		enabled = c.EventSamplingSyscallsEnabled
+	default:
+		return false
+	}
+	return enabled && c.SecurityProfileV2Enabled && slices.Contains(c.SecurityProfileV2EventTypes, eventType)
+}
+
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
 	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true))
@@ -1203,8 +1304,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		c.HostServiceName = serviceName
 	}
 
-	if c.IMDSIPv4 == 0 {
-		return fmt.Errorf("invalid IPv4 address: got %v", pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"))
+	if _, err := c.CredentialEndpoints(); err != nil {
+		return err
 	}
 
 	if c.EnforcementDisarmerContainerEnabled && c.EnforcementDisarmerContainerMaxAllowed <= 0 {
@@ -1222,11 +1323,19 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
 		{"bind", c.EventSamplingBindThreshold},
-		{"dns", c.EventSamplingDNSThreshold},
+		{"syscalls", c.EventSamplingSyscallsThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
 		}
+	}
+
+	if c.SecurityProfileV2ProfileReportingDelayDuration < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profile_reporting_delay.duration: %s, must not be negative", c.SecurityProfileV2ProfileReportingDelayDuration)
+	}
+
+	if c.SecurityProfileV2ProfilingStartupDelay < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profiling_startup_delay: %s, must not be negative", c.SecurityProfileV2ProfilingStartupDelay)
 	}
 
 	c.sanitizePlatform()

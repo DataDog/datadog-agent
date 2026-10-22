@@ -14,6 +14,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -27,6 +28,18 @@ const (
 
 	minProcEntries = 16384
 	maxProcEntries = 131072
+)
+
+// Sizes of the event sampling dedup maps. The userspace sample cookie LRU is sized from
+// these.
+const (
+	OpenSamplesMaxEntries    = 20000
+	BindSamplesMaxEntries    = 10000
+	ConnectSamplesMaxEntries = 10000
+	SyscallSamplesMaxEntries = 20000
+	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
+	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
+	ExcludedCgroupsMaxEntries = 4096
 )
 
 var (
@@ -200,6 +213,7 @@ type MapSpecEditorOpts struct {
 	TracedCgroupSize              int
 	UseMmapableMaps               bool
 	UseRingBuffers                bool
+	UseSyscallTaskStorage         bool
 	RingBufferSize                uint32
 	PathResolutionEnabled         bool
 	SecurityProfileMaxCount       int
@@ -212,9 +226,9 @@ type MapSpecEditorOpts struct {
 	CgroupSocketEnabled           bool
 	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
-	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
-	EventSamplingDNSEnabled       bool
+	EventSamplingConnectEnabled   bool
+	EventSamplingSyscallsEnabled  bool
 	BasenameApproversSize         int
 }
 
@@ -246,10 +260,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	editors := map[string]manager.MapSpecEditor{
-		"syscalls": {
-			MaxEntries: 8192,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"proc_cache": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -309,21 +319,32 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
-			MaxEntries: 20000,
+			MaxEntries: OpenSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingBindEnabled {
 		editors["bind_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: BindSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingConnectEnabled {
 		editors["connect_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: ConnectSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingSyscallsEnabled {
+		editors["syscall_samples"] = manager.MapSpecEditor{
+			MaxEntries: SyscallSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["excluded_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: ExcludedCgroupsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -433,6 +454,38 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.UseSyscallTaskStorage {
+		editors["syscalls"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+		editors["capabilities_contexts"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+		editors["dentry_resolver_inputs"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+	} else {
+		editors["syscalls"] = manager.MapSpecEditor{
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

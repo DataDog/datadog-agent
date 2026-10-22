@@ -101,11 +101,8 @@ func TestNVLinkPLRCollectorCachePartialError(t *testing.T) {
 func TestNVLinkCollectorNilCacheReturnsUnsupported(t *testing.T) {
 	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(2))
 
-	_, err := newNVLinkPLRCollector(mockDevice, nil)
-	require.ErrorIs(t, err, errUnsupportedDevice)
-
-	_, err = newNVLinkPLRCollector(mockDevice, &CollectorDependencies{})
-	require.ErrorIs(t, err, errUnsupportedDevice)
+	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{})
+	require.ErrorContains(t, err, "PRM cache is required")
 }
 
 func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
@@ -136,7 +133,10 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 			}
 			opts = append(opts, tt.customize...)
 			mockDevice := setupMockDevice(t, opts...)
-			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
+			cache := &PRMCache{}
+			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{
+				PRMCache: cache,
+			})
 			require.ErrorIs(t, err, errUnsupportedDevice)
 		})
 	}
@@ -145,7 +145,10 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 func TestNVLinkPLRCollectorPreBlackwellUnsupported(t *testing.T) {
 	mockDevice := setupMockDevice(t, testutil.WithArchitecture("hopper"), testutil.WithNVLinkLinkCount(2))
 
-	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
+	cache := &PRMCache{}
+	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{
+		PRMCache: cache,
+	})
 	require.ErrorIs(t, err, errUnsupportedDevice)
 	require.ErrorContains(t, err, "Blackwell or newer")
 }

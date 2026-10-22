@@ -74,6 +74,8 @@ type Requires struct {
 	Telemetry      telemetry.Component
 	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
+	// Without supplied params, preparation stays lazy until LoadAndRun.
+	Params autodiscoverydef.Params `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -91,7 +93,9 @@ type AutoConfig struct {
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
-	refreshConfig            chan string
+	refreshConfig            chan struct{}
+	refreshConfigMu          sync.Mutex
+	pendingSecretRefreshes   map[string]struct{}
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
@@ -104,6 +108,7 @@ type AutoConfig struct {
 	healthPlatform           healthplatformdef.Component
 	staticConfigIndex        *listeners.StaticConfigIndex
 	serviceTracker           adtypes.ServiceTracker
+	preparation              *preparation
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -182,9 +187,17 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	}()
 
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
+	ac.preparation = &preparation{initialize: func() {
+		started := time.Now()
+		ac.prepareDefaults(deps.Config)
+		deps.Log.Infof("Autodiscovery setup completed in %s", time.Since(started))
+	}}
 	deps.Lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
+		OnStart: func(ctx context.Context) error {
 			ac.start()
+			if deps.Params.PreloadConfigsOnStart {
+				_, _, _ = ac.preparation.start(ctx)
+			}
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
@@ -195,7 +208,9 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 	return ac
 }
 
-// NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies (without starting).
+// NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies,
+// without starting it or installing default configuration preparation.
+// LoadAndRun only runs explicitly registered providers on this instance.
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
 	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
@@ -215,7 +230,8 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
-		refreshConfig:            make(chan string, 100),
+		refreshConfig:            make(chan struct{}, 1),
+		pendingSecretRefreshes:   make(map[string]struct{}),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
@@ -238,14 +254,13 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		}
 
 		isEnc, _ := utils.IsEnc(oldValueStr)
-		// - An empty old value means this secret was initially resolved and isn't a refresh.
-		// - An unresolved ([ENC]) value implies this secret was triggered by a cache hit, not a refresh.
-		if oldValueStr == "" || isEnc {
+		// An unresolved ([ENC]) value implies this secret was triggered by a cache hit,
+		// not a refresh. An empty old value is actionable: it means a previously
+		// unresolved handle succeeded during a secret refresh.
+		if isEnc {
 			return
 		}
-		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
-		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
-		ac.refreshConfig <- origin
+		ac.queueSecretRefresh(origin)
 	})
 
 	return ac
@@ -265,9 +280,42 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
-		case origin := <-ac.refreshConfig:
-			ac.processRefreshConfig(origin)
+		case <-ac.refreshConfig:
+			ac.processQueuedSecretRefreshes()
 		}
+	}
+}
+
+// queueSecretRefresh schedules one asynchronous config refresh per origin. Secret
+// callbacks run while the resolver holds its lock, so this must never block or
+// synchronously resolve a config.
+func (ac *AutoConfig) queueSecretRefresh(origin string) {
+	ac.refreshConfigMu.Lock()
+	ac.pendingSecretRefreshes[origin] = struct{}{}
+	ac.refreshConfigMu.Unlock()
+
+	select {
+	case ac.refreshConfig <- struct{}{}:
+	default:
+	}
+}
+
+func (ac *AutoConfig) processQueuedSecretRefreshes() {
+	for {
+		ac.refreshConfigMu.Lock()
+		var origin string
+		found := false
+		for origin = range ac.pendingSecretRefreshes {
+			delete(ac.pendingSecretRefreshes, origin)
+			found = true
+			break
+		}
+		ac.refreshConfigMu.Unlock()
+
+		if !found {
+			return
+		}
+		ac.processRefreshConfig(origin)
 	}
 }
 
@@ -391,6 +439,10 @@ func (ac *AutoConfig) discoveredChangesLoop(ch <-chan integration.ConfigChanges)
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) stop() {
+	if ac.preparation != nil {
+		ac.preparation.stop()
+	}
+
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
@@ -437,10 +489,21 @@ func (ac *AutoConfig) AddConfigProvider(provider providerTypes.ConfigProvider, s
 	ac.configPollers = append(ac.configPollers, cp)
 }
 
-// LoadAndRun loads all of the integration configs it can find
-// and schedules them. Should always be run once so providers
-// that don't need polling will be queried at least once
-func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
+// LoadAndRun prepares default providers/listeners if necessary, then loads and
+// schedules configs from all registered providers. Bare instances created for
+// mocks skip default preparation. Call once after startup, before shutdown;
+// callers may retry a canceled preparation wait, but must not start providers twice.
+func (ac *AutoConfig) LoadAndRun(ctx context.Context) error {
+	if ac.preparation != nil {
+		if err := ac.preparation.wait(ctx); err != nil {
+			return err
+		}
+	}
+	ac.loadRegisteredProviders(ctx)
+	return nil
+}
+
+func (ac *AutoConfig) loadRegisteredProviders(ctx context.Context) {
 	for _, cp := range ac.getConfigPollers() {
 		cp.start(ctx, ac)
 		if cp.canPoll {

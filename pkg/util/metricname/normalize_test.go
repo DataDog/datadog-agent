@@ -110,6 +110,204 @@ func TestNormalizeIsIdempotent(t *testing.T) {
 	}
 }
 
+// normalizePrefix is the string-returning form of NormalizePrefixAppend, for the
+// same reason `normalize` exists.
+func normalizePrefix(prefix string) (string, bool) {
+	got, ok := NormalizePrefixAppend(make([]byte, 0, MaxLength), prefix)
+	if !ok {
+		return prefix, false
+	}
+	return string(got), true
+}
+
+// TestNormalizePrefix asserts that a prefix keeps the boundary that a complete
+// name drops, so that normalizing an entry never widens the family of names it
+// matches.
+func TestNormalizePrefix(t *testing.T) {
+	cases := map[string]string{
+		// The boundary a complete name would lose. Every name in the family the
+		// prefix names keeps it, because an alphanumeric follows it there.
+		"service_":   "service_",
+		"service-":   "service_",
+		"service ":   "service_",
+		"service__":  "service_",
+		"service.a-": "service.a_",
+		// A period is a boundary the intake keeps as is, and it absorbs the
+		// underscore that would precede it.
+		"service.":  "service.",
+		"service._": "service.",
+		"service-.": "service.",
+		// Nothing to restore: these normalize like any name.
+		"service":       "service",
+		"my metric.":    "my_metric.",
+		"my metric":     "my_metric",
+		"MyService.Sub": "MyService.Sub",
+		// Multi-byte sequences collapse to a single boundary underscore.
+		"caf\u00e9": "caf_",
+		// The empty prefix matches every name.
+		"": "",
+	}
+
+	for input, expected := range cases {
+		t.Run(input, func(t *testing.T) {
+			actual, ok := normalizePrefix(input)
+			require.True(t, ok, "expected %q to be a usable prefix", input)
+			assert.Equal(t, expected, actual)
+
+			// Normalizing an already-normalized prefix changes nothing, so a
+			// list normalized twice (config load, then an RC update) is stable.
+			twice, ok := normalizePrefix(actual)
+			require.True(t, ok)
+			assert.Equal(t, actual, twice, "normalizing a prefix must be idempotent")
+		})
+	}
+}
+
+// TestNormalizePrefixUnusable asserts that a prefix no stored name can start
+// with is rejected rather than turned into a shorter, wider prefix -- or, worse,
+// into the empty prefix, which matches everything.
+func TestNormalizePrefixUnusable(t *testing.T) {
+	// No stored name starts with a byte the intake strips, so none of these can
+	// match anything.
+	for _, input := range []string{"123.", "_", ".", "-", "123", strings.Repeat("a", MaxLength+1)} {
+		t.Run(input, func(t *testing.T) {
+			actual, ok := normalizePrefix(input)
+			assert.False(t, ok, "expected %q to be rejected", input)
+			assert.Equal(t, input, actual, "rejected prefixes must be returned unchanged")
+		})
+	}
+}
+
+// TestNormalizePrefixMatchesNormalizedNames ties the two together: for every
+// name in the reference table, splitting the raw name in front of an
+// alphanumeric gives a prefix that still matches the normalized name.
+//
+// The split has to be in front of an alphanumeric, because the byte following a
+// prefix is what decides its boundary, and a prefix does not get to know it: the
+// raw prefix `a_` is the `a_...` family in `a_b` (stored `a_b`), but the `a.`
+// family in `a_.b` (stored `a.b`). NormalizePrefixAppend resolves that ambiguity
+// towards the family the entry spells out, which is the one an alphanumeric
+// continues; covering both would mean widening the prefix to `a`, and dropping
+// every `a`-something metric.
+func TestNormalizePrefixMatchesNormalizedNames(t *testing.T) {
+	for input := range normalizedNames {
+		name, ok := normalize(input)
+		if !ok {
+			continue
+		}
+
+		for i := 1; i < len(input); i++ {
+			if !isAlphaNum(input[i]) {
+				continue
+			}
+			prefix, ok := normalizePrefix(input[:i])
+			if !ok {
+				continue
+			}
+			assert.True(t, strings.HasPrefix(name, prefix),
+				"prefix %q of %q normalizes to %q, which does not match %q",
+				input[:i], input, prefix, name)
+		}
+	}
+}
+
+// Prefix rules normalize prefixes and exact exceptions differently.
+func TestNormalizePrefixRules(t *testing.T) {
+	cases := []struct {
+		name              string
+		rules             []PrefixRule
+		normalized        []PrefixRule
+		droppedRules      []string
+		droppedExceptions []string
+	}{
+		{
+			name:       "empty",
+			rules:      nil,
+			normalized: []PrefixRule{},
+		},
+		{
+			name: "prefix is normalized as a prefix, not as a name",
+			rules: []PrefixRule{
+				{Prefix: "service_"},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "service_"},
+			},
+		},
+		{
+			name: "star is not a marker anywhere in a PrefixRule",
+			rules: []PrefixRule{
+				{Prefix: "foo.*", ExceptExact: []string{"foo.bar*"}, ExceptPrefix: []string{"foo.baz*"}},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "foo.", ExceptExact: []string{"foo.bar"}, ExceptPrefix: []string{"foo.baz_"}},
+			},
+		},
+		{
+			name: "empty prefix and empty except_prefix are kept, they match everything",
+			rules: []PrefixRule{
+				{Prefix: "", ExceptPrefix: []string{""}},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "", ExceptPrefix: []string{""}},
+			},
+		},
+		{
+			name: "empty except_exact is dropped, no stored name is ever empty",
+			rules: []PrefixRule{
+				{Prefix: "foo.", ExceptExact: []string{"", "foo.bar"}},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
+			},
+			droppedExceptions: []string{""},
+		},
+		{
+			name: "unusable prefix drops the whole rule",
+			rules: []PrefixRule{
+				{Prefix: "123", ExceptExact: []string{"foo.bar"}},
+				{Prefix: "foo."},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "foo."},
+			},
+			droppedRules: []string{"123"},
+		},
+		{
+			name: "unusable exceptions are dropped on their own, the rule is kept",
+			rules: []PrefixRule{
+				{
+					Prefix:       "foo.",
+					ExceptExact:  []string{"123", "foo.bar"},
+					ExceptPrefix: []string{"123", "foo.baz."},
+				},
+			},
+			normalized: []PrefixRule{
+				{
+					Prefix:       "foo.",
+					ExceptExact:  []string{"foo.bar"},
+					ExceptPrefix: []string{"foo.baz."},
+				},
+			},
+			droppedExceptions: []string{"123", "123"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			normalized, droppedRules, droppedExceptions := NormalizePrefixRules(c.rules)
+			assert.Equal(t, c.normalized, normalized)
+			assert.Equal(t, c.droppedRules, droppedRules)
+			assert.Equal(t, c.droppedExceptions, droppedExceptions)
+
+			twice, droppedRulesTwice, droppedExceptionsTwice := NormalizePrefixRules(normalized)
+			assert.Equal(t, normalized, twice, "normalizing prefix rules must be idempotent")
+			assert.Empty(t, droppedRulesTwice)
+			assert.Empty(t, droppedExceptionsTwice)
+		})
+	}
+}
+
 func TestNormalizeUnstorableNames(t *testing.T) {
 	for _, input := range unstorableNames {
 		t.Run(input, func(t *testing.T) {

@@ -1,0 +1,46 @@
+---
+# Contains jobs which deploy Full Host Profiler (ddot-ebpf) related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
+
+.deploy_mutable_host_profiler_tags-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_mutable_image_tags
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${DDOT_EBPF_REPOSITORY}:${VERSION}
+
+deploy_mutable_host_profiler_tags-rc:
+  extends: .deploy_mutable_host_profiler_tags-base
+  rules: !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-host-profiler
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: 7-rc
+
+deploy_mutable_host_profiler_tags-latest:
+  extends: .deploy_mutable_host_profiler_tags-base
+  rules: !reference [.on_deploy_manual_final]
+  needs:
+    - job: deploy_containers-host-profiler
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: 7,latest
+
+deploy_mutable_host_profiler_tags_internal-rc:
+  extends: .deploy_mutable_host_profiler_tags-base
+  rules: !reference [.on_deploy_internal_rc]
+  needs:
+    - job: deploy_containers-host-profiler_internal-rc
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: 7-rc
+
+deploy_mutable_host_profiler_tags_internal-latest:
+  extends: .deploy_mutable_host_profiler_tags-base
+  rules: !reference [.on_deploy_internal_manual_final]
+  needs:
+    - job: deploy_containers-host-profiler_internal
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: 7,latest

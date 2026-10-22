@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -24,8 +23,9 @@ type scanmwStateKey struct {
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	lastWriteGen       int64
-	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
+	lastObservedTime   int64
+	observedPoints     int // cumulative completed points, independent of storage eviction
+	lastProcessedCount int // cumulative point count at the last scan
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
@@ -149,7 +149,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 		d.cachedGen = gen
 	}
 
-	// Bulk-fetch write generations in a single lock acquisition.
+	// Bulk-fetch visible point counts for series activation.
 	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
@@ -173,15 +173,14 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				d.series[sk] = state
 			}
 
-			// Skip unless at least MinSegment new points are visible since the
-			// last scan. Gating on visible point count (not WriteGeneration
-			// alone) is required for replay: storage may already hold future
-			// points, so WriteGeneration reaches its final value before the
-			// simulated dataTime has advanced far enough to expose them, which
-			// would otherwise suppress every scan. WriteGeneration is still
-			// checked to catch same-bucket merges that leave the count
-			// unchanged but move stored values. Mirrors the BOCPD replay gate.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Count newly visible completed buckets, not storage writes. Preloaded
+			// replay has already written future points; streaming writes them as
+			// time advances. Retained point counts also stop growing on eviction.
+			storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+				state.observedPoints++
+				state.lastObservedTime = p.Timestamp
+			})
+			if !activated && state.observedPoints < state.lastProcessedCount+d.MinSegment {
 				continue
 			}
 
@@ -198,8 +197,7 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			}
 
 			if seriesMeta == nil || len(d.scanBuf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
-				state.lastWriteGen = status.writeGeneration
+				state.lastProcessedCount = state.observedPoints
 				continue
 			}
 			d.ready = true
@@ -212,11 +210,10 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			}
 
 			if activated {
-				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+				state.lastProcessedCount = 1 + ((state.observedPoints-1)/d.MinSegment)*d.MinSegment
 			} else {
-				state.lastProcessedCount = status.pointCount
+				state.lastProcessedCount = state.observedPoints
 			}
-			state.lastWriteGen = status.writeGeneration
 		}
 	}
 
@@ -316,24 +313,15 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	}
 
 	changePtTime := points[bestK].Timestamp
-	direction := "increased"
-	if postMedian < preMedian {
-		direction = "decreased"
-	}
-
 	score := -math.Log10(bestPValue)
 	if math.IsInf(score, 1) {
 		score = 300.0
 	}
 
-	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
-		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
-		DetectorName: d.Name(),
-		Title:        "ScanMW changepoint: " + seriesName,
-		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
-			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
+		Type:                observer.AnomalyTypeMetric,
+		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
+		DetectorName:        d.Name(),
 		Timestamp:           changePtTime,
 		Score:               &score,
 		SamplingIntervalSec: d.workspace.medianPointInterval(points),
@@ -342,6 +330,8 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 			BaselineMAD:    preMAD,
 			CurrentValue:   postMedian,
 			DeviationSigma: deviation,
+			PValue:         bestPValue,
+			EffectSize:     effectSize,
 		},
 	}
 

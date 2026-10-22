@@ -32,6 +32,7 @@ import (
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
+	remotedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -39,11 +40,12 @@ import (
 
 // Requires defines the dependencies for the health-platform component
 type Requires struct {
-	Lifecycle compdef.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
+	Lifecycle    compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	Telemetry    telemetry.Component
+	Hostname     hostnameinterface.Component
+	RemoteIssues remotedef.Component
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
 	// selfident). Optional because only selfident's kubeapiserver build reads
 	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
@@ -115,7 +117,7 @@ const (
 	resolvedIssueTTL = 24 * time.Hour
 
 	// persistedStateVersion is the on-disk schema version written by this binary.
-	// loadFromDisk refuses to load files with a different version (no migration).
+	// restorePersistedState refuses to load files with a different version (no migration).
 	persistedStateVersion = 2
 )
 
@@ -132,7 +134,7 @@ func issueStateFromString(s string) IssueState {
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
-// It is both the in-memory and on-disk representation; proto payload fields are
+// It is both the in-memory and persisted representation; detailed proto payload fields are
 // intentionally omitted because IssueIDs are deterministic — when the agent
 // restarts, health checks re-run and call ReportIssue with the same ID, at which
 // point storeIssue picks up the existing firstSeen/state from this struct.
@@ -140,11 +142,12 @@ func issueStateFromString(s string) IssueState {
 // IssueType (this struct) is a legacy name for the issue's IssueName, kept as-is
 // for on-disk compatibility — it is not the proto Issue.IssueType field. ProtoIssueType
 // carries that proto field so resolved tombstones (ResolveIssue, ResolveAllIssues,
-// loadFromDisk) can forward it same as they already do for IssueName.
+// restorePersistedState) can forward it same as they already do for IssueName.
 type PersistedIssue struct {
 	IssueID        string     `json:"issue_id"`
 	IssueType      string     `json:"issue_type"`
 	ProtoIssueType string     `json:"proto_issue_type,omitempty"`
+	Category       string     `json:"category,omitempty"`
 	State          IssueState `json:"state"`
 	FirstSeen      string     `json:"first_seen"`
 	LastSeen       string     `json:"last_seen"`
@@ -193,8 +196,8 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 	return pi
 }
 
-// PersistedState is the full state written to disk.
-// Version must equal persistedStateVersion; files with a different version are ignored on load.
+// PersistedState is the full lifecycle state stored by a persistence implementation.
+// Version must equal persistedStateVersion; state with a different version is ignored on load.
 type PersistedState struct {
 	Version   int                        `json:"version"`
 	UpdatedAt string                     `json:"updated_at"`
@@ -262,19 +265,25 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
-	// Select persistence strategy: noop on Kubernetes (emptyDir makes disk persistence meaningless),
-	// disk-based elsewhere so issues survive agent restarts.
-	// Operators who mount run_path as a durable volume (hostPath, PVC) can opt in to disk
-	// persistence on Kubernetes by setting health_platform.persist_on_kubernetes: true.
-	var persistence issuesPersistence
+	agentFlavor := flavor.GetFlavor()
+	selfIdent := selfident.New(reqs.Workloadmeta)
+	isKubernetes := configenv.IsKubernetes()
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
-	if configenv.IsKubernetes() && !persistOnKubernetes {
-		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled (set health_platform.persist_on_kubernetes: true to enable)")
-		persistence = &noopPersistence{}
-	} else {
+	persistRemotelyOnKubernetes := reqs.Config.GetBool("health_platform.persist_remotely_on_kubernetes")
+	var persistence issuesPersistence = &noopPersistence{}
+	switch {
+	case isKubernetes && persistRemotelyOnKubernetes:
+		if persistOnKubernetes {
+			reqs.Log.Warn("Both health_platform.persist_on_kubernetes and health_platform.persist_remotely_on_kubernetes are enabled; remote persistence takes precedence")
+		}
+		reqs.Log.Info("Running on Kubernetes: remote health platform persistence enabled")
+		persistence = newRemotePersistence(reqs.RemoteIssues)
+	case !isKubernetes || persistOnKubernetes:
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
+	default:
+		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled")
 	}
 
 	// Initialize the health platform implementation
@@ -283,8 +292,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:              reqs.Log,
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
-		agentFlavor:      flavor.GetFlavor(),
-		selfIdent:        selfident.New(reqs.Workloadmeta),
+		agentFlavor:      agentFlavor,
+		selfIdent:        selfIdent,
 
 		issues:       make(map[string]*storedIssue),
 		issuesByName: make(map[string][]string),
@@ -327,10 +336,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 // ============================================================================
 
 // start starts the health platform component
-func (h *healthPlatformImpl) start(_ context.Context) error {
+func (h *healthPlatformImpl) start(ctx context.Context) error {
 	h.log.Info("Starting health platform component")
-	if err := h.loadFromDisk(); err != nil {
-		h.log.Warn("Failed to load persisted issues: " + err.Error())
+	if err := h.loadPersistedState(ctx); err != nil {
+		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
 	return nil
 }
@@ -483,6 +492,7 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			Id:             issueID,
 			IssueName:      persisted.IssueType,
 			IssueType:      persisted.ProtoIssueType,
+			Category:       persisted.Category,
 			PersistedIssue: persistedIssueToProto(persisted),
 		}
 	}
@@ -515,6 +525,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 		}
@@ -554,6 +565,21 @@ func (h *healthPlatformImpl) GetActiveIssueIDsByIssueName(issueName string) []st
 // modules that scope their own ids.
 func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
 	return issuesmod.IssueDiscriminator(h.selfIdent, hostID)
+}
+
+// ResourceIdentity returns the resource_type/resource_id describing the
+// entity this agent process represents; see the Component interface doc.
+func (h *healthPlatformImpl) ResourceIdentity(hostname string) (string, string) {
+	if h.agentFlavor == flavor.ClusterAgent {
+		if clusterID := h.selfIdent.ClusterID(); clusterID != "" {
+			return "cluster", clusterID
+		}
+		return "host", hostname
+	}
+	if deploymentID := h.selfIdent.DeploymentID(); deploymentID != "" {
+		return "deployment", deploymentID
+	}
+	return "host", hostname
 }
 
 // ============================================================================
@@ -649,6 +675,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		existing.LastSeen = now
 	}
 	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
+	h.persistedIssues[issueID].Category = issue.Category
 
 	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
 	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
@@ -686,21 +713,27 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk restores lifecycle state from the persistence layer.
-// Proto payload (issue title, description, etc.) is not stored on disk — IssueIDs are
-// deterministic, so health checks re-running after restart will call ReportIssue with the
-// same ID and storeIssue will pick up firstSeen/state from the restored PersistedIssue.
-func (h *healthPlatformImpl) loadFromDisk() error {
-	state, err := h.persistence.load()
+// loadPersistedState restores lifecycle state from the persistence layer.
+func (h *healthPlatformImpl) loadPersistedState(ctx context.Context) error {
+	state, err := h.persistence.load(ctx)
 	if err != nil {
 		return err
 	}
+	return h.restorePersistedState(state)
+}
+
+// restorePersistedState restores lifecycle state into the in-memory store.
+// Proto payload (issue title, description, etc.) is not stored in lifecycle state —
+// IssueIDs are deterministic, so health checks re-running after restart will call
+// ReportIssue with the same ID and storeIssue will pick up firstSeen/state from the
+// restored PersistedIssue.
+func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error {
 	if state == nil {
 		return nil
 	}
 
 	if state.Version != persistedStateVersion {
-		h.log.Warnf("Incompatible health-platform persistence file (version %d, expected %d); ignoring and starting fresh",
+		h.log.Warnf("Incompatible health-platform persistence state (version %d, expected %d); ignoring and starting fresh",
 			state.Version, persistedStateVersion)
 		return nil
 	}
@@ -728,6 +761,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Id:             issueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 			continue
@@ -819,6 +853,7 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 	if err != nil {
 		hostname = "unknown"
 	}
+	resourceType, resourceID := h.ResourceIdentity(hostname)
 
 	agentVersion := version.AgentVersion
 	report := &healthplatform.HealthReport{
@@ -828,6 +863,8 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
 			AgentVersion: &agentVersion,
+			ResourceType: resourceType,
+			ResourceId:   resourceID,
 		},
 		Issues: issues,
 	}

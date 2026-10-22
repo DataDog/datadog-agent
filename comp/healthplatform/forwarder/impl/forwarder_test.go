@@ -62,7 +62,9 @@ func TestSend(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, fwd.Send(context.Background(), report))
+	n, err := fwd.Send(context.Background(), report)
+	require.NoError(t, err)
+	assert.Positive(t, n)
 
 	assert.Equal(t, "application/json", receivedRequest.Header.Get("Content-Type"))
 	assert.Equal(t, "test-api-key", receivedRequest.Header.Get("DD-API-KEY"))
@@ -86,18 +88,20 @@ func TestSendHTTPError(t *testing.T) {
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
 
-	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected status code: 500")
+	assert.Zero(t, n)
 }
 
 func TestSendNoAPIKey(t *testing.T) {
 	cfg := config.NewMock(t)
 	fwd := newTestForwarder(t, cfg)
 
-	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key not configured")
+	assert.Zero(t, n)
 }
 
 func TestBuildIntakeURL(t *testing.T) {

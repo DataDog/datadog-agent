@@ -72,9 +72,15 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--headless` | _(empty)_ | Scenario subdirectory name to run in headless mode (no HTTP server) |
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
+| `--include-detector-anomalies` | `false` | Include every anomaly returned by detectors before baseline/muting/deduplication or correlation. Output is deterministic but grows with detector emissions. |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
 | `--cpuprofile` | _(empty)_ | Write a CPU profile covering the scenario replay to this file |
 | `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
+
+`--include-detector-anomalies` adds `metadata.total_detector_anomalies` and a
+sorted `detector_anomalies` array to the output. Each entry has `detector`,
+`timestamp`, canonical `source`, and `title`; it is intended to compare detector
+behavior across two runs without being affected by the correlator output.
 
 ## Components
 
@@ -83,9 +89,18 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | Name | Default | Description |
 |------|---------|-------------|
 | `bocpd` | enabled | Bayesian Online Change Point Detection — streaming, per-series changepoint detector |
-| `rrcf` | enabled | Robust Random Cut Forest — multivariate anomaly detection over system metrics |
 | `scanmw` | disabled | Mann-Whitney scan statistic detector |
 | `scanwelch` | disabled | Welch t-test scan statistic detector |
+| `holt_residual` | disabled | Holt forecasting residual detector |
+| `tukey_biweight` | disabled | Robust location and scale detector using Tukey biweight |
+
+Headless streaming uses production's detector-derived point-count and time
+retention limits (120 points and 1,816 seconds for the default BOCPD window).
+Slowly sampled metrics can therefore retain fewer points, just as in production.
+Retained replay remains unbounded and serves as a diagnostic reference; identical
+detections between the two modes are not guaranteed.
+For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
+replay profile; an explicit component config otherwise uses production defaults.
 
 ### Correlators
 
@@ -108,7 +123,7 @@ Extractors are always enabled and convert raw observations into timeseries:
 ## Examples
 
 ```bash
-# Run with all defaults (bocpd + rrcf + anomaly_scorer)
+# Run with all defaults (bocpd + anomaly_scorer)
 dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster
@@ -122,6 +137,12 @@ dda inv -- anomalydetection.launch-testbench --logs-only
 ```
 
 ## Headless Mode
+
+The [F1 scoring contract](../anomalydetection-scorer/README.md) rewards the first
+high-severity anomaly-scorer episode near disruption onset and penalizes new
+high-severity episodes during baseline and the final recovery quiet window.
+Early recovery is unscored. Use high-threshold scorer output for F1; medium
+episodes and TimeCluster correlations are excluded.
 
 Run a scenario without the HTTP server — load data, run the full detector→correlator pipeline, write a JSON results file, and exit.
 
@@ -253,11 +274,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
       "cp_mass_threshold": 0.65,
       "recovery_points": 8
     },
-    "rrcf": {
-      "enabled": true,
-      "threshold_sigma": 2.5,
-      "tree_size": 128
-    },
     "time_cluster": {
       "enabled": true,
       "proximity_seconds": 15,
@@ -283,15 +299,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `prior_variance_scale` | 10.0 | Diffuseness of prior over the mean |
 | `min_variance` | 1.0 | Variance floor (numerical stability) |
 | `recovery_points` | 10 | Consecutive quiet points needed to exit alert state |
-
-#### `rrcf`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `num_trees` | 100 | Number of trees in the forest |
-| `tree_size` | 256 | Sliding window size per tree |
-| `shingle_size` | 4 | Temporal context window (consecutive samples per point) |
-| `threshold_sigma` | 3.0 | σ above score mean to flag an anomaly |
 
 #### `time_cluster`
 
@@ -322,25 +329,35 @@ Headless runs stream by default. Metric and log parquet readers are merged into
 one timestamp-ordered observation stream. Each observation is ingested
 synchronously, detector/correlator analysis advances with the same scheduler as
 the live Observer, and an end-of-input flush analyzes the final timestamp. The
-stream uses the production storage limits, including the default 120-second
-point-retention window, so observation memory is bounded by the active window
-and series cardinality rather than total scenario length.
+stream uses both production point-count and time limits derived from the enabled
+detectors, retaining one additional pending scheduler bucket. Observation memory
+remains bounded by detector windows and series cardinality. Streaming also uses
+production defaults for series capacity, the eviction floor, inactivity TTL, and
+inactivity-check cadence (five minutes for both inactivity settings). Idle-series
+eviction removes the associated detector state through the same engine path.
+These are production defaults; deployment-specific Agent storage overrides are
+not automatically imported into the testbench.
 
 Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an
 extreme number of results can therefore still require significant memory.
 
-Streaming keeps metric rows in a bounded five-second reorder window because
-concurrent GenSim collection can write slightly late samples. Log ordering is
-validated at the Observer's one-second scheduling resolution. Recordings with
-disorder beyond those bounds fail descriptively instead of silently producing
-late points.
+Streaming keeps metric and log rows in five-second reorder windows, then merges
+both streams chronologically. Logs are ordered at millisecond precision; equal
+timestamps retain their input order within each stream. Rows more than five
+seconds behind the latest timestamp in their stream fail descriptively. Use
+`--retain-parquet` for recordings requiring a larger reorder window. This
+normalizes event-time order rather than reproducing live arrival order.
 
 Interactive runs, and headless runs with `--retain-parquet`, use the retained
 replay pipeline:
 
-1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.
-2. **Replay** — `ReplayStoredData` resets analysis state and walks every stored timestamp.
+1. **Load** — retain and sort the raw parquet rows in memory.
+2. **Replay** — merge metrics and logs chronologically, advancing the same scheduler as streaming while retaining unbounded metric history. Extractor cleanup and baseline qualification happen during replay, so future logs cannot delete series before detectors analyze them.
+
+ScanMW and ScanWelch schedule scans from newly visible completed buckets, not
+storage-write counters or retained point counts. Their counters survive point
+eviction, and preloaded future observations do not advance the scan schedule.
 
 The retained path supports interactive component toggles and remains available
 as a compatibility fallback, but its memory scales with the full scenario.

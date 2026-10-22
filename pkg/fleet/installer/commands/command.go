@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	logscrub "github.com/DataDog/datadog-agent/pkg/util/log/scrub"
 	pkglogslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	slogHandlers "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,23 +72,28 @@ func setupStdoutLogger(_ *env.Env) {
 	formatter := func(_ context.Context, r slog.Record) string {
 		return r.Message + "\n"
 	}
-	handler := slogHandlers.NewFormat(formatter, os.Stdout)
+	handler := logscrub.NewHandler(slogHandlers.NewFormat(formatter, os.Stdout))
 	loggerInterface := pkglogslog.NewWrapper(handler)
 	pkglog.SetupLogger(loggerInterface, level)
 }
 
 // newCmd creates a new command
-func newCmd(operation string, opts ...cmdOption) *cmd {
+func newCmd(operation string, opts ...cmdOption) (*cmd, error) {
 	cfg := &cmdConfig{}
 	for _, o := range opts {
 		o(cfg)
 	}
 	env := env.FromEnv()
-	applyDatadogYAMLRegistryConfig(env)
+	if err := applyDatadogYAMLRegistryConfig(env); err != nil {
+		return nil, err
+	}
 	if !env.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(env)
 	}
-	t := newTelemetry(env)
+	t, err := newTelemetry(env)
+	if err != nil {
+		return nil, err
+	}
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	ctx, stop := context.WithCancel(ctx)
 	handleSignals(ctx, stop)
@@ -98,7 +104,7 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 		span:           span,
 		env:            env,
 		stopSigHandler: stop,
-	}
+	}, nil
 }
 
 func handleSignals(ctx context.Context, stop context.CancelFunc) {
@@ -131,7 +137,10 @@ type installerCmd struct {
 }
 
 func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err error) {
-	cmd := newCmd(operation, opts...)
+	cmd, err := newCmd(operation, opts...)
+	if err != nil {
+		return nil, err
+	}
 	defer func() {
 		if err != nil {
 			cmd.stop(err)
@@ -176,23 +185,35 @@ type installerRegistryYAMLConfig struct {
 	} `yaml:"installer"`
 }
 
-// telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
-func telemetryConfig() telemetryConfigFields {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+// telemetryConfig reads the API key / site only from a trusted configuration directory.
+// Missing or malformed YAML remains best effort, but trust errors must stop telemetry startup.
+func telemetryConfig() (telemetryConfigFields, error) {
+	readable, err := paths.ConfigDirIsTrustedForRead(agentConfigDir)
+	if err != nil {
+		return telemetryConfigFields{}, err
+	}
+	if !readable {
+		// Absence at the gate is not permission to read a directory that appears later.
+		return telemetryConfigFields{}, nil
+	}
+	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
-		return telemetryConfigFields{}
+		return telemetryConfigFields{}, nil
 	}
 	var config telemetryConfigFields
 	err = yaml.Unmarshal(rawConfig, &config)
 	if err != nil {
-		return telemetryConfigFields{}
+		return telemetryConfigFields{}, nil
 	}
-	return config
+	return config, nil
 }
 
-func newTelemetry(env *env.Env) *telemetry.Telemetry {
-	config := telemetryConfig()
+func newTelemetry(env *env.Env) (*telemetry.Telemetry, error) {
+	config, err := telemetryConfig()
+	if err != nil {
+		return nil, err
+	}
 	apiKey := env.APIKey
 	if apiKey == "" {
 		apiKey = config.APIKey
@@ -208,20 +229,30 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	env.Site = site
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
-	return t
+	return t, nil
 }
 
 // applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
-// applies any values not already set by environment variables.
-func applyDatadogYAMLRegistryConfig(env *env.Env) {
+// applies any values not already set by environment variables. It validates configuration
+// directory trust before reading registry settings. Telemetry validates its own read separately.
+// Trust errors are fatal to startup; missing or malformed YAML remains best effort.
+func applyDatadogYAMLRegistryConfig(env *env.Env) error {
+	readable, err := paths.ConfigDirIsTrustedForRead(agentConfigDir)
+	if err != nil {
+		return err
+	}
+	if !readable {
+		// Do not discover configuration in a directory absent at the ownership check.
+		return nil
+	}
 	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
-		return
+		return nil
 	}
 	var config installerRegistryYAMLConfig
 	if err = yaml.Unmarshal(rawConfig, &config); err != nil {
-		return
+		return nil
 	}
 	r := config.Installer.Registry
 	if env.HasDefaultRegistryOverride() && r.Auth != "" {
@@ -236,6 +267,7 @@ func applyDatadogYAMLRegistryConfig(env *env.Env) {
 	if env.HasDefaultRegistryPassword() && r.Password != "" {
 		env.RegistryPassword = r.Password
 	}
+	return nil
 }
 
 // RootCommands returns the root commands
@@ -252,6 +284,7 @@ func RootCommands() []*cobra.Command {
 		installConfigExperimentCommand(),
 		removeConfigExperimentCommand(),
 		promoteConfigExperimentCommand(),
+		resumeConfigExperimentsCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
 		isInstalledCommand(),
@@ -309,7 +342,10 @@ func setupCommand() *cobra.Command {
 			AnnotationHumanReadableErrors: "true",
 		},
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			cmd := newCmd("setup")
+			cmd, err := newCmd("setup")
+			if err != nil {
+				return err
+			}
 			defer func() { cmd.stop(err) }()
 			if flavor == "" {
 				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
@@ -541,6 +577,24 @@ func promoteConfigExperimentCommand() *cobra.Command {
 	return cmd
 }
 
+func resumeConfigExperimentsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "resume-config-experiments",
+		Short:   "Recover any configuration experiment left running unsupervised by a prior, uncleanly shut down daemon process",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i, err := newInstallerCmd("resume_config_experiments")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			return i.ResumeConfigExperiments(i.ctx)
+		},
+	}
+	return cmd
+}
+
 func garbageCollectCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "garbage-collect",
@@ -633,7 +687,10 @@ func packageCommand() *cobra.Command {
 		Short:   "Run a package-specific command",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd("package_command")
+			i, err := newCmd("package_command")
+			if err != nil {
+				return err
+			}
 			defer i.stop(err)
 
 			packageName := args[0]

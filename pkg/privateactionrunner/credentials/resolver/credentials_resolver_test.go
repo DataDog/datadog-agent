@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 package resolver
 
@@ -11,148 +11,181 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
 
-	http "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
-type fakeSecretResolver struct {
-	values      map[string]string
-	origin      string
-	encodedData []byte
-	passthrough bool
-	calls       int
-}
-
-func (r *fakeSecretResolver) Resolve(data []byte, origin string, _ string, _ string, _ bool) ([]byte, error) {
-	r.calls++
-	r.origin = origin
-	r.encodedData = data
-	if r.passthrough {
-		return data, nil
-	}
-	var handles []string
-	if err := yaml.Unmarshal(data, &handles); err != nil {
-		return nil, err
-	}
-	resolvedValues := make([]string, len(handles))
-	for i, handle := range handles {
-		resolvedValues[i] = r.values[handle]
-	}
-	return yaml.Marshal(resolvedValues)
-}
-
-func TestResolveConnectionInfoToCredentialConnectionTokensV2(t *testing.T) {
-	connInfo := &privateactionspb.ConnectionInfo{
-		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{
-			newV2PlainTextToken([]string{privateconnection.RootTokenGroupName, "username"}, "database-user"),
-			newV2PlainTextToken([]string{privateconnection.RootTokenGroupName, "password"}, "database-password"),
-			newV2PlainTextToken([]string{http.BaseUrlTokenName}, "https://database.example.com"),
-		},
-	}
-	want := &privateconnection.PrivateCredentials{
-		Type: privateconnection.TokenAuthType,
-		Tokens: []privateconnection.PrivateCredentialsToken{
-			{Name: "username", Value: "database-user"},
-			{Name: "password", Value: "database-password"},
-		},
-		HttpDetails: privateconnection.HttpDetails{
-			BaseURL:       "https://database.example.com",
-			Headers:       []privateconnection.PrivateCredentialsToken{},
-			UrlParameters: []privateconnection.PrivateCredentialsToken{},
-		},
-	}
-
-	got, err := NewPrivateCredentialResolver(nil, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
+	config := configmock.New(t)
+	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "secret-value"}}, model.SourceFile)
+	resolver, err := NewPrivateCredentialResolver(config)
 	require.NoError(t, err)
-	assert.Equal(t, want, got)
-}
-
-func TestResolveConnectionInfoToCredentialConnectionTokensV2DatadogAgentSecrets(t *testing.T) {
-	secretResolver := &fakeSecretResolver{values: map[string]string{
-		"ENC[database_password]": "resolved-password",
-		"ENC[api_key]":           "resolved-api-key",
-	}}
-	connInfo := &privateactionspb.ConnectionInfo{
-		ConnectionId:    "connection-id",
+	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{
-			newV2DatadogAgentSecretToken([]string{privateconnection.RootTokenGroupName, "password"}, "ENC[database_password]"),
-			newV2DatadogAgentSecretToken([]string{"headers", "X-API-Key"}, "ENC[api_key]"),
-		},
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "token"},
+			Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
+				RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "api_token"},
+			},
+		}},
 	}
 
-	got, err := NewPrivateCredentialResolver(secretResolver, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"password": "resolved-password"}, got.AsTokenMap())
-	assert.Equal(t, []privateconnection.PrivateCredentialsToken{{Name: "X-API-Key", Value: "resolved-api-key"}}, got.HttpDetails.Headers)
-	assert.Equal(t, "private-action-runner/connection/connection-id", secretResolver.origin)
-	var encodedSecrets []string
-	require.NoError(t, yaml.Unmarshal(secretResolver.encodedData, &encodedSecrets))
-	assert.Equal(t, []string{"ENC[database_password]", "ENC[api_key]"}, encodedSecrets)
-	assert.Equal(t, 1, secretResolver.calls)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "token", credentials.Tokens[0].Name)
+	assert.Equal(t, "secret-value", credentials.Tokens[0].Value)
+
+	// Secret refresh replaces the compound setting through configAssignAtPath.
+	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
+	credentials, err = resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
+
+	// Invalid updates must fail instead of falling back to stale credentials.
+	config.Set(par.CredentialsValues, map[string]any{"api_token": "invalid-secret-value"}, model.SourceSecret)
+	credentials, err = resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.Error(t, err)
+	assert.Nil(t, credentials)
+	assert.NotContains(t, err.Error(), "invalid-secret-value")
+
+	config.Set(par.CredentialsValues, map[string]any{}, model.SourceSecret)
+	credentials, err = resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.ErrorContains(t, err, "requested runner credential is not available")
+	assert.Nil(t, credentials)
 }
 
-func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsUnavailableSecretResolver(t *testing.T) {
-	connInfo := &privateactionspb.ConnectionInfo{
+func TestResolveConnectionTokensV2FromPlainText(t *testing.T) {
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{
-			newV2DatadogAgentSecretToken([]string{privateconnection.RootTokenGroupName, "password"}, "ENC[database_password]"),
-		},
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "token"},
+			Source: &privateactionspb.ConnectionTokenV2_PlainText_{
+				PlainText: &privateactionspb.ConnectionTokenV2_PlainText{Value: "plain-value"},
+			},
+		}},
 	}
 
-	got, err := NewPrivateCredentialResolver(nil, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
-	assert.Nil(t, got)
-	assert.EqualError(t, err, "could not resolve Datadog Agent secrets: Datadog Agent secret resolver is unavailable")
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "token", credentials.Tokens[0].Name)
+	assert.Equal(t, "plain-value", credentials.Tokens[0].Value)
 }
 
-func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsDisabledSecretManagement(t *testing.T) {
-	secretResolver := &fakeSecretResolver{values: map[string]string{
-		"ENC[database_password]": "resolved-password",
-	}}
-	connInfo := &privateactionspb.ConnectionInfo{
+// refreshOnReadConfig simulates a secret refresh immediately after a config read.
+type refreshOnReadConfig struct {
+	model.Reader
+	refresh func()
+}
+
+func (c *refreshOnReadConfig) Get(key string) any {
+	value := c.Reader.Get(key)
+	if key == par.CredentialsValues && c.refresh != nil {
+		c.refresh()
+		c.refresh = nil
+	}
+	return value
+}
+
+func TestResolveConnectionTokensV2UsesOneSnapshot(t *testing.T) {
+	config := configmock.New(t)
+	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "original"}}, model.SourceFile)
+	liveConfig := &refreshOnReadConfig{Reader: config}
+	resolver, err := NewPrivateCredentialResolver(liveConfig)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2}
+	for _, name := range []string{"first", "second"} {
+		conn.TokensV2 = append(conn.TokensV2, &privateactionspb.ConnectionTokenV2{
+			NameSegments: []string{"root_tokens", name},
+			Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
+				RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "api_token"},
+			},
+		})
+	}
+	liveConfig.refresh = func() {
+		config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated"}}, model.SourceSecret)
+	}
+
+	for _, expected := range []string{"original", "rotated"} {
+		credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+		require.NoError(t, err)
+		require.Len(t, credentials.Tokens, 2)
+		for _, token := range credentials.Tokens {
+			assert.Equal(t, expected, token.Value)
+		}
+	}
+}
+
+func TestNewPrivateCredentialResolverFromYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  credentials:
+    values:
+      api_token:
+        value: resolved-value
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	resolver, err := NewPrivateCredentialResolver(mockConfig)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{
-			newV2DatadogAgentSecretToken([]string{privateconnection.RootTokenGroupName, "password"}, "ENC[database_password]"),
-		},
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "token"},
+			Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
+				RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "api_token"},
+			},
+		}},
 	}
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "resolved-value", credentials.Tokens[0].Value)
 
-	got, err := NewPrivateCredentialResolver(secretResolver, false).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
-	assert.Nil(t, got)
-	assert.EqualError(t, err, "could not resolve Datadog Agent secrets: Datadog Agent secret management is disabled")
-	assert.Zero(t, secretResolver.calls)
+	mockConfig.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
+	credentials, err = resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
 }
 
-func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsUnresolvedSecret(t *testing.T) {
-	connInfo := &privateactionspb.ConnectionInfo{
-		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{
-			newV2DatadogAgentSecretToken([]string{privateconnection.RootTokenGroupName, "password"}, "ENC[database_password]"),
+func TestNewPrivateCredentialResolverInvalidCredentials(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "scalar credential",
+			yaml: `private_action_runner:
+  credentials:
+    values:
+      api_token: secret-value
+`,
 		},
-	}
-
-	got, err := NewPrivateCredentialResolver(&fakeSecretResolver{passthrough: true}, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
-	assert.Nil(t, got)
-	assert.EqualError(t, err, "could not resolve Datadog Agent secrets: secret handle \"ENC[database_password]\" was not resolved")
-}
-
-func newV2PlainTextToken(nameSegments []string, value string) *privateactionspb.ConnectionTokenV2 {
-	return &privateactionspb.ConnectionTokenV2{
-		NameSegments: nameSegments,
-		Source: &privateactionspb.ConnectionTokenV2_PlainText_{
-			PlainText: &privateactionspb.ConnectionTokenV2_PlainText{Value: value},
+		{
+			name: "unsupported restriction",
+			yaml: `private_action_runner:
+  credentials:
+    values:
+      api_token:
+        value: secret-value
+        allowed_actions: [some-action]
+`,
 		},
-	}
-}
-
-func newV2DatadogAgentSecretToken(nameSegments []string, handle string) *privateactionspb.ConnectionTokenV2 {
-	return &privateactionspb.ConnectionTokenV2{
-		NameSegments: nameSegments,
-		Source: &privateactionspb.ConnectionTokenV2_DatadogAgentSecret_{
-			DatadogAgentSecret: &privateactionspb.ConnectionTokenV2_DatadogAgentSecret{Handle: handle},
-		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml))
+			require.Error(t, err)
+			assert.Nil(t, resolver)
+			assert.Contains(t, err.Error(), par.CredentialsValues)
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
 	}
 }

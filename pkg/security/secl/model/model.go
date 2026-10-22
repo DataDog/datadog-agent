@@ -122,6 +122,7 @@ func (s ContainerSource) String() string {
 type ContainerContext struct {
 	*Releasable
 	ContainerID     containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	PodUID          string                     `field:"pod_uid,opts:gen_getters"`                                   // SECLDoc[pod_uid] Definition:`Kubernetes pod UID`
 	CreatedAt       uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags            []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 	ContainerSource ContainerSource            `field:"-"`
@@ -156,6 +157,8 @@ type SecurityProfileContext struct {
 	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
 	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
+	// ProfileAlreadySent is true when the profile had already been persisted to the backend at the time this event was emitted
+	ProfileAlreadySent bool `field:"-"`
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -202,13 +205,26 @@ type SpanContext struct {
 	Attributes    map[string]string `field:"-"`
 }
 
+// TracerMetadataSource is where the tracer metadata of a process came from
+type TracerMetadataSource uint8
+
+const (
+	// TracerMetadataSourceNone means no tracer metadata was found
+	TracerMetadataSourceNone TracerMetadataSource = iota
+	// TracerMetadataSourceMemfd is the Datadog tracer-info memfd, which takes precedence
+	TracerMetadataSourceMemfd
+	// TracerMetadataSourceOTelProcessContext is the OTel process context (OTEP 4719)
+	TracerMetadataSourceOTelProcessContext
+)
+
 // Tracer bundles the per-process APM tracer state: static metadata captured
 // from the tracer-info memfd, plus the most recent span context observed for
 // this process. Cross-platform so the model.go-level accessors compile on
 // both Linux and Windows builds.
 type Tracer struct {
-	Metadata tracermetadata.TracerMetadata
-	Trace    SpanContext
+	Metadata       tracermetadata.TracerMetadata
+	MetadataSource TracerMetadataSource
+	Trace          SpanContext
 	// ThreadlocalAttributeKeys is the ordered list of attribute key names the
 	// process published in its OTel process context (OTEP 4947). The key indices
 	// of a thread context record index into it to resolve the full attribute
@@ -730,12 +746,13 @@ func (de *DNSEvent) Matches(new *DNSEvent) bool {
 
 // IMDSEvent represents an IMDS event
 type IMDSEvent struct {
-	Type          string `field:"type"`           // SECLDoc[type] Definition:`the type of IMDS event`
-	CloudProvider string `field:"cloud_provider"` // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
-	URL           string `field:"url"`            // SECLDoc[url] Definition:`the queried IMDS URL`
-	Host          string `field:"host"`           // SECLDoc[host] Definition:`the host of the HTTP protocol`
-	UserAgent     string `field:"user_agent"`     // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
-	Server        string `field:"server"`         // SECLDoc[server] Definition:`the server header of a response`
+	Type             string `field:"type"`              // SECLDoc[type] Definition:`the type of IMDS event`
+	CloudProvider    string `field:"cloud_provider"`    // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
+	URL              string `field:"url"`               // SECLDoc[url] Definition:`the queried IMDS URL`
+	Host             string `field:"host"`              // SECLDoc[host] Definition:`the host of the HTTP protocol`
+	UserAgent        string `field:"user_agent"`        // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
+	Server           string `field:"server"`            // SECLDoc[server] Definition:`the server header of a response`
+	CredentialSource uint32 `field:"credential_source"` // SECLDoc[credential_source] Definition:`the credential endpoint that served the IMDS event` Constants:`Credential sources`
 
 	// The fields below are optional and cloud specific fields
 	AWS AWSIMDSEvent `field:"aws"` // SECLDoc[aws] Definition:`the AWS specific data parsed from the IMDS event`

@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package datadog.remoteagent.command.v1;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "pkg/proto/pbgo/core";
+
+service RemoteCommandProvider {
+  rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (stream ExecuteCommandResponse);
+}
+
+enum ParameterType {
+  TYPE_UNSPECIFIED = 0;
+  TYPE_STRING = 1;
+  TYPE_INT = 2;
+  TYPE_UINT = 3;
+  TYPE_FLOAT = 4;
+  TYPE_BOOL = 5;
+  TYPE_STRING_SLICE = 6;
+  TYPE_INT_SLICE = 7;
+  TYPE_UINT_SLICE = 8;
+  TYPE_FLOAT_SLICE = 9;
+}
+
+message CommandParameter {
+  string name = 1;
+  string short_name = 2;
+  string helper = 3;
+  ParameterType type = 4;
+  bool required = 5;
+  bool is_flag = 6;
+  bool is_persistent = 7;
+}
+
+message Command {
+  string name = 1;
+  string short_name = 2;
+  string helper = 3;
+  string long_description = 4;
+  repeated CommandParameter parameters = 5;
+  repeated Command children = 6;
+  bool is_runnable = 7;
+}
+
+message ListCommandsRequest {}
+
+message CommandProvider {
+  string name = 1;
+  string description = 2;
+  repeated Command commands = 3;
+}
+
+message ListCommandsResponse { repeated CommandProvider providers = 1; }
+
+message ExecuteCommandRequest {
+  string provider_name = 1;
+  repeated string command_path = 2;
+  google.protobuf.Struct arguments = 3;
+}
+
+message ExecuteCommandResponse {
+  oneof frame {
+    string stdout = 1;
+    string stderr = 2;
+    bytes binary_output = 3;
+    int32 exit_code = 4;
+  }
+}

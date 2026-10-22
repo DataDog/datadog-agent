@@ -18,8 +18,8 @@ import (
 	componentsos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
 
-	compute "github.com/pulumi/pulumi-azure-native-sdk/compute/v2"
-	network "github.com/pulumi/pulumi-azure-native-sdk/network/v2"
+	compute "github.com/pulumi/pulumi-azure-native-sdk/compute/v3"
+	network "github.com/pulumi/pulumi-azure-native-sdk/network/v3"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -92,8 +92,8 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 		windowsOsProfile.WindowsConfiguration = compute.WindowsConfigurationArgs{
 			AdditionalUnattendContent: compute.AdditionalUnattendContentArray{
 				compute.AdditionalUnattendContentArgs{
-					ComponentName: compute.ComponentNames_Microsoft_Windows_Shell_Setup,
-					PassName:      compute.PassNamesOobeSystem,
+					ComponentName: compute.ComponentName_Microsoft_Windows_Shell_Setup,
+					PassName:      compute.PassNameOobeSystem,
 					SettingName:   compute.SettingNamesFirstLogonCommands,
 					Content:       firstLogonCommand,
 				},
@@ -146,15 +146,17 @@ func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, ena
 		return nil, nil, err
 	}
 
+	// FIXME: copy() is bounded by the destination's length, which is zero, so
+	// caller opts are silently dropped at all three of these sites in this file
+	// and only the provider appended below survives. Fixing it makes
+	// pulumi.Parent (passed by both callers in scenarios/azure/compute/vm.go)
+	// take effect, changing resource URNs, so it needs its own PR and QA.
 	nwOpts := make([]pulumi.ResourceOption, 0, len(opts)+1)
 	copy(nwOpts, opts)
 	nwOpts = append(nwOpts, e.WithProviders(config.ProviderAzure))
 	nwInt, err := network.NewNetworkInterface(e.Ctx(), e.Namer.ResourceName(name), &network.NetworkInterfaceArgs{
-		NetworkInterfaceName: e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
-		ResourceGroupName:    pulumi.String(e.DefaultResourceGroup()),
-		NetworkSecurityGroup: network.NetworkSecurityGroupTypeArgs{
-			Id: pulumi.String(e.DefaultSecurityGroup()),
-		},
+		NetworkInterfaceName:        e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
+		ResourceGroupName:           pulumi.String(e.DefaultResourceGroup()),
 		EnableAcceleratedNetworking: pulumi.BoolPtr(enableAcceleratedNetworking),
 		IpConfigurations: network.NetworkInterfaceIPConfigurationArray{
 			network.NetworkInterfaceIPConfigurationArgs{

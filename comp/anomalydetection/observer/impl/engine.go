@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -23,11 +25,8 @@ import (
 type anomalyDedupKey struct {
 	sourceRef       observerdef.SeriesRef
 	sourceAggregate observerdef.Aggregate
-	sourceKey       string // SeriesDescriptor.Key(), only for anomalies without a storage ref
-	hasSourceRef    bool
 	detectorName    string
 	timestamp       int64
-	title           string
 }
 
 const (
@@ -69,20 +68,14 @@ func anomalyDedupCapacity(trackHistory bool) int {
 	return maxLiveAnomalyDedupEntries
 }
 
+// Detector outputs always carry a storage series reference.
 func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
-	key := anomalyDedupKey{
-		detectorName: anomaly.DetectorName,
-		timestamp:    anomaly.Timestamp,
-		title:        anomaly.Title,
+	return anomalyDedupKey{
+		sourceRef:       anomaly.SourceRef.Ref,
+		sourceAggregate: anomaly.SourceRef.Aggregate,
+		detectorName:    anomaly.DetectorName,
+		timestamp:       anomaly.Timestamp,
 	}
-	if anomaly.SourceRef != nil {
-		key.sourceRef = anomaly.SourceRef.Ref
-		key.sourceAggregate = anomaly.SourceRef.Aggregate
-		key.hasSourceRef = true
-	} else {
-		key.sourceKey = anomaly.Source.Key()
-	}
-	return key
 }
 
 func (d *anomalyDeduper) accept(key anomalyDedupKey, expiresAt int64) (accepted bool, capacityEvicted int) {
@@ -144,7 +137,7 @@ func (d *anomalyDeduper) removeSourceRefs(refs []observerdef.SeriesRef) int {
 	}
 	removed := 0
 	for _, key := range d.live.Keys() {
-		if _, exists := removedRefs[key.sourceRef]; key.hasSourceRef && exists {
+		if _, exists := removedRefs[key.sourceRef]; exists {
 			if d.live.Remove(key) {
 				removed++
 			}
@@ -166,11 +159,12 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
-	logCounts   *materializedLogCountBucketizer
+	storage         *timeSeriesStorage
+	extractors      []observerdef.LogMetricsExtractor
+	detectors       []observerdef.Detector
+	correlators     []observerdef.Correlator
+	logCounts       *materializedLogCountBucketizer
+	logKeyGenerator *SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
 	// It is also included in correlators for processing; this pointer is used
@@ -197,12 +191,14 @@ type engine struct {
 
 	// Cross-advance detector deduplication is always active. Full anomaly history
 	// and its introspection indexes are populated only for testbench/replay.
-	anomalyDeduper       anomalyDeduper
-	trackAnomalyHistory  bool
-	rawAnomalies         []observerdef.Anomaly
-	rawAnomalyMu         sync.RWMutex
-	totalAnomalyCount    int             // total count ever (no cap)
-	uniqueAnomalySources map[string]bool // testbench-only, capped unique source set
+	anomalyDeduper             anomalyDeduper
+	trackAnomalyHistory        bool
+	trackDetectorOutputHistory bool
+	rawAnomalies               []observerdef.Anomaly
+	detectorOutputAnomalies    []observerdef.Anomaly
+	rawAnomalyMu               sync.RWMutex
+	totalAnomalyCount          int             // total count ever (no cap)
+	uniqueAnomalySources       map[string]bool // testbench-only, capped unique source set
 
 	// Accumulated correlations — populated only when trackCorrelationHistory is true.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -251,24 +247,28 @@ type engine struct {
 	handles            []*handle        // registered handles for per-source drop collection
 	handlesMu          sync.Mutex       // protects handles slice
 
-	// sourceTagCache memoises the "observer_source:<source>" string used in
-	// IngestLog/IngestMetric. Without this we allocate a fresh string per
-	// log/metric ingest. Sources are a small bounded set (e.g. "logs",
-	// "profiles", "traces") so a single-goroutine map is plenty; access is
-	// confined to the engine run loop. Lock-free via atomic.Pointer to a
-	// copy-on-write map so we don't add a mutex to the hot path.
-	sourceTagCache atomic.Pointer[map[string]string]
+	// sourceTagCache memoises the source tag and its immutable tag view used in
+	// IngestLog. Sources are a small bounded set (e.g. "logs", "profiles",
+	// "traces"), so a single-goroutine map is plenty; access is confined to the
+	// engine run loop. Lock-free via atomic.Pointer to a copy-on-write map so we
+	// don't add a mutex to the hot path.
+	sourceTagCache atomic.Pointer[map[string]cachedSourceTag]
 
 	// baseline is accessed only from the engine run goroutine.
 	baseline *baselineController
+
+	// metricFilter provides package-wide metric-type filtering for both external
+	// and log-derived metrics.
+	metricFilter *metricsFilterRules
 }
 
 // engineConfig holds the parameters for constructing an engine.
 type engineConfig struct {
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
+	storage      *timeSeriesStorage
+	extractors   []observerdef.LogMetricsExtractor
+	detectors    []observerdef.Detector
+	correlators  []observerdef.Correlator
+	metricFilter *metricsFilterRules
 	// scorer is the optional unified anomaly scorer. When non-nil, it is also
 	// appended to correlators so it participates in the normal correlator loop.
 	scorer *anomalyScorer
@@ -278,6 +278,9 @@ type engineConfig struct {
 	// trackAnomalyHistory enables full raw anomaly history for testbench replay.
 	// Live production engines leave this false and retain only bounded dedup state.
 	trackAnomalyHistory bool
+	// trackDetectorOutputHistory retains every detector return value before
+	// downstream pipeline filtering. Used only by finite replay comparisons.
+	trackDetectorOutputHistory bool
 	// trackCorrelationHistory enables the accumulated-correlations map.
 	// Only used in tests and testbench replay; live production engines leave this false.
 	trackCorrelationHistory bool
@@ -300,16 +303,19 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	e := &engine{
-		storage:     cfg.storage,
-		extractors:  cfg.extractors,
-		detectors:   cfg.detectors,
-		correlators: correlators,
-		scorer:      cfg.scorer,
-		scheduler:   sched,
+		storage:         cfg.storage,
+		extractors:      cfg.extractors,
+		detectors:       cfg.detectors,
+		correlators:     correlators,
+		logKeyGenerator: NewSliceKeyGenerator(),
+		scorer:          cfg.scorer,
+		scheduler:       sched,
+		metricFilter:    cfg.metricFilter,
 
-		anomalyDeduper:          newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
-		trackAnomalyHistory:     cfg.trackAnomalyHistory,
-		trackCorrelationHistory: cfg.trackCorrelationHistory,
+		anomalyDeduper:             newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
+		trackAnomalyHistory:        cfg.trackAnomalyHistory,
+		trackDetectorOutputHistory: cfg.trackDetectorOutputHistory,
+		trackCorrelationHistory:    cfg.trackCorrelationHistory,
 	}
 	if cfg.logCountBuckets.Enabled {
 		e.logCounts = newMaterializedLogCountBucketizer(cfg.logCountBuckets)
@@ -396,16 +402,22 @@ func (e *engine) registerHandle(h *handle) {
 // string, the COW map becomes unbounded and this memoisation strategy is
 // the wrong shape (use sync.Map or a bounded LRU). Adding an entry to that
 // list above means revisiting this function.
-func (e *engine) sourceTagForIngest(source string) string {
+type cachedSourceTag struct {
+	value string
+	tags  tagset.CompositeTags
+}
+
+func (e *engine) sourceTagForIngest(source string) cachedSourceTag {
 	if m := e.sourceTagCache.Load(); m != nil {
 		if tag, ok := (*m)[source]; ok {
 			return tag
 		}
 	}
-	tag := "observer_source:" + source
+	tag := cachedSourceTag{value: "observer_source:" + source}
+	tag.tags = tagset.CompositeTagsFromSlice([]string{tag.value})
 	for {
 		old := e.sourceTagCache.Load()
-		newMap := make(map[string]string, 4)
+		newMap := make(map[string]cachedSourceTag, 4)
 		if old != nil {
 			for k, v := range *old {
 				newMap[k] = v
@@ -419,11 +431,20 @@ func (e *engine) sourceTagForIngest(source string) string {
 	return tag
 }
 
+// isMetricTypeAllowed reports whether mt is permitted by the configured metric-type filter.
+func (e *engine) isMetricTypeAllowed(mt metrics.MetricType) bool {
+	return e.metricFilter.isMetricTypeAllowed(mt)
+}
+
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	if !e.isMetricTypeAllowed(m.metricType) {
+		return nil
+	}
+	addResult := e.storage.AddWithKeyAndHostComposite(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey, m.metricType)
+	e.handleCapacityEvictions(addResult.CapacityEvictedRefs)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -442,32 +463,31 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	sourceTag := e.sourceTagForIngest(source)
-	view := &logView{obs: l}
 	for _, extractor := range e.extractors {
-		out := extractor.ProcessLog(view)
+		out := extractor.ProcessLog(l)
 		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
 		for _, m := range out.Metrics {
-			// Avoid copying m.Tags when sourceTag is already present: storage.Add
-			// performs its own deep copy on first-write of a series via
-			// canonicalizeTags — it doesn't mutate the input. The copy is only
-			// needed when we append sourceTag.
-			tags := m.Tags
-			if !sliceContains(tags, sourceTag) {
-				newTags := make([]string, len(tags), len(tags)+1)
-				copy(newTags, tags)
-				tags = append(newTags, sourceTag)
+			if !e.isMetricTypeAllowed(m.MetricType) {
+				continue
 			}
-			// Always canonicalize so the hash computed here matches storage's
-			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
-			tags = canonicalizeTags(tags)
+			tags := m.Tags
+			if !tags.Find(func(tag string) bool { return tag == sourceTag.value }) {
+				sourceTags, _ := sourceTag.tags.UnsafeGet()
+				tags = tagset.CombineCompositeTagsAndSlice(tags, sourceTags)
+			}
+			host := m.Host
+			if host == "" {
+				host = l.hostname
+			}
+			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLogComposite(m.Name, host, tags))
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
+				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue
 				}
 			}
 			timestamp := l.timestampMs / 1000
-			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observe(extractor.Name(), m, timestamp, tags) {
+			if e.logCounts != nil && e.logCounts.handlesMetric(m) {
+				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -476,27 +496,23 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.Add(extractor.Name(), m.Name, m.Value, timestamp, tags)
-			if m.Context != nil && res.Ref >= 0 {
+			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey, m.MetricType)
+			e.handleCapacityEvictions(res.CapacityEvictedRefs)
+			if m.HasContext && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
 	}
 	for _, lo := range e.logObservers {
-		lo.ProcessLog(view)
+		lo.ProcessLog(l)
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
 
-func sliceContains(items []string, want string) bool {
-	for _, item := range items {
-		if item == want {
-			return true
-		}
-	}
-	return false
+func (e *engine) contextKeyForLogComposite(name, host string, tags tagset.CompositeTags) uint64 {
+	return uint64(e.logKeyGenerator.GenerateComposite(name, host, tags))
 }
 
 // removeEvictedMetricSeries removes all storage series for the given metric
@@ -516,6 +532,25 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 		e.onStorageSeriesEvicted("extractor", len(freedAll))
 	}
 	e.fanOutSeriesRemoval(freedAll)
+}
+
+// handleCapacityEvictions synchronizes every state holder after storage makes
+// room for a newly admitted series or the post-advance safety check finds an
+// over-capacity catalog.
+func (e *engine) handleCapacityEvictions(freed []observerdef.SeriesRef) {
+	if len(freed) == 0 {
+		return
+	}
+	if e.logCounts != nil {
+		e.logCounts.removeSeriesByRefs(freed)
+	}
+	if e.onStorageCapacityHit != nil {
+		e.onStorageCapacityHit()
+	}
+	if e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("capacity", len(freed))
+	}
+	e.fanOutSeriesRemoval(freed)
 }
 
 // fanOutSeriesRemoval notifies every detector that implements the optional
@@ -642,7 +677,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		e.completeDueBaselines(upToSec)
 	}
 	if e.logCounts != nil {
-		e.logCounts.flush(e.storage, upToSec)
+		e.handleCapacityEvictions(e.logCounts.flush(e.storage, upToSec))
 	}
 	// Inactivity eviction happens after materialized log-count buckets have
 	// restored their real last-observation activity time, and before detectors
@@ -652,19 +687,9 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
-	// Evict series beyond the storage cap and fan freed refs to detectors.
-	if freed := e.storage.EvictDefault(); len(freed) > 0 {
-		if e.logCounts != nil {
-			e.logCounts.removeSeriesByRefs(freed)
-		}
-		if e.onStorageCapacityHit != nil {
-			e.onStorageCapacityHit()
-		}
-		if e.onStorageSeriesEvicted != nil {
-			e.onStorageSeriesEvicted("capacity", len(freed))
-		}
-		e.fanOutSeriesRemoval(freed)
-	}
+	// Admission normally keeps storage within its cap. Retain this post-advance
+	// check as a safety net for direct storage writes and configuration changes.
+	e.handleCapacityEvictions(e.storage.EvictDefault())
 
 	e.emit(engineEvent{
 		kind:      eventAdvanceCompleted,
@@ -740,6 +765,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
+		if e.trackDetectorOutputHistory && len(result.Anomalies) > 0 {
+			e.recordDetectorOutputs(detector.Name(), result.Anomalies)
+		}
 		if e.baseline != nil && detector.Ready() {
 			e.baseline.ready(detector.Name(), upTo)
 		}
@@ -767,19 +795,19 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		for _, anomaly := range result.Anomalies {
+			if anomaly.SourceRef == nil {
+				continue // invalid detector output: no storage series to identify it
+			}
 			e.enrichAnomaly(&anomaly)
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
-			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
+			// the same anomaly (same {source ref,aggregate,detector,ts}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
-			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
-				if anomaly.SourceRef != nil {
-					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
-				}
+				e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+				h := e.anomalyStorageKey(anomaly)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue
 				}
@@ -845,18 +873,22 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	}
 }
 
+func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
+	if anomaly.SourceRef != nil {
+		if key, ok := e.storage.StorageKey(anomaly.SourceRef.Ref); ok {
+			return key
+		}
+	}
+	return storageKeyForCompositeIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
+}
+
 // enrichAnomaly decorates an anomaly with context stored on the source series.
 // Context is written at ingest time via storage.SetContext when an extractor
 // emits a MetricOutput.Context; here we read it back in O(1).
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.SourceRef == nil {
-		return
+	if ctx, ok := e.storage.GetContext(a.SourceRef.Ref); ok {
+		a.Context = &ctx
 	}
-	ctx := e.storage.GetContext(a.SourceRef.Ref)
-	if ctx == nil {
-		return
-	}
-	a.Context = ctx
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
@@ -866,9 +898,9 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	}
 }
 
-// acceptAnomaly deduplicates by Source+DetectorName+Timestamp+Title and,
-// when testbench history is enabled, stores the accepted anomaly for display.
-// Returns true if the anomaly was new, false if it was a duplicate.
+// acceptAnomaly deduplicates by SourceRef+Aggregate+DetectorName+Timestamp.
+// When testbench history is enabled, it stores the accepted anomaly for display.
+// The anomaly must have a SourceRef. Returns true if new, false if a duplicate.
 func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 	expiresAt := e.anomalyDedupExpiry(anomaly)
 	e.rawAnomalyMu.Lock()
@@ -892,11 +924,7 @@ func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 }
 
 func (e *engine) anomalyDedupExpiry(anomaly observerdef.Anomaly) int64 {
-	ref := observerdef.SeriesRef(-1)
-	if anomaly.SourceRef != nil {
-		ref = anomaly.SourceRef.Ref
-	}
-	retentionSecs := e.storage.pointRetentionForSeries(ref)
+	retentionSecs := e.storage.pointRetentionForSeries(anomaly.SourceRef.Ref)
 	if retentionSecs <= 0 {
 		return 0
 	}
@@ -935,6 +963,33 @@ func (e *engine) RawAnomalies() []observerdef.Anomaly {
 	result := make([]observerdef.Anomaly, len(e.rawAnomalies))
 	copy(result, e.rawAnomalies)
 	return result
+}
+
+// DetectorOutputAnomalies returns every anomaly emitted directly by detectors
+// during a replay before downstream pipeline filtering. Live production mode
+// returns an empty slice.
+func (e *engine) DetectorOutputAnomalies() []observerdef.Anomaly {
+	e.rawAnomalyMu.RLock()
+	defer e.rawAnomalyMu.RUnlock()
+
+	result := make([]observerdef.Anomaly, len(e.detectorOutputAnomalies))
+	copy(result, e.detectorOutputAnomalies)
+	return result
+}
+
+func (e *engine) recordDetectorOutputs(detectorName string, anomalies []observerdef.Anomaly) {
+	if !e.trackDetectorOutputHistory || len(anomalies) == 0 {
+		return
+	}
+
+	e.rawAnomalyMu.Lock()
+	defer e.rawAnomalyMu.Unlock()
+	for _, anomaly := range anomalies {
+		if anomaly.DetectorName == "" {
+			anomaly.DetectorName = detectorName
+		}
+		e.detectorOutputAnomalies = append(e.detectorOutputAnomalies, anomaly)
+	}
 }
 
 // TotalAnomalyCount returns the total number of anomalies ever detected.
@@ -1027,7 +1082,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 	if e.baseline.config.Verbose {
 		for _, ref := range refs {
 			if meta := e.storage.GetSeriesMeta(ref); meta != nil {
-				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Tags))
+				displayNames = append(displayNames, seriesKeyComposite(meta.Namespace, meta.Name, meta.Host, meta.Tags))
 			}
 		}
 		sort.Strings(displayNames)
@@ -1152,17 +1207,20 @@ func (e *engine) resetRawAnomalies() {
 
 	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(e.trackAnomalyHistory))
 	e.rawAnomalies = nil
+	e.detectorOutputAnomalies = nil
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
 }
 
-func (e *engine) configureAnomalyTracking(trackHistory bool) {
+func (e *engine) configureAnomalyTracking(trackHistory, trackDetectorOutputHistory bool) {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
 	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(trackHistory))
 	e.trackAnomalyHistory = trackHistory
+	e.trackDetectorOutputHistory = trackDetectorOutputHistory
 	e.rawAnomalies = nil
+	e.detectorOutputAnomalies = nil
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
 }
@@ -1240,7 +1298,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
-	e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory)
+	e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory, storageCfg.TrackDetectorOutputHistory)
 	if baselineCfg.Enabled {
 		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
 	} else {

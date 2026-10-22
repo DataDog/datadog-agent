@@ -43,7 +43,7 @@ func TestSBOMDockerHostSuite(t *testing.T) {
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
-			scendocker.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
+			scendocker.WithFakeIntakeOptions(fakeintake.WithMemory(2048), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scendocker.WithAgentOptions(
 				// Mount the host root so the Agent can produce a host SBOM and reach
 				// the daemon's overlay2 diff dirs (SanitizeHostPath rewrites

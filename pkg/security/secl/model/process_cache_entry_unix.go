@@ -148,7 +148,9 @@ func (pc *ProcessCacheEntry) copyCGroupFrom(parent *ProcessCacheEntry) {
 }
 
 func (pc *ProcessCacheEntry) copyContainerContextFrom(parent *ProcessCacheEntry) {
-	if !parent.ContainerContext.IsNull() && pc.ContainerContext.IsNull() {
+	parentHasContainerContext := parent.ContainerContext.ContainerID != "" || parent.ContainerContext.PodUID != ""
+	currentHasContainerContext := pc.ContainerContext.ContainerID != "" || pc.ContainerContext.PodUID != ""
+	if parentHasContainerContext && !currentHasContainerContext {
 		pc.ContainerContext = parent.ContainerContext
 	}
 }
@@ -194,6 +196,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
 	child.Tracer.Metadata = pc.Tracer.Metadata
+	child.Tracer.MetadataSource = pc.Tracer.MetadataSource
 
 	child.SetForkParent(pc)
 }

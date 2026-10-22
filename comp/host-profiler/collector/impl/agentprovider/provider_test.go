@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
@@ -37,7 +38,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
@@ -323,6 +324,27 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 	symbolUploader := profiling["symbol_uploader"].(map[string]interface{})
 	symbolEndpoints := symbolUploader["symbol_endpoints"].([]interface{})
 	require.Len(t, symbolEndpoints, 4, "should have 4 symbol endpoints (2 EU + 1 US3 + 1 main)")
+}
+
+func TestProviderDisablesHealthMetricsWhenInfrastructureModeIsNone(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+infrastructure_mode: none
+hostprofiler:
+  health_metrics:
+    enabled: true
+`)
+
+	agent := newConfigManager(cfg)
+	require.False(t, agent.hostProfilerConfig.HealthMetrics.Enabled)
+
+	generated := buildConfig(agent, testCollectorParams{})
+	_, hasMetricsPipeline := confmaputils.Get[map[string]any](generated, "service::pipelines::metrics")
+	require.False(t, hasMetricsPipeline)
+	level, hasMetricsLevel := confmaputils.Get[string](generated, "service::telemetry::metrics::level")
+	require.True(t, hasMetricsLevel)
+	require.Equal(t, "none", level)
 }
 
 func TestProviderMethods(t *testing.T) {

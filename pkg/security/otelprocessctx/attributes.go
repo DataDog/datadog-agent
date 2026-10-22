@@ -12,9 +12,18 @@ import (
 
 	commonpb "go.opentelemetry.io/proto/slim/otlp/common/v1"
 	processcontextpb "go.opentelemetry.io/proto/slim/otlp/processcontext/v1development"
+
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 )
 
 type ProcessContext = *processcontextpb.ProcessContext
+
+// KeySchemaVersion returns the thread-local record schema version the process
+// published, e.g. "nodejs_v1_dev" for the Node.js writer. Absent for the plain
+// thread-local writer, which predates the field.
+func KeySchemaVersion(ctx ProcessContext) (string, error) {
+	return stringAttribute(ctx, "threadlocal.schema_version")
+}
 
 // KeyAttributeKeyMap returns the ordered list of attribute key names the process
 // published in its OTel process context (OTEP 4947).
@@ -32,6 +41,33 @@ func KeyAttributeKeyMap(ctx ProcessContext) ([]string, error) {
 		keys[i] = entry.GetStringValue()
 	}
 	return keys, nil
+}
+
+// TracerMetadata mirrors libdatadog's TracerMetadata::to_otel_process_ctx.
+// SchemaVersion and LogsCollected have no process context counterpart.
+func TracerMetadata(ctx ProcessContext) tracermetadata.TracerMetadata {
+	resource := ctx.GetResource().GetAttributes()
+	return tracermetadata.TracerMetadata{
+		RuntimeID:      findAttribute(resource, "service.instance.id").GetStringValue(),
+		TracerLanguage: findAttribute(resource, "telemetry.sdk.language").GetStringValue(),
+		TracerVersion:  findAttribute(resource, "telemetry.sdk.version").GetStringValue(),
+		Hostname:       findAttribute(resource, "host.name").GetStringValue(),
+		ServiceName:    findAttribute(resource, "service.name").GetStringValue(),
+		ServiceEnv:     findAttribute(resource, "deployment.environment.name").GetStringValue(),
+		ServiceVersion: findAttribute(resource, "service.version").GetStringValue(),
+		ContainerID:    findAttribute(resource, "container.id").GetStringValue(),
+		ProcessTags:    findAttribute(ctx.GetAttributes(), "datadog.process_tags").GetStringValue(),
+	}
+}
+
+// stringAttribute returns the value of the string attribute named key, or an
+// error if ctx published none by that name.
+func stringAttribute(ctx ProcessContext, key string) (string, error) {
+	value := findAttribute(ctx.GetAttributes(), key)
+	if value == nil {
+		return "", fmt.Errorf("unknown attribute %s", key)
+	}
+	return value.GetStringValue(), nil
 }
 
 // findAttribute returns the value of the attribute named key among attrs, or nil if

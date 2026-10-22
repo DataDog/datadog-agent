@@ -13,11 +13,19 @@ from tasks.static_quality_gates.metrics import GateMetricsData
 
 BUFFER_SIZE = 1000000
 
+# Only trim threshold headroom when surplus exceeds this; then bank 70% and keep 30%.
+MIN_HEADROOM_TO_TRIM = 10 * 1024 * 1024  # 10 MiB
+HEADROOM_TRIM_NUMERATOR = 7
+HEADROOM_TRIM_DENOMINATOR = 10
+
 # Threshold for considering a size change as meaningful (not noise)
 # Changes below this threshold are considered neutral and won't trigger a bump
 SIZE_INCREASE_THRESHOLD_BYTES = 2 * 1024  # 2 KiB
 
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
+CLUSTER_AGENT_GATE_CONFIG_PATH = "test/static/static_quality_gates_cluster_agent.yml"
+# All gate config files, split so that each can have its own CODEOWNERS.
+ALL_GATE_CONFIG_PATHS = [GATE_CONFIG_PATH, CLUSTER_AGENT_GATE_CONFIG_PATH]
 
 
 def identify_failing_gates(pr_metrics: dict[str, GateMetricsData]) -> dict[str, GateMetricsData]:
@@ -67,8 +75,8 @@ def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) ->
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
-    # The new limit is decreased when the difference between current and max value is greater than the `BUFFER_SIZE`
-    # unless it is an exception bump where we will bump gates by the amount increased
+    # When headroom (max - current) is above MIN_HEADROOM_TO_TRIM, bank 70% of it and keep 30%.
+    # Exception bumps raise the limit by the measured increase instead.
     curr_size = metric_handler.metrics[current_gate][current_key]
     max_curr_size = metric_handler.metrics[current_gate][max_key]
     if exception_bump:
@@ -78,8 +86,8 @@ def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_hand
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
     saved_amount = 0
-    if remaining_allowed_size > BUFFER_SIZE:
-        saved_amount = remaining_allowed_size - BUFFER_SIZE
+    if remaining_allowed_size > MIN_HEADROOM_TO_TRIM:
+        saved_amount = (remaining_allowed_size * HEADROOM_TRIM_NUMERATOR) // HEADROOM_TRIM_DENOMINATOR
         gate_limit -= saved_amount
     return gate_limit, saved_amount
 
@@ -101,9 +109,14 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler, exception_
 
 
 def update_quality_gates_threshold(ctx, metric_handler, github):
-    # Update quality gates threshold config
-    with open(GATE_CONFIG_PATH) as f:
-        file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler)
+    # Update quality gates threshold config, one gate config file at a time
+    file_contents = {}
+    total_size_saved = 0
+    for config_path in ALL_GATE_CONFIG_PATHS:
+        with open(config_path) as f:
+            file_content, size_saved = generate_new_quality_gate_config(f, metric_handler)
+        file_contents[config_path] = file_content
+        total_size_saved += size_saved
 
     if total_size_saved == 0:
         return
@@ -121,23 +134,25 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     # Push changes
     commit_message = "feat(gate): update static quality gates thresholds"
     if running_in_ci():
-        # Update config locally and add it to the stage
-        with open(GATE_CONFIG_PATH, "w") as f:
-            yaml.dump(file_content, f)
-        ctx.run(f"git add {GATE_CONFIG_PATH}")
+        # Update configs locally and add them to the stage
+        for config_path, file_content in file_contents.items():
+            with open(config_path, "w") as f:
+                yaml.dump(file_content, f)
+            ctx.run(f"git add {config_path}")
         print("Creating signed commits using Github API")
         tree = create_tree(ctx, current_branch.name)
         github.commit_and_push_signed(branch_name, commit_message, tree)
     else:
         print("Creating commits using your local git configuration, please make sure to sign them")
-        contents = github.repo.get_contents("test/static/static_quality_gates.yml", ref=branch_name)
-        github.repo.update_file(
-            GATE_CONFIG_PATH,
-            commit_message,
-            yaml.dump(file_content),
-            contents.sha,
-            branch=branch_name,
-        )
+        for config_path, file_content in file_contents.items():
+            contents = github.repo.get_contents(config_path, ref=branch_name)
+            github.repo.update_file(
+                config_path,
+                commit_message,
+                yaml.dump(file_content),
+                contents.sha,
+                branch=branch_name,
+            )
 
     # Create pull request
     milestone_version = list(github.latest_unreleased_release_branches())[0].name.replace("x", "0")

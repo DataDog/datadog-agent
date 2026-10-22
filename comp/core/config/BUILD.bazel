@@ -13,6 +13,11 @@ go_library(
         "params_nix.go",
         "params_windows.go",
         "setup.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/config.tmpl",
+        "status_templates/configHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/config",
     visibility = ["//visibility:public"],
@@ -23,13 +28,14 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
+        "//comp/core/status",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
@@ -44,6 +50,7 @@ dd_agent_go_test(
     srcs = [
         "config_test.go",
         "params_test.go",
+        "status_test.go",
     ],
     embed = [":config"],
     deps = [

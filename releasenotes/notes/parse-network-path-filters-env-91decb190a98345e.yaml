@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix ``DD_NETWORK_PATH_COLLECTOR_FILTERS`` so JSON-encoded Network Path
+    collector filters are parsed and applied correctly.

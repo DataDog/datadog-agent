@@ -40,9 +40,10 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 var datadogConnectorType = component.MustNewType("datadog")
@@ -136,7 +137,7 @@ func TestGetConfDump(t *testing.T) {
 	err = conf.Marshal(c)
 	assert.NoError(t, err)
 
-	err = ext.NotifyConfig(t.Context(), conf)
+	err = ext.NotifyConfigSnapshot(t.Context(), extensioncapabilities.NewConfigSnapshot(conf, nil))
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {

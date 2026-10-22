@@ -1,7 +1,7 @@
 {
   "policies": [
     {
-      "description": "deny SSI in targeted-namespace (does not override helm target)",
+      "description": "deny SSI in targeted-namespace (overrides helm target)",
       "id": {"hi": 10, "lo": 3},
       "version": 1,
       "rules": {

@@ -43,7 +43,6 @@ var (
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
 		"DD_UPGRADE",
-		"DD_INSTALL_ONLY",
 		"DD_FIPS_MODE",
 	}
 
@@ -89,7 +88,7 @@ var (
 func SetupDefaultScript(s *common.Setup) error {
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
-	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
+	if err := exitOnUnsupportedEnvVars(unsupportedEnvVarsForPlatform()...); err != nil {
 		return err
 	}
 
@@ -325,6 +324,16 @@ func getLibraryVersion(env *env.Env, library string) string {
 		return versionTag + "-1"
 	}
 	return versionTag
+}
+
+// unsupportedEnvVarsForPlatform returns the environment variables rejected by the
+// default script on the current platform. DD_INSTALL_ONLY is supported only by
+// the Windows executable setup flow.
+func unsupportedEnvVarsForPlatform() []string {
+	if runtime.GOOS == "windows" {
+		return unsupportedEnvVars
+	}
+	return append(unsupportedEnvVars, "DD_INSTALL_ONLY")
 }
 
 func exitOnUnsupportedEnvVars(envVars ...string) error {

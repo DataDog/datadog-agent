@@ -14,8 +14,10 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"go.yaml.in/yaml/v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -29,15 +31,8 @@ const (
 type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
-
-// SecretResolver resolves Datadog Agent secret-backend handles.
-type SecretResolver interface {
-	Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error)
-}
-
 type privateCredentialResolver struct {
-	secretResolver          SecretResolver
-	secretManagementEnabled bool
+	config model.Reader
 }
 
 type PrivateConnectionConfig struct {
@@ -52,11 +47,25 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver(secretResolver SecretResolver, secretManagementEnabled bool) PrivateCredentialResolver {
-	return &privateCredentialResolver{
-		secretResolver:          secretResolver,
-		secretManagementEnabled: secretManagementEnabled,
+// NewPrivateCredentialResolver validates configured credentials and retains the
+// live config so subsequent tasks pick up secret refreshes. A nil config supports
+// connections that do not reference runner credentials.
+func NewPrivateCredentialResolver(config model.Reader) (PrivateCredentialResolver, error) {
+	if config != nil {
+		if _, err := readCredentialValues(config); err != nil {
+			return nil, err
+		}
 	}
+	return &privateCredentialResolver{config: config}, nil
+}
+
+func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig, error) {
+	values := make(map[string]par.CredentialConfig)
+	if err := structure.UnmarshalKey(config, par.CredentialsValues, &values, structure.ErrorUnused); err != nil {
+		// Decoder errors can contain secret values; do not expose them to callers.
+		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
+	}
+	return values, nil
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -86,7 +95,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), connInfo.GetConnectionId())
+		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2())
 		if err != nil {
 			return nil, err
 		}
@@ -95,94 +104,49 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 		if err != nil {
 			return nil, err
 		}
-		return &privateconnection.PrivateCredentials{
-			Tokens:      credentialTokens,
-			Type:        privateconnection.TokenAuthType,
-			HttpDetails: details,
-		}, nil
+		return &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: privateconnection.TokenAuthType, HttpDetails: details}, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, connectionID string) ([]*privateactionspb.ConnectionToken, error) {
-	resolvedValues := make([]string, len(tokens))
-	secretHandles := make([]string, 0)
-	secretTokenIndexes := make([]int, 0)
-	for i, token := range tokens {
-		if token == nil {
-			return nil, errors.New("connection token must not be nil")
+func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
+	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
+	var credentialValues map[string]par.CredentialConfig
+	for _, token := range tokens {
+		if token == nil || len(token.GetNameSegments()) == 0 {
+			return nil, errors.New("connection token and its name must not be empty")
 		}
-		if len(token.GetNameSegments()) == 0 {
-			return nil, errors.New("connection token name must not be empty")
-		}
-
-		tokenName := connlib.GetName(token)
+		var value string
 		switch source := token.GetSource().(type) {
 		case *privateactionspb.ConnectionTokenV2_PlainText_:
-			resolvedValues[i] = source.PlainText.GetValue()
-		case *privateactionspb.ConnectionTokenV2_DatadogAgentSecret_:
-			handle := source.DatadogAgentSecret.GetHandle()
-			if handle == "" {
-				return nil, fmt.Errorf("Datadog Agent secret handle for connection token %q must not be empty", tokenName)
+			value = source.PlainText.GetValue()
+		case *privateactionspb.ConnectionTokenV2_RunnerCredential_:
+			if p.config == nil {
+				return nil, errors.New("runner credential configuration is unavailable")
 			}
-			secretHandles = append(secretHandles, handle)
-			secretTokenIndexes = append(secretTokenIndexes, i)
+			key := source.RunnerCredential.GetKey()
+			if key == "" {
+				return nil, fmt.Errorf("runner credential key for connection token %q must not be empty", connlib.GetName(token))
+			}
+			// Read once per task so all tokens use the same config snapshot.
+			if credentialValues == nil {
+				var err error
+				credentialValues, err = readCredentialValues(p.config)
+				if err != nil {
+					return nil, err
+				}
+			}
+			credential, found := credentialValues[key]
+			if !found {
+				return nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
+			}
+			value = credential.Value
 		default:
-			return nil, fmt.Errorf("unsupported source for connection token %q: %T", tokenName, token.GetSource())
+			return nil, fmt.Errorf("unsupported source for connection token %q", connlib.GetName(token))
 		}
-	}
-
-	if len(secretHandles) > 0 {
-		secretValues, err := p.resolveAgentSecrets(secretHandles, connectionID)
-		if err != nil {
-			return nil, fmt.Errorf("could not resolve Datadog Agent secrets: %w", err)
-		}
-		for i, tokenIndex := range secretTokenIndexes {
-			resolvedValues[tokenIndex] = secretValues[i]
-		}
-	}
-
-	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
-	for i, token := range tokens {
-		resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), resolvedValues[i]))
+		resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), value))
 	}
 	return resolved, nil
-}
-
-func (p *privateCredentialResolver) resolveAgentSecrets(handles []string, connectionID string) ([]string, error) {
-	if !p.secretManagementEnabled {
-		return nil, errors.New("Datadog Agent secret management is disabled")
-	}
-	if p.secretResolver == nil {
-		return nil, errors.New("Datadog Agent secret resolver is unavailable")
-	}
-
-	data, err := yaml.Marshal(handles)
-	if err != nil {
-		return nil, fmt.Errorf("could not encode secret handles: %w", err)
-	}
-	origin := "private-action-runner"
-	if connectionID != "" {
-		origin += "/connection/" + connectionID
-	}
-	resolvedData, err := p.secretResolver.Resolve(data, origin, "", "", false)
-	if err != nil {
-		return nil, err
-	}
-
-	var resolvedValues []string
-	if err := yaml.Unmarshal(resolvedData, &resolvedValues); err != nil {
-		return nil, fmt.Errorf("could not decode resolved secrets: %w", err)
-	}
-	if len(resolvedValues) != len(handles) {
-		return nil, fmt.Errorf("secret resolver returned %d values for %d handles", len(resolvedValues), len(handles))
-	}
-	for i, resolvedValue := range resolvedValues {
-		if resolvedValue == handles[i] {
-			return nil, fmt.Errorf("secret handle %q was not resolved", handles[i])
-		}
-	}
-	return resolvedValues, nil
 }
 
 func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {

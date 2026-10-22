@@ -34,7 +34,7 @@ func newEndpointAnnotationPrecedenceTemplate(endpointID, provider, source, versi
 
 func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceTransitions() {
 	newService := func() *listeners.KubeEndpointService {
-		return listeners.CreateDummyKubeEndpoint("myservice", "default", nil)
+		return listeners.CreateDummyKubeEndpoint("myservice", "default", nil, nil)
 	}
 	endpointID := newService().GetServiceID()
 	newTemplate := func(provider, source, version string) integration.Config {
@@ -89,7 +89,7 @@ func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceTran
 }
 
 func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceUpdates() {
-	service := listeners.CreateDummyKubeEndpoint("myservice", "default", nil)
+	service := listeners.CreateDummyKubeEndpoint("myservice", "default", nil, nil)
 	newTemplate := func(provider, source, version string) integration.Config {
 		return newEndpointAnnotationPrecedenceTemplate(service.GetServiceID(), provider, source, version)
 	}

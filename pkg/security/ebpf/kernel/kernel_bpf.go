@@ -276,3 +276,35 @@ func (k *Version) HasJITBlindingSubprogsFix() bool {
 
 	return false
 }
+
+// HasTaskStorage returns true if the kernel supports BPF_MAP_TYPE_TASK_STORAGE maps
+// See https://github.com/torvalds/linux/commit/4cf1bc1f10452065a29d576fc5693fc4fab5b919
+func (k *Version) HasTaskStorage() bool {
+	if features.HaveMapType(ebpf.TaskStorage) == nil {
+		return true
+	}
+
+	return k.Code != 0 && k.Code >= Kernel5_11
+}
+
+// hasTaskStorageForProgramType returns true if the kernel supports using task local storage for the given program type
+// See https://github.com/torvalds/linux/commit/a10787e6d58c24b51e91c19c6d16c5da89fcaa4b
+func (k *Version) hasTaskStorageForProgramType(progType ebpf.ProgramType) bool {
+	return features.HaveProgramHelper(progType, asm.FnTaskStorageGet) == nil &&
+		features.HaveProgramHelper(progType, asm.FnGetCurrentTaskBtf) == nil
+}
+
+// HasTaskStorageInKprobePrograms returns true if the kernel supports using task local storage in kprobe programs
+func (k *Version) HasTaskStorageInKprobePrograms() bool {
+	return k.hasTaskStorageForProgramType(ebpf.Kprobe)
+}
+
+// HasTaskStorageInTracingPrograms returns true if the kernel supports using task local storage in tracing (fentry) programs
+func (k *Version) HasTaskStorageInTracingPrograms() bool {
+	return k.hasTaskStorageForProgramType(ebpf.Tracing)
+}
+
+// HasTaskStorageInTracePointPrograms returns true if the kernel supports using task local storage in tracepoint programs
+func (k *Version) HasTaskStorageInTracePointPrograms() bool {
+	return k.hasTaskStorageForProgramType(ebpf.TracePoint)
+}
