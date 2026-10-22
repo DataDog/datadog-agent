@@ -96,9 +96,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "selinux_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":selinux",
-    installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
 )
 

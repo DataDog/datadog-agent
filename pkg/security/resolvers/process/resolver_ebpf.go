@@ -33,6 +33,7 @@ import (
 	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -114,6 +115,7 @@ type EBPFResolver struct {
 	addedEntriesFromProcFS       *atomic.Int64
 	flushedEntries               *atomic.Int64
 	pathErrStats                 *atomic.Int64
+	containerContextCleared      *atomic.Int64
 	argsTruncated                *atomic.Int64
 	argsSize                     *atomic.Int64
 	envsTruncated                *atomic.Int64
@@ -502,6 +504,12 @@ func (p *EBPFResolver) SendStats() error {
 	if count := p.pathErrStats.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessResolverPathError, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send process_resolver path error metric: %w", err)
+		}
+	}
+
+	if count := p.containerContextCleared.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessResolverContainerContextCleared, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver container context cleared metric: %w", err)
 		}
 	}
 
@@ -1570,6 +1578,7 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
+		entry.Tracer.MetadataSource = model.TracerMetadataSourceMemfd
 	}
 	p.Unlock()
 
@@ -1685,6 +1694,8 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
+	p.applyOTelTracerMetadata(pid, procCtx)
+
 	attributeKeys, err := otelAttributeKeys(procCtx)
 	if err != nil {
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
@@ -1718,6 +1729,21 @@ func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
 	}
 
 	return nil
+}
+
+// applyOTelTracerMetadata fills in the tracer metadata of tracers without a memfd (e.g. PHP).
+func (p *EBPFResolver) applyOTelTracerMetadata(pid uint32, procCtx otelprocessctx.ProcessContext) {
+	tmeta := otelprocessctx.TracerMetadata(procCtx)
+	if tmeta.IsZero() {
+		return
+	}
+
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil && entry.Tracer.MetadataSource != model.TracerMetadataSourceMemfd {
+		entry.Tracer.Metadata = tmeta
+		entry.Tracer.MetadataSource = model.TracerMetadataSourceOTelProcessContext
+	}
+	p.Unlock()
 }
 
 // attachOTelAttributeKeys records the OTel attribute key names on pid.
@@ -2101,17 +2127,28 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	}
 }
 
-// UpdateProcessContexts updates the cgroup context and container ID of the process matching the provided PID
+// UpdateProcessContexts replaces the cgroup and container contexts of the given process together
 func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgroupContext model.CGroupContext, containerContext model.ContainerContext) {
 	p.Lock()
 	defer p.Unlock()
 
-	if !cgroupContext.IsNull() {
-		pce.Process.CGroup = cgroupContext
+	if cgroupContext.IsNull() {
+		return
 	}
-	if containerContext.ContainerID != "" || containerContext.PodUID != "" {
-		pce.Process.ContainerContext = containerContext
+
+	hadContainerContext := pce.Process.ContainerContext.ContainerID != "" || pce.Process.ContainerContext.PodUID != ""
+	hasContainerContext := containerContext.ContainerID != "" || containerContext.PodUID != ""
+	if hadContainerContext && !hasContainerContext {
+		p.containerContextCleared.Inc()
 	}
+
+	// CallReleaseCallback panics on a nil Releasable
+	if containerContext.Releasable == nil {
+		containerContext.Releasable = &model.Releasable{}
+	}
+
+	pce.Process.CGroup = cgroupContext
+	pce.Process.ContainerContext = containerContext
 }
 
 // UpdateSID updates the SID of the given process cache entry
@@ -2170,6 +2207,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		addedEntriesFromProcFS:       atomic.NewInt64(0),
 		flushedEntries:               atomic.NewInt64(0),
 		pathErrStats:                 atomic.NewInt64(0),
+		containerContextCleared:      atomic.NewInt64(0),
 		argsTruncated:                atomic.NewInt64(0),
 		argsSize:                     atomic.NewInt64(0),
 		envsTruncated:                atomic.NewInt64(0),

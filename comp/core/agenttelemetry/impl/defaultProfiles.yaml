@@ -19,6 +19,15 @@ profiles:
         preserve_tags:
           - check_name
           - state
+      - name: checks.metadata_message_oversized
+        preserve_tags:
+          - check_name
+          - kind
+          - truncated
+      - name: checks.metadata_message_oversized_bytes
+        preserve_tags:
+          - check_name
+          - kind
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:
@@ -418,6 +427,7 @@ profiles:
         - status:disabled
     metrics:
       - name: gpu.device_total
+      - name: amd_gpu.device_total
       # GPU telemetry uses nested subsystems (e.g. "gpu__collectors"), and only the first
       # "__" of the Prometheus name is normalized, so the second one must be kept here.
       - name: gpu.collectors__created

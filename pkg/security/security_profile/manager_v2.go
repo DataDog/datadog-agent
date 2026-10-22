@@ -675,6 +675,10 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	if !m.config.RuntimeSecurity.RuntimeEnabled {
+		return
+	}
+
 	// Filter out events that are not in the configured V2 event types
 	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
 		return
@@ -778,6 +782,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
+	// Resolve the event time before firstSeen reads it: Timestamp stays zero until resolved
+	event.ResolveEventTime()
+
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
@@ -790,7 +797,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -1088,7 +1094,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
 		imageTag = "latest"
 	}
-	m.ensureVersionContext(secprof, imageTag)
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
 	// Insert the event into the profile's activity tree
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
@@ -1259,7 +1265,7 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 	defer prof.InstancesLock.Unlock()
 
 	var workloadID containerutils.WorkloadID
-	if cgce.IsContainerContextNull() {
+	if !cgce.IsContainerContextNull() {
 		workloadID = cgce.GetContainerID()
 	} else if cgce.IsCGroupContextResolved() {
 		workloadID = cgce.GetCGroupID()
@@ -1360,7 +1366,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 			time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout),
 			filepathsInProcessCache,
 			selector.Image,
-			selector.Tag,
 		)
 		if evicted > 0 {
 			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
@@ -1386,10 +1391,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
-	eventTime := event.Timestamp
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
+	eventTime := event.ResolveEventTime()
 
 	// Initialize metadata
 	secprof.Metadata = mtdt.Metadata{
@@ -1463,24 +1465,23 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist
-func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
+// ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
+// workload that introduced this tag
+func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
 	if _, ok := secprof.GetVersionContext(tag); ok {
 		return
 	}
 
 	now := time.Now()
 	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-	profileTags := secprof.GetTags()
 
 	vCtx := &profile.VersionContext{
 		FirstSeenNano:  nowNano,
 		LastSeenNano:   nowNano,
 		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
 		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           make([]string, len(profileTags)),
+		Tags:           slices.Clone(workloadTags),
 	}
-	copy(vCtx.Tags, profileTags)
 
 	secprof.AddVersionContext(tag, vCtx)
 }
@@ -1566,7 +1567,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 			profile.Unlock()
 			continue
 		}
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())

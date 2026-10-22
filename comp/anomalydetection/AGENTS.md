@@ -126,11 +126,15 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Container + kubelet logs** → `logssource` component
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
-Both paths share filtering primitives from `internal/logsfilter/`.
-The agent-internal logger callback performs only self/severity gates and a
-bounded non-blocking enqueue. Processing rules, rate limiting, tag construction,
-and Observer ingestion run on the `agent_logs` worker; never add that work back
-under `pkg/util/log`'s global logger lock.
+Both paths use shared filtering primitives from `internal/logsfilter/` inside
+the observer. Producer handles perform only cheap `MayAllowSource` and
+`min_severity` gates before copying the log snapshot and enqueueing to the
+observer channel; full `processing_rules` evaluation, priority rate limiting,
+and optional Parquet log recording happen asynchronously on the observer
+dispatch goroutine. The agent-internal logger callback performs only
+self/severity gates and a bounded non-blocking enqueue; tag construction and
+JSON formatting run on the `agent_logs` worker outside `pkg/util/log`'s global
+logger lock.
 
 ### Logging convention
 
@@ -220,6 +224,7 @@ Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
+| `anomaly_detection.metrics.allowed_types` | `[]` | Allowed metric types for external and log-derived metrics (`[]` = all) |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
 | `anomaly_detection.recording.enabled` | `false` | Enables Parquet recording in tagged Agent builds |
 | `anomaly_detection.recording.only` | `true` | With an active recorder, record metrics and logs without analysis |

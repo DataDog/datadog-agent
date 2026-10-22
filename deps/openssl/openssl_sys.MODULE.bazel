@@ -13,4 +13,5 @@ crate.annotation(
         "OPENSSL_DIR": "$(execpath @openssl//:gen_dir)",
     },
     crate = "openssl-sys",
+    link_deps = ["@@//deps/openssl:openssl_sys_link_inputs"],
 )

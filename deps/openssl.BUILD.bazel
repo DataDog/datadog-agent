@@ -84,10 +84,6 @@ configure_make(
         "@platforms//os:windows": [
             "@winlibs_mingw64//:windres",
         ],
-        "@platforms//os:macos": [
-            # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
-            "@llvm_toolchain_llvm//:ar",
-        ],
         "//conditions:default": [],
     }),
     configure_command = select({
@@ -102,17 +98,9 @@ configure_make(
     configure_options = select({
         "@//:macos_arm64": [
             "darwin64-arm64-cc",
-            # Override ARFLAGS aimed at libtools set by the toolchain,
-            # setting them to what the openssl build system would otherwise set (qc)
-            # (see Configurations/00-base-templates.conf)
-            "ARFLAGS=qc",
         ] + DEFAULT_CONFIG,
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
-            # Override ARFLAGS aimed at libtools set by the toolchain,
-            # setting them to what the openssl build system would otherwise set (qc)
-            # (see Configurations/00-base-templates.conf)
-            "ARFLAGS=qc",
         ] + DEFAULT_CONFIG,
         # We build openssl for Windows without zlib.
         # Hence, excluding last DEFAULT_CONFIG entry.
@@ -151,12 +139,6 @@ configure_make(
             # Keep both for clarity and to avoid tool lookup through PATH.
             "RC": "$(execpath @winlibs_mingw64//:windres)",
             "WINDRES": "$(execpath @winlibs_mingw64//:windres)",
-        },
-        "@platforms//os:macos": {
-            # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the incremental
-            # build of static archives that the openssl build system relies upon
-            # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
-            "AR": "$(execpath @llvm_toolchain_llvm//:ar)",
         },
         "//conditions:default": {},
     }),
@@ -319,6 +301,18 @@ pkg_filegroup(
 
 dd_cc_packaged(
     name = "libcrypto_shared_pkg",
+    data = select({
+        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
+        # import libs and headers are only required for the FIPS cryptography source
+        # build, and copy_to_directory produces a non-existent TreeArtifact when all
+        # files are excluded, which would break the installer.
+        ":fips_windows": [":_openssl_files"],
+        "@platforms//os:windows": [],
+        "//conditions:default": [":_openssl_files"],
+    }) + select({
+        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
+        "//conditions:default": [],
+    }),
     dest_dir = "embedded/lib",
     input = ":_libcrypto_shared_input",
     installed_executables = select({
@@ -352,18 +346,6 @@ dd_cc_packaged(
             "@openssl_fips//:fips_provider": "embedded3/lib/ossl-modules",
         },
         "//conditions:default": {},
-    }),
-    installed_files = select({
-        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
-        # import libs and headers are only required for the FIPS cryptography source
-        # build, and copy_to_directory produces a non-existent TreeArtifact when all
-        # files are excluded, which would break the installer.
-        ":fips_windows": [":_openssl_files"],
-        "@platforms//os:windows": [],
-        "//conditions:default": [":_openssl_files"],
-    }) + select({
-        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
-        "//conditions:default": [],
     }),
     libname = "libcrypto",
     version = OPENSSL_VERSION,

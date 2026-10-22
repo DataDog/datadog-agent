@@ -7,9 +7,7 @@ package logssourceimpl
 
 import (
 	"context"
-	"slices"
 
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
@@ -28,8 +26,6 @@ type observerPipeline struct {
 	outputChan     chan *message.Message
 	drainDone      chan struct{}
 	observerHandle observer.Handle
-	sampler        *logSampler
-	rules          *logsfilter.Rules
 }
 
 func newObserverPipeline(
@@ -37,8 +33,6 @@ func newObserverPipeline(
 	processingRules []*logsconfig.ProcessingRule,
 	hostname hostnameinterface.Component,
 	observerHandle observer.Handle,
-	sampler *logSampler,
-	rules *logsfilter.Rules,
 ) *observerPipeline {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")
 	inputChan := make(chan *message.Message, chanSize)
@@ -62,8 +56,6 @@ func newObserverPipeline(
 		outputChan:     outputChan,
 		drainDone:      make(chan struct{}),
 		observerHandle: observerHandle,
-		sampler:        sampler,
-		rules:          rules,
 	}
 }
 
@@ -75,26 +67,12 @@ func (p *observerPipeline) start() {
 	p.proc.Start()
 }
 
-// drainOutputChan consumes p.outputChan until it is closed, applying the
-// sampler and rule filter before forwarding each message to the observer.
+// drainOutputChan consumes p.outputChan until it is closed, forwarding each
+// message to the observer.
 // It closes p.drainDone when it returns.
 func (p *observerPipeline) drainOutputChan() {
 	defer close(p.drainDone)
 	for msg := range p.outputChan {
-		// Note: msg.Origin.Source() returns the user-defined source from an AD log
-		// config when one is set (e.g. "nginx"), overriding the container runtime.
-		// Rules using source: containerd/docker will not match AD-scheduled container
-		// logs that carry a custom source.
-		msgTags := msg.Tags()
-		if p.rules.NeedsSortedTags() {
-			msgTags = slices.Sorted(slices.Values(msgTags))
-		}
-		if !p.rules.IsAllowed(msg.Origin.Source(), msgTags) {
-			continue
-		}
-		if p.sampler != nil && !p.sampler.ShouldForward(msg) {
-			continue
-		}
 		p.observerHandle.ObserveLog(&messageLogView{msg: msg})
 	}
 }
@@ -137,6 +115,12 @@ type messageLogView struct {
 	msg *message.Message
 }
 
+func (v *messageLogView) GetSource() string {
+	if v.msg == nil || v.msg.Origin == nil {
+		return ""
+	}
+	return v.msg.Origin.Source()
+}
 func (v *messageLogView) GetContent() string           { return string(v.msg.GetContent()) }
 func (v *messageLogView) GetStatus() string            { return v.msg.GetStatus() }
 func (v *messageLogView) Tags() []string               { return v.msg.Tags() }
