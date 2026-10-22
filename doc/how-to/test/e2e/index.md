@@ -58,6 +58,17 @@ dda inv e2e.setup --with-azure --with-gcp
 
 The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
 
+### GCP authentication
+
+Local GCP provisioning uses Application Default Credentials (ADC), configured with
+`gcloud auth application-default login`. GKE access through `gke-gcloud-auth-plugin`
+also requires a valid gcloud CLI login, configured separately with `gcloud auth login`.
+The framework checks the CLI credentials before creating a local GKE cluster and
+returns instructions to log in again if they have expired.
+
+CI supplies a service account key through `GOOGLE_APPLICATION_CREDENTIALS`; the
+framework activates that account for gcloud as before and skips the local CLI check.
+
 ### Workspace support
 The e2e test framework tooling supports being run from Datadog workspaces just like developer laptops. 
 /// warning | Workspace compatibility of the e2e tooling
