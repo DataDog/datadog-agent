@@ -3373,7 +3373,9 @@ properties:
       The list of environment variables that are allowed to be resolved in check
       configurations.
       If the list is not set or is empty, the default behavior applies: all envs
-      are allowed.
+      are allowed except the Agent's own credentials (for example `DD_API_KEY`,
+      `DD_APP_KEY`, `DD_CLUSTER_AGENT_AUTH_TOKEN`), which must be listed here
+      explicitly to be resolved.
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
