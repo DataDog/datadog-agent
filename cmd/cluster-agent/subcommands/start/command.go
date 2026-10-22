@@ -808,8 +808,7 @@ func start(log log.Component,
 
 	pkglog.Infof("All components started. Cluster Agent now running.")
 
-	// Block here until we receive the interrupt signal or a stop request,
-	// e.g. from the agentprofiling check's terminate_agent_on_threshold
+	// Block here until we receive the interrupt signal or a stop request
 	select {
 	case <-signalCh:
 	case <-signals.Stopper:

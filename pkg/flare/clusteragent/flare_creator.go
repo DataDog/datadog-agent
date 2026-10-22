@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Creator creates and sends cluster-agent flares from inside the running cluster agent.
+// Creator creates and sends Cluster Agent flares.
 type Creator struct {
 	cfg          pkgconfigmodel.Reader
 	statusComp   status.Component
@@ -27,7 +27,7 @@ type Creator struct {
 	ipcComp      ipc.Component
 }
 
-// NewCreator returns a Creator for the running cluster agent.
+// NewCreator returns a Creator.
 func NewCreator(cfg pkgconfigmodel.Reader, statusComp status.Component, diagnoseComp diagnose.Component, ipcComp ipc.Component) *Creator {
 	return &Creator{
 		cfg:          cfg,
@@ -37,13 +37,12 @@ func NewCreator(cfg pkgconfigmodel.Reader, statusComp status.Component, diagnose
 	}
 }
 
-// CreateWithArgs creates a cluster-agent flare and returns its path. The cluster-agent
-// flare has no provider timeout or diagnose result inputs, so those are ignored.
+// CreateWithArgs creates a Cluster Agent flare and returns its path.
 func (c *Creator) CreateWithArgs(flareArgs flaretypes.FlareArgs, _ time.Duration, _ error, _ []byte) (string, error) {
 	return createIdentifiedDCAArchive(c.cfg, flareArgs, c.statusComp, c.diagnoseComp, c.ipcComp)
 }
 
-// Send sends the flare at flarePath to Datadog support.
+// Send sends the flare to Datadog support.
 func (c *Creator) Send(flarePath string, caseID string, email string, source flarehelpers.FlareSource) (string, error) {
 	return sendFlareFunc(c.cfg, flarePath, caseID, email, c.cfg.GetString("api_key"), configUtils.GetInfraEndpoint(c.cfg), source)
 }

@@ -49,8 +49,7 @@ type Config struct {
 	TerminateAgentOnThreshold bool   `yaml:"terminate_agent_on_threshold"`
 }
 
-// FlareCreator creates a flare and sends it to Datadog support. The core agent's
-// flare component implements it, and so does the cluster agent's flare creator.
+// FlareCreator creates a flare and sends it to Datadog support.
 type FlareCreator interface {
 	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)

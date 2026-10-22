@@ -30,8 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// clusterAgentOnlyChecks monitor the cluster agent's own process, so a runner
-// would monitor the wrong process. They are never dispatched.
+// clusterAgentOnlyChecks monitor their own process, so they are never dispatched.
 var clusterAgentOnlyChecks = map[string]struct{}{
 	"agentprofiling": {},
 }
