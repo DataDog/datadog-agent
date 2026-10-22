@@ -256,8 +256,8 @@ func TestOversizedMessageTelemetry(t *testing.T) {
 
 			text, err := tel.GatherText(func(*telemetry.MetricFamily) bool { return true })
 			require.NoError(t, err)
-			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{kind="error"} 2`)
-			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{kind="warning"} 1`)
+			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{check_name="postgres",kind="error"} 2`)
+			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{check_name="postgres",kind="warning"} 1`)
 		})
 	}
 }

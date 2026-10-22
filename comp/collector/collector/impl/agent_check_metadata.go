@@ -68,7 +68,7 @@ func newOversizedMetrics(tel telemetry.Component) *oversizedMetrics {
 			[]string{"check_name", "kind", "truncated"},
 			"Check messages sent in the agent_checks metadata payload that exceed the size cap"),
 		bytes: tel.NewHistogram("checks", "metadata_message_oversized_bytes",
-			[]string{"kind"},
+			[]string{"check_name", "kind"},
 			"Original size, in bytes, of the check messages exceeding the size cap",
 			[]float64{8 << 10, 16 << 10, 64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20}),
 	}
@@ -109,7 +109,7 @@ func (t messageTruncator) maybeTruncate(msg, checkName, kind string) string {
 		return msg
 	}
 	t.metrics.messages.Inc(checkName, kind, strconv.FormatBool(t.enabled))
-	t.metrics.bytes.Observe(float64(len(msg)), kind)
+	t.metrics.bytes.Observe(float64(len(msg)), checkName, kind)
 	if !t.enabled {
 		return msg
 	}
