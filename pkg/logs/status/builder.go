@@ -334,7 +334,7 @@ func (b *Builder) getIntegrations(verbose bool) []Integration {
 			}
 			if verbose {
 				sourceStatus.Inputs = source.GetInputs()
-				sourceStatus.Info = source.GetInfoStatusVerbose(true)
+				sourceStatus.Info = source.GetInfoStatus()
 			}
 			sources = append(sources, sourceStatus)
 		}

@@ -15,7 +15,7 @@ type TagFilterInfo struct {
 	sourceExclude []string
 }
 
-// NewTagFilterInfo returns a verbose-only status provider describing a source's effective tag filters.
+// NewTagFilterInfo returns a status provider describing a source's effective tag filters.
 func NewTagFilterInfo(globalInclude, globalExclude, sourceInclude, sourceExclude []string) *TagFilterInfo {
 	return &TagFilterInfo{
 		globalInclude: globalInclude,
@@ -28,11 +28,6 @@ func NewTagFilterInfo(globalInclude, globalExclude, sourceInclude, sourceExclude
 // InfoKey returns the key for this info provider.
 func (t *TagFilterInfo) InfoKey() string {
 	return "Tag Filters"
-}
-
-// IsVerbose reports that tag filters only render on the verbose status page.
-func (t *TagFilterInfo) IsVerbose() bool {
-	return true
 }
 
 // Info returns one line per non-empty filter scope, omitting scopes with no patterns.

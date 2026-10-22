@@ -170,15 +170,9 @@ func (s *LogSource) GetInfo(key string) status.InfoProvider {
 
 // GetInfoStatus returns a primitive representation of the info for the status page
 func (s *LogSource) GetInfoStatus() map[string][]string {
-	return s.GetInfoStatusVerbose(false)
-}
-
-// GetInfoStatusVerbose returns a primitive representation of the info for the status page,
-// including verbose-only providers when verbose is true.
-func (s *LogSource) GetInfoStatusVerbose(verbose bool) map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.info.RenderedVerbose(verbose)
+	return s.info.Rendered()
 }
 
 type tagFilterState struct {
