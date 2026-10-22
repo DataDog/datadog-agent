@@ -88,6 +88,7 @@ func (h *countingHandle) ObserveLog(_ observerdef.LogView)                 { h.l
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {
+	source      string
 	content     string
 	status      string
 	tags        []string
@@ -95,6 +96,7 @@ type mockLogView struct {
 	timestampMs int64
 }
 
+func (m *mockLogView) GetSource() string            { return m.source }
 func (m *mockLogView) GetContent() string           { return m.content }
 func (m *mockLogView) GetStatus() string            { return m.status }
 func (m *mockLogView) Tags() []string               { return m.tags }

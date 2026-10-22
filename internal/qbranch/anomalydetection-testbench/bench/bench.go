@@ -39,6 +39,7 @@ type logDataView struct {
 // Ensure logDataView implements observerdef.LogView.
 var _ observerdef.LogView = (*logDataView)(nil)
 
+func (v *logDataView) GetSource() string            { return "" }
 func (v *logDataView) GetContent() string           { return string(v.data.Content) }
 func (v *logDataView) GetStatus() string            { return v.data.Status }
 func (v *logDataView) GetHostname() string          { return v.data.Hostname }
