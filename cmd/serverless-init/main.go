@@ -691,21 +691,21 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 
 // channelDrainer is implemented by the logs agent. The mock used in tests is not.
 type channelDrainer interface {
-	DrainChannelInputs()
+	DrainChannelInputs(ctx context.Context)
 }
 
-// flushLogsAgent flushes the logs agent with a bounded timeout. Metrics are
-// flushed by the demultiplexer's Fx OnStop hook (demux.Stop()), so this
-// helper is logs-only.
+// flushLogsAgent drains channel inputs and flushes the logs agent, both within
+// flushTimeout. Metrics are flushed by the demultiplexer's Fx OnStop hook
+// (demux.Stop()), so this helper is logs-only.
 func flushLogsAgent(flushTimeout time.Duration, agent logsAgent.ServerlessLogsAgent) {
 	if agent == nil {
 		return
 	}
-	if drainer, ok := agent.(channelDrainer); ok {
-		drainer.DrainChannelInputs()
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
+	if drainer, ok := agent.(channelDrainer); ok {
+		drainer.DrainChannelInputs(ctx)
+	}
 	agent.Flush(ctx)
 }
 

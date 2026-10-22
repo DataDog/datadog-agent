@@ -7,6 +7,7 @@ package sender
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -349,64 +350,67 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 // the payload's Done call.
 func TestBatchStrategyFlushDrainsInputBeforeWait(t *testing.T) {
 	for i := 0; i < 20; i++ {
-		meta := NewMockServerlessMeta(true)
-		input := make(chan *message.Message, 1)
-		output := make(chan *message.Payload, 1)
-		flushChan := make(chan chan struct{}, 1)
+		synctest.Test(t, func(t *testing.T) {
+			meta := NewMockServerlessMeta(true)
+			input := make(chan *message.Message, 1)
+			output := make(chan *message.Payload, 1)
+			flushChan := make(chan chan struct{}, 1)
 
-		strategy := NewBatchStrategy(
-			input,
-			output,
-			flushChan,
-			meta,
-			time.Hour,
-			100,
-			100,
-			"test",
-			compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
-			metrics.NewNoopPipelineMonitor(""),
-			"test")
+			strategy := NewBatchStrategy(
+				input,
+				output,
+				flushChan,
+				meta,
+				time.Hour,
+				100,
+				100,
+				"test",
+				compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+				metrics.NewNoopPipelineMonitor(""),
+				"test")
 
-		msg := message.NewMessage([]byte("queued"), nil, "", 0)
-		ack := make(chan struct{})
-		input <- msg
-		flushChan <- ack
-		strategy.Start()
+			msg := message.NewMessage([]byte("queued"), nil, "", 0)
+			ack := make(chan struct{})
+			input <- msg
+			flushChan <- ack
+			strategy.Start()
+			synctest.Wait()
 
-		select {
-		case <-ack:
-		case <-time.After(time.Second):
-			t.Fatalf("iteration %d: flush ack was not closed", i)
-		}
+			select {
+			case <-ack:
+			default:
+				t.Fatalf("iteration %d: flush ack was not closed", i)
+			}
 
-		select {
-		case payload := <-output:
-			assert.Equal(t, &msg.MessageMetadata, payload.MessageMetas[0])
-		default:
-			t.Fatalf("iteration %d: message queued on inputChan was not flushed", i)
-		}
+			select {
+			case payload := <-output:
+				assert.Equal(t, &msg.MessageMetadata, payload.MessageMetas[0])
+			default:
+				t.Fatalf("iteration %d: message queued on inputChan was not flushed", i)
+			}
 
-		if i == 0 {
 			returned := make(chan struct{})
 			go func() {
 				meta.WaitGroup().Wait()
 				close(returned)
 			}()
+			// Returns once the goroutine above is blocked in WaitGroup.Wait.
+			synctest.Wait()
 			select {
 			case <-returned:
-				t.Fatal("Wait returned before Done")
-			case <-time.After(50 * time.Millisecond):
+				t.Fatalf("iteration %d: Wait returned before Done", i)
+			default:
 			}
-			meta.WaitGroup().Done()
-			select {
-			case <-returned:
-			case <-time.After(time.Second):
-				t.Fatal("Wait did not return after Done")
-			}
-		} else {
-			meta.WaitGroup().Done()
-		}
 
-		strategy.Stop()
+			meta.WaitGroup().Done()
+			synctest.Wait()
+			select {
+			case <-returned:
+			default:
+				t.Fatalf("iteration %d: Wait did not return after Done", i)
+			}
+
+			strategy.Stop()
+		})
 	}
 }

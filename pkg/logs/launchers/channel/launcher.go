@@ -7,6 +7,8 @@
 package channel
 
 import (
+	"context"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
@@ -26,15 +28,18 @@ type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *sources.LogSource
 	sourcesDone      chan struct{}
-	tailers          []*tailer.Tailer
-	stop             chan struct{}
-	stopOnce         sync.Once
+	// tailers is only accessed by the run goroutine. Other goroutines get a copy through tailersReq.
+	tailers    []*tailer.Tailer
+	tailersReq chan chan []*tailer.Tailer
+	stop       chan struct{}
+	stopOnce   sync.Once
 }
 
 // NewLauncher returns an initialized Launcher
 func NewLauncher() *Launcher {
 	return &Launcher{
 		sourcesDone: make(chan struct{}),
+		tailersReq:  make(chan chan []*tailer.Tailer),
 		stop:        make(chan struct{}),
 	}
 }
@@ -59,25 +64,49 @@ func (l *Launcher) run() {
 		case source := <-l.sources:
 			l.startNewTailer(source)
 			source.Status().Success()
+		case reply := <-l.tailersReq:
+			// A ready sources channel is chosen at random with this case, so
+			// start tailers for sources already being sent before replying.
+			l.startPendingTailers()
+			reply <- slices.Clone(l.tailers)
 		case <-l.stop:
 			return
 		}
 	}
 }
 
-// Drain flushes every channel tailer into the pipeline. Later Stop calls
-func (l *Launcher) Drain() {
-	for _, tailer := range l.tailers {
-		tailer.WaitFlush()
+// startPendingTailers starts a tailer for every source already being sent.
+// It does not wait for sources that are not yet sent.
+func (l *Launcher) startPendingTailers() {
+	for {
+		select {
+		case source := <-l.sources:
+			l.startNewTailer(source)
+			source.Status().Success()
+		default:
+			return
+		}
+	}
+}
+
+// Drain flushes every channel tailer into the pipeline, or returns when ctx is
+// done. It closes the source channels, so it is only used at shutdown.
+func (l *Launcher) Drain(ctx context.Context) {
+	reply := make(chan []*tailer.Tailer, 1)
+	select {
+	case l.tailersReq <- reply:
+	case <-ctx.Done():
+		return
+	}
+	for _, tailer := range <-reply {
+		tailer.WaitFlush(ctx)
 	}
 }
 
 // Stop waits for any running tailer to be flushed.
 func (l *Launcher) Stop() {
 	l.stopOnce.Do(func() {
-		for _, tailer := range l.tailers {
-			tailer.WaitFlush()
-		}
+		l.Drain(context.Background())
 		close(l.sourcesDone)
 		l.stop <- struct{}{}
 	})

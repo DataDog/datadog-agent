@@ -7,6 +7,7 @@
 package channel
 
 import (
+	"context"
 	"os"
 	"strings"
 	"sync"
@@ -38,8 +39,8 @@ type Tailer struct {
 	source     *sources.LogSource
 	inputChan  chan *config.ChannelMessage
 	outputChan chan *message.Message
-	done       chan interface{}
-	flushOnce  sync.Once
+	done       chan struct{}
+	closeOnce  sync.Once
 }
 
 // NewTailer returns a new Tailer
@@ -48,7 +49,7 @@ func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage,
 		source:     source,
 		inputChan:  inputChan,
 		outputChan: outputChan,
-		done:       make(chan interface{}, 1),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -57,20 +58,21 @@ func (t *Tailer) Start() {
 	go t.run()
 }
 
-// WaitFlush waits for all items in the input channel to be processed.  In the
-// process, this closes the input channel.  Any subsequent sends to the channel
-// will fail. A second call waits for the first to finish and does not close again.
-func (t *Tailer) WaitFlush() {
-	t.flushOnce.Do(func() {
+// WaitFlush waits for all items in the input channel to be processed, or until
+// ctx is done.  In the process, this closes the input channel.  Any subsequent
+// sends to the channel will fail.  It is safe to call more than once.
+func (t *Tailer) WaitFlush(ctx context.Context) {
+	t.closeOnce.Do(func() {
 		close(t.inputChan)
-		<-t.done
 	})
+	select {
+	case <-t.done:
+	case <-ctx.Done():
+	}
 }
 
 func (t *Tailer) run() {
-	defer func() {
-		t.done <- true
-	}()
+	defer close(t.done)
 
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {

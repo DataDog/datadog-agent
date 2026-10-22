@@ -6,7 +6,9 @@
 package channel
 
 import (
+	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -34,8 +36,8 @@ func TestWaitFlushForwardsQueuedLinesAndIsIdempotent(t *testing.T) {
 	tailer.Start()
 
 	input <- &config.ChannelMessage{Content: []byte("line")}
-	tailer.WaitFlush()
-	tailer.WaitFlush()
+	tailer.WaitFlush(context.Background())
+	tailer.WaitFlush(context.Background())
 
 	select {
 	case msg := <-output:
@@ -43,6 +45,28 @@ func TestWaitFlushForwardsQueuedLinesAndIsIdempotent(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("queued line was not forwarded")
 	}
+}
+
+// TestWaitFlushReturnsWhenContextIsDone blocks the tailer on a full pipeline
+// and checks that WaitFlush still returns at the context deadline.
+func TestWaitFlushReturnsWhenContextIsDone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		input := make(chan *config.ChannelMessage, 1)
+		output := make(chan *message.Message)
+		tailer := NewTailer(sources.NewLogSource("test", &config.LogsConfig{}), input, output)
+		tailer.Start()
+		input <- &config.ChannelMessage{Content: []byte("line")}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		start := time.Now()
+		tailer.WaitFlush(ctx)
+		assert.Equal(t, time.Second, time.Since(start))
+
+		// Read the pending line so the tailer goroutine exits before the bubble ends.
+		<-output
+		tailer.WaitFlush(context.Background())
+	})
 }
 
 func TestComputeServiceNameContainerAppJob(t *testing.T) {

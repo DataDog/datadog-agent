@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "channel",
@@ -13,5 +14,19 @@ go_library(
         "//pkg/logs/sources",
         "//pkg/logs/tailers",
         "//pkg/logs/tailers/channel",
+    ],
+)
+
+dd_agent_go_test(
+    name = "channel_test",
+    srcs = ["launcher_test.go"],
+    embed = [":channel"],
+    deps = [
+        "//comp/logs-library/pipeline/mock",
+        "//comp/logs/agent/config",
+        "//pkg/logs/launchers",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
     ],
 )
