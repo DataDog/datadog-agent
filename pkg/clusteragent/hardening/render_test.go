@@ -107,3 +107,34 @@ func TestRenderSeccomp(t *testing.T) {
 	_, reason = Render(req, spec)
 	assert.NotEmpty(t, reason, "a pod-level Localhost profile is not replaced either")
 }
+
+func TestSetsControl(t *testing.T) {
+	ro := &Request{Control: ControlReadOnlyRootFS, Target: Target{Container: "app"}}
+	seccomp := &Request{Control: ControlSeccompRuntimeDefault, Target: Target{Container: "app"}}
+	runtimeDefault := &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
+	podLevel := specWith(nil)
+	podLevel.SecurityContext = &corev1.PodSecurityContext{SeccompProfile: runtimeDefault}
+
+	tests := []struct {
+		name string
+		req  *Request
+		spec *corev1.PodSpec
+		want bool
+	}{
+		{name: "nothing declared", req: capsRequest("NET_BIND_SERVICE"), spec: specWith(nil)},
+		{name: "same capabilities", req: capsRequest("NET_BIND_SERVICE"), spec: specWith(&corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}, Add: []corev1.Capability{"CAP_NET_BIND_SERVICE"}}}), want: true},
+		{name: "fewer capabilities", req: capsRequest("NET_BIND_SERVICE", "CHOWN"), spec: specWith(&corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}}), want: true},
+		{name: "another capability", req: capsRequest("NET_BIND_SERVICE"), spec: specWith(&corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}, Add: []corev1.Capability{"CHOWN"}}})},
+		{name: "no drop ALL", req: capsRequest("NET_BIND_SERVICE"), spec: specWith(&corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"NET_RAW"}}})},
+		{name: "read-only root fs", req: ro, spec: specWith(&corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(true)}), want: true},
+		{name: "writable root fs", req: ro, spec: specWith(&corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(false)})},
+		{name: "container RuntimeDefault", req: seccomp, spec: specWith(&corev1.SecurityContext{SeccompProfile: runtimeDefault}), want: true},
+		{name: "pod RuntimeDefault", req: seccomp, spec: podLevel, want: true},
+		{name: "no seccomp profile", req: seccomp, spec: specWith(nil)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, setsControl(tt.req, tt.spec))
+		})
+	}
+}
