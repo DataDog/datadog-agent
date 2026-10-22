@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/privateactionrunner/phonehome/def",
         "//comp/privateactionrunner/phonehome/impl",
         "//pkg/util/fxutil",
     ],
