@@ -19,6 +19,7 @@ http_archive(
         "//deps:openscap/patches/session-print-syschar.patch",
         "//deps:openscap/patches/memusage-cgroup.patch",
         "//deps:openscap/patches/oval_probe_session_reset.patch",
+        "//deps:openscap/patches/probe-wait-workers.patch",
         "//deps:openscap/patches/sysctl-probe-offline-skip.patch",
         "//deps:openscap/patches/probes-no-procfs.patch",
         "//deps:openscap/patches/oscap-io.patch",
