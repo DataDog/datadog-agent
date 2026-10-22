@@ -132,6 +132,15 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval, e
 
     fill_namespace_ids(&event->after);
 
+    // Children forked or exec'd after this call take their mntns from mntns_cache, which the
+    // switch_task_namespaces hook doesn't update for setns on some kernels: without this, a
+    // process docker exec'd into a container (runc joins the container's mntns with setns
+    // before forking it) inherits the host mntns.
+    if (retval == 0 && event->after.mnt != 0) {
+        u32 pid = bpf_get_current_pid_tgid() >> 32;
+        bpf_map_update_elem(&mntns_cache, &pid, &event->after.mnt, BPF_ANY);
+    }
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
