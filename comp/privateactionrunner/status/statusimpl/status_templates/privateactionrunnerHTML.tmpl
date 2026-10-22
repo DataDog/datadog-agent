@@ -3,6 +3,12 @@
   <span class="stat_title">Private Action Runner</span>
   <span class="stat_data">
     Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}<br>
+  {{- with .PhoneHome }}
+    Startup gate: {{ .State }} ({{ .Reason }})<br>
+  {{- if .NextCheck }}
+    Next gate check: {{ .NextCheck }}<br>
+  {{- end }}
+  {{- end }}
   {{- if .Enabled }}
     URN: {{ .URN }}<br>
     Self Enroll: {{ .SelfEnroll }}<br>

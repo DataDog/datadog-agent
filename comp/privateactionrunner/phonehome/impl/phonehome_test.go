@@ -42,6 +42,8 @@ func TestOptOutDoesNotRegisterBackgroundWork(t *testing.T) {
 	t.Setenv("DD_PAR_PHONE_HOME_POC", "false")
 	lc := &lifecycle{}
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
-	require.NotNil(t, NewComponent(Requires{Config: cfg, Lifecycle: lc}).Comp)
+	component := NewComponent(Requires{Config: cfg, Lifecycle: lc}).Comp
+	require.NotNil(t, component)
+	require.Nil(t, component.Status())
 	require.Empty(t, lc.hooks)
 }
