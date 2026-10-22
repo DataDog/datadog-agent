@@ -522,6 +522,7 @@
 /comp/forwarder/connectionsforwarder @DataDog/container-experiences
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
+/comp/forwarder/fileupload @DataDog/cloud-network-monitoring
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
 /comp/logs/severityprovider @DataDog/agent-log-pipelines @DataDog/agent-anomaly-detection
 /comp/metadata/clusteragent @DataDog/container-platform
