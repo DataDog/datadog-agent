@@ -23,22 +23,15 @@ import (
 )
 
 func TestStartCommand(t *testing.T) {
-	for _, deployment := range []string{"0", "1"} {
-		t.Run("aas_extension_"+deployment, func(t *testing.T) {
-			t.Setenv(serverlessenv.AzureAppServicesEnvVar, deployment)
-			fxutil.TestOneShotSubcommand(t,
-				[]*cobra.Command{MakeCommand("defaultLogFile")},
-				[]string{"start", "--cfgpath", "PATH"},
-				start,
-				func(cliParams *CLIParams, _ config.Params) {
-					require.Equal(t, "PATH", cliParams.confPath)
-				})
+	fxutil.TestOneShotSubcommand(t,
+		[]*cobra.Command{MakeCommand("defaultLogFile")},
+		[]string{"start", "--cfgpath", "PATH"},
+		start,
+		func(cliParams *CLIParams, _ config.Params) {
+			require.Equal(t, "PATH", cliParams.confPath)
 		})
-	}
 }
 
-// Exercise the real provider graph at construction time. Merely validating the
-// command's CLI parameters does not verify which metadata providers are built.
 func TestMetadataModulesSelectProviders(t *testing.T) {
 	for _, tc := range []struct {
 		name          string

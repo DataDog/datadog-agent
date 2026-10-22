@@ -60,8 +60,7 @@ type Provides struct {
 	Provider runnerdef.Provider
 }
 
-// NewComponent registers only the AAS metadata provider. The normal metadata
-// runner owns startup, periodic collection, and cancellation.
+// NewComponent registers the AAS provider with the shared metadata runner.
 func NewComponent(deps Requires) Provides {
 	c := &serverlessAASComp{
 		conf:     deps.Config,
@@ -121,8 +120,7 @@ func (s submissionRecordingSerializer) SendMetadata(payload marshaler.JSONMarsha
 	return nil
 }
 
-// buildFields snapshots the static AAS environment fields. A nil result withholds the
-// payload when the required REDAPL resource key cannot be derived.
+// buildFields returns nil when the resource ID is unavailable, preventing submission.
 func buildFields() map[string]interface{} {
 	metadata := readAppServiceMetadata()
 	resourceID := canonicalResourceID(metadata.resourceID)
@@ -165,8 +163,7 @@ type appServiceMetadata struct {
 	extensionVersion string
 }
 
-// readAppServiceMetadata reads only the AAS values needed by this payload. This
-// keeps dogstatsd independent of traceutil and its trace protobuf dependencies.
+// Read environment values directly to avoid pulling traceutil's protobuf dependencies into dogstatsd.
 func readAppServiceMetadata() appServiceMetadata {
 	siteName := os.Getenv("WEBSITE_SITE_NAME")
 	resourceGroup := os.Getenv("WEBSITE_RESOURCE_GROUP")

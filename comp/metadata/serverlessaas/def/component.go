@@ -8,5 +8,5 @@ package serverlessaas
 
 // team: serverless-azure-and-gcp fleet-automation
 
-// Component is the component type.
+// Component provides Azure App Service extension metadata.
 type Component interface{}

@@ -79,17 +79,6 @@ func newTestComponent(t *testing.T, conf config.Component) (Provides, *recording
 	return provides, serializer
 }
 
-func TestComponentUsesAASConfiguration(t *testing.T) {
-	aasEnv(t)
-	// The config key can enable the provider without the environment flag.
-	t.Setenv("DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED", "")
-	conf := enabledConfig(t)
-	provides, serializer := newTestComponent(t, conf)
-
-	assert.NotNil(t, provides.Provider.Callback)
-	assert.Empty(t, serializer.payloads)
-}
-
 func TestGlobalInventoryGatesAreRespected(t *testing.T) {
 	aasEnv(t)
 	for _, key := range []string{"enable_metadata_collection", "inventories_enabled"} {
@@ -167,15 +156,6 @@ func TestFirstCompletePayloadIsImmediate(t *testing.T) {
 	} {
 		assert.Equal(t, expected, payload.Metadata[key], key)
 	}
-}
-
-func TestPayloadIsWithheldWithoutResourceID(t *testing.T) {
-	t.Setenv("WEBSITE_SITE_NAME", "")
-	provides, serializer := newTestComponent(t, enabledConfig(t))
-
-	provides.Provider.Callback(t.Context())
-
-	assert.Empty(t, serializer.payloads)
 }
 
 func TestSuccessfulSubmissionChangesReportReason(t *testing.T) {

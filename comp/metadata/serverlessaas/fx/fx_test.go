@@ -55,6 +55,7 @@ func (fakeHostname) GetWithProvider(context.Context) (hostnameinterface.Data, er
 }
 
 func TestRunnerHonorsConfiguration(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED", "")
 	for _, tc := range []struct {
 		name       string
 		aas        bool
