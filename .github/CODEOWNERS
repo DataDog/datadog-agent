@@ -698,6 +698,7 @@
 /pkg/collector/corechecks/discovery/                                  @DataDog/agent-discovery
 /pkg/collector/corechecks/ebpf/                                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/series*                                @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/noisyneighbor/                         @DataDog/container-experiences
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/                       @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/probe/noisyneighbor/                   @DataDog/container-experiences
