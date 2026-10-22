@@ -14,7 +14,7 @@ allowed-tools: Bash, Read, AskUserQuestion
 Owner: Agent Anomaly Detection (`@DataDog/agent-anomaly-detection`).
 
 Accept `--backend vm|eks`. If the user does not specify a backend, **ask them to choose between `eks` and `vm`**:
-- `eks` is for production benchmark recordings and automatically uploads the recorded archive to S3.
+- `eks` is for benchmark recordings on a disposable AWS sandbox stack and automatically uploads the recorded archive to S3.
 - `vm` is for interactive debugging or lightweight single-node experiments.
 
 Run the bundled helpers one at a time from the `datadog-agent` worktree and check their exit status (avoid chaining
@@ -27,12 +27,12 @@ performed it.
 
 | Backend | When to choose | Execution model |
 |---|---|---|
-| `eks` (production) | Production benchmark recordings and batches; automatically uploads recordings to S3 | `dda inv aws.eks.gensim.{submit,status,fetch,stop-all,destroy}` |
+| `eks` | Benchmark recordings and batches on a disposable AWS sandbox stack; automatically uploads recordings to S3 | `dda inv aws.eks.gensim.{submit,status,fetch,stop-all,destroy}` |
 | `vm` | Interactive debugging, single-worker kind inspection, quick shortened trials | SSH helpers in `scripts/vm.sh`, `scripts/scenario.sh`, `scripts/fetch.sh` |
 
 Ask for missing inputs in a single round trip before changing resources (`AskUserQuestion` requires `>= 2` options per
 question):
-1. **Backend**: `eks` (production, uploads to S3) or `vm` (interactive debugging)
+1. **Backend**: `eks` (benchmark recordings on a disposable AWS sandbox stack; uploads to S3) or `vm` (interactive debugging)
 2. **Recorder image tag**: `datadog/agent-dev:<tag>` from `dev_branch-recorder-full`
 3. **Target & S3 bucket**: EKS stack (default `gensim-eks`) + S3 bucket (default `qbranch-gensim-recordings`), or VM `user@host` / stack
 4. **Credentials env file**: local file defining `DD_API_KEY` and `DD_APP_KEY` for dddev
@@ -40,7 +40,7 @@ question):
 
 | Input | Requirement |
 |---|---|
-| Backend & target | Ask if not provided: `--backend eks` (production recordings, automatically uploads to S3; authorized EKS stack name, default `gensim-eks`, plus S3 bucket) or `--backend vm` (disposable `user@host` or authorized new AWS VM) |
+| Backend & target | Ask if not provided: `--backend eks` (benchmark recordings on a disposable AWS sandbox stack, automatically uploads to S3; authorized EKS stack name, default `gensim-eks`, plus S3 bucket) or `--backend vm` (disposable `user@host` or authorized new AWS VM) |
 | Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml`. A path under `observer-scenarios*` is an old recording output (`episode.json` + `parquet/`); read its `episode.json` to map back to `<episode-dir>:<scenario>` in `gensim-episodes` |
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full` (confirm pipeline and amd64 platform). If no tag is known, point the user at the CI Visibility Explorer (`ci_level:job env:prod @git.repository.id:gitlab.ddbuild.io/DataDog/datadog-agent @ci.pipeline.name:DataDog/datadog-agent @ci.provider.instance:gitlab-ci @ci.job.name:dev_branch-recorder-full @ci.status:success`): `https://app.datadoghq.com/ci/ci-cd/explorer/executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3Agitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.provider.instance%3Agitlab-ci%20%40ci.job.name%3Adev_branch-recorder-full%20%40ci.status%3Asuccess&agg_m=count&agg_m_source=base&agg_t=count&ci_cd_explorer_tab=pipelines&fromUser=true&refresh_mode=sliding&paused=false` |
@@ -49,12 +49,14 @@ question):
 | Batch / teardown | Episodes to run and resources to remove afterwards; retain reusable infrastructure until the batch finishes |
 
 Retention must exceed the episode duration plus the final flush wait (and the full batch on VM). Do not operate on
-production machines or clusters: these steps deploy workloads and create dddev monitors/events. Confirm disposable
-host/stack authorization and dddev credentials before mutating resources. The VM helpers require `--disposable-vm` to
-record that authorization; the flag is not a substitute for obtaining it.
+production machines or clusters: these steps deploy workloads on disposable AWS sandbox stacks or VMs and create dddev
+monitors/events. Confirm disposable host/stack authorization and dddev credentials before mutating resources. The VM
+helpers require `--disposable-vm` to record that authorization; the flag is not a substitute for obtaining it.
 
-Set `SKILL` to this skill's absolute directory. Local validation requires Bash, Python 3, and PyArrow
-(`uv run --no-project --with pyarrow ...`).
+Set `SKILL` to this skill's absolute directory. Local prerequisites before execution:
+- **Shared (validation)**: Bash, Python 3, and PyArrow (`uv run --no-project --with pyarrow ...`).
+- **VM (`--backend vm`)**: local `ssh`, `scp`, and `rsync` with access to the disposable VM (plus `dda inv e2e.setup` when provisioning a new VM).
+- **EKS (`--backend eks`)**: `dda`, configured e2e AWS sandbox profile (`aws-vault` / `dda inv e2e.setup`), `kubectl`, `helm`, and read/write access to the selected S3 bucket.
 
 ## 2A. VM happy path (`--backend vm`)
 
@@ -236,7 +238,7 @@ Read only for a failed or unfamiliar step:
 - Docker permission denied after bootstrap: close the multiplexed SSH connection and reconnect to pick up group membership.
 - Exec format errors: confirm an amd64 image for the x86_64 VM.
 - Docker 29 image-load errors: use a single-platform image archive instead of `kind load docker-image`.
-- Multiple recorder pods or restarting containers: stop, fix topology/resources, and start a new recording.
+- Multiple recorder pods (VM only, where `kind` uses one worker) or restarting containers (VM or EKS): stop, fix topology/resources, and start a new recording.
 
 To validate helper changes without provisioning resources, run
 `uv run --no-project --with pyarrow --with pyyaml bash "$SKILL/scripts/test.sh"` and ShellCheck on `scripts/*.sh`.
