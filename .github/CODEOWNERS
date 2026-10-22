@@ -454,6 +454,7 @@
 /omnibus/package-scripts/agent-dmg/                      @DataDog/agent-build @DataDog/windows-products
 /omnibus/python-scripts/                                 @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
+/deps/openconfig/                                        @DataDog/agent-build @DataDog/network-device-monitoring-core
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
 
@@ -553,6 +554,7 @@
 /comp/metriclookback @DataDog/q-branch
 /comp/networkconfigmanagement @DataDog/ndm-integrations
 /comp/networkdevices @DataDog/network-device-monitoring-core
+/comp/networkdevices/gnmistatus @DataDog/network-device-monitoring-core
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform

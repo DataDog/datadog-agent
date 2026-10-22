@@ -7,14 +7,8 @@
 
 package procfilestats
 
-import "errors"
-
-// ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
-// OS doesn't support an API. Unfortunately it's in an internal package so
-// we can't import it so we'll copy it here.
-var ErrNotImplemented = errors.New("not implemented yet")
-
 // GetProcessFileStats returns the number of file handles the Agent process has open
+// ErrNotImplemented is defined in process_file_stats.go (platform-agnostic).
 func GetProcessFileStats() (*ProcessFileStats, error) {
 	return nil, ErrNotImplemented
 }

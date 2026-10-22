@@ -6,6 +6,13 @@
 // Package procfilestats provides a way to retrieve process open file stats
 package procfilestats
 
+import "errors"
+
+// ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
+// OS doesn't support an API. Unfortunately it's in an internal package so
+// we can't import it so we'll copy it here.
+var ErrNotImplemented = errors.New("not implemented yet")
+
 // ProcessFileStats is used to retrieve stats from gopsutil/v3/process -- these stats are used for troubleshooting purposes
 type ProcessFileStats struct {
 	AgentOpenFiles uint64 `json:"agent_open_files"`

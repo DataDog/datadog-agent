@@ -274,18 +274,18 @@ a {
   background-color: grey !important;
   border-color: grey !important;
 }
-#main #general_status, #main #collector_status {
+#main #general_status, #main #collector_status, #main #gnmi_status {
   width: calc(100% - 40px);
   height: calc(100% - 40px);
   overflow-y: scroll;
 }
-#main #general_status .stat, #main #collector_status .stat {
+#main #general_status .stat, #main #collector_status .stat, #main #gnmi_status .stat {
   margin: 10px;
   margin-left: 20px;
   margin-bottom: 20px;
   line-height: 140%;
 }
-#main #general_status .stat .stat_title, #main #collector_status .stat .stat_title {
+#main #general_status .stat .stat_title, #main #collector_status .stat .stat_title, #main #gnmi_status .stat .stat_title {
   font-size: 19.5px;
   font-weight: bold;
   color: #6b419a;
@@ -293,36 +293,36 @@ a {
   padding-top: 10px;
   padding-bottom: 5px;
 }
-#main #general_status .stat .stat_subtitle, #main #collector_status .stat .stat_subtitle {
+#main #general_status .stat .stat_subtitle, #main #collector_status .stat .stat_subtitle, #main #gnmi_status .stat .stat_subtitle {
   font-size: 16.5px;
   font-weight: bold;
   display: block;
   padding-top: 10px;
   padding-bottom: 3px;
 }
-#main #general_status .stat .stat_data, #main #collector_status .stat .stat_data {
+#main #general_status .stat .stat_data, #main #collector_status .stat .stat_data, #main #gnmi_status .stat .stat_data {
   display: block;
   padding-left: 15px;
 }
-#main #general_status .stat .stat_subdata, #main #collector_status .stat .stat_subdata {
+#main #general_status .stat .stat_subdata, #main #collector_status .stat .stat_subdata, #main #gnmi_status .stat .stat_subdata {
   display: block;
   padding-left: 20px;
   padding-bottom: 20px;
 }
-#main #general_status .stat .stat_subdata ul, #main #collector_status .stat .stat_subdata ul {
+#main #general_status .stat .stat_subdata ul, #main #collector_status .stat .stat_subdata ul, #main #gnmi_status .stat .stat_subdata ul {
   display: block;
   margin: 0;
   padding: 0 0 0 20px;
 }
-#main #general_status .stat .error, #main #collector_status .stat .error {
+#main #general_status .stat .error, #main #collector_status .stat .error, #main #gnmi_status .stat .error {
   color: red;
   font-weight: bold;
 }
-#main #general_status .stat .warning, #main #collector_status .stat .warning {
+#main #general_status .stat .warning, #main #collector_status .stat .warning, #main #gnmi_status .stat .warning {
   color: #ffa500;
   font-weight: bold;
 }
-#main #general_status .stat .ok, #main #collector_status .stat .ok {
+#main #general_status .stat .ok, #main #collector_status .stat .ok, #main #gnmi_status .stat .ok {
   color: #18ab29;
   font-weight: bold;
 }

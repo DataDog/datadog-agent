@@ -78,6 +78,7 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
+	gnmistatus "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
@@ -152,6 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
 			ncmComp option.Option[networkconfigmanagement.Component],
+			gnmiStatus gnmistatus.Component,
 
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
@@ -182,6 +184,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				traceroute,
 				healthplatformComp,
 				ncmComp,
+				gnmiStatus,
 			)
 			if err != nil {
 				return err
