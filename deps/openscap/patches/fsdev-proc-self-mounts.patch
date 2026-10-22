@@ -1,0 +1,143 @@
+--- a/src/OVAL/probes/fsdev.c
++++ b/src/OVAL/probes/fsdev.c
+@@ -148,6 +148,19 @@
+ 	return 1;
+ }
+ 
++/*
++ * /etc/mtab links to /proc/self/mounts. Some container runtimes,
++ * containerd among them, create containers without the link.
++ */
++static FILE *open_mount_table(void)
++{
++	FILE *fp = setmntent(_PATH_MOUNTED, "r");
++
++	if (fp == NULL && errno == ENOENT)
++		fp = setmntent("/proc/self/mounts", "r");
++	return fp;
++}
++
+ #elif defined(OS_AIX)
+ static int is_local_fs(struct mntent *ment)
+ {
+@@ -176,6 +189,11 @@
+ 	return 1;
+ }
+ 
++static FILE *open_mount_table(void)
++{
++	return setmntent(_PATH_MOUNTED, "r");
++}
++
+ #endif /* OS_AIX */
+ 
+ static fsdev_t *__fsdev_init(fsdev_t *lfs)
+@@ -187,7 +205,7 @@
+ 	struct mntent *ment;
+ 	struct stat st;
+ 
+-	fp = setmntent(_PATH_MOUNTED, "r");
++	fp = open_mount_table();
+ 	if (fp == NULL) {
+ 		e = errno;
+ 		free(lfs);
+--- a/tests/API/probes/test_fsdev_is_local_fs.c
++++ b/tests/API/probes/test_fsdev_is_local_fs.c
+@@ -26,6 +26,16 @@
+ 
+ #include <stdio.h>
+ #include <string.h>
++
++#if defined(OS_LINUX)
++#include <mntent.h>
++
++/* __fsdev_init reads the mount table that mtab names. */
++#undef _PATH_MOUNTED
++static const char *mtab;
++#define _PATH_MOUNTED mtab
++#endif
++
+ #include "fsdev.h"
+ #include "fsdev.c"
+ 
+@@ -64,6 +74,60 @@
+ 	return (locals == 3);
+ }
+ 
++#if defined(OS_LINUX)
++/*
++ * read_table returns the devices that __fsdev_init finds in the mount
++ * table at path, in the order of the table, or NULL with errno set.
++ */
++static fsdev_t *read_table(const char *path)
++{
++	fsdev_t *lfs = malloc(sizeof(fsdev_t));
++
++	if (lfs == NULL)
++		return NULL;
++	mtab = path;
++	return __fsdev_init(lfs);
++}
++
++/*
++ * A missing mount table gives the devices of /proc/self/mounts, which proc
++ * holds. fake_mtab gives its own: those of /, /tmp and /home that exist
++ * here, / first.
++ */
++static int test_mount_table(const fsdev_t *proc, const char *fake_mtab)
++{
++	fsdev_t *lfs;
++	struct stat st;
++	int ok;
++
++	lfs = read_table("test_fsdev_is_local_fs.missing");
++	if (lfs == NULL) {
++		fprintf(stderr, "missing mount table: %s\n", strerror(errno));
++		return 0;
++	}
++	ok = lfs->cnt == proc->cnt &&
++		(lfs->cnt == 0 || memcmp(lfs->ids, proc->ids, sizeof(dev_t) * lfs->cnt) == 0);
++	if (!ok)
++		fprintf(stderr, "missing mount table: %u devices, /proc/self/mounts gives %u\n",
++			(unsigned)lfs->cnt, (unsigned)proc->cnt);
++	fsdev_free(lfs);
++	if (!ok)
++		return 0;
++
++	lfs = read_table(fake_mtab);
++	if (lfs == NULL) {
++		fprintf(stderr, "%s: %s\n", fake_mtab, strerror(errno));
++		return 0;
++	}
++	ok = lfs->cnt >= 1 && lfs->cnt <= 3 && stat("/", &st) == 0 && lfs->ids[0] == st.st_dev;
++	if (!ok)
++		fprintf(stderr, "%s: %u devices, want 1 to 3, that of / first\n",
++			fake_mtab, (unsigned)lfs->cnt);
++	fsdev_free(lfs);
++	return ok;
++}
++#endif
++
+ int main(int argc, char *argv[])
+ {
+ 	if (!test_single_call()) {
+@@ -74,6 +138,19 @@
+ 		fprintf(stderr, "test_multiple_calls has failed\n");
+ 		return 1;
+ 	}
++#if defined(OS_LINUX)
++	fsdev_t *proc = read_table("/proc/self/mounts");
++	if (proc == NULL) {
++		fprintf(stderr, "/proc/self/mounts: %s: skipping test_mount_table\n", strerror(errno));
++		return 255;
++	}
++	int ok = test_mount_table(proc, argv[1]);
++	fsdev_free(proc);
++	if (!ok) {
++		fprintf(stderr, "test_mount_table has failed\n");
++		return 1;
++	}
++#endif
+ 	return 0;
+ }
+ 

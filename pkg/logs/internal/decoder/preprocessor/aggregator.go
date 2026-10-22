@@ -28,7 +28,7 @@ type Aggregator interface {
 	// Process handles a log line and returns zero or more completed messages.
 	// label is the result of labeling this message; aggregators that don't use it may ignore it.
 	// tokens are a borrowed view: an aggregator that buffers a line must retain
-	// them (tokens.retained()) before re-emitting it later.
+	// them (tokens.Retained()) before re-emitting it later.
 	Process(msg *message.Message, label Label, tokens BorrowedTokens) []AggregatedMessageWithTokens
 
 	// Flush returns any buffered messages and clears internal state.

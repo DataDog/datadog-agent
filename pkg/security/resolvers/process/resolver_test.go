@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
@@ -1643,4 +1644,69 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 
 	creds := resolver.FetchAWSSecurityCredentials(proc, &proc.ProcessCacheEntry.Process)
 	assert.Empty(t, creds, "expired credentials should be pruned on fetch")
+}
+
+func TestUpdateProcessContextsReplacesPair(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	containerCGroup := model.CGroupContext{
+		CGroupPathKey: model.PathKey{MountID: 1, Inode: 5678},
+		CGroupID:      "/kubepods.slice/cri-containerd-abcdef.scope",
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	hostCGroup := model.CGroupContext{
+		CGroupPathKey: model.PathKey{MountID: 1, Inode: 1111},
+		CGroupID:      "/runtime.slice/containerd.service",
+		CGroupSource:  model.CGroupSourceProcFS,
+	}
+	containerContext := model.ContainerContext{ContainerID: "abcdef", ContainerSource: model.ContainerSourceEvent}
+
+	t.Run("moving-out-of-container-clears-container-id", func(t *testing.T) {
+		pce := model.NewProcessCacheEntry()
+		resolver.UpdateProcessContexts(pce, containerCGroup, containerContext)
+		require.Equal(t, containerutils.ContainerID("abcdef"), pce.Process.ContainerContext.ContainerID)
+
+		resolver.UpdateProcessContexts(pce, hostCGroup, model.ContainerContext{})
+
+		assert.Equal(t, containerutils.CGroupID("/runtime.slice/containerd.service"), pce.Process.CGroup.CGroupID)
+		assert.True(t, pce.Process.ContainerContext.IsNull())
+	})
+
+	t.Run("moving-out-of-pod-clears-pod-uid", func(t *testing.T) {
+		podCGroup := model.CGroupContext{
+			CGroupPathKey: model.PathKey{MountID: 1, Inode: 4321},
+			CGroupID:      "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podcfac6d28_eab3_4742_9aac_4713c9a945b3.slice",
+			CGroupSource:  model.CGroupSourceEvent,
+		}
+		pce := model.NewProcessCacheEntry()
+		resolver.UpdateProcessContexts(pce, podCGroup, model.ContainerContext{PodUID: "cfac6d28-eab3-4742-9aac-4713c9a945b3"})
+		require.Equal(t, "cfac6d28-eab3-4742-9aac-4713c9a945b3", pce.Process.ContainerContext.PodUID)
+
+		resolver.UpdateProcessContexts(pce, hostCGroup, model.ContainerContext{})
+
+		assert.Empty(t, pce.Process.ContainerContext.PodUID)
+	})
+
+	t.Run("moving-into-container-sets-both", func(t *testing.T) {
+		pce := model.NewProcessCacheEntry()
+		resolver.UpdateProcessContexts(pce, hostCGroup, model.ContainerContext{})
+
+		resolver.UpdateProcessContexts(pce, containerCGroup, containerContext)
+
+		assert.Equal(t, containerutils.CGroupID("/kubepods.slice/cri-containerd-abcdef.scope"), pce.Process.CGroup.CGroupID)
+		assert.Equal(t, containerutils.ContainerID("abcdef"), pce.Process.ContainerContext.ContainerID)
+	})
+
+	t.Run("null-cgroup-is-a-no-op", func(t *testing.T) {
+		pce := model.NewProcessCacheEntry()
+		resolver.UpdateProcessContexts(pce, containerCGroup, containerContext)
+
+		resolver.UpdateProcessContexts(pce, model.CGroupContext{}, model.ContainerContext{})
+
+		assert.Equal(t, containerutils.CGroupID("/kubepods.slice/cri-containerd-abcdef.scope"), pce.Process.CGroup.CGroupID)
+		assert.Equal(t, containerutils.ContainerID("abcdef"), pce.Process.ContainerContext.ContainerID)
+	})
 }

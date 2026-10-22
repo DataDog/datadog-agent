@@ -228,19 +228,21 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
+    # span_go_tester is linked dynamically: dd-trace-go dlopens libddwaf, which fails in
+    # a static binary
     testers = {
-        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+        "syscall_go_tester": (f"{syscall_tester_go_dir}/syscall_go_tester.go", True),
+        "span_go_tester": (f"{syscall_tester_go_dir}/span/span_go_tester.go", False),
     }
 
     exe_files = []
-    for name, source in testers.items():
+    for name, (source, static) in testers.items():
         exe_file = os.path.join(build_dir, name)
         go_build(
             ctx,
             source,
             build_tags=["syscalltesters", "osusergo", "netgo"],
-            ldflags="-extldflags=-static",
+            ldflags="-extldflags=-static" if static else "",
             bin_path=exe_file,
             env=env,
         )
