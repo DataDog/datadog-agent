@@ -178,10 +178,18 @@ variables:
     # Empty inputs select only the always bucket.
     - |
       if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
-        SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
-        export GITHUB_TOKEN="${SMP_GH_TOKEN}"
-        dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null \
-          || { echo "owners.smp-pr-context failed; submitting the always bucket only."; : > pr_labels.txt; : > involved_teams.txt; }
+        if [[ "${CI_COMMIT_BRANCH}" == "${CI_DEFAULT_BRANCH}" ]]; then
+          echo "No pull request context is needed on ${CI_DEFAULT_BRANCH}; submitting the always bucket."
+          : > pr_labels.txt
+          : > involved_teams.txt
+        else
+          SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.smp-pr-context || true)
+          if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null; then
+            echo "WARNING: pull request context is unavailable; submitting the always bucket only."
+            : > pr_labels.txt
+            : > involved_teams.txt
+          fi
+        fi
         SMP_LABELS=$(cat pr_labels.txt 2>/dev/null || true)
         SMP_INVOLVED=$(cat involved_teams.txt 2>/dev/null || true)
         echo "Selection inputs: labels=[${SMP_LABELS}] involved_teams=[${SMP_INVOLVED}]"

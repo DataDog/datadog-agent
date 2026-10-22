@@ -29,10 +29,18 @@ single_machine_performance-experiments-resolve:
     - aws --profile ${AWS_NAMED_PROFILE} s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
     - |
-      SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr || true)
-      export GITHUB_TOKEN="${SMP_GH_TOKEN}"
-      dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null \
-        || { echo "pr-context failed; validating with no PR context"; : > pr_labels.txt; : > involved_teams.txt; }
+      if [[ "${CI_COMMIT_BRANCH}" == "${CI_DEFAULT_BRANCH}" ]]; then
+        echo "No pull request context is needed on ${CI_DEFAULT_BRANCH}; validating the always bucket."
+        : > pr_labels.txt
+        : > involved_teams.txt
+      else
+        SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.smp-pr-context || true)
+        if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null; then
+          echo "WARNING: pull request context is unavailable; validating the always bucket only."
+          : > pr_labels.txt
+          : > involved_teams.txt
+        fi
+      fi
       INVOLVED=$(cat involved_teams.txt 2>/dev/null || true)
       LABELS=$(cat pr_labels.txt 2>/dev/null || true)
       ./smp experiments resolve --target-config-dir "${CONFIG_DIR}" --manifest "${CONFIG_DIR}/selection.yaml" ${INVOLVED:+--involved-team "$INVOLVED"} ${LABELS:+--label "$LABELS"}
