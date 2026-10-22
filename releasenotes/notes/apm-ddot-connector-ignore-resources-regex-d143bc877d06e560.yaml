@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM : The ``ignore_resources`` option of the ``datadog`` connector in the
+    Datadog Distribution of OpenTelemetry Collector (DDOT) now matches resource
+    names as regular expressions, as documented, instead of exact names.
+    Patterns are unanchored; use ``^`` and ``$`` to match a full resource name.
