@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: The containerized agent now resolves the symbolic links of host
+    files inside the host root mounted at ``HOST_ROOT``, and reads the mounts
+    of the host, so host benchmark rules on files such as the authselect PAM
+    files of RHEL, and on mount options, report the host state.
