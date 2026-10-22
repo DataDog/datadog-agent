@@ -30,6 +30,8 @@ type FakeSamplerMock interface {
 
 	WaitForSamples(timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample)
 	WaitForNumberOfSamples(ontimeCount, timedCount int, timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample)
+	// Samples returns the samples received so far, without waiting.
+	Samples() (ontime []metrics.MetricSample, timed []metrics.MetricSample)
 	Reset()
 
 	GetAgentDemultiplexer() *aggregator.AgentDemultiplexer

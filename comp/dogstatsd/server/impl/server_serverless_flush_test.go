@@ -133,10 +133,9 @@ func TestStopDoesNotFlushWhenDisabled(t *testing.T) {
 	require.NoError(t, s.stop(context.Background()))
 	requireStopped(t, s)
 
-	// No flush was triggered, so no sample should ever arrive. WaitForNumberOfSamples
-	// returns whatever it collected within the timeout; with the gate off it must
-	// stay empty.
-	samples, _ := deps.Demultiplexer.WaitForNumberOfSamples(1, 0, 500*time.Millisecond)
+	// stop() waits for every worker to exit, and with the gate off the workers
+	// exit without flushing, so nothing can reach the sampler after it returns.
+	samples, _ := deps.Demultiplexer.Samples()
 	assert.Empty(t, samples, "no samples should reach the sampler when dogstatsd_flush_incomplete_buckets is false")
 }
 
@@ -164,7 +163,9 @@ func TestStopFlushesByDefaultOnHost(t *testing.T) {
 	require.NoError(t, s.stop(context.Background()))
 	requireStopped(t, s)
 
-	samples, _ := deps.Demultiplexer.WaitForNumberOfSamples(1, 0, 2*time.Second)
+	// stop() waits for every worker to flush its batcher before returning, so
+	// the sample is already in the sampler; read it without polling.
+	samples, _ := deps.Demultiplexer.Samples()
 	require.Len(t, samples, 1, "the batched sample must reach the sampler on stop")
 	assert.Equal(t, "host.flush.default.test", samples[0].Name)
 }
