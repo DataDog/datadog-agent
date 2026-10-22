@@ -201,7 +201,7 @@ dd_cc_packaged(
     input = ":acl",
     dest_dir = "embedded/lib",
     version = "1.2.2400",
-    installed_files = [":hdr_files"],
+    data = [":hdr_files"],
     visibility = ["//visibility:public"],
 )
 

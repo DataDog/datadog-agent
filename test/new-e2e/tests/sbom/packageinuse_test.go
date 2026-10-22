@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkubeadm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kubeadm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
@@ -346,9 +348,8 @@ func (s *packageInUseSuite) TestPackageInUse() {
 func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	repo := d.repo
 
-	// Keep the idle workload forwarding its runtime SBOM steadily (without
-	// touching the in-use package) so the enrichment merge reliably runs once its
-	// image SBOM lands.
+	// Keep the idle workload forwarding its runtime SBOM steadily, without
+	// touching the in-use package, so that its payloads carry fresh usage.
 	s.keepActive(d)
 
 	// Phase 1: baseline. The enrichment merge must have run (the in-use package
@@ -1554,10 +1555,8 @@ func (s *packageInUseSuite) repoPayloads(c require.TestingT, repo string) (enric
 // repeatedly executes the in-use binary so the package is continuously seen
 // running. The loop's pid is recorded so stopInUseService can stop it.
 func (s *packageInUseSuite) startInUseService(d pkgInUseDistro) {
-	// Run the binary every 15s (> the 10s enrichment interval) so each execution
-	// re-arms the resolver's forwarding debouncer: a tighter loop only forwards
-	// once (the resolver suppresses re-forwards within the enrichment interval),
-	// which is fragile if that single forward races the image SBOM becoming ready.
+	// Run the binary every 15s, past the 10s enrichment interval, so each run
+	// re-arms the forwarding debouncer and refreshes LastSeenRunning.
 	script := fmt.Sprintf(`nohup sh -c 'echo $$ > /tmp/inuse.pid; while true; do %s --version >/dev/null 2>&1; sleep 15; done' </dev/null >/dev/null 2>&1 &`, d.inUseBin)
 	stdout, stderr := s.podExec(d, "sh", "-c", script)
 	s.T().Logf("PKG-IN-USE[%s] start service: stdout=%q stderr=%q", d.name, stdout, stderr)
@@ -1658,17 +1657,28 @@ var idleWorkloads = []struct {
 // workloads, reads in use from then on. The restart fails the restart count
 // check of WaitForAgentReady, so the test runs last, after
 // TestZZDumpAgentDiagnostics, and deletes the Agent pod when it ends, for a
-// later run on the same stack to start from a new pod.
+// later run on the same stack to start from a new pod. A suite that collects
+// coverage keeps the pod for its teardown.
 func (s *packageInUseSuite) TestZZRunningBeforeSystemProbe() {
 	t := s.T()
 	shell := s.startHostShell()
 	agent := s.nodeAgent(t)
 	restarts := systemProbeStatus(t, agent).RestartCount
-	t.Cleanup(func() {
-		if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
-			t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
-		}
-	})
+
+	// The restart resets the coverage counters of system-probe, so a suite
+	// that collects coverage saves them first, and its teardown saves those of
+	// the new process next to them.
+	on, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	dir, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if on && dir != "" {
+		s.Require().NoError(s.SaveCoverage(dir), "save the coverage before the restart of system-probe")
+	} else {
+		t.Cleanup(func() {
+			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
+				t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
+			}
+		})
+	}
 
 	// The fake intake holds the reports of every test of the suite by now, and
 	// its queries slow down with them. Only the reports sent after the restart
@@ -1767,11 +1777,11 @@ func (s *packageInUseSuite) TestZZDumpAgentDiagnostics() {
 
 // keepActive starts, inside the workload pod, a detached loop that continuously
 // accesses a non-in-use file. An idle container (its entrypoint is
-// `tail -f /dev/null`) forwards its runtime SBOM only a handful of times and can
-// miss the window once its image SBOM is available; keeping it active makes the
-// resolver re-forward steadily, the way the always-busy Agent containers do. The
-// in-use binary is never touched here, so it stays not-in-use until the in-use
-// phase. `cat` is owned by the distro's controlPkg (the positive control).
+// `tail -f /dev/null`) forwards its runtime SBOM only a handful of times.
+// Keeping it active makes the resolver forward steadily, the way the
+// always-busy Agent containers do. The in-use binary is never touched here, so
+// it stays not-in-use until the in-use phase. `cat` is owned by the distro's
+// controlPkg (the positive control).
 func (s *packageInUseSuite) keepActive(d pkgInUseDistro) {
 	script := `nohup sh -c 'while true; do cat /etc/os-release >/dev/null 2>&1; sleep 12; done' </dev/null >/dev/null 2>&1 &`
 	stdout, stderr := s.podExec(d, "sh", "-c", script)

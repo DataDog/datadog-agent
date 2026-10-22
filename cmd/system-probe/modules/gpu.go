@@ -170,10 +170,14 @@ type driverEventSubscriber interface {
 
 // Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
+	// Data sources disabled in the configuration answer 501 and sources that
+	// are enabled but not working answer 503, so that the Agent can tell both
+	// apart from a 404, which means the module is not loaded.
+	//
 	// Ensure only one concurrent check is allowed, as the GetAndFlush method is not thread safe.
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		if t.Probe == nil {
-			http.Error(w, "GPU eBPF probes are disabled", http.StatusServiceUnavailable)
+			http.Error(w, "GPU eBPF probes are disabled", http.StatusNotImplemented)
 			return
 		}
 
@@ -188,8 +192,12 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	}))
 
 	httpMux.HandleFunc("/driver-events", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if !t.cfg.DriverEventsEnabled {
+			http.Error(w, "GPU driver events are disabled", http.StatusNotImplemented)
+			return
+		}
 		if t.driverEventSubscriber == nil {
-			http.Error(w, "GPU driver events are disabled", http.StatusServiceUnavailable)
+			http.Error(w, "GPU driver event subscriber failed to start, check the system-probe logs", http.StatusServiceUnavailable)
 			return
 		}
 		events, err := t.driverEventSubscriber.GetAndFlush()
@@ -201,19 +209,21 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(req, w, events, utils.CompactOutput)
 	}))
 
-	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
+	httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if t.cfg == nil || !t.cfg.PRMEndpointEnabled || t.prmHandler == nil {
+			http.Error(w, "GPU PRM endpoint is disabled", http.StatusNotImplemented)
+			return
+		}
 		// Gate the whole PRM operation: the handler performs device calls
 		// (architecture, port counters) after the device lookup, and the
 		// release monitor must not shut NVML down mid-request.
-		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
-			if err := ddnvml.BeginNVMLUse(); err != nil {
-				http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
-				return
-			}
-			defer ddnvml.EndNVMLUse()
-			t.prmHandler.HandlePRMMetrics(w, req)
-		}))
-	}
+		if err := ddnvml.BeginNVMLUse(); err != nil {
+			http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
+			return
+		}
+		defer ddnvml.EndNVMLUse()
+		t.prmHandler.HandlePRMMetrics(w, req)
+	}))
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
@@ -328,7 +338,7 @@ func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
 
 func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {
 	if t.Probe == nil {
-		http.Error(w, "GPU eBPF probes are disabled", http.StatusServiceUnavailable)
+		http.Error(w, "GPU eBPF probes are disabled", http.StatusNotImplemented)
 		return
 	}
 
