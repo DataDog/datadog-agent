@@ -878,6 +878,11 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 	m.DrainPendingEvents()
 	assert.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
 
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.resolvers.CGroupResolver.Delete(cgce.GetCGroupInode())
+	m.onCGroupDeleted(cgce)
+
 	tagger.tags[imageEntityID] = []string{"image_tag:v1"}
 	tagger.ch <- []types.EntityEvent{{
 		EventType: types.EventTypeAdded,
@@ -889,9 +894,14 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 
 	assert.Equal(t, uint64(0), m.queueSize.Load())
 	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Empty(t, m.resolvedCgroups)
 
 	p := m.profiles[testSelector]
 	require.NotNil(t, p)
+	assert.Empty(t, p.Instances)
+	assert.Contains(t, m.pendingProfileRemovals, testSelector)
 	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
-	assert.Len(t, *anomalies, 1)
+	require.Len(t, *anomalies, 1)
+	assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	assert.Contains(t, (*anomalies)[0].SecurityProfileContext.Tags, "image_tag:v1")
 }

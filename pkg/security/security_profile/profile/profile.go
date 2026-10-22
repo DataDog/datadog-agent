@@ -29,6 +29,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
@@ -95,8 +96,10 @@ type Profile struct {
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
 	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
-	observedRollups bool
-	seededSyscalls  []uint32
+	observedRollups      bool
+	seededSyscalls       []uint32
+	insertingContainerID containerutils.ContainerID
+	insertingCGroupID    containerutils.CGroupID
 
 	baseMountNSByCgroup map[uint64]baseMountNSPin
 }
@@ -349,6 +352,18 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, *activity_tree.NodeBase, error) {
 	p.Lock()
 	defer p.Unlock()
+
+	if p.observedRollups && event != nil && event.ProcessCacheEntry != nil {
+		if id := event.ProcessCacheEntry.ContainerContext.ContainerID; id != "" {
+			p.insertingContainerID = id
+		} else {
+			p.insertingCGroupID = event.ProcessCacheEntry.CGroup.CGroupID
+		}
+		defer func() {
+			p.insertingContainerID = ""
+			p.insertingCGroupID = ""
+		}()
+	}
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
@@ -816,6 +831,14 @@ func unionSyscalls(base, extra []uint32) []uint32 {
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	if entry == nil {
+		return false
+	}
+	if (p.insertingContainerID != "" && p.insertingContainerID == entry.ContainerContext.ContainerID) ||
+		(p.insertingCGroupID != "" && p.insertingCGroupID == entry.CGroup.CGroupID) {
+		return true
+	}
+
 	p.InstancesLock.Lock()
 	defer p.InstancesLock.Unlock()
 
