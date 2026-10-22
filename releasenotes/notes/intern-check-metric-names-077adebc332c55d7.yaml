@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Reduce Agent memory for Python checks that submit metrics with many
+    distinct tag combinations. The Agent now keeps one copy of each metric
+    name and hostname instead of one copy per metric context.

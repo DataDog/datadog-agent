@@ -31,10 +31,25 @@ func CStringArrayToSlice(arrayPtr unsafe.Pointer) []string {
 	si, release := acquireInterner()
 	defer release()
 	forEachCString(a, func(s *C.char) {
-		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), cstrlen(s))
-		res = append(res, si.intern(bytes))
+		res = append(res, internCString(si, s))
 	})
 	return res
+}
+
+// internCStrings converts a metric name and hostname to interned Go strings.
+// Both have low cardinality, but every new context retains them, so a fresh
+// copy per submission costs memory proportional to the number of contexts.
+func internCStrings(name, hostname *C.char) (string, string) {
+	si, release := acquireInterner()
+	defer release()
+	return internCString(si, name), internCString(si, hostname)
+}
+
+func internCString(si *stringInterner, s *C.char) string {
+	if s == nil {
+		return ""
+	}
+	return si.intern(unsafe.Slice((*byte)(unsafe.Pointer(s)), cstrlen(s)))
 }
 
 // cstrlen returns the length of a null-terminated C string. It's an alternative
@@ -60,7 +75,7 @@ func forEachCString(a **C.char, f func(*C.char)) {
 // It's a test helper, but it can't be declared in a _test.go file because cgo
 // is not allowed there.
 func testHelperSliceToCStringArray(s []string) **C.char {
-	cArray := (**C.char)(C.malloc(C.size_t(len(s) + 1)))
+	cArray := (**C.char)(C.malloc(C.size_t(len(s)+1) * C.size_t(unsafe.Sizeof((*C.char)(nil)))))
 	for i, str := range s {
 		*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), uintptr(i)*unsafe.Sizeof(cArray))) = C.CString(str)
 	}
