@@ -12,6 +12,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/features",
             "//pkg/ebpf/ksyms",
@@ -25,10 +26,12 @@ go_library(
             "//pkg/network/tracer/connection/util",
             "//pkg/util/kernel",
             "//pkg/util/log",
+            "@com_github_cilium_ebpf//btf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/features",
             "//pkg/ebpf/ksyms",
@@ -42,6 +45,7 @@ go_library(
             "//pkg/network/tracer/connection/util",
             "//pkg/util/kernel",
             "//pkg/util/log",
+            "@com_github_cilium_ebpf//btf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "//conditions:default": [],

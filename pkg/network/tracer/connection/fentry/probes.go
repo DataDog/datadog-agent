@@ -11,6 +11,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cilium/ebpf/btf"
+
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -34,8 +37,9 @@ const (
 	udpSendPageReturn = "udp_sendpage_exit"
 
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
-	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
+	tcpRecvMsgReturn          = "tcp_recvmsg_exit"
+	tcpRecvMsgNoAddrLenReturn = "tcp_recvmsg_exit_no_addr_len"
+	tcpRecvMsgPre5190Return   = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
@@ -150,6 +154,7 @@ var programs = map[string]struct{}{
 	__skbFreeDatagramLocked:    {},
 	skbConsumeUDP:              {},
 	tcpRecvMsgPre5190Return:    {},
+	tcpRecvMsgNoAddrLenReturn:  {},
 	udpRecvMsgPre5190Return:    {},
 	udpv6RecvMsgPre5190Return:  {},
 	// Protocol classification
@@ -217,7 +222,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, selectTCPRecvMsgReturn(kv))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
@@ -298,6 +303,46 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
+}
+
+// selectTCPRecvMsgReturn picks the fexit/tcp_recvmsg variant matching the kernel's
+// tcp_recvmsg signature. Since fexit programs read the return value from the slot
+// after the last argument, the declared argument count must match exactly.
+// The removal of addr_len was backported within the 7.0 series (e.g. Ubuntu
+// 7.0.0-28 has it, 7.0.0-38 does not), so it is detected from BTF rather than
+// the kernel version.
+func selectTCPRecvMsgReturn(kv kernel.Version) string {
+	if kv < kernel.VersionCode(5, 19, 0) {
+		return tcpRecvMsgPre5190Return
+	}
+	n, err := kernelFuncParamCount("tcp_recvmsg")
+	if err != nil {
+		log.Warnf("could not determine tcp_recvmsg signature from BTF, assuming addr_len argument is present: %s", err)
+		return tcpRecvMsgReturn
+	}
+	// tcp_recvmsg(sk, msg, len, flags)
+	if n == 4 {
+		return tcpRecvMsgNoAddrLenReturn
+	}
+	return tcpRecvMsgReturn
+}
+
+// kernelFuncParamCount returns the number of parameters of the named kernel
+// function according to the kernel BTF
+func kernelFuncParamCount(name string) (int, error) {
+	spec, err := ddbtf.GetKernelSpec()
+	if err != nil {
+		return 0, fmt.Errorf("error loading kernel BTF: %w", err)
+	}
+	var fn *btf.Func
+	if err := spec.TypeByName(name, &fn); err != nil {
+		return 0, fmt.Errorf("error finding BTF for %s: %w", name, err)
+	}
+	proto, ok := fn.Type.(*btf.FuncProto)
+	if !ok {
+		return 0, fmt.Errorf("unexpected BTF type %T for %s", fn.Type, name)
+	}
+	return len(proto.Params), nil
 }
 
 func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {

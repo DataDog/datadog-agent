@@ -185,6 +185,19 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
+// The addr_len argument was removed upstream after 7.0 and backported to some
+// 7.0 distro kernels (e.g. Ubuntu 7.0.0-38), so this variant is selected by the
+// BTF parameter count rather than the kernel version.
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, size_t len, int flags, int copied) {
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
@@ -387,30 +400,22 @@ int BPF_PROG(udpv6_recvmsg_pre_5_19_0, struct sock *sk, struct msghdr *msg, size
 }
 
 SEC("fexit/udp_recvmsg")
-int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
-             int flags, int *addr_len,
-             int copied) {
+int BPF_PROG(udp_recvmsg_exit, struct sock *sk) {
     return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udp_recvmsg")
-int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
-             int flags, int *addr_len,
-             int copied) {
+int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk) {
     return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
-             int flags, int *addr_len,
-             int copied) {
+int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk) {
     return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
-             int flags, int *addr_len,
-             int copied) {
+int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk) {
     return handle_udp_recvmsg_ret();
 }
 
