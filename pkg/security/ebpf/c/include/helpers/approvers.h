@@ -72,8 +72,7 @@ static void __attribute__((always_inline)) monitor_event_sample_sampled(u64 even
     __sync_fetch_and_add(&stats->events_sampled, 1);
 }
 
-
-static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8 threshold) {
+static __always_inline u8 sampling_admission_check(u64 event_type, u32 limiter_key, u16 rate, u8 threshold) {
     u64 dynamic_sampling_enabled = 0;
     LOAD_CONSTANT("dynamic_sampling_enabled", dynamic_sampling_enabled);
     if (!dynamic_sampling_enabled) {
@@ -81,29 +80,41 @@ static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8
     }
 
 #if USE_RING_BUFFER == 1
-    u64 use_ring_buffer;
+    u64 use_ring_buffer = 0;
     LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
     if (use_ring_buffer) {
-        u64 usage = bpf_ringbuf_query(&events, 0);
         u64 ring_buffer_size = 0;
         LOAD_CONSTANT("ring_buffer_size", ring_buffer_size);
 
         if (ring_buffer_size > 0) {
+            u64 usage = bpf_ringbuf_query(&events, 0);
             u8 pressure_pct = (u8)(usage * 100 / ring_buffer_size);
+            u8 allowed = 0;
 
-            // per-cpu map, so a plain store is enough. An atomic cmpxchg here would
-            // emit a BPF_ATOMIC instruction that kernels older than 5.12 reject.
-            struct event_sample_stats_t *stats = get_active_event_sample_stats(0);
-            if (stats != NULL && (u64)pressure_pct > stats->max_pressure) {
-                stats->max_pressure = (u64)pressure_pct;
-            }
-
-            if (pressure_pct > SAMPLING_PRESSURE_CRITICAL) {
-                return 0;
-            }
             if (pressure_pct < threshold) {
-                return 1;
+                allowed = 1;
+            } else if (pressure_pct < SAMPLING_PRESSURE_CRITICAL) {
+                allowed = (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
             }
+
+            // Look up the per-CPU stats entry after all helper calls so Clang never spills
+            // a nullable map_value_or_null pointer across helper calls on 4.14 kernels.
+            struct event_sample_stats_t *event_stats = get_active_event_sample_stats(event_type);
+            if (event_stats != NULL) {
+                if ((u64)pressure_pct > event_stats->max_pressure) {
+                    event_stats->max_pressure = (u64)pressure_pct;
+                }
+                if (pressure_pct >= SAMPLING_PRESSURE_CRITICAL) {
+                    __sync_fetch_and_add(&event_stats->dropped_above_critical, 1);
+                } else if (pressure_pct < threshold) {
+                    __sync_fetch_and_add(&event_stats->sent_below_threshold, 1);
+                } else if (allowed) {
+                    __sync_fetch_and_add(&event_stats->allowed_between, 1);
+                } else {
+                    __sync_fetch_and_add(&event_stats->dropped_between, 1);
+                }
+            }
+            return allowed;
         }
     }
 #endif
@@ -163,7 +174,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(
     struct sample_entry_t *existing = bpf_map_lookup_elem(&syscall_samples, &key);
     if (existing != NULL) {
         if (sample_entry_is_stale(existing, now)) {
-            if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
+            if (!sampling_admission_check(EVENT_SYSCALLS, SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
                 return DISCARDED;
             }
             existing->cookie = gen_sample_cookie();
@@ -183,7 +194,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(
         return DISCARDED;
     }
 
-    if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
+    if (!sampling_admission_check(EVENT_SYSCALLS, SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
         return DISCARDED;
     }
 
@@ -227,7 +238,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_connect_sa
     struct sample_entry_t *existing = bpf_map_lookup_elem(samples, key);
     if (existing != NULL) {
         if (sample_entry_is_stale(existing, now)) {
-            if (!sampling_admission_check(limiter_key, rate, threshold)) {
+            if (!sampling_admission_check(event_type, limiter_key, rate, threshold)) {
                 return DISCARDED;
             }
             existing->cookie = gen_sample_cookie();
@@ -247,7 +258,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_connect_sa
         return DISCARDED;
     }
 
-    if (!sampling_admission_check(limiter_key, rate, threshold)) {
+    if (!sampling_admission_check(event_type, limiter_key, rate, threshold)) {
         return DISCARDED;
     }
 
@@ -585,9 +596,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         return DISCARDED;
     }
 
-    // Track total open events that hit the sampling logic
-    monitor_event_sample_total(EVENT_OPEN);
-
     // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
     if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {
         return DISCARDED;
@@ -597,6 +605,8 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
     if (process_path_key == NULL) {
         return DISCARDED;
     }
+
+    monitor_event_sample_total(EVENT_OPEN);
 
     u32 ppid = get_current_ppid();
 
@@ -612,7 +622,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
     struct sample_entry_t *existing = bpf_map_lookup_elem(&open_samples, &key);
     if (existing != NULL) {
         if (sample_entry_is_stale(existing, now)) {
-            if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
+            if (!sampling_admission_check(EVENT_OPEN, OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
                 return DISCARDED;
             }
             existing->cookie = gen_sample_cookie();
@@ -632,7 +642,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         return DISCARDED;
     }
 
-    if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
+    if (!sampling_admission_check(EVENT_OPEN, OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
         return DISCARDED;
     }
 
@@ -784,7 +794,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struc
     u64 family = syscall->connect.family;
     enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
 
-    if (state == DISCARDED) {
+    if (state == DISCARDED && (syscall->retval == 0 || syscall->retval == -EINPROGRESS || syscall->retval == -EAGAIN)) {
         u32 pid = bpf_get_current_pid_tgid() >> 32;
         struct bind_connect_sample_key_t conn_key;
         __builtin_memset(&conn_key, 0, sizeof(conn_key));

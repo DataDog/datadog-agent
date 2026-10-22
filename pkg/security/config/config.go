@@ -432,8 +432,8 @@ type RuntimeSecurityConfig struct {
 	// description: EventSamplingOpenThreshold defines the ring buffer pressure percentage below which open events are always admitted when dynamic sampling is enabled
 	// visibility: private
 	// default_value: 80
-
 	EventSamplingOpenThreshold int
+
 	// description: EventSamplingConnectEnabled defines if the agent should sample connect events
 	// visibility: private
 	// default_value: true
@@ -1314,6 +1314,20 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
+	}
+
+	for _, rate := range []struct {
+		eventType string
+		value     int
+	}{
+		{"open", c.EventSamplingOpenRate},
+		{"connect", c.EventSamplingConnectRate},
+		{"bind", c.EventSamplingBindRate},
+		{"syscalls", c.EventSamplingSyscallsRate},
+	} {
+		if rate.value < 0 || rate.value >= math.MaxUint16 {
+			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.rate: %d, must be in [0, %d)", rate.eventType, rate.value, math.MaxUint16)
+		}
 	}
 
 	for _, threshold := range []struct {

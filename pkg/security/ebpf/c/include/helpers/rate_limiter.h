@@ -24,7 +24,8 @@ static __always_inline u8 rate_limiter_allow_basic(u16 rate, u64 now, struct rat
 }
 
 static __always_inline u8 rate_limiter_allow_apply(struct rate_limiter_ctx *rate_ctx_p, u16 rate, u64 now, u8 should_count) {
-    u64 delta = now - get_current_period(rate_ctx_p);
+    u64 period = get_current_period(rate_ctx_p);
+    u64 delta = now > period ? now - period : 0;
     u8 allow = rate_limiter_allow_basic(rate, now, rate_ctx_p, delta);
     if (allow && should_count) {
         inc_counter(rate_ctx_p, 1);

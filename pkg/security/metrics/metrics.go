@@ -692,6 +692,22 @@ var (
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
 
+	// MetricEventSampleSentBelowThreshold is the name of the metric used to report events allowed below the pressure threshold
+	// Tags: event_type
+	MetricEventSampleSentBelowThreshold = newRuntimeMetric(".event_sample.sent_below_threshold")
+
+	// MetricEventSampleAllowedBetween is the name of the metric used to report events allowed by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleAllowedBetween = newRuntimeMetric(".event_sample.allowed_between")
+
+	// MetricEventSampleDroppedBetween is the name of the metric used to report events dropped by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleDroppedBetween = newRuntimeMetric(".event_sample.dropped_between")
+
+	// MetricEventSampleDroppedAboveCritical is the name of the metric used to report events dropped above the critical pressure threshold
+	// Tags: event_type
+	MetricEventSampleDroppedAboveCritical = newRuntimeMetric(".event_sample.dropped_above_critical")
+
 	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
 	// Tags: -
 	MetricSamplingPressureLevel = newRuntimeMetric(".event_sample.pressure_level")
