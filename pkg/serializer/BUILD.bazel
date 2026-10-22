@@ -6,6 +6,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "serializer",
     srcs = [
+        "metadata_telemetry.go",
         "metrics.go",
         "serializer.go",
     ],
@@ -14,6 +15,8 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/resolver",
@@ -47,6 +50,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/log/mock",
         "//comp/core/secrets/noop-impl/types",
+        "//comp/core/telemetry/impl",
         "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/impl",
@@ -63,6 +67,7 @@ dd_agent_go_test(
         "//pkg/serializer/internal/metrics",
         "//pkg/serializer/internal/stream",
         "//pkg/serializer/marshaler",
+        "//pkg/serializer/split",
         "//pkg/tagset",
         "//pkg/util/compression",
         "//pkg/util/compression/impl-zlib",
