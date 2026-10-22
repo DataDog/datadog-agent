@@ -1,7 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
-load("//packages/agent:defs.bzl", "etc_dir")
+load("//packages/rules:agent_path.bzl", "etc_dir")
 
 package(default_visibility = ["//visibility:public"])
 

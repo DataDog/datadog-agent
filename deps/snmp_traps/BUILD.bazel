@@ -1,7 +1,7 @@
 # dd-compile-policy - make the prebuilt compiler part of the distribution.
 
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("//packages/agent:defs.bzl", "conf_dir")
+load("//packages/rules:agent_path.bzl", "conf_dir")
 
 package(default_visibility = ["//packages:__subpackages__"])
 

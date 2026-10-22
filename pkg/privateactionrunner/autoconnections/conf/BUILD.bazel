@@ -1,5 +1,5 @@
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("//packages/agent:defs.bzl", "etc_dir")
+load("//packages/rules:agent_path.bzl", "etc_dir")
 load(":config_files_test.bzl", "config_files_test_suite")
 
 package(default_visibility = ["//packages:__subpackages__"])
