@@ -45,6 +45,18 @@ func TestInitSerializer(t *testing.T) {
 	})
 }
 
+// TestSetupForwarderDisablesStopWaitForInflight pins the exporter opt-out:
+// the exporter stops its forwarder on shutdown while the process keeps
+// running, so it must not inherit forwarder_stop_wait_for_inflight=true.
+func TestSetupForwarderDisablesStopWaitForInflight(t *testing.T) {
+	pkgconfig := mock.New(t)
+	assert.True(t, pkgconfig.GetBool("forwarder_stop_wait_for_inflight"), "core default must be true")
+
+	setupForwarder(pkgconfig)
+
+	assert.False(t, pkgconfig.GetBool("forwarder_stop_wait_for_inflight"))
+}
+
 func TestProxyConfiguration(t *testing.T) {
 	tests := []struct {
 		name            string

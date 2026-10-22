@@ -52,6 +52,11 @@ func setupForwarder(config pkgconfigmodel.Config) {
 
 	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
+	// The exporter stops its forwarder on every exporter shutdown, including a
+	// collector config reload, while the process keeps running. Waiting for
+	// in-flight requests is only safe right before process exit, so keep the
+	// cancel-on-stop behavior here.
+	config.Set("forwarder_stop_wait_for_inflight", false, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_http_protocol", "auto", pkgconfigmodel.SourceDefault)
 
 	// Forwarder retry settings

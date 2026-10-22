@@ -108,15 +108,15 @@ func TestStopDrainsQueuedPacketsWhenEnabled(t *testing.T) {
 	assert.Equal(t, "drain.test.metric", samples[0].Name)
 }
 
-// TestStopDoesNotFlushWhenDisabled verifies the gate is honored: with
-// dogstatsd_flush_incomplete_buckets unset (the long-running-agent default),
-// stop() must NOT drain worker batchers — workers just exit on stopChan. The
-// batched sample must therefore never reach the sampler.
+// TestStopDoesNotFlushWhenDisabled verifies the opt-out is honored: with
+// dogstatsd_flush_incomplete_buckets set to false, stop() must NOT drain worker
+// batchers; workers just exit on stopChan. The batched sample must therefore
+// never reach the sampler.
 func TestStopDoesNotFlushWhenDisabled(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_workers_count"] = 1
-	// dogstatsd_flush_incomplete_buckets intentionally left unset (defaults to false).
+	cfg["dogstatsd_flush_incomplete_buckets"] = false
 
 	deps := fulfillDepsWithServerlessConfigOverride(t, cfg)
 	s := deps.Server.(*dsdServer)
@@ -137,5 +137,34 @@ func TestStopDoesNotFlushWhenDisabled(t *testing.T) {
 	// returns whatever it collected within the timeout; with the gate off it must
 	// stay empty.
 	samples, _ := deps.Demultiplexer.WaitForNumberOfSamples(1, 0, 500*time.Millisecond)
-	assert.Empty(t, samples, "no samples should reach the sampler when dogstatsd_flush_incomplete_buckets is unset")
+	assert.Empty(t, samples, "no samples should reach the sampler when dogstatsd_flush_incomplete_buckets is false")
+}
+
+// TestStopFlushesByDefaultOnHost verifies the default: on a long-running host
+// Agent (non-serverless batcher) with dogstatsd_flush_incomplete_buckets left
+// at its default, stop() drains the worker batcher into the time sampler.
+func TestStopFlushesByDefaultOnHost(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	cfg["dogstatsd_workers_count"] = 1
+	// dogstatsd_flush_incomplete_buckets intentionally left at its default (true).
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*dsdServer)
+	requireStart(t, s)
+	require.Len(t, s.workers, 1)
+
+	s.workers[0].batcher.appendSample(metrics.MetricSample{
+		Name:       "host.flush.default.test",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	})
+
+	require.NoError(t, s.stop(context.Background()))
+	requireStopped(t, s)
+
+	samples, _ := deps.Demultiplexer.WaitForNumberOfSamples(1, 0, 2*time.Second)
+	require.Len(t, samples, 1, "the batched sample must reach the sampler on stop")
+	assert.Equal(t, "host.flush.default.test", samples[0].Name)
 }

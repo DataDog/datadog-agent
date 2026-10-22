@@ -204,6 +204,8 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	stopped := make(chan struct{}, 1)
 
 	mockConfig := mock.New(t)
+	// Covers the cancel-on-stop path; the default is now to wait for in-flight requests.
+	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", false)
 
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
@@ -259,6 +261,8 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	stopped := make(chan struct{}, 1)
 
 	mockConfig := mock.New(t)
+	// Covers the cancel-on-stop path; the default is now to wait for in-flight requests.
+	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", false)
 
 	log := logmock.New(t)
 
@@ -657,7 +661,7 @@ func TestWorkerStopWaitsForInFlightHTTPRequest(t *testing.T) {
 	txn.AssertNumberOfCalls(t, "Process", 1)
 }
 
-// TestWorkerStopCancelsContextRequeuesSemaphoreBlocked verifies the default shutdown path
+// TestWorkerStopCancelsContextRequeuesSemaphoreBlocked verifies the opt-out shutdown path
 // (forwarder_stop_wait_for_inflight=false). With a limit of 1 concurrent request and one
 // transaction holding the single semaphore slot, a second transaction is blocked in
 // acquireRequestSemaphore. When Stop is called, workerCtx is cancelled immediately; the blocked
@@ -669,8 +673,9 @@ func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 2)
 
 	mockConfig := mock.New(t)
-	// forwarder_stop_wait_for_inflight is intentionally left at its default (false) to exercise
-	// the cancel-on-stop path.
+	// forwarder_stop_wait_for_inflight is set to false explicitly (the default is true) to
+	// exercise the cancel-on-stop path.
+	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", false)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	concurrency := newTestConcurrencyDomain(1, 1)
@@ -740,4 +745,18 @@ func (m *PointSuccessfullySentMock) OnPointSuccessfullySent(count int) {
 
 func (m *PointSuccessfullySentMock) OnPointDropped(count int) {
 	m.dropped.Add(int64(count))
+}
+
+// TestWorkerStopWaitsForInflightByDefault pins the default: a worker built from
+// a config that leaves forwarder_stop_wait_for_inflight unset waits for
+// in-flight transactions on Stop.
+func TestWorkerStopWaitsForInflightByDefault(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	concurrency := newTestConcurrencyDomain(1, 1)
+	w := NewWorker(mockConfig, log, secrets, make(chan transaction.Transaction), make(chan transaction.Transaction),
+		make(chan transaction.Transaction), newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
+		NewSharedConnection(log, false, concurrency, mockConfig, nil), concurrency)
+	assert.True(t, w.waitForInflight, "forwarder_stop_wait_for_inflight must default to true")
 }
