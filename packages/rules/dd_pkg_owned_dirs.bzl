@@ -82,6 +82,7 @@ def _dd_pkg_owned_dirs_impl(ctx):
         src_declared, src_trees = _destinations(src)
         declared.extend([_normalize(d) for d in src_declared])
         trees.extend([_normalize(d) for d in src_trees])
+
     # TODO(ABLD-598): use the package's own install prefix, installer and dogstatsd don't install under //:install_dir
     roots = [_normalize(ctx.attr._install_dir[BuildSettingInfo].value)]
     return [
