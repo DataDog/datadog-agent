@@ -4,7 +4,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
@@ -68,7 +68,10 @@ def _dd_cc_packaged_rule_impl(ctx):
             ))
     providers = [
         DdPackagingInfo(installed_files = installed),
-        DefaultInfo(files = ctx.attr.input[DefaultInfo].files),
+        DefaultInfo(
+            files = ctx.attr.input[DefaultInfo].files,
+            runfiles = ctx.attr.input[DefaultInfo].default_runfiles,
+        ),
     ]
     if CcSharedLibraryInfo in ctx.attr.input:
         providers.append(ctx.attr.input[CcSharedLibraryInfo])
@@ -93,10 +96,13 @@ _dd_cc_packaged_rule = rule(
             doc = "A list of files that should be installed alongside the packaged dependency",
             providers = [[PackageFilesInfo], [PackageFilegroupInfo]],
         ),
+        "data": attr.label_list(
+            doc = "Runtime dependencies that the input doesn't link against. dd_collect_dependencies collects them along with the packaged dependency.",
+        ),
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, data = [], mode = "0644", libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
@@ -131,6 +137,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
             src = ":{}".format(patched_name),
             libname = resolved_libname,
             version = version,
+            mode = mode,
             prefix = prefix,
             dest_dir = dest_dir,
             visibility = visibility,
@@ -139,6 +146,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
+            attributes = pkg_attributes(mode = mode),
             prefix = package_dest_dir,
             visibility = visibility,
             package_metadata = [],
@@ -147,7 +155,8 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
     _dd_cc_packaged_rule(
         name = name,
         input = input,
-        installed_files = extra_files + installed_files,
+        installed_files = extra_files,
+        data = data,
         visibility = visibility,
         package_metadata = [],
         **kwargs
@@ -157,14 +166,12 @@ dd_cc_packaged = macro(
     doc = """
     A macro used to prepare a cc_shared_library or cc_binary for packaging.
 
-    If installed_files is provided, these files will be installed with the
-    packaged object at installation time if the final artifact
-    depends, directly or indirectly, on the wrapped binary.
+    mode sets the permissions of the installed input: 0644 by default, 0755 for
+    binaries.
 
-    If installed_executables is provided, each entry is rpath-patched and
-    installed with mode 0755. Files and directory artifacts are installed as
-    prefix/basename. Use this instead of wrapping files in pkg_files and passing
-    them via installed_files, so that rpath rewriting is not skipped.
+    If data is provided, these files and targets are installed with the
+    packaged object if the final artifact depends, directly or indirectly, on
+    it: pkg_files as they are, and packaged targets with their own packaging.
 
     If a version is provided and the input is a cc_shared_library, the library
     will be installed along with the versioned symlink (see so_symlink).
@@ -179,12 +186,19 @@ dd_cc_packaged = macro(
             configurable = False,
             providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
+        # TODO(agent-build): remove installed_executables attribute
         "installed_executables": attr.label_keyed_string_dict(
-            doc = "Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
+            doc = "Deprecated, scheduled for removal: package each binary with its own dd_cc_packaged (mode = '0755') and depend on it from the target that ships it. Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
             configurable = True,
         ),
-        "installed_files": attr.label_list(
+        "data": attr.label_list(
+            doc = "Files and targets installed with the packaged dependency, such as pkg_files or runtime dependencies that the input doesn't link against.",
             configurable = True,
+        ),
+        "mode": attr.string(
+            doc = "Permissions of the installed input. Use 0755 for binaries.",
+            default = "0644",
+            configurable = False,
         ),
         "libname": attr.string(
             default = "",

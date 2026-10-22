@@ -82,6 +82,12 @@ var SysprobeWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-trace.yaml
 var TraceWindowsProcmgrConfig string
 
+// SecurityWindowsProcmgrConfig is the codegen-rendered process manager config for the security
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __SECURITY_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-security.yaml
+var SecurityWindowsProcmgrConfig string
+
 // PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
 // on-demand executor on Windows (see embedded/tmpl/main.go).
 //
@@ -144,8 +150,8 @@ const (
 
 // GetLaunchdJob returns the launchd job definition for the given label and variant.
 //
-// name is the label without its variant suffix, e.g. "com.datadoghq.agent". The installer daemon
-// has no experiment variant and is only available as LaunchdStable.
+// name is the label without its variant suffix, e.g. "com.datadoghq.agent". The installer and
+// procmgr daemons have no experiment variant.
 func GetLaunchdJob(name string, variant LaunchdVariant) ([]byte, error) {
 	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", name+string(variant)+".plist"))
 }

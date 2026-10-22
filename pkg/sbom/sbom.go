@@ -8,11 +8,13 @@ package sbom
 
 import (
 	"errors"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,20 +28,34 @@ const (
 // Names of the CycloneDX component properties added by the runtime enrichment
 // of a SBOM, describing how the package was seen being used at runtime. They
 // are declared here so that the producer (the runtime security SBOM resolver),
-// the merger (the remote SBOM collector) and the consumers agree on them.
+// the mergers (the remote SBOM collector for images, the sbom check for the
+// host) and the consumers agree on them.
 const (
 	LastAccessProperty    = "LastSeenRunning" // LastAccessProperty holds the last time the package was seen running, as a unix timestamp
 	HasSetSuidBitProperty = "HasSetSuidBit"   // HasSetSuidBitProperty reports whether one of the package files has the setuid bit set
 	RunningAsRootProperty = "RunningAsRoot"   // RunningAsRootProperty reports whether the package was seen running as root
 )
 
+// UsageObservedSinceProperty names the CycloneDX metadata property of a runtime
+// usage report, and of the SBOMs it enriches, holding when the usage started
+// being recorded, as a unix timestamp. A package seen running since then
+// carries the time it was last seen.
+const UsageObservedSinceProperty = "UsageObservedSince"
+
 // IsEnriched reports whether bom went through runtime enrichment, i.e. whether
-// any of its components carries the runtime properties above. An enriched BOM
-// carries them on its very first component, so the scan only runs to completion
-// for a BOM that was never enriched.
+// it holds the start of usage observation or any of its components carries the
+// runtime properties above. An enriched BOM carries them on its very first
+// component, so the scan only runs to completion for a BOM that was never
+// enriched.
 func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	if bom == nil {
 		return false
+	}
+
+	for _, property := range bom.GetMetadata().GetProperties() {
+		if property.GetName() == UsageObservedSinceProperty {
+			return true
+		}
 	}
 
 	for _, component := range bom.Components {
@@ -55,6 +71,42 @@ func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	}
 
 	return false
+}
+
+// UsageEnrichmentEnabled reports whether the runtime usage of packages reaches
+// the SBOMs. system-probe reports it on sbom.enrichment.usage.enabled, and on
+// Linux alone.
+func UsageEnrichmentEnabled(agentConfig model.Reader) bool {
+	return runtime.GOOS == "linux" && agentConfig.GetBool("sbom.enrichment.usage.enabled")
+}
+
+// HostKind is the kind of the runtime usage report that system-probe forwards
+// for the host. The report of a container carries the workloadmeta container
+// kind.
+const HostKind = "host"
+
+// hostUsage holds the latest runtime usage report of the host, on its way from
+// the remote SBOM collector, which receives it, to the sbom check, which merges
+// it into the host SBOM.
+var hostUsage = make(chan *cyclonedx_v1_4.Bom, 1)
+
+// SetHostUsage hands bom, a runtime usage report of the host, to the sbom
+// check. It replaces a report the check has yet to take, since every report
+// covers all the host packages.
+func SetHostUsage(bom *cyclonedx_v1_4.Bom) {
+	for {
+		select {
+		case hostUsage <- bom:
+			return
+		case <-hostUsage:
+		}
+	}
+}
+
+// HostUsage returns the channel delivering the runtime usage reports of the
+// host to the sbom check.
+func HostUsage() <-chan *cyclonedx_v1_4.Bom {
+	return hostUsage
 }
 
 // ErrScanNotSupported reports that a scan can never succeed for the given image
@@ -116,7 +168,11 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 	var report *cyclonedx_v1_4.Bom
 
 	if result.Error != nil {
-		log.Errorf("SBOM generation failed for image: %v", result.Error)
+		// Unsupported images (e.g. nydus) are expected; the scanner already
+		// reports them when dropping the request.
+		if !errors.Is(result.Error, ErrScanNotSupported) {
+			log.Errorf("SBOM generation failed for image: %v", result.Error)
+		}
 		status = workloadmeta.Failed
 		reportedError = result.Error.Error()
 	} else {

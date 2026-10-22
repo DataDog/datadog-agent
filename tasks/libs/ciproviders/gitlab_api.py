@@ -1108,6 +1108,7 @@ def get_preset_contexts(required_tests):
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
+        ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
@@ -1118,6 +1119,7 @@ def get_preset_contexts(required_tests):
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
         ("CI_COMMIT_BRANCH", ["7.42.x"]),
+        ("COMPARE_TO_BRANCH", ["7.42.x"]),
         ("CI_COMMIT_TAG", ["3.2.1", "1.2.3-rc.4"]),
         ("CI_PIPELINE_SOURCE", ["schedule"]),
         ("DEPLOY_AGENT", ["true"]),
@@ -1129,6 +1131,7 @@ def get_preset_contexts(required_tests):
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
+        ("COMPARE_TO_BRANCH", ["main"]),  # the merge queue rebases PRs onto their target branch
         ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
@@ -1139,12 +1142,14 @@ def get_preset_contexts(required_tests):
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
+        ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
     installer_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),
         ("CI_COMMIT_BRANCH", ["main"]),
+        ("COMPARE_TO_BRANCH", ["main"]),
         ("CI_PIPELINE_SOURCE", ["push", "api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("DEPLOY_INSTALLER", ["true"]),

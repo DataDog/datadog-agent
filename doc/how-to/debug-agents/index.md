@@ -70,7 +70,7 @@ If you use `sudo` to run `dlv attach`, `$HOME` will be set to `/root`. You may w
 ## gdb
 
 GDB can in some rare cases be useful to troubleshoot the embedded python interpreter.
-See https://wiki.python.org/moin/DebuggingWithGdb
+See https://docs.python.org/3/howto/gdb_helpers.html
 
 Example usage (using the legacy `pystack` macro):
 ```sh

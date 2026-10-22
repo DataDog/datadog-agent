@@ -28,6 +28,7 @@ go_library(
         "//comp/remote-config/rcclient/types",
         "//pkg/clusteragent/api/v1:api",
         "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/clusteragent/autoscaling/remoteconfig",
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/config/helper",
         "//pkg/config/model",

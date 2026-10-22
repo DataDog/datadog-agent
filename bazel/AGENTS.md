@@ -390,7 +390,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
   used outside their file.
 - Rule implementation functions are always private: `_myrule_impl` for `myrule`.
 - `print()` is for debugging only. Never leave `print()` calls in committed code unless guarded by `if DEBUG:` with
-  `DEBUG = False`.
+  `DEBUG = False`, or denoting an actionable warning, whose message then starts with `WARNING: `.
 - **Prefer rules over macros.** Macros expand before analysis, making `bazel query` output hard to interpret and aspects
   unaware of them. Use macros only for targets intended to be referenced directly at the CLI.
 - Internal macro targets (not meant to be used directly) must have:
@@ -987,7 +987,7 @@ asserting on wall-clock time fail. Prefer waiting on a signal over a fixed durat
 **Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
 external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
 `DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
-Linking tests importing the e2e framework peaks at 25x to 30x their binary's on-disk footprint, beyond what `GoLink`
+Linking tests depending on the Pulumi k8s SDK peaks at 25x to 35x their binary's on-disk footprint, beyond what `GoLink`
 books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` book more through the `go_link` exec group's
 `resources:memory`, honored locally since Bazel 9.2.0.
 

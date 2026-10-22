@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The remote workloadmeta collectors of the Agent wait a growing delay
+    before they reopen a stream that the server ends at once, such as the
+    SBOM stream of a system-probe running CWS without
+    ``sbom.enrichment.usage.enabled``.

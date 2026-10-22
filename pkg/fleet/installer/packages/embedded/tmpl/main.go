@@ -160,11 +160,11 @@ func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
 	return buf.Bytes()
 }
 
-// jobSetLaunchd renders both launchd job sets. The installer daemon has no -exp variant: it is
-// the process that supervises an experiment, so it is never part of one.
+// jobSetLaunchd renders both launchd job sets. The installer and procmgr daemons have no -exp variant.
 func jobSetLaunchd(stableData, expData launchdTemplateData) map[string][]byte {
 	return map[string][]byte{
 		"com.datadoghq.installer.plist":      mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),
+		"com.datadoghq.procmgr.plist":        mustRenderLaunchdJob("com.datadoghq.procmgr.plist", stableData),
 		"com.datadoghq.agent.plist":          mustRenderLaunchdJob("com.datadoghq.agent.plist", stableData),
 		"com.datadoghq.agent-exp.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", expData),
 		"com.datadoghq.sysprobe.plist":       mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", stableData),
@@ -304,6 +304,13 @@ var (
 		PIDDir:           "__TRACE_INSTALL_ROOT__",
 		Stable:           true,
 	}
+	windowsSecurityCodegenData = installerTemplateData{
+		InstallDir:       "__SECURITY_INSTALL_ROOT__",
+		EtcDir:           "__SECURITY_ETC_ROOT__",
+		FleetPoliciesDir: "__SECURITY_FLEET_POLICIES_DIR__",
+		PIDDir:           "__SECURITY_INSTALL_ROOT__",
+		Stable:           true,
+	}
 
 	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
 	// and -nocap (instead of -nc)
@@ -361,6 +368,7 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-sysprobe.yaml", "datadog-agent-sysprobe-windows.yaml", windowsSysprobeCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-trace.yaml", "datadog-agent-trace-windows.yaml", windowsTraceCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-security.yaml", "datadog-agent-security-windows.yaml", windowsSecurityCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},
 	}

@@ -312,6 +312,7 @@ properties:
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
       This setting is ignored on Linux and does not enable or disable the systemd unit.
+      On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
     tags:
     - template_section:Common
     properties:
@@ -323,9 +324,11 @@ properties:
         description: |-
           When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
           On Linux, the process manager daemon is started by systemd; this option is ignored.
+          On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
           On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+          On macOS, dd-procmgrd always runs (com.datadoghq.procmgr). This setting is not yet supported there.
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -863,6 +866,14 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: value in milliseconds
+  gce_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      GCE or not.
   collect_gpu_tags:
     node_type: setting
     type: boolean
@@ -911,6 +922,14 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
+  azure_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      Azure or not.
   scrubber:
     node_type: section
     type: object
@@ -4991,6 +5010,13 @@ properties:
       items:
         type: string
       type: array
+  agent_checks_metadata_message_truncation_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      Truncates check error and warning messages in the agent_checks metadata payload to 4096 bytes.
+      Safeguard to disable the truncation in case it causes a regression; to be removed in a future version.
   agent_ipc:
     node_type: section
     type: object
@@ -5443,6 +5469,14 @@ properties:
         node_type: section
         type: object
         properties:
+          allowed_types:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: Allowed metric types for anomaly detection. When empty, all metric
+              types are allowed.
           enabled:
             node_type: setting
             type: boolean
@@ -5469,6 +5503,12 @@ properties:
             default: false
             comment: Recording of raw ingested signals for offline analysis
               when a writer backend is registered.
+          only:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: With an active recorder, record observations without
+              feeding them into anomaly detection analysis.
           flush_interval:
             node_type: setting
             type: string
@@ -5666,6 +5706,63 @@ properties:
                 node_type: setting
                 type: string
                 default: 1m
+      endpoint:
+        node_type: section
+        type: object
+        properties:
+          api_key:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. API key for the organization serving the autoscaling
+              configuration endpoint. Only read when autoscaling.endpoint.url is set.
+          config_root:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Trusted root metadata for the config repository of the
+              autoscaling configuration endpoint, overriding the root embedded for
+              its site. Needed when the target backend signs with its own keys.
+              Equivalent to remote_configuration.config_root for the default
+              endpoint.
+          director_root:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Trusted root metadata for the director repository of the
+              autoscaling configuration endpoint, overriding the root embedded for
+              its site. Equivalent to remote_configuration.director_root for the
+              default endpoint.
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Remote configuration key for the autoscaling configuration
+              endpoint, for backends using the legacy per-organization key instead
+              of an API key alone. Equivalent to remote_configuration.key for the
+              default endpoint.
+          site:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Datadog site of the autoscaling configuration endpoint,
+              which selects the trusted roots to use. Empty means derive it from
+              autoscaling.endpoint.url, which is correct for every endpoint we
+              target; set it only to pin a different site's roots.
+          url:
+            node_type: setting
+            type: string
+            default: ''
+            comment: |-
+              Internal. Datadog endpoint the autoscaling product reads its
+              configuration from, instead of the Cluster Agent default remote
+              configuration endpoint. Empty means use the default. Reserved for
+              Datadog staging clusters; not supported for customer use.
       failover:
         node_type: section
         type: object
@@ -6446,8 +6543,15 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Data Security: single enablement flag gating both the autodiscovery provider
-          and the sds-result event platform pipeline.
+          Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
+          and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
+          to also be true.
+      enforce_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: when true, scans are enforced to use SSL, with no fallback to plaintext.
   data_streams:
     node_type: section
     type: object
@@ -7468,7 +7572,9 @@ properties:
     format: duration
     tags:
     - golang_type:duration
-    comment: Duration during which the host tags will be submitted with metrics.
+    comment: |-
+      Duration during which host tags are submitted with metrics.
+      The ``infra_mode`` host tag is never copied onto metrics this way.
   external_metrics:
     node_type: section
     type: object
@@ -7998,18 +8104,6 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
-      cloud_cost_only:
-        node_type: section
-        type: object
-        properties:
-          tagged:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
-              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean
@@ -8123,21 +8217,15 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
   inventories_first_run_delay:
     node_type: setting
     type: integer
     default: 60
-    tags:
-    - full-agent-only:true
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: |-
       when updating the default here also update pkg/metadata/inventories/README.md
       0 == default interval from inventories
@@ -8145,8 +8233,6 @@ properties:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
@@ -8305,6 +8391,33 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      private_action_runner:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Gates the Private Action Runner delivery path for Kubernetes Actions: when
+              true, the com.datadoghq.kubernetes.kubeactions actions are added to the
+              runner's allowlist. Only effective when kubeactions.enabled is true. The
+              runner itself is enabled by private_action_runner.enabled. Set to false to
+              receive actions only through Remote Configuration.
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Gates the remote-config delivery path for Kubernetes Actions (K8S_ACTIONS
+              product subscription and config retriever). Only effective when
+              kubeactions.enabled is true. Set to false to receive actions only through
+              the Private Action Runner.
   kubelet_collector_pull_interval:
     node_type: setting
     type: integer
@@ -9147,6 +9260,24 @@ properties:
         default: false
         tags:
         - no-env
+      inventory_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SERVERLESS_INIT_INVENTORY_ENABLED
+      inventory_wrapped_command_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |
+          Include the wrapped workload command in serverless-init inventory when inventory is enabled.
+          The command is omitted by default. Collection may transmit secrets in command-line arguments.
+          Redaction is best effort and incomplete: it does not cover all argument names, formats,
+          positional values, or embedded scripts. Enable only after verifying that your workload
+          command contains no sensitive information.
+        env_vars:
+        - DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED
       logs_enabled:
         node_type: setting
         type: boolean

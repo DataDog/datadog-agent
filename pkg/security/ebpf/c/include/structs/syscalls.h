@@ -128,6 +128,7 @@ struct syscall_cache_t {
             int source;
             u64 ns_inum;
             u64 unshare_flags;
+            u32 mnt_flags;
         } mount;
 
         struct {
@@ -279,6 +280,10 @@ struct syscall_cache_t {
         } login_uid;
 
         struct {
+            u32 pid;
+        } cgroup_write;
+
+        struct {
             u8 in_flight;
         } stat;
 
@@ -301,6 +306,7 @@ struct syscall_cache_t {
             int option;
             u32 name_size_to_send;
             u32 name_truncated;
+            u32 flags;
             char name[MAX_PRCTL_NAME_LEN + 1];
         } prctl;
 
