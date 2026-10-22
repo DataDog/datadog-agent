@@ -23,7 +23,6 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/trivy",
-        "@com_github_aquasecurity_trivy//pkg/types",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/sbom/collectors",
