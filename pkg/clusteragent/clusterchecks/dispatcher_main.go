@@ -30,6 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// clusterAgentOnlyChecks monitor the cluster agent's own process, so a runner
+// would monitor the wrong process. They are never dispatched.
+var clusterAgentOnlyChecks = map[string]struct{}{
+	"agentprofiling": {},
+}
+
 // toSet builds a lookup set from a config-provided string slice, returning
 // nil for an empty slice instead of allocating an empty map.
 func toSet(items []string) map[string]struct{} {
@@ -173,6 +179,12 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
+		if _, found := clusterAgentOnlyChecks[c.Name]; found {
+			log.Warnf("Not dispatching %s: it can only run on the Cluster Agent, remove cluster_check: true from its configuration", c.Name)
+			excludedConfigs++
+			continue
+		}
+
 		if c.HasFilter(workloadfilter.MetricsFilter) || c.HasFilter(workloadfilter.GlobalFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
 			continue
@@ -225,6 +237,10 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
+		}
+
+		if _, found := clusterAgentOnlyChecks[c.Name]; found {
+			continue
 		}
 
 		if c.NodeName != "" {

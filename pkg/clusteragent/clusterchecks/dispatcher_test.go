@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -912,4 +913,25 @@ func TestResetClearsShardedConfigs(t *testing.T) {
 
 	assert.False(t, d.shards.isTracked(digest),
 		"shards must be cleared on reset to avoid silently dropping sharded checks after leader re-election")
+}
+
+func TestClusterAgentOnlyChecksAreNotDispatched(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	profiling := generateIntegration(agentprofiling.CheckName)
+	other := generateIntegration("cluster-check")
+
+	dispatcher.Schedule([]integration.Config{profiling, other})
+	stored, err := dispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cluster-check"}, extractCheckNames(stored))
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
+
+	dispatcher.Unschedule([]integration.Config{profiling, other})
+	stored, err = dispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Len(t, stored, 0)
+
+	requireNotLocked(t, dispatcher.store)
 }

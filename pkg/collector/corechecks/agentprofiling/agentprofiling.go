@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -50,6 +49,13 @@ type Config struct {
 	TerminateAgentOnThreshold bool   `yaml:"terminate_agent_on_threshold"`
 }
 
+// FlareCreator creates a flare and sends it to Datadog support. The core agent's
+// flare component implements it, and so does the cluster agent's flare creator.
+type FlareCreator interface {
+	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
+	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
+}
+
 // Check is the check that generates a flare with profiles when the core agent's memory or CPU usage exceeds a certain threshold
 type Check struct {
 	core.CheckBase
@@ -59,7 +65,7 @@ type Check struct {
 	lastFlareAttempt    time.Time // Time of last flare attempt
 	backoffPolicy       backoff.BackOff
 	nextBackoffDuration time.Duration // Cached backoff duration for current retry attempt
-	flareComponent      flare.Component
+	flareComponent      FlareCreator
 	agentConfig         config.Component
 	lastCPUTimes        *cpu.TimesStat
 	lastCheckTime       time.Time
@@ -67,14 +73,14 @@ type Check struct {
 }
 
 // Factory creates a new instance of the agentprofiling check
-func Factory(flareComponent flare.Component, agentConfig config.Component) option.Option[func() check.Check] {
+func Factory(flareComponent FlareCreator, agentConfig config.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(flareComponent, agentConfig)
 	})
 }
 
 // newCheck creates a new instance of the agentprofiling check
-func newCheck(flareComponent flare.Component, agentConfig config.Component) check.Check {
+func newCheck(flareComponent FlareCreator, agentConfig config.Component) check.Check {
 	// Configure exponential backoff for flare generation retries.
 	// Flare generation is expensive, so we use a conservative backoff:
 	// - Start at 1 minute for quick retry of transient issues

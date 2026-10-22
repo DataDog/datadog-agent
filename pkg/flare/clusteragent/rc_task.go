@@ -21,7 +21,6 @@ import (
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -82,19 +81,9 @@ func HandleRCFlareTask(
 		log.Infof("[RemoteFlare] enable_streamlogs is not yet supported for the cluster-agent flare")
 	}
 
-	logFile := defaultpaths.GetDefaultDCALogFile()
-	if cfg.IsConfigured("log_file") {
-		logFile = cfg.GetString("log_file")
-	}
-
-	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, flareArgs, statusComp, diagnoseComp, ipcComp)
+	filePath, err := createIdentifiedDCAArchive(cfg, flareArgs, statusComp, diagnoseComp, ipcComp)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster-agent flare: %w", err)
-	}
-	if clusterName, namespace, podName, identityErr := getClusterAgentIdentityFunc(); identityErr != nil {
-		log.Infof("[RemoteFlare] Could not add Cluster Agent resource identity to flare archive name: %v", identityErr)
-	} else {
-		filePath = renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName)
 	}
 
 	log.Infof("[RemoteFlare] Cluster-agent flare created at %s (UUID=%s)", filePath, task.Config.UUID)

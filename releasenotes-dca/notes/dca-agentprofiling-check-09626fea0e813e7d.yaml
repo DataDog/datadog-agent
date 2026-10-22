@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    The ``agentprofiling`` check can now run on the Cluster Agent. Add it to
+    the Cluster Agent's ``conf.d`` (for example with the Helm chart's
+    ``clusterAgent.confd``) to generate a flare with profiles when the Cluster
+    Agent's memory or CPU usage exceeds a threshold. The check always runs on
+    the Cluster Agent itself: a configuration with ``cluster_check: true`` is
+    not dispatched to cluster check runners.
