@@ -25,7 +25,8 @@ var (
 // getListeningPortToPIDMap returns a map of listening (IP, port) -> PID using a
 // long-lived portlist.Poller. The Poller is created once and reused across
 // calls so that it can benefit from scratch-buffer reuse. When the port list
-// has not changed since the last poll the cached map is returned.
+// has not changed since the last poll a copy of the cached map is returned.
+// Callers own the returned map and may mutate it.
 //
 // The map is keyed by (IP, port) rather than port alone so that two processes
 // listening on the same port via different interfaces (e.g. one on 127.0.0.1
@@ -41,10 +42,10 @@ func getListeningPortToPIDMap() map[remoteservice.ListenKey]int32 {
 	ports, changed, err := portPoller.Poll()
 	if err != nil {
 		log.Debugf("failed to poll listening ports: %v", err)
-		return cachedPortMap // return stale data if available
+		return maps.Clone(cachedPortMap) // return stale data if available
 	}
 	if !changed && cachedPortMap != nil {
-		return cachedPortMap
+		return maps.Clone(cachedPortMap)
 	}
 
 	result := make(map[remoteservice.ListenKey]int32, len(ports))
