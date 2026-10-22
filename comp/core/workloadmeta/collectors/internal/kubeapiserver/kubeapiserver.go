@@ -49,6 +49,12 @@ type dependencies struct {
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
+// syncedStore is implemented by both the reflector stores and the informer
+// event handler registrations, so that the startup check can wait for them.
+type syncedStore interface {
+	HasSynced() bool
+}
+
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
 }
@@ -225,7 +231,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Component) error {
-	var objectStores []cache.ResourceEventHandlerRegistration
+	var objectStores []syncedStore
 
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -455,7 +461,7 @@ func notifyKubeCapabilities(wlmetaStore workloadmeta.Component, versionInfo *ver
 	})
 }
 
-func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
+func runStartupCheck(ctx context.Context, stores []syncedStore) {
 	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the
