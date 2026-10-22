@@ -232,6 +232,12 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 		if closeProtocolClassifierSocketFilterFn != nil {
 			closeProtocolClassifierSocketFilterFn()
 		}
+		// Releases the maps and programs if init failed after they were loaded (e.g. in an
+		// AfterInit modifier), since the caller may fall back to another tracer. It is a no-op
+		// returning ErrManagerNotInitialized if loading itself failed. The ddebpf.Manager.Stop
+		// wrapper is deliberately not used: its modifier hooks would tear down the shared
+		// connection-close event handler that a fallback tracer reuses.
+		_ = m.Manager.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 

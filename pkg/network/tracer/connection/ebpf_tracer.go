@@ -185,6 +185,7 @@ type ebpfTracer struct {
 // verifier error: verifier rejections have been observed to be kernel-version or
 // compiler-dependent rather than evidence of a broken program, so they're treated the same
 // as any other load failure rather than exempted from the fallback setting.
+// On error, the returned TracerType is the tracer that failed to load.
 func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), TracerType, error) {
 	m, closeTracerFn, err := fentryTracerLoader(config, mgrOptions, connCloseEventHandler)
 	if err == nil {
@@ -192,15 +193,25 @@ func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options,
 		return m, closeTracerFn, TracerTypeFentry, nil
 	}
 
+	var fentryErr error
 	if !errors.Is(err, fentry.ErrorDisabled) {
 		if !config.AllowKprobeFallback {
 			return nil, nil, TracerTypeFentry, fmt.Errorf("fentry tracer failed to load: %w", err)
 		}
-		log.Warnf("error loading fentry network tracer, falling back to kprobe: %s", err)
+		// unsupported is an expected, known kernel limitation (e.g. RHEL 8), not a load error
+		if errors.Is(err, fentry.ErrorUnsupported) {
+			log.Infof("fentry network tracer unavailable, falling back to kprobe: %s", err)
+		} else {
+			log.Warnf("error loading fentry network tracer, falling back to kprobe: %s", err)
+		}
+		fentryErr = err
 	}
 
 	m, closeTracerFn, kprobeTracerType, err := kprobeTracerLoader(config, mgrOptions, connCloseEventHandler)
 	if err != nil {
+		if fentryErr != nil {
+			return nil, nil, TracerType(kprobeTracerType), fmt.Errorf("kprobe tracer failed to load: %w (after fentry tracer failed to load: %w)", err, fentryErr)
+		}
 		return nil, nil, TracerType(kprobeTracerType), fmt.Errorf("kprobe tracer failed to load: %w", err)
 	}
 	log.Info("kprobe tracer loaded successfully")

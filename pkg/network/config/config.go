@@ -235,7 +235,8 @@ type Config struct {
 	EnableFentry bool
 
 	// AllowKprobeFallback indicates whether we are allowed to fall back to the kprobe tracer
-	// if the fentry tracer fails to load (default true)
+	// if the fentry tracer is enabled but fails to load (default true). It has no effect when
+	// EnableFentry is false, since the kprobe tracer is then loaded directly.
 	AllowKprobeFallback bool
 
 	// EnableCORETracer enables the CO-RE version of the tracer

@@ -10,6 +10,7 @@ package connection
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"testing"
 
@@ -79,97 +80,138 @@ func TestFentryKprobeFallback(t *testing.T) {
 		kprobeTracerLoader = prevKprobeLoader
 	})
 
-	fakeManager := &ddebpf.Manager{}
-	kprobeCalled := false
+	verifierErr := &ebpf.VerifierError{Cause: assert.AnError, Log: []string{"invalid access to map value"}}
+	// wrapped the same way fentry.LoadTracer wraps it
+	unsupportedErr := fmt.Errorf("%w: %s", fentry.ErrorUnsupported, "tcp_recvmsg attach probe failed")
+	kprobeErr := errors.New("kprobe load error")
 
-	fakeKprobeLoader := func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), kprobe.TracerType, error) {
-		kprobeCalled = true
-		return fakeManager, nil, kprobe.TracerTypeCORE, nil
+	tests := []struct {
+		name          string
+		fentryErr     error
+		kprobeErr     error
+		allowFallback bool
+		wantType      TracerType
+		wantKprobe    bool
+		// errors the returned error must wrap; empty means the load must succeed
+		wantErrIs    []error
+		wantNotErrIs []error
+	}{
+		{
+			name:          "fentry succeeds",
+			allowFallback: true,
+			wantType:      TracerTypeFentry,
+		},
+		{
+			// fallback disallowed, to show that disabled fentry bypasses the setting
+			name:       "fentry disabled loads kprobe",
+			fentryErr:  fentry.ErrorDisabled,
+			wantType:   TracerTypeKProbeCORE,
+			wantKprobe: true,
+		},
+		{
+			name:          "fentry error falls back to kprobe when allowed",
+			fentryErr:     assert.AnError,
+			allowFallback: true,
+			wantType:      TracerTypeKProbeCORE,
+			wantKprobe:    true,
+		},
+		{
+			name:      "fentry error is a hard failure when fallback disallowed",
+			fentryErr: assert.AnError,
+			wantType:  TracerTypeFentry,
+			wantErrIs: []error{assert.AnError},
+		},
+		{
+			name:          "fentry verifier error falls back to kprobe when allowed",
+			fentryErr:     verifierErr,
+			allowFallback: true,
+			wantType:      TracerTypeKProbeCORE,
+			wantKprobe:    true,
+		},
+		{
+			name:      "fentry verifier error is a hard failure when fallback disallowed",
+			fentryErr: verifierErr,
+			wantType:  TracerTypeFentry,
+			wantErrIs: []error{verifierErr},
+		},
+		{
+			name:          "fentry unsupported falls back to kprobe when allowed",
+			fentryErr:     unsupportedErr,
+			allowFallback: true,
+			wantType:      TracerTypeKProbeCORE,
+			wantKprobe:    true,
+		},
+		{
+			name:      "fentry unsupported is a hard failure when fallback disallowed",
+			fentryErr: unsupportedErr,
+			wantType:  TracerTypeFentry,
+			wantErrIs: []error{fentry.ErrorUnsupported},
+		},
+		{
+			name:          "kprobe failure after a fentry failure reports both causes",
+			fentryErr:     assert.AnError,
+			kprobeErr:     kprobeErr,
+			allowFallback: true,
+			wantType:      TracerTypeKProbeCORE,
+			wantKprobe:    true,
+			wantErrIs:     []error{kprobeErr, assert.AnError},
+		},
+		{
+			name:         "kprobe failure with fentry disabled reports only the kprobe cause",
+			fentryErr:    fentry.ErrorDisabled,
+			kprobeErr:    kprobeErr,
+			wantType:     TracerTypeKProbeCORE,
+			wantKprobe:   true,
+			wantErrIs:    []error{kprobeErr},
+			wantNotErrIs: []error{fentry.ErrorDisabled},
+		},
 	}
 
-	t.Run("fentry succeeds", func(t *testing.T) {
-		kprobeCalled = false
-		fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			return fakeManager, nil, nil
-		}
-		kprobeTracerLoader = fakeKprobeLoader
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fentryMgr, kprobeMgr := &ddebpf.Manager{}, &ddebpf.Manager{}
+			var fentryClosed, kprobeClosed, kprobeCalled bool
+			fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+				if tt.fentryErr != nil {
+					return nil, nil, tt.fentryErr
+				}
+				return fentryMgr, func() { fentryClosed = true }, nil
+			}
+			kprobeTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), kprobe.TracerType, error) {
+				kprobeCalled = true
+				if tt.kprobeErr != nil {
+					return nil, nil, kprobe.TracerTypeCORE, tt.kprobeErr
+				}
+				return kprobeMgr, func() { kprobeClosed = true }, kprobe.TracerTypeCORE, nil
+			}
 
-		m, _, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: true}, manager.Options{}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, fakeManager, m)
-		assert.Equal(t, TracerTypeFentry, tracerType)
-		assert.False(t, kprobeCalled, "kprobe loader should not be called when fentry succeeds")
-	})
+			m, closeFn, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: tt.allowFallback}, manager.Options{}, nil)
+			assert.Equal(t, tt.wantKprobe, kprobeCalled, "whether the kprobe loader was called")
+			assert.Equal(t, tt.wantType, tracerType)
 
-	t.Run("fentry disabled falls back to kprobe", func(t *testing.T) {
-		kprobeCalled = false
-		fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			return nil, nil, fentry.ErrorDisabled
-		}
-		kprobeTracerLoader = fakeKprobeLoader
+			if len(tt.wantErrIs) > 0 {
+				require.Error(t, err)
+				for _, target := range tt.wantErrIs {
+					assert.ErrorIs(t, err, target)
+				}
+				for _, target := range tt.wantNotErrIs {
+					assert.NotErrorIs(t, err, target)
+				}
+				assert.Nil(t, m)
+				assert.Nil(t, closeFn)
+				return
+			}
 
-		m, _, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: false}, manager.Options{}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, fakeManager, m)
-		assert.Equal(t, TracerTypeKProbeCORE, tracerType)
-		assert.True(t, kprobeCalled)
-	})
-
-	t.Run("fentry error falls back to kprobe when allowed", func(t *testing.T) {
-		kprobeCalled = false
-		fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			return nil, nil, assert.AnError
-		}
-		kprobeTracerLoader = fakeKprobeLoader
-
-		m, _, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: true}, manager.Options{}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, fakeManager, m)
-		assert.Equal(t, TracerTypeKProbeCORE, tracerType)
-		assert.True(t, kprobeCalled)
-	})
-
-	t.Run("fentry error is a hard failure when fallback disallowed", func(t *testing.T) {
-		kprobeCalled = false
-		fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			return nil, nil, assert.AnError
-		}
-		kprobeTracerLoader = fakeKprobeLoader
-
-		m, _, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: false}, manager.Options{}, nil)
-		require.Error(t, err)
-		assert.Nil(t, m)
-		assert.Equal(t, TracerTypeFentry, tracerType)
-		assert.False(t, kprobeCalled, "kprobe loader should not be called when fallback is disallowed")
-	})
-
-	t.Run("fentry verifier error falls back to kprobe when allowed", func(t *testing.T) {
-		kprobeCalled = false
-		verifierErr := &ebpf.VerifierError{Cause: assert.AnError, Log: []string{"invalid access to map value"}}
-		fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			return nil, nil, verifierErr
-		}
-		kprobeTracerLoader = fakeKprobeLoader
-
-		m, _, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: true}, manager.Options{}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, fakeManager, m)
-		assert.Equal(t, TracerTypeKProbeCORE, tracerType)
-		assert.True(t, kprobeCalled, "kprobe loader should be called on a verifier error when fallback is allowed")
-	})
-
-	t.Run("fentry verifier error is a hard failure when fallback disallowed", func(t *testing.T) {
-		kprobeCalled = false
-		verifierErr := &ebpf.VerifierError{Cause: assert.AnError, Log: []string{"invalid access to map value"}}
-		fentryTracerLoader = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			return nil, nil, verifierErr
-		}
-		kprobeTracerLoader = fakeKprobeLoader
-
-		m, _, tracerType, err := loadFentryOrKprobeTracer(&config.Config{AllowKprobeFallback: false}, manager.Options{}, nil)
-		require.Error(t, err)
-		assert.Nil(t, m)
-		assert.Equal(t, TracerTypeFentry, tracerType)
-		assert.False(t, kprobeCalled, "kprobe loader should not be called when fallback is disallowed")
-	})
+			require.NoError(t, err)
+			require.NotNil(t, closeFn)
+			closeFn()
+			if tt.wantType == TracerTypeFentry {
+				assert.Same(t, fentryMgr, m)
+				assert.True(t, fentryClosed, "returned close func should be the fentry loader's")
+			} else {
+				assert.Same(t, kprobeMgr, m)
+				assert.True(t, kprobeClosed, "returned close func should be the kprobe loader's")
+			}
+		})
+	}
 }
