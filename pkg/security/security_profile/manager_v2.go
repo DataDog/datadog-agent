@@ -764,10 +764,10 @@ func (m *ManagerV2) onTagsUpdated() {
 
 // DrainPendingEvents resolves and drains any pending profile events whose workload tags have become available
 func (m *ManagerV2) DrainPendingEvents() {
+	m.nopWakeupPending.Store(false)
 	if !m.pendingEventsReady.Load() || !m.pendingEventsReady.Swap(false) {
 		return
 	}
-	m.nopWakeupPending.Store(false)
 	m.drainResolvedPendingEvents()
 }
 
@@ -835,9 +835,11 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
-	m.resolvedCgroupsLock.Lock()
-	m.resolvedCgroups[cgroupID] = struct{}{}
-	m.resolvedCgroupsLock.Unlock()
+	if m.isWorkloadActive(getWorkloadIDFromEvent(event)) {
+		m.resolvedCgroupsLock.Lock()
+		m.resolvedCgroups[cgroupID] = struct{}{}
+		m.resolvedCgroupsLock.Unlock()
+	}
 
 	m.drainPendingEventsForCgroup(cgroupID, event.ProcessContext.Process.ContainerContext.Tags)
 
@@ -859,9 +861,11 @@ func (m *ManagerV2) drainPendingEventsForCgroup(cgroupID containerutils.CGroupID
 		return
 	}
 
-	m.resolvedCgroupsLock.Lock()
-	m.resolvedCgroups[cgroupID] = struct{}{}
-	m.resolvedCgroupsLock.Unlock()
+	if m.isWorkloadActive(pendingEvents.workloadID) {
+		m.resolvedCgroupsLock.Lock()
+		m.resolvedCgroups[cgroupID] = struct{}{}
+		m.resolvedCgroupsLock.Unlock()
+	}
 
 	latency := time.Since(pendingEvents.firstSeen)
 	if err := m.statsdClient.Distribution(metrics.MetricSecurityProfileV2TagResolutionLatency, latency.Seconds(), []string{}, 1.0); err != nil {
@@ -961,8 +965,13 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		imageTag = utils.GetTagValue("version", tags)
 	}
 
-	if workloadID != nil {
-		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+
+	event.SecurityProfileContext.Name = profile.Metadata.Name
+	if profileContext, ok := profile.GetVersionContext(imageTag); ok {
+		event.SecurityProfileContext.Tags = profileContext.Tags
 	}
 
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
@@ -1187,14 +1196,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Cancel any pending removal for this selector (it's back!)
-	m.pendingProfileRemovalsLock.Lock()
-	if _, pending := m.pendingProfileRemovals[selector]; pending {
-		delete(m.pendingProfileRemovals, selector)
-		seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
-	}
-	m.pendingProfileRemovalsLock.Unlock()
-
 	// Get or create the profile for this workload
 	secprof, err := m.getOrCreateProfile(selector, event)
 	if err != nil {
@@ -1219,8 +1220,20 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Link this workload to the profile (tracks in profile.Instances)
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
-	m.linkWorkloadToProfile(secprof, workload)
-	m.seedMountsForWorkload(secprof, workload, event)
+	if workload != nil {
+		m.pendingProfileRemovalsLock.Lock()
+		if _, pending := m.pendingProfileRemovals[selector]; pending {
+			delete(m.pendingProfileRemovals, selector)
+			seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
+		}
+		m.pendingProfileRemovalsLock.Unlock()
+		m.linkWorkloadToProfile(secprof, workload)
+		m.seedMountsForWorkload(secprof, workload, event)
+	} else if !m.profileHasActiveInstances(secprof) {
+		m.pendingProfileRemovalsLock.Lock()
+		m.pendingProfileRemovals[selector] = time.Now()
+		m.pendingProfileRemovalsLock.Unlock()
+	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
@@ -1234,7 +1247,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
 	secprof.Lock()
-	inserted, processNode, eventNodeBase, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, eventNodeBase, err := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err == nil {
 		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
 		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
@@ -1295,15 +1308,7 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
 func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
-	var cacheEntry *cgroupModel.CacheEntry
-
-	switch id := workloadID.(type) {
-	case containerutils.ContainerID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
-	case containerutils.CGroupID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
-	}
-
+	cacheEntry := m.getCacheEntryForWorkload(workloadID)
 	if cacheEntry == nil {
 		return nil
 	}
@@ -1313,6 +1318,29 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 		Selector:         selector,
 		Tags:             event.ProcessContext.Process.ContainerContext.Tags,
 	}
+}
+
+func (m *ManagerV2) getCacheEntryForWorkload(workloadID containerutils.WorkloadID) *cgroupModel.CacheEntry {
+	if m.resolvers == nil || m.resolvers.CGroupResolver == nil {
+		return nil
+	}
+
+	var cacheEntry *cgroupModel.CacheEntry
+	switch id := workloadID.(type) {
+	case containerutils.ContainerID:
+		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
+	case containerutils.CGroupID:
+		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
+	}
+
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return nil
+	}
+	return cacheEntry
+}
+
+func (m *ManagerV2) isWorkloadActive(workloadID containerutils.WorkloadID) bool {
+	return m.getCacheEntryForWorkload(workloadID) != nil
 }
 
 // linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.

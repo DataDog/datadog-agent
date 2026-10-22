@@ -766,6 +766,7 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
+		nil,
 		"test-host",
 		time.Now(),
 		nil,

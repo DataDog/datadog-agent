@@ -593,15 +593,17 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 	m := &ManagerV2{
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				SecurityProfileEnabled:                          true,
-				SecurityProfileV2Enabled:                        true,
-				SecurityProfileMaxImageTags:                     20,
-				AnomalyDetectionEnabled:                         true,
-				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
-				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
-				SecurityProfileV2ProfileReportingDelayTimeBased: true,
-				SecurityProfileDNSMatchMaxDepth:                 3,
-				SecurityProfileCleanupDelay:                     time.Minute,
+				SecurityProfileEnabled:                                  true,
+				SecurityProfileV2Enabled:                                true,
+				SecurityProfileMaxImageTags:                             20,
+				AnomalyDetectionEnabled:                                 true,
+				SecurityProfileV2EventTypes:                             []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
+				SecurityProfileV2MaxDumpSize:                            func() int { return maxSize },
+				SecurityProfileV2ProfileReportingDelayTimeBased:         true,
+				SecurityProfileDNSMatchMaxDepth:                         3,
+				SecurityProfileCleanupDelay:                             time.Minute,
+				SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+				SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
 			},
 		},
 		statsdClient: &statsd.NoOpClient{},
@@ -611,23 +613,25 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			TimeResolver:   timeResolver,
 			HashResolver:   &hash.Resolver{},
 		},
-		kernelVersion:          &kernel.Version{},
-		pathsReducer:           activity_tree.NewPathsReducer(),
-		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		profilePendingEvents:   make(map[containerutils.CGroupID]*pendingProfile),
-		queueSize:              atomic.NewUint64(0),
-		pendingProfiles:        atomic.NewUint64(0),
-		resolvedCgroups:        make(map[containerutils.CGroupID]struct{}),
-		localStorage:           localStorage,
-		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
-		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:        cookieMap,
-		sampleRefreshReceived:  atomic.NewUint64(0),
-		sampleRefreshHits:      atomic.NewUint64(0),
-		sampleRefreshMisses:    atomic.NewUint64(0),
-		cleanupProfilesRemoved: atomic.NewUint64(0),
-		imageExcluder:          imgExcluder,
+		kernelVersion:             &kernel.Version{},
+		pathsReducer:              activity_tree.NewPathsReducer(),
+		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		localStorage:              localStorage,
+		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
+		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
+		sampleRefreshReceived:     atomic.NewUint64(0),
+		sampleRefreshHits:         atomic.NewUint64(0),
+		sampleRefreshMisses:       atomic.NewUint64(0),
+		cleanupProfilesRemoved:    atomic.NewUint64(0),
+		imageExcluder:             imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
@@ -1396,7 +1400,6 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 	})
 }
 
-<<<<<<< HEAD
 func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 	const (
 		baseNs     = uint32(4026531840)
@@ -1535,8 +1538,13 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
 
 	nopTriggered := make(chan struct{}, 4)
+	var failFirstNop atomic.Bool
+	failFirstNop.Store(true)
 	m.triggerNopEvent = func() error {
 		nopTriggered <- struct{}{}
+		if failFirstNop.CompareAndSwap(true, false) {
+			return assert.AnError
+		}
 		return nil
 	}
 
@@ -1561,8 +1569,22 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 	}}
 
 	<-nopTriggered
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeModified,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+	<-nopTriggered
 	m.DrainPendingEvents()
 	assert.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
+
+	m.nopWakeupPending.Store(true)
+	m.DrainPendingEvents()
+	assert.False(t, m.nopWakeupPending.Load())
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.resolvers.CGroupResolver.Delete(cgce.GetCGroupInode())
+	m.onCGroupDeleted(cgce)
 
 	tagger.tags[imageEntityID] = []string{"image_tag:v1"}
 	tagger.ch <- []types.EntityEvent{{
@@ -1575,9 +1597,14 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 
 	assert.Equal(t, uint64(0), m.queueSize.Load())
 	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Empty(t, m.resolvedCgroups)
 
 	p := m.profiles[testSelector]
 	require.NotNil(t, p)
+	assert.Empty(t, p.Instances)
+	assert.Contains(t, m.pendingProfileRemovals, testSelector)
 	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
-	assert.Len(t, *anomalies, 1)
+	require.Len(t, *anomalies, 1)
+	assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	assert.Contains(t, (*anomalies)[0].SecurityProfileContext.Tags, "image_tag:v1")
 }
