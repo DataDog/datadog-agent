@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    When the Agent Data Plane (ADP) is enabled, Agent status shows its forwarder transaction metrics in a separate section for each remote agent. Combined totals are labeled as Core Agent + ADP, and endpoint, type, and code breakdowns are identified as Core Agent-only.

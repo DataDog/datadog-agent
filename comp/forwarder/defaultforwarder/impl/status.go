@@ -40,6 +40,31 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		forwarderStats["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
 	}
 	stats["forwarderStats"] = forwarderStats
+	stats["adpForwarderStats"] = getADPForwarderStats()
+}
+
+func getADPForwarderStats() map[string]interface{} {
+	result := make(map[string]interface{})
+	remoteAgents := expvar.Get("remote_agents")
+	if remoteAgents == nil {
+		return result
+	}
+
+	return adpForwarderStatsFromJSON(remoteAgents.String())
+}
+
+func adpForwarderStatsFromJSON(remoteAgentsJSON string) map[string]interface{} {
+	result := make(map[string]interface{})
+	var agents map[string]map[string]interface{}
+	if err := json.Unmarshal([]byte(remoteAgentsJSON), &agents); err != nil {
+		return result
+	}
+	for name, agentStats := range agents {
+		if forwarderStats, ok := agentStats["forwarder"].(map[string]interface{}); ok && len(forwarderStats) > 0 {
+			result[name] = forwarderStats
+		}
+	}
+	return result
 }
 
 func (s statusProvider) Name() string {
