@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -132,10 +133,7 @@ func issueStateFromString(s string) IssueState {
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
-// It is both the in-memory and on-disk representation; detailed proto payload fields are
-// intentionally omitted because IssueIDs are deterministic — when the agent
-// restarts, health checks re-run and call ReportIssue with the same ID, at which
-// point storeIssue picks up the existing firstSeen/state from this struct.
+// It is both the in-memory and on-disk representation; Issue is the last reported proto, absent in older files.
 //
 // IssueType (this struct) is a legacy name for the issue's IssueName, kept as-is
 // for on-disk compatibility — it is not the proto Issue.IssueType field. ProtoIssueType
@@ -150,6 +148,8 @@ type PersistedIssue struct {
 	FirstSeen      string     `json:"first_seen"`
 	LastSeen       string     `json:"last_seen"`
 	ResolvedAt     string     `json:"resolved_at,omitempty"`
+
+	Issue json.RawMessage `json:"issue,omitempty"`
 }
 
 // MarshalJSON serialises State as a human-readable string.
@@ -192,6 +192,26 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 		pi.ResolvedAt = &p.ResolvedAt
 	}
 	return pi
+}
+
+// resolvedIssue builds the resolution from the last full issue, or a minimal one.
+func (h *healthPlatformImpl) resolvedIssue(p *PersistedIssue) *healthplatform.Issue {
+	resolved := &healthplatform.Issue{}
+	if len(p.Issue) > 0 {
+		// Fields from a newer agent-payload must not discard the issue after a downgrade.
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(p.Issue, resolved); err != nil {
+			h.log.Warnf("health platform: failed to restore issue %s for resolution, sending minimal: %v", p.IssueID, err)
+			resolved = &healthplatform.Issue{}
+		}
+	}
+	resolved.Id = p.IssueID
+	resolved.IssueName = p.IssueType
+	resolved.IssueType = p.ProtoIssueType
+	if p.Category != "" {
+		resolved.Category = p.Category
+	}
+	resolved.PersistedIssue = persistedIssueToProto(p)
+	return resolved
 }
 
 // PersistedState is the full state written to disk.
@@ -480,13 +500,7 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 			stateChanged = true
 		}
 
-		resolved = &healthplatform.Issue{
-			Id:             issueID,
-			IssueName:      persisted.IssueType,
-			IssueType:      persisted.ProtoIssueType,
-			Category:       persisted.Category,
-			PersistedIssue: persistedIssueToProto(persisted),
-		}
+		resolved = h.resolvedIssue(persisted)
 	}
 
 	h.issuesMux.Unlock()
@@ -513,13 +527,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
-			resolved = append(resolved, &healthplatform.Issue{
-				Id:             persisted.IssueID,
-				IssueName:      persisted.IssueType,
-				IssueType:      persisted.ProtoIssueType,
-				Category:       persisted.Category,
-				PersistedIssue: persistedIssueToProto(persisted),
-			})
+			resolved = append(resolved, h.resolvedIssue(persisted))
 		}
 	}
 
@@ -688,6 +696,12 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		}
 	}
 	lean := proto.Clone(issue).(*healthplatform.Issue)
+	lean.PersistedIssue = nil
+	if raw, err := protojson.Marshal(lean); err == nil {
+		h.persistedIssues[issueID].Issue = raw
+	} else {
+		h.log.Warnf("health platform: failed to serialize issue %s for persistence: %v", issueID, err)
+	}
 	lean.Extra = nil
 	lean.Remediation = nil
 	lean.PersistedIssue = persistedIssueToProto(h.persistedIssues[issueID])
@@ -706,9 +720,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // ============================================================================
 
 // loadFromDisk restores lifecycle state from the persistence layer.
-// Proto payload (issue title, description, etc.) is not stored on disk — IssueIDs are
-// deterministic, so health checks re-running after restart will call ReportIssue with the
-// same ID and storeIssue will pick up firstSeen/state from the restored PersistedIssue.
+// Re-run health checks pick up firstSeen/state from the restored entries.
 func (h *healthPlatformImpl) loadFromDisk() error {
 	state, err := h.persistence.load()
 	if err != nil {
@@ -743,13 +755,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		}
 
 		if persisted.State == IssueStateResolved {
-			resolvedIssues = append(resolvedIssues, &healthplatform.Issue{
-				Id:             issueID,
-				IssueName:      persisted.IssueType,
-				IssueType:      persisted.ProtoIssueType,
-				Category:       persisted.Category,
-				PersistedIssue: persistedIssueToProto(persisted),
-			})
+			resolvedIssues = append(resolvedIssues, h.resolvedIssue(persisted))
 			continue
 		}
 
@@ -770,8 +776,6 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 }
 
 // saveToDisk persists the current lifecycle state via the persistence layer.
-// Only state metadata is written; proto payload fields are omitted because they are
-// repopulated by health checks on the next agent start.
 func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
 	// Make a deep copy to avoid race conditions during marshaling
