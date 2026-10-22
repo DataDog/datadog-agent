@@ -7,12 +7,11 @@
 package fx
 
 import (
-	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	phonehomeimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module registers the component and its optional status dependency.
+// Module registers the core phone-home lifecycle.
 func Module() fxutil.Module {
-	return fxutil.Component(fxutil.ProvideComponentConstructor(phonehomeimpl.NewComponent), fxutil.ProvideOptional[phonehome.Component]())
+	return fxutil.Component(fxutil.ProvideComponentConstructor(phonehomeimpl.NewComponent))
 }
