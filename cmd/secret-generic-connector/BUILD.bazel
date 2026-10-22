@@ -30,6 +30,7 @@ dd_agent_go_binary(
         "//conditions:default": False,
     }),
     embed = [":secret-generic-connector_lib"],
+    native_allocator = "//bazel/rules/go:linux_fips_native_allocator",
     visibility = ["//visibility:public"],
     x_defs = {"github.com/DataDog/datadog-agent/cmd/secret-generic-connector.appVersion": "{agent_version}"},
 )

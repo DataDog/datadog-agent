@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    APM : Linux Trace Agent binaries now use jemalloc for native allocations
+    without requiring ``LD_PRELOAD``. The Go heap allocator is unchanged.

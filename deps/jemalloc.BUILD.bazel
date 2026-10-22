@@ -4,6 +4,7 @@ load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
 
@@ -35,37 +36,40 @@ license(
 
 filegroup(
     name = "all_srcs",
-    srcs = glob([
-        "*",
-        "bin/*",
-        "build-aux/*",
-        "doc/*",
-        "doc_internal/*",
-        "include/jemalloc/*",
-        "include/jemalloc/internal/*",
-        "include/msvc_compat/*",
-        "include/msvc_compat/C99/*",
-        "m4/*",
-        "msvc/*",
-        "msvc/projects/vc2015/jemalloc/*",
-        "msvc/projects/vc2015/test_threads/*",
-        "msvc/projects/vc2017/jemalloc/*",
-        "msvc/projects/vc2017/test_threads/*",
-        "msvc/test_threads/*",
-        "scripts/*",
-        "scripts/freebsd/*",
-        "scripts/linux/*",
-        "scripts/windows/*",
-        "src/*",
-        "test/*",
-        "test/analyze/*",
-        "test/include/test/*",
-        "test/integration/*",
-        "test/integration/cpp/*",
-        "test/src/*",
-        "test/stress/*",
-        "test/unit/*",
-    ]),
+    srcs = glob(
+        [
+            "*",
+            "bin/*",
+            "build-aux/*",
+            "doc/*",
+            "doc_internal/*",
+            "include/jemalloc/*",
+            "include/jemalloc/internal/*",
+            "include/msvc_compat/*",
+            "include/msvc_compat/C99/*",
+            "m4/*",
+            "msvc/*",
+            "msvc/projects/vc2015/jemalloc/*",
+            "msvc/projects/vc2015/test_threads/*",
+            "msvc/projects/vc2017/jemalloc/*",
+            "msvc/projects/vc2017/test_threads/*",
+            "msvc/test_threads/*",
+            "scripts/*",
+            "scripts/freebsd/*",
+            "scripts/linux/*",
+            "scripts/windows/*",
+            "src/*",
+            "test/*",
+            "test/analyze/*",
+            "test/include/test/*",
+            "test/integration/*",
+            "test/integration/cpp/*",
+            "test/src/*",
+            "test/stress/*",
+            "test/unit/*",
+        ],
+        exclude = ["BUILD.bazel"],
+    ),
 )
 
 configure_make(
@@ -77,10 +81,45 @@ configure_make(
         "--disable-stats",
         "--disable-fill",
         "--disable-prof",
-        "--disable-static",
+        "--enable-static",
+        "--with-jemalloc-prefix=",
     ],
     lib_source = ":all_srcs",
     out_shared_libs = ["libjemalloc.so"],
+    out_static_libs = ["libjemalloc_pic.a"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Select the archive explicitly: the foreign build also produces a shared
+# library for installations which already have LD_PRELOAD configured.
+filegroup(
+    name = "static_archive",
+    srcs = [":jemalloc"],
+    output_group = "libjemalloc_pic.a",
+)
+
+# rules_go 0.64.2's cgo.bzl ignores LibraryToLink.alwayslink. Pass an
+# explicit archive and undefined roots until that path supports it. All public
+# C APIs are in jemalloc.c; their dependencies retain the other required members.
+# Do not retain jemalloc_cpp.o: libstdc++'s new/delete already call malloc/free.
+cc_library(
+    name = "jemalloc_static",
+    additional_linker_inputs = [":static_archive"],
+    linkopts = [
+        "-Wl,-u,malloc,-u,calloc,-u,realloc,-u,free,-u,malloc_usable_size,-u,mallctl",
+        "$(location :static_archive)",
+        "-lm",
+        "-lpthread",
+        "-ldl",
+        # Rust uses -nodefaultlibs and places its libc before native linkopts.
+        # Repeat libc after the archive so its linker script also resolves
+        # jemalloc's stack protector references (notably on aarch64).
+        "-lc",
+        # GCC's outlined arm64 atomics live in libgcc.a, which Rust's LLVM
+        # compiler_builtins and earlier -lgcc_s do not provide.
+        "-lgcc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 foreign_cc_shared_wrapper(

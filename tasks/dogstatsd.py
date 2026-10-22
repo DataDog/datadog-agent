@@ -78,6 +78,7 @@ def build(
         go_build(
             ctx,
             f"{REPO_PATH}/cmd/dogstatsd",
+            native_allocator=True,
             mod=go_mod,
             race=race,
             rebuild=rebuild,

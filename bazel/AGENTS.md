@@ -334,6 +334,18 @@ BUILD files are configuration, not code — prioritize readability over deduplic
   directory *node*, not its contents, breaking incremental builds.
 - Use `[]` to express "no targets", not a glob that matches nothing.
 
+## Final-executable native allocator
+
+Shipped Linux Cgo executables opt into `native_allocator` in `dd_agent_go_binary`.
+Keep allocator dependencies on the main package's Cgo owner: rules_go allows only
+one Cgo owner across an embed chain. The pinned rules_go Cgo path ignores
+`LibraryToLink.alwayslink`, so the jemalloc rule explicitly roots the public C API
+archive member. Do not link jemalloc into rtloader or native shared libraries.
+Run `bazel test //test/native_allocator:bindings_test` when changing this linkage;
+unversioned dynamic exports must survive stripping and resolve GLIBC-versioned
+references in loaded libraries. Pure-Go and non-Linux target graphs must contain
+no allocator dependency.
+
 ## Go build tags and flavors
 
 Tags and per-flavor tag sets are defined in `tasks/build_tags.bzl`, the single source of truth. It

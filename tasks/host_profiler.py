@@ -89,6 +89,7 @@ def build(ctx, enable_bazel=False):
         go_build(
             ctx,
             f"{REPO_PATH}/cmd/host-profiler",
+            native_allocator=True,
             mod="readonly",
             build_tags=build_tags,
             ldflags=ldflags,

@@ -26,6 +26,7 @@ dd_agent_go_binary(
     }),
     embed = [":process-agent_lib"],
     gotags = PROCESS_AGENT_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )
 
@@ -34,5 +35,6 @@ dd_agent_go_binary(
     embed = [":process-agent_lib"],
     # keep
     exact_gotags = sorted(COMMON_TAGS | PROCESS_AGENT_HEROKU_TAGS),
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )

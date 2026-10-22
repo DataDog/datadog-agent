@@ -79,6 +79,7 @@ rust_binary(
     edition = "2024",
     link_deps = select({
         "@platforms//os:windows": ["//pkg/procmgr/rust/windows_resources:rsrcd"],
+        "@platforms//os:linux": ["//bazel/rules/native_allocator:allocator"],
         "//conditions:default": [],
     }),
     rustc_flags = ["--cfg=bazel"],
@@ -110,6 +111,7 @@ rust_binary(
     edition = "2024",
     link_deps = select({
         "@platforms//os:windows": ["//pkg/procmgr/rust/windows_resources:rsrc"],
+        "@platforms//os:linux": ["//bazel/rules/native_allocator:allocator"],
         "//conditions:default": [],
     }),
     rustc_flags = ["--cfg=bazel"],

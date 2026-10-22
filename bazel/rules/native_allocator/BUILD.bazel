@@ -1,0 +1,38 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "compat",
+    srcs = ["compat.c"],
+    # rules_go ignores alwayslink; retain this single compatibility object.
+    linkopts = ["-Wl,-u,pvalloc,-u,reallocarray"],
+    linkstatic = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    alwayslink = True,
+)
+
+# Build-time inputs for the hybrid Invoke/Omnibus final link. Never packaged.
+filegroup(
+    name = "archives",
+    srcs = [
+        ":compat",
+        "@jemalloc//:static_archive",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# Non-Go product executables use the same archive and export contract.
+cc_library(
+    name = "allocator",
+    additional_linker_inputs = ["//:datadog-agent.map"],
+    linkopts = ["-Wl,--export-dynamic,--version-script=$(location //:datadog-agent.map)"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":compat",
+        "@jemalloc//:jemalloc_static",
+    ],
+)

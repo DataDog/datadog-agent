@@ -33,6 +33,7 @@ dd_agent_go_binary(
     }),
     embed = [":trace-agent_lib"],
     gotags = TRACE_AGENT_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )
 
@@ -41,5 +42,6 @@ dd_agent_go_binary(
     embed = [":trace-agent_lib"],
     # keep
     exact_gotags = sorted(COMMON_TAGS | TRACE_AGENT_HEROKU_TAGS),
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )

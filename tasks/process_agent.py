@@ -85,6 +85,7 @@ def build(
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/process-agent",
+        native_allocator=True,
         mod=go_mod,
         race=race,
         rebuild=rebuild,

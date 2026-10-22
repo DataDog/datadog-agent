@@ -50,6 +50,8 @@ def dd_agent_go_binary(
         exact_gotags = None,
         agent_version = None,
         x_defs = None,
+        native_allocator = None,
+        native_allocator_in_embed = False,
         **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
@@ -58,7 +60,8 @@ def dd_agent_go_binary(
     precedence over the defaults provided here.
 
     Defaults applied automatically (override by passing the attribute explicitly):
-      cgo: True on Windows (required to link .syso resource files), False elsewhere.
+      cgo: True on Windows (required for .syso resources) and opted-in Linux
+           binaries without an embedded Cgo owner; False elsewhere.
 
     Args:
       name: target name
@@ -71,6 +74,10 @@ def dd_agent_go_binary(
       agent_version: overrides pkg/version.AgentVersion and AgentVersionURLSafe (URL-safe
                      encoded) instead of deriving them from PACKAGE_VERSION/release.json.
       x_defs: Additional x_defs. The values undergo variable expansion.
+      native_allocator: Linux config_setting selecting static jemalloc for this
+                        shipped executable. None keeps tools and pure-Go products unchanged.
+      native_allocator_in_embed: The embedded main library already owns Cgo
+                                 sources and the allocator cdeps (rules_go allows one owner).
       **kwargs: arguments to be forwarded to go_binary.
     """
     common = compute_version_variables()
@@ -102,8 +109,30 @@ def dd_agent_go_binary(
     # should pass an explicit cgo = select({...}) which replaces this default.
     if "cgo" not in kwargs:
         kwargs["cgo"] = select({
+            "@platforms//os:linux": native_allocator != None and not native_allocator_in_embed,
             "@platforms//os:windows": True,
             "//conditions:default": False,
+        })
+
+    if native_allocator != None and not native_allocator_in_embed:
+        kwargs["srcs"] = kwargs.pop("srcs", []) + select({
+            native_allocator: ["//bazel/rules/go:native_allocator_linux.go"],
+            "//conditions:default": [],
+        })
+        kwargs["cdeps"] = kwargs.pop("cdeps", []) + select({
+            native_allocator: ["@jemalloc//:jemalloc_static", "//bazel/rules/native_allocator:compat", "//:datadog_agent_map"],
+            "//conditions:default": [],
+        })
+    if native_allocator != None:
+        # One extldflags argument: Go only honors the last occurrence. Keep
+        # export filtering and NVML lazy binding together at the final link.
+        gc_linkopts = (gc_linkopts or []) + select({
+            native_allocator: [
+                "-linkmode=external",
+                "-extldflags",
+                "-Wl,--export-dynamic,--version-script=datadog-agent.map -Wl,-z,lazy",
+            ],
+            "//conditions:default": [],
         })
 
     # Strip the symbol table and DWARF debug info in release builds to reduce

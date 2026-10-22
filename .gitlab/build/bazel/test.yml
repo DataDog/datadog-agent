@@ -68,6 +68,14 @@ bazel:test:linux-amd64:
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
+# The runtime regression is //test/native_allocator:bindings_test, included in
+# both Linux wildcard test jobs above. Also inspect cross-target dependencies
+# from Linux: host-OS guards can pass native Windows/macOS jobs by accident.
+bazel:test:allocator-platforms:
+  extends: [.bazel:runner:linux-amd64, .bazel:test]
+  script:
+    - python3 test/native_allocator/verify_platforms.py --platform windows_x86_64
+
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
   script:
@@ -96,6 +104,7 @@ bazel:test:linux-arm64:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
     - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - python3 test/native_allocator/verify_platforms.py --platform macos_arm64 --platform macos_x86_64
   after_script:
     - !reference [.macos_cleanup_python_dependencies]
     - !reference [.install_python_dependencies]

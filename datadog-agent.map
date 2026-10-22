@@ -1,6 +1,34 @@
-DD_AGENT_1.0 {
+# Keep these exports unversioned. A private version such as DD_AGENT_1.0
+# prevents GLIBC-versioned references in existing DSOs from interposing.
+{
     global:
         nvml*;
+        malloc;
+        calloc;
+        realloc;
+        reallocarray;
+        free;
+        posix_memalign;
+        aligned_alloc;
+        memalign;
+        valloc;
+        pvalloc;
+        malloc_usable_size;
+        # Export jemalloc's complete public API so a legacy LD_PRELOAD does
+        # not direct introspection or extended allocations to another instance.
+        mallocx;
+        rallocx;
+        xallocx;
+        sallocx;
+        dallocx;
+        sdallocx;
+        nallocx;
+        mallctl;
+        mallctlnametomib;
+        mallctlbymib;
+        malloc_stats_print;
+        malloc_conf;
+        malloc_message;
     local:
         *;
 };

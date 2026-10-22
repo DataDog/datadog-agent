@@ -50,6 +50,7 @@ def build(
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/privateactionrunner",
+        native_allocator=True,
         build_tags=build_tags,
         ldflags=ldflags,
         gcflags=gcflags,

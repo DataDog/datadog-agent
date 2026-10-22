@@ -1,0 +1,70 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+package(default_testonly = True)
+
+# Build against libc, not jemalloc: these are existing-library interposition
+# tests. The allocator comes exclusively from each real product executable.
+cc_binary(
+    name = "library.so",
+    srcs = [
+        "library.c",
+        "//pkg/collector/sharedlibrary/ffi:ffi.h",
+    ],
+    copts = ["-fno-builtin"],
+    linkopts = ["-ldl"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//rtloader:rtloader_headers"],
+)
+
+cc_binary(
+    name = "driver.so",
+    srcs = ["driver.c"],
+    copts = ["-fno-builtin"],
+    linkopts = ["-ldl"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_binary(
+    name = "nosys.so",
+    srcs = ["//Dockerfiles/agent/nosys-seccomp:nosys.c"],
+    additional_linker_inputs = ["//Dockerfiles/agent/nosys-seccomp:nosys.sym"],
+    linkopts = ["-Wl,--version-script=$(location //Dockerfiles/agent/nosys-seccomp:nosys.sym)"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["@libseccomp"],
+)
+
+py_test(
+    name = "bindings_test",
+    srcs = ["verify.py"],
+    args = [
+        "--binary",
+        "$(rootpath //cmd/trace-agent)",
+        "--binary",
+        "$(rootpath //cmd/agent)",
+        "--binary",
+        "$(rootpath //cmd/system-probe)",
+        "--driver",
+        "$(rootpath :driver.so)",
+        "--library",
+        "$(rootpath :library.so)",
+        "--jemalloc",
+        "$(rootpath @jemalloc//:jemalloc_shared)",
+        "--nosys",
+        "$(rootpath :nosys.so)",
+    ],
+    data = [
+        ":driver.so",
+        ":library.so",
+        ":nosys.so",
+        "//cmd/agent",
+        "//cmd/system-probe",
+        "//cmd/trace-agent",
+        "@jemalloc//:jemalloc_shared",
+    ],
+    main = "verify.py",
+    target_compatible_with = ["@platforms//os:linux"],
+)

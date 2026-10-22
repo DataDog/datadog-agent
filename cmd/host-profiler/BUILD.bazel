@@ -38,6 +38,7 @@ dd_agent_go_binary(
     agent_version = env_vars.FORCE_AGENT_VERSION or None,
     embed = [":host-profiler_lib"],
     gotags = HOST_PROFILER_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

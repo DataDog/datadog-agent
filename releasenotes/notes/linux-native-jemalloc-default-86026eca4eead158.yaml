@@ -1,0 +1,12 @@
+enhancements:
+  - |
+    Linux Agent executables use a statically linked jemalloc allocator for native
+    memory allocations without requiring ``LD_PRELOAD``. Go heap allocation and
+    Python's small-object allocator are unchanged. Pure-Go builds and non-Linux
+    products are unchanged.
+upgrade:
+  - |
+    Removing a jemalloc ``LD_PRELOAD`` setting no longer disables jemalloc in
+    Linux Agent executables. Returning to the previous native allocator requires
+    rolling back the Agent executable. The packaged jemalloc shared library is
+    retained for compatibility with existing preload settings.

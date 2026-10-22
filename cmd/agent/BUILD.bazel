@@ -16,6 +16,16 @@ go_library(
         "main_linux_no_cgo.go",
         "main_windows.go",
     ],
+    # Only the executable embeds this main package. No allocator is embedded
+    # into rtloader or Python. rules_go requires cdeps on the Cgo owner.
+    cdeps = select({
+        "//bazel/rules/go:linux_native_allocator": [
+            "@jemalloc//:jemalloc_static",
+            "//bazel/rules/native_allocator:compat",
+            "//:datadog_agent_map",
+        ],
+        "//conditions:default": [],
+    }),  # keep
     cgo = select({
         "@platforms//os:linux": True,
         "//conditions:default": False,
@@ -180,6 +190,8 @@ dd_agent_go_binary(
     }),
     embed = [":agent_lib"],
     gotags = AGENT_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
+    native_allocator_in_embed = True,
     visibility = ["//visibility:public"],
 )
 
@@ -193,5 +205,7 @@ dd_agent_go_binary(
     embed = [":agent_lib"],
     # keep
     exact_gotags = sorted(COMMON_TAGS | AGENT_HEROKU_TAGS),
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
+    native_allocator_in_embed = True,
     visibility = ["//visibility:public"],
 )

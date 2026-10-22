@@ -110,6 +110,7 @@ dd_agent_go_binary(
     name = "cluster-agent-cloudfoundry",
     embed = [":cluster-agent-cloudfoundry_lib"],
     gotags = CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     target_compatible_with = ["@platforms//os:linux"],  # keep
     visibility = ["//visibility:public"],
 )

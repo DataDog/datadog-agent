@@ -96,6 +96,7 @@ dd_agent_go_binary(
     name = "iot-agent",
     embed = [":iot-agent_lib"],
     gotags = IOT_AGENT_TAGS,  # keep
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

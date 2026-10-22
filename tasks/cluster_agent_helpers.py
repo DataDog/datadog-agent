@@ -51,6 +51,7 @@ def build_common(
         go_build(
             ctx,
             f"{REPO_PATH}/cmd/cluster-agent{bin_suffix}",
+            native_allocator=True,
             mod=go_mod,
             race=race,
             rebuild=rebuild,

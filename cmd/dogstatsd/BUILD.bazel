@@ -132,10 +132,12 @@ dd_agent_go_binary(
     # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
     cgo = select({
         "//packages/agent:fips_flavor": True,
+        "@platforms//os:linux": True,
         "@platforms//os:windows": True,
         "//conditions:default": False,
     }),
     embed = [":dogstatsd_lib"],
     gotags = DOGSTATSD_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )

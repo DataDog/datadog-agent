@@ -204,6 +204,7 @@ def build(
             go_build(
                 ctx,
                 f"{REPO_PATH}/cmd/{flavor_cmd}",
+                native_allocator=True,
                 mod=go_mod,
                 env=env,
                 bin_path=agent_bin,

@@ -17,7 +17,7 @@ from invoke.runners import Local, Result
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import join_command, timed
 from tasks.schema.generate import schema_codegen
 
 
@@ -132,7 +132,15 @@ def go_build(
     check_deadcode: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
+    native_allocator: bool = False,
 ) -> Result:
+    if native_allocator:
+        # Import here to keep the generic Go helper independent of allocator
+        # builds used only by explicitly selected shipped products.
+        from tasks.libs.build.native_allocator import with_native_allocator
+
+        ldflags = with_native_allocator(ldflags or "", env)
+
     if check_deadcode and sys.platform == "aix":
         print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
         check_deadcode = False
@@ -180,7 +188,7 @@ def go_build(
     if check_deadcode:
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
-        cmd += f" -ldflags=\"{ldflags}\""
+        cmd += " " + join_command(["-ldflags=" + ldflags])
     if trimpath and 'DELVE' not in os.environ:
         cmd += " -trimpath"
 

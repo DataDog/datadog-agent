@@ -140,6 +140,7 @@ rust_binary(
         "src/main.rs",
     ],
     edition = "2024",
+    link_deps = ["//bazel/rules/native_allocator:allocator"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [

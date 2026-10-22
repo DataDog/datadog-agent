@@ -1,0 +1,5 @@
+# Expose the image's actual preload source to the allocator regression test.
+exports_files([
+    "nosys.c",
+    "nosys.sym",
+])

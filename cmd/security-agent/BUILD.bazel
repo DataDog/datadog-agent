@@ -160,6 +160,7 @@ dd_agent_go_binary(
     name = "security-agent",
     embed = [":security-agent_lib"],
     gotags = SECURITY_AGENT_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )
 

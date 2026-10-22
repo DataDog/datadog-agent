@@ -282,6 +282,7 @@ def build_sysprobe_binary(
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/system-probe",
+        native_allocator=True,
         mod=go_mod,
         race=race,
         rebuild=rebuild,

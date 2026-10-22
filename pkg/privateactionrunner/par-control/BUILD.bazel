@@ -78,6 +78,7 @@ rust_binary(
     edition = "2024",
     link_deps = select({
         "@platforms//os:windows": ["//pkg/privateactionrunner/par-control/windows_resources:rsrc"],
+        "@platforms//os:linux": ["//bazel/rules/native_allocator:allocator"],
         "//conditions:default": [],
     }),
     target_compatible_with = _LINUX_OR_WINDOWS,

@@ -3,6 +3,25 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 
+exports_files(["native_allocator_linux.go"])
+
+config_setting(
+    name = "linux_native_allocator",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {"@rules_go//go/config:pure": "false"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "linux_fips_native_allocator",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {
+        "//packages/agent:flavor": "fips",
+        "@rules_go//go/config:pure": "false",
+    },
+    visibility = ["//visibility:public"],
+)
+
 # strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
 copy_file(
     name = "gazelle_extension_src",

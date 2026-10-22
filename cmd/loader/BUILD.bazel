@@ -120,6 +120,7 @@ dd_agent_go_binary(
         "@platforms//os:linux": ["bpf"],
         "//conditions:default": [],
     }),
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],

@@ -83,6 +83,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
         go_build(
             ctx,
             f"{REPO_PATH}/cmd/otel-agent",
+            native_allocator=True,
             mod="readonly",
             build_tags=build_tags,
             ldflags=ldflags,

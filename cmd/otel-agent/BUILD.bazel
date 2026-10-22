@@ -29,5 +29,6 @@ dd_agent_go_binary(
     }),
     embed = [":otel-agent_lib"],
     gotags = OTEL_AGENT_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )

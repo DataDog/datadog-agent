@@ -254,6 +254,18 @@ class TestGetVersionLdflags(unittest.TestCase):
 
 class TestGetBuildFlags(unittest.TestCase):
     @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils._find_cross_compiler")
+    @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
+    @mock.patch.dict(os.environ, {"CGO_ENABLED": "0", "GOOS": "windows"}, clear=True)
+    def test_preserves_explicit_pure_go_cross_build(self, compiler, _version):
+        from tasks.libs.types.arch import Arch
+
+        _, _, env = get_build_flags(mock.Mock(), arch=Arch.from_str("amd64"), embedded_path="/dev")
+        self.assertEqual(env["GOARCH"], "amd64")
+        self.assertNotEqual(env.get("CGO_ENABLED"), "1")
+        compiler.assert_not_called()
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
     @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/embedded/lib"], "", ""))
     def test_infers_python_home_from_bazel_rtloader_path(self, _get_rtloader_paths, _get_version_ldflags):
         ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", include_python=True)

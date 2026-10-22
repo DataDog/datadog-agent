@@ -122,6 +122,7 @@ dd_agent_go_binary(
     name = "privateactionrunner",
     embed = [":privateactionrunner_lib"],
     gotags = PRIVATEACTIONRUNNER_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )
 

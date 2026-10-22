@@ -98,26 +98,13 @@ dd_agent_go_binary(
         "//conditions:default": [],
     }),
     # keep
-    cdeps = select({
-        "@platforms//os:linux": ["//:datadog_agent_map"],
-        "//conditions:default": [],
-    }),
-    # keep
     cgo = select({
         "@platforms//os:linux": True,
         "@platforms//os:windows": True,
         "//conditions:default": False,
     }),
     embed = [":system-probe_lib"],
-    # go-nvml forces --export-dynamic: only export nvml* symbols. Lazy binding
-    # keeps NVML loadable on distributions that link with bind-now.
-    gc_linkopts = select({
-        "@platforms//os:linux": [
-            "-extldflags",
-            "-Wl,--version-script=datadog-agent.map -Wl,-z,lazy",
-        ],
-        "//conditions:default": [],
-    }),
     gotags = SYSTEM_PROBE_TAGS,
+    native_allocator = "//bazel/rules/go:linux_native_allocator",
     visibility = ["//visibility:public"],
 )

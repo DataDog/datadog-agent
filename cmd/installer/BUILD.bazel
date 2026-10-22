@@ -42,6 +42,7 @@ dd_agent_go_binary(
         "//conditions:default": [],
     }),
     gotags = INSTALLER_TAGS,
+    native_allocator = "//bazel/rules/go:linux_fips_native_allocator",
     visibility = ["//visibility:public"],
 )
 
