@@ -10,14 +10,16 @@ import (
 	"encoding/json"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 
@@ -34,7 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
@@ -47,6 +50,7 @@ type FlowAggregator struct {
 	FlushConfig                  common.FlushConfig
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
+	appCache                     dpi.Cache
 	sender                       sender.Sender
 	epForwarder                  eventplatform.Forwarder
 	stopChan                     chan struct{}
@@ -111,9 +115,16 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
+
+	var appCache dpi.Cache
+	if dpiEnabled(config.Listeners) {
+		appCache = dpi.NewApplicationCache()
+	}
+
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
 		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+		appCache:                     appCache,
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -135,6 +146,12 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	}
 }
 
+func dpiEnabled(listeners []config.ListenerConfig) bool {
+	return slices.ContainsFunc(listeners, func(l config.ListenerConfig) bool {
+		return l.EnableDPI
+	})
+}
+
 // Start will start the FlowAggregator worker
 func (agg *FlowAggregator) Start() {
 	agg.logger.Info("Flow Aggregator started")
@@ -152,6 +169,11 @@ func (agg *FlowAggregator) Stop() {
 // GetFlowInChan returns flow input chan
 func (agg *FlowAggregator) GetFlowInChan() chan *common.Flow {
 	return agg.flowIn
+}
+
+// GetApplicationCache returns the cache listeners send DPI applications to, nil if no listener has DPI enabled
+func (agg *FlowAggregator) GetApplicationCache() dpi.Cache {
+	return agg.appCache
 }
 
 func (agg *FlowAggregator) run() {
@@ -215,7 +237,11 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
-		flowPayload := buildPayload(flow, agg.hostname, flushTime)
+		var app dpi.Application
+		if agg.appCache != nil {
+			app, _ = agg.appCache.Lookup(flow.Namespace, flow.ExporterAddr, flow.ApplicationID)
+		}
+		flowPayload := buildPayload(flow, app, agg.hostname, flushTime)
 
 		// Calling MarshalJSON directly as it's faster than calling json.Marshall
 		payloadBytes, err := flowPayload.MarshalJSON()

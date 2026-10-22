@@ -783,14 +783,23 @@ func TestCreateChunks(t *testing.T) {
 				traceID1 = 123           // sampled by 50% rate
 				traceID2 = 1237892138897 // not sampled by 50% rate
 				traceID3 = 1237892138898 // not sampled by 50% rate
+				traceID4 = 1237892138899 // tracer-provided dm on a non-first span
+				traceID5 = 1237892138900 // tracer-provided dm only in the W3C tracestate
+				traceID6 = 1237892138901 // malformed tracer-provided dm
 			)
 			traces := map[uint64]pb.Trace{
 				traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
 				traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
 				traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+				traceID4: {{TraceID: traceID4, SpanID: 1}, {TraceID: traceID4, SpanID: 2, Meta: map[string]string{"_dd.p.dm": "-12"}}},
+				traceID5: {{TraceID: traceID5, SpanID: 1, Meta: map[string]string{"w3c.tracestate": "dd=s:2;t.dm:-11,foo=bar"}}, {TraceID: traceID5, SpanID: 2}},
+				traceID6: {{TraceID: traceID6, SpanID: 1}, {TraceID: traceID6, SpanID: 2, Meta: map[string]string{"_dd.p.dm": "abc"}}},
 			}
 			priorities := map[uint64]sampler.SamplingPriority{
 				traceID3: sampler.PriorityUserKeep,
+				traceID4: sampler.PriorityUserKeep,
+				traceID5: sampler.PriorityUserKeep,
+				traceID6: sampler.PriorityUserKeep,
 			}
 			chunks := o.createChunks(traces, priorities)
 			require.Len(t, chunks, len(traces))
@@ -812,6 +821,12 @@ func TestCreateChunks(t *testing.T) {
 					case traceID3:
 						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID3: dm must be -4")
 						require.Equal(t, int32(2), c.Priority, "traceID3: priority must be 2")
+					case traceID4:
+						require.Equal(t, "-12", c.Spans[0].Meta["_dd.p.dm"], "traceID4: tracer dm must be preserved")
+					case traceID5:
+						require.Equal(t, "-11", c.Spans[0].Meta["_dd.p.dm"], "traceID5: tracestate dm must be preserved")
+					case traceID6:
+						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID6: malformed dm must fall back to -4")
 					}
 				}
 			}
@@ -1109,6 +1124,25 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			fn: func(out *pb.TracerPayload) {
 				require.Len(out.Chunks, 1)
 				require.Equal(int32(-1), out.Chunks[0].Priority)
+			},
+		},
+		{
+			// a Datadog SDK exporting OTLP sends its own decision maker: it must be preserved
+			in: []testutil.OTLPResourceSpan{
+				{
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "first",
+							Attributes: map[string]interface{}{"_sampling_priority_v1": 2, "_dd.p.dm": "-12"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Len(out.Chunks, 1)
+				require.Equal(int32(2), out.Chunks[0].Priority)
+				require.Equal("-12", out.Chunks[0].Spans[0].Meta["_dd.p.dm"])
 			},
 		},
 	} {

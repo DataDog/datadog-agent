@@ -409,3 +409,59 @@ func TestRenameFolder(t *testing.T) {
 		}, "test_rule")
 	}
 }
+
+// TestRenameDestinationAfterOpen checks that the destination path of a rename is resolved to the new name of the file
+// even though the path of that file was already resolved (and cached) from a previous event, here an open.
+func TestRenameDestinationAfterOpen(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			// delivers the open event to user space and forces the resolution of the file path
+			ID:         "test_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-rename-open-old" && open.flags & O_CREAT != 0`,
+		},
+		{
+			ID:         "test_rule_rename",
+			Expression: `rename.file.destination.path == "{{.Root}}/test-rename-open-new"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	testOldFile, _, err := test.Path("test-rename-open-old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testOldFile)
+
+	testNewFile, _, err := test.Path("test-rename-open-new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testNewFile)
+
+	// 1. create the file: the open event resolves (and caches) the path of the inode as testOldFile
+	test.WaitSignalFromRule(t, func() error {
+		f, err := os.OpenFile(testOldFile, os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		return f.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "open.file.path", testOldFile)
+	}, "test_rule_open")
+
+	// 2. rename it: the destination must be resolved to testNewFile and not to the cached testOldFile
+	test.WaitSignalFromRule(t, func() error {
+		return os.Rename(testOldFile, testNewFile)
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "rename", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
+	}, "test_rule_rename")
+}

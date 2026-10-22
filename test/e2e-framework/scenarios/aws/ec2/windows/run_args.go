@@ -11,14 +11,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 )
 
 const defaultVMName = "vm"

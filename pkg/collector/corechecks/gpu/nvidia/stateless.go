@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -358,56 +360,6 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	}}, 0, nil
 }
 
-// pcieGenSpec describes the physical-layer characteristics of a PCIe generation. Values come from the PCI-SIG base
-// specification and are fixed by the standard.
-type pcieGenSpec struct {
-	// gtPerSecondPerLane is the raw per-lane transfer rate in GT/s.
-	gtPerSecondPerLane float64
-	// encodedBytesPerTransfer is the useful data bytes carried per raw transfer,
-	// accounting for line-coding overhead (8b/10b, 128b/130b, etc.).
-	encodedBytesPerTransfer float64
-}
-
-// pcieGenTable provides a lookup for encoding keyed off of the PCIe generation.
-var pcieGenTable = map[uint32]pcieGenSpec{
-	// Source: PCI Express Base Specification 1.0a (PCI-SIG, 2003).
-	// 2.5 GT/s per lane, 8b/10b encoding → 250 MB/s per lane.
-	1: {gtPerSecondPerLane: 2.5, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
-	// Source: PCI Express Base Specification 2.0 (PCI-SIG, 2007).
-	// 5.0 GT/s per lane, 8b/10b encoding → 500 MB/s per lane.
-	2: {gtPerSecondPerLane: 5.0, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
-	// Source: PCI Express Base Specification 3.0 (PCI-SIG, 2010).
-	// 8.0 GT/s per lane, 128b/130b encoding → 985 MB/s per lane.
-	3: {gtPerSecondPerLane: 8.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 4.0 (PCI-SIG, 2017).
-	// 16.0 GT/s per lane, 128b/130b encoding → ~1.969 GB/s per lane.
-	4: {gtPerSecondPerLane: 16.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 5.0 (PCI-SIG, 2019).
-	// 32.0 GT/s per lane, 128b/130b NRZ encoding → ~3.938 GB/s per lane.
-	5: {gtPerSecondPerLane: 32.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 6.0 (PCI-SIG, 2022).
-	// 64.0 GT/s per lane with PAM4 signaling, no line-coding overhead (1b/1b).
-	// FLIT mode frames data as 256-byte FLITs with 14 bytes of CRC+FEC+framing
-	// overhead, giving 242 bytes of usable payload per 256 wire bytes
-	// → ~7.563 GB/s per lane of usable bandwidth.
-	6: {gtPerSecondPerLane: 64.0, encodedBytesPerTransfer: 242.0 / 256.0 / 8.0},
-}
-
-// pcieLinkBytesPerSecond returns the usable bandwidth for a given generation and lane width.
-func pcieLinkBytesPerSecond(gen int, width int) (float64, error) {
-	spec, ok := pcieGenTable[uint32(gen)]
-	if !ok {
-		return 0, fmt.Errorf("unknown PCIe generation %d (extend pcieGenTable)", gen)
-	}
-	if width < 1 {
-		return 0, fmt.Errorf("invalid PCIe link width: %d", width)
-	}
-
-	// bytes/sec = GT/s/lane * 1e9 transfers/sec/GT * bytes/transfer * lanes
-	bps := spec.gtPerSecondPerLane * 1e9 * spec.encodedBytesPerTransfer * float64(width)
-	return bps, nil
-}
-
 func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	var samplesOut []Sample
 
@@ -428,7 +380,7 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("get current PCIe link generation: %w", err)
 	}
-	currentSpeed, err := pcieLinkBytesPerSecond(currentGeneration, currentWidth)
+	currentSpeed, err := gpuutil.PCIeLinkBytesPerSecond(currentGeneration, currentWidth)
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("compute current PCIe link speed: %w", err)
 	}
@@ -438,7 +390,7 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("get max PCIe link generation: %w", err)
 	}
-	maxSpeed, err := pcieLinkBytesPerSecond(maxGeneration, maxWidth)
+	maxSpeed, err := gpuutil.PCIeLinkBytesPerSecond(maxGeneration, maxWidth)
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("compute max PCIe link speed: %w", err)
 	}
@@ -467,6 +419,21 @@ var clockThrottleReasons = []clockThrottleReason{
 
 const notThrottledReason = "not_throttled"
 const throttleReasonTag = "throttle_reason"
+
+// vgpuProductTag identifies the licensed vGPU software product of each
+// vgpu.license_status sample.
+const vgpuProductTag = "vgpu_product"
+
+// gridFeatureCodeToTag maps the NVML licensable feature code to the
+// vgpu_product tag value. The code is used instead of the product name, which
+// NVIDIA has renamed across driver releases.
+var gridFeatureCodeToTag = map[nvml.GridLicenseFeatureCode]string{
+	nvml.GRID_LICENSE_FEATURE_CODE_UNKNOWN:    "unknown",
+	nvml.GRID_LICENSE_FEATURE_CODE_VGPU:       "vgpu",
+	nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX: "nvidia_rtx",
+	nvml.GRID_LICENSE_FEATURE_CODE_GAMING:     "gaming",
+	nvml.GRID_LICENSE_FEATURE_CODE_COMPUTE:    "compute",
+}
 
 func clockThrottleReasonMetrics(reasons uint64) []Sample {
 	allSamples := make([]Sample, 0, len(clockThrottleReasons)*2)
@@ -522,6 +489,53 @@ func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricNa
 	}
 
 	return []Sample{&Metric{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+}
+
+// gridLicenseStatusSample reports whether the vGPU software license of each
+// enabled product is active (1) or not (0).
+func gridLicenseStatusSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if device.GetDeviceInfo().VirtualizationMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	features, err := device.GetGridLicensableFeatures()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if features.IsGridLicenseSupported == 0 {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	var samples []Sample
+	for i := uint32(0); i < features.LicensableFeaturesCount && i < uint32(len(features.GridLicensableFeatures)); i++ {
+		feature := features.GridLicensableFeatures[i]
+		// featureEnabled marks the product the driver runs as, not the license
+		// state. Skip the other products so they don't report as unlicensed.
+		if feature.FeatureEnabled == 0 {
+			continue
+		}
+
+		productTag, ok := gridFeatureCodeToTag[nvml.GridLicenseFeatureCode(feature.FeatureCode)]
+		if !ok {
+			productTag = "unknown_" + strconv.FormatUint(uint64(feature.FeatureCode), 10)
+		}
+
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{vgpuProductTag + ":" + productTag}},
+			Name:       "vgpu.license_status",
+			Value:      boolToFloat(feature.FeatureState != 0),
+			Type:       metrics.GaugeType,
+		})
+	}
+
+	if len(samples) == 0 {
+		// Without an enabled product there is no license state to report. Keep
+		// the handler without returning an error, as the state may change.
+		log.Debugf("vGPU licensing is supported on device %s but no licensable product is enabled", device.GetDeviceInfo().UUID)
+	}
+
+	return samples, 0, nil
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
@@ -933,6 +947,13 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		})
 	}
+
+	apis = append(apis, apiCallInfo{
+		Name: "grid_license_status",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			return gridLicenseStatusSample(device)
+		},
+	})
 
 	return apis
 }

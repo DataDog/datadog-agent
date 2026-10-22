@@ -40,15 +40,29 @@ type deviceOptions struct {
 	nvlinkStates            []nvml.EnableState
 	nvlinkStateErrors       map[int]nvml.Return
 	migChildUUIDs           map[int]string
+	gridFeatures            *nvml.GridLicensableFeatures
+	gridFeaturesReturn      *nvml.Return
 
 	fieldValuesReturn  *nvml.Return
 	samplesUnsupported bool
 	processDetailList  *processDetailListResponse
+
+	// nvlinkErrorCountersForced keeps GetNvLinkErrorCounter supported on architectures that removed it.
+	nvlinkErrorCountersForced bool
 }
 
 type processDetailListResponse struct {
 	processes []nvml.ProcessDetail_v1
 	ret       nvml.Return
+}
+
+// GridProductName returns name as a NUL-padded NVML product name buffer.
+func GridProductName(name string) [128]int8 {
+	var buf [128]int8
+	for i := 0; i < len(name) && i < len(buf)-1; i++ {
+		buf[i] = int8(name[i])
+	}
+	return buf
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -386,6 +400,11 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
+			// Blackwell+ does not report the data-link error counters: B200 returns NOT_SUPPORTED
+			// for all of them, and NVML documents the FI_DEV_NVLINK_ERROR_DL_* fields as unsupported.
+			if arch >= nvml.DEVICE_ARCH_BLACKWELL && !opts.nvlinkErrorCountersForced {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
 			return 0, nvml.SUCCESS
 		},
 		GetBAR1MemoryInfoFunc: func() (nvml.BAR1Memory, nvml.Return) {
@@ -529,6 +548,31 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
+		},
+		GetGridLicensableFeaturesFunc: func() (nvml.GridLicensableFeatures, nvml.Return) {
+			if opts.gridFeatures != nil {
+				ret := nvml.SUCCESS
+				if opts.gridFeaturesReturn != nil {
+					ret = *opts.gridFeaturesReturn
+				}
+				return *opts.gridFeatures, ret
+			}
+			if !opts.isVGPU() {
+				// Non-GRID drivers report that licensing is not supported
+				return nvml.GridLicensableFeatures{}, nvml.SUCCESS
+			}
+			// vGPU devices default to one enabled, licensed product
+			features := nvml.GridLicensableFeatures{
+				IsGridLicenseSupported:  1,
+				LicensableFeaturesCount: 1,
+			}
+			features.GridLicensableFeatures[0] = nvml.GridLicensableFeature{
+				FeatureCode:    uint32(nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX),
+				FeatureState:   1,
+				FeatureEnabled: 1,
+				ProductName:    GridProductName("NVIDIA RTX Virtual Workstation"),
+			}
+			return features, nvml.SUCCESS
 		},
 		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
 			return nvml.EventTypeAll, nvml.SUCCESS

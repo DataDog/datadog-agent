@@ -28,6 +28,7 @@ test/fakeintake/
 | `/api/v2/series` | MetricAggregator | `FilterMetrics()` |
 | `/api/intake/metrics/v3/series` | MetricAggregator (V3 parser) | `FilterMetrics()` |
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
+| `/api/intake/metrics/v3/sketches` | SketchAggregator (V3 parser), HistogramAggregator | `FilterSketches()`, `FilterHistograms()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |
 | `/api/v2/compliance` | (raw store) | `GetComplianceFindings()` |
@@ -44,7 +45,7 @@ test/fakeintake/
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |
 | `/api/v2/orch` | OrchestratorAggregator | `GetOrchestratorResources()` |
 | `/api/v2/ndmflow` | NDMFlowAggregator | GetNDMFlows() |
-| `/api/v2/netpath` | NetpathAggregator | `GetLatestNetpathEvents()` |
+| `/api/v2/netpath` | NetpathAggregator | `GetNetpathEvents()` / `GetLatestNetpathEvents()` |
 | `/api/v2/agenthealth` | AgentHealthAggregator | GetAgentHealth() |
 | `/support/flare` | Flare parser | `GetLatestFlare()` |
 | `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
@@ -193,14 +194,20 @@ FAKEINTAKECTL=test/fakeintake/build/fakeintakectl
 $FAKEINTAKECTL --url http://127.0.0.1:8080 \
     filter metrics --name my.count.metric --tags env:prod
 
-# Filter sketches at /api/beta/sketches (distributions) — JSON list of
+# Filter DDSketch series at /api/beta/sketches and /api/intake/metrics/v3/sketches — JSON list of
 # aggregator.Sketch, each with .metric, .tags, .dogsketches[].sum/.cnt/.min/...
 $FAKEINTAKECTL --url http://127.0.0.1:8080 \
     filter sketches --name my.distribution
 
+# Filter OTel histograms at /api/intake/metrics/v3/sketches — JSON list of
+# aggregator.Histogram, each with .metric, .tags, and .explicit[] or .exponential[] points.
+$FAKEINTAKECTL --url http://127.0.0.1:8080 \
+    filter histograms --name my.histogram
+
 # Discovery: what did the agent actually send?
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get metric names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get sketch names
+$FAKEINTAKECTL --url http://127.0.0.1:8080 get histogram names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 route-stats
 
 # Reset state between assertions:

@@ -508,7 +508,8 @@ properties:
     tags:
     - golang_type:duration
     comment: |-
-      Duration during which the host tags will be submitted with log events.
+      Duration during which host tags are submitted with log events.
+      The ``infra_mode`` host tag is never copied onto logs this way.
       duration-formatted string (parsed by `time.ParseDuration`)
   experimental_adaptive_sampling:
     node_type: section

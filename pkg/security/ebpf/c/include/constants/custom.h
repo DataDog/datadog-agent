@@ -194,7 +194,7 @@ enum CREDENTIAL_SOURCE {
 
 #define OTEL_SPAN_ATTRS_MAX_ENTRIES 4096
 
-__attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
+static __always_inline u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;
     LOAD_CONSTANT("cgroup_activity_dumps_enabled", cgroup_activity_dumps_enabled);
     return cgroup_activity_dumps_enabled != 0;
@@ -369,6 +369,7 @@ enum global_rate_limiter_type {
     OPEN_SAMPLE_LIMITER,
     CONNECT_SAMPLE_LIMITER,
     SYSCALLS_SAMPLE_LIMITER,
+    BIND_SAMPLE_LIMITER,
 };
 
 enum PATH_ID_INVALIDATE_TYPE {

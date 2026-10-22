@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add optional restoration of active Health Platform issues from Datadog
+    when Kubernetes node Agents and Cluster Agents restart, without requiring
+    persistent local storage. Enable this behavior by setting
+    ``health_platform.persist_remotely_on_kubernetes`` to ``true``.

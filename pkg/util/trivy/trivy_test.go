@@ -11,6 +11,7 @@ package trivy
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,4 +117,32 @@ func TestScanFilesystemImageCreated(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestScanFilesystemLicenseFile checks that a Python package whose metadata
+// names only a License-File keeps the file reference out of its licenses.
+func TestScanFilesystemLicenseFile(t *testing.T) {
+	root := t.TempDir()
+	distInfo := filepath.Join(root, "usr", "lib", "python3", "dist-packages", "example-1.0.0.dist-info")
+	require.NoError(t, os.MkdirAll(distInfo, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(distInfo, "METADATA"), []byte("Metadata-Version: 2.1\nName: example\nVersion: 1.0.0\nLicense-File: LICENSE\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(distInfo, "LICENSE"), []byte("MIT License\n"), 0o644))
+
+	c := NewCollectorForCLI()
+	report, err := c.scanFilesystem(t.Context(), root, sbom.ScanOptions{Analyzers: []string{LanguagesAnalyzers}}, false, time.Time{})
+	require.NoError(t, err)
+
+	found := false
+	for _, comp := range report.ToCycloneDX().GetComponents() {
+		if !strings.HasPrefix(comp.GetPurl(), "pkg:pypi/example@") {
+			continue
+		}
+		found = true
+		for _, l := range comp.GetLicenses() {
+			for _, s := range []string{l.GetLicense().GetId(), l.GetLicense().GetName(), l.GetExpression()} {
+				assert.Falsef(t, strings.HasPrefix(s, "file:"), "license %q names the license file", s)
+			}
+		}
+	}
+	assert.True(t, found, "the SBOM lacks the example package")
 }

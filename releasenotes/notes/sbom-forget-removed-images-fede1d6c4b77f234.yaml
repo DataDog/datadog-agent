@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The core agent forgets the runtime usage and the SBOM of an image once its
+    container runtime removes it. A pull of the same image brought the old
+    runtime usage back and skipped the SBOM scan of the image, and the entities
+    of removed images accumulated in memory.

@@ -71,7 +71,7 @@ int hook_mnt_want_write(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
+static __always_inline int trace__mnt_want_write_file(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_file_predicate);
     if (!syscall) {
         return 0;
@@ -190,7 +190,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_unshare_exit, struct tracepoint_raw_syscalls
     return sys_unshare_ret(args, args->ret);
 }
 
-void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
+static __always_inline void fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
     mfields->root_key = syscall->mount.root_key;
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
@@ -199,10 +199,11 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     mfields->mount_id_unique = syscall->mount.mount_id_unique;
     mfields->parent_mount_id_unique = syscall->mount.parent_mount_id_unique;
     mfields->bind_src_mount_id_unique = syscall->mount.bind_src_mount_id_unique;
+    mfields->mnt_flags = syscall->mount.mnt_flags;
     bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 
-int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int send_detached_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct mount_event_t *event = SPAN_FILL_EVENT(struct mount_event_t, EVENT_MOUNT);
     if (!event) {
         return 0;
@@ -229,7 +230,7 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     return 0;
 }
 
-void __attribute__((always_inline)) handle_new_mount_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
+static __always_inline void handle_new_mount_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
@@ -247,6 +248,9 @@ void __attribute__((always_inline)) handle_new_mount_impl(void *ctx, struct sysc
 
     // populate the device of the new mount
     syscall->mount.device = get_mount_dev(syscall->mount.newmnt);
+
+    // populate the vfsmount flags of the new mount
+    syscall->mount.mnt_flags = get_vfsmount_mount_flags(get_mount_vfsmount(syscall->mount.newmnt));
 
     // populate the fs type of the new mount
     struct super_block *sb = get_dentry_sb(root_dentry);
@@ -276,11 +280,11 @@ void __attribute__((always_inline)) handle_new_mount_impl(void *ctx, struct sysc
     }
 }
 
-void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, bool detached) {
+static __always_inline void handle_new_mount(void *ctx, struct syscall_cache_t *syscall, bool detached) {
     handle_new_mount_impl(ctx, syscall, KPROBE_OR_FENTRY_TYPE, detached);
 }
 
-int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -309,7 +313,7 @@ TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_one_callback, struct tracepoint_syscalls
     return dr_mount_stage_one_callback(args, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int dr_mount_stage_two_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -604,7 +608,7 @@ int hook_propagate_mnt(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (retval) {
         pop_syscall(EVENT_MOUNT);
         return 0;

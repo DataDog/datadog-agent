@@ -9,7 +9,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_rmdir(void *ctx, u8 async, const char *filename) {
+static __always_inline int trace__sys_rmdir(void *ctx, u8 async, const char *filename) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
@@ -141,7 +141,7 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_rmdir_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -187,7 +187,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
+static __always_inline int sys_rmdir_ret(void *ctx, int retval) {
     return sys_rmdir_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

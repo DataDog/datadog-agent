@@ -118,7 +118,7 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 }
 
 // SetInfraTagger sets the infra mode tagger on the mock sender.
-func (m *MockSender) SetInfraTagger(tagger *infratags.Tagger) {
+func (m *MockSender) SetInfraTagger(tagger *infratags.MetricTagger) {
 	m.infraTagger = tagger
 	m.Called(tagger)
 }

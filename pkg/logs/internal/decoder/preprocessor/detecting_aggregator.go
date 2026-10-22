@@ -104,7 +104,7 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 		d.multiLineMatchInfo.Add(1)
 		d.previousMsg = msg
 		// Buffered until the next line decides the group; must own the tokens.
-		d.previousMsgTokens = tokens.retained()
+		d.previousMsgTokens = tokens.Retained()
 		d.previousWasStartGroup = true
 		d.processSimulatedStartGroup(msg)
 		return d.collected

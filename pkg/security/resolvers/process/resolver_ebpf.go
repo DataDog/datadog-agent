@@ -33,6 +33,7 @@ import (
 	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -100,9 +101,10 @@ type EBPFResolver struct {
 
 	// otelProcCtxQueue carries the pids whose OTel process context is waiting to
 	// be resolved by the loop Start spawns. otelProcCtxPending mirrors what the
-	// channel holds so a pid is never queued twice.
+	// channel holds so a pid is never queued twice, and keeps when it was first
+	// queued.
 	otelProcCtxQueue   chan uint32
-	otelProcCtxPending map[uint32]struct{}
+	otelProcCtxPending map[uint32]time.Time
 	otelProcCtxLock    sync.Mutex
 
 	// stats
@@ -1569,6 +1571,7 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
+		entry.Tracer.MetadataSource = model.TracerMetadataSourceMemfd
 	}
 	p.Unlock()
 
@@ -1596,7 +1599,7 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 
 	select {
 	case p.otelProcCtxQueue <- pid:
-		p.otelProcCtxPending[pid] = struct{}{}
+		p.otelProcCtxPending[pid] = time.Now()
 	default:
 		p.countSpanCtx(spanCtxStepProcessCtx, spanCtxQueueFull)
 		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
@@ -1651,8 +1654,10 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 			// Cleared before resolving, so an update that lands while this pid
 			// is in flight is queued again rather than lost.
 			p.otelProcCtxLock.Lock()
+			queuedAt := p.otelProcCtxPending[pid]
 			delete(p.otelProcCtxPending, pid)
 			p.otelProcCtxLock.Unlock()
+			p.reportOTelProcCtxQueueLatency(queuedAt)
 
 			if !p.hasEntry(pid) {
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
@@ -1667,6 +1672,7 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 // which it rebinds to pid: callers pass a target they own and reuse across
 // calls rather than one per resolution.
 func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetProcess) {
+	start := time.Now()
 	target.reset(pid)
 
 	procCtx, err := target.processContext()
@@ -1680,6 +1686,8 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 	}
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
+
+	p.applyOTelTracerMetadata(pid, procCtx)
 
 	attributeKeys, err := otelAttributeKeys(procCtx)
 	if err != nil {
@@ -1697,12 +1705,14 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 		res, resolveErr := target.resolveTLSOffsets(procCtx)
 		if resolveErr == nil {
 			resolveErr = p.updateOTelTLS(pid, res)
+			p.reportOTelTLSLatency(start, true)
 		}
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
 		return
 	}
 
 	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
+	p.reportOTelTLSLatency(start, false)
 }
 
 func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
@@ -1712,6 +1722,21 @@ func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
 	}
 
 	return nil
+}
+
+// applyOTelTracerMetadata fills in the tracer metadata of tracers without a memfd (e.g. PHP).
+func (p *EBPFResolver) applyOTelTracerMetadata(pid uint32, procCtx otelprocessctx.ProcessContext) {
+	tmeta := otelprocessctx.TracerMetadata(procCtx)
+	if tmeta.IsZero() {
+		return
+	}
+
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil && entry.Tracer.MetadataSource != model.TracerMetadataSourceMemfd {
+		entry.Tracer.Metadata = tmeta
+		entry.Tracer.MetadataSource = model.TracerMetadataSourceOTelProcessContext
+	}
+	p.Unlock()
 }
 
 // attachOTelAttributeKeys records the OTel attribute key names on pid.
@@ -2184,7 +2209,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		envVarsResolver:              envVarsResolver,
 		userSessionResolver:          userSessionResolver,
 		otelProcCtxQueue:             make(chan uint32, otelProcCtxQueueSize),
-		otelProcCtxPending:           make(map[uint32]struct{}),
+		otelProcCtxPending:           make(map[uint32]time.Time),
 	}
 
 	for _, t := range metrics.AllTypesTags {

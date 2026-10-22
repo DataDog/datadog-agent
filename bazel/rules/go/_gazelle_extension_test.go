@@ -892,9 +892,9 @@ func TestApplicableTagSets(t *testing.T) {
 	depOnly := write("dep_only_test.go", "//go:build trivy_no_javadb")
 	taggedLibrary := write("tagged.go", "//go:build kubeapiserver")
 	linuxBpfLibrary := write("bpf.go", "//go:build linux && bpf")
-	orchestrator := write("orchestrator_test.go", "//go:build orchestrator")
+	clusterChecks := write("clusterchecks_test.go", "//go:build clusterchecks")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
-	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet", "orchestrator")
+	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet")
 	containerdTagSet := tagsList("cel", "containerd")
 	dockerTagSet := tagsList("cel", "docker", "kubelet")
 	var manyTagNames []string
@@ -1026,7 +1026,7 @@ func TestApplicableTagSets(t *testing.T) {
 		},
 		{
 			name:              "configured set is canonical for related tags",
-			srcs:              []string{orchestrator},
+			srcs:              []string{clusterChecks},
 			configuredTagSets: [][]string{kubernetesTagSet},
 			wantTagSets:       [][]string{kubernetesTagSet},
 		},
@@ -1116,8 +1116,7 @@ func TestKinds(t *testing.T) {
 
 // TestDepsMerge_KeptItemSurvivesResolveUpdate replays Gazelle's real two-phase
 // merge (PreResolve, then PostResolve after Resolve sets deps) against a
-// dd_agent_go_test rule with a `# keep`-annotated dep, the same pattern used
-// for split cgo_align targets (e.g. pkg/collector/corechecks/ebpf/probe/ebpfcheck).
+// dd_agent_go_test rule with a `# keep`-annotated dep.
 // It guards that a manually kept dep survives while a stale one is dropped and
 // a freshly resolved one is added — the same behavior go_test gets for free.
 func TestDepsMerge_KeptItemSurvivesResolveUpdate(t *testing.T) {
