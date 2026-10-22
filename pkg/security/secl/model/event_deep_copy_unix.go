@@ -408,6 +408,7 @@ func deepCopyLinuxBinprm(fieldToCopy LinuxBinprm) LinuxBinprm {
 func deepCopyTracer(fieldToCopy Tracer) Tracer {
 	copied := Tracer{}
 	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.MetadataSource = fieldToCopy.MetadataSource
 	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
 	return copied
@@ -667,6 +668,7 @@ func deepCopyCgroupWriteEvent(fieldToCopy CgroupWriteEvent) CgroupWriteEvent {
 	copied := CgroupWriteEvent{}
 	copied.File = deepCopyFileEvent(fieldToCopy.File)
 	copied.Pid = fieldToCopy.Pid
+	copied.Retval = fieldToCopy.Retval
 	return copied
 }
 func deepCopyChdirEvent(fieldToCopy ChdirEvent) ChdirEvent {

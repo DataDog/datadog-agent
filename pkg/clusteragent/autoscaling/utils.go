@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/dump"
+	"k8s.io/utils/dump"
 )
 
 // Semantic can do semantic deep equality checks for api objects.

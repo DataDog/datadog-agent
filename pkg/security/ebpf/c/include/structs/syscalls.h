@@ -280,6 +280,10 @@ struct syscall_cache_t {
         } login_uid;
 
         struct {
+            u32 pid;
+        } cgroup_write;
+
+        struct {
             u8 in_flight;
         } stat;
 

@@ -144,3 +144,42 @@ func TestHoltResidual_WarmupSeedsFromScalarHalves(t *testing.T) {
 		})
 	}
 }
+
+// Compare every simulated timestamp, including long after bounded storage starts
+// evicting points. Preloading future points must not change scan cadence.
+func TestScanReplayMatchesBoundedStream(t *testing.T) {
+	for _, name := range []string{"scanmw", "scanwelch"} {
+		t.Run(name, func(t *testing.T) {
+			makeDetector := func() observer.Detector {
+				if name == "scanmw" {
+					return testScanMWDetector()
+				}
+				return testScanWelchDetector()
+			}
+			preloaded := newDetectorTestStorage()
+			cfg := DefaultStorageConfig()
+			cfg.PointRetentionSecs = 0
+			cfg.MaxPointsPerSeries = 120
+			stream := newTimeSeriesStorageWith(cfg)
+			batchDetector, streamDetector := makeDetector(), makeDetector()
+			value := func(i int) float64 { return float64(100 + (i/53)%3*200 + i%3) }
+			for i := 1; i <= 500; i++ {
+				preloaded.Add("ns", "metric", value(i), int64(i*30), nil)
+			}
+			found := 0
+			for i := 1; i <= 500; i++ {
+				ts := int64(i * 30)
+				stream.Add("ns", "metric", value(i), ts, nil)
+				want := batchDetector.Detect(preloaded, ts).Anomalies
+				got := streamDetector.Detect(stream, ts).Anomalies
+				require.Equal(t, want, got, "at observation %d", i)
+				found += len(got)
+				// Repeated ticks without newly visible points must not rescan.
+				require.Empty(t, batchDetector.Detect(preloaded, ts).Anomalies)
+				require.Empty(t, streamDetector.Detect(stream, ts).Anomalies)
+			}
+			require.Positive(t, found)
+			require.LessOrEqual(t, stream.TotalSampleCount(""), int64(121))
+		})
+	}
+}

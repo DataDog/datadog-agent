@@ -27,7 +27,7 @@ import (
 // constructNtmConfig builds a nodetreemodel config for tests, applying the optional setup
 // function and loading the given YAML content (or reading from disk when content is empty).
 func constructNtmConfig(content string, dynamicSchema bool, setupFunc func(model.Setup)) model.BuildableConfig {
-	conf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := NewNodeTreeConfig("datadog", model.CoreSchema)
 
 	if dynamicSchema {
 		conf.SetTestOnlyDynamicSchema(true)
@@ -376,7 +376,7 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	err = os.WriteFile(configBPath, []byte(configB), 0o644)
 	assert.NoError(t, err)
 
-	conf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := NewNodeTreeConfig("datadog", model.CoreSchema)
 	conf.SetTestOnlyDynamicSchema(true)
 	conf.SetConfigFile(configAPath)
 	conf.BuildSchema()

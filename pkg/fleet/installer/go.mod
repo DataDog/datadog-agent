@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2
-	github.com/Microsoft/go-winio v0.6.3
+	github.com/Microsoft/go-winio v0.6.4
 	github.com/cenkalti/backoff/v7 v7.0.1
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/fatih/color v1.19.0
@@ -31,7 +31,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
-	github.com/docker/cli v29.9.0+incompatible // indirect
+	github.com/docker/cli v29.9.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -88,6 +88,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 
 replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../config/nodetreemodel
 
+replace github.com/DataDog/datadog-agent/pkg/config/schema => ../../config/schema
+
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
@@ -111,3 +113,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 
 replace github.com/DataDog/datadog-agent/pkg/trace => ../../trace
+
+replace github.com/DataDog/datadog-agent/pkg/zstd => ../../zstd

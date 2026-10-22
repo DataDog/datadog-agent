@@ -30,6 +30,11 @@ type serializedProgram struct {
 	typeInfos []typeInfo
 
 	throttlerParams []throttlerParams
+	// sessionThrottlerIdx is the index, into throttlerParams, of the throttler
+	// that holds the whole session's snapshot budget. Coordinated sampling
+	// draws from it instead of the per-probe throttlers. Published to BPF as
+	// the session_throttler_idx constant.
+	sessionThrottlerIdx uint32
 
 	probeParams     []probeParams
 	bpfAttachPoints []BPFAttachPoint
@@ -185,6 +190,7 @@ func serializeProgram(
 	serialized.commonTypes = program.CommonTypes
 	serialized.isARM64 = program.IsARM64
 
+	serialized.sessionThrottlerIdx = program.SessionThrottlerIdx
 	serialized.throttlerParams = make([]throttlerParams, len(program.Throttlers))
 	for i, t := range program.Throttlers {
 		serialized.throttlerParams[i] = throttlerParams{
@@ -208,7 +214,11 @@ func serializeProgram(
 				Kind:                  int8(f.EventKind),
 				Probe_id:              f.ProbeID,
 				Top_pc_offset:         int8(f.TopPCOffset),
-				X__padding:            [2]int8{},
+				Ctx_loc_kind:          f.CtxLocKind,
+				Ctx_reg_tab:           f.CtxRegTab,
+				Ctx_reg_data:          f.CtxRegData,
+				Ctx_stack_offset:      f.CtxStackOffset,
+				X__padding:            [3]int8{},
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,

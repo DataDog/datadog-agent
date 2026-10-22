@@ -80,7 +80,7 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 	expectedRC := "https://config." + enrollmentSite(r.cfg)
 	mockPair := os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
 	rcKey := r.cfg.GetString("remote_configuration.api_key")
-	if key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" || (rcURL != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
+	if key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" || (strings.TrimSuffix(rcURL, ".") != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
 		p.RCReason = "rc_credential_or_endpoint_mismatch"
 		return p
 	}

@@ -90,6 +90,8 @@ const (
 type APIClient struct {
 	//
 	// Normal (low timeout) clients
+	// Do not use them for Informers/Watch calls: the timeout closes every watch after
+	// `kubernetes_apiserver_client_timeout` and fails slow initial lists.
 	//
 
 	// Cl holds the main kubernetes client
