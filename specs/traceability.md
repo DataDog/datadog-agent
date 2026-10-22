@@ -28,7 +28,7 @@ Snapshot: PR [57782](https://github.com/DataDog/datadog-agent/pull/57782), head 
 
 The [Allium model](remote-packet-capture/remote-packet-capture.allium) gives REQ-PCAP-004, REQ-PCAP-005, REQ-PCAP-006, REQ-PCAP-008, and REQ-PCAP-011 an explicit ordered lifecycle: `SubmitCapture` normalizes caps; `RejectInvalidDuration`/`BeginCapture` gate collection; `FailCapture` prevents delivery of rejected streams; `FinishCaptureStream` requires a finalized temporary artifact; `CompleteDelivery`/`FailDelivery` record delivery outcome and cleanup attempts. `EffectiveLimitsRemainBounded`, `SuccessfulActionWaitsForDelivery`, and `CompletedActionsAttemptTemporaryCleanup` state the corresponding model invariants. `HeaderOnlyCapture` and `CaptureDelivery` annotate the REQ-PCAP-003/004/005 and REQ-PCAP-008/009 boundaries in prose; those annotations do not prove the packet decoder or uploader.
 
-Allium 3.5.2 syntax/semantic checking passed. [Planned test obligations](evidence/allium-test-obligations.json) were generated for review; they are not executable tests and were not run against Agent code. No spec–code divergence checker was run. Three explicit open questions remain in the model, so the behavioral layer is a reviewable retrospective draft rather than a fully resolved implementation contract.
+Allium 3.5.2 syntax/semantic checking passed. Planned test obligations were generated for local review (the generated file remains in the local evidence archive); they are not executable tests and were not run against Agent code. No spec–code divergence checker was run. Three explicit open questions remain in the model, so the behavioral layer is a reviewable retrospective draft rather than a fully resolved implementation contract.
 
 ## Scope across the full patch
 
