@@ -92,6 +92,8 @@ common:windows --strategy=standalone # Valid values are: [dynamic_worker, standa
 # rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
 # that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
 common:windows --enable_runfiles
+common:windows --host_linkopt=-static # MinGW otherwise links its runtime DLLs, which actions cannot find
+common:windows --host_platform=//bazel/platforms:windows_x86_64 # auto-detection misses the ABI rules_rs selects on
 common:windows --repo_env=BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe # for https://github.com/bazelbuild/bazel/pull/26927
 common:windows --repo_env=PIP_CACHE_DIR # https://pip.pypa.io/en/stable/topics/caching/#default-paths
 common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS installer instance database
@@ -100,10 +102,6 @@ common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, need
 common:windows --run_env=__COMPAT_LAYER=RunAsInvoker # install*.exe may otherwise fail claiming unneeded admin elevation
 common:windows --test_env=__COMPAT_LAYER=RunAsInvoker # same, for bazel test
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
-
-# Force the x86_64-pc-windows-gnu Rust toolchain (compact name for rust_windows_gnu_x86_64)
-# to take priority over the default MSVC toolchain, since the CI cc_toolchain is MinGW/GCC.
-common:windows --extra_toolchains=@rust_toolchains//:rw-2070622084
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # Available remote cache endpoints - only Linux CI runs in k8s and can reach the in-cluster edge cache
