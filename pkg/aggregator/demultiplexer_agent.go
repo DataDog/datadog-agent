@@ -416,6 +416,10 @@ func (d *AgentDemultiplexer) flushLoop() {
 	} else {
 		d.log.Debug("flushInterval set to 0: will never flush automatically")
 	}
+	var flushRequests <-chan struct{}
+	if d.aggregator != nil {
+		flushRequests = d.aggregator.flushRequests
+	}
 
 	for {
 		select {
@@ -440,6 +444,9 @@ func (d *AgentDemultiplexer) flushLoop() {
 		// automatic flush sequence
 		case t := <-flushTicker:
 			d.flushToSerializer(t, false, false)
+		// flush requested by the aggregator for a deferred check commit
+		case <-flushRequests:
+			d.flushToSerializer(time.Now(), false, false)
 		}
 	}
 }

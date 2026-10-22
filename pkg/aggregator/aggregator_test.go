@@ -956,3 +956,19 @@ func TestGetSeriesAndSketchesAppliesDeferredCommits(t *testing.T) {
 	assert.Equal(t, 1.0, points["context:a"].Value)
 	assert.Equal(t, 2.0, points["context:b"].Value)
 }
+
+func TestDeferredCommitRequestsFlush(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	agg.handleCheckItem(deferredTestGauge(id, "a", 1))
+	agg.handleCheckItem(deferredTestGauge(id, "b", 2))
+	require.Empty(t, agg.flushRequests)
+
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	assert.Len(t, agg.flushRequests, 1)
+
+	// While a request is pending, another deferral neither blocks nor queues a second one.
+	deferredTestFlush(agg)
+	agg.handleCheckItem(deferredTestGauge(id, "a", 3))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	assert.Len(t, agg.flushRequests, 1)
+}

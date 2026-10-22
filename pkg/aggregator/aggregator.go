@@ -287,6 +287,7 @@ type BufferedAggregator struct {
 	checkSamplers          map[checkid.ID]*CheckSampler
 	deferredCommits        map[checkid.ID]*deferredCommit // only accessed by the run goroutine
 	deferredCommitCount    atomic.Int64
+	flushRequests          chan struct{} // asks the demultiplexer for a flush, without waiting
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -374,6 +375,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
 		deferredCommits:             make(map[checkid.ID]*deferredCommit),
+		flushRequests:               make(chan struct{}, 1),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -494,6 +496,12 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 			if checkSampler.contextResolver.length() >= deferredCommitMinContexts {
 				agg.deferredCommits[ss.id] = &deferredCommit{timestamp: timeNowNano()}
 				agg.deferredCommitCount.Add(1)
+				// Send the run's output now rather than at the next tick, so that
+				// it is not left for a time-bounded final flush.
+				select {
+				case agg.flushRequests <- struct{}{}:
+				default:
+				}
 			} else {
 				checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 			}
