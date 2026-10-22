@@ -136,16 +136,12 @@ pkg_mkdirs(
 pkg_files(
     name = "example_config",
     srcs = [
-        "//pkg/config:agent_config",
         "//pkg/config:security_agent_example_config_src",
     ] + select({
         "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
         "//conditions:default": [],
     }),
     prefix = etc_dir(),
-    renames = {
-        "//pkg/config:agent_config": "datadog.yaml.example",
-    },
 )
 
 # Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,

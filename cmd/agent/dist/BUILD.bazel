@@ -11,6 +11,9 @@ pkg_files(
     ],
     attributes = pkg_attributes(mode = "0644"),
     prefix = etc_dir(),
+    renames = {
+        "//pkg/config:agent_config": "datadog.yaml.example",
+    },
     visibility = ["//packages/agent:__subpackages__"],
 )
 

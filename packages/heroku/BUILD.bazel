@@ -76,13 +76,9 @@ pkg_files(
 pkg_files(
     name = "example_config",
     srcs = [
-        "//pkg/config:agent_config",
         "//pkg/config:application_monitoring_example_config_src",
     ],
     prefix = etc_dir(),
-    renames = {
-        "//pkg/config:agent_config": "datadog.yaml.example",
-    },
 )
 
 dd_collect_dependencies(
