@@ -26,6 +26,7 @@ import (
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestPhoneHomeEnrollmentOutcome(t *testing.T) {
@@ -68,6 +69,7 @@ func TestPhoneHomeEnrollmentOutcome(t *testing.T) {
 				"private_action_runner.api_key_only_enrollment": true,
 				"private_action_runner.identity_file_path":      identityPath,
 			})
+			flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
 			a, err := enrollment.ReservePhoneHomeAttempt(cfg, "test-host", time.Now(), nil)
 			require.NoError(t, err)
 			hostname, _ := hostnamemock.NewMock("test-host")
