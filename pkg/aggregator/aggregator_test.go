@@ -847,3 +847,112 @@ func TestStatsCopy(t *testing.T) {
 	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
 	assert.Equal(t, stats.Name, statsCopy.Name)
 }
+
+func newDeferredCommitTestAggregator(t *testing.T) (*BufferedAggregator, checkid.ID) {
+	previous := deferredCommitMinContexts
+	deferredCommitMinContexts = 2
+	t.Cleanup(func() { deferredCommitMinContexts = previous })
+	agg := NewBufferedAggregator(nil, nil, haagentmock.NewMockHaAgent(), taggerfxmock.SetupFakeTagger(t), "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	id := checkid.ID("deferred:check:1")
+	agg.handleRegisterSampler(id)
+	return agg, id
+}
+
+func deferredTestGauge(id checkid.ID, context string, value float64) senderItem {
+	return &senderMetricSample{id: id, metricSample: &metrics.MetricSample{Name: "test.deferred", Value: value, Mtype: metrics.GaugeType, Tags: []string{"context:" + context}, SampleRate: 1}}
+}
+
+func deferredTestPoints(t *testing.T, series metrics.Series) map[string]metrics.Point {
+	points := map[string]metrics.Point{}
+	for _, s := range series {
+		if s.Name != "test.deferred" {
+			continue
+		}
+		require.Len(t, s.Points, 1)
+		points[s.Tags.Join(",")] = s.Points[0]
+	}
+	return points
+}
+
+func deferredTestFlush(agg *BufferedAggregator) metrics.Series {
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+	agg.flushSeriesAndSketches(flushTrigger{trigger: trigger{time: time.Now()}, seriesSink: &series, sketchesSink: &sketches})
+	return series
+}
+
+func TestDeferredCommitStreamsRunIntoNextFlush(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	for i, context := range []string{"a", "b", "c"} {
+		agg.handleCheckItem(deferredTestGauge(id, context, float64(i+1)))
+	}
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+
+	require.Contains(t, agg.deferredCommits, id)
+	firstCommit := agg.deferredCommits[id].timestamp
+	assert.Empty(t, agg.checkSamplers[id].series, "a deferred commit must not materialize series")
+
+	// The next run arrives before the flush: it must not leak into the first run.
+	agg.handleCheckItem(deferredTestGauge(id, "a", 10))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+
+	points := deferredTestPoints(t, deferredTestFlush(agg))
+	assert.Equal(t, map[string]metrics.Point{
+		"context:a": {Ts: firstCommit, Value: 1},
+		"context:b": {Ts: firstCommit, Value: 2},
+		"context:c": {Ts: firstCommit, Value: 3},
+	}, points)
+
+	require.Contains(t, agg.deferredCommits, id, "the queued commit of the next run is deferred in turn")
+	secondCommit := agg.deferredCommits[id].timestamp
+	assert.Greater(t, secondCommit, firstCommit)
+	points = deferredTestPoints(t, deferredTestFlush(agg))
+	assert.Equal(t, map[string]metrics.Point{"context:a": {Ts: secondCommit, Value: 10}}, points)
+	assert.Empty(t, agg.deferredCommits)
+	assert.Zero(t, agg.deferredCommitCount.Load())
+}
+
+func TestDeferredCommitQueueOverflowCommitsInOrder(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	agg.handleCheckItem(deferredTestGauge(id, "a", 1))
+	agg.handleCheckItem(deferredTestGauge(id, "b", 2))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	firstCommit := agg.deferredCommits[id].timestamp
+
+	for i := 0; i <= maxDeferredItems; i++ {
+		agg.handleCheckItem(deferredTestGauge(id, "a", float64(100+i)))
+	}
+
+	assert.Empty(t, agg.deferredCommits)
+	assert.Zero(t, agg.deferredCommitCount.Load())
+	// The first run was committed before any queued item of the next run.
+	assert.Equal(t, map[string]metrics.Point{
+		"context:a": {Ts: firstCommit, Value: 1},
+		"context:b": {Ts: firstCommit, Value: 2},
+	}, deferredTestPoints(t, agg.checkSamplers[id].series))
+
+	deferredTestFlush(agg)
+
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	secondCommit := agg.deferredCommits[id].timestamp
+	assert.Equal(t, map[string]metrics.Point{
+		"context:a": {Ts: secondCommit, Value: float64(100 + maxDeferredItems)},
+	}, deferredTestPoints(t, deferredTestFlush(agg)))
+}
+
+func TestGetSeriesAndSketchesAppliesDeferredCommits(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	go agg.run()
+	defer agg.Stop()
+
+	agg.checkItems <- deferredTestGauge(id, "a", 1)
+	agg.checkItems <- deferredTestGauge(id, "b", 2)
+	agg.checkItems <- &senderMetricSample{id: id, commit: true}
+	require.Eventually(t, func() bool { return agg.deferredCommitCount.Load() == 1 }, 10*time.Second, time.Millisecond)
+
+	series, _ := agg.GetSeriesAndSketches(time.Now())
+	points := deferredTestPoints(t, series)
+	assert.Len(t, points, 2)
+	assert.Equal(t, 1.0, points["context:a"].Value)
+	assert.Equal(t, 2.0, points["context:b"].Value)
+}

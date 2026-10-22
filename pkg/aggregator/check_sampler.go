@@ -213,30 +213,20 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
-
-	series, errors := cs.metrics.Flush(timestamp)
-	for ckey, err := range errors {
-		context, ok := cs.contextResolver.get(ckey)
-		if !ok {
-			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
-		} else {
-			log.Debugf("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
-		}
-	}
-	for _, serie := range series {
+func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher, sink metrics.SerieSink) {
+	errors := cs.metrics.FlushTo(timestamp, func(serie *metrics.Serie) {
 		// Resolve context and populate new []Serie
 		context, ok := cs.contextResolver.get(serie.ContextKey)
 		if !ok {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
-			continue
+			return
 		}
 
 		name := context.Name + serie.NameSuffix
 		// Filter the metrics
 		if filterList != nil && filterList.Test(name) {
 			tlmChecksFilteredMetrics.Inc()
-			continue
+			return
 		}
 		serie.Name = name
 		serie.Tags = context.Tags()
@@ -245,7 +235,15 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.M
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
 
-		cs.series = append(cs.series, serie)
+		sink.Append(serie)
+	})
+	for ckey, err := range errors {
+		context, ok := cs.contextResolver.get(ckey)
+		if !ok {
+			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
+		} else {
+			log.Debugf("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
+		}
 	}
 }
 
@@ -273,7 +271,12 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
-	cs.commitSeries(timestamp, filterList)
+	cs.commitTo(timestamp, filterList, (*metrics.Series)(&cs.series))
+}
+
+// commitTo commits the current check run, passing its series to sink.
+func (cs *CheckSampler) commitTo(timestamp float64, filterList *metricname.Matcher, sink metrics.SerieSink) {
+	cs.commitSeries(timestamp, filterList, sink)
 	cs.commitSketches(timestamp, filterList)
 
 	cs.metrics.RemoveExpired(timestamp)

@@ -116,6 +116,11 @@ func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return cm.metrics.Flush(timestamp)
 }
 
+// FlushTo flushes every metric in the CheckMetrics (see ContextMetrics.FlushTo)
+func (cm *CheckMetrics) FlushTo(timestamp float64, add func(*Serie)) map[ckey.ContextKey]error {
+	return cm.metrics.FlushTo(timestamp, add)
+}
+
 // RemoveExpired removes stateful metrics that have expired before the given timestamp.
 func (cm *CheckMetrics) RemoveExpired(timestamp float64) {
 	removed := 0.0
