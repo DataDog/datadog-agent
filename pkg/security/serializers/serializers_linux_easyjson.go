@@ -2171,6 +2171,18 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 					(*out.Previous).UnmarshalEasyJSON(in)
 				}
 			}
+		case "mntns_host":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.MntNSHost = bool(in.Bool())
+			}
+		case "mntns_outside_base":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.MntNSOutsideBase = bool(in.Bool())
+			}
 		case "mntns":
 			if in.IsNull() {
 				in.Skip()
@@ -2257,6 +2269,26 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 			out.RawString(prefix)
 		}
 		(*in.Previous).MarshalEasyJSON(out)
+	}
+	if in.MntNSHost {
+		const prefix string = ",\"mntns_host\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.MntNSHost))
+	}
+	if in.MntNSOutsideBase {
+		const prefix string = ",\"mntns_outside_base\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.MntNSOutsideBase))
 	}
 	if in.MntNS != 0 {
 		const prefix string = ",\"mntns\":"
