@@ -160,13 +160,17 @@ func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
 	return buf.Bytes()
 }
 
-// jobSetLaunchd renders the stable launchd job set.
-func jobSetLaunchd(stableData launchdTemplateData) map[string][]byte {
+// jobSetLaunchd renders both launchd job sets. The installer daemon has no -exp variant: it is
+// the process that supervises an experiment, so it is never part of one.
+func jobSetLaunchd(stableData, expData launchdTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"com.datadoghq.installer.plist":  mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),
-		"com.datadoghq.agent.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", stableData),
-		"com.datadoghq.sysprobe.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", stableData),
-		"com.datadoghq.data-plane.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", stableData),
+		"com.datadoghq.installer.plist":      mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),
+		"com.datadoghq.agent.plist":          mustRenderLaunchdJob("com.datadoghq.agent.plist", stableData),
+		"com.datadoghq.agent-exp.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", expData),
+		"com.datadoghq.sysprobe.plist":       mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", stableData),
+		"com.datadoghq.sysprobe-exp.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", expData),
+		"com.datadoghq.data-plane.plist":     mustRenderLaunchdJob("com.datadoghq.data-plane.plist", stableData),
+		"com.datadoghq.data-plane-exp.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", expData),
 	}
 }
 
@@ -338,6 +342,17 @@ var (
 		AgentUser:   "_dd-agent",
 		AgentGroup:  "daemon",
 	}
+	expDataLaunchd = launchdTemplateData{
+		LabelSuffix: "-exp",
+		ProgramDir:  "/opt/datadog-agent",
+		EtcDir:      "/opt/datadog-agent/etc-exp",
+		Supervised:  false,
+		Stable:      false,
+		RunDir:      "/opt/datadog-agent/run",
+		LogDir:      "/opt/datadog-agent/logs",
+		AgentUser:   "_dd-agent",
+		AgentGroup:  "daemon",
+	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
@@ -350,6 +365,6 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},
 	}
 	launchdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "darwin", units: jobSetLaunchd(stableDataLaunchd)},
+		{subdir: "darwin", units: jobSetLaunchd(stableDataLaunchd, expDataLaunchd)},
 	}
 )
