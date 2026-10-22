@@ -213,6 +213,9 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverContainerContextCleared is the name of the metric used to report the number of container contexts cleared
+	// Tags: -
+	MetricProcessResolverContainerContextCleared = newRuntimeMetric(".process_resolver.container_context_cleared")
 	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
 	// Tags: -
 	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")

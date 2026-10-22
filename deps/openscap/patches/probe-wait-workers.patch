@@ -1,0 +1,130 @@
+--- a/src/OVAL/probes/probe/input_handler.c
++++ b/src/OVAL/probes/probe/input_handler.c
+@@ -180,9 +180,11 @@
+ 					} else {
+ 						/* OK */
+ 
++						probe_worker_start(probe);
+ 						if (pthread_create(&pair->pth->tid, &pth_attr, &probe_worker_runfn, pair))
+ 						{
+ 							dE("Cannot start a new worker thread: %d, %s.", errno, strerror(errno));
++							probe_worker_end(probe);
+ 
+ 							if (rbt_i32_del(probe->workers, pair->pth->sid, NULL) != 0)
+ 								dE("rbt_i32_del: failed to remove worker thread (ID=%u)", pair->pth->sid);
+--- a/src/OVAL/probes/probe/probe.h
++++ b/src/OVAL/probes/probe/probe.h
+@@ -69,6 +69,9 @@
+ 	pthread_barrier_t *th_barrier;
+ 
+         rbt_t    *workers;
++	pthread_mutex_t workers_mutex; /**< guards workers_running */
++	pthread_cond_t  workers_cond;  /**< signaled when a worker thread ends */
++	uint32_t  workers_running;     /**< worker threads that have yet to end */
+         uint32_t  max_threads;
+         uint32_t  max_chdepth;
+ 
+--- a/src/OVAL/probes/probe/probe_main.c
++++ b/src/OVAL/probes/probe/probe_main.c
+@@ -154,6 +154,9 @@
+ 	}
+ 	dD("probe_input_handler thread has joined with status %ld", (long) status);
+ 
++	/* The worker threads use the SEAP descriptor and the caches until they end. */
++	probe_worker_wait(probe);
++
+ 	probe_fini_function_t fini_function = probe_table_get_fini_function(probe->subtype);
+ 	if (fini_function != NULL) {
+ 		fini_function(probe->probe_arg);
+@@ -162,6 +165,8 @@
+ 	probe_rcache_free(probe->rcache);
+ 	probe_icache_free(probe->icache);
+ 	rbt_i32_free(probe->workers);
++	pthread_cond_destroy(&probe->workers_cond);
++	pthread_mutex_destroy(&probe->workers_mutex);
+ 	SEAP_CTX_free(probe->SEAP_ctx);
+ 	free(probe->option);
+ 
+@@ -244,6 +249,9 @@
+ 	 * Create input handler (detached)
+ 	 */
+         probe.workers   = rbt_i32_new();
++	pthread_mutex_init(&probe.workers_mutex, NULL);
++	pthread_cond_init(&probe.workers_cond, NULL);
++	probe.workers_running = 0;
+ 
+ 	probe_init_function_t init_function = probe_table_get_init_function(probe.subtype);
+ 	if (init_function != NULL) {
+--- a/src/OVAL/probes/probe/worker.c
++++ b/src/OVAL/probes/probe/worker.c
+@@ -79,10 +79,42 @@
+ 	SEAP_replyerr(pair->probe->SEAP_ctx, pair->probe->sd, pair->pth->msg, -100);
+ }
+ 
++/*
++ * The library may close the probe as soon as a worker thread has sent its
++ * reply, while the worker still unlocks the SEAP descriptor and frees its
++ * message. probe_worker_start counts a worker thread before it starts,
++ * probe_worker_end is the last use of the probe by the thread, and
++ * probe_worker_wait, called by probe_common_main_cleanup before it frees
++ * the SEAP context and the caches, returns when every worker has ended.
++ */
++void probe_worker_start(probe_t *probe)
++{
++	pthread_mutex_lock(&probe->workers_mutex);
++	probe->workers_running++;
++	pthread_mutex_unlock(&probe->workers_mutex);
++}
++
++void probe_worker_end(probe_t *probe)
++{
++	pthread_mutex_lock(&probe->workers_mutex);
++	probe->workers_running--;
++	pthread_cond_broadcast(&probe->workers_cond);
++	pthread_mutex_unlock(&probe->workers_mutex);
++}
++
++void probe_worker_wait(probe_t *probe)
++{
++	pthread_mutex_lock(&probe->workers_mutex);
++	while (probe->workers_running > 0)
++		pthread_cond_wait(&probe->workers_cond, &probe->workers_mutex);
++	pthread_mutex_unlock(&probe->workers_mutex);
++}
++
+ void *probe_worker_runfn(void *arg)
+ {
+ 	dD("probe_worker_runfn has started");
+ 	probe_pwpair_t *pair = (probe_pwpair_t *)arg;
++	probe_t *probe = pair->probe;
+ 
+ 	SEXP_t *probe_res, *obj, *oid;
+ 	int     probe_ret;
+@@ -120,6 +152,7 @@
+                 SEAP_msg_free(pair->pth->msg);
+                 SEXP_free(probe_res);
+                 free(pair);
++		probe_worker_end(probe);
+ 
+ 		dD("probe_worker_runfn has finished");
+                 return (NULL);
+@@ -187,6 +220,7 @@
+ 	pthread_detach(pthread_self());
+ 
+ 	pthread_cleanup_pop(0);
++	probe_worker_end(probe);
+ 
+ 	dD("probe_worker_runfn has finished");
+ 	return (NULL);
+--- a/src/OVAL/probes/probe/worker.h
++++ b/src/OVAL/probes/probe/worker.h
+@@ -48,6 +48,9 @@
+ } probe_pwpair_t;
+ 
+ probe_worker_t *probe_worker_new(void);
++void probe_worker_start(probe_t *probe);
++void probe_worker_end(probe_t *probe);
++void probe_worker_wait(probe_t *probe);
+ void *probe_worker_runfn(void *arg);
+ SEXP_t *probe_worker(probe_t *probe, SEAP_msg_t *msg_in, int *ret);
+ 

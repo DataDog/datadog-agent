@@ -9,3 +9,119 @@
  	}
  
  	conn = dbus_bus_get(DBUS_BUS_SYSTEM, &err);
+--- a/tests/probes/systemdunitproperty/CMakeLists.txt
++++ b/tests/probes/systemdunitproperty/CMakeLists.txt
+@@ -1,10 +1,12 @@
+ if(ENABLE_PROBES_LINUX)
+ 	if(DBUS_FOUND)
+ 		add_oscap_test("test_probes_systemdunitproperty.sh" LABELS linux linux_only)
++		add_oscap_test("test_probes_systemdunitproperty_dbus_address.sh" LABELS linux linux_only)
+ 		add_oscap_test("test_probes_systemdunitproperty_mount_wants.sh" LABELS linux linux_only)
+ 		add_oscap_test("test_probes_systemdunitproperty_offline_mode.sh" LABELS linux linux_only)
+ 		set_tests_properties(
+ 			"probes/systemdunitproperty/test_probes_systemdunitproperty.sh"
++			"probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.sh"
+ 			"probes/systemdunitproperty/test_probes_systemdunitproperty_mount_wants.sh"
+ 			"probes/systemdunitproperty/test_probes_systemdunitproperty_offline_mode.sh"
+ 			PROPERTIES RESOURCE_LOCK "systemd:1"
+diff --git a/tests/probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.sh b/tests/probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.sh
+@@ -0,0 +1,40 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++# The systemd probes connect to the system bus at DBUS_SYSTEM_BUS_ADDRESS,
++# which they set to the standard socket when it is unset. The probes run
++# in the oscap process, so the environmentvariable probe reads the
++# address they used.
++function test_probes_systemdunitproperty_dbus_address {
++	probecheck "systemdunitproperty" || return 255
++	probecheck "environmentvariable" || return 255
++
++	local address="$1"
++	local definition="${srcdir}/test_probes_systemdunitproperty_dbus_address.xml"
++	local result
++	result=$(mktemp results.XXXXXXX.xml)
++
++	if [[ -n "$address" ]]; then
++		DBUS_SYSTEM_BUS_ADDRESS="$address" $OSCAP oval eval --results "$result" "$definition"
++	else
++		unset DBUS_SYSTEM_BUS_ADDRESS
++		address="unix:path=/run/dbus/system_bus_socket"
++		$OSCAP oval eval --results "$result" "$definition"
++	fi
++
++	local item='oval_results/results/system/oval_system_characteristics/system_data/ind-sys:environmentvariable_item'
++	assert_exists 1 "$item"
++	assert_exists 1 "$item/ind-sys:value[text()=\"$address\"]"
++	rm -f "$result"
++	return 0
++}
++
++test_init
++
++test_run "test_probes_systemdunitproperty_dbus_address (unset)" test_probes_systemdunitproperty_dbus_address ""
++test_run "test_probes_systemdunitproperty_dbus_address (set)" test_probes_systemdunitproperty_dbus_address "unix:path=/tmp/test-socket"
++
++test_exit
+diff --git a/tests/probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.xml b/tests/probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/systemdunitproperty/test_probes_systemdunitproperty_dbus_address.xml
+@@ -0,0 +1,51 @@
++<?xml version="1.0"?>
++<oval_definitions xmlns:oval-def="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ind-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent" xmlns:lin-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent independent-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5#linux linux-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-common-5 oval-common-schema.xsd">
++
++  <generator>
++    <oval:product_name>systemdunitproperty</oval:product_name>
++    <oval:product_version>1.0</oval:product_version>
++    <oval:schema_version>5.11</oval:schema_version>
++    <oval:timestamp>2026-10-20T00:00:00+00:00</oval:timestamp>
++  </generator>
++
++  <definitions>
++
++    <!-- The criteria evaluate in order: the systemdunitproperty probe
++         connects to the system bus before the environmentvariable probe
++         reads the environment of the process. -->
++    <definition class="compliance" version="1" id="oval:1:def:1">
++      <metadata><title></title><description></description></metadata>
++      <criteria>
++        <criterion test_ref="oval:1:tst:1"/>
++        <criterion test_ref="oval:1:tst:2"/>
++      </criteria>
++    </definition>
++
++  </definitions>
++
++  <tests>
++
++    <systemdunitproperty_test version="1" id="oval:1:tst:1" check="all" check_existence="any_exist" comment="LoadState of -.mount" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:1"/>
++    </systemdunitproperty_test>
++
++    <environmentvariable_test version="1" id="oval:1:tst:2" check="all" comment="DBUS_SYSTEM_BUS_ADDRESS" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent">
++      <object object_ref="oval:1:obj:2"/>
++    </environmentvariable_test>
++
++  </tests>
++
++  <objects>
++
++    <systemdunitproperty_object version="1" id="oval:1:obj:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <unit>-.mount</unit>
++      <property>LoadState</property>
++    </systemdunitproperty_object>
++
++    <environmentvariable_object version="1" id="oval:1:obj:2" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent">
++      <name>DBUS_SYSTEM_BUS_ADDRESS</name>
++    </environmentvariable_object>
++
++  </objects>
++
++</oval_definitions>

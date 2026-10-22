@@ -176,8 +176,9 @@ func enrollPhoneHome(ctx context.Context, cfg model.Reader, identifier *AgentIde
 		}
 		_ = RecordPhoneHomeOutcome(cfg, PhoneHomeOutcome{AttemptID: a.ID, EnrollmentFailure: *failure})
 	}()
+	agentFlavor := flavor.GetFlavor()
 	if !cfg.GetBool(par.Enabled) || !cfg.GetBool(par.SelfEnroll) || !cfg.GetBool(par.APIKeyOnlyEnrollment) ||
-		flavor.GetFlavor() != flavor.DefaultAgent || len(cfg.GetStringMapString(par.OPMSExtraHeaders)) != 0 {
+		(agentFlavor != flavor.DefaultAgent && agentFlavor != flavor.PrivateActionRunner) || len(cfg.GetStringMapString(par.OPMSExtraHeaders)) != 0 {
 		return nil, &opms.EnrollmentFailure{Category: "invalid_config"}
 	}
 	private, public, err := util.GenerateKeys()
@@ -201,7 +202,7 @@ func enrollPhoneHome(ctx context.Context, cfg model.Reader, identifier *AgentIde
 		site = "datadoghq.com"
 	}
 	client := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, site), nil)
-	response, err := client.EnrollWithApiKeyOnly(ctx, cfg.GetString("api_key"), p.RunnerName, []modes.Mode{modes.ModePull}, public, identifier.Hostname, "", flavor.DefaultAgent)
+	response, err := client.EnrollWithApiKeyOnly(ctx, cfg.GetString("api_key"), p.RunnerName, []modes.Mode{modes.ModePull}, public, identifier.Hostname, "", agentFlavor)
 	if err != nil {
 		return nil, err
 	}

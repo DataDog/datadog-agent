@@ -598,7 +598,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
 		logondurationfx.Module(),
-		healthplatform.Bundle(),
+		healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
 		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
 	)

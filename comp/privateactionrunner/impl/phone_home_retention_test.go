@@ -36,6 +36,7 @@ import (
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestPhoneHomeRetainedHelperServesPendingNotDisabled(t *testing.T) {
@@ -82,6 +83,7 @@ func testPhoneHomeRetainer(t *testing.T, stage string, brokenIPC bool) {
 		"private_action_runner.split_enabled": true, "private_action_runner.api_key_only_enrollment": true,
 		"private_action_runner.identity_file_path": identityPath, "private_action_runner.executor.socket_path": socketPath,
 	})
+	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
 	a, err := enrollment.ReservePhoneHomeAttempt(cfg, "test-host", time.Now(), nil)
 	require.NoError(t, err)
 	pendingPath = identityPath + ".pending-" + a.ID

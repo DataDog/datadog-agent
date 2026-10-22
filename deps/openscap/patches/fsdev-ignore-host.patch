@@ -1,36 +1,126 @@
-diff --git a/src/OVAL/probes/fsdev.c b/src/OVAL/probes/fsdev.c
-index 05db635cf..21eadf508 100644
 --- a/src/OVAL/probes/fsdev.c
 +++ b/src/OVAL/probes/fsdev.c
-@@ -66,6 +66,7 @@
- 
- #include "fsdev.h"
- #include "common/util.h"
-+#include "debug_priv.h"
- 
- /**
-  * Compare two dev_t variables.
-@@ -110,6 +111,7 @@ static int is_local_fs(struct mntent *ment)
+@@ -42,6 +42,7 @@
+ #if defined(OS_LINUX)
+ # include <mntent.h>
+ # include <unistd.h>
++# include <sys/vfs.h>
+ # ifndef _PATH_MOUNTED
+ #  define _PATH_MOUNTED MOUNTED
+ # endif
+@@ -110,6 +111,7 @@
  	const char *pseudo_fs[] = {
  		"proc",
  		"sysfs",
-+		"overlay",
++		"overlay",	/* usually the root of a container, see fsdev_init */
  		NULL
  	};
  	const char *network_fs[] = {
-@@ -141,6 +143,15 @@ static int is_local_fs(struct mntent *ment)
- 		if (!strcmp(network_fs[i], fstype))
- 			return 0;
- 	}
-+	// ignore /host directory
-+	const char* host = "host";
-+	if (oscap_str_startswith(ment->mnt_dir, host)) {
-+		const char* root = getenv("OSCAP_PROBE_ROOT");
-+		if ((root == NULL) || (strcmp(root, host) != 0)) {
-+			dW("Skipping '%s' directory.", ment->mnt_dir);
-+			return 0;
-+		}
-+	}
- 	return 1;
+@@ -350,7 +352,44 @@
  }
+ #endif
  
+-fsdev_t *fsdev_init()
++#if defined(OS_LINUX)
++#ifndef OVERLAYFS_SUPER_MAGIC
++#define OVERLAYFS_SUPER_MAGIC 0x794c7630
++#endif
++
++/*
++ * is_local_fs leaves out overlay file systems, which usually hold the roots
++ * of containers. add_root_overlay adds the one that holds root, the root of
++ * the walk (NULL or "" for /), as when the scanner runs in the container it
++ * scans. It returns -1 when it runs out of memory.
++ */
++static int add_root_overlay(fsdev_t *lfs, const char *root)
++{
++	struct statfs sfs;
++	struct stat st;
++	dev_t *ids;
++
++	if (root == NULL || *root == '\0')
++		root = "/";
++	if (statfs(root, &sfs) != 0 || sfs.f_type != OVERLAYFS_SUPER_MAGIC)
++		return 0;
++	if (stat(root, &st) != 0)
++		return 0;
++	ids = realloc(lfs->ids, sizeof(dev_t) * (lfs->cnt + 1));
++	if (ids == NULL)
++		return -1;
++	ids[lfs->cnt++] = st.st_dev;
++	lfs->ids = ids;
++	return 0;
++}
++#else
++static int add_root_overlay(fsdev_t *lfs, const char *root)
++{
++	return 0;
++}
++#endif
++
++fsdev_t *fsdev_init(const char *root)
+ {
+ 	fsdev_t *lfs;
+ 
+@@ -362,6 +401,11 @@
+ 	if (__fsdev_init(lfs) == NULL)
+ 		return (NULL);
+ 
++	if (add_root_overlay(lfs, root) != 0) {
++		fsdev_free(lfs);
++		return (NULL);
++	}
++
+         if (lfs->ids != NULL && lfs->cnt > 1)
+                 qsort(lfs->ids, lfs->cnt, sizeof(dev_t), fsdev_cmp);
+ 
+--- a/src/OVAL/probes/fsdev.h
++++ b/src/OVAL/probes/fsdev.h
+@@ -48,10 +48,11 @@
+ } fsdev_t;
+ 
+ /**
+- * Initialize the fsdev_t structure from an array of filesystem
+- * names.
++ * Initialize the fsdev_t structure with the devices of the local
++ * filesystems, and of the overlay filesystem that holds root, the root
++ * of the walk (NULL for /).
+  */
+-fsdev_t *fsdev_init(void);
++fsdev_t *fsdev_init(const char *root);
+ 
+ /**
+  * Free the fsdev_t structure.
+--- a/src/OVAL/probes/oval_fts.c
++++ b/src/OVAL/probes/oval_fts.c
+@@ -727,7 +727,7 @@
+ #if defined(OS_SOLARIS)
+ 		ofts->localdevs = NULL;
+ #else
+-		ofts->localdevs = fsdev_init();
++		ofts->localdevs = fsdev_init(ofts->prefix);
+ 		if (ofts->localdevs == NULL) {
+ 			dE("fsdev_init() failed.");
+ 			/* One dummy read to get rid of an uninitialized
+--- a/tests/API/probes/fake_mtab
++++ b/tests/API/probes/fake_mtab
+@@ -3,6 +3,7 @@
+ /etc/mount.map /nfs/test autofs rw,relatime,fd=17,pgrp=11111,timeout=5,minproto=5,maxproto=5,direct,pipe_ino=1246883 0 0
+ 192.168.122.231:/test /nfs/test nfs4 rw,relatime,vers=4.2,rsize=262144,wsize=262144,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.122.1,local_lock=none,addr=192.168.122.231 0 0
+ /dev/mapper/fedora-home /home ext4 rw,seclabel,relatime 0 0
++overlay /var/lib/docker/overlay2/0123456789abcdef/merged overlay rw,relatime,lowerdir=/var/lib/docker/overlay2/l/ABCDEF,upperdir=/var/lib/docker/overlay2/0123456789abcdef/diff,workdir=/var/lib/docker/overlay2/0123456789abcdef/work 0 0
+ proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+ sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime,seclabel 0 0
+ //192.168.0.5/storage /media/movies cifs guest,uid=myuser,iocharset=utf8,file_mode=0777,dir_mode=0777,noperm 0 0
+--- a/tests/API/probes/test_fsdev_is_local_fs.c
++++ b/tests/API/probes/test_fsdev_is_local_fs.c
+@@ -45,7 +45,8 @@
+ {
+ 	/*
+ 	 * fake mtab contains only 3 local filesystems:
+-	 * /, /tmp, and /home
++	 * /, /tmp, and /home. Its overlay mount, the root of a
++	 * container, is not local.
+ 	 */
+ 	FILE *f = setmntent(fake_mtab, "r");
+ 	if (f == NULL) {

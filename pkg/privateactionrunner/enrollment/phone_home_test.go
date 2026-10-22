@@ -10,6 +10,10 @@ package enrollment
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -22,8 +26,64 @@ import (
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPhoneHomeEnrollmentFlavors(t *testing.T) {
+	t.Setenv(app.PhoneHomePOCEnvVar, "true")
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+	for _, agentFlavor := range []string{flavor.DefaultAgent, flavor.PrivateActionRunner, flavor.ClusterAgent, flavor.IotAgent, flavor.ProcessAgent} {
+		t.Run(agentFlavor, func(t *testing.T) {
+			cfg := configmock.New(t)
+			flavor.SetTestFlavor(t, agentFlavor)
+			var posts atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				posts.Add(1)
+				require.Equal(t, "POST", r.Method)
+				require.Equal(t, "/api/unstable/on_prem_runners/api_key_only", r.URL.Path)
+				var body struct {
+					Data struct {
+						Attributes struct {
+							AgentFlavor string `json:"agent_flavor"`
+						} `json:"attributes"`
+					} `json:"data"`
+				}
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				require.Equal(t, agentFlavor, body.Data.Attributes.AgentFlavor)
+				fmt.Fprint(w, `{"data":{"type":"createRunnerResponse","id":"runner","attributes":{"org_id":42,"runner_id":"runner"}}}`)
+			}))
+			defer srv.Close()
+			for key, value := range map[string]interface{}{
+				"api_key": "test-key", "dd_url": srv.URL,
+				par.Enabled: true, par.SelfEnroll: true, par.APIKeyOnlyEnrollment: true,
+				par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
+			} {
+				cfg.SetInTest(key, value)
+			}
+			a, err := ReservePhoneHomeAttempt(cfg, "test-host", time.Now(), nil)
+			require.NoError(t, err)
+			result, err := Enroll(context.Background(), cfg, &AgentIdentifier{Hostname: "test-host"})
+			if agentFlavor != flavor.DefaultAgent && agentFlavor != flavor.PrivateActionRunner {
+				require.ErrorContains(t, err, "invalid_config")
+				require.Nil(t, result)
+				require.Zero(t, posts.Load())
+				require.NoFileExists(t, cfg.GetString(par.IdentityFilePath))
+				return
+			}
+			require.NoError(t, err)
+			identity, err := GetIdentityFromPreviousEnrollment(context.Background(), cfg)
+			require.NoError(t, err)
+			require.Equal(t, result.URN, identity.URN)
+			outcome, err := ReadPhoneHomeOutcome(cfg, a)
+			require.NoError(t, err)
+			require.Equal(t, "identity_persisted", outcome.Category)
+			_, err = Enroll(context.Background(), cfg, &AgentIdentifier{Hostname: "test-host"})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, posts.Load(), "persisted enrollment must not be replayed")
+		})
+	}
+}
 
 func TestPhoneHomeMutationClaimAndStaleOutcome(t *testing.T) {
 	cfg := configmock.New(t)

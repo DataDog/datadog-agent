@@ -13,7 +13,6 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/status",
-        "//comp/privateactionrunner/phonehome/def",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/util/flavor",
@@ -28,8 +27,6 @@ dd_agent_go_test(
     embed = [":statusimpl"],
     deps = [
         "//comp/core/config",
-        "//comp/core/status",
-        "//pkg/privateactionrunner/phonehome",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

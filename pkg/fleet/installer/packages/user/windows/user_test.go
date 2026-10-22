@@ -10,6 +10,7 @@ package windowsuser
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,12 +43,14 @@ func TestIsWellKnownAccount(t *testing.T) {
 
 func TestAgentUserIsLocalAccount(t *testing.T) {
 	if !runningInCI() {
-		// ddagentuser is created by CI tests so we can make some assumptions about it in that environment,
-		// but not outside of it.
+		// This test creates a user in the machine running the test as a side-effect,
+		// so we only run it on CI.
 		t.Skip("skipping test outside of CI")
 	}
-	// Agent user created in Invoke-UnitTests.ps1
-	agentUser := getTestAgentUser(t)
+
+	agentUser, err := createTestAgentUser("ddagentuser-test")
+	require.NoError(t, err, "failed to create user for tests: %w", err)
+
 	sid, _, err := lookupSID(agentUser)
 	assert.NoError(t, err, "expected %s to be a valid account", agentUser)
 
@@ -77,25 +80,32 @@ func runningInCI() bool {
 	return os.Getenv("CI") != ""
 }
 
-// getTestAgentUser returns the agent user name used for the unit tests.
-//
-// In CI unit tests, returns hostname\ddagentuser, as created by Invoke-UnitTests.ps1.
-// For manual tests, returns the agent user name from the registry, and can be overridden by setting the DD_AGENT_USER_NAME environment variable.
-func getTestAgentUser(t *testing.T) string {
-	var err error
-	user := os.Getenv("DD_AGENT_USER_NAME")
-	if user != "" {
-		return user
+// createTestAgentUser creates a local user for use inside CI tests
+func createTestAgentUser(username string) (string, error) {
+	const script = `
+$ErrorActionPreference = 'Stop'
+$username = $env:DD_TEST_AGENT_USERNAME
+
+$existingUser = Get-LocalUser | Where-Object { $_.Name -eq $username }
+if (-not $existingUser) {
+    $password = ConvertTo-SecureString 'dummyPW_:-gch6Rejae9' -AsPlainText -Force
+    New-LocalUser -Name $username -Description 'Test user for the secrets feature on windows.' -Password $password | Out-Null
+}
+`
+
+	cmd := exec.Command(
+		"powershell.exe",
+		"-NoProfile",
+		"-NonInteractive",
+		"-Command", script,
+	)
+	cmd.Env = append(os.Environ(), "DD_TEST_AGENT_USERNAME="+username)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("ensure local test agent user %q exists: %w\n%s", username, err, output)
 	}
-
-	if runningInCI() {
-		return fmt.Sprintf("%s\\%s", os.Getenv("COMPUTERNAME"), "ddagentuser")
-	}
-
-	user, err = GetAgentUserNameFromRegistry()
-	require.NoError(t, err, "failed to get agent user from registry, please set DD_AGENT_USER_NAME")
-
-	return user
+	return fmt.Sprintf("%s\\%s", os.Getenv("COMPUTERNAME"), username), nil
 }
 
 // disableProcessContextValidation disables validateProcessContext for the duration of the test.
