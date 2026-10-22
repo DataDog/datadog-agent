@@ -1,9 +1,7 @@
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: workload-fake
----
+# Fast-churning Deployments: a constant flow of pod and ReplicaSet creations and
+# deletions, i.e. watch events for the KSM stores, the Cluster Agent workloadmeta
+# and the orchestrator check.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,10 +21,19 @@ spec:
     metadata:
       labels:
         app: fake-{{i}}
+        app.kubernetes.io/name: fake
+        app.kubernetes.io/instance: fake-{{i}}
+        tags.datadoghq.com/env: benchmark
+        tags.datadoghq.com/service: fake-{{i}}
+        tags.datadoghq.com/version: v1
     spec:
       containers:
         - image: fake
-          name: fake
+          name: fake-a
+        - image: fake
+          name: fake-b
+        - image: fake
+          name: fake-c
       nodeSelector:
         type: kwok
       tolerations:
@@ -54,3 +61,249 @@ spec:
   selector:
     app: fake-{{i}}
   type: ClusterIP
+---
+# Steady Deployments: the bulk of the object population. KSM cost per check run
+# grows with the number of metrics (pods × containers, label joins, owner tags),
+# the orchestrator check skips unchanged resources, and the Cluster Agent decodes
+# every pod, so the pods are "fat": several containers with env, args, probes,
+# resources and volumes, and the standard labels that KSM turns into tags.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: steady-{{i}}
+  namespace: workload-fake
+  labels:
+    app: steady-{{i}}
+    app.kubernetes.io/name: steady
+    app.kubernetes.io/instance: steady-{{i}}
+    app.kubernetes.io/managed-by: churn
+  annotations:
+    churn.datadoghq.com/instances: "200"
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: steady-{{i}}
+  template:
+    metadata:
+      labels:
+        app: steady-{{i}}
+        app.kubernetes.io/name: steady
+        app.kubernetes.io/instance: steady-{{i}}
+        app.kubernetes.io/version: v1.2.3
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: benchmark
+        app.kubernetes.io/managed-by: churn
+        helm.sh/chart: steady-1.2.3
+        tags.datadoghq.com/env: benchmark
+        tags.datadoghq.com/service: steady-{{i}}
+        tags.datadoghq.com/version: v1.2.3
+      annotations:
+        description: steady workload {{i}} of the benchmarkeks scenario
+    spec:
+      containers:
+        - &container
+          name: main
+          image: fake
+          args: ["--port=8080", "--log-level=info", "--instance=steady-{{i}}"]
+          env:
+            - {name: SERVICE_NAME, value: "steady-{{i}}"}
+            - {name: DD_ENV, value: benchmark}
+            - {name: DD_SERVICE, value: "steady-{{i}}"}
+            - {name: DD_VERSION, value: v1.2.3}
+            - {name: LOG_LEVEL, value: info}
+            - {name: LOG_FORMAT, value: json}
+            - {name: HTTP_PORT, value: "8080"}
+            - {name: METRICS_PORT, value: "9090"}
+            - {name: DATABASE_HOST, value: db.workload-fake.svc.cluster.local}
+            - {name: DATABASE_PORT, value: "5432"}
+            - {name: DATABASE_NAME, value: steady}
+            - {name: CACHE_HOST, value: cache.workload-fake.svc.cluster.local}
+            - {name: CACHE_PORT, value: "6379"}
+            - {name: FEATURE_FLAGS, value: "alpha,beta,gamma,delta"}
+            - {name: MAX_CONNECTIONS, value: "100"}
+            - {name: TIMEOUT_SECONDS, value: "30"}
+            - {name: RETRY_COUNT, value: "3"}
+            - {name: REGION, value: us-east-1}
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            - name: POD_IP
+              valueFrom: {fieldRef: {fieldPath: status.podIP}}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: metrics, containerPort: 9090}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /ready, port: 8080}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: config, mountPath: /etc/steady}
+            - {name: cache, mountPath: /var/cache/steady}
+        - <<: *container
+          name: sidecar
+          args: ["--proxy", "--upstream=localhost:8080"]
+          ports:
+            - {name: proxy, containerPort: 8081}
+        - <<: *container
+          name: exporter
+          args: ["--exporter", "--scrape=localhost:9090"]
+          ports:
+            - {name: exporter, containerPort: 9100}
+      volumes:
+        - name: config
+          configMap: {name: steady-config}
+        - name: cache
+          emptyDir: {}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: type, operator: In, values: [kwok]}
+      nodeSelector:
+        type: kwok
+      tolerations:
+        - key: kwok.x-k8s.io/node
+          operator: Equal
+          value: fake
+          effect: NoSchedule
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: steady-{{i}}
+  namespace: workload-fake
+  labels:
+    app: steady-{{i}}
+  annotations:
+    churn.datadoghq.com/instances: "200"
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: steady-{{i}}
+  type: ClusterIP
+---
+# CronJobs: pods owned by Jobs owned by CronJobs (the KSM owner tags take the Job
+# path) and job/cronjob metrics. KWOK completes Job pods right away.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cron-{{i}}
+  namespace: workload-fake
+  annotations:
+    churn.datadoghq.com/instances: "30"
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 3
+      completions: 3
+      backoffLimit: 0
+      activeDeadlineSeconds: 50
+      template:
+        metadata:
+          labels:
+            app: cron-{{i}}
+        spec:
+          restartPolicy: Never
+          containers:
+            - image: fake
+              name: fake
+          nodeSelector:
+            type: kwok
+          tolerations:
+            - key: kwok.x-k8s.io/node
+              operator: Equal
+              value: fake
+              effect: NoSchedule
+---
+# Large ConfigMaps: listed and watched by KSM, where only their metadata is
+# needed. 32 keys aliasing the same 4 KiB value make each ConfigMap 128 KiB.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: big-{{i}}
+  namespace: workload-fake
+  labels:
+    app: big-{{i}}
+  annotations:
+    churn.datadoghq.com/instances: "300"
+    churn.datadoghq.com/lifetime: 30m
+data:
+  key-00: &payload |
+    # Generated configuration file. Every line below is a setting of the fake application.
+    setting-000 = value-000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    setting-001 = value-001-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    setting-002 = value-002-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    setting-003 = value-003-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+    setting-004 = value-004-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    setting-005 = value-005-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    setting-006 = value-006-gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
+    setting-007 = value-007-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+    setting-008 = value-008-iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+    setting-009 = value-009-jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
+    setting-010 = value-010-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+    setting-011 = value-011-llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll
+    setting-012 = value-012-mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
+    setting-013 = value-013-nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+    setting-014 = value-014-oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
+    setting-015 = value-015-pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp
+    setting-016 = value-016-qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
+    setting-017 = value-017-rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+    setting-018 = value-018-ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+    setting-019 = value-019-tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt
+    setting-020 = value-020-uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu
+    setting-021 = value-021-vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    setting-022 = value-022-wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww
+    setting-023 = value-023-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    setting-024 = value-024-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+    setting-025 = value-025-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+    setting-026 = value-026-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    setting-027 = value-027-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    setting-028 = value-028-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    setting-029 = value-029-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+    setting-030 = value-030-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    setting-031 = value-031-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  key-01: *payload
+  key-02: *payload
+  key-03: *payload
+  key-04: *payload
+  key-05: *payload
+  key-06: *payload
+  key-07: *payload
+  key-08: *payload
+  key-09: *payload
+  key-10: *payload
+  key-11: *payload
+  key-12: *payload
+  key-13: *payload
+  key-14: *payload
+  key-15: *payload
+  key-16: *payload
+  key-17: *payload
+  key-18: *payload
+  key-19: *payload
+  key-20: *payload
+  key-21: *payload
+  key-22: *payload
+  key-23: *payload
+  key-24: *payload
+  key-25: *payload
+  key-26: *payload
+  key-27: *payload
+  key-28: *payload
+  key-29: *payload
+  key-30: *payload
+  key-31: *payload
