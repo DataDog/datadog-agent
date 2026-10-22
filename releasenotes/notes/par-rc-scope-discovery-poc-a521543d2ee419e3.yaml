@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    Add experimental, opt-in Private Action Runner enrollment-scope discovery in
-    the core Agent on Linux. Discovery waits for Remote Configuration enablement
-    and key authorization, backs off on failures, and stops after confirmed
-    identity persistence. Default behavior is unchanged.
+    Extend the opt-in Private Action Runner startup gate to check the API key's
+    PAR enrollment scope after Remote Configuration prerequisites pass. Every
+    new gated start requires this approval, including runners with saved
+    identities. Ordinary installation defaults and enrollment behavior are unchanged.

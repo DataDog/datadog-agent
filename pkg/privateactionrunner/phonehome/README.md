@@ -1,144 +1,77 @@
-# PAR phone-home — RC-first opt-in POC
+# RC- and AAA-gated PAR startup POC
 
-Draft stack: [#58014](https://github.com/DataDog/datadog-agent/pull/58014) →
-[#58015](https://github.com/DataDog/datadog-agent/pull/58015) →
-[#58016](https://github.com/DataDog/datadog-agent/pull/58016).
-The original POC #57623 is preserved. Shipping defaults are unchanged.
+PR 2 adds an independently useful RC-only startup gate. PR 3 composes it with AAA
+`GET /api/v2/validate`: after RC's last successful `Enabled && Authorized`, require
+`private_action_runner_enroll` before **every new PAR start**, including a stopped
+runner with a saved identity. Neither gate changes Go enrollment/persistence/retries
+or Rust bootstrap. Running children and potential credential holders are left alone.
 
-## Simple RC contract
+This is an explicitly opted-in, specially configured Linux node-Agent POC. **Ordinary
+packages are not gated:** shipping `par-control` registrations still auto-start.
+Use a separate test supervisor, not an overlay on a running installation.
 
-PR 1 returns a copy of the last successfully fetched `OrgStatusResponse`, or `nil`
-before the first success. **Failed polls retain that response; it does not expire.**
-Consumers read `Enabled && Authorized` directly. There are no RC freshness states,
-generations, credential-binding hashes or synthetic fetch-failure observations.
-A prior positive can remain usable during an RC outage. A successful negative,
-missing observation or absent/local-off RC blocks new AAA requests and PAR starts.
-This intentionally replaces the earlier POC's expiring RC-observation design.
+## Configuration
 
-PR 2 adds the core PAR component. It reads status and owns supervisor launch and
-enrollment reconciliation, with no HTTP discovery client or fallback. Its scope
-producer is intentionally unchecked: production fresh enrollment waits for PR 3.
+- Core: `DD_PAR_PHONE_HOME_POC=true`, PAR enabled, split mode enabled, local RC enabled.
+- Non-containerized, non-FIPS Linux core Agent; matching core/executor config, API key,
+  site, proxy, secrets and user. RC-specific credentials/unsupported endpoint overrides
+  and extra PAR config files are not supported. Live credential/endpoint changes need
+  a coordinated restart.
+- Absolute `private_action_runner.identity_file_path` and `DD_PM_SOCKET_PATH` in core.
+- Both child registrations must have `auto_start: false`, `restart: never`.
+  Explicitly pass `DD_PM_SOCKET_PATH` to children; supervisor environment is not
+  automatically inherited. Example registrations are under `testdata/processes.d`.
+- Set `DD_PAR_POC_BIN` to the packaged binary directory and `DD_PAR_POC_DIR` to an
+  isolated configuration/IPC directory, with `DD_PM_SOCKET_PATH=$DD_PAR_POC_DIR/procmgr.sock`.
+  Configure the same executor socket and IPC certificate in core/PAR config.
+- For fresh enrollment, enable ordinary PAR API-key self-enrollment. Existing identities
+  are handled by the existing PAR bootstrap, not by the gate.
 
-PR 3 adds the opt-in AAA worker under `pkg/privateactionrunner/phonehome`, wired
-by the PAR-owned core component. RC exposes only `GetOrgStatus()`; it knows nothing
-about PAR scopes, demand or AAA polling. The getter follows RC's existing
-`OrgStatusResponse` terminology, not general RC health or delivery status.
+## Lifecycle and limits
 
-The worker consumes the RC booleans and publishes the AAA reason, check time and
-next-check time. Go PAR still owns POST, keys and persistence. Discovery stays in
-core, never in either PAR executable. The PAR component starts and stops both
-workers without waiting for permission during core startup.
+RC nil/false waits without starting PAR or calling AAA. A later positive RC response
+allows AAA discovery without a core restart; a PAR-scope grant then permits startup. Failed RC polls retain the last successful response indefinitely;
+this POC adds no freshness framework. The gate checks RC again immediately before Start.
 
-## Requests, starts and retries
+There is **at most one Start RPC per core process lifetime**. Acknowledgement means only
+that startup was handed to the supervisor, not that enrollment or action readiness succeeded.
+After a successful or ambiguous Start, this controller does not retry or monitor enrollment.
+A failed/exited child requires operator review; already-active children are left untouched.
+It never stops an action-serving PAR or a process that might hold credentials.
 
-- Every AAA HTTP dispatch and PAR Start checks the RC booleans again. Discovery
-  also needs explicit demand from the opted-in, unenrolled controller.
-- AAA calls `GET /api/v2/validate` with the enrollment API key only. HTTP 200 is
-  insufficient: require `valid: true` plus `private_action_runner_enroll`.
-  `remote_config_read` is not PAR enrollment permission. The normal Agent transport
-  handles proxy/TLS; redirects are refused and failures expose bounded reasons,
-  not raw bodies or transport errors. JSON is bounded and fully parsed.
-- AAA grants expire after two minutes, independently of RC. An observed closed
-  gate invalidates the cached AAA grant. Demand release/shutdown cancels requests;
-  the in-flight watch also cancels when it observes false RC or unsupported config.
-  Canceled responses cannot publish a grant, even after reopening. There is no
-  promise to detect a false/true transition occurring entirely between reads.
-- Startup jitter: 0–60s. Normal/missing-scope cadence: 60–72s. Transient failure
-  bases: 1/2/4/8/15m, plus 0–20% jitter. Auth/other HTTP failures: 15m plus jitter.
-  GET 429 respects Retry-After delta/date, minimum/fallback one minute. Huge hints
-  cannot overflow when jitter is added. Deadlines survive pause/reopen and demand
-  changes, not a complete core restart. Reads cannot force a request.
-- Enrollment cooldown is separate and durable: verified quota/auth/scope rejection
-  bases 5/10/20/30m plus jitter, subject to any later Retry-After. Successful RC/AAA
-  checks cannot shorten it. A POST auth/scope failure requires an AAA check newer
-  than the rejected attempt; rereading the old grant is not revalidation.
-- Release AAA demand after durable enrollment acknowledgement, not a PID. Ordinary
-  RC polling continues. Reusable identities and storage-only recovery need RC but
-  no new AAA scope check. Running healthy PARs and credential holders are not
-  stopped merely because RC becomes false. This is not a revocation policy.
+The existing enrollment implementation retains its own retry/persistence behavior and its
+existing limitations on ambiguous network failures. This PR adds no new enrollment POST
+retry, journal, idempotency promise or credential-recovery policy. An operator restart can
+re-arm the gate: reconcile any possibly committed enrollment before manually retrying. The
+provided supervisor and core QA unit must not independently restart failed attempts.
 
-## Deployment boundary
+Old POC `.phone-home` attempt journals block new startup rather than silently discarding
+pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
+The previous recovery experiment is retained in backup refs, outside this scoped stack.
 
-Explicit `DD_PAR_PHONE_HOME_POC=true` in core and executor, locally enabled PAR,
-non-containerized/non-FIPS Linux node Agent, split mode. Share main config,
-resolved secrets, environment, hostname, user/filesystem and an absolute identity
-path. Extra PAR config, OPMS headers and live key/site rotation are unsupported.
-Different RC API keys, legacy RC credentials and mismatched sites are rejected;
-startup key/endpoints are fixed for each component lifetime. Paired loopback
-endpoints are allowed only in explicit internal mock mode. Windows ignores the
-opt-in: no discovery worker or POC controller is registered and ordinary PAR
-enrollment remains unchanged. POSIX storage/integration tests run on non-Windows
-platforms; Windows tests verify the opt-in is inert.
+Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
+No new `datadog-agent status` fields are added here; those belong to PR 4.
 
-Set absolute `DD_PM_SOCKET_PATH`. Register `datadog-agent-par-control` and
-`datadog-agent-action-executor` with `auto_start: false`, `restart: never`; executor
-registration includes `env: {DD_PAR_PHONE_HOME_POC: "true"}`. Core only uses
-Describe/Start/Stop, not Create, shell launch or policy rewriting. Examples in
-`testdata/processes.d` do not change package/Docker/Helm/Operator defaults.
+## AAA discovery (PR 3)
 
-## Enrollment safety is unchanged
+The PAR-owned core worker uses the same RC source as startup; it does not duplicate
+RC freshness or identity rules. Requests use only `DD-API-KEY`, a 10-second timeout,
+Agent proxy/TLS transport, bounded JSON parsing and no redirects. Polling has jitter,
+backoff and Retry-After handling; cancellation and gate rechecks prevent late grants.
+AAA grants expire after two minutes, independently of RC's retained-last-success policy.
+Nil discovery fails closed, rather than restoring the RC-only behavior accidentally.
 
-The original journal, exclusive POST claim, protected pending identity and helper
-retention remain. A 0600 pending file holds key/name before POST and the returned
-URN before active publication. A separate 0700 journal holds bounded outcomes and
-deadlines, not credentials. A visible identity alone is not acknowledgement.
+Discovery ends when core hands startup to the supervisor, not when enrollment is
+confirmed. The established Go enrollment path owns everything after that handoff.
+A subsequent deliberate core restart with stopped children requires fresh AAA approval,
+even with a saved identity. No post-enrollment revocation or automatic relaunch is added.
 
-Storage-only recovery reuses the same key/URN/attempt, with 1/2/4/8/15m bases plus
-jitter and no second POST. If credentials or the outcome cannot be saved, retain
-the Go helper, retry local storage every minute and serve an unavailable bootstrap
-snapshot, never falsely disabled. Do not discard the only key to reduce RSS.
-Existing Go resolution/POST and Rust bootstrap limits remain 45/30/120s.
+## Validation
 
-Bare OPMS gates, unstructured auth, POST 429, 5xx, unreadable success and possibly
-submitted transport loss remain **safety-only blocking**. Retry-After does not prove
-non-creation. Manual lost-response recovery needs stopped processes, actual backend/
-public-key verification, same-key identity restoration and journal archival. No
-lookup/idempotency endpoint is invented. The pre-durable-URN crash window remains.
+`dda inv test --targets=./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl,./comp/privateactionrunner/impl`
 
-## Acceptance coverage
-
-`TestHTTPStack*` uses real RC/AAA/enrollment clients against loopback servers and a
-fake supervisor. It logs RC GETs, AAA GETs, Start/POST/registration counts, reasons
-and separate retry times. Injected-reader and component tests cover additional
-boundaries; none establish real OS process counts or RSS.
-
-1. **Off/closed RC:** nil, either false flag, absent/local-off service, config
-   mismatch and opt-out produce zero new AAA/Start/POST, including saved identities.
-   An initial failed poll leaves nil; a failure after success retains the last
-   response and allows work. Cached RC age alone no longer blocks startup.
-2. **RC then scope grant:** no AAA until both RC booleans; no fresh Start without
-   PAR scope. One persisted registration releases demand; ordinary RC polls continue.
-3. **Quota/auth/scope:** verified rejections recover after durable cooldown, despite
-   repeated positive scope checks and controller restart. Bare gates stay blocked.
-4. **429:** GET delta/date/missing/malformed hints retain deadlines across toggles;
-   overflow is tested. POST hint parsing is tested separately; unverified rejection
-   remains blocked, not automatic recovery.
-5. **Transient failure:** AAA backoff is bounded; proven refused enrollment TCP
-   submission recovers. Ambiguous POST failures do not replay. RC fetch errors
-   retain the last successful booleans, as specified by PR 1.
-6. **Auth/gate race:** newer AAA revalidation after auth/scope rejection; request
-   and Start dispatch checks; canceled late responses cannot grant. No RC generations.
-7. **Bad input/unknown denial:** distinct blocked categories, no repeated unchanged
-   launch. Config rotation is unsupported; deliberate reconciliation remains needed.
-8. **Commit/lost response:** one registration, stable pending key across restart;
-   manual public-key verification, restoration and archival tested. No fake recovery API.
-9. **Persistence failure:** same-key storage recovery without a second POST; new
-   helpers wait for RC, running holders survive RC loss. IPC/outcome failures are
-   component-tested; actual crash/power-cut durability remains unmeasured.
-10. **Already enrolled:** same identity, no AAA/registration; stopped PAR requires
-    RC booleans. Later RC loss does not Stop a healthy process.
-11. **Concurrency/cancellation:** overlapping ticks cannot duplicate registration;
-    late journal writes are rejected; cooldown survives restart; shutdown cancels
-    waiting/in-flight work. Post-submission loss remains ambiguous.
-
-```sh
-dda inv test --targets=./pkg/config/remote/service,./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
-dda inv test --targets=./pkg/config/remote/service,./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl --race --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
-```
-
-These fixtures also provide a Linux-local reproduction without live credentials
-or service changes. This session validates on macOS; real Linux process/RSS,
-wall-clock cadence and grant latency remain unmeasured. Production follow-ups:
-packaging, config rotation, backend recovery contracts, crash durability, cleanup,
-revocation, AAA capacity and other platforms. Each stack slice includes a release
-note; local tests do not establish remote CI success.
+Tests retain RC-only source coverage and add real loopback RC/AAA requests for all eight
+permission combinations, each with and without an existing identity file. They cover delayed
+grants, dispatch/launch gate loss, expired/late grants, cancellation, backoff/Retry-After,
+strict parsing and redirects. Supervisor calls are mocked; these are not Linux process or
+live enrollment tests.

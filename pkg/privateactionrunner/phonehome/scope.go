@@ -7,23 +7,50 @@ package phonehome
 
 import "time"
 
-// ScopeSource owns PAR enrollment permission and discovery demand, separately
-// from RC's organization/key status. A nil source leaves fresh enrollment waiting.
 type ScopeSource interface {
 	GetPARScope() PARScopeObservation
 	SetPARDiscoveryDemand(bool)
 }
 
-// PARScopeObservation is separate from RC org/key status. RC authorization is
-// never proof of PAR enrollment permission.
 type PARScopeObservation struct {
 	Reason    string
 	CheckedAt time.Time
 	NextCheck time.Time
 }
 
-// Granted bounds reuse of an AAA grant; RC status has no expiry of its own.
 func (s PARScopeObservation) Granted(now time.Time) bool {
 	return s.Reason == "scope_present" && !s.CheckedAt.IsZero() &&
 		!now.Before(s.CheckedAt) && now.Before(s.CheckedAt.Add(2*time.Minute))
+}
+
+type scopedSource struct {
+	rc    Source
+	scope ScopeSource
+}
+
+// NewScopedSource adds AAA approval to every new start, regardless of saved identity.
+func NewScopedSource(rc Source, scope ScopeSource) Source { return &scopedSource{rc: rc, scope: scope} }
+
+func (s *scopedSource) Read(now time.Time) Observation {
+	rc := s.rc.Read(now)
+	if s.scope != nil {
+		s.scope.SetPARDiscoveryDemand(rc.Ready)
+	}
+	if !rc.Ready {
+		return rc
+	}
+	if s.scope == nil {
+		return Observation{Reason: "par_scope_unchecked"}
+	}
+	grant := s.scope.GetPARScope()
+	if grant.Granted(now) {
+		return Observation{Ready: true, Reason: "scope_present"}
+	}
+	if grant.Reason == "" {
+		grant.Reason = "par_scope_unchecked"
+	}
+	if grant.Reason == "scope_present" {
+		grant.Reason = "par_scope_expired"
+	}
+	return Observation{Reason: grant.Reason}
 }

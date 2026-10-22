@@ -86,7 +86,7 @@ func newScopeFixture(t *testing.T) *scopeFixture {
 	s, err := remote.NewService(cfg, "test", server.URL, "host", func() []string { return nil }, nil, "test", remote.WithAPIKey("scope-test-key"))
 	require.NoError(t, err)
 	f.rcService = s
-	f.s = NewDiscovery(cfg, s)
+	f.s = NewDiscovery(cfg, NewSource(cfg, s))
 	require.NotNil(t, f.s)
 	f.s.clock = f.clock
 	f.s.jitter = func(time.Duration) time.Duration { return 0 }
@@ -263,17 +263,22 @@ func TestPARDiscoveryFencesLateResponseAndCancels(t *testing.T) {
 	}
 }
 
+type sourceFunc func(time.Time) Observation
+
+func (f sourceFunc) Read(now time.Time) Observation { return f(now) }
+
 func TestPARDiscoveryRechecksAtHTTPDispatch(t *testing.T) {
 	f := newScopeFixture(t)
 	f.s.SetPARDiscoveryDemand(true)
 	f.rc(true, true)
 	var reads atomic.Int32
-	f.s.status = func() *pbgo.OrgStatusResponse {
+	rc := f.s.rc
+	f.s.rc = sourceFunc(func(now time.Time) Observation {
 		if reads.Add(1) == 2 {
 			f.rc(false, true)
 		}
-		return f.rcService.GetOrgStatus()
-	}
+		return rc.Read(now)
+	})
 	f.step()
 	require.Zero(t, f.aaaGETs.Load())
 	require.False(t, f.s.GetPARScope().Granted(f.clock.Now()))

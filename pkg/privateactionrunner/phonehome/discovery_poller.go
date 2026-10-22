@@ -10,69 +10,45 @@ import (
 	"errors"
 	"math/rand/v2"
 	"net/http"
-	"os"
-	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/benbjohnson/clock"
 )
 
 // Discovery owns PAR scope polling in core; RC supplies only org/key status.
 type Discovery struct {
-	cfg                       model.Reader
-	clock                     clock.Clock
-	status                    func() *pbgo.OrgStatusResponse
-	demand                    atomic.Bool
-	client                    *http.Client
-	key, endpoint, rcEndpoint string
-	jitter                    func(time.Duration) time.Duration
-	mu                        sync.Mutex
-	observation               PARScopeObservation
-	next                      time.Time
-	backoff                   time.Duration
-	cancelRequest             context.CancelFunc
-	cancel                    context.CancelFunc
-	done                      chan struct{}
+	cfg           model.Reader
+	clock         clock.Clock
+	rc            Source
+	demand        atomic.Bool
+	client        *http.Client
+	key, endpoint string
+	jitter        func(time.Duration) time.Duration
+	mu            sync.Mutex
+	observation   PARScopeObservation
+	next          time.Time
+	backoff       time.Duration
+	cancelRequest context.CancelFunc
+	cancel        context.CancelFunc
+	done          chan struct{}
 }
 
 // NewDiscovery creates an opt-in worker without starting background work.
 // Unsupported configuration or absent RC leaves discovery unavailable.
-func NewDiscovery(cfg model.Reader, rc rcservice.Component) *Discovery {
-	if runtime.GOOS == "windows" || os.Getenv("DD_PAR_PHONE_HOME_POC") != "true" || !cfg.GetBool("private_action_runner.enabled") || rc == nil {
+func NewDiscovery(cfg model.Reader, rc Source) *Discovery {
+	if !Enabled(cfg) || rc == nil {
 		return nil
 	}
-	key, endpoint, rcEndpoint, compatible := parDiscoveryConfig(cfg)
-	if !compatible {
-		return nil
-	}
-	p := &Discovery{cfg: cfg, clock: clock.New(), status: rc.GetOrgStatus, key: key, endpoint: endpoint, rcEndpoint: rcEndpoint,
+	p := &Discovery{cfg: cfg, clock: clock.New(), rc: rc, key: cfg.GetString("api_key"), endpoint: enrollmentEndpoint(cfg),
 		jitter: func(d time.Duration) time.Duration { return time.Duration(rand.Int64N(int64(d) + 1)) },
 		client: &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	p.next = p.clock.Now().Add(p.jitter(time.Minute))
 	p.observation = PARScopeObservation{Reason: "par_scope_unchecked", NextCheck: p.next}
 	return p
-}
-
-func parDiscoveryConfig(cfg model.Reader) (key, endpoint, rcEndpoint string, compatible bool) {
-	key = cfg.GetString("api_key")
-	rcEndpoint = configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url")
-	endpoint = enrollmentEndpoint(cfg)
-	if os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" {
-		compatible = loopbackURL(endpoint) && loopbackURL(rcEndpoint)
-	} else {
-		compatible = strings.TrimSuffix(rcEndpoint, ".") == "https://config."+enrollmentSite(cfg)
-	}
-	rcKey := cfg.GetString("remote_configuration.api_key")
-	compatible = compatible && key != "" && (rcKey == "" || rcKey == key) && cfg.GetString("remote_configuration.key") == ""
-	return
 }
 
 // GetPARScope checks the current gate without forcing a discovery request.
@@ -105,15 +81,7 @@ func (p *Discovery) SetPARDiscoveryDemand(wanted bool) {
 }
 
 func (p *Discovery) gate() bool {
-	if !p.demand.Load() || os.Getenv("DD_PAR_PHONE_HOME_POC") != "true" || !p.cfg.GetBool("private_action_runner.enabled") || !configutils.IsRemoteConfigEnabled(p.cfg) {
-		return false
-	}
-	key, endpoint, rcEndpoint, compatible := parDiscoveryConfig(p.cfg)
-	if !compatible || key != p.key || endpoint != p.endpoint || rcEndpoint != p.rcEndpoint {
-		return false
-	}
-	rc := p.status()
-	return rc != nil && rc.Enabled && rc.Authorized
+	return p.demand.Load() && Enabled(p.cfg) && p.rc.Read(p.clock.Now()).Ready
 }
 
 // Start runs the worker once, under the PAR component's lifecycle.
