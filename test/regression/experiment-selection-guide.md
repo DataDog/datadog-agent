@@ -122,13 +122,19 @@ Experiment folder ownership controls reviews only. It does not select `codeowner
 
 The `always` bucket runs on every pull request and every `main` commit. This selection does not control the nightly SMP schedule.
 
-The `quality_gate_` prefix is reserved for designated quality gates. A quality gate must live below `container/quality_gates/`, match the `always` bucket, and have a CODEOWNERS entry for its owning team.
+SMP reserves the `quality_gate_` prefix for designated quality gates. A quality gate must live below `container/quality_gates/`, match the `always` bucket, and have a CODEOWNERS entry for its owning team.
 
 Agent CI uses the prefix to apply the quality gate result. Do not use it for a label-triggered, CODEOWNERS-triggered, or other non-gate experiment.
 
-Quality gates are discovered automatically for nightly confidence runs. Ask `#single-machine-performance` about the ownership, promotion, incident-response, and limit-adjustment contract before adding a new gate.
+Nightly confidence runs automatically include quality gates. Ask `#single-machine-performance` about the ownership, promotion, incident-response, and limit-adjustment contract before adding a new gate.
 
 ## Verify the selection
+
+Install the SMP CLI if needed:
+
+```bash
+dogbrew install smp
+```
 
 Run resolve before you submit a change. Resolve validates the manifest and experiment tree.
 
