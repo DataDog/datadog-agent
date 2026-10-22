@@ -376,6 +376,66 @@ func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
 	assert.Equal(t, 2, countRefGrantPatch)
 }
 
+// TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant verifies that Gateways in several
+// namespaces each get an EnvoyExtensionPolicy and are all listed in the ReferenceGrant.
+func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logger, config)
+
+	namespaces := []string{"test-ns1", "test-ns2", "test-ns3"}
+	for _, ns := range namespaces {
+		require.NoError(t, pattern.Added(ctx, newTestGateway(ns, "test-gateway")))
+	}
+
+	for _, ns := range namespaces {
+		_, err := client.Resource(extensionGVR).Namespace(ns).Get(ctx, extProcName, metav1.GetOptions{})
+		require.NoError(t, err, "EnvoyExtensionPolicy should exist in namespace %s", ns)
+	}
+
+	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	require.NoError(t, err)
+	from, found, err := unstructured.NestedSlice(grant.Object, "spec", "from")
+	require.NoError(t, err, "spec.from must stay a list")
+	require.True(t, found)
+
+	var fromNamespaces []string
+	for _, entry := range from {
+		ref, ok := entry.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "gateway.envoyproxy.io", ref["group"])
+		assert.Equal(t, "EnvoyExtensionPolicy", ref["kind"])
+		ns, ok := ref["namespace"].(string)
+		require.True(t, ok)
+		fromNamespaces = append(fromNamespaces, ns)
+	}
+	assert.Equal(t, namespaces, fromNamespaces)
+
+	// Removing a namespace keeps the others
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
+	grant, err = client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	require.NoError(t, err)
+	from, _, err = unstructured.NestedSlice(grant.Object, "spec", "from")
+	require.NoError(t, err)
+	require.Len(t, from, 2)
+	for i, want := range []string{"test-ns1", "test-ns3"} {
+		ref, ok := from[i].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, want, ref["namespace"])
+	}
+}
+
 func TestAdded_PolicyAlreadyExists(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)

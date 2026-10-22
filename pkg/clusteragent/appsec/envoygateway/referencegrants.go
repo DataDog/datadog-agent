@@ -103,7 +103,7 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 
 	jsonPatch := []map[string]any{{
 		"op":   "add",
-		"path": "/spec/from",
+		"path": "/spec/from/-",
 		"value": gwapiv1beta1.ReferenceGrantFrom{
 			Group:     "gateway.envoyproxy.io",
 			Kind:      "EnvoyExtensionPolicy",
