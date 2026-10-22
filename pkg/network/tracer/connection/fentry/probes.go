@@ -54,23 +54,21 @@ const (
 	tcpReadSockReturn = "tcp_read_sock_exit"
 
 	// We use the following two probes for UDP
-	udpRecvMsg              = "udp_recvmsg"
-	udpRecvMsgPre5190       = "udp_recvmsg_pre_5_19_0"
-	udpRecvMsgReturn        = "udp_recvmsg_exit"
-	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
-	udpSendMsgReturn        = "udp_sendmsg_exit"
-	udpSendSkb              = "udp_send_skb_entry"
+	udpRecvMsg        = "udp_recvmsg"
+	udpRecvMsgPre5190 = "udp_recvmsg_pre_5_19_0"
+	udpRecvMsgReturn  = "udp_recvmsg_exit"
+	udpSendMsgReturn  = "udp_sendmsg_exit"
+	udpSendSkb        = "udp_send_skb_entry"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
 	skbConsumeUDP           = "skb_consume_udp"
 
-	udpv6RecvMsg              = "udpv6_recvmsg"
-	udpv6RecvMsgPre5190       = "udpv6_recvmsg_pre_5_19_0"
-	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
-	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
-	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
-	udpv6SendSkb              = "udp_v6_send_skb_entry"
+	udpv6RecvMsg        = "udpv6_recvmsg"
+	udpv6RecvMsgPre5190 = "udpv6_recvmsg_pre_5_19_0"
+	udpv6RecvMsgReturn  = "udpv6_recvmsg_exit"
+	udpv6SendMsgReturn  = "udpv6_sendmsg_exit"
+	udpv6SendSkb        = "udp_v6_send_skb_entry"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
@@ -155,8 +153,6 @@ var programs = map[string]struct{}{
 	skbConsumeUDP:              {},
 	tcpRecvMsgPre5190Return:    {},
 	tcpRecvMsgNoAddrLenReturn:  {},
-	udpRecvMsgPre5190Return:    {},
-	udpv6RecvMsgPre5190Return:  {},
 	// Protocol classification
 	protocolClassifierEntry:     {},
 	protocolClassifierTLSClient: {},
@@ -168,6 +164,9 @@ var programs = map[string]struct{}{
 	// in manager.go with TracepointName/TracepointCategory fields, and enabled
 	// directly in enabledPrograms() to avoid duplicate probe registration.
 }
+
+// kv5190 is the kernel version that removed the noblock argument from the recvmsg functions
+var kv5190 = kernel.VersionCode(5, 19, 0)
 
 func enableProgram(enabled map[string]struct{}, name string) {
 	if _, ok := programs[name]; ok {
@@ -212,7 +211,6 @@ func ClassificationSupported(c *config.Config) bool {
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
-	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
@@ -222,7 +220,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, selectTCPRecvMsgReturn(kv))
+		enableProgram(enabled, selectTCPRecvMsgReturn(kv, kernelFuncParamCount))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
@@ -261,7 +259,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsg, udpRecvMsgPre5190, kv5190))
-		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, udpRecvMsgReturn)
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
 	}
@@ -271,7 +269,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsg, udpv6RecvMsgPre5190, kv5190))
-		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, udpv6RecvMsgReturn)
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)
 	}
@@ -308,23 +306,35 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 // selectTCPRecvMsgReturn picks the fexit/tcp_recvmsg variant matching the kernel's
 // tcp_recvmsg signature. Since fexit programs read the return value from the slot
 // after the last argument, the declared argument count must match exactly.
-// The removal of addr_len was backported within the 7.0 series (e.g. Ubuntu
-// 7.0.0-28 has it, 7.0.0-38 does not), so it is detected from BTF rather than
-// the kernel version.
-func selectTCPRecvMsgReturn(kv kernel.Version) string {
-	if kv < kernel.VersionCode(5, 19, 0) {
-		return tcpRecvMsgPre5190Return
+//
+// The signature is detected from the kernel BTF parameter count rather than the
+// kernel version, because the removal of addr_len was backported within a
+// version series: upstream v7.0 and Ubuntu 7.0.0-28 still have it, while Ubuntu
+// 7.0.0-38 does not. The kernel version is only used as a fallback when BTF
+// cannot be consulted or reports an unexpected signature.
+//
+// paramCount returns the number of parameters of the named kernel function; it
+// is injectable for tests.
+func selectTCPRecvMsgReturn(kv kernel.Version, paramCount func(name string) (int, error)) string {
+	n, err := paramCount("tcp_recvmsg")
+	if err == nil {
+		switch n {
+		case 6: // tcp_recvmsg(sk, msg, len, nonblock, flags, addr_len), pre-5.19
+			return tcpRecvMsgPre5190Return
+		case 5: // tcp_recvmsg(sk, msg, len, flags, addr_len)
+			return tcpRecvMsgReturn
+		case 4: // tcp_recvmsg(sk, msg, len, flags)
+			return tcpRecvMsgNoAddrLenReturn
+		}
 	}
-	n, err := kernelFuncParamCount("tcp_recvmsg")
+
+	fallback := selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190)
 	if err != nil {
-		log.Warnf("could not determine tcp_recvmsg signature from BTF, assuming addr_len argument is present: %s", err)
-		return tcpRecvMsgReturn
+		log.Warnf("could not determine tcp_recvmsg signature from BTF, falling back to %s based on kernel version: %s", fallback, err)
+	} else {
+		log.Warnf("unexpected tcp_recvmsg parameter count %d in BTF, falling back to %s based on kernel version", n, fallback)
 	}
-	// tcp_recvmsg(sk, msg, len, flags)
-	if n == 4 {
-		return tcpRecvMsgNoAddrLenReturn
-	}
-	return tcpRecvMsgReturn
+	return fallback
 }
 
 // kernelFuncParamCount returns the number of parameters of the named kernel

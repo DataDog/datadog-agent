@@ -399,23 +399,17 @@ int BPF_PROG(udpv6_recvmsg_pre_5_19_0, struct sock *sk, struct msghdr *msg, size
     return handle_udp_recvmsg(sk, flags);
 }
 
+// Only `sk` is declared deliberately: these exit handlers read no arguments and
+// not the return value, so declaring fewer arguments than the kernel function
+// keeps a single program valid across signature changes (removal of `noblock`
+// in 5.19, removal of `addr_len` after 7.0). Don't add arguments back.
 SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit, struct sock *sk) {
     return handle_udp_recvmsg_ret();
 }
 
-SEC("fexit/udp_recvmsg")
-int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk) {
-    return handle_udp_recvmsg_ret();
-}
-
 SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk) {
-    return handle_udp_recvmsg_ret();
-}
-
-SEC("fexit/udpv6_recvmsg")
-int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk) {
     return handle_udp_recvmsg_ret();
 }
 
