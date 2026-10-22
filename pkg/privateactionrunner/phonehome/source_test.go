@@ -20,64 +20,38 @@ import (
 
 type statusService struct {
 	rcservice.Component
-	rc *pbgo.OrgStatusResponse
+	rc     *pbgo.OrgStatusResponse
+	onRead func()
 }
 
-func (s *statusService) GetOrgStatus() *pbgo.OrgStatusResponse { return s.rc }
-
-type scopeService struct {
-	scope  PARScopeObservation
-	wanted bool
+func (s *statusService) GetOrgStatus() *pbgo.OrgStatusResponse {
+	if s.onRead != nil {
+		s.onRead()
+	}
+	return s.rc
 }
 
-func (s *scopeService) GetPARScope() PARScopeObservation { return s.scope }
-func (s *scopeService) SetPARDiscoveryDemand(v bool)     { s.wanted = v }
-
-func TestReaderSeparatesLastRCStatusAndPARScope(t *testing.T) {
+func TestReaderRetainsLastSuccessfulRCStatus(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	cfg := configmock.New(t)
-	for k, v := range map[string]any{"api_key": "key", "site": "datadoghq.com", "dd_url": "https://api.datadoghq.com", "remote_configuration.rc_dd_url": "https://config.datadoghq.com", "remote_configuration.enabled": true} {
+	for k, v := range map[string]interface{}{"api_key": "key", "site": "datadoghq.com", "dd_url": "", "remote_configuration.enabled": true} {
 		cfg.SetInTest(k, v)
 	}
-	now := time.Now()
-	service := &statusService{}
-	scope := &scopeService{}
-	source := NewSource(cfg, service, scope)
-	require.Equal(t, "rc_unchecked", source.Read(now).RCReason)
-	for _, enabled := range []bool{false, true} {
-		for _, authorized := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%t_%t", enabled, authorized), func(t *testing.T) {
-				service.rc = &pbgo.OrgStatusResponse{Enabled: enabled, Authorized: authorized}
-				scope.scope = PARScopeObservation{Reason: "scope_present", CheckedAt: now}
-				p := source.Read(now)
-				require.Equal(t, enabled && authorized, p.RCReady)
-				require.Equal(t, enabled && authorized, p.ScopeReady)
-			})
-		}
-	}
-	p := source.Read(now.Add(time.Hour))
-	require.True(t, p.RCReady, "RC returns its last success, without expiry")
-	require.False(t, p.ScopeReady, "AAA grants still expire")
-	scope.scope = PARScopeObservation{}
-	require.False(t, NewSource(cfg, service, nil).Read(now).ScopeReady)
-	source.Demand(true)
-	require.True(t, scope.wanted)
-	source.Demand(false)
-	require.False(t, scope.wanted)
-	p = source.Read(now)
-	require.True(t, p.RCReady)
-	require.False(t, p.ScopeReady)
-	require.Equal(t, "par_scope_unchecked", p.ScopeReason)
+	rc := &statusService{}
+	source := NewSource(cfg, rc)
+	require.Equal(t, "rc_unchecked", source.Read(time.Now()).Reason)
+	rc.rc = &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}
+	require.True(t, source.Read(time.Now().Add(time.Hour)).Ready, "RC last success has no expiry")
 	for _, setting := range []string{"api_key", "remote_configuration.api_key", "remote_configuration.key", "remote_configuration.rc_dd_url"} {
 		old := cfg.Get(setting)
 		cfg.SetInTest(setting, "different")
-		require.False(t, source.Read(now).RCReady, setting)
+		require.False(t, source.Read(time.Now()).Ready)
 		cfg.SetInTest(setting, old)
 	}
 	cfg.SetInTest("remote_configuration.enabled", false)
-	require.Equal(t, "rc_locally_disabled", source.Read(now).RCReason)
+	require.Equal(t, "rc_locally_disabled", source.Read(time.Now()).Reason)
 	cfg.SetInTest("remote_configuration.enabled", true)
-	require.Equal(t, "rc_service_unavailable", NewSource(cfg, nil, nil).Read(now).RCReason)
+	require.Equal(t, "rc_service_unavailable", NewSource(cfg, nil).Read(time.Now()).Reason)
 }
 
 func TestReaderRCEndpointFQDN(t *testing.T) {
@@ -94,26 +68,25 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 				rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
 				for _, endpoint := range []string{"", "https://config." + site, "https://config." + site + "."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					require.True(t, NewSource(cfg, rc, nil).Read(time.Now()).RCReady, endpoint)
+					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, endpoint)
 				}
 				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					require.Equal(t, "rc_credential_or_endpoint_mismatch", NewSource(cfg, rc, nil).Read(time.Now()).RCReason, endpoint)
+					require.Equal(t, "rc_credential_or_endpoint_mismatch", NewSource(cfg, rc).Read(time.Now()).Reason, endpoint)
 				}
 			})
 		}
 	}
 }
 
-func TestReaderFreezesLoopbackEndpointsEvenForIdentityReuse(t *testing.T) {
+func TestReaderFreezesLoopbackEndpoints(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
 	cfg := configmock.New(t)
-	for k, v := range map[string]any{"api_key": "key", "dd_url": "http://127.0.0.1:1234", "remote_configuration.rc_dd_url": "http://127.0.0.1:5678", "remote_configuration.enabled": true} {
+	for k, v := range map[string]interface{}{"api_key": "key", "dd_url": "http://127.0.0.1:1234", "remote_configuration.rc_dd_url": "http://127.0.0.1:5678", "remote_configuration.enabled": true} {
 		cfg.SetInTest(k, v)
 	}
-	now := time.Now()
-	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}, nil)
-	require.True(t, source.Read(now).RCReady)
+	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}})
+	require.True(t, source.Read(time.Now()).Ready)
 	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
-	require.Equal(t, "rc_credential_or_endpoint_mismatch", source.Read(now).RCReason)
+	require.Equal(t, "rc_credential_or_endpoint_mismatch", source.Read(time.Now()).Reason)
 }

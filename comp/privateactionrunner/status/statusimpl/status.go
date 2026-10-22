@@ -94,17 +94,7 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	parStatus := make(map[string]interface{})
 	if s.phoneHome != nil {
 		if state := s.phoneHome.Status(); state != nil {
-			// Keep presentation separate from the controller's RC diagnostics.
-			parStatus["PhoneHome"] = map[string]interface{}{
-				"State": state.State, "Reason": state.Reason,
-				"ScopeChecked": state.ScopeChecked, "ScopeReady": state.ScopeReady,
-				"EnrollmentOutcome": state.EnrollmentOutcome,
-				"RetrySafe":         state.RetrySafe, "ReconciliationRequired": state.ReconciliationRequired,
-				"HelperRetained":       state.HelperRetained,
-				"EnrollmentRetryAfter": state.EnrollmentRetryAfter,
-				"NextDiscovery":        state.NextDiscovery, "NextEnrollmentAttempt": state.NextEnrollmentAttempt,
-				"NextRetry": state.NextRetry,
-			}
+			parStatus["PhoneHome"] = state
 		}
 	}
 

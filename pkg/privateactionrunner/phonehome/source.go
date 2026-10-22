@@ -14,90 +14,54 @@ import (
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
 
-// Prerequisites is a credential-free, value observation. Injected observations
-// in controller tests are not evidence that real discovery has run.
-type Prerequisites struct {
-	RCReady        bool
-	RCReason       string
-	ScopeReady     bool
-	ScopeReason    string
-	ScopeCheckedAt time.Time
-	NextCheck      time.Time
+type Observation struct {
+	Ready  bool
+	Reason string
 }
 
-// Source owns observations and discovery demand; reading never forces a request.
-type Source interface {
-	Read(time.Time) Prerequisites
-	Demand(bool)
-}
+// Source observes startup prerequisites without performing network requests.
+type Source interface{ Read(time.Time) Observation }
 
 type rcSource struct {
 	cfg                model.Reader
 	service            rcservice.Component
-	scope              ScopeSource
 	key, rcURL, parURL string
 }
 
-// NewSource combines optional RC status and PAR-owned scope without doing HTTP.
-func NewSource(cfg model.Reader, service rcservice.Component, scope ScopeSource) Source {
-	return &rcSource{cfg: cfg, service: service, scope: scope, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
+// NewSource uses only the existing RC accessor. Positive RC is sufficient in this slice.
+func NewSource(cfg model.Reader, service rcservice.Component) Source {
+	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
 }
 
-func (r *rcSource) Demand(wanted bool) {
-	if r.scope != nil {
-		r.scope.SetPARDiscoveryDemand(wanted)
-	}
-}
-
-func (r *rcSource) Read(now time.Time) Prerequisites {
-	p := Prerequisites{RCReason: "rc_service_unavailable", ScopeReason: "par_scope_unchecked"}
+func (r *rcSource) Read(_ time.Time) Observation {
 	if !configutils.IsRemoteConfigEnabled(r.cfg) {
-		p.RCReason = "rc_locally_disabled"
-		return p
+		return Observation{Reason: "rc_locally_disabled"}
 	}
 	if r.service == nil {
-		return p
-	}
-	scope := PARScopeObservation{Reason: "par_scope_unchecked"}
-	if r.scope != nil {
-		scope = r.scope.GetPARScope()
-	}
-	p.ScopeReason, p.ScopeCheckedAt, p.NextCheck = scope.Reason, scope.CheckedAt, scope.NextCheck
-	if p.ScopeReason == "" {
-		p.ScopeReason = "par_scope_unchecked"
-	}
-	rc := r.service.GetOrgStatus()
-	if rc == nil {
-		p.RCReason = "rc_unchecked"
-		return p
+		return Observation{Reason: "rc_service_unavailable"}
 	}
 	key := r.cfg.GetString("api_key")
 	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", "remote_configuration.rc_dd_url")
 	parURL := enrollmentEndpoint(r.cfg)
-	expectedRC := "https://config." + enrollmentSite(r.cfg)
-	mockPair := os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
+	mockPair := os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
 	rcKey := r.cfg.GetString("remote_configuration.api_key")
-	if key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" || (strings.TrimSuffix(rcURL, ".") != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
-		p.RCReason = "rc_credential_or_endpoint_mismatch"
-		return p
+	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
+		(strings.TrimSuffix(rcURL, ".") != "https://config."+enrollmentSite(r.cfg) && !mockPair) || (os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
+		return Observation{Reason: "rc_credential_or_endpoint_mismatch"}
+	}
+	rc := r.service.GetOrgStatus()
+	if rc == nil {
+		return Observation{Reason: "rc_unchecked"}
 	}
 	if !rc.Enabled {
-		p.RCReason = "rc_org_disabled"
-		return p
+		return Observation{Reason: "rc_org_disabled"}
 	}
 	if !rc.Authorized {
-		p.RCReason = "rc_key_unauthorized"
-		return p
+		return Observation{Reason: "rc_key_unauthorized"}
 	}
-	p.RCReady, p.RCReason = true, "rc_ready"
-	p.ScopeReady = scope.Granted(now)
-	if scope.Reason == "scope_present" && !p.ScopeReady {
-		p.ScopeReason = "par_scope_expired"
-	}
-	return p
+	return Observation{Ready: true, Reason: "rc_ready"}
 }
 
 func enrollmentSite(cfg model.Reader) string {
@@ -109,7 +73,7 @@ func enrollmentSite(cfg model.Reader) string {
 }
 
 func enrollmentEndpoint(cfg model.Reader) string {
-	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
+	if os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" {
 		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
 	}
 	return "https://api." + enrollmentSite(cfg)

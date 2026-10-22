@@ -7,8 +7,8 @@ package statusimpl
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -105,59 +105,46 @@ type phoneHomeStub struct{ state *phonehome.State }
 
 func (s phoneHomeStub) Status() *phonehome.State { return s.state }
 
-func TestPhoneHomeStatusExcludesRCDiagnostics(t *testing.T) {
-	cfg := config.NewMock(t)
-	provider := statusProvider{config: cfg, phoneHome: phoneHomeStub{state: &phonehome.State{
-		State: "waiting", Reason: "missing_enrollment_scope", RCReady: true, RCReason: "rc_ready",
-	}}}
-	stats := make(map[string]interface{})
-	require.NoError(t, provider.JSON(false, stats))
-	parStats := stats["privateActionRunnerStatus"].(map[string]interface{})
-	ph := parStats["PhoneHome"].(map[string]interface{})
-	require.Equal(t, "waiting", ph["State"])
-	require.NotContains(t, ph, "RCReady")
-	require.NotContains(t, ph, "RCReason")
-	var text, html bytes.Buffer
-	require.NoError(t, provider.Text(false, &text))
-	require.NoError(t, provider.HTML(false, &html))
-	for _, output := range []string{text.String(), html.String()} {
-		require.Contains(t, output, "waiting (missing_enrollment_scope)")
-		require.NotContains(t, output, "RC prerequisite")
+func TestPhoneHomeStartupStatus(t *testing.T) {
+	for _, state := range []phonehome.State{
+		{State: "waiting", Reason: "missing_enrollment_scope", NextCheck: "2026-10-23T10:01:00Z"},
+		{State: "blocked", Reason: "launch_outcome_unknown_requires_review"},
+		{State: "handed_off", Reason: "supervisor_start_acknowledged"},
+	} {
+		t.Run(state.State, func(t *testing.T) {
+			provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &state}}
+			stats := make(map[string]interface{})
+			require.NoError(t, provider.JSON(false, stats))
+			encoded, err := json.Marshal(stats["privateActionRunnerStatus"].(map[string]interface{})["PhoneHome"])
+			require.NoError(t, err)
+			var fields map[string]interface{}
+			require.NoError(t, json.Unmarshal(encoded, &fields))
+			expected := map[string]interface{}{"state": state.State, "reason": state.Reason}
+			if state.NextCheck != "" {
+				expected["next_check"] = state.NextCheck
+			}
+			require.Equal(t, expected, fields, "no RC or recovery diagnostics in JSON")
+			var text, html bytes.Buffer
+			require.NoError(t, provider.Text(false, &text))
+			require.NoError(t, provider.HTML(false, &html))
+			for _, output := range []string{text.String(), html.String()} {
+				require.Contains(t, output, "Startup gate: "+state.State+" ("+state.Reason+")")
+				require.NotContains(t, output, "RC prerequisite")
+				require.NotContains(t, output, "Enrollment outcome")
+				require.NotContains(t, output, "retention")
+				if state.NextCheck != "" {
+					require.Contains(t, output, "Next gate check: "+state.NextCheck)
+				} else {
+					require.NotContains(t, output, "Next gate check:")
+				}
+			}
+		})
 	}
 	for _, source := range []phonehome.Component{nil, phoneHomeStub{}} {
-		provider.phoneHome = source
-		stats = make(map[string]interface{})
+		provider := statusProvider{config: config.NewMock(t), phoneHome: source}
+		stats := make(map[string]interface{})
 		require.NoError(t, provider.JSON(false, stats))
 		require.NotContains(t, stats["privateActionRunnerStatus"], "PhoneHome")
-	}
-}
-
-func TestPhoneHomeStatusTemplates(t *testing.T) {
-	provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &phonehome.State{
-		State: "waiting", Reason: "missing_enrollment_scope", NextRetry: time.Now().Add(time.Minute).UTC().Format(time.RFC3339),
-	}}}
-	var text, html bytes.Buffer
-	require.NoError(t, provider.Text(false, &text))
-	require.NoError(t, provider.HTML(false, &html))
-	for _, output := range []string{text.String(), html.String()} {
-		require.Contains(t, output, "waiting (missing_enrollment_scope)")
-		require.Contains(t, output, "Next reconciliation:")
-	}
-}
-
-func TestPhoneHomeRecoveryStatusTemplates(t *testing.T) {
-	provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &phonehome.State{
-		State: "blocked", Reason: "quota", ScopeChecked: true, ScopeReady: true, EnrollmentOutcome: "quota", RetrySafe: true, NextDiscovery: "2026-10-06T10:01:00Z", NextEnrollmentAttempt: "2026-10-06T10:05:00Z",
-	}}}
-	var text, html bytes.Buffer
-	require.NoError(t, provider.Text(false, &text))
-	require.NoError(t, provider.HTML(false, &html))
-	for _, output := range []string{text.String(), html.String()} {
-		require.Contains(t, output, "Scope checked: true; scope ready: true")
-		require.Contains(t, output, "Enrollment outcome: quota")
-		require.Contains(t, output, "Safe to retry: true; reconciliation required: false")
-		require.Contains(t, output, "Next discovery: 2026-10-06T10:01:00Z")
-		require.Contains(t, output, "Next enrollment attempt: 2026-10-06T10:05:00Z")
 	}
 }
 

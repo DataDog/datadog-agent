@@ -39,12 +39,12 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic>
+reno new <topic> --no-edit
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic>
+reno --rel-notes-dir <directory> new <topic> --no-edit
 ```
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
@@ -92,20 +92,20 @@ Release note content must follow these rules:
 
 ### Step 4: Verify
 
-Validate local notes and their unique IDs before pushing:
+Run the release note linter to validate:
 
 ```bash
-reno lint
-dda inv linter.releasenote-unique-ids --files=<path-to-note>
+dda inv linter.releasenote
 ```
 
-Review the RST formatting rules above manually; do not treat Reno lint as a
-complete RST/Markdown validator. If linting fails, fix the issues and re-run.
+This checks:
+- Valid YAML structure
+- Only known sections are used
+- No empty items
+- Valid RST formatting (no Markdown patterns)
+- No Markdown links `[text](url)`, headers `#`, or single-backtick code
 
-CI also runs `dda inv linter.releasenote` against the published PR. That task
-requires PR context (`BRANCH_NAME` and `PR_ID`) and otherwise skips its checks;
-it does not validate an unpublished local note. `reno new` does not open an
-editor unless `--edit` is passed; there is no `--no-edit` flag.
+If linting fails, fix the issues and re-run.
 
 ## Section Guidelines
 

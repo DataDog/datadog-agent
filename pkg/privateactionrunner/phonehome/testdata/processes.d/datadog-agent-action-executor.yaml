@@ -10,7 +10,7 @@ args:
   - --ipc-cert-file
   - ${DD_PAR_POC_DIR}/ipc_cert.pem
 env:
-  DD_PAR_PHONE_HOME_POC: "true"
+  DD_PM_SOCKET_PATH: "${DD_PAR_POC_DIR}/procmgr.sock"
 auto_start: false
 restart: never
 stdout: inherit

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,10 +28,8 @@ func TestDiscoveryOptInPlatform(t *testing.T) {
 	cfg.SetInTest("private_action_runner.enabled", true)
 	cfg.SetInTest("dd_url", "https://api.datadoghq.com")
 	cfg.SetInTest("remote_configuration.rc_dd_url", "https://config.datadoghq.com")
-	_, _, _, compatible := parDiscoveryConfig(cfg)
-	require.True(t, compatible)
 	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
-	rc := &statusService{}
+	rc := NewSource(cfg, &statusService{})
 	poller := NewDiscovery(cfg, rc)
 	require.Equal(t, runtime.GOOS == "windows", poller == nil)
 	t.Setenv("DD_PAR_PHONE_HOME_POC", "false")
@@ -51,17 +50,27 @@ func TestDiscoveryRCEndpointFQDN(t *testing.T) {
 				cfg.SetInTest("dd_url", "")
 				cfg.SetInTest("convert_dd_site_fqdn.enabled", fqdn)
 				cfg.SetInTest("private_action_runner.enabled", true)
+				cfg.SetInTest("remote_configuration.enabled", true)
+				rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
 				for _, endpoint := range []string{"", "https://config." + site, "https://config." + site + "."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					_, _, _, compatible := parDiscoveryConfig(cfg)
-					require.True(t, compatible, endpoint)
-					require.Equal(t, runtime.GOOS == "windows", NewDiscovery(cfg, &statusService{}) == nil, endpoint)
+					poller := NewDiscovery(cfg, NewSource(cfg, rc))
+					if runtime.GOOS == "windows" {
+						require.Nil(t, poller)
+						continue
+					}
+					poller.SetPARDiscoveryDemand(true)
+					require.True(t, poller.gate(), endpoint)
 				}
 				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					_, _, _, compatible := parDiscoveryConfig(cfg)
-					require.False(t, compatible, endpoint)
-					require.Nil(t, NewDiscovery(cfg, &statusService{}), endpoint)
+					poller := NewDiscovery(cfg, NewSource(cfg, rc))
+					if runtime.GOOS == "windows" {
+						require.Nil(t, poller)
+						continue
+					}
+					poller.SetPARDiscoveryDemand(true)
+					require.False(t, poller.gate(), endpoint)
 				}
 			})
 		}
