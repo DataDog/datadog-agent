@@ -71,7 +71,7 @@ func (f *fakeIPCClient) NewIPCEndpoint(_ string) (ipc.Endpoint, error) {
 // showVersion is a command block that renders to "show version".
 var showVersion = []any{map[string]any{"type": "show version"}}
 
-func makeRunCommandTask(deviceID string, command any, credentialSet string) *types.Task {
+func makeRunIOSCommandsTask(deviceID string, command any, credentialSet string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{
@@ -83,20 +83,20 @@ func makeRunCommandTask(deviceID string, command any, credentialSet string) *typ
 	return task
 }
 
-func TestRunCommandHandler_Success(t *testing.T) {
-	resp := ncmtypes.RunCommandResponse{
+func TestRunIOSCommandsHandler_Success(t *testing.T) {
+	resp := ncmtypes.RunIOSCommandsResponse{
 		CommandResult: &ncmtypes.CommandResult{Output: "Cisco Device Version 1.0"},
 	}
 	body, err := json.Marshal(resp)
 	require.NoError(t, err)
 
 	client := &fakeIPCClient{postResp: body}
-	handler := NewRunCommandHandler(client)
+	handler := NewRunIOSCommandsHandler(client)
 
-	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", showVersion, "readonly"), nil)
+	out, err := handler.Run(t.Context(), makeRunIOSCommandsTask("default:10.0.0.1", showVersion, "readonly"), nil)
 	require.NoError(t, err)
 
-	result, ok := out.(RunCommandOutputs)
+	result, ok := out.(RunIOSCommandsOutputs)
 	require.True(t, ok)
 	assert.True(t, result.Success)
 	assert.Empty(t, result.ErrorCode)
@@ -106,8 +106,8 @@ func TestRunCommandHandler_Success(t *testing.T) {
 	assert.NotNil(t, result.FinishedAt)
 }
 
-func TestRunCommandHandler_DeviceError(t *testing.T) {
-	resp := ncmtypes.RunCommandResponse{
+func TestRunIOSCommandsHandler_DeviceError(t *testing.T) {
+	resp := ncmtypes.RunIOSCommandsResponse{
 		ErrorCode: string(ncmtypes.ErrNoSuchDevice),
 		ErrorMsg:  `unknown device: "default:10.0.0.99"`,
 	}
@@ -115,12 +115,12 @@ func TestRunCommandHandler_DeviceError(t *testing.T) {
 	require.NoError(t, err)
 
 	client := &fakeIPCClient{postResp: body}
-	handler := NewRunCommandHandler(client)
+	handler := NewRunIOSCommandsHandler(client)
 
-	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.99", showVersion, "readonly"), nil)
+	out, err := handler.Run(t.Context(), makeRunIOSCommandsTask("default:10.0.0.99", showVersion, "readonly"), nil)
 	require.NoError(t, err)
 
-	result, ok := out.(RunCommandOutputs)
+	result, ok := out.(RunIOSCommandsOutputs)
 	require.True(t, ok)
 	assert.False(t, result.Success)
 	assert.Equal(t, string(ncmtypes.ErrNoSuchDevice), result.ErrorCode)
@@ -128,11 +128,11 @@ func TestRunCommandHandler_DeviceError(t *testing.T) {
 	assert.Nil(t, result.CommandResult)
 }
 
-func TestRunCommandHandler_PassesCommandThrough(t *testing.T) {
-	body, err := json.Marshal(ncmtypes.RunCommandResponse{CommandResult: &ncmtypes.CommandResult{}})
+func TestRunIOSCommandsHandler_PassesCommandThrough(t *testing.T) {
+	body, err := json.Marshal(ncmtypes.RunIOSCommandsResponse{CommandResult: &ncmtypes.CommandResult{}})
 	require.NoError(t, err)
 	client := &fakeIPCClient{postResp: body}
-	handler := NewRunCommandHandler(client)
+	handler := NewRunIOSCommandsHandler(client)
 
 	// The PAR doesn't validate the command, so even an invalid block is
 	// forwarded unchanged for the agent to reject.
@@ -140,10 +140,10 @@ func TestRunCommandHandler_PassesCommandThrough(t *testing.T) {
 		map[string]any{"type": "hostname", "hostname": "r1"},
 		map[string]any{"type": "bogus", "extra": []any{1.0, "x"}},
 	}
-	_, err = handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", command, "admin"), nil)
+	_, err = handler.Run(t.Context(), makeRunIOSCommandsTask("default:10.0.0.1", command, "admin"), nil)
 	require.NoError(t, err)
 
-	assert.True(t, strings.HasSuffix(client.postURL, "/agent/ncm/run-command"), client.postURL)
+	assert.True(t, strings.HasSuffix(client.postURL, "/agent/ncm/run-ios-commands"), client.postURL)
 	assert.JSONEq(t, `{
 		"device_id": "default:10.0.0.1",
 		"command": [{"type":"hostname","hostname":"r1"},{"type":"bogus","extra":[1,"x"]}],
@@ -151,14 +151,14 @@ func TestRunCommandHandler_PassesCommandThrough(t *testing.T) {
 	}`, string(client.postBody))
 }
 
-func TestRunCommandHandler_MissingCommand(t *testing.T) {
+func TestRunIOSCommandsHandler_MissingCommand(t *testing.T) {
 	for name, inputs := range map[string]map[string]any{
 		"absent": {"deviceID": "default:10.0.0.1", "credentialSet": "readonly"},
 		"null":   {"deviceID": "default:10.0.0.1", "command": nil, "credentialSet": "readonly"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			client := &fakeIPCClient{}
-			handler := NewRunCommandHandler(client)
+			handler := NewRunIOSCommandsHandler(client)
 			task := &types.Task{}
 			task.Data.Attributes = &types.Attributes{Inputs: inputs}
 
@@ -169,9 +169,9 @@ func TestRunCommandHandler_MissingCommand(t *testing.T) {
 	}
 }
 
-func TestRunCommandHandler_NoIPCClient(t *testing.T) {
-	handler := NewRunCommandHandler(nil)
+func TestRunIOSCommandsHandler_NoIPCClient(t *testing.T) {
+	handler := NewRunIOSCommandsHandler(nil)
 
-	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", showVersion, "readonly"), nil)
+	_, err := handler.Run(t.Context(), makeRunIOSCommandsTask("default:10.0.0.1", showVersion, "readonly"), nil)
 	assert.ErrorContains(t, err, "IPC client is not available")
 }

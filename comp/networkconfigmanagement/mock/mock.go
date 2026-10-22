@@ -37,8 +37,8 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 	panic("unimplemented")
 }
 
-// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RunCommandEndpointHandler() http.HandlerFunc {
+// RunIOSCommandsEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunIOSCommandsEndpointHandler() http.HandlerFunc {
 	panic("unimplemented")
 }
 
@@ -61,8 +61,8 @@ func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ 
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
-// RunCommand implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _ string, _ ioscmd.CommandBlock, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
+// RunIOSCommands implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunIOSCommands(_ context.Context, _ string, _ ioscmd.CommandBlock, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 

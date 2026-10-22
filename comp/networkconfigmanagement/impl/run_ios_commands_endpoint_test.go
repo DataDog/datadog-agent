@@ -21,33 +21,33 @@ import (
 // showVersion is a command block that renders to "show version".
 const showVersion = `[{"type":"show version"}]`
 
-func doRunCommandRequest(t *testing.T, comp *networkDeviceConfigImpl, req RunCommandRequest) (*httptest.ResponseRecorder, types.RunCommandResponse) {
+func doRunIOSCommandsRequest(t *testing.T, comp *networkDeviceConfigImpl, req RunIOSCommandsRequest) (*httptest.ResponseRecorder, types.RunIOSCommandsResponse) {
 	t.Helper()
 
 	body, err := json.Marshal(req)
 	require.NoError(t, err)
-	return doRunCommandRequestBody(t, comp, body)
+	return doRunIOSCommandsRequestBody(t, comp, body)
 }
 
-func doRunCommandRequestBody(t *testing.T, comp *networkDeviceConfigImpl, body []byte) (*httptest.ResponseRecorder, types.RunCommandResponse) {
+func doRunIOSCommandsRequestBody(t *testing.T, comp *networkDeviceConfigImpl, body []byte) (*httptest.ResponseRecorder, types.RunIOSCommandsResponse) {
 	t.Helper()
 
-	r := httptest.NewRequest(http.MethodPost, "/agent/ncm/run-command", bytes.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, "/agent/ncm/run-ios-commands", bytes.NewReader(body))
 	w := httptest.NewRecorder()
-	comp.RunCommandEndpointHandler()(w, r)
+	comp.RunIOSCommandsEndpointHandler()(w, r)
 
-	var resp types.RunCommandResponse
+	var resp types.RunIOSCommandsResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	return w, resp
 }
 
-func TestRunCommandEndpointHandler_Success(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_Success(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
 
-	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
 		DeviceID:      device.DeviceID(),
 		Command:       json.RawMessage(showVersion),
 		CredentialSet: "readonly",
@@ -61,13 +61,13 @@ func TestRunCommandEndpointHandler_Success(t *testing.T) {
 	}
 }
 
-func TestRunCommandEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
 
-	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
 		DeviceID:      device.DeviceID(),
 		Command:       json.RawMessage(showVersion),
 		CredentialSet: "rollback",
@@ -79,10 +79,10 @@ func TestRunCommandEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
 	assert.NotEmpty(t, resp.ErrorMsg)
 }
 
-func TestRunCommandEndpointHandler_UnknownDevice(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_UnknownDevice(t *testing.T) {
 	comp, _ := createTestComponent(t)
 
-	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
 		DeviceID:      "default:10.0.0.99",
 		Command:       json.RawMessage(showVersion),
 		CredentialSet: "readonly",
@@ -94,12 +94,12 @@ func TestRunCommandEndpointHandler_UnknownDevice(t *testing.T) {
 	assert.NotEmpty(t, resp.ErrorMsg)
 }
 
-func TestRunCommandEndpointHandler_UnknownCredentialSet(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_UnknownCredentialSet(t *testing.T) {
 	comp, _ := createTestComponent(t)
 	device := createTestDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 
-	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
 		DeviceID:      device.DeviceID(),
 		Command:       json.RawMessage(showVersion),
 		CredentialSet: "superuser",
@@ -111,24 +111,24 @@ func TestRunCommandEndpointHandler_UnknownCredentialSet(t *testing.T) {
 	assert.NotEmpty(t, resp.ErrorMsg)
 }
 
-func TestRunCommandEndpointHandler_BadRequestBody(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_BadRequestBody(t *testing.T) {
 	comp, _ := createTestComponent(t)
 
-	r := httptest.NewRequest(http.MethodPost, "/agent/ncm/run-command", bytes.NewReader([]byte("not json")))
+	r := httptest.NewRequest(http.MethodPost, "/agent/ncm/run-ios-commands", bytes.NewReader([]byte("not json")))
 	w := httptest.NewRecorder()
-	comp.RunCommandEndpointHandler()(w, r)
+	comp.RunIOSCommandsEndpointHandler()(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRunCommandEndpointHandler_MultiLineBlock(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_MultiLineBlock(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	rendered := "configure terminal\nhostname r1\nend\nshow version"
 	reqs.connFactory.conn.OutputMap[rendered] = ok(versionOutput)
 
-	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
 		DeviceID:      device.DeviceID(),
 		Command:       json.RawMessage(`[{"type":"hostname","hostname":"r1"},{"type":"show version"}]`),
 		CredentialSet: "admin",
@@ -143,7 +143,7 @@ func TestRunCommandEndpointHandler_MultiLineBlock(t *testing.T) {
 	}
 }
 
-func TestRunCommandEndpointHandler_InvalidCommand(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_InvalidCommand(t *testing.T) {
 	for name, command := range map[string]string{
 		"plain_string":   `"show version"`,
 		"object":         `{"type":"show version"}`,
@@ -158,7 +158,7 @@ func TestRunCommandEndpointHandler_InvalidCommand(t *testing.T) {
 			device := createTestDevice()
 			require.NoError(t, comp.RegisterDevice(device))
 
-			w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+			w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
 				DeviceID:      device.DeviceID(),
 				Command:       json.RawMessage(command),
 				CredentialSet: "admin",
@@ -173,7 +173,7 @@ func TestRunCommandEndpointHandler_InvalidCommand(t *testing.T) {
 	}
 }
 
-func TestRunCommandEndpointHandler_MissingCommand(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_MissingCommand(t *testing.T) {
 	for name, body := range map[string]string{
 		"absent": `{"device_id":"default:10.0.0.1","credential_set":"readonly"}`,
 		"null":   `{"device_id":"default:10.0.0.1","command":null,"credential_set":"readonly"}`,
@@ -183,7 +183,7 @@ func TestRunCommandEndpointHandler_MissingCommand(t *testing.T) {
 			device := createTestDevice()
 			require.NoError(t, comp.RegisterDevice(device))
 
-			w, resp := doRunCommandRequestBody(t, comp, []byte(body))
+			w, resp := doRunIOSCommandsRequestBody(t, comp, []byte(body))
 
 			assert.Equal(t, http.StatusOK, w.Code)
 			assert.Nil(t, resp.CommandResult)

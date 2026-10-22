@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
-// RunCommand renders a block of IOS commands, sends it to a device over one of
+// RunIOSCommands renders a block of IOS commands, sends it to a device over one of
 // its connections (e.g. SSH credentials), and returns the response as a
 // CommandResult.
-func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID string, commands ioscmd.CommandBlock, credentialSet ncmconfig.CredentialSet) (*types.CommandResult, types.TypedError) {
+func (n *networkDeviceConfigImpl) RunIOSCommands(ctx context.Context, deviceID string, commands ioscmd.CommandBlock, credentialSet ncmconfig.CredentialSet) (*types.CommandResult, types.TypedError) {
 	if credentialSet == ncmconfig.CredentialSetRollback {
 		return nil, types.WrapErrorf(types.ErrCannotConnect, "invalid credential set specified: %q", credentialSet)
 	}

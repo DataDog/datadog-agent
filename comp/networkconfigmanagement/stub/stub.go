@@ -55,7 +55,7 @@ func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) err
 func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
 	return nil, s.GetError()
 }
-func (s *NCMStub) RunCommand(_ context.Context, _ string, _ ioscmd.CommandBlock, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
+func (s *NCMStub) RunIOSCommands(_ context.Context, _ string, _ ioscmd.CommandBlock, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
 	return nil, s.GetError()
 }
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration) {}
@@ -72,7 +72,7 @@ func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
 	return s.GetConfigEndpointHandler()
 }
 
-// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
-func (s *NCMStub) RunCommandEndpointHandler() http.HandlerFunc {
+// RunIOSCommandsEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) RunIOSCommandsEndpointHandler() http.HandlerFunc {
 	return s.GetConfigEndpointHandler()
 }

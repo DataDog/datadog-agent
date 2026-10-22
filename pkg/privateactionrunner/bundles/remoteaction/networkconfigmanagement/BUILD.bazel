@@ -6,7 +6,7 @@ go_library(
     srcs = [
         "entrypoint.go",
         "rollback_config.go",
-        "run_command.go",
+        "run_ios_commands.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
     visibility = ["//visibility:public"],
@@ -24,7 +24,7 @@ go_library(
 
 dd_agent_go_test(
     name = "networkconfigmanagement_test",
-    srcs = ["run_command_test.go"],
+    srcs = ["run_ios_commands_test.go"],
     embed = [":networkconfigmanagement"],
     deps = [
         "//comp/core/ipc/def",
