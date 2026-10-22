@@ -38,8 +38,14 @@ const (
 	IssueType = "read-only_filesystem_error"
 
 	// IssueID is the issue ID prefix used when reporting this issue.
-	// Check appends the reporting agent's resource_id: IssueID + ":" + resource_id.
+	// Check appends the reporting agent's role and resource_id:
+	// IssueID + ":" + role + ":" + resource_id.
 	IssueID = "rofs-permissions"
+
+	// roleAgent and roleClusterChecksRunner tell apart agents that share a
+	// resource_id but run from different pod specs, so read different paths.
+	roleAgent               = "agent"
+	roleClusterChecksRunner = "clc-runner"
 )
 
 type rofsPermissionsModule struct {
@@ -86,8 +92,9 @@ func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHe
 	}
 }
 
-// instanceIssueID scopes IssueID to the resource_id the outbound report
-// carries, so agents on different resources don't all report the same id.
+// instanceIssueID scopes IssueID to this agent's role and to the resource_id
+// the outbound report carries, so agents on different resources, or a node
+// agent and a cluster checks runner on the same one, don't report the same id.
 // The hostname is resolved the same way egress resolves it.
 func (r *rofsPermissionsModule) instanceIssueID() string {
 	var hostname string
@@ -97,5 +104,12 @@ func (r *rofsPermissionsModule) instanceIssueID() string {
 		}
 	}
 	_, resourceID := issues.ResourceIdentity(flavor.GetFlavor(), r.selfIdent, hostname)
-	return IssueID + ":" + resourceID
+	return IssueID + ":" + r.role() + ":" + resourceID
+}
+
+func (r *rofsPermissionsModule) role() string {
+	if r.conf.GetBool("clc_runner_enabled") {
+		return roleClusterChecksRunner
+	}
+	return roleAgent
 }

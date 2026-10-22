@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "rofspermissions",
@@ -22,5 +23,18 @@ go_library(
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+dd_agent_go_test(
+    name = "rofspermissions_test",
+    srcs = ["module_test.go"],
+    embed = [":rofspermissions"],
+    gotags_sets = [["docker"]],
+    include_default = False,
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "@com_github_stretchr_testify//assert",
     ],
 )
