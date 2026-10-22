@@ -13,7 +13,13 @@ cancel-prev-pipelines:
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: on_success
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - $CI_PROJECT_DIR/tools/ci/install_authanywhere.sh
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_gitlab_token.sh) || exit $?; export GITLAB_TOKEN
     - inv pipeline.auto-cancel-previous-pipelines
