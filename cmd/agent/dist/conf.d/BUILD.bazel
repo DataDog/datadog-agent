@@ -2,7 +2,7 @@
 
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
 load("//cmd/agent/dist:core_checks.bzl", "AGENT_CORECHECKS", "IOT_AGENT_CORECHECKS", "MACOS_CORECHECKS", "WINDOWS_CORECHECKS")
-load("//packages/agent:defs.bzl", "conf_dir")
+load("//packages/rules:agent_path.bzl", "conf_dir")
 
 pkg_files(
     name = "base_checks_files",

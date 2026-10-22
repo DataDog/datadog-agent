@@ -13,7 +13,7 @@ load(
     "pkg_mkdirs",
 )
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
-load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR", "etc_dir")
+load("//packages/rules:agent_path.bzl", "ETC_DIR_SELECTOR", "etc_dir")
 
 _USE_RELATIVE_RPATHS = select({
     "@platforms//os:macos": True,
