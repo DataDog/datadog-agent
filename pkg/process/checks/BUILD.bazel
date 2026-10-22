@@ -215,6 +215,7 @@ dd_agent_go_test(
         "interval_test.go",
         "net_darwin_test.go",
         "net_linux_test.go",
+        "net_portmap_test.go",
         "net_test.go",
         "net_windows_test.go",
         "process_clock_test_helpers_test.go",
