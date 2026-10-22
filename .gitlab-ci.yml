@@ -172,7 +172,13 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v123880596-84c4c277
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v123880596-84c4c277
-  DATADOG_AGENT_BUILDERS: v76124889-5d86b9fb
+  # gitlab_agent_deploy image tag. The previously-pinned v76124889-5d86b9fb was
+  # garbage-collected from the registry, breaking every deploy/kitchen job at
+  # image pull. Repointed to a surviving tag (the one `main` currently uses via
+  # CI_IMAGE_GITLAB_AGENT_DEPLOY) instead of switching images: the image still
+  # ships deb-s3, /opt/rpm-s3 and a gpg compatible with gpg-vault + the signing
+  # keyring, which the alternative deb_x64 image does not.
+  DATADOG_AGENT_BUILDERS: v146173211-69a1638d
   DATADOG_AGENT_PUBLIC_IMAGES_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_PUBLIC_IMAGES_BUILDIMAGES: v125593286-e8c92987
 
