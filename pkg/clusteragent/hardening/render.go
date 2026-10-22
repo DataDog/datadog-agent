@@ -15,11 +15,12 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-// runtimeDefaultCapabilities is the set containerd, CRI-O and Docker grant a
-// container that declares no capabilities.
-var runtimeDefaultCapabilities = []string{
-	"AUDIT_WRITE", "CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "MKNOD",
-	"NET_BIND_SERVICE", "NET_RAW", "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT",
+// implicitCapabilities is the set every supported runtime (containerd, CRI-O,
+// Docker) grants a container that declares none; the intersection, so a
+// request can never add one a runtime would not have granted.
+var implicitCapabilities = []string{
+	"CHOWN", "DAC_OVERRIDE", "FSETID", "FOWNER", "SETGID", "SETUID", "SETPCAP",
+	"NET_BIND_SERVICE", "KILL",
 }
 
 // FindContainer returns the container named name in spec.Containers, or nil.
@@ -78,9 +79,12 @@ func Render(req *Request, spec *corev1.PodSpec) (*corev1.SecurityContext, string
 }
 
 // isGranted reports whether a container declaring caps runs with capability
-// name, following the runtimes' rules: start from the default set (every
-// capability if add lists ALL, none if drop lists ALL), then add the add list,
-// then remove the drop list.
+// name. The runtimes apply add:[ALL] (every capability), then drop:[ALL]
+// (nothing), then the individual adds, then the individual drops — so a
+// specific entry always wins over ALL, and drop always wins over add. Checked
+// in that order: a specific drop loses the capability; a specific add (or
+// ALL) grants it; drop:[ALL] with no matching specific add then denies it;
+// otherwise the container gets the implicit default set.
 func isGranted(caps *corev1.Capabilities, name string) bool {
 	var add, drop []corev1.Capability
 	if caps != nil {
@@ -89,12 +93,14 @@ func isGranted(caps *corev1.Capabilities, name string) bool {
 	switch {
 	case hasCapability(drop, name):
 		return false
-	case hasCapability(add, name), hasCapability(add, "ALL"):
+	case hasCapability(add, name):
 		return true
 	case hasCapability(drop, "ALL"):
 		return false
+	case hasCapability(add, "ALL"):
+		return true
 	}
-	return slices.Contains(runtimeDefaultCapabilities, name)
+	return slices.Contains(implicitCapabilities, name)
 }
 
 func hasCapability(list []corev1.Capability, name string) bool {
