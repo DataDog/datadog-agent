@@ -352,8 +352,6 @@ func TestDemuxWithoutAutomaticFlushKeepsDeferredCommitForReaders(t *testing.T) {
 	agg := demux.Aggregator()
 
 	require.Eventually(t, func() bool { return agg.deferredCommitCount.Load() == 1 }, 10*time.Second, time.Millisecond)
-	time.Sleep(100 * time.Millisecond)
-	require.EqualValues(t, 1, agg.deferredCommitCount.Load(), "no flush may consume the deferred run")
 
 	series, _ := agg.GetSeriesAndSketches(time.Now())
 	points := deferredTestPoints(t, series)
@@ -369,4 +367,13 @@ func TestDemuxStopFlushesPendingDeferredCommit(t *testing.T) {
 	demux.Stop()
 
 	assert.Zero(t, agg.deferredCommitCount.Load(), "the final flush applies the deferred run")
+}
+
+func TestDemuxServesFlushRequestsOnlyWhenFlushingIsAutomatic(t *testing.T) {
+	opts := demuxTestOptions()
+	demux := createDemuxDeps(t, opts, eventplatform.NewDefaultParams()).Demultiplexer
+	defer demux.Stop()
+
+	assert.Nil(t, demux.flushRequests(false))
+	assert.Equal(t, (<-chan struct{})(demux.Aggregator().flushRequests), demux.flushRequests(true))
 }

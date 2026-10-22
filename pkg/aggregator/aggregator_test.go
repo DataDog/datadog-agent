@@ -895,20 +895,30 @@ func TestDeferredCommitStreamsRunIntoNextFlush(t *testing.T) {
 
 	// The next run arrives before the flush: it must not leak into the first run.
 	agg.handleCheckItem(deferredTestGauge(id, "a", 10))
+	before := timeNowNano()
 	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	after := timeNowNano()
 
-	points := deferredTestPoints(t, deferredTestFlush(agg))
-	assert.Equal(t, map[string]metrics.Point{
-		"context:a": {Ts: firstCommit, Value: 1},
-		"context:b": {Ts: firstCommit, Value: 2},
-		"context:c": {Ts: firstCommit, Value: 3},
-	}, points)
-
-	require.Contains(t, agg.deferredCommits, id, "the queued commit of the next run is deferred in turn")
-	secondCommit := agg.deferredCommits[id].timestamp
-	assert.Greater(t, secondCommit, firstCommit)
-	points = deferredTestPoints(t, deferredTestFlush(agg))
-	assert.Equal(t, map[string]metrics.Point{"context:a": {Ts: secondCommit, Value: 10}}, points)
+	// Both completed runs leave in this flush, each with its own commit time.
+	var points []metrics.Point
+	byContext := map[string][]metrics.Point{}
+	for _, s := range deferredTestFlush(agg) {
+		if s.Name == "test.deferred" {
+			byContext[s.Tags.Join(",")] = append(byContext[s.Tags.Join(",")], s.Points...)
+			points = append(points, s.Points...)
+		}
+	}
+	require.Len(t, points, 4)
+	assert.Equal(t, []metrics.Point{{Ts: firstCommit, Value: 2}}, byContext["context:b"])
+	assert.Equal(t, []metrics.Point{{Ts: firstCommit, Value: 3}}, byContext["context:c"])
+	require.Len(t, byContext["context:a"], 2)
+	runs := map[float64]metrics.Point{}
+	for _, p := range byContext["context:a"] {
+		runs[p.Value] = p
+	}
+	assert.Equal(t, firstCommit, runs[1].Ts)
+	assert.GreaterOrEqual(t, runs[10].Ts, before)
+	assert.LessOrEqual(t, runs[10].Ts, after)
 	assert.Empty(t, agg.deferredCommits)
 	assert.Zero(t, agg.deferredCommitCount.Load())
 }
@@ -1026,4 +1036,52 @@ func TestDeferredCommitBeforeDeregistration(t *testing.T) {
 	assert.Len(t, points, 2, "the deferred run is flushed before the sampler is released")
 	assert.NotContains(t, agg.checkSamplers, id)
 	assert.Zero(t, agg.deferredCommitCount.Load())
+}
+
+func TestDeferredCommitsDrainRunsQueuedBehindThem(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	agg.handleCheckItem(deferredTestGauge(id, "a", 1))
+	agg.handleCheckItem(deferredTestGauge(id, "b", 2))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	firstCommit := agg.deferredCommits[id].timestamp
+
+	// A second complete run, queued behind the first.
+	agg.handleCheckItem(deferredTestGauge(id, "c", 3))
+	before := timeNowNano()
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	after := timeNowNano()
+
+	agg.applyDeferredCommits(nil)
+
+	assert.Empty(t, agg.deferredCommits, "the replayed commit must be applied too")
+	assert.Zero(t, agg.deferredCommitCount.Load())
+	points := deferredTestPoints(t, agg.checkSamplers[id].series)
+	require.Len(t, points, 3)
+	assert.Equal(t, firstCommit, points["context:a"].Ts)
+	assert.GreaterOrEqual(t, points["context:c"].Ts, before, "a queued commit keeps the time it arrived")
+	assert.LessOrEqual(t, points["context:c"].Ts, after, "a queued commit keeps the time it arrived")
+}
+
+func TestDeferredCommitOverflowKeepsItemBehindReplayedCommit(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	agg.handleCheckItem(deferredTestGauge(id, "a", 1))
+	agg.handleCheckItem(deferredTestGauge(id, "b", 2))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+
+	// Fill the queue: an (empty) second run's commit, then a third run's samples.
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	for i := 1; i < maxDeferredItems; i++ {
+		agg.handleCheckItem(deferredTestGauge(id, "c", float64(i)))
+	}
+	// This overflows; replay defers the second run's commit, so the item must
+	// stay behind it, in the third run.
+	agg.handleCheckItem(deferredTestGauge(id, "d", 99))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	agg.applyDeferredCommits(nil)
+
+	points := deferredTestPoints(t, agg.checkSamplers[id].series)
+	require.Len(t, points, 4)
+	assert.Equal(t, points["context:c"].Ts, points["context:d"].Ts, "both belong to the third run")
+	assert.NotEqual(t, points["context:a"].Ts, points["context:d"].Ts)
+	assert.Equal(t, 99.0, points["context:d"].Value)
 }

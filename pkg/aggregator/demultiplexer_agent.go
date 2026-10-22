@@ -416,12 +416,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 	} else {
 		d.log.Debug("flushInterval set to 0: will never flush automatically")
 	}
-	// Serve the aggregator's flush requests only when flushing is automatic:
-	// with it disabled (e.g. `agent check`), output is read from the samplers.
-	var flushRequests <-chan struct{}
-	if d.aggregator != nil && flushTicker != nil {
-		flushRequests = d.aggregator.flushRequests
-	}
+	flushRequests := d.flushRequests(flushTicker != nil)
 
 	for {
 		select {
@@ -451,6 +446,16 @@ func (d *AgentDemultiplexer) flushLoop() {
 			d.flushToSerializer(time.Now(), false, false)
 		}
 	}
+}
+
+// flushRequests returns the aggregator's flush requests to serve. They are
+// only served when flushing is automatic: with it disabled (e.g. `agent
+// check`), output is read from the samplers instead.
+func (d *AgentDemultiplexer) flushRequests(automatic bool) <-chan struct{} {
+	if d.aggregator == nil || !automatic {
+		return nil
+	}
+	return d.aggregator.flushRequests
 }
 
 // Stop performs a final flush, then releases resources. The instance should

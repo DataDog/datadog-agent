@@ -493,8 +493,12 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
+			commitTime := ss.commitTime
+			if commitTime == 0 {
+				commitTime = timeNowNano()
+			}
 			if checkSampler.contextResolver.length() >= deferredCommitMinContexts {
-				agg.deferredCommits[ss.id] = &deferredCommit{timestamp: timeNowNano()}
+				agg.deferredCommits[ss.id] = &deferredCommit{timestamp: commitTime}
 				agg.deferredCommitCount.Add(1)
 				// Send the run's output now rather than at the next tick, so that
 				// it is not left for a time-bounded final flush.
@@ -503,7 +507,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 				default:
 				}
 			} else {
-				checkSampler.commit(timeNowNano(), &agg.flushFilterList)
+				checkSampler.commit(commitTime, &agg.flushFilterList)
 			}
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
@@ -858,14 +862,29 @@ func (agg *BufferedAggregator) handleCheckItem(item senderItem) {
 		if id, ok := checkItemID(item); ok {
 			if deferred, ok := agg.deferredCommits[id]; ok {
 				if len(deferred.queued) < maxDeferredItems {
-					deferred.queued = append(deferred.queued, item)
+					deferred.queued = append(deferred.queued, withCommitTime(item))
 					return
 				}
+				// Replaying the queue may defer another commit for this sampler,
+				// so the item must go through the deferral check again.
 				agg.applyDeferredCommit(id, nil)
+				agg.handleCheckItem(item)
+				return
 			}
 		}
 	}
 	item.handle(agg)
+}
+
+// withCommitTime records when a commit reached the aggregator, so that a
+// queued commit keeps that time once it is replayed.
+func withCommitTime(item senderItem) senderItem {
+	if s, ok := item.(*senderMetricSample); ok && s.commit && s.commitTime == 0 {
+		queued := *s
+		queued.commitTime = timeNowNano()
+		return &queued
+	}
+	return item
 }
 
 func checkItemID(item senderItem) (checkid.ID, bool) {
@@ -882,9 +901,13 @@ func checkItemID(item senderItem) (checkid.ID, bool) {
 	return "", false
 }
 
+// applyDeferredCommits applies every deferred commit, including commits that
+// replayed items defer again, so that no completed run is left behind.
 func (agg *BufferedAggregator) applyDeferredCommits(sink metrics.SerieSink) {
-	for id := range agg.deferredCommits {
-		agg.applyDeferredCommit(id, sink)
+	for len(agg.deferredCommits) > 0 {
+		for id := range agg.deferredCommits {
+			agg.applyDeferredCommit(id, sink)
+		}
 	}
 }
 

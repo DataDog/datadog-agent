@@ -64,6 +64,8 @@ type senderMetricSample struct {
 	id           checkid.ID
 	metricSample *metrics.MetricSample
 	commit       bool
+	// commitTime is when a queued commit reached the aggregator; zero means now.
+	commitTime float64
 }
 
 func (s *senderMetricSample) handle(agg *BufferedAggregator) {
@@ -166,7 +168,7 @@ func (s *checkSender) SetNoIndex(noIndex bool) {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.itemsOut <- &senderMetricSample{id: s.id, metricSample: &metrics.MetricSample{}, commit: true}
 	s.cyclemetricStats()
 }
 
@@ -186,7 +188,7 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.itemsOut <- &senderMetricSample{s.id, sample, false}
+	s.itemsOut <- &senderMetricSample{id: s.id, metricSample: sample}
 }
 
 func (s *checkSender) sendMetricSample(
@@ -228,7 +230,7 @@ func (s *checkSender) sendMetricSample(
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
+	s.itemsOut <- &senderMetricSample{id: s.id, metricSample: metricSample}
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
