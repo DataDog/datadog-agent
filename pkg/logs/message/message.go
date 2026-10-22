@@ -282,8 +282,7 @@ const (
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
 type ServerlessExtra struct {
-	// Optional. Must be UTC. If not provided, time.Now().UTC() will be used
-	// Used in the Serverless Agent
+	// Optional source timestamp in UTC, supplied by the Serverless Agent.
 	Timestamp time.Time
 }
 
@@ -382,6 +381,22 @@ func (m *Message) GetHostname() string {
 // GetTimestampUnixMilli returns the message ingestion timestamp in Unix milliseconds.
 func (m *Message) GetTimestampUnixMilli() int64 {
 	return m.IngestionTimestamp / 1000000
+}
+
+// GetEventTimestamp returns the source timestamp, falling back to ingestion time.
+// Serverless timestamps take precedence over valid, opted-in container timestamps.
+// It never reads the clock or changes IngestionTimestamp, so transports can resolve
+// the same timestamp independently without changing latency accounting.
+func (m *Message) GetEventTimestamp(useContainerTimestamp bool) time.Time {
+	if !m.ServerlessExtra.Timestamp.IsZero() {
+		return m.ServerlessExtra.Timestamp
+	}
+	if useContainerTimestamp && m.ParsingExtra.Timestamp != "" {
+		if ts, err := time.Parse(time.RFC3339Nano, m.ParsingExtra.Timestamp); err == nil {
+			return ts
+		}
+	}
+	return time.Unix(0, m.IngestionTimestamp)
 }
 
 // StructuredContent stores enough information from a tailer to manipulate a

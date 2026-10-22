@@ -25,6 +25,17 @@ second; it does not virtualize connection timers, CPU scheduling, retries,
 backpressure or message timestamps. Record the actual settings and validate
 complete faithful delivery before comparing bytes with a 1x reference.
 
+## Log timestamps
+
+HTTP JSON and Foldspace use the same event timestamp: an explicit serverless
+timestamp takes precedence, followed by a valid RFC3339Nano container timestamp
+when `logs_config.use_container_timestamp` is enabled, otherwise the Agent's
+`IngestionTimestamp`. This applies to both dual-ship and Foldspace-only pipelines.
+Neither path substitutes the current encoding time, so buffering or backpressure
+does not change the timestamp or make dual-shipped copies differ. HTTP JSON's
+fallback is now ingestion time rather than encoding time. The original ingestion
+timestamp is retained unchanged for latency accounting.
+
 ## Dual-ship ingress routing
 
 For an ingress that routes the two transports to different backends using

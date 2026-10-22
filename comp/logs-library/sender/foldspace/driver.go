@@ -46,7 +46,8 @@ type DriverOptions struct {
 	DualShip bool
 	// Config reads multi_region_failover.enabled/failover_logs, mirroring
 	// destination_sender.go's canSend() gate for the primary HTTP path. Nil
-	// disables MRF routing regardless of MRFRoute.
+	// disables MRF routing regardless of MRFRoute. It also supplies
+	// logs_config.use_container_timestamp at construction.
 	Config pkgconfigmodel.Reader
 	// MRFRoute names the senders built from MRF endpoints. Zero means none:
 	// every sender is routed unconditionally and mrfEnabled is never consulted.
@@ -73,6 +74,8 @@ type Driver struct {
 	cfg             pkgconfigmodel.Reader
 	mrfRoute        Route
 	nonMRFRoute     Route
+
+	useContainerTimestamp bool
 
 	pending    *pendingTable
 	nextID     atomic.Uint64
@@ -152,6 +155,7 @@ func NewDriver(opts DriverOptions) *Driver {
 	if opts.PipelineMonitor == nil {
 		opts.PipelineMonitor = metrics.NewNoopPipelineMonitor("foldspace")
 	}
+	useContainerTimestamp := opts.Config != nil && opts.Config.GetBool("logs_config.use_container_timestamp")
 	wake := make([]chan struct{}, n)
 	for i := range wake {
 		wake[i] = make(chan struct{}, 1)
@@ -182,6 +186,8 @@ func NewDriver(opts DriverOptions) *Driver {
 		ingestDone:      make(chan struct{}),
 		ingestCancel:    make(chan struct{}),
 		ingestStopping:  make(chan struct{}),
+
+		useContainerTimestamp: useContainerTimestamp,
 	}
 }
 
@@ -194,7 +200,9 @@ func (d *Driver) PipelineMonitor() metrics.PipelineMonitor { return d.monitor }
 // Tap returns a tap feeding this driver's ingest, for use when the primary
 // destination owns the auditor sink and foldspace observes the rendered message
 // alongside it.
-func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input, stopping: d.ingestStopping} }
+func (d *Driver) Tap() *DriverTap {
+	return &DriverTap{input: d.input, stopping: d.ingestStopping, useContainerTimestamp: d.useContainerTimestamp}
+}
 
 // Offer sends msg to ingest, blocking while the buffer is full so that
 // back-pressure reaches the processor rather than costing a record. It gives
@@ -207,7 +215,7 @@ func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input, stopping: 
 func (d *Driver) Offer(msg *message.Message) {
 	meta := msg.MessageMetadata
 	select {
-	case d.input <- ingestItem{record: recordFromMessage(msg), meta: &meta}:
+	case d.input <- ingestItem{record: recordFromMessage(msg, d.useContainerTimestamp), meta: &meta}:
 	case <-d.ingestStopping:
 	}
 }
@@ -798,14 +806,15 @@ func (s *FanInStrategy) Stop() {
 // It gives up once the driver's Stop has started rather than blocking the
 // processor goroutine past that point: see Driver.Offer for why.
 type DriverTap struct {
-	input    chan ingestItem
-	stopping chan struct{}
+	input                 chan ingestItem
+	stopping              chan struct{}
+	useContainerTimestamp bool
 }
 
 // Tap snapshots msg onto the driver's ingest channel.
 func (t *DriverTap) Tap(msg *message.Message) {
 	select {
-	case t.input <- ingestItem{record: recordFromMessage(msg)}:
+	case t.input <- ingestItem{record: recordFromMessage(msg, t.useContainerTimestamp)}:
 	case <-t.stopping:
 	}
 }

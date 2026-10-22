@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Use Agent ingestion time instead of HTTP JSON encoding time when no serverless
+    or opted-in container timestamp is available. Foldspace now follows the same
+    timestamp policy in both dual-ship and Foldspace-only modes, preventing
+    timestamp differences between copies of the same log.

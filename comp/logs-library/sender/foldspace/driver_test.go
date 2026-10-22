@@ -6,6 +6,7 @@
 package foldspace
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -397,6 +399,75 @@ func TestTapSnapshotsRenderedBody(t *testing.T) {
 	// Dual-ship leaves the metadata behind: the primary destination owns the
 	// auditor sink, so there is nothing for this driver to release.
 	assert.Nil(t, item.meta)
+}
+
+// Both destinations must use the same source timestamp, even when encoding happens
+// long after ingestion. Fixed timestamps model that delay without sleeping.
+func TestHTTPAndFoldspaceTimestamps(t *testing.T) {
+	ingestion := time.Date(2020, 1, 2, 3, 4, 5, 999999999, time.UTC)
+	serverless := ingestion.Add(-time.Hour)
+	container := ingestion.Add(-2 * time.Hour).In(time.FixedZone("UTC+2", 2*60*60))
+
+	for _, tc := range []struct {
+		name                  string
+		containerTimestamp    string
+		serverlessTimestamp   time.Time
+		useContainerTimestamp bool
+		withoutConfig         bool
+		want                  time.Time
+	}{
+		{name: "ingestion fallback", want: ingestion},
+		{name: "container disabled", containerTimestamp: container.Format(time.RFC3339Nano), want: ingestion},
+		{name: "container enabled", containerTimestamp: container.Format(time.RFC3339Nano), useContainerTimestamp: true, want: container},
+		{name: "invalid container", containerTimestamp: "invalid", useContainerTimestamp: true, want: ingestion},
+		{name: "missing container", useContainerTimestamp: true, want: ingestion},
+		{name: "serverless", serverlessTimestamp: serverless, want: serverless},
+		{name: "serverless before container", serverlessTimestamp: serverless, containerTimestamp: container.Format(time.RFC3339Nano), useContainerTimestamp: true, want: serverless},
+		{name: "serverless before invalid container", serverlessTimestamp: serverless, containerTimestamp: "invalid", useContainerTimestamp: true, want: serverless},
+		{name: "nil config", containerTimestamp: container.Format(time.RFC3339Nano), withoutConfig: true, want: ingestion},
+	} {
+		for _, dualShip := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/dual_ship=%t", tc.name, dualShip), func(t *testing.T) {
+				var cfg pkgconfigmodel.Reader
+				if !tc.withoutConfig {
+					mock := configmock.New(t)
+					mock.SetInTest("logs_config.use_container_timestamp", tc.useContainerTimestamp)
+					cfg = mock
+				}
+				d := NewDriver(DriverOptions{
+					Core:     NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}}),
+					Config:   cfg,
+					DualShip: dualShip,
+				})
+				msg := testMessage("body")
+				msg.IngestionTimestamp = ingestion.UnixNano()
+				msg.ServerlessExtra.Timestamp = tc.serverlessTimestamp
+				msg.ParsingExtra.Timestamp = tc.containerTimestamp
+
+				if dualShip {
+					d.Tap().Tap(msg)
+				} else {
+					d.Offer(msg)
+				}
+				item := <-d.input
+				assert.Equal(t, tc.want.UnixMilli(), item.record.TimestampMillis)
+
+				require.NoError(t, processor.NewJSONEncoder(tc.useContainerTimestamp).Encode(msg, "host"))
+				var payload struct {
+					Timestamp int64 `json:"timestamp"`
+				}
+				require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+				assert.Equal(t, tc.want.UnixMilli(), payload.Timestamp)
+				assert.Equal(t, item.record.TimestampMillis, payload.Timestamp)
+				assert.Equal(t, ingestion.UnixNano(), msg.IngestionTimestamp,
+					"event timestamp selection must not change latency accounting")
+				if !dualShip {
+					require.NotNil(t, item.meta)
+					assert.Equal(t, ingestion.UnixNano(), item.meta.IngestionTimestamp)
+				}
+			})
+		}
+	}
 }
 
 // A full tap buffer means the pipeline is outrunning foldspace. Waiting there

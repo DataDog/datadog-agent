@@ -25,6 +25,16 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, StatusInfo, message.GetStatus())
 }
 
+func TestGetEventTimestampWithoutIngestionTime(t *testing.T) {
+	msg := NewMessage([]byte("hello"), nil, "", 0)
+	msg.ParsingExtra.Timestamp = "invalid"
+	for _, useContainerTimestamp := range []bool{false, true} {
+		assert.Zero(t, msg.GetEventTimestamp(useContainerTimestamp).UnixMilli(),
+			"missing ingestion time must not invent a transport-specific wall-clock timestamp")
+	}
+	assert.Zero(t, msg.IngestionTimestamp)
+}
+
 func TestRawDataLenForCheckpoint(t *testing.T) {
 	msg := NewMessage([]byte("hello"), nil, "", 0)
 	assert.Equal(t, msg.RawDataLen, msg.RawDataLenForCheckpoint())

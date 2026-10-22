@@ -168,10 +168,10 @@ func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 func (s *FakeStream) Close() error { return nil }
 
 // recordFromMessage maps a processed message onto a foldspace Record.
-func recordFromMessage(msg *message.Message) Record {
+func recordFromMessage(msg *message.Message, useContainerTimestamp bool) Record {
 	r := Record{
 		Body:            append([]byte(nil), msg.GetContent()...),
-		TimestampMillis: msg.GetTimestampUnixMilli(),
+		TimestampMillis: msg.GetEventTimestamp(useContainerTimestamp).UnixMilli(),
 		Status:          msg.Status,
 		Hostname:        msg.GetHostname(),
 		MRFAllowed:      msg.ParsingExtra.IsMRFAllow,

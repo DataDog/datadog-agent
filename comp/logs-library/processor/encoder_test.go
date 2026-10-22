@@ -210,6 +210,7 @@ func TestJsonEncoder(t *testing.T) {
 		content := []byte("valid utf-8 message content")
 
 		msg := newMessage(content, source, message.StatusError)
+		msg.IngestionTimestamp = time.Unix(123, 456789000).UnixNano()
 		msg.State = message.StateRendered // we can only encode rendered message
 		msg.Origin.LogSource = source
 		msg.Origin.SetTags([]string{"a", "b:c"})
@@ -241,6 +242,7 @@ func TestJsonEncoder(t *testing.T) {
 		content := []byte("invalid utf-8 message content a\xf0\x8f\xbf\xbfz")
 
 		msg := newMessage(content, source, message.StatusError)
+		msg.IngestionTimestamp = time.Unix(123, 456789000).UnixNano()
 		msg.State = message.StateRendered // we can only encode rendered message
 		msg.Origin.LogSource = source
 		msg.Origin.SetTags([]string{"a", "b:c"})
@@ -294,8 +296,8 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			}
 			assert.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
 
-			expectedMillis := parsed.UnixNano() / nanoToMillis
-			assert.NotEqual(t, expectedMillis, payload.Timestamp)
+			assert.Equal(t, msg.GetTimestampUnixMilli(), payload.Timestamp)
+			assert.NotEqual(t, parsed.UnixMilli(), payload.Timestamp)
 		})
 
 		t.Run("enabled", func(t *testing.T) {
@@ -314,8 +316,7 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 			}
 			assert.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
 
-			expectedMillis := parsed.UnixNano() / nanoToMillis
-			assert.Equal(t, expectedMillis, payload.Timestamp)
+			assert.Equal(t, parsed.UnixMilli(), payload.Timestamp)
 		})
 	})
 

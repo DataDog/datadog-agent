@@ -47,6 +47,7 @@ dd_agent_go_test(
     embed = [":foldspace"],
     deps = [
         "//comp/logs-library/metrics",
+        "//comp/logs-library/processor",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/config/model",
