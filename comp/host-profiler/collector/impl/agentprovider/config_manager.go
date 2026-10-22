@@ -7,6 +7,7 @@ package agentprovider
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -97,8 +98,12 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 
+	// Resolve infrastructure_mode the same way the Agent does (an unset value
+	// defaults to full) instead of comparing the raw string, so internal health
+	// metrics stay enabled when the setting is not explicitly configured.
+	infraMode := configutils.ResolveInfrastructureMode(config)
 	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
-		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
+		(infraMode == constants.InfraModeBasic || infraMode == constants.InfraModeFull)
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
