@@ -9,6 +9,8 @@ package hardening
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -147,6 +149,45 @@ func TestControllerRejectsFailedDryRun(t *testing.T) {
 	c.reconcile(context.Background())
 	assert.Contains(t, c.rejected, "req-1")
 	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
+func TestControllerRetriesTransientDryRunError(t *testing.T) {
+	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, nil))
+	first := true
+	client.PrependReactor("patch", "deployments", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if first {
+			first = false
+			return true, nil, apierrors.NewInternalError(errors.New("boom"))
+		}
+		return false, nil, nil
+	})
+
+	c.reconcile(context.Background())
+	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+	assert.NotContains(t, c.rejected, "req-1", "a transient error is not a rejection")
+
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
+func TestControllerPatchCarriesResourceVersion(t *testing.T) {
+	d := testDeployment(nil)
+	d.ResourceVersion = "42"
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	rv := getDeployment(t, client).ResourceVersion // in case the fake tracker overwrote it
+
+	c.reconcile(context.Background())
+
+	var found bool
+	for _, a := range client.Actions() {
+		p, ok := a.(k8stesting.PatchActionImpl)
+		if !ok || len(p.PatchOptions.DryRun) > 0 {
+			continue
+		}
+		found = true
+		assert.Contains(t, string(p.Patch), fmt.Sprintf(`"resourceVersion":"%s"`, rv))
+	}
+	assert.True(t, found, "expected a real (non-dry-run) patch")
 }
 
 func TestControllerWaitsForRollout(t *testing.T) {

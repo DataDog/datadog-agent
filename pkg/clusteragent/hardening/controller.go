@@ -100,6 +100,9 @@ func (c *Controller) reconcile(ctx context.Context) {
 	}
 	now := c.now()
 	for _, req := range c.store.List() {
+		if ctx.Err() != nil {
+			return
+		}
 		if err := c.reconcileRequest(ctx, req, now); err != nil {
 			log.Warnf("hardening request %s: will retry: %v", req.ID, err)
 		}
@@ -170,10 +173,10 @@ func (c *Controller) reconcileRequest(ctx context.Context, req *Request, now tim
 	}
 	newIDs := append(ids, req.ID)
 	if err := c.patchTemplate(ctx, d, newIDs, true); err != nil {
-		return c.rejectUnlessConflict(req, "dry run of the template change failed", err)
+		return c.rejectIfRefused(req, "dry run of the template change failed", err)
 	}
 	if err := c.dryRunSecurityContext(ctx, d, req.Target.Container, sc); err != nil {
-		return c.rejectUnlessConflict(req, "dry run of the securityContext failed", err)
+		return c.rejectIfRefused(req, "dry run of the securityContext failed", err)
 	}
 	if err := c.patchTemplate(ctx, d, newIDs, false); err != nil {
 		return err
@@ -188,13 +191,17 @@ func (c *Controller) reject(req *Request, reason string) {
 	log.Infof("hardening request %s: rejected: %s", req.ID, reason)
 }
 
-// rejectUnlessConflict rejects req, unless err is a conflict, which is returned to be retried.
-func (c *Controller) rejectUnlessConflict(req *Request, what string, err error) error {
-	if apierrors.IsConflict(err) {
-		return err
+// rejectIfRefused rejects req only when err means the request or the cluster's
+// policy said no (the API server validated and refused the patch): invalid,
+// forbidden, or a bad request. Every other error — a conflict, throttling, a
+// 5xx, a timeout, a briefly unreachable webhook, ctx canceled — says nothing
+// about whether the request is valid, so it is returned for reconcile to retry.
+func (c *Controller) rejectIfRefused(req *Request, what string, err error) error {
+	if apierrors.IsInvalid(err) || apierrors.IsForbidden(err) || apierrors.IsBadRequest(err) {
+		c.reject(req, fmt.Sprintf("%s: %v", what, err))
+		return nil
 	}
-	c.reject(req, fmt.Sprintf("%s: %v", what, err))
-	return nil
+	return err
 }
 
 // patchTemplate sets the pod template's request list to ids, and removes the
