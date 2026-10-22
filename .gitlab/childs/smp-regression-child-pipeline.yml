@@ -16,6 +16,7 @@ stages:
 
 variables:
   SMP_ALLOW_FAILURE: "true"
+  SMP_EXPERIMENT_NAME_ALLOW_FILTER: ""
   GIT_DEPTH: 1
 
 .smp_config_only_job_submit:
@@ -35,6 +36,10 @@ variables:
 
 .smp_job_submit:
   - |
+    smp_selection_args=()
+    if [[ -n "$SMP_EXPERIMENT_NAME_ALLOW_FILTER" ]]; then
+      smp_selection_args+=(--experiment-name-allow-filter "$SMP_EXPERIMENT_NAME_ALLOW_FILTER")
+    fi
     RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
     job submit \
     --baseline-image ${BASELINE_IMAGE} \
@@ -42,6 +47,7 @@ variables:
     --baseline-sha ${BASELINE_SHA} \
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
+    "${smp_selection_args[@]}" \
     --submission-metadata submission_metadata \
     --tags ${SMP_TAGS} || {
       exit_code=$?
@@ -299,7 +305,9 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: v0.28.0
+    SMP_VERSION: v0.29.1
+    # Preserve the active cases when the CLI discovers experiments recursively.
+    SMP_EXPERIMENT_NAME_ALLOW_FILTER: "dsd_uds_10mb_3k_timestamped_contexts_cpu,dsd_uds_10mb_3k_timestamped_contexts_memory,dsd_uds_client_drop_detector_cpu,python_openmetrics,quality_gate_idle,quality_gate_idle_all_features,quality_gate_logs,quality_gate_metrics_logs,quality_gate_private_action_runner,quality_gate_security_idle,quality_gate_security_mean_fs_load,quality_gate_security_no_fs_load"
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression
