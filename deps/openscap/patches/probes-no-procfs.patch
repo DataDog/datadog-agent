@@ -37,3 +37,59 @@
  #if defined(OS_LINUX)
          int   mnt_fd;
          struct statfs stfs;
+--- a/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode.sh
++++ b/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode.sh
+@@ -41,4 +41,41 @@
+     return $ret_val
+ }
+ 
++function test_probes_environmentvariable58_offline_mode_no_procfs {
++    probecheck "environmentvariable58" || return 255
++
++    local ret_val=0;
++    local definition="${srcdir}/test_probes_environmentvariable58_offline_mode.sh.xml"
++    local result="test_probes_environmentvariable58_offline_mode_no_procfs.sh.results.xml"
++    echo "result file: $result"
++    local stderr
++    stderr=$(mktemp no_procfs.err.XXXXXX)
++    echo "stderr file: $stderr"
++
++    [[ -f "$result" ]] && rm -f "$result"
++
++    # The /proc of this root is empty, as in a disk image.
++    tmpdir=$(mktemp -t -d "test_offline_mode_environmentvariable58.XXXXXX")
++    mkdir "$tmpdir/proc"
++
++    set_chroot_offline_test_mode "$tmpdir"
++
++    $OSCAP oval eval --results "$result" "$definition" 2> "$stderr"
++
++    unset_chroot_offline_test_mode
++
++    [[ -f "$result" ]]
++
++    assert_exists 1 '/oval_results/results/system/tests/test[@result="not applicable"][@test_id="oval:1:tst:1"]'
++
++    grep -Ei "(W: |E: )" "$stderr" && ret_val=1 && echo "There is an error and/or a warning in the output!" >&2
++
++    rm "$stderr"
++
++    rm -rf "${tmpdir}"
++
++    return $ret_val
++}
++
+ test_run "test_probes_environmentvariable58_offline_mode" test_probes_environmentvariable58_offline_mode
++test_run "test_probes_environmentvariable58_offline_mode (no procfs)" test_probes_environmentvariable58_offline_mode_no_procfs
+--- a/tests/probes/partition/test_probes_partition_offline_mode.sh
++++ b/tests/probes/partition/test_probes_partition_offline_mode.sh
+@@ -38,7 +38,8 @@
+         assert_exists 1 '/oval_results/results/system/tests/test[@result="true"][@test_id="oval:1:tst:1"]'
+         verify_results "def" $DF $RF 1 && verify_results "tst" $DF $RF 1
+     else
+-        assert_exists 1 '/oval_results/results/system/tests/test[@result="false"][@test_id="oval:1:tst:1"]'
++        # A root without a mount table, such as a disk image, is not applicable.
++        assert_exists 1 '/oval_results/results/system/tests/test[@result="not applicable"][@test_id="oval:1:tst:1"]'
+     fi
+ 
+     grep -Ei "(W: |E: )" $stderr && ret_val=1 && echo "There is an error and/or a warning in the output!"
