@@ -8,7 +8,10 @@
 package hardening
 
 import (
+	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -59,9 +62,11 @@ func TestParseRequest(t *testing.T) {
 		"capabilities on ro":   func(m map[string]any) { m["control"] = "read_only_root_fs" },
 		"capability ALL":       func(m map[string]any) { m["parameters"] = map[string]any{"capabilities_add": []string{"ALL"}} },
 		"malformed capability": func(m map[string]any) { m["parameters"] = map[string]any{"capabilities_add": []string{"NET BIND"}} },
+		"unknown capability":   func(m map[string]any) { m["parameters"] = map[string]any{"capabilities_add": []string{"FOO"}} },
 		"statefulset":          func(m map[string]any) { target(m)["kind"] = "StatefulSet" },
 		"missing uid":          func(m map[string]any) { delete(target(m), "uid") },
 		"missing container":    func(m map[string]any) { delete(target(m), "container") },
+		"empty cluster":        func(m map[string]any) { target(m)["cluster"] = "" },
 		"other cluster":        func(m map[string]any) { target(m)["cluster"] = "cluster-2" },
 		"missing expires_at":   func(m map[string]any) { delete(m, "expires_at") },
 	}
@@ -71,6 +76,15 @@ func TestParseRequest(t *testing.T) {
 			assert.Error(t, err)
 		})
 	}
+}
+
+// TestParseRequestEmptyClusterNeverMatches guards against an unconfigured
+// (empty) Cluster Agent clusterID accidentally matching a request whose
+// k8s_target.cluster is also empty.
+func TestParseRequestEmptyClusterNeverMatches(t *testing.T) {
+	raw := rawRequest(t, func(m map[string]any) { target(m)["cluster"] = "" })
+	_, err := parseRequest(raw, "")
+	assert.Error(t, err)
 }
 
 func TestRequestActive(t *testing.T) {
@@ -136,6 +150,30 @@ func TestStoreFileSkipsInvalidEntries(t *testing.T) {
 	bad := rawRequest(t, func(m map[string]any) { m["id"] = "req-2"; m["control"] = "privileged" })
 	require.NoError(t, s.setFileRequests([]byte("["+string(rawRequest(t, nil))+","+string(bad)+"]")))
 	assert.Len(t, s.List(), 1)
+}
+
+func TestStoreWatchFileLoadsOnceOnAlreadyCancelledContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "requests.json")
+	require.NoError(t, os.WriteFile(path, []byte("["+string(rawRequest(t, nil))+"]"), 0o600))
+
+	s := NewStore(testCluster)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	s.WatchFile(ctx, path, time.Hour)
+
+	_, ok := s.Get("req-1")
+	assert.True(t, ok, "the file is loaded once before the context is checked")
+}
+
+func TestStoreWatchFileMissingPathOnAlreadyCancelledContext(t *testing.T) {
+	s := NewStore(testCluster)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.NotPanics(t, func() {
+		s.WatchFile(ctx, filepath.Join(t.TempDir(), "missing.json"), time.Hour)
+	})
+	assert.Empty(t, s.List())
 }
 
 func TestParseIDs(t *testing.T) {
