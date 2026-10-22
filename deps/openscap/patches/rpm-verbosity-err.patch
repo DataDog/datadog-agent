@@ -38,3 +38,100 @@
  #endif
  
  	if (CHROOT_IS_SET()) {
+--- a/tests/probes/rpm/rpminfo/CMakeLists.txt
++++ b/tests/probes/rpm/rpminfo/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ if(ENABLE_PROBES_LINUX)
+ 	add_oscap_test("test_probes_rpminfo.sh" LABELS linux linux_only)
+ 	add_oscap_test("test_probes_rpminfo_offline.sh" LABELS linux linux_only)
++	add_oscap_test("test_probes_rpminfo_warnings.sh" LABELS linux linux_only)
+ 
+ 	set_tests_properties(
+ 		"probes/rpm/rpminfo/test_probes_rpminfo_offline.sh"
+diff --git a/tests/probes/rpm/rpminfo/test_probes_rpminfo_warnings.sh b/tests/probes/rpm/rpminfo/test_probes_rpminfo_warnings.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/probes/rpm/rpminfo/test_probes_rpminfo_warnings.sh
+@@ -0,0 +1,40 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_probes_rpminfo_warnings {
++    probecheck "rpminfo" || return 255
++    require "rpm" || return 255
++
++    local ret_val=0
++    local definition="${srcdir}/test_probes_rpminfo_warnings.xml"
++    local result stderr home
++    result=$(mktemp results.XXXXXXX.xml)
++    stderr=$(mktemp stderr.XXXXXXX)
++
++    # librpm warns when the database backend differs from %_db_backend,
++    # as for a bdb_ro database read with the sqlite backend.
++    home=$(mktemp -d "$PWD/home.XXXXXXX")
++    echo '%_db_backend bogus' > "$home/.rpmmacros"
++    HOME="$home" rpm -q rpm 2>&1 >/dev/null | grep '^warning: ' >/dev/null || return 255
++
++    HOME="$home" $OSCAP oval eval --results "$result" "$definition" 2> "$stderr"
++
++    assert_exists 1 '/oval_results/results/system/tests/test[@test_id="oval:1:tst:1"][@result="true"]'
++    if grep -E '^(warning: |W: |E: )' "$stderr"; then
++        echo "The RPM warning reached stderr." >&2
++        ret_val=1
++    fi
++
++    rm -rf "$home" "$result" "$stderr"
++
++    return $ret_val
++}
++
++test_init
++
++test_run "rpminfo probe test (warnings)" test_probes_rpminfo_warnings
++
++test_exit
+diff --git a/tests/probes/rpm/rpminfo/test_probes_rpminfo_warnings.xml b/tests/probes/rpm/rpminfo/test_probes_rpminfo_warnings.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/rpm/rpminfo/test_probes_rpminfo_warnings.xml
+@@ -0,0 +1,37 @@
++<?xml version="1.0"?>
++<oval_definitions xmlns:oval-def="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:lin-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux linux-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-common-5 oval-common-schema.xsd">
++
++  <generator>
++    <oval:product_name>rpminfo</oval:product_name>
++    <oval:product_version>1.0</oval:product_version>
++    <oval:schema_version>5.11.1</oval:schema_version>
++    <oval:timestamp>2026-10-20T00:00:00+00:00</oval:timestamp>
++  </generator>
++
++  <definitions>
++
++    <definition class="compliance" version="1" id="oval:1:def:1">
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:1:tst:1"/>
++      </criteria>
++    </definition>
++
++  </definitions>
++
++  <tests>
++    <rpminfo_test version="1" id="oval:1:tst:1" check="all" check_existence="at_least_one_exists" comment="The rpm package is installed" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:1"/>
++    </rpminfo_test>
++  </tests>
++
++  <objects>
++    <rpminfo_object version="1" id="oval:1:obj:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <name>rpm</name>
++    </rpminfo_object>
++  </objects>
++
++</oval_definitions>

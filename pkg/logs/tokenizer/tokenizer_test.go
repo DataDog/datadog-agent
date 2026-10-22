@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tokens provides tokenization functionality for log messages.
-package preprocessor
+package tokenizer
 
 import (
 	"strings"
@@ -244,7 +243,8 @@ func TestTokenizerIPv4(t *testing.T) {
 // Each fuzz / property test below names the spec construct it anchors
 // in its docstring so that drift in either direction is easy to spot
 // during review. Tokenization @invariants live in tokenizer.allium;
-// PatternMatching @invariants live in adaptive_sampler.allium.
+// PatternMatching @invariants live in
+// pkg/logs/internal/decoder/preprocessor/adaptive_sampler.allium.
 
 // Reference tokenizer: an independent implementation of the tokenization
 // rules from tokenizer.allium. Used as an oracle to verify the
@@ -643,12 +643,13 @@ func FuzzTokenizerCaseInsensitive(f *testing.F) {
 
 // FuzzIsMatchSymmetry anchors:
 //
-//	contract PatternMatching (adaptive_sampler.allium)
+//	contract PatternMatching (pkg/logs/internal/decoder/preprocessor/adaptive_sampler.allium)
 //	    @invariant Symmetry
 //
 // "is_match(a, b, t) = is_match(b, a, t) for all a, b, t."
-// PatternMatching is defined in adaptive_sampler.allium (separate from
-// the Tokenization contract above), but the test lives here because it
+// PatternMatching is defined in
+// pkg/logs/internal/decoder/preprocessor/adaptive_sampler.allium (separate
+// from the Tokenization contract above), but the test lives here because it
 // shares the tokenizer + IsMatch infrastructure.
 func FuzzIsMatchSymmetry(f *testing.F) {
 	f.Add([]byte("INFO request ok"), []byte("WARN startup ok"), uint8(90))
@@ -671,7 +672,7 @@ func FuzzIsMatchSymmetry(f *testing.F) {
 
 // FuzzIsMatchMonotonicity anchors:
 //
-//	contract PatternMatching (adaptive_sampler.allium)
+//	contract PatternMatching (pkg/logs/internal/decoder/preprocessor/adaptive_sampler.allium)
 //	    @invariant MonotonicThreshold
 //
 // "For fixed a and b, if is_match(a, b, t1) and t2 <= t1, then

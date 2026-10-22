@@ -68,3 +68,128 @@
  			}
  		}
  	}
+--- a/tests/probes/CMakeLists.txt
++++ b/tests/probes/CMakeLists.txt
+@@ -1,3 +1,4 @@
++add_subdirectory("dpkginfo")
+ add_subdirectory("environmentvariable")
+ add_subdirectory("environmentvariable58")
+ add_subdirectory("family")
+diff --git a/tests/probes/dpkginfo/CMakeLists.txt b/tests/probes/dpkginfo/CMakeLists.txt
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/dpkginfo/CMakeLists.txt
+@@ -0,0 +1,3 @@
++if(ENABLE_PROBES_LINUX)
++	add_oscap_test("test_probes_dpkginfo_virtual_packages.sh" LABELS linux linux_only)
++endif()
+diff --git a/tests/probes/dpkginfo/test_probes_dpkginfo_virtual_packages.sh b/tests/probes/dpkginfo/test_probes_dpkginfo_virtual_packages.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/probes/dpkginfo/test_probes_dpkginfo_virtual_packages.sh
+@@ -0,0 +1,47 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_probes_dpkginfo_virtual_packages {
++	probecheck "dpkginfo" || return 255
++
++	local definition="${srcdir}/test_probes_dpkginfo_virtual_packages.xml"
++	local result="results_virtual_packages.xml"
++	[[ -f "$result" ]] && rm -f "$result"
++
++	# The root has one installed package, real-pkg, which provides the
++	# virtual package virt-pkg.
++	local tmpdir
++	tmpdir=$(make_temp_dir /tmp "test_offline_mode_dpkginfo")
++	mkdir -p "${tmpdir}/var/lib/dpkg"
++	cat > "${tmpdir}/var/lib/dpkg/status" <<'END'
++Package: real-pkg
++Status: install ok installed
++Architecture: amd64
++Version: 1.0-1
++Provides: virt-pkg
++END
++	set_offline_chroot_dir "${tmpdir}"
++
++	$OSCAP oval eval --results "$result" "$definition"
++
++	set_offline_chroot_dir ""
++	rm -rf "${tmpdir}"
++
++	local item='oval_results/results/system/oval_system_characteristics/system_data/lin-sys:dpkginfo_item'
++	assert_exists 1 "$item"
++	assert_exists 1 "$item/lin-sys:name[text()=\"real-pkg\"]"
++	assert_exists 1 "$item/lin-sys:evr[text()=\"1.0-1\"]"
++	assert_exists 1 'oval_results/results/system/oval_system_characteristics/collected_objects/object[@id="oval:1:obj:2"][@flag="does not exist"]'
++	assert_exists 1 'oval_results/results/system/definitions/definition[@definition_id="oval:1:def:1"][@result="true"]'
++	assert_exists 1 'oval_results/results/system/definitions/definition[@definition_id="oval:1:def:2"][@result="true"]'
++	return 0
++}
++
++test_init
++
++test_run "test_probes_dpkginfo_virtual_packages" test_probes_dpkginfo_virtual_packages
++
++test_exit
+diff --git a/tests/probes/dpkginfo/test_probes_dpkginfo_virtual_packages.xml b/tests/probes/dpkginfo/test_probes_dpkginfo_virtual_packages.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/dpkginfo/test_probes_dpkginfo_virtual_packages.xml
+@@ -0,0 +1,53 @@
++<?xml version="1.0"?>
++<oval_definitions xmlns:oval-def="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:lin-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux linux-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-common-5 oval-common-schema.xsd">
++
++  <generator>
++    <oval:product_name>dpkginfo</oval:product_name>
++    <oval:product_version>1.0</oval:product_version>
++    <oval:schema_version>5.11.1</oval:schema_version>
++    <oval:timestamp>2026-10-20T00:00:00+00:00</oval:timestamp>
++  </generator>
++
++  <definitions>
++
++    <definition class="compliance" version="1" id="oval:1:def:1">
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:1:tst:1"/>
++      </criteria>
++    </definition>
++
++    <definition class="compliance" version="1" id="oval:1:def:2">
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:1:tst:2"/>
++      </criteria>
++    </definition>
++
++  </definitions>
++
++  <tests>
++    <dpkginfo_test version="1" id="oval:1:tst:1" check="all" check_existence="at_least_one_exists" comment="real-pkg is installed" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:1"/>
++    </dpkginfo_test>
++    <dpkginfo_test version="1" id="oval:1:tst:2" check="all" check_existence="none_exist" comment="virt-pkg is absent" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:2"/>
++    </dpkginfo_test>
++  </tests>
++
++  <objects>
++    <dpkginfo_object version="1" id="oval:1:obj:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <name>real-pkg</name>
++    </dpkginfo_object>
++    <dpkginfo_object version="1" id="oval:1:obj:2" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <name>virt-pkg</name>
++    </dpkginfo_object>
++  </objects>
++
++</oval_definitions>
