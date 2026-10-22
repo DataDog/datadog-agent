@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,6 +136,29 @@ func newFilterStoreFromConfig(t testing.TB, cfg compconfig.Component) workloadfi
 		noopTelemetry.Module(),
 		workloadfilterfxmock.MockModule(),
 	))
+}
+
+// TestInjectCWSCommandInstrumentationMeasuredLogsSlowInvalidRequest checks that
+// a slow request without exec options or user info logs its time and fails.
+func TestInjectCWSCommandInstrumentationMeasuredLogsSlowInvalidRequest(t *testing.T) {
+	// every request outlasts a negative timeout
+	ci := &CWSInstrumentation{timeout: -time.Second}
+	for _, tc := range []struct {
+		name     string
+		exec     *corev1.PodExecOptions
+		userInfo *authenticationv1.UserInfo
+	}{
+		{"no exec options", nil, &authenticationv1.UserInfo{Username: "user"}},
+		{"no user info", &corev1.PodExecOptions{Command: []string{"sh"}}, nil},
+		{"neither", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			injected, err := ci.injectCWSCommandInstrumentationMeasured(tc.exec, "pod", "ns", tc.userInfo, nil, nil)
+			if injected || err == nil {
+				t.Errorf("injected = %v, err = %v, want a failed request", injected, err)
+			}
+		})
+	}
 }
 
 func Test_injectCWSCommandInstrumentation(t *testing.T) {

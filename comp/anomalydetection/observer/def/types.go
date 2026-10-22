@@ -61,6 +61,10 @@ type MetricView interface {
 // This interface exists to prevent data races. Implementations must not store
 // the LogView itself. Copy any needed values synchronously.
 type LogView interface {
+	// GetSource returns the original log source (for example "containerd",
+	// "nginx", "kubelet", or "datadog-agent") used by log processing rules.
+	// This is distinct from the observer handle namespace (such as "logs").
+	GetSource() string
 	GetContent() string
 	GetStatus() string
 	Tags() []string
