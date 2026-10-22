@@ -1,0 +1,52 @@
+// TEST ONLY, do not merge: datadog-agent devcontainer on the image built by datadog-agent-buildimages PR #1373.
+// Generated from prebuild-devcontainer.json (features, mounts, capabilities) + the runArgs of devcontainer.json,
+// with `image` swapped for the PR build and the local feature referenced from the default devcontainer.
+{
+  "name": "Datadog Agent Development Container (buildimages PR 1373)",
+  "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace_test_only:v146671430-980047a0",
+  "features": {
+    "registry.ddbuild.io/workspaces/features/claude-code:0.1.136903543": {},
+    "registry.ddbuild.io/workspaces/features/trajectory:0.2.142808538": {},
+    "registry.ddbuild.io/workspaces/features/codex:0.1.140632266": {},
+    "registry.ddbuild.io/workspaces/features/pi:0.1.144713203": {},
+    "registry.ddbuild.io/workspaces/features/base:0.4.145742757": {
+      "installDeveloperTools": "false"
+    },
+    "../default/features/datadog-agent": {}
+  },
+  "forwardPorts": [
+    22
+  ],
+  "mounts": [
+    {
+      "source": "/var/run/docker.sock",
+      "target": "/var/run/docker.sock",
+      "type": "bind"
+    }
+  ],
+  "containerUser": "root",
+  "remoteUser": "bits",
+  "waitFor": "postStartCommand",
+  "securityOpt": [
+    "apparmor:unconfined"
+  ],
+  "capAdd": [
+    "SYS_ADMIN",
+    "SYS_RESOURCE",
+    "SYS_PTRACE",
+    "NET_ADMIN",
+    "NET_BROADCAST",
+    "NET_RAW",
+    "IPC_LOCK",
+    "CHOWN",
+    "KILL"
+  ],
+  "runArgs": [
+    "--pid=host",
+    "--cgroupns=host",
+    "-v",
+    "/:/host/root:ro",
+    "-v",
+    "/sys/kernel/debug:/sys/kernel/debug"
+  ]
+}
