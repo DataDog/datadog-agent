@@ -246,7 +246,8 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 	}
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
-	if collector.Type() == collectors.ContainerImageScanType {
+	switch collector.Type() {
+	case collectors.ContainerImageScanType:
 		if imgMeta = s.getImageMetadata(request); imgMeta == nil {
 			s.scanQueue.Forget(request)
 			return
@@ -260,6 +261,13 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 			s.scanQueue.Forget(request)
 			return
 		}
+	case collectors.ProcfsScanType:
+		// A procfs scan reads the root of a process of the container.
+		if !s.containerRunning(request.ID()) {
+			log.Debugf("skipping the SBOM scan of container %s, which is missing or stopped", request.ID())
+			s.scanQueue.Forget(request)
+			return
+		}
 	}
 
 	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type(collector.Options()))
@@ -269,6 +277,17 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 // hasFullSBOM reports whether s lists all the packages of its image.
 func hasFullSBOM(s *workloadmeta.CompressedSBOM) bool {
 	return s != nil && s.Status == workloadmeta.Success && !s.OSFallback
+}
+
+// containerRunning reports whether workloadmeta holds container id as running.
+// A scanner created with option.None reports true.
+func (s *Scanner) containerRunning(id string) bool {
+	store, ok := s.wmeta.Get()
+	if !ok {
+		return true
+	}
+	ctr, err := store.GetContainer(id)
+	return err == nil && ctr.State.Running
 }
 
 // getImageMetadata returns the image metadata if the collector is a container image collector

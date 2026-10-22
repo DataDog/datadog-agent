@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -40,6 +42,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
+
+// TestMain makes the done channel of the Agent's main context, which
+// workloadmeta stores share, outside every synctest bubble.
+func TestMain(m *testing.M) {
+	ctx, _ := common.GetMainCtxCancel()
+	ctx.Done()
+	os.Exit(m.Run())
+}
 
 type scanRequest struct {
 	collectorName   string
@@ -283,6 +293,13 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 			Kind: workloadmeta.KindContainerImageMetadata,
 		},
 	})
+	workloadmetaStore.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   imageID,
+			Kind: workloadmeta.KindContainer,
+		},
+		State: workloadmeta.ContainerState{Running: true},
+	})
 
 	for _, tt := range []struct {
 		name        string
@@ -296,7 +313,7 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 		},
 		{
 			name:        "procfs scan",
-			st:          collectors.ProcfsCollector,
+			st:          collectors.ProcfsScanType,
 			wantRetried: true,
 		},
 		{
@@ -469,6 +486,74 @@ func TestPerformScanRunsOneScanAtATime(t *testing.T) {
 			release <- struct{}{}
 		}
 		wg.Wait()
+	})
+}
+
+// TestRetryLogic_ContainerStopped checks that the scanner forgets the procfs
+// scan of a missing or stopped container, retries included.
+func TestRetryLogic_ContainerStopped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := configmock.New(t)
+		workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		container := func(id string, running bool) *workloadmeta.Container {
+			return &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+				State:    workloadmeta.ContainerState{Running: running},
+			}
+		}
+		workloadmetaStore.Set(container("running", true))
+		workloadmetaStore.Set(container("stopped", false))
+
+		var mu sync.Mutex
+		var scanned []string
+		collName := "mock"
+		mockCollector := collectors.NewMockCollector()
+		resultCh := make(chan sbom.ScanResult, 1)
+		errorResult := sbom.ScanResult{Error: errors.New("scan error")}
+		mockCollector.On("Options").Return(sbom.ScanOptions{})
+		mockCollector.On("Scan", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			mu.Lock()
+			defer mu.Unlock()
+			scanned = append(scanned, args.Get(1).(sbom.ScanRequest).ID())
+		}).Return(errorResult)
+		mockCollector.On("Channel").Return(resultCh)
+		shutdown := mockCollector.On("Shutdown")
+		mockCollector.On("Type").Return(collectors.ProcfsScanType)
+
+		cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+		cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+
+		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+		ctx, cancel := context.WithCancel(context.Background())
+		scanner.Start(ctx)
+
+		for _, id := range []string{"missing", "stopped", "running"} {
+			assert.NoError(t, scanner.Scan(&scanRequest{collectorName: collName, id: id, scanRequestType: sbom.ScanFilesystemType}))
+		}
+		res := <-resultCh
+		assert.Equal(t, errorResult.Error, res.Error)
+
+		// The retries end once the container stops.
+		workloadmetaStore.Set(container("running", false))
+		time.Sleep(time.Minute)
+		select {
+		case res := <-resultCh:
+			t.Errorf("the scan of a stopped container was retried: %v", res)
+		default:
+		}
+
+		cancel()
+		synctest.Wait()
+		shutdown.WaitUntil(time.After(5 * time.Second))
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, []string{"running"}, scanned)
 	})
 }
 

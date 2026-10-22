@@ -250,7 +250,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			continue
 		}
 
-		if p.procfsSBOM {
+		if p.procfsSBOM && container.State.Running {
 			if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
 				p.triggerProcfsScan(container)
 			}
