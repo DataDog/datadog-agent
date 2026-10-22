@@ -3,9 +3,7 @@ benchmark:
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/benchmarking-platform
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent_microbenchmarks
   timeout: 1h
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_trace_agent_changes_or_manual]
+  rules: !reference [.on_trace_agent_changes_or_manual]
   interruptible: true
   needs: ["setup_agent_version"]
   retry: !reference [.retry_only_infra_failure, retry]
@@ -42,7 +40,6 @@ benchmark_commenter:
   tags: ["arch:amd64", "specific:true"]
   extends: .dd_octo_sts
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - when: on_success
   interruptible: true

@@ -38,7 +38,6 @@
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_ndm_netflow_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
@@ -53,7 +52,6 @@ new-e2e-ndm-netflow:
 new-e2e-ndm-snmp:
   extends: .new_e2e_template
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_ndm_snmp_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -68,7 +66,6 @@ new-e2e-ndm-snmp:
 new-e2e-ha-agent:
   extends: .new_e2e_template_needs_deb_x64
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_ha_agent_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -81,7 +78,6 @@ new-e2e-ha-agent:
 new-e2e-ha-agent-failover:
   extends: .new_e2e_template_needs_deb_x64
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_ha_agent_or_e2e_changes]
     - !reference [.manual]
   variables:

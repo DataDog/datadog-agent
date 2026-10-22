@@ -38,7 +38,6 @@
 new-e2e-containers-ecs:
   extends: .new_e2e_template_needs_container_deploy
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -54,7 +53,6 @@ new-e2e-containers:
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -79,7 +77,6 @@ new-e2e-containers-k8s-latest:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -92,7 +89,6 @@ new-e2e-containers-k8s-rc-latest:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
-    - !reference [.except_rshell_only]
     - when: never # disabled — RC not newer than latest stable
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
@@ -111,7 +107,6 @@ new-e2e-containers-eks-init:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -129,7 +124,6 @@ new-e2e-containers-eks-init:
 new-e2e-containers-eks:
   extends: .new_e2e_template
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -150,7 +144,6 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -177,7 +170,6 @@ new-e2e-containers-openshift-init:
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:

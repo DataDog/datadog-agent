@@ -12,9 +12,6 @@
   - datadog-ci coverage upload --format=go-coverprofile "${COVERAGE_FILE:-coverage.out}" || true
 
 .unit_test_base:
-  rules:
-    - !reference [.except_rshell_only]
-    - when: on_success
   extends: .bazel:defs:cache:progressive
   variables:
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml

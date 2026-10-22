@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 from invoke.context import Context
 from invoke.exceptions import Exit
 
-from tasks.flavor import AgentFlavor
 from tasks.gotest import (
     _bazel_test_jobs,
     _minimize_bazel_patterns,
@@ -16,7 +15,6 @@ from tasks.gotest import (
     get_go_modified_files,
     get_modified_packages,
     should_run_all_tests,
-    test_legacy,
 )
 from tasks.modules import GoModule
 
@@ -286,36 +284,3 @@ class TestBazelTestJobs(unittest.TestCase):
 
         self.assertEqual(stats.passed, 1)
         self.assertIn("--jobs=3", run_bazel.call_args.args)
-
-
-class TestLegacyModuleExclusion(unittest.TestCase):
-    def test_exclusion_applies_after_impacted_package_selection(self):
-        modules = [GoModule("."), GoModule("pkg/rshell")]
-        cases = [
-            ("", False, modules),
-            ("pkg/rshell", False, modules[:1]),
-            ("pkg/rshell", True, modules[:1]),
-        ]
-        for excluded, impacted, expected in cases:
-            with self.subTest(excluded=excluded, impacted=impacted):
-                run_tests = MagicMock(return_value=None)
-                with (
-                    patch.multiple(
-                        "tasks.gotest",
-                        sanitize_env_vars=MagicMock(),
-                        schema_codegen=MagicMock(),
-                        process_input_args=MagicMock(return_value=(modules, AgentFlavor.base)),
-                        compute_build_tags_for_flavor=MagicMock(return_value=[]),
-                        get_build_flags=MagicMock(return_value=("", "", {})),
-                        get_impacted_packages=MagicMock(return_value=modules),
-                        test_flavor=run_tests,
-                    ),
-                    patch.dict("os.environ", {}, clear=True),
-                ):
-                    test_legacy.body(
-                        Context(),
-                        exclude_modules=excluded,
-                        only_impacted_packages=impacted,
-                        result_json="",
-                    )
-                self.assertEqual(run_tests.call_args.kwargs["modules"], expected)

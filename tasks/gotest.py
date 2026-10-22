@@ -649,7 +649,6 @@ def test_legacy(
     build_stdlib=False,
     test_washer=False,
     extra_args=None,
-    exclude_modules="",
     skip_tests_covered_by_bazel=False,
     write_bazel_test_list=None,
     run_bazel_tests=False,
@@ -664,7 +663,6 @@ def test_legacy(
     If targets are provided but no module is set, the main module (".") is used.
 
     If no module or target is set the tests are run against all modules and targets.
-    exclude_modules is a comma-separated list of module paths to omit from the selected tests.
 
     Example invokation:
         dda inv test --targets=./pkg/collector/check,./pkg/aggregator --race
@@ -774,10 +772,6 @@ def test_legacy(
         modules = get_modified_packages(ctx, build_tags=unit_tests_tags)
     if only_impacted_packages:
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
-
-    if exclude_modules:
-        excluded = set(exclude_modules.split(","))
-        modules = [module for module in modules if module.path not in excluded]
 
     exclude_packages: set[str] = set()
     bazel_targets: dict[str, str] = {}

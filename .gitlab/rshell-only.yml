@@ -1,4 +1,0 @@
----
-# Included only for development changes confined to rshell and its PAR e2e tests.
-variables:
-  RSHELL_ONLY: "true"

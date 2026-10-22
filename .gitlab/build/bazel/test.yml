@@ -1,14 +1,11 @@
 .bazel:test:
   stage: source_test
-  variables:
-    BAZEL_TEST_TARGETS: "//... -//pkg/rshell/..."
   needs:
     - job: bazel:run-go-mod-tidy
       artifacts: false
     - job: bazel:run-gazelle
       artifacts: false
   rules:
-    - !reference [.except_rshell_only]
     - when: on_success
 
 .bazel:test:reporting:
@@ -42,7 +39,7 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE -- $BAZEL_TEST_TARGETS
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.bazel:test:reporting, after_script]
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
@@ -63,7 +60,7 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE -- $BAZEL_TEST_TARGETS
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 bazel:test:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
@@ -76,7 +73,7 @@ bazel:test:linux-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE -- $BAZEL_TEST_TARGETS
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.macos_cleanup_python_dependencies]
     - !reference [.install_python_dependencies]
@@ -98,7 +95,7 @@ bazel:test:linux-arm64:
   script:
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE -- $BAZEL_TEST_TARGETS
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.macos_cleanup_python_dependencies]
     - !reference [.install_python_dependencies]
@@ -118,7 +115,7 @@ bazel:test:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=no-dd-agent-go-tests --keep_going -- //... -//pkg/rshell/...
+      bazel test --config=no-dd-agent-go-tests --keep_going //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
 
@@ -126,7 +123,7 @@ bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=dd-agent-go-tests-only --build_tests_only --keep_going -- //... -//pkg/rshell/...
+      bazel test --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
 

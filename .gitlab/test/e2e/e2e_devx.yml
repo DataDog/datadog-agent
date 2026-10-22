@@ -8,7 +8,6 @@ new-e2e-base-coverage:
     - go_e2e_deps
     - agent_deb-x64-a7
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - !reference [.on_coverage_pipeline]
   variables:
@@ -22,7 +21,6 @@ new-e2e-base:
     - go_e2e_deps
     - agent_deb-x64-a7
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     - when: on_success
@@ -49,9 +47,7 @@ new-e2e-package-signing-debian-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_package_signing_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-package-signing-suse-a7-x86_64:
   extends:
@@ -64,16 +60,13 @@ new-e2e-package-signing-suse-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_package_signing_tests]
+  rules: !reference [.on_package_signing_tests]
 
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
   stage: e2e
   tags: ["arch:amd64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
@@ -98,7 +91,6 @@ generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_disable_e2e_tests]
     - if: $SKIP_WINDOWS == "true"
       when: never
@@ -146,7 +138,6 @@ trigger-flakes-finder:
   stage: e2e
   needs: [generate-flakes-finder-pipeline]
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_disable_e2e_tests]
     - if: $SKIP_WINDOWS == "true"
       when: never
@@ -166,7 +157,6 @@ generate-fips-e2e-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_disable_e2e_tests]
     - if: $SKIP_WINDOWS == "true"
       when: never
@@ -220,7 +210,6 @@ trigger-fips-e2e:
   stage: e2e
   needs: [generate-fips-e2e-pipeline]
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_disable_e2e_tests]
     - if: $SKIP_WINDOWS == "true"
       when: never

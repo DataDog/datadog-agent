@@ -9,7 +9,6 @@ new-e2e-usm:
     - agent_deb-x64-a7
     - qa_agent_linux
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.on_systemprobe_or_e2e_changes]
     - !reference [.manual]
   variables:

@@ -15,9 +15,6 @@ Path where test result JSON should be written.
 .PARAMETER JunitTar
 Path where the JUnit tarball should be written.
 
-.PARAMETER Targets
-Bazel target patterns to test. The Agent jobs exclude the separately tested rshell module.
-
 .PARAMETER CoverageOut
 Path where the Bazel coverage profile should be copied for artifacts and upload.
 
@@ -34,9 +31,7 @@ param(
     [string] $JunitTar,
 
     [Parameter(Mandatory = $true)]
-    [string] $CoverageOut,
-
-    [string[]] $Targets = @('//...', '-//pkg/rshell/...')
+    [string] $CoverageOut
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,7 +65,7 @@ $bazelExitCode = 0
 $global:LASTEXITCODE = 0
 try {
     & bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only `
-      --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BepFile -- @Targets
+      --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BepFile //...
     if ($LASTEXITCODE -ne 0) {
         $bazelExitCode = $LASTEXITCODE
         Write-Host -ForegroundColor Red "bazel coverage failed with exit code $bazelExitCode"

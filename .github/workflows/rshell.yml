@@ -37,7 +37,7 @@ permissions:
   contents: read
 
 jobs:
-  # Dedicated GitLab rshell jobs run unit tests and race coverage on all platforms.
+  # The regular Agent Bazel jobs run unit tests and race tests on all platforms.
   integration:
     name: Bash comparison and Linux sandbox
     runs-on: ubuntu-latest

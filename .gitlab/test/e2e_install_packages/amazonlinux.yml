@@ -22,9 +22,7 @@ new-e2e-agent-platform-install-script-amazonlinux-a7-x64:
     - .new-e2e_install_script
     - .new-e2e_amazonlinux_a7_x86_64
     - .new-e2e_agent_a7
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_install_script_tests]
+  rules: !reference [.on_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -34,9 +32,7 @@ new-e2e-agent-platform-install-script-amazonlinux-a7-arm64:
     - .new-e2e_install_script
     - .new-e2e_amazonlinux_a7_arm64
     - .new-e2e_agent_a7
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_all_install_script_tests]
+  rules: !reference [.on_all_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -47,8 +43,7 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64:
     - .new-e2e_amazonlinux_a7_x86_64
     - .new-e2e_agent_a7
   rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_deploy]
+    !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -59,8 +54,7 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64:
     - .new-e2e_amazonlinux_a7_arm64
     - .new-e2e_agent_a7
   rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_deploy]
+    !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -99,15 +93,11 @@ new-e2e-agent-platform-ddot-amazonlinux-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_ddot
     - .new-e2e_amazonlinux_a7_x86_64
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_ddot_tests]
+  rules: !reference [.on_ddot_tests]
 
 new-e2e-agent-platform-ddot-amazonlinux-a7-arm64:
   extends:
     - .new_e2e_template
     - .new-e2e_ddot
     - .new-e2e_amazonlinux_a7_arm64
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_ddot_tests]
+  rules: !reference [.on_ddot_tests]

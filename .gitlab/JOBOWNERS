@@ -297,5 +297,3 @@ test_fuzz                         @DataDog/chaos-engineering
 
 # Workspaces
 prebuild-workspace-image-check    @DataDog/agent-devx
-
-rshell:*                              @DataDog/fleet-remediation

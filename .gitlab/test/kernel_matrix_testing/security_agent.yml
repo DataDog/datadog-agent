@@ -5,9 +5,7 @@ upload_dependencies_secagent_x64:
     - pull_test_dockers_x64
   extends:
     - .package_dependencies
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
@@ -20,9 +18,7 @@ upload_dependencies_secagent_arm64:
     - pull_test_dockers_arm64
   extends:
     - .package_dependencies
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
@@ -32,9 +28,7 @@ upload_dependencies_secagent_arm64:
 kmt_setup_env_secagent_arm64:
   extends:
     - .kmt_setup_env
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     INSTANCE_TYPE: "m6gd.metal"
     INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
@@ -46,9 +40,7 @@ kmt_setup_env_secagent_arm64:
 kmt_setup_env_secagent_x64:
   extends:
     - .kmt_setup_env
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     INSTANCE_TYPE: "m5d.metal"
     INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
@@ -61,9 +53,7 @@ kmt_setup_env_secagent_x64:
   extends: .bazel:defs:cache:progressive
   stage: kernel_matrix_testing_prepare
   allow_failure: true
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
@@ -126,9 +116,7 @@ upload_secagent_tests_arm64:
   extends: .kmt_run_tests
   allow_failure: true
   stage: kernel_matrix_testing_security_agent
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   timeout: 1h 30m
   variables:
     TEST_COMPONENT: security-agent
@@ -490,17 +478,13 @@ kmt_run_secagent_tests_arm64_docker:
 .kmt_secagent_cleanup:
   extends:
     - .kmt_cleanup
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     TEST_COMPONENT: security-agent
 
 .kmt_secagent_tests_join:
   stage: kernel_matrix_testing_cleanup
-  rules:
-    - !reference [.except_rshell_only]
-    - !reference [.on_security_agent_changes_or_manual]
+  rules: !reference [.on_security_agent_changes_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   script:

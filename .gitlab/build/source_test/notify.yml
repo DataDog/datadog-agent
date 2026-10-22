@@ -4,7 +4,6 @@ unit_tests_notify:
   tags: ["arch:amd64", "specific:true"]
   extends: .dd_octo_sts
   rules:
-    - !reference [.except_rshell_only]
     - !reference [.except_main_release_or_mq]
     - !reference [.except_disable_unit_tests]
     - when: always
