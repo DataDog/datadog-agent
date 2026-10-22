@@ -172,10 +172,10 @@ func flushReports() {
 // reporters every reportInterval, until the returned stop function
 // is called.
 func startReportFlushTicker() (stop func()) {
-	ticker := time.NewTicker(reportInterval)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
+		ticker := time.NewTicker(reportInterval)
 		defer ticker.Stop()
 		for {
 			select {
