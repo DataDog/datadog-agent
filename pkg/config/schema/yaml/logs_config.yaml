@@ -357,12 +357,6 @@ properties:
     default: []
     items:
       type: object
-  auto_multi_line_detection_tagging:
-    node_type: setting
-    type: boolean
-    default: true
-    comment: Tag logs with their auto multiline detection label without aggregating
-      them
   auto_multi_line_extra_patterns:
     node_type: setting
     type: array

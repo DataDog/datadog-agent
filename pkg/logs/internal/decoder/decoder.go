@@ -601,8 +601,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	// Priority order when no user-configured regex rule was set:
 	// 1. Legacy auto multiline (bypasses Preprocessor; outputs directly to outputChan)
 	// 2. Auto multiline with aggregation — combines detected groups into one message
-	// 3. Auto multiline detection-only — tags group starts without combining, this is the default
-	// 4. Pass-through — tokenizes and samples every line individually
+	// 3. Pass-through — tokenizes and samples every line individually
 	if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 		return getLegacyAutoMultilineHandler(directOutputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 	} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
@@ -623,14 +622,6 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		stackTraceAgg := preprocessor.NewStackTraceAggregatorFromNames(stackTraceParsers, maxContentSize,
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"))
 		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, stackTraceAgg, flushTimeout, labelerMaxBytes)
-	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
-		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
-		cfg := pkgconfigsetup.Datadog()
-		_, isDefaultPath := source.Config().AutoMultiLineStatus(cfg)
-		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
-		// while only tagging everything else.
-		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo, maxContentSize, pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"), isDefaultPath)
-		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, labelerMaxBytes)
 	}
 	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), preprocessor.NewNoopStackTraceAggregator(), flushTimeout, 0)
 }
