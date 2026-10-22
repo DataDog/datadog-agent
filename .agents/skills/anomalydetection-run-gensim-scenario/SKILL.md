@@ -41,10 +41,10 @@ question):
 | Input | Requirement |
 |---|---|
 | Backend & target | Ask if not provided: `--backend eks` (production recordings, automatically uploads to S3; authorized EKS stack name, default `gensim-eks`, plus S3 bucket) or `--backend vm` (disposable `user@host` or authorized new AWS VM) |
-| Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml` |
+| Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml`. A path under `observer-scenarios*` is an old recording output (`episode.json` + `parquet/`); read its `episode.json` to map back to `<episode-dir>:<scenario>` in `gensim-episodes` |
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full` (confirm pipeline and amd64 platform). If no tag is known, point the user at the CI Visibility Explorer (`ci_level:job env:prod @git.repository.id:gitlab.ddbuild.io/DataDog/datadog-agent @ci.pipeline.name:DataDog/datadog-agent @ci.provider.instance:gitlab-ci @ci.job.name:dev_branch-recorder-full @ci.status:success`): `https://app.datadoghq.com/ci/ci-cd/explorer/executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3Agitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.provider.instance%3Agitlab-ci%20%40ci.job.name%3Adev_branch-recorder-full%20%40ci.status%3Asuccess&agg_m=count&agg_m_source=base&agg_t=count&ci_cd_explorer_tab=pipelines&fromUser=true&refresh_mode=sliding&paused=false` |
-| Run settings | Flush interval (default `1m`), retention (default `90m`), recording-only mode (default `true` for recording), VM full/shortened mode or EKS mode (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
+| Run settings | `FLUSH` (default `1m`, `FLUSH_SECONDS=60`), `RETENTION` (default `90m`), `RECORDING_ONLY` (`true`/`false`, default `true` for recording), `RUN_MODE` (`full` or `shortened` on VM), or `EKS_MODE` (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
 | Output | Any fresh nonexistent local absolute path per episode (e.g. `/tmp/scenarios/kafka`, `/tmp/vm-scenarios/<episode>`, or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. `--episode`/`--scenario` on `fetch` still use the canonical `gensim-episodes` names |
 | Batch / teardown | Episodes to run and resources to remove afterwards; retain reusable infrastructure until the batch finishes |
 
@@ -54,12 +54,13 @@ host/stack authorization and dddev credentials before mutating resources. The VM
 record that authorization; the flag is not a substitute for obtaining it.
 
 Set `SKILL` to this skill's absolute directory. Local validation requires Bash, Python 3, and PyArrow
-(`uv run --with pyarrow ...`).
+(`uv run --no-project --with pyarrow ...`).
 
 ## 2A. VM happy path (`--backend vm`)
 
 Use at least 4 vCPU / 16 GiB and about 20 GB free disk. Set `VM` to the confirmed `user@host` (and `SSH_PORT` if
-non-default).
+non-default), plus `FLUSH` (default `1m`), `FLUSH_SECONDS` (matching `FLUSH` in seconds, default `60`), `RETENTION`
+(default `90m`), `RECORDING_ONLY` (default `true`), and `RUN_MODE` (`full` or `shortened`).
 
 1. Provision or probe the VM (run `dda inv e2e.setup --team=<team>` first if AWS e2e setup is missing):
 
@@ -77,7 +78,7 @@ deploy the recorder (`assets/recorder-values.yaml`):
 
 ```bash
 bash "$SKILL/scripts/vm.sh" create-cluster --disposable-vm "$VM"
-bash "$SKILL/scripts/vm.sh" deploy-recorder --disposable-vm "$VM" "$ENV_FILE" "$TAG" "$CLUSTER_NAME" 1m 90m true
+bash "$SKILL/scripts/vm.sh" deploy-recorder --disposable-vm "$VM" "$ENV_FILE" "$TAG" "$CLUSTER_NAME" "$FLUSH" "$RETENTION" "$RECORDING_ONLY"
 ```
 
 If `gadget-dev` already exists on the authorized disposable VM and its nodes are Ready, run
@@ -91,8 +92,8 @@ pod with zero restarts and metrics/log Parquet files after a flush interval.
 
 ```bash
 bash "$SKILL/scripts/scenario.sh" prepare --disposable-vm "$VM" "$SCENARIO_ID" "$SCENARIO_DIR"
-bash "$SKILL/scripts/scenario.sh" run --disposable-vm "$VM" "$SCENARIO_ID" "$EPISODE" "$RELEASE" full qbranch_gensim
-uv run --with pyarrow bash "$SKILL/scripts/fetch.sh" "$VM" "$SCENARIO_ID" "$EPISODE" "$OUT" 60
+bash "$SKILL/scripts/scenario.sh" run --disposable-vm "$VM" "$SCENARIO_ID" "$EPISODE" "$RELEASE" "$RUN_MODE" qbranch_gensim
+uv run --no-project --with pyarrow bash "$SKILL/scripts/fetch.sh" "$VM" "$SCENARIO_ID" "$EPISODE" "$OUT" "$FLUSH_SECONDS"
 ```
 
 Expected outcome from `prepare`: a fresh scenario copy ready to run on the VM, without a competing Agent or stale
@@ -106,40 +107,30 @@ full run).
 ## 2B. EKS happy path (`--backend eks`)
 
 EKS orchestrates episodes in-cluster via `job/gensim-orchestrator`, collects from every recorder Agent pod after waiting
-one full flush interval past `end_time`, and uploads a zip archive to S3. Load
-[the EKS reference](references/eks.md) when troubleshooting multi-pod collection, inspecting Helm differences, or
-running the live acceptance checklist.
+one full flush interval past `end_time`, and uploads a zip archive to S3. Load [the EKS reference](references/eks.md)
+only when:
+- the local `gensim-episodes` checkout is dirty or `e2e.setup` fails on a missing local SSH keypair,
+- a previous Pulumi submit was interrupted or the cluster reports busy,
+- multi-pod collection/upload fails or local validation needs to be re-run against an already downloaded `$OUT`, or
+- inspecting VM vs EKS Helm differences or running the live acceptance checklist.
 
-1. Submit the episode or batch (requires a clean `gensim-episodes` checkout and a recorder-enabled `agent-dev` image).
-`--episodes` is `<dir under postmortems/ or synthetics/>:<episodes/*.yaml name without extension>`, e.g.
-`703_shopify_bfcm_incident:kafka-partition-saturation`, not the human scenario name. A user-supplied "scenario" path in
-`observer-scenarios*` is usually an old recording output (`episode.json` + `parquet/`), not a source; read its
-`episode.json` for the episode name and locate the source in `gensim-episodes`.
-
-If the user's `gensim-episodes` checkout is dirty (`submit` refuses it), never reset or stash it. Clone it to a fresh
-directory (`git clone --local <repo> /tmp/gensim-episodes-clean`) and pass `GENSIM_REPO_PATH=/tmp/gensim-episodes-clean`.
-
-A first submit provisions the EKS cluster, node group and image builder and takes well over 10 minutes. **Never run it in
-the foreground or under a short `timeout`**: killing it mid-update leaves a partial Pulumi state. Run it with
-`run_in_background` (no timeout), redirect output to a log file, and poll `status` or the log. If a run was interrupted,
-check that no `pulumi` process is active before re-submitting; the orphan `pulumi-resource-*` plugin processes alone do
-not mean an update is running.
+1. Submit the episode or batch in the background (first-time cluster provisioning takes >10 minutes; never run under a
+short foreground timeout). `--episodes` is `<dir under postmortems/ or synthetics/>:<episodes/*.yaml name without extension>`,
+e.g. `703_shopify_bfcm_incident:kafka-partition-saturation`. Source `"$ENV_FILE"` (`set -a; . "$ENV_FILE"; set +a`) in
+the same shell without printing secrets, and append `--no-recording-only` when `RECORDING_ONLY=false`:
 
 ```bash
 GENSIM_REPO_PATH="${GENSIM_REPO_PATH:-}" dda inv aws.eks.gensim.submit \
   --stack-name="$STACK" \
   --image="docker.io/datadog/agent-dev:$TAG" \
-  --episodes="$EPISODE_DIR:$EPISODE" \
+  --episodes="$SCENARIO_ID:$EPISODE" \
   --s3-bucket="$S3_BUCKET" \
+  --mode="${EKS_MODE:-record-parquet}" \
   --flush-interval="$FLUSH" \
   --retention="$RETENTION" > /tmp/gensim-submit-"$STACK".log 2>&1   # run in background
 ```
 
-Source the user's env file (`set -a; . "$ENV_FILE"; set +a`) in the same shell invocation without printing it. If
-`dda inv e2e.setup` fails only on a missing local keypair file, do not delete the remote keypair; try `submit` first
-(EKS does not need the SSH key) and report the issue.
-
-2. Monitor in-cluster execution:
+2. Monitor in-cluster execution until `collection=succeeded` and `upload=succeeded`:
 
 ```bash
 dda inv aws.eks.gensim.status --stack-name="$STACK"
@@ -150,19 +141,18 @@ local validation (`validation`). An uploaded S3 artifact (`upload=succeeded`, `v
 validated benchmark recording**.
 
 3. Fetch the uploaded artifact into a fresh nonexistent local directory (`$OUT`, e.g. `/tmp/scenarios/kafka` or
-`/tmp/eks-scenarios/<episode>`) and run the shared PyArrow validator.
-If `dda` overrides `PATH` and the validator's `python3` fails with `No module named 'pyarrow'` after downloading `$OUT`,
-create a venv (`uv venv /tmp/pyarrow-venv && uv pip install --python /tmp/pyarrow-venv/bin/python pyarrow`) and run the
-validator directly with it first on `PATH`:
-`PATH=/tmp/pyarrow-venv/bin:$PATH python3 "$SKILL/scripts/recording.py" validate "$OUT" 60 --backend eks --run-id "$RUN_ID" --scenario-dir "$SCENARIO_ID" --episode "$EPISODE" --namespace default`.
+`/tmp/eks-scenarios/<episode>`) and run the shared PyArrow validator (`fetch` automatically invokes
+`uv run --no-project --with pyarrow python3` when the active `python3` lacks `pyarrow`, and infers the flush interval
+from `recording-manifest.json` unless `--flush-interval="$FLUSH"` is passed):
 
 ```bash
-uv run --with pyarrow dda inv aws.eks.gensim.fetch \
+dda inv aws.eks.gensim.fetch \
   --stack-name="$STACK" \
   --run-id="$RUN_ID" \
   --episode="$SCENARIO_ID" \
   --scenario="$EPISODE" \
   --s3-bucket="$S3_BUCKET" \
+  --flush-interval="$FLUSH" \
   --output-dir="$OUT"
 ```
 
@@ -235,7 +225,7 @@ Read only for a failed or unfamiliar step:
 - Lima/kind setup: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6238700466/Gensim+Hands+On
 - Original setup in the `gensim-episodes` repo: `q_branch/setup-k8s-host.sh`, `q_branch/gadget-k8s-host.lima.yaml`.
 - [VM Ubuntu bootstrap](references/bootstrap.md) — load only when `vm.sh probe` fails on missing tools or sysctl limits.
-- [EKS multi-pod recording & live acceptance checklist](references/eks.md) — load only for EKS troubleshooting or live acceptance handoff.
+- [EKS multi-pod recording & live acceptance checklist](references/eks.md) — load only for EKS recovery, troubleshooting, or live acceptance handoff.
 - Docker permission denied after bootstrap: close the multiplexed SSH connection and reconnect to pick up group membership.
 - Exec format errors: confirm an amd64 image for the x86_64 VM.
 - Docker 29 image-load errors: use a single-platform image archive instead of `kind load docker-image`.

@@ -83,7 +83,7 @@ An uploaded S3 archive has `validation=pending` because full PyArrow validation
 and `Time`-window trimming run on the developer machine before benchmark replay:
 
 ```bash
-uv run --with pyarrow dda inv aws.eks.gensim.fetch \
+dda inv aws.eks.gensim.fetch \
   --run-id=<run_id> \
   --episode=authcore-pgbouncer \
   --scenario=pool-saturation \

@@ -1,7 +1,7 @@
 # EKS backend architecture, troubleshooting, and live acceptance checklist
 
-Read this reference only when running `--backend eks` with non-default settings, troubleshooting EKS orchestrator or
-collection failures, or preparing the user-run live AWS acceptance checklist.
+Read this reference only when running `--backend eks` with non-default settings, recovering from preflight/submit/fetch
+errors, troubleshooting EKS orchestrator or collection failures, or preparing the user-run live AWS acceptance checklist.
 
 ## Multi-pod recording contract
 
@@ -33,6 +33,23 @@ On EKS (`aws/gensim-eks`), the Datadog Agent runs as a DaemonSet across Linux wo
 - `dogstatsd.useHostPort: true`, `apm.portEnabled: true`, `clusterAgent.admissionController.mutateUnlabelled: true`, and
   explicit container CPU/memory requests and limits for multi-node EKS workloads.
 
+## Preflight, submit, and fetch recovery procedures
+
+- **Dirty `gensim-episodes` checkout (`submit` refuses uncommitted changes)**: never reset or stash the user's working
+  tree. With user approval, clone it locally (`git clone --local <repo> /tmp/gensim-episodes-clean`) and pass
+  `GENSIM_REPO_PATH=/tmp/gensim-episodes-clean`.
+- **Missing local SSH keypair on `dda inv e2e.setup`**: do not delete the remote AWS keypair; try `dda inv aws.eks.gensim.submit`
+  directly (EKS does not require the EC2 SSH key) and report the keypair warning.
+- **Interrupted Pulumi submit**: if a background `submit` was interrupted, verify no `pulumi` CLI process is running
+  before re-submitting; idle `pulumi-resource-*` plugin processes alone do not indicate an active update.
+- **Re-running validation on an already downloaded `$OUT`**: `dda inv aws.eks.gensim.fetch` automatically runs
+  `uv run --no-project --with pyarrow python3` when `python3` lacks `pyarrow`. If `uv` was unavailable or validation failed
+  after `artifact.zip` was downloaded to `$OUT`, install `pyarrow` in a local venv
+  (`uv venv /tmp/pyarrow-venv && uv pip install --python /tmp/pyarrow-venv/bin/python pyarrow`) and re-run the validator
+  against `$OUT` (omitting `flush_seconds` so it infers `flush_interval_seconds` from `recording-manifest.json`, or passing
+  `"$FLUSH_SECONDS"` explicitly):
+  `PATH=/tmp/pyarrow-venv/bin:$PATH python3 "$SKILL/scripts/recording.py" validate "$OUT" "$FLUSH_SECONDS" --backend eks --run-id "$RUN_ID" --scenario-dir "$SCENARIO_ID" --episode "$EPISODE" --namespace default`.
+
 ## Troubleshooting EKS runs
 
 - **Cluster busy**: `dda inv aws.eks.gensim.submit` refuses to start while `job/gensim-orchestrator` is active. Inspect
@@ -56,7 +73,7 @@ When handing off for live validation, provide these checks for the user to run:
 2. Monitor `dda inv aws.eks.gensim.status --stack-name=<stack>` and confirm `collection=succeeded`, `upload=succeeded`,
    `validation=pending`, and `pods=<worker_count>`.
 3. Fetch and validate locally into a fresh directory:
-   `uv run --with pyarrow dda inv aws.eks.gensim.fetch --stack-name=<stack> --episode=<episode> --scenario=<scenario> --output-dir=/tmp/eks-scenarios/<scenario>`
+   `dda inv aws.eks.gensim.fetch --stack-name=<stack> --episode=<episode> --scenario=<scenario> --output-dir=/tmp/eks-scenarios/<scenario>`
 4. Inspect `/tmp/eks-scenarios/<scenario>/validation.json` and `recording-manifest.json`; confirm `usable: true`,
    `states.validation: "passed"`, and retained metric and log files from every recorder pod.
 5. Replay in the testbench:
