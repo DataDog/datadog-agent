@@ -1077,10 +1077,16 @@ func fetchSBOMs(c require.TestingT, intake *fakeintakeclient.Client) *aggregator
 // newestHostSBOM returns the components of the newest full host SBOM intake
 // collected after after.
 func newestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client, after time.Time) []*cyclonedx_v1_4.Component {
+	return newestHostBOM(c, intake, after).GetComponents()
+}
+
+// newestHostBOM returns the newest full host SBOM intake collected after
+// after.
+func newestHostBOM(c require.TestingT, intake *fakeintakeclient.Client, after time.Time) *cyclonedx_v1_4.Bom {
 	agg := fetchSBOMs(c, intake)
 
 	newest := after
-	var components []*cyclonedx_v1_4.Component
+	var bom *cyclonedx_v1_4.Bom
 	for _, id := range agg.GetNames() {
 		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
@@ -1090,11 +1096,11 @@ func newestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client, after t
 				continue
 			}
 			newest = p.GetCollectedTime()
-			components = p.GetCyclonedx().Components
+			bom = p.GetCyclonedx()
 		}
 	}
-	require.NotEmptyf(c, components, "no host SBOM with a body collected after %s in fake intake yet", after)
-	return components
+	require.NotEmptyf(c, bom.GetComponents(), "no host SBOM with a body collected after %s in fake intake yet", after)
+	return bom
 }
 
 // usageSBOM is an SBOM with a body as the fake intake received it, with the

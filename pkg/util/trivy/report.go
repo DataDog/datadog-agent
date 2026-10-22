@@ -15,6 +15,7 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/types"
@@ -24,13 +25,15 @@ const imageCreatedPropertyKey = "datadog:image:Created"
 
 // Report describes a trivy report along with its marshaler
 type Report struct {
-	id  string
-	bom *cyclonedx_v1_4.Bom
+	id         string
+	bom        *cyclonedx_v1_4.Bom
+	osFallback bool
 }
 
 type reportOptions struct {
 	dependencies    bool
 	simplifyBomRefs bool
+	osFallback      bool // the report lists the OS packages alone because the application scan ran out of time
 }
 
 func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, opts reportOptions) (*Report, error) {
@@ -44,12 +47,16 @@ func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, o
 	}
 
 	appendSBOMImageCreated(bom, report.Metadata.ImageConfig.Created.Time)
+	if opts.osFallback {
+		appendSBOMOSFallback(bom)
+	}
 
 	bom14 := bomconvert.ConvertBOM(bom, opts.simplifyBomRefs)
 
 	return &Report{
-		id:  id,
-		bom: bom14,
+		id:         id,
+		bom:        bom14,
+		osFallback: opts.osFallback,
 	}, nil
 }
 
@@ -69,6 +76,20 @@ func appendSBOMImageCreated(bom *cdx.BOM, created time.Time) {
 	})
 }
 
+// appendSBOMOSFallback marks the SBOM as listing the OS packages alone.
+func appendSBOMOSFallback(bom *cdx.BOM) {
+	if bom.Metadata == nil {
+		bom.Metadata = &cdx.Metadata{}
+	}
+	if bom.Metadata.Properties == nil {
+		bom.Metadata.Properties = &[]cdx.Property{}
+	}
+	*bom.Metadata.Properties = append(*bom.Metadata.Properties, cdx.Property{
+		Name:  sbom.OSFallbackProperty,
+		Value: "true",
+	})
+}
+
 // ToCycloneDX returns the report as a CycloneDX SBOM
 func (r *Report) ToCycloneDX() *cyclonedx_v1_4.Bom {
 	return r.bom
@@ -77,4 +98,10 @@ func (r *Report) ToCycloneDX() *cyclonedx_v1_4.Bom {
 // ID returns the report identifier
 func (r *Report) ID() string {
 	return r.id
+}
+
+// OSFallback reports whether the report lists the OS packages alone because
+// the scan with application analyzers ran out of time.
+func (r *Report) OSFallback() bool {
+	return r != nil && r.osFallback
 }
