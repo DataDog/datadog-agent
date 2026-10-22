@@ -15,6 +15,7 @@ go_library(
         "read_config_file.go",
         "reflection_node.go",
         "relative_path.go",
+        "validation.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/nodetreemodel",
     visibility = ["//visibility:public"],
@@ -40,6 +41,7 @@ dd_agent_go_test(
         "read_config_file_test.go",
         "reflection_node_test.go",
         "relative_path_test.go",
+        "validation_test.go",
     ],
     embed = [":nodetreemodel"],
     deps = [

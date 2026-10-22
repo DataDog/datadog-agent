@@ -9,9 +9,9 @@ import (
 )
 
 func TestCgoAlignment_mapErrTelemetry(t *testing.T) {
-	ebpftest.TestCgoAlignment[mapErrTelemetry](t)
+	ebpftest.AssertCgoAlignment[mapErrTelemetry](t)
 }
 
 func TestCgoAlignment_helperErrTelemetry(t *testing.T) {
-	ebpftest.TestCgoAlignment[helperErrTelemetry](t)
+	ebpftest.AssertCgoAlignment[helperErrTelemetry](t)
 }

@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -872,6 +873,54 @@ func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) 
 	require.Equal(t, 1, s.TotalSeriesCount())
 }
 
+func TestTimeSeriesStorage_AddEvictsBeforeAdmissionAtCapacity(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          4,
+		EvictionFloorRatio: 0.5,
+	})
+	first := s.Add("workload", "first", 1, 1, nil).Ref
+	second := s.Add("workload", "second", 1, 2, nil).Ref
+	third := s.Add("workload", "third", 1, 3, nil).Ref
+	fourth := s.Add("workload", "fourth", 1, 4, nil).Ref
+	require.Equal(t, 4, s.TotalSeriesCount())
+
+	admitted := s.Add("workload", "new", 1, 5, nil)
+
+	require.True(t, admitted.IsNew)
+	require.GreaterOrEqual(t, admitted.Ref, observer.SeriesRef(0))
+	require.Equal(t, []observer.SeriesRef{first, second, third}, admitted.CapacityEvictedRefs)
+	require.Equal(t, 2, s.TotalSeriesCount(), "admission must land on the configured eviction target")
+	assert.Nil(t, s.GetSeriesMeta(first))
+	assert.Nil(t, s.GetSeriesMeta(second))
+	assert.Nil(t, s.GetSeriesMeta(third))
+	assert.NotNil(t, s.GetSeriesMeta(fourth))
+	assert.NotNil(t, s.GetSeriesMeta(admitted.Ref))
+
+	updated := s.Add("workload", "new", 2, 6, nil)
+	assert.False(t, updated.IsNew)
+	assert.Empty(t, updated.CapacityEvictedRefs, "updating an admitted series must not trigger eviction")
+	assert.Equal(t, 2, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_AdmissionCapacityExcludesTelemetrySeries(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          1,
+		EvictionFloorRatio: 0.5,
+	})
+	workload := s.Add("workload", "first", 1, 1, nil).Ref
+	telemetry := s.Add(observer.TelemetryNamespace, "internal", 1, 2, nil)
+	require.Empty(t, telemetry.CapacityEvictedRefs)
+	require.Equal(t, 1, s.TotalSeriesCount())
+
+	admitted := s.Add("workload", "second", 1, 3, nil)
+
+	require.Equal(t, []observer.SeriesRef{workload}, admitted.CapacityEvictedRefs)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	assert.Nil(t, s.GetSeriesMeta(workload))
+	assert.NotNil(t, s.GetSeriesMeta(telemetry.Ref), "capacity admission must not evict telemetry series")
+	assert.NotNil(t, s.GetSeriesMeta(admitted.Ref))
+}
+
 func TestTimeSeriesStorage_EvictInactiveBefore(t *testing.T) {
 	s := newTimeSeriesStorage()
 	old := s.Add("workload", "old", 1, 100, []string{"env:test"}).Ref
@@ -1110,8 +1159,8 @@ func TestTimeSeriesStorage_TagIntern_IgnoresDuplicateCompositeTags(t *testing.T)
 	firstTags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, nil)
 	secondTags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api", "service:api"})
 
-	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags))
-	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags))
+	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags), observer.UnknownType)
+	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags), observer.UnknownType)
 
 	assert.Equal(t, 1, s.TagInternedCount())
 	s.mu.RLock()
@@ -1168,4 +1217,34 @@ func TestSeriesKeyHashIsUnordered(t *testing.T) {
 
 	assert.NotZero(t, sorted)
 	assert.Equal(t, sorted, unsorted)
+}
+
+func TestStorageMetricTypeIsSeriesMetadata(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{})
+	tags := tagset.CompositeTags{}
+	key := storageKeyForCompositeIdentity("check", "requests", "", tags)
+	add := func(typ metrics.MetricType, ts int64) AddResult {
+		return s.AddWithKeyAndHostComposite("check", "requests", "", 1, ts, tags, key, typ)
+	}
+	first := add(observer.UnknownType, 100)
+	require.Equal(t, observer.UnknownType, s.GetSeriesMeta(first.Ref).MetricType)
+	generation := s.SeriesGeneration()
+	known := add(metrics.CountType, 101)
+	require.Equal(t, first.Ref, known.Ref)
+	require.Equal(t, generation, s.SeriesGeneration())
+	// A conflicting type or a late sample with no type cannot change the series type.
+	add(metrics.GaugeType, 102)
+	add(observer.UnknownType, 99)
+	require.Equal(t, generation, s.SeriesGeneration())
+	require.Equal(t, metrics.CountType, s.GetSeriesMeta(first.Ref).MetricType)
+	metas := s.ListSeries(observer.SeriesFilter{})
+	require.Len(t, metas, 1)
+	require.Equal(t, metrics.CountType, metas[0].MetricType)
+	require.Equal(t, metrics.CountType, s.ListSeriesMetadata("check")[0].MetricType)
+	require.Len(t, s.GetSeriesRange(first.Ref, 0, 102, observer.AggregateSum).Points, 4)
+	s.RemoveSeriesByRefs([]observer.SeriesRef{first.Ref})
+	require.Nil(t, s.GetSeriesMeta(first.Ref))
+	recreated := add(metrics.GaugeType, 103)
+	require.NotEqual(t, first.Ref, recreated.Ref)
+	require.Equal(t, metrics.GaugeType, s.GetSeriesMeta(recreated.Ref).MetricType)
 }

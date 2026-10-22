@@ -8,15 +8,22 @@
 package orchestrator
 
 import (
+	"errors"
+	"fmt"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sdiscovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
@@ -774,4 +781,606 @@ func TestFilterCRCollectorsByPermission(t *testing.T) {
 		result := filterCRCollectorsByPermission([]collectors.K8sCollector{}, isForbidden)
 		require.Len(t, result, 0)
 	})
+}
+
+func TestCollectorBundleRetryDiscovery(t *testing.T) {
+	var (
+		appsGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "apps",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "apps/v1", Version: "v1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "apps/v1", Version: "v1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "apps/v1",
+				APIResources: []v1.APIResource{{Name: "deployments"}},
+			},
+		}
+
+		batchGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "batch",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "batch/v1", Version: "v1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "batch/v1", Version: "v1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "batch/v1",
+				APIResources: []v1.APIResource{{Name: "cronjobs"}, {Name: "jobs"}},
+			},
+		}
+
+		crGroup1 = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "group1",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "group1/v1", Version: "v1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "group1/v1", Version: "v1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "group1/v1",
+				APIResources: []v1.APIResource{{Name: "cr-kind-1"}},
+			},
+		}
+
+		crGroup2 = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "group2",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "group2/v1", Version: "v1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "group2/v1", Version: "v1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "group2/v1",
+				APIResources: []v1.APIResource{{Name: "cr-kind-2"}},
+			},
+		}
+
+		crdGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "apiextensions.k8s.io",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "apiextensions.k8s.io/v1", Version: "v1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "apiextensions.k8s.io/v1", Version: "v1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "apiextensions.k8s.io/v1",
+				APIResources: []v1.APIResource{{Name: "customresourcedefinitions"}},
+			},
+		}
+
+		crdDatadogGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "datadoghq.com",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "datadoghq.com/v1alpha1", Version: "v1alpha1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "datadoghq.com/v1alpha1", Version: "v1alpha1"},
+			},
+			Resources: &v1.APIResourceList{GroupVersion: "datadoghq.com/v1alpha1", APIResources: []v1.APIResource{{Name: "datadogmetrics"}}},
+		}
+
+		crdArgoGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "argoproj.io",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "argoproj.io/v1alpha1", Version: "v1alpha1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "argoproj.io/v1alpha1", Version: "v1alpha1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "argoproj.io/v1alpha1",
+				APIResources: []v1.APIResource{{Name: "rollouts"}},
+			},
+		}
+
+		unsupportedGroup = discoveryGroup{
+			Group: &v1.APIGroup{
+				Name:             "unsupported",
+				Versions:         []v1.GroupVersionForDiscovery{{GroupVersion: "unsupported/v1", Version: "v1"}},
+				PreferredVersion: v1.GroupVersionForDiscovery{GroupVersion: "unsupported/v1", Version: "v1"},
+			},
+			Resources: &v1.APIResourceList{
+				GroupVersion: "unsupported/v1",
+				APIResources: []v1.APIResource{{Name: "resource-kind-1"}},
+			},
+		}
+
+		crCollectors = []string{"group1/v1/cr-kind-1", "group2/v1/cr-kind-2"}
+	)
+
+	t.Run("Success - Regular collectors discovery - partial failure recovery", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": false}
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a partial failure
+			discoveryFetchMockResult{
+				err:       newGroupDiscoveryError(schema.GroupVersion{Group: "batch", Version: "v1"}),
+				groups:    []*v1.APIGroup{appsGroup.Group},
+				resources: []*v1.APIResourceList{appsGroup.Resources},
+			},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{appsGroup.Group, batchGroup.Group},
+				resources: []*v1.APIResourceList{appsGroup.Resources, batchGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+
+		// First fetch
+		cb.prepare()
+		expectedCollectors := collectorNamesOf(appsGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: unable to retrieve the complete list of server APIs: batch/v1: service unavailable")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Second fetch
+		cb.RetryDiscovery()
+		expectedCollectors = collectorNamesOf(appsGroup, batchGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - Regular collectors discovery - repeated partial failure", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": false}
+		fetchMock := newDiscoveryFetchMock(
+			// Every fetch is the same partial failure
+			discoveryFetchMockResult{
+				err:       newGroupDiscoveryError(schema.GroupVersion{Group: "batch", Version: "v1"}),
+				groups:    []*v1.APIGroup{appsGroup.Group},
+				resources: []*v1.APIResourceList{appsGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+
+		// First fetch
+		cb.prepare()
+		expectedCollectors := collectorNamesOf(appsGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Retries discovering nothing new skip 1, 2 then 4 runs
+		expectedCalls := []int{1, 2, 2, 2, 3, 3, 3, 3, 3, 4}
+		for run, calls := range expectedCalls {
+			cb.RetryDiscovery()
+			require.Equal(t, calls, fetchMock.calls, "run %d", run+1)
+			require.Equal(t, expectedCollectors, collectorNames(cb), "run %d", run+1)
+		}
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery retry failed, skipping 8 check run(s) before retrying: unable to retrieve the complete list of server APIs: batch/v1: service unavailable")
+	})
+	t.Run("Success - Regular collectors discovery - total failure recovery", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": false}
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a total failure
+			discoveryFetchMockResult{err: errors.New("discovery total failure")},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{appsGroup.Group, batchGroup.Group},
+				resources: []*v1.APIResourceList{appsGroup.Resources, batchGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+
+		// First fetch
+		cb.prepare()
+		require.Empty(t, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: discovery total failure")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Empty(t, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Second fetch
+		cb.RetryDiscovery()
+		expectedCollectors := collectorNamesOf(appsGroup, batchGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - CR collectors discovery - partial failure recovery", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": false}
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a partial failure
+			discoveryFetchMockResult{
+				err:       newGroupDiscoveryError(schema.GroupVersion{Group: "group2", Version: "v1"}),
+				groups:    []*v1.APIGroup{crGroup1.Group},
+				resources: []*v1.APIResourceList{crGroup1.Resources},
+			},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{crGroup1.Group, crGroup2.Group},
+				resources: []*v1.APIResourceList{crGroup1.Resources, crGroup2.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+		cb.check.instance.CRDCollectors = crCollectors
+
+		// First fetch
+		cb.prepare()
+		expectedCollectors := collectorNamesOf(crGroup1)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: unable to retrieve the complete list of server APIs: group2/v1: service unavailable")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Second fetch
+		cb.RetryDiscovery()
+		expectedCollectors = collectorNamesOf(crGroup1, crGroup2)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - CR collectors discovery - total failure recovery", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": false}
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a total failure
+			discoveryFetchMockResult{err: errors.New("discovery total failure")},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{crGroup1.Group, crGroup2.Group},
+				resources: []*v1.APIResourceList{crGroup1.Resources, crGroup2.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+		cb.check.instance.CRDCollectors = crCollectors
+
+		// First fetch
+		cb.prepare()
+		require.Empty(t, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: discovery total failure")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Empty(t, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Second fetch
+		cb.RetryDiscovery()
+		expectedCollectors := collectorNamesOf(crGroup1, crGroup2)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - CR builtin collectors discovery - partial failure recovery", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": true}
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a partial failure
+			discoveryFetchMockResult{
+				err:       newGroupDiscoveryError(schema.GroupVersion{Group: "datadoghq.com", Version: "v1alpha1"}),
+				groups:    []*v1.APIGroup{crdGroup.Group, crdArgoGroup.Group},
+				resources: []*v1.APIResourceList{crdGroup.Resources, crdArgoGroup.Resources},
+			},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{crdGroup.Group, crdArgoGroup.Group, crdDatadogGroup.Group},
+				resources: []*v1.APIResourceList{crdGroup.Resources, crdArgoGroup.Resources, crdDatadogGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+
+		// First fetch
+		cb.prepare()
+		expectedCollectors := collectorNamesOf(crdGroup, crdArgoGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: unable to retrieve the complete list of server APIs: datadoghq.com/v1alpha1: service unavailable")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Actual retry
+		cb.RetryDiscovery()
+		expectedCollectors = collectorNamesOf(crdGroup, crdArgoGroup, crdDatadogGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - CR builtin collectors discovery - total failure recovery", func(t *testing.T) {
+		settings := map[string]any{"orchestrator_explorer.custom_resources.ootb.enabled": true}
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a total failure
+			discoveryFetchMockResult{err: errors.New("discovery total failure")},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{crdGroup.Group, crdArgoGroup.Group, crdDatadogGroup.Group},
+				resources: []*v1.APIResourceList{crdGroup.Resources, crdArgoGroup.Resources, crdDatadogGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, []string{}, true, fetchMock.fetch, settings)
+
+		// First fetch
+		cb.prepare()
+		require.Empty(t, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: discovery total failure")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Empty(t, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Second fetch
+		cb.RetryDiscovery()
+		expectedCollectors := collectorNamesOf(crdGroup, crdArgoGroup, crdDatadogGroup)
+		require.Equal(t, expectedCollectors, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - Unsupported group - partial failure", func(t *testing.T) {
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a partial failure
+			discoveryFetchMockResult{
+				err:       newGroupDiscoveryError(schema.GroupVersion{Group: "unsupported", Version: "v1"}),
+				groups:    []*v1.APIGroup{crdGroup.Group},
+				resources: []*v1.APIResourceList{crdGroup.Resources},
+			},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{crdGroup.Group, unsupportedGroup.Group},
+				resources: []*v1.APIResourceList{crdGroup.Resources, unsupportedGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, nil, true, fetchMock.fetch, nil)
+
+		// First fetch
+		cb.prepare()
+		require.Equal(t, collectorNamesOf(crdGroup), collectorNames(cb))
+		require.Empty(t, warningMessages(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// What would trigger a skip run and retry with a supported group should not trigger a retry there.
+		for range 2 {
+			cb.RetryDiscovery()
+			require.Equal(t, collectorNamesOf(crdGroup), collectorNames(cb))
+			require.Equal(t, 1, fetchMock.calls)
+		}
+	})
+	t.Run("Success - Unsupported group - total failure", func(t *testing.T) {
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a total failure
+			discoveryFetchMockResult{err: errors.New("discovery total failure")},
+			// Second fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{unsupportedGroup.Group},
+				resources: []*v1.APIResourceList{unsupportedGroup.Resources},
+			},
+		)
+
+		cb := newRetryTestBundle(t, nil, true, fetchMock.fetch, nil)
+
+		// First fetch
+		cb.prepare()
+		require.Empty(t, collectorNames(cb))
+		require.Contains(t, warningMessages(cb), "Kubernetes API discovery failed, skipping 1 check run(s) before retrying: discovery total failure")
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Skipped run
+		cb.RetryDiscovery()
+		require.Empty(t, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// Second fetch, no change the selected collectors
+		cb.RetryDiscovery()
+		require.Empty(t, collectorNames(cb))
+		require.Equal(t, 2, fetchMock.calls)
+	})
+	t.Run("Success - Complete discovery is not retried", func(t *testing.T) {
+		fetchMock := newDiscoveryFetchMock(
+			// First fetch is a success
+			discoveryFetchMockResult{
+				groups:    []*v1.APIGroup{appsGroup.Group},
+				resources: []*v1.APIResourceList{appsGroup.Resources},
+			},
+		)
+
+		configuredCollectors := collectorNamesOf(appsGroup)
+		cb := newRetryTestBundle(t, configuredCollectors, true, fetchMock.fetch, nil)
+
+		// First fetch
+		cb.prepare()
+		require.Equal(t, configuredCollectors, collectorNames(cb))
+		require.Equal(t, 1, fetchMock.calls)
+
+		// The next two calls must be no-ops.
+		for range 2 {
+			cb.RetryDiscovery()
+			require.Equal(t, configuredCollectors, collectorNames(cb))
+			require.Equal(t, 1, fetchMock.calls)
+		}
+	})
+}
+
+func TestCollectorBundleMergeCollectors(t *testing.T) {
+	var (
+		cronjobV1Beta1Collector = k8s.NewCronJobV1Beta1Collector(nil)
+		cronjobV1Collector      = k8s.NewCronJobV1Collector(nil)
+		jobCollector            = k8s.NewJobCollector(nil)
+	)
+
+	cases := []struct {
+		name     string
+		previous []collectors.K8sCollector
+		selected []collectors.K8sCollector
+		expected []collectors.K8sCollector
+	}{
+		{
+			name:     "Success - New selected collector",
+			previous: []collectors.K8sCollector{cronjobV1Collector},
+			selected: []collectors.K8sCollector{jobCollector},
+			expected: []collectors.K8sCollector{cronjobV1Collector, jobCollector},
+		},
+		{
+			name:     "Success - No previous collector",
+			selected: []collectors.K8sCollector{jobCollector},
+			expected: []collectors.K8sCollector{jobCollector},
+		},
+		{
+			name:     "Success - No selected collector",
+			previous: []collectors.K8sCollector{jobCollector},
+			expected: []collectors.K8sCollector{jobCollector},
+		},
+		{
+			name:     "Success - Previous collector kept for the same resource",
+			previous: []collectors.K8sCollector{cronjobV1Collector},
+			selected: []collectors.K8sCollector{cronjobV1Beta1Collector},
+			expected: []collectors.K8sCollector{cronjobV1Collector},
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			cb := CollectorBundle{collectors: tt.selected}
+			cb.mergeCollectors(tt.previous)
+			assert.Equal(t, tt.expected, cb.collectors)
+		})
+	}
+}
+
+func TestCollectorBundleInitialize(t *testing.T) {
+	client := k8sfake.NewClientset()
+	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
+	stopCh := make(chan struct{})
+	cb := CollectorBundle{
+		collectors:            []collectors.K8sCollector{k8s.NewDeploymentCollector(nil)},
+		initializedCollectors: map[string]struct{}{},
+		runCfg: &collectors.CollectorRunConfig{
+			Config: &orchcfg.OrchestratorConfig{},
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   apiClient,
+				OrchestratorInformerFactory: getOrchestratorInformerFactory(apiClient),
+			},
+		},
+		startedInformers: map[cache.Store]struct{}{},
+		stopCh:           stopCh,
+	}
+
+	// close the stop channel when the test is done
+	t.Cleanup(func() { close(stopCh) })
+
+	// Initially selected collector is initialized.
+
+	cb.Initialize()
+
+	expectedInitializedCollectors := map[string]struct{}{
+		"apps/v1/deployments": {},
+	}
+	expectedStartedInformers := map[cache.Store]struct{}{
+		cb.collectors[0].Informer().GetStore(): {},
+	}
+
+	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)
+	require.Equal(t, expectedStartedInformers, cb.startedInformers)
+
+	// A new selected collector after a discovery retry is initialized.
+
+	cb.collectors = append(cb.collectors, k8s.NewJobCollector(nil))
+	cb.Initialize()
+
+	expectedInitializedCollectors = map[string]struct{}{
+		"apps/v1/deployments": {},
+		"batch/v1/jobs":       {},
+	}
+	expectedStartedInformers = map[cache.Store]struct{}{
+		cb.collectors[0].Informer().GetStore(): {},
+		cb.collectors[1].Informer().GetStore(): {},
+	}
+
+	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)
+	require.Equal(t, expectedStartedInformers, cb.startedInformers)
+}
+
+type discoveryFetchMock struct {
+	calls   int
+	results []discoveryFetchMockResult
+}
+
+// newDiscoveryFetchMock returns a fetch function returning results in order, the last one being repeated.
+func newDiscoveryFetchMock(results ...discoveryFetchMockResult) *discoveryFetchMock {
+	return &discoveryFetchMock{results: results}
+}
+
+func (f *discoveryFetchMock) fetch() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+	result := f.results[min(f.calls, len(f.results)-1)]
+	f.calls++
+	return result.groups, result.resources, result.err
+}
+
+type discoveryFetchMockResult struct {
+	err       error
+	groups    []*v1.APIGroup
+	resources []*v1.APIResourceList
+}
+
+type discoveryGroup struct {
+	Group     *v1.APIGroup
+	Resources *v1.APIResourceList
+}
+
+func collectorNames(cb *CollectorBundle) []string {
+	names := make([]string, 0, len(cb.collectors))
+	for _, collector := range cb.collectors {
+		names = append(names, collector.Metadata().FullName())
+	}
+	slices.Sort(names)
+	return names
+}
+
+// collectorNamesOf returns the sorted names of the collectors of the resources served by groups.
+func collectorNamesOf(groups ...discoveryGroup) []string {
+	var names []string
+	for _, group := range groups {
+		for _, resource := range group.Resources.APIResources {
+			names = append(names, fmt.Sprintf("%s/%s", group.Resources.GroupVersion, resource.Name))
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
+func newGroupDiscoveryError(groupVersions ...schema.GroupVersion) error {
+	groups := make(map[schema.GroupVersion]error, len(groupVersions))
+	for _, gv := range groupVersions {
+		groups[gv] = errors.New("service unavailable")
+	}
+	return &k8sdiscovery.ErrGroupDiscoveryFailed{Groups: groups}
+}
+
+func newRetryTestBundle(t *testing.T, configured []string, discoverCollectors bool, fetch discovery.ServerGroupsAndResourcesFunc, settings map[string]any) *CollectorBundle {
+	cfg := mockconfig.New(t)
+	for key, value := range settings {
+		cfg.SetInTest(key, value)
+	}
+
+	return &CollectorBundle{
+		activatedCollectors: map[string]struct{}{},
+		check: &OrchestratorCheck{
+			CheckBase: core.NewCheckBase(CheckName),
+			instance:  &OrchestratorInstance{Collectors: configured},
+		},
+		collectorDiscovery: discovery.NewDiscoveryCollector(fetch),
+		discoverCollectors: discoverCollectors,
+		discoveryRetrier:   newRetrier(collectionInterval, maxDiscoveryRetryDelay),
+		inventory:          inventory.NewCollectorInventory(cfg, nil, nil),
+		runCfg: &collectors.CollectorRunConfig{
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient: createMockAPIClient(),
+			},
+		},
+	}
+}
+
+// warningMessages returns the check warnings emitted since the last call.
+func warningMessages(cb *CollectorBundle) []string {
+	warnings := cb.check.GetWarnings()
+	messages := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		messages = append(messages, warning.Error())
+	}
+	return messages
 }

@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
             "//pkg/network",
             "//pkg/network/ebpf",
             "//pkg/process/util",
@@ -20,7 +20,7 @@ go_library(
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
             "//pkg/network",
             "//pkg/network/ebpf",
             "//pkg/process/util",

@@ -9,6 +9,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"text/template"
 
@@ -31,6 +32,8 @@ type KindConfigFlags struct {
 	KubeProxyReplacement        bool             // whether to set kubeProxyMode to "none" in the kind config
 	MountDockerSocket           bool             // whether to bind-mount /var/run/docker.sock from the host into each kind node
 	WorkerNodes                 []KindWorkerNode // additional worker nodes beyond the control-plane
+	APIServerAddress            string           // address the API server is published on; empty means kind's default, 127.0.0.1
+	APIServerPort               int              // host port the API server is published on; 0 means kind picks a free one
 }
 
 // KindWorkerNode describes a kind worker node.
@@ -120,6 +123,13 @@ func kubeSupportedVersions() []string {
 // generateKindConfig generates a kind cluster configuration based on the provided flags.
 // the embed.FS should contain the kind-cluster.yaml template file.
 func generateKindConfig(kindClusterTemplateFs embed.FS, flags KindConfigFlags) (string, error) {
+	if flags.APIServerPort < 0 || flags.APIServerPort > 65535 {
+		return "", fmt.Errorf("invalid kind API server port %d", flags.APIServerPort)
+	}
+	if flags.APIServerAddress != "" && net.ParseIP(flags.APIServerAddress) == nil {
+		return "", fmt.Errorf("invalid kind API server address %q", flags.APIServerAddress)
+	}
+
 	tmpl, err := template.ParseFS(kindClusterTemplateFs, "kind-cluster.yaml")
 	if err != nil {
 		return "", err

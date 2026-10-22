@@ -327,12 +327,12 @@ dd_cc_packaged(
 
 dd_cc_packaged(
     name = "rpm_pkg",
-    dest_dir = "embedded/lib",
-    input = ":rpm",
-    installed_files = [
+    data = [
         ":hdr_files",
         ":misc_files",
     ],
+    dest_dir = "embedded/lib",
+    input = ":rpm",
     version = "9.4.0",
     visibility = ["//visibility:public"],
 )

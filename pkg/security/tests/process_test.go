@@ -1833,6 +1833,10 @@ func TestProcessExit(t *testing.T) {
 			ID:         "test_exit_time_2",
 			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 4s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
+		{
+			ID:         "test_exit_coredump_thread",
+			Expression: `exit.cause == COREDUMPED && exit.code == SIGQUIT && process.file.name == "syscall_tester"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -1840,6 +1844,11 @@ func TestProcessExit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("exit-ok", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -1895,6 +1904,19 @@ func TestProcessExit(t *testing.T) {
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		}, "test_exit_coredump")
+	})
+
+	t.Run("exit-coredumped-by-thread", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			cmd := exec.Command(syscallTester, "coredump-in-pthread")
+			_ = cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			test.validateExitSchema(t, event)
+			assertTriggeredRule(t, rule, "test_exit_coredump_thread")
+			assert.Equal(t, uint32(sharedconsts.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
+		}, "test_exit_coredump_thread")
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {

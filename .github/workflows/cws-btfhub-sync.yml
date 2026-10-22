@@ -15,7 +15,7 @@ permissions: {}
 
 jobs:
   generate:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -87,14 +87,14 @@ jobs:
           dda inv -- -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
           path: ./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json
 
   combine:
     needs: generate
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
@@ -114,7 +114,7 @@ jobs:
           go-version-file: '.go-version'
 
       - name: Download All Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: ./dev/dist/constants
           pattern: constants-*

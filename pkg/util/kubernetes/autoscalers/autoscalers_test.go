@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -230,10 +230,12 @@ func TestInspect(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "1.9.4",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "1.9.4",
+										},
 									},
 								},
 							},
@@ -241,10 +243,12 @@ func TestInspect(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "2.1.9",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "2.1.9",
+										},
 									},
 								},
 							},
@@ -282,8 +286,13 @@ func TestInspect(t *testing.T) {
 						{
 							Type: autoscalingv2.PodsMetricSourceType,
 							Pods: &autoscalingv2.PodsMetricSource{
-								MetricName:         metricName,
-								TargetAverageValue: resource.MustParse("12"),
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+								},
+								Target: autoscalingv2.MetricTarget{
+									Type:         autoscalingv2.AverageValueMetricType,
+									AverageValue: resource.NewQuantity(12, resource.DecimalSI),
+								},
 							},
 						},
 					},
@@ -298,7 +307,9 @@ func TestInspect(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "foo",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "foo",
+								},
 							},
 						},
 					},
@@ -337,37 +348,49 @@ func TestInspect(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "valid_name",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "valid_name",
+								},
 							},
 						},
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "valid_name.with_dots.and_underscores.AndUppercaseLetters",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "valid_name.with_dots.and_underscores.AndUppercaseLetters",
+								},
 							},
 						},
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "0_invalid_name_must_start_with_letter",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "0_invalid_name_must_start_with_letter",
+								},
 							},
 						},
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "spaces are invalid",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "spaces are invalid",
+								},
 							},
 						},
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "utf8_invalid_🤷",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "utf8_invalid_🤷",
+								},
 							},
 						},
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "over_200_characters_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "over_200_characters_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding",
+								},
 							},
 						},
 					},
@@ -403,11 +426,13 @@ func TestInspect(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricNameUpper,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										// No need to try test upper cased labels/tags as they are not supported in Datadog
-										"dcos_version": "1.9.4",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricNameUpper,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											// No need to try test upper cased labels/tags as they are not supported in Datadog
+											"dcos_version": "1.9.4",
+										},
 									},
 								},
 							},
@@ -444,9 +469,11 @@ func makeSpec(metricName string, labels map[string]string) autoscalingv2.Horizon
 			{
 				Type: autoscalingv2.ExternalMetricSourceType,
 				External: &autoscalingv2.ExternalMetricSource{
-					MetricName: metricName,
-					MetricSelector: &metav1.LabelSelector{
-						MatchLabels: labels,
+					Metric: autoscalingv2.MetricIdentifier{
+						Name: metricName,
+						Selector: &metav1.LabelSelector{
+							MatchLabels: labels,
+						},
 					},
 				},
 			},
