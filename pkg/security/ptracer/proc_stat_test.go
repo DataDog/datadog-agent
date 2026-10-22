@@ -111,8 +111,10 @@ func TestForkPPID(t *testing.T) {
 	for _, nr := range []int{ForkNr, VforkNr} {
 		t.Run(fmt.Sprintf("syscall=%d", nr), func(t *testing.T) {
 			ctx := &CWSPtracerCtx{processCache: NewProcessCache()}
-			parent := &Process{Pid: 11, Tgid: 10}
-			child := &Process{Pid: -1, Tgid: -1, containerContextResolved: true}
+			parent := NewProcess(-1)
+			parent.Pid, parent.Tgid = 11, 10
+			child := NewProcess(-2)
+			child.containerContextResolved = true
 			ctx.processCache.Add(parent.Pid, parent)
 			ctx.handlePostHooks(nr, parent.Pid, syscall.PtraceRegs{}, child, syscallHandler{})
 			assert.EqualValues(t, parent.Tgid, child.forkPPID)
