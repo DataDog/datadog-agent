@@ -8,13 +8,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/log/def",
         "//comp/def",
         "//comp/privateactionrunner/phonehome/def",
         "//comp/remote-config/rcservice/def",
-        "//pkg/privateactionrunner",
-        "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/phonehome",
         "//pkg/util/option",
     ],
@@ -26,8 +22,6 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/log/mock",
         "//comp/def",
         "@com_github_stretchr_testify//require",
     ],
