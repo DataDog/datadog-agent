@@ -21,7 +21,15 @@
   - echo 'deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 6' > /etc/apt/sources.list.d/datadog.list
   - touch /usr/share/keyrings/datadog-archive-keyring.gpg
   - chmod a+r /usr/share/keyrings/datadog-archive-keyring.gpg
-  - curl https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public | gpg --no-default-keyring --keyring /usr/share/keyrings/datadog-archive-keyring.gpg --import --batch
+  # Import every current Datadog APT signing key, not just CURRENT: the deb_x64
+  # image (unlike the old gitlab_agent_deploy image) does not ship the full
+  # Datadog keyring, and the prod repo metadata is still signed by older keys, so
+  # importing only CURRENT leaves `apt-get update` with NO_PUBKEY errors. This
+  # mirrors the key set in cmd/agent/install_script.sh.
+  - |
+    for key in DATADOG_APT_KEY_CURRENT.public DATADOG_APT_KEY_F14F620E.public DATADOG_APT_KEY_382E94DE.public; do
+      curl --retry 5 -fsSL "https://keys.datadoghq.com/${key}" | gpg --no-default-keyring --keyring /usr/share/keyrings/datadog-archive-keyring.gpg --import --batch
+    done
 
   - apt-get update
   # Note: it's fine to overwrite the datadog-signing-keys package during each pipeline run, as the package in the
