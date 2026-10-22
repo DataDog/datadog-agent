@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix the ``interfaces`` field of the inventory host metadata, which reported
+    every interface's ``macaddress``, ``ipv4-network``, and ``ipv6-network`` as
+    empty objects.
+  - |
+    On Windows and macOS, network interfaces that are up but have no IP
+    address now report their MAC address in the host metadata. On macOS, this
+    includes unplugged Ethernet adapters.
