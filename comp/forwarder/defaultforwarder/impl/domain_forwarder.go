@@ -275,6 +275,16 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 	}
 }
 
+// keepIdleConns lets the idle pool hold every connection the transport may open.
+// HTTP/1 sends one request per connection, so with an idle limit below
+// MaxConnsPerHost each burst would close the extra connections and redial them.
+func keepIdleConns(maxConns int) func(*http.Transport) {
+	return func(transport *http.Transport) {
+		transport.MaxIdleConnsPerHost = max(transport.MaxIdleConnsPerHost, maxConns)
+		transport.MaxIdleConns = max(transport.MaxIdleConns, maxConns)
+	}
+}
+
 // NewHTTPTransport creates a new http.Transport
 func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Component) *http.Transport {
 	var transport *http.Transport
@@ -283,7 +293,7 @@ func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Comp
 
 	switch transportConfig {
 	case "http1":
-		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(numberOfWorkers))
+		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(numberOfWorkers), keepIdleConns(numberOfWorkers))
 	case "auto":
 		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
 	default:

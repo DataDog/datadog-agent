@@ -54,11 +54,20 @@ type staticConcurrencyPolicy struct {
 
 func concurrencyPolicyFromConfig(config config.Component, log log.Component) concurrencyPolicy {
 	workers := config.GetInt("forwarder_num_workers")
+	requests := maxConcurrentRequestsFromConfig(config, log)
+
+	// HTTP/1 sends one request per connection, so allow one connection per
+	// request a worker may have in flight. HTTP/2 (`auto`) multiplexes the
+	// requests of a worker over one connection.
+	connections := workers
+	if config.GetString("forwarder_http_protocol") == "http1" {
+		connections = workers * int(requests)
+	}
 
 	return staticConcurrencyPolicy{
 		workers:     workers,
-		connections: workers,
-		requests:    maxConcurrentRequestsFromConfig(config, log),
+		connections: connections,
+		requests:    requests,
 	}
 }
 

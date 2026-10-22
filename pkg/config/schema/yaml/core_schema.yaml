@@ -569,9 +569,10 @@ properties:
     visibility: public
     description: |-
       The maximum number of concurrent requests that each worker can have queued up
-      at any one time. If the connection is over HTTP/1 each request will be waiting
-      for the previous request to complete before sending the next one. With HTTP/2
-      each request can be sent before waiting for the response.
+      at any one time. With `forwarder_http_protocol: http1`, the Agent opens one
+      connection per request, up to `forwarder_num_workers` times this value per domain.
+      With `auto`, HTTP/2 sends each request before the previous response arrives. If
+      `auto` falls back to HTTP/1, each request waits for the previous request to complete.
     tags:
     - template_section:Common
   forwarder_storage_max_size_in_bytes:

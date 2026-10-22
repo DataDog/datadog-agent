@@ -32,6 +32,24 @@ func TestConcurrencyPolicyFromConfig(t *testing.T) {
 	assert.NotSame(t, d.newRequestSemaphore(), d.newRequestSemaphore())
 }
 
+func TestConcurrencyPolicyFromConfigHTTP1(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_http_protocol", "http1")
+	mockConfig.SetInTest("forwarder_num_workers", 3)
+	mockConfig.SetInTest("forwarder_max_concurrent_requests", 5)
+
+	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+	assert.Equal(t, 3, p.numWorkers())
+	assert.Equal(t, 15, p.maxConns())
+
+	d := p.newDomain("remote")
+	assert.Equal(t, 3, d.numWorkers())
+	assert.Equal(t, 15, d.maxConns())
+
+	local := newLocalConcurrencyDomainFromConfig(mockConfig, logmock.New(t))
+	assert.Equal(t, 1, local.maxConns())
+}
+
 func TestNewLocalConcurrencyDomainFromConfig(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("forwarder_num_workers", 3)

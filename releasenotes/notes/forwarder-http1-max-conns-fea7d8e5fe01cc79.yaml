@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    The forwarder now opens up to ``forwarder_num_workers`` times
+    ``forwarder_max_concurrent_requests`` connections per domain (10 by
+    default) when ``forwarder_http_protocol`` is ``http1``, and keeps them
+    open between requests. Before, it opened ``forwarder_num_workers``
+    connections, so ``forwarder_max_concurrent_requests`` had no effect over
+    HTTP/1. Hosts that use ``http1`` behind a proxy may now hit the proxy's
+    connection limits; lower ``forwarder_max_concurrent_requests`` if needed.

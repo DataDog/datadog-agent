@@ -74,6 +74,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/secrets/def",
         "//comp/core/secrets/mock",
         "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/endpoints",

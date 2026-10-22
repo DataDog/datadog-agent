@@ -8,7 +8,13 @@
 package defaultforwarderimpl
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -19,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -572,4 +579,157 @@ func newTestTransactionWithKindDomainForwarder(kind transaction.Kind) *testTrans
 	tr.On("GetPayloadSize").Return(1)
 	tr.On("GetTarget").Return("foo.ddhq.com")
 	return tr
+}
+
+// burstTx is a transaction whose Process blocks until release is closed. It
+// stands in for a request to a slow or unreachable intake.
+type burstTx struct {
+	transaction.Transaction // nil: a call we did not override panics
+	release                 chan struct{}
+	started                 *atomic.Int32
+}
+
+func (b *burstTx) Process(_ context.Context, _ config.Component, _ log.Component, _ secrets.Component, _ *http.Client, _ transaction.PointCountTelemetry) error {
+	b.started.Add(1)
+	<-b.release
+	return nil
+}
+func (b *burstTx) GetCreatedAt() time.Time           { return time.Now() }
+func (b *burstTx) GetTarget() string                 { return "burst.test" }
+func (b *burstTx) GetPriority() transaction.Priority { return transaction.TransactionPriorityNormal }
+func (b *burstTx) GetEndpointName() string           { return "series_v2" }
+func (b *burstTx) GetPayloadSize() int               { return 1000 }
+func (b *burstTx) GetPointCount() int                { return 10 }
+
+// TestForwarderBurstAbsorptionCliff pins how many payloads a slow intake lets the
+// forwarder hold with default buffers: 100 (channel) + 10 (in flight) + 1 (dispatcher
+// blocked on the semaphore) = 111. The rest go to the retry queue. When it is full,
+// each new payload evicts the oldest and counts as a drop. The test waits until the
+// dispatcher has taken its 11, so the count is exact. In production the serializer
+// sends payloads in a tight loop, so the channel can fill first and the real limit
+// sits between 100 and 111.
+func TestForwarderBurstAbsorptionCliff(t *testing.T) {
+	const retrySlots = 39 // like 15 MB / 0.4 MB per payload
+	for _, tc := range []struct {
+		payloads, queued int
+		dropped          int64
+	}{
+		{50, 0, 0},
+		{111, 0, 0},
+		{111 + retrySlots, retrySlots, 0},
+		{111 + retrySlots + 1, retrySlots, 1},
+		{111 + retrySlots + 50, retrySlots, 50},
+	} {
+		t.Run(fmt.Sprintf("%d_payloads", tc.payloads), func(t *testing.T) {
+			cfg := mock.New(t)
+			log := logmock.New(t)
+			require.Equal(t, 100, cfg.GetInt("forwarder_high_prio_buffer_size"))
+			require.Equal(t, 10, cfg.GetInt("forwarder_max_concurrent_requests"))
+			retryQueue := retry.NewTransactionRetryQueue(nil, retrySlots*1000, 0,
+				retry.NewTransactionRetryQueueTelemetry("burst"), retry.NewPointCountTelemetryMock())
+			f := newDomainForwarder(cfg, log, secretsmock.New(t), "burst.test", false, false,
+				retryQueue, concurrencyPolicyFromConfig(cfg, log).newDomain("burst.test"), 0,
+				retry.NewPointCountTelemetry("burst"), nil)
+			require.NoError(t, f.Start())
+			tx := &burstTx{release: make(chan struct{}), started: &atomic.Int32{}}
+			t.Cleanup(func() { close(tx.release); f.Stop(false) })
+			droppedBefore := transaction.TransactionsDropped.Value()
+
+			// Wait for the dispatcher to take its 11 payloads, then send the rest.
+			for i := 0; i < tc.payloads; i++ {
+				f.sendHTTPTransactions(tx)
+				if i == 10 {
+					require.Eventually(t, func() bool { return tx.started.Load() == 10 && len(f.highPrio) == 0 },
+						5*time.Second, time.Millisecond)
+				}
+			}
+
+			assert.Equal(t, tc.queued, f.retryQueue.GetTransactionCount(), "retry queue depth")
+			assert.Equal(t, tc.dropped, transaction.TransactionsDropped.Value()-droppedBefore, "transactions dropped")
+		})
+	}
+}
+
+// TestHTTP1ConcurrencyHonorsMaxConcurrentRequests checks that with forwarder_http_protocol
+// set to http1 the forwarder client allows one connection per request the worker may have
+// in flight (forwarder_max_concurrent_requests, default 10), since HTTP/1 sends one request
+// per connection, and that it keeps those connections idle between bursts instead of
+// closing and redialing them. The server holds every request of a burst until all of them
+// are in flight, so the result does not depend on timing.
+func TestHTTP1ConcurrencyHonorsMaxConcurrentRequests(t *testing.T) {
+	cfg := mock.New(t)
+	log := logmock.New(t)
+	cfg.SetInTest("forwarder_http_protocol", "http1")
+	const requests = 10
+	require.Equal(t, requests, cfg.GetInt("forwarder_max_concurrent_requests"))
+	require.Equal(t, 1, cfg.GetInt("forwarder_num_workers"))
+
+	type gate struct {
+		allIn, release chan struct{}
+		once           sync.Once
+	}
+	var mu sync.Mutex
+	var cur *gate
+	var inflight, peak int
+	var newConns atomic.Int32
+
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		g := cur
+		inflight++
+		peak = max(peak, inflight)
+		if inflight == requests {
+			g.once.Do(func() { close(g.allIn) })
+		}
+		mu.Unlock()
+		<-g.release
+		mu.Lock()
+		inflight--
+		mu.Unlock()
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			newConns.Add(1)
+		}
+	}
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	client := NewHTTPClient(cfg, concurrencyPolicyFromConfig(cfg, log).maxConns(), log)
+
+	// burst sends requests concurrently and returns how many were in flight at
+	// the server at the same time.
+	burst := func() int {
+		g := &gate{allIn: make(chan struct{}), release: make(chan struct{})}
+		mu.Lock()
+		cur, peak = g, 0
+		mu.Unlock()
+
+		var wg sync.WaitGroup
+		for i := 0; i < requests; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resp, err := client.Get(srv.URL)
+				if err == nil {
+					resp.Body.Close()
+				}
+			}()
+		}
+		select {
+		case <-g.allIn:
+		case <-time.After(5 * time.Second):
+		}
+		close(g.release)
+		wg.Wait()
+
+		mu.Lock()
+		defer mu.Unlock()
+		return peak
+	}
+
+	assert.Equal(t, requests, burst(), "requests in flight at the server, first burst")
+	assert.Equal(t, requests, burst(), "requests in flight at the server, second burst")
+	assert.Equal(t, int32(requests), newConns.Load(), "connections accepted by the server over two bursts")
 }
