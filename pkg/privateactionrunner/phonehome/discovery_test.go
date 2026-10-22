@@ -39,6 +39,35 @@ func TestDiscoveryOptInPlatform(t *testing.T) {
 	require.Nil(t, NewDiscovery(cfg, nil))
 }
 
+func TestDiscoveryRCEndpointFQDN(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
+	for _, site := range []string{"datadoghq.com", "datadoghq.eu", "us3.datadoghq.com"} {
+		for _, fqdn := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/fqdn=%t", site, fqdn), func(t *testing.T) {
+				cfg := configmock.New(t)
+				cfg.SetInTest("api_key", "key")
+				cfg.SetInTest("site", site)
+				cfg.SetInTest("dd_url", "")
+				cfg.SetInTest("convert_dd_site_fqdn.enabled", fqdn)
+				cfg.SetInTest("private_action_runner.enabled", true)
+				for _, endpoint := range []string{"", "https://config." + site, "https://config." + site + "."} {
+					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
+					_, _, _, compatible := parDiscoveryConfig(cfg)
+					require.True(t, compatible, endpoint)
+					require.Equal(t, runtime.GOOS == "windows", NewDiscovery(cfg, &statusService{}) == nil, endpoint)
+				}
+				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
+					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
+					_, _, _, compatible := parDiscoveryConfig(cfg)
+					require.False(t, compatible, endpoint)
+					require.Nil(t, NewDiscovery(cfg, &statusService{}), endpoint)
+				}
+			})
+		}
+	}
+}
+
 func TestDiscovery(t *testing.T) {
 	for _, tc := range []struct {
 		name        string

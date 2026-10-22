@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,7 +68,7 @@ func parDiscoveryConfig(cfg model.Reader) (key, endpoint, rcEndpoint string, com
 	if os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" {
 		compatible = loopbackURL(endpoint) && loopbackURL(rcEndpoint)
 	} else {
-		compatible = rcEndpoint == "https://config."+enrollmentSite(cfg)
+		compatible = strings.TrimSuffix(rcEndpoint, ".") == "https://config."+enrollmentSite(cfg)
 	}
 	rcKey := cfg.GetString("remote_configuration.api_key")
 	compatible = compatible && key != "" && (rcKey == "" || rcKey == key) && cfg.GetString("remote_configuration.key") == ""
