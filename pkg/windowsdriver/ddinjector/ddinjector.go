@@ -11,7 +11,6 @@ package ddinjector
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 	"unsafe"
 
@@ -26,9 +25,8 @@ const (
 	// ddInjectorDeviceName is the device name for the APM injector driver
 	ddInjectorDeviceName = `\\.\DDInjector`
 
-	// ddInjectorDriverFile is the driver binary, relative to the system directory. The ddinjector
-	// INF installs it to DIRID 12 (%SystemRoot%\System32\drivers).
-	ddInjectorDriverFile = `drivers\ddinjector.sys`
+	// ddInjectorServiceName is the driver service; its image path locates the driver binary.
+	ddInjectorServiceName = "ddinjector"
 )
 
 // maxKnownVersion is the highest counter contract version this agent knows how
@@ -273,11 +271,11 @@ func clearV3Gauges(counters *InjectorCounters) {
 
 // DriverVersion returns the file version of the installed ddinjector driver binary.
 func DriverVersion() (string, error) {
-	systemDir, err := windows.GetSystemDirectory()
+	driverPath, err := winutil.QueryDriverImagePath(ddInjectorServiceName)
 	if err != nil {
-		return "", fmt.Errorf("failed to get the system directory: %w", err)
+		return "", fmt.Errorf("failed to locate the ddinjector driver: %w", err)
 	}
-	info, err := winutil.GetFileVersionInfoStrings(filepath.Join(systemDir, ddInjectorDriverFile))
+	info, err := winutil.GetFileVersionInfoStrings(driverPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read the ddinjector version resource: %w", err)
 	}
