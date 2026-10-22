@@ -3,51 +3,60 @@
 # This can happen when a kitchen test fails and is never retried, since that pipeline's cleanup job won't run
 periodic_kitchen_cleanup_s3:
   stage: maintenance_jobs
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_testing_cleanup]
+  before_script:
+    # boto3 was provided by the old gitlab_agent_deploy image; deb_x64 does not ship it.
+    - python3 -m pip install boto3
   script:
-    - MAX_AGE_HOURS=72 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=pool python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=72 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=dists python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=72 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=testing/ python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=72 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=suse/testing/ python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=72 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A6/ python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=72 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A7/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=pool python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=dists python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=testing/ python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=suse/testing/ python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A6/ python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A7/ python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_s3.py
 
 # Kills any VMs that might have been left over by kitchen
 # The script only deletes VMs that have been there for >= 4 hours, which is more than the time limit
 # for Gitlab jobs (2 hours), so this should never remove a live kitchen test.
 periodic_kitchen_cleanup_azure:
   stage: maintenance_jobs
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_main_or_testing_cleanup]
   # Note: We're not sure if the cleanup script is safe if run multiple times concurrently, so we limit
   # the job to be run one at a time.
   resource_group: azure_cleanup
+  before_script:
+    # These Azure SDK packages were provided by the old gitlab_agent_deploy image.
+    - python3 -m pip install azure-identity azure-mgmt-resource
   script:
     - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE subscription_id) || exit $?; export ARM_SUBSCRIPTION_ID
     - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE client_id) || exit $?; export ARM_CLIENT_ID
     - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE token) || exit $?; export ARM_CLIENT_SECRET
     - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE tenant_id) || exit $?; export ARM_TENANT_ID
     # Remove kitchen resources for all existing test suite prefixes
-    - RESOURCE_GROUP_PREFIX=kitchen-chef python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-install-script python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-upgrade python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-step-by-step python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-win python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-security-agent python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-system-probe python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-process-collection python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-container-collection python3 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-chef python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-install-script python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-upgrade python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-step-by-step python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-win python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-security-agent python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-system-probe python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-process-collection python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-container-collection python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_azure.py
 
 periodic_kitchen_cleanup_ec2:
   stage: maintenance_jobs
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_main_or_testing_cleanup]
+  before_script:
+    # boto3 was provided by the old gitlab_agent_deploy image; deb_x64 does not ship it.
+    - python3 -m pip install boto3
   script:
     # Only run aws ec2 terminate-instances if $ZOMBIES is not empty, otherwise the command fails
     # https://docs.aws.amazon.com/cli/latest/reference/ec2/terminate-instances.html#options
     - export AWS_DEFAULT_REGION=us-east-1
-    - python3 /deploy_scripts/cleanup_ec2.py
+    - python3 $CI_PROJECT_DIR/tools/ci/deploy_scripts/cleanup_ec2.py

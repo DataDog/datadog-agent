@@ -3,6 +3,9 @@
 # Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
 
 .setup_signing: &setup_signing
+  # deb-s3 / rpm-s3 were provided by the old gitlab_agent_deploy image; deb_x64
+  # ships ruby+gem but not these gems, so install them at runtime.
+  - ${CI_PROJECT_DIR}/tools/ci/retry.sh gem install deb-s3 rpm-s3 --no-document
   - ${CI_PROJECT_DIR}/tools/ci/retry.sh aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-vault-v1.6.2-linux-amd64.tar.gz .
   - tar -xzf gpg-vault-v1.6.2-linux-amd64.tar.gz
   - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault-bin
@@ -42,7 +45,7 @@
 
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   <<: *deploy_deb_resource_group-a6
   variables:
@@ -96,7 +99,7 @@ deploy_deb_testing-a6_arm64:
 
 .deploy_rpm_testing-a6:
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -153,7 +156,7 @@ deploy_suse_rpm_testing_x64-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     [
@@ -181,7 +184,7 @@ deploy_windows_testing-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["lint_windows-x64", "windows_msi_x64-a6"]
   before_script:
@@ -196,7 +199,7 @@ export_testing_public_key:
     - !reference [.manual]
   needs: []
   stage: kitchen_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
     - *setup_signing
