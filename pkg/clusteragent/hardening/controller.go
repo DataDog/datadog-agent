@@ -342,8 +342,10 @@ func (c *Controller) preflight(req *Request, d *appsv1.Deployment) (*corev1.Secu
 	switch {
 	case Digest(container.Image) != "" && Digest(container.Image) != Digest(req.Target.ImageID):
 		return nil, "the template image pins another digest than image_id"
-	case container.ReadinessProbe == nil && d.Spec.MinReadySeconds == 0:
-		return nil, "the container has no readinessProbe and minReadySeconds is 0, so pods that crash after starting would replace every replica"
+	// minReadySeconds does not count: without a probe the kubelet reports a running
+	// container Ready, so a crash it is slow to notice outlasts minReadySeconds.
+	case container.ReadinessProbe == nil && container.StartupProbe == nil:
+		return nil, "the container has no readinessProbe or startupProbe, so pods that crash at start could replace every replica"
 	case ptr.Deref(d.Spec.RevisionHistoryLimit, 1) == 0:
 		return nil, "revisionHistoryLimit is 0, so a removed trial could not be told from a new one"
 	}
