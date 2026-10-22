@@ -12,6 +12,18 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Ramp detection thresholds for the derivative transform. A scan window is
+// treated as a monotonic ramp when net change accounts for most of the total
+// variation (DirEff >= rampDirEffThreshold) and no single step dominates the
+// movement (MaxStep < rampMaxStepThreshold). On such ramps the scan runs on
+// first differences so that a steady slope — a counter-as-gauge shape, for
+// example — produces near-constant derivatives instead of an ever-growing
+// level that keeps re-firing.
+const (
+	rampDirEffThreshold  = 0.75
+	rampMaxStepThreshold = 0.65
+)
+
 // scanmwStateKey identifies per-series state by ref and aggregation.
 type scanmwStateKey struct {
 	ref observer.SeriesRef
@@ -299,6 +311,43 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	n := len(points)
 
 	values := d.workspace.valuesFromPoints(points)
+
+	// Monotonic-ramp check: a window whose movement is dominated by a single
+	// direction with no dominant single step is a ramp (counter-as-gauge,
+	// uptime, cumulative total ingested as a gauge). Scanning the raw values
+	// on a ramp makes every prefix/suffix split look significant because the
+	// median keeps moving, so scan the first differences instead: a steady
+	// slope becomes near-constant derivatives and stops firing, while a slope
+	// change (knee) still stands out. The check is recomputed per scan since
+	// scans only run every MinSegment new points.
+	if n >= 3 {
+		totalVar := 0.0
+		maxStep := 0.0
+		for i := 1; i < n; i++ {
+			delta := math.Abs(values[i] - values[i-1])
+			totalVar += delta
+			if delta > maxStep {
+				maxStep = delta
+			}
+		}
+		if totalVar > 0 {
+			dirEff := math.Abs(values[n-1]-values[0]) / totalVar
+			maxStepFrac := maxStep / totalVar
+			if dirEff >= rampDirEffThreshold && maxStepFrac < rampMaxStepThreshold {
+				derivs := d.workspace.derivatives
+				if cap(derivs) < n-1 {
+					derivs = make([]float64, n-1)
+				}
+				derivs = derivs[:n-1]
+				for i := 1; i < n; i++ {
+					derivs[i-1] = values[i] - values[i-1]
+				}
+				d.workspace.derivatives = derivs
+				values = derivs
+				n--
+			}
+		}
+	}
 
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
 	ranks, tieCorrection := d.workspace.assignRanks(values)

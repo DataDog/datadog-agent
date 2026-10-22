@@ -20,6 +20,7 @@ const scanMaxPoints = 120
 // series and aggregations instead of allocating proportional to every scan.
 type scanDetectorWorkspace struct {
 	values      []float64
+	derivatives []float64
 	ranks       []float64
 	indexed     []scanIndexedValue
 	sortScratch []float64

@@ -320,3 +320,96 @@ func TestScanMW_MinRelativeChangeGate(t *testing.T) {
 		})
 	}
 }
+
+func TestScanMW_ConstantRampDoesNotFire(t *testing.T) {
+	d := testScanMWDetector()
+	storage := newTimeSeriesStorage()
+
+	// Counter-as-gauge shape: steadily increasing values. On raw values every
+	// split looks significant, so the derivative transform must suppress this.
+	for i := 0; i < 60; i++ {
+		storage.Add("ns", "metric", float64(5*i), int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 60)
+	assert.Empty(t, result.Anomalies, "constant monotonic ramp should not fire")
+}
+
+func TestScanMW_SlopeChangeOnRampFires(t *testing.T) {
+	d := testScanMWDetector()
+	storage := newTimeSeriesStorage()
+
+	// Slope change from 5/step to 50/step at point 30: the derivative path
+	// should detect the change in slope.
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "metric", float64(5*i), int64(i+1), nil)
+	}
+	value := float64(5 * 29)
+	for i := 30; i < 60; i++ {
+		value += 50
+		storage.Add("ns", "metric", value, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 60)
+	require.Len(t, result.Anomalies, 1, "slope change on ramp should fire once")
+}
+
+func TestScanMW_FlatThenStepStillFires(t *testing.T) {
+	d := testScanMWDetector()
+	storage := newTimeSeriesStorage()
+
+	// A dominant single step must keep the values path (not treated as ramp).
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "metric", 200, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 40)
+	require.Len(t, result.Anomalies, 1, "flat-then-step should still fire")
+}
+
+func TestScanMW_FlatThenRampFires(t *testing.T) {
+	d := testScanMWDetector()
+	storage := newTimeSeriesStorage()
+
+	// Knee: flat baseline then steady ramp. Derivatives go 0 → 10, so the
+	// derivative path should detect the slope onset.
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "metric", 100, int64(i+1), nil)
+	}
+	value := 100.0
+	for i := 30; i < 60; i++ {
+		value += 10
+		storage.Add("ns", "metric", value, int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 60)
+	require.Len(t, result.Anomalies, 1, "flat-then-ramp should fire on slope onset")
+}
+
+func TestScanMW_MinRelativeChangeAppliesToDerivatives(t *testing.T) {
+	cfg := DefaultScanMWConfig()
+	cfg.MinRelativeChange = 0.10
+	d := NewScanMWDetectorWithConfig(cfg)
+	storage := newTimeSeriesStorage()
+
+	// Ramp with slope 10 then slope 10.3: derivatives change by 3%, below the
+	// 10% relative gate, so the candidate must be rejected.
+	value := 0.0
+	for i := 0; i < 30; i++ {
+		storage.Add("ns", "metric", value, int64(i+1), nil)
+		value += 10
+	}
+	for i := 30; i < 60; i++ {
+		storage.Add("ns", "metric", value, int64(i+1), nil)
+		value += 10.3
+	}
+
+	res := d.Detect(storage, 60)
+	require.Empty(t, res.Anomalies, "relative change below threshold on derivatives must not fire")
+	state := d.series[scanmwStateKey{ref: 0, agg: observer.AggregateAverage}]
+	require.NotNil(t, state)
+	assert.Zero(t, state.segmentStartTime, "rejected derivative split must not advance segmentStartTime")
+}
