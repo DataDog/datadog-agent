@@ -64,9 +64,14 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 				}
 				var workers []workerInfo
 
-				// Tally up utilization and populate the workers slice
+				// Tally up utilization and populate the workers slice, skipping
+				// workers excluded from utilization aggregates (e.g. shadow
+				// workers, or workers currently running a long-running check).
 				for workerName, workerData := range instances {
 					if worker, ok := workerData.(map[string]interface{}); ok {
+						if excluded, ok := worker["Excluded"].(bool); ok && excluded {
+							continue
+						}
 						if util, ok := worker["Utilization"].(float64); ok {
 							totalUtilization += util
 							workerCount++

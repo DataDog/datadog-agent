@@ -162,3 +162,76 @@ func TestConvertScanResultToSBOMErrorLogging(t *testing.T) {
 		})
 	}
 }
+
+func TestScanOptionsOSOnly(t *testing.T) {
+	tests := []struct {
+		name      string
+		analyzers []string
+		want      bool
+	}{
+		{name: "nil", want: false},
+		{name: "empty", analyzers: []string{}, want: false},
+		{name: "os", analyzers: []string{"os"}, want: true},
+		{name: "os twice", analyzers: []string{"os", "os"}, want: false},
+		{name: "languages", analyzers: []string{"languages"}, want: false},
+		{name: "os and languages", analyzers: []string{"os", "languages"}, want: false},
+		{name: "upper case", analyzers: []string{"OS"}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ScanOptions{Analyzers: tt.analyzers}.OSOnly())
+		})
+	}
+}
+
+// testReport is a Report with an empty BOM.
+type testReport struct{}
+
+func (testReport) ToCycloneDX() *cyclonedx_v1_4.Bom { return &cyclonedx_v1_4.Bom{} }
+
+func (testReport) ID() string { return "report" }
+
+// fallbackReport is a Report that tells whether it lists the OS packages
+// alone.
+type fallbackReport struct {
+	testReport
+	osFallback bool
+}
+
+func (r fallbackReport) OSFallback() bool { return r.osFallback }
+
+func TestIsOSFallback(t *testing.T) {
+	tests := []struct {
+		name   string
+		report Report
+		want   bool
+	}{
+		{name: "nil report"},
+		{name: "report without the method", report: testReport{}},
+		{name: "full report", report: fallbackReport{}},
+		{name: "OS packages alone", report: fallbackReport{osFallback: true}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsOSFallback(tt.report))
+		})
+	}
+}
+
+func TestConvertScanResultToSBOMOSFallback(t *testing.T) {
+	tests := []struct {
+		name   string
+		result ScanResult
+		want   bool
+	}{
+		{name: "OS packages alone", result: ScanResult{Report: fallbackReport{osFallback: true}}, want: true},
+		{name: "full report", result: ScanResult{Report: fallbackReport{}}},
+		{name: "report without the method", result: ScanResult{Report: testReport{}}},
+		{name: "failure", result: ScanResult{Error: errors.New("scan failed"), Report: fallbackReport{osFallback: true}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.result.ConvertScanResultToSBOM().OSFallback)
+		})
+	}
+}

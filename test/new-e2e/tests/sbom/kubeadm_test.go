@@ -40,6 +40,7 @@ const (
 	propRepoDigest  = "aquasecurity:trivy:RepoDigest"
 	propRepoTag     = "aquasecurity:trivy:RepoTag"
 	propCreated     = "datadog:image:Created"
+	propOSFallback  = "datadog:scan:OSFallback"
 )
 
 // kubeadmSBOMHelmValues builds the Agent Helm values for the SBOM suite on the
@@ -633,8 +634,13 @@ func (s *sbomTargetsSuite[Env]) logSBOMInventory() {
 	})
 }
 
+// maxHostScanDuration bounds the host scan. A minimal RHEL host scans in
+// seconds.
+const maxHostScanDuration = time.Minute
+
 // TestHostSBOM verifies the host (RHEL 10) SBOM: it is the OS itself (not an
-// image), lists meaningful rpm packages, and carries no layer/DiffID metadata.
+// image), lists meaningful rpm packages, carries no layer/DiffID metadata, and
+// comes from a scan with all its analyzers that took less than a minute.
 func (s *sbomTargetsSuite[Env]) TestHostSBOM() {
 	s.EventuallyWithTf(func(collect *assert.CollectT) {
 		c := &myCollectT{CollectT: collect, errors: []error{}}
@@ -687,10 +693,15 @@ func (s *sbomTargetsSuite[Env]) TestHostSBOM() {
 			// languages is enabled on the host too, but a minimal RHEL host has no
 			// language packages to surface: its Go binaries (kubelet, containerd, ...)
 			// are owned by rpm packages, so the deferred analyzers skip them, and the
-			// flannel CNI plugin only appears as a container SBOM. The value here is
-			// that the scan completes (SUCCESS above) without timing out, which the
-			// trivy deferral fix makes possible. Log the count; don't assert a floor.
+			// flannel CNI plugin only appears as a container SBOM. Log the count.
+			// Don't assert a floor.
 			s.T().Logf("SBOM-COUNT[host] components=%d application=%d", len(comps), len(applicationComponents(comps)))
+
+			// A scan that runs out of time reports SUCCESS too, with the OS
+			// packages alone and the fallback property.
+			assert.Emptyf(c, propertyValues(bom.GetMetadata().GetProperties(), propOSFallback), "host SBOM lists the OS packages alone: its scan ran out of time")
+			took := p.GetGenerationDuration().AsDuration()
+			assert.Lessf(c, took, maxHostScanDuration, "host scan took %s, more than %s", took, maxHostScanDuration)
 
 			// A host SBOM must not look like a container image.
 			assert.Emptyf(c, p.GetDdTags(), "host SBOM should carry no image dd tags")

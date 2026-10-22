@@ -652,6 +652,51 @@ func TestPendingReportsMerge(t *testing.T) {
 	assert.Empty(t, pending.list())
 }
 
+// osFallbackImage marks the SBOM of img as listing the OS packages alone,
+// left by a scan that ran out of time.
+func osFallbackImage(img *workloadmeta.ContainerImageMetadata) *workloadmeta.ContainerImageMetadata {
+	img.SBOM.OSFallback = true
+	return img
+}
+
+func TestWorkloadmetaEventFromSBOMEventSet_OSFallbackSkipped(t *testing.T) {
+	const containerID = "container-3"
+	const imageID = "image-3"
+
+	store := newFakeStore()
+	store.containers[containerID] = &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		Image:    workloadmeta.ContainerImage{ID: imageID},
+	}
+	store.images[imageID] = osFallbackImage(seedImageSBOM(t, imageID, workloadmeta.Success, component("bash", "5.1")))
+
+	msg := systemProbeMessage(t, containerID,
+		component("bash", "5.1", prop(sbomutil.LastAccessProperty, "1700000000")),
+	)
+	event, err := workloadmetaEventFromSBOMEventSet(store, msg)
+	assert.ErrorIs(t, err, errNotReady)
+	assert.Nil(t, event.Entity)
+}
+
+// TestPendingReportsWaitOutOSFallback checks that a pending report waits while
+// the SBOM of its image lists the OS packages alone, and merges once the full
+// SBOM replaces it.
+func TestPendingReportsWaitOutOSFallback(t *testing.T) {
+	store := readyStore(t, "container", "image", workloadmeta.Pending)
+	pending := newPendingReports()
+	pending.add(usedBash(t, "container"))
+
+	store.images["image"] = osFallbackImage(seedImageSBOM(t, "image", workloadmeta.Success, component("bash", "5.1")))
+	assert.Empty(t, pending.merge(store), "a report merged into an SBOM of the OS packages alone")
+	assert.Len(t, pending.list(), 1)
+
+	store.images["image"] = seedImageSBOM(t, "image", workloadmeta.Success, component("bash", "5.1"))
+	merged := pending.merge(store)
+	require.Len(t, merged, 1)
+	assert.Equal(t, "1700000000", lastSeen(t, merged[0]))
+	assert.Empty(t, pending.list())
+}
+
 // TestPendingReportsWaitOutFailedScan checks that a pending report waits while
 // the scan of its image fails, and merges once a retry succeeds.
 func TestPendingReportsWaitOutFailedScan(t *testing.T) {
