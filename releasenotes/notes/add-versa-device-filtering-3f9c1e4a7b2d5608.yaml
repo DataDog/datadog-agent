@@ -1,0 +1,14 @@
+---
+enhancements:
+  - |
+    Add ``included_devices`` and ``excluded_devices`` options to the Versa
+    integration. When ``included_devices`` is set, only the appliances it names
+    are monitored, letting deployments opt individual devices into monitoring
+    rather than collecting every appliance the Director reports.
+    ``excluded_devices`` removes specific appliances and is applied after
+    ``included_devices``. Both match case-insensitively on the appliance name,
+    and both filter device metadata, hardware metrics, and interface data
+    consistently. Neither applies to the Versa Director itself, which continues
+    to be collected; use ``collect_hardware_metrics`` and
+    ``collect_director_interface_metrics`` to control what is reported for it.
+    Filtering is disabled by default, preserving existing behavior.
