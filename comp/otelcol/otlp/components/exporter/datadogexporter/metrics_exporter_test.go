@@ -45,13 +45,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type sdkStatsComponent struct {
+type sdkTraceComponent struct {
 	traceagent.Component
+}
+
+type sdkStatsComponent struct {
 	writer *writer.DatadogStatsWriter
 	sent   int
 }
 
-func (*sdkStatsComponent) SetOTelAttributeTranslator(*attributes.Translator) {}
+func (sdkTraceComponent) SetOTelAttributeTranslator(*attributes.Translator) {}
 func (c *sdkStatsComponent) SendOTLPStatsPayload(raw []byte) {
 	c.sent++
 	c.writer.SendOTLPIntakePayload(raw)
@@ -120,7 +123,7 @@ func TestSDKMetricsExporterIntegration(t *testing.T) {
 			})
 			trace := &sdkStatsComponent{writer: sw}
 			recorder := &sdkMetricSerializer{retried: make(chan struct{})}
-			f := NewFactory(trace, recorder, nil, func(context.Context) (string, error) { return "fallback-host", nil }, metricsclient.NewStatsdClientWrapper(&statsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
+			f := NewFactory(sdkTraceComponent{}, trace, recorder, nil, func(context.Context) (string, error) { return "fallback-host", nil }, metricsclient.NewStatsdClientWrapper(&statsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 			ecfg := f.CreateDefaultConfig().(*datadogconfig.Config)
 			ecfg.API.Key = "test-key"
 			ecfg.HostMetadata.Enabled = false
@@ -318,4 +321,10 @@ func BenchmarkSDKMetricsExporterOrdinaryPassthrough(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestSDKMetricsExporterRequiresStatsSender(t *testing.T) {
+	f := NewFactory(nil, nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
+	_, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(Type), f.CreateDefaultConfig())
+	require.ErrorContains(t, err, "requires an OTLP stats sender")
 }

@@ -27,8 +27,12 @@ type Component interface {
 	ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error)
 	// SendStatsPayload sends a stats payload to the Datadog backend.
 	SendStatsPayload(p *pb.StatsPayload)
-	// SendOTLPStatsPayload queues OTLP intake stats, dropping and counting payloads when senders are full or stopped.
-	SendOTLPStatsPayload(payload []byte)
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.
 	GetHTTPHandler(endpoint string) http.Handler
+}
+
+// OTLPStatsSender is the SDK stats capability required by DDOT metrics export.
+type OTLPStatsSender interface {
+	// SendOTLPStatsPayload queues OTLP intake stats, dropping and counting payloads when senders are full or stopped.
+	SendOTLPStatsPayload(payload []byte)
 }

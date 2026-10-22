@@ -52,6 +52,7 @@ type factory struct {
 	logsAgent      logsagentpipeline.Component
 	h              serializerexporter.SourceProviderFunc
 	traceagentcmp  traceagent.Component
+	statsSender    traceagent.OTLPStatsSender
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
 	store          serializerexporter.TelemetryStore
@@ -76,6 +77,7 @@ func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 func newFactoryWithRegistry(
 	registry *featuregate.Registry,
 	traceagentcmp traceagent.Component,
+	statsSender traceagent.OTLPStatsSender,
 	s serializer.MetricSerializer,
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
@@ -89,6 +91,7 @@ func newFactoryWithRegistry(
 		s:              s,
 		logsAgent:      logsagent,
 		traceagentcmp:  traceagentcmp,
+		statsSender:    statsSender,
 		h:              h,
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
@@ -108,6 +111,7 @@ func newFactoryWithRegistry(
 // NewFactory creates a Datadog exporter factory
 func NewFactory(
 	traceagentcmp traceagent.Component,
+	statsSender traceagent.OTLPStatsSender,
 	s serializer.MetricSerializer,
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
@@ -116,7 +120,7 @@ func NewFactory(
 	store serializerexporter.TelemetryStore,
 	coreCfg coreconfig.Component,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store, coreCfg)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, statsSender, s, logsAgent, h, mclientwrapper, gatewayUsage, store, coreCfg)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -216,6 +220,9 @@ func (f *factory) createMetricsExporter(
 	if err != nil {
 		return nil, err
 	}
+	if f.statsSender == nil {
+		return nil, fmt.Errorf("DDOT metrics export requires an OTLP stats sender")
+	}
 	// add warnings for embedded collector-specific checks to config
 	addEmbeddedCollectorConfigWarnings(cfg)
 	// log all warnings found during configuration loading
@@ -257,7 +264,7 @@ func (f *factory) createMetricsExporter(
 		wg.Wait()
 		return nil, err
 	}
-	return &sdkMetricsExporter{Metrics: metricsExporter, host: f.h, send: f.traceagentcmp.SendOTLPStatsPayload, logger: set.Logger}, nil
+	return &sdkMetricsExporter{Metrics: metricsExporter, host: f.h, send: f.statsSender.SendOTLPStatsPayload, logger: set.Logger}, nil
 }
 
 func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
