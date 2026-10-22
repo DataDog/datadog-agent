@@ -258,7 +258,7 @@ func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url str
 		err := fb.AddFileFromFunc(filename, func() ([]byte, error) { return getHTTPCallContent(checkURL + checkName) })
 		if err != nil {
 			fb.AddFile(
-				"process_check_output.json",
+				filename,
 				[]byte(fmt.Sprintf("error: process-agent is not running or is unreachable: %s", err.Error())),
 			)
 		}
