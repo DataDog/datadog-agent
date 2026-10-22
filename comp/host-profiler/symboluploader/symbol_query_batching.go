@@ -77,8 +77,7 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 	symbolFiles, err := querier.QuerySymbols(ctx, buildIDs, arch)
 	if err != nil {
 		reason := reasonRequestError
-		var sce *ddhttp.StatusCodeError
-		if errors.As(err, &sce) && sce.StatusCode == http.StatusTooManyRequests {
+		if sce, ok := errors.AsType[*ddhttp.StatusCodeError](err); ok && sce.StatusCode == http.StatusTooManyRequests {
 			reason = reasonRateLimited
 		}
 		queryErr := fmt.Errorf("failed to query symbols: %w", err)
