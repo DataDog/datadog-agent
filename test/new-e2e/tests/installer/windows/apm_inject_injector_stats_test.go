@@ -227,8 +227,9 @@ func (s *testInjectorStats) TestDefaultSkipListCounter() {
 // assertDriverVersion verifies that the stats report the file version of the installed driver.
 func (s *testInjectorStats) assertDriverVersion(stats map[string]interface{}) {
 	// The agent reports the fixed file version (VS_FIXEDFILEINFO), not the free-form
-	// FileVersion string, so compare against the same numeric parts.
-	output, err := s.Env().RemoteHost.Execute(`$v = (Get-Item "C:\Windows\System32\drivers\ddinjector.sys").VersionInfo; "{0}.{1}.{2}.{3}" -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart`)
+	// FileVersion string, so compare against the same numeric parts. The driver binary is
+	// located through its service, as the agent does, rather than at a fixed path.
+	output, err := s.Env().RemoteHost.Execute(`$p = (Get-CimInstance Win32_SystemDriver -Filter "Name='ddinjector'").PathName; $v = (Get-Item $p).VersionInfo; "{0}.{1}.{2}.{3}" -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart`)
 	s.Require().NoError(err)
 	expected := strings.TrimSpace(output)
 	s.Require().NotEqual("0.0.0.0", expected, "the DDInjector driver should carry a file version")

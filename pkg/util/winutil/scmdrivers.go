@@ -8,7 +8,10 @@
 package winutil
 
 import (
+	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -16,6 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// ErrEmptyImagePath reports a driver service that names no binary.
+var ErrEmptyImagePath = errors.New("empty image path")
 
 // DriverService is a kernel-mode or file-system driver registered with the Service Control
 // Manager, the native replacement for the narrow projection of Win32_SystemDriver that the
@@ -83,10 +89,14 @@ func EnumDriverServices() ([]DriverService, error) {
 	drivers := make([]DriverService, 0, len(services))
 	for _, svc := range services {
 		name := windows.UTF16PtrToString(svc.ServiceName)
+		imagePath, err := queryDriverImagePath(manager, name)
+		if err != nil {
+			log.Debugf("%v", err)
+		}
 		drivers = append(drivers, DriverService{
 			Name:        name,
 			DisplayName: windows.UTF16PtrToString(svc.DisplayName),
-			ImagePath:   queryDriverImagePath(manager, name),
+			ImagePath:   imagePath,
 		})
 	}
 
@@ -98,14 +108,13 @@ func EnumDriverServices() ([]DriverService, error) {
 //
 // windows.QueryServiceConfig is called directly rather than through mgr.Service.Config():
 // Config() adds two QueryServiceConfig2 round trips per driver, for Description and
-// DelayedAutoStart, that nothing here reads. A failure to open or query the service is not
+// DelayedAutoStart, that nothing here reads. EnumDriverServices does not treat a failure as
 // fatal: it leaves ImagePath empty and logs at debug level, which reproduces a NULL
 // Win32_SystemDriver.PathName, a case the collector already turns into a warning-and-skip.
-func queryDriverImagePath(manager *mgr.Mgr, name string) string {
+func queryDriverImagePath(manager *mgr.Mgr, name string) (string, error) {
 	handle, err := windows.OpenService(manager.Handle, windows.StringToUTF16Ptr(name), windows.SERVICE_QUERY_CONFIG)
 	if err != nil {
-		log.Debugf("failed to open driver service %q: %v", name, err)
-		return ""
+		return "", fmt.Errorf("failed to open driver service %q: %w", name, err)
 	}
 	defer func() {
 		if closeErr := windows.CloseServiceHandle(handle); closeErr != nil {
@@ -128,12 +137,91 @@ func queryDriverImagePath(manager *mgr.Mgr, name string) string {
 		config := (*windows.QUERY_SERVICE_CONFIG)(unsafe.Pointer(&buf[0]))
 		err = windows.QueryServiceConfig(handle, config, bufSize, &bytesNeeded)
 		if err == nil {
-			return windows.UTF16PtrToString(config.BinaryPathName)
+			return windows.UTF16PtrToString(config.BinaryPathName), nil
 		}
 		if err != windows.ERROR_INSUFFICIENT_BUFFER || bytesNeeded <= bufSize {
-			log.Debugf("failed to query config for driver service %q: %v", name, err)
-			return ""
+			return "", fmt.Errorf("failed to query config for driver service %q: %w", name, err)
 		}
 		words = int((bytesNeeded + 7) / 8)
 	}
+}
+
+// QueryDriverImagePath returns the image path the Service Control Manager records for the
+// driver service name, resolved to a Win32 path with ResolveDriverImagePath.
+func QueryDriverImagePath(name string) (string, error) {
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return "", fmt.Errorf("failed to open SCM: %w", err)
+	}
+	defer manager.Disconnect()
+
+	imagePath, err := queryDriverImagePath(manager, name)
+	if err != nil {
+		return "", err
+	}
+	windowsDir, err := windows.GetSystemWindowsDirectory()
+	if err != nil {
+		return "", fmt.Errorf("failed to locate the Windows directory: %w", err)
+	}
+	return ResolveDriverImagePath(imagePath, windowsDir)
+}
+
+// ResolveDriverImagePath turns the image path reported for a driver service into a Win32 path.
+//
+// windowsDir is passed in rather than looked up so that the resolution is deterministic and
+// testable. The rules are ordered so that the prefix strip and the variable expansion, both
+// of which can produce an already-rooted path, run before the checks that recognise one.
+func ResolveDriverImagePath(pathName string, windowsDir string) (string, error) {
+	path := strings.TrimSpace(pathName)
+	if path == "" {
+		return "", ErrEmptyImagePath
+	}
+
+	// A service binary path containing spaces may be quoted and followed by arguments.
+	// Extract the quoted executable before applying path normalization.
+	if strings.HasPrefix(path, `"`) {
+		closingQuote := strings.Index(path[1:], `"`)
+		if closingQuote < 0 {
+			return "", fmt.Errorf("unterminated quoted image path %q", pathName)
+		}
+		path = path[1 : closingQuote+1]
+		if path == "" {
+			return "", ErrEmptyImagePath
+		}
+	}
+
+	// "\??\C:\Program Files\Vendor\driver.sys" is the NT object-manager form of a Win32 path.
+	path = strings.TrimPrefix(path, `\??\`)
+
+	// A few drivers store their path with variables, e.g. "%SystemRoot%\System32\drivers".
+	if strings.Contains(path, "%") {
+		expanded, err := ExpandEnvironmentStrings(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to expand environment variables in %q: %w", pathName, err)
+		}
+		path = expanded
+	}
+
+	// Already rooted: a drive letter, or a UNC share.
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
+	// "\SystemRoot\System32\drivers\driver.sys" is relative to the Windows directory.
+	if rest, ok := cutPrefixFold(path, `\SystemRoot\`); ok {
+		return filepath.Join(windowsDir, rest), nil
+	}
+
+	// Anything left is relative to the Windows directory, e.g. "System32\drivers\driver.sys".
+	// A leading separator here is not a root: Windows resolves it against %SystemRoot%.
+	return filepath.Join(windowsDir, strings.TrimLeft(path, `\/`)), nil
+}
+
+// cutPrefixFold reports whether s starts with prefix, ignoring case, and returns the
+// remainder when it does.
+func cutPrefixFold(s, prefix string) (string, bool) {
+	if len(s) < len(prefix) || !strings.EqualFold(s[:len(prefix)], prefix) {
+		return "", false
+	}
+	return s[len(prefix):], true
 }
