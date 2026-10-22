@@ -166,8 +166,10 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	if gate = c.source.Read(c.now()); !gate.Ready {
 		return set("waiting", gate.Reason, pollInterval)
 	}
+	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer startCancel()
 	c.attempted = true
-	if _, err := c.pm.Start(rpcCtx, &pb.StartRequest{NameOrUuid: control.Uuid}); err != nil {
+	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: control.Uuid}); err != nil {
 		return set("blocked", "launch_outcome_unknown_requires_review", 0)
 	}
 	return set("handed_off", "supervisor_start_acknowledged", 0)
