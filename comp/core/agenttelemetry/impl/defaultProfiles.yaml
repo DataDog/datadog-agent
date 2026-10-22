@@ -128,6 +128,37 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
+# Intake routing (comp/intakerouting) serves every telemetry type, so it is not part of logs-and-metrics.
+- name: intake-routing
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: intake_routing.queries
+        preserve_tags:
+          - status
+      - name: intake_routing.preflights
+        preserve_tags:
+          - status
+      - name: intake_routing.switches
+        preserve_tags:
+          - telemetry_type
+          - direction
+      - name: intake_routing.rejected_answers
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.skipped_endpoints
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.active_overrides
+        preserve_tags:
+          - telemetry_type
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: agent-performance
   metric:
     exclude:

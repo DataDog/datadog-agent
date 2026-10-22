@@ -27,6 +27,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	intakerouting "github.com/DataDog/datadog-agent/comp/intakerouting/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -80,6 +81,7 @@ type Requires struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	IntakeRouting      intakerouting.Component
 }
 
 type Provides struct {
@@ -102,6 +104,8 @@ type logAgent struct {
 	hostname       hostname.Component
 	tagger         tagger.Component
 	secrets        secrets.Component
+	// intakeRouting is nil for the serverless agent.
+	intakeRouting intakerouting.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -127,6 +131,13 @@ type logAgent struct {
 
 	// make restart thread safe
 	restartMutex sync.Mutex
+	// stopped is set once stop has run. Guarded by restartMutex.
+	stopped bool
+	// routing sends the endpoints to the hosts chosen by intake routing. Guarded by restartMutex.
+	routing intakeRoutingState
+	// routingHandled, if set, is called by the intake routing watcher each time it has handled a
+	// notification. Tests use it to synchronize with the watcher.
+	routingHandled func(intakerouting.Registration)
 
 	// HTTP retry state for TCP fallback recovery
 	httpRetryCtx    context.Context
@@ -160,6 +171,7 @@ func NewComponent(deps Requires) Provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			secrets:            deps.Secrets,
+			intakeRouting:      deps.IntakeRouting,
 		}
 		deps.Lc.Append(compdef.Hook{
 			OnStart: logsAgent.start,
@@ -186,7 +198,7 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func (a *logAgent) start(context.Context) error {
+func (a *logAgent) start(ctx context.Context) error {
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()
 
@@ -201,16 +213,24 @@ func (a *logAgent) start(context.Context) error {
 		return errors.New(message)
 	}
 
-	a.endpoints = endpoints
+	return a.startLocked(ctx, endpoints)
+}
 
-	err = a.setupAgent()
+// startLocked starts the logs-agent on the given endpoints, which intake routing may send to
+// other hosts. The caller must hold restartMutex.
+func (a *logAgent) startLocked(ctx context.Context, endpoints *config.Endpoints) error {
+	a.endpoints = a.startIntakeRoutingLocked(ctx, endpoints)
+
+	err := a.setupAgent()
 
 	if err != nil {
 		a.log.Error("Could not start logs-agent: ", err)
+		a.closeIntakeRoutingLocked()
 		return err
 	}
 
 	a.startPipeline()
+	a.watchIntakeRoutingLocked()
 
 	// If we're currently sending over TCP, attempt restart over HTTP
 	if !endpoints.UseHTTP {
@@ -305,6 +325,9 @@ func (a *logAgent) stop(context.Context) error {
 	defer a.restartMutex.Unlock()
 
 	a.log.Info("Stopping logs-agent")
+
+	a.stopped = true
+	a.closeIntakeRoutingLocked()
 
 	// Stop HTTP retry loop if running
 	a.stopHTTPRetry()
