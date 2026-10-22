@@ -236,3 +236,37 @@ func TestFlushYieldInRunLoopWithConcurrentProducer(t *testing.T) {
 	require.Greater(t, sink.contexts[len(sink.contexts)-1], sink.contexts[0],
 		"the worker must aggregate new samples while it flushes")
 }
+
+func TestFlushYieldDefersTimestampedSamplesToAfterTheFlush(t *testing.T) {
+	w, sampler := newYieldTestWorker(t, 1, 200_000)
+	old := intakeBatch(0)
+	for i := range old {
+		old[i].Timestamp = 990 // older than the 20 s context expiry at the 1020 flush
+	}
+	w.samplesChan <- old
+
+	first := flushWorker(w, sampler, time.Unix(1020, 0), false)
+	require.Zero(t, first.depths[len(first.depths)-1], "the flush must read the queued batch")
+	require.Empty(t, first.intake)
+
+	next := flushWorker(w, sampler, time.Unix(1030, 0), false)
+	require.Len(t, next.intake, 10, "timestamped samples read mid-flush must be in the next flush")
+}
+
+func TestFlushYieldKeepsOrderAfterATimestampedBatch(t *testing.T) {
+	w, sampler := newYieldTestWorker(t, 1, 200_000)
+	timestamped := intakeBatch(1)
+	for i := range timestamped {
+		timestamped[i].Timestamp = 1015
+	}
+	w.samplesChan <- intakeBatch(0)
+	w.samplesChan <- timestamped
+	w.samplesChan <- intakeBatch(2)
+
+	sink := flushWorker(w, sampler, time.Unix(1020, 0), false)
+	require.Zero(t, sink.depths[len(sink.depths)-1], "the flush must read the queued batches")
+	require.Equal(t, 200_000+10, sink.contexts[len(sink.contexts)-1],
+		"only the batch before the timestamped one is processed during the flush")
+	require.Equal(t, 200_000+30, sampler.contextResolver.length(), "the deferred batches are processed when the flush ends")
+	require.Empty(t, w.deferred)
+}

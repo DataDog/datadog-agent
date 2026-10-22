@@ -71,6 +71,8 @@ type timeSamplerWorker struct {
 	flushYieldBudget time.Duration
 	// lastYield is when the flush last read samplesChan (or started).
 	lastYield time.Time
+	// deferred holds the batches a flush read but must not process until it ends, in order.
+	deferred [][]metrics.MetricSample
 }
 
 type dumpTrigger struct {
@@ -187,11 +189,19 @@ func (w *timeSamplerWorker) yieldToIntake() {
 		return
 	}
 	// Read len once: a producer that keeps up must not extend the flush forever.
-	for n := len(w.samplesChan); n > 0; n-- {
+	// Hold at most one channel's worth of deferred batches.
+	for n := len(w.samplesChan); n > 0 && len(w.deferred) < cap(w.samplesChan); n-- {
 		select {
 		case ms := <-w.samplesChan:
 			if ms == nil {
 				close(w.samplesDrained)
+				continue
+			}
+			// A sample with an explicit timestamp tracks its context at that timestamp, so the
+			// context expiry at the end of this flush could remove it before its point is sent.
+			// Process that batch, and every batch after it to keep the order, once the flush ends.
+			if len(w.deferred) > 0 || hasExplicitTimestamp(ms) {
+				w.deferred = append(w.deferred, ms)
 				continue
 			}
 			w.processBatch(ms)
@@ -212,7 +222,22 @@ func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
 		defer func() { w.sampler.yield = nil }()
 	}
 	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, &w.flushFilterList, trigger.forceFlushAll)
+	for i, ms := range w.deferred {
+		w.processBatch(ms)
+		w.deferred[i] = nil
+	}
+	w.deferred = w.deferred[:0]
 	trigger.blockChan <- struct{}{}
+}
+
+// hasExplicitTimestamp reports whether a sample in ms carries its own timestamp.
+func hasExplicitTimestamp(ms []metrics.MetricSample) bool {
+	for i := range ms {
+		if ms[i].Timestamp > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *timeSamplerWorker) dumpContexts(dest io.Writer) error {
