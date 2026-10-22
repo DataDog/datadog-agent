@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -136,6 +137,38 @@ func TestStartupRechecksRCAndCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.Zero(t, f.c.step(ctx))
+}
+
+type deadlineSupervisor struct {
+	*supervisor
+	startContextErr error
+}
+
+func (p *deadlineSupervisor) Start(ctx context.Context, r *pb.StartRequest, opts ...grpc.CallOption) (*pb.StartResponse, error) {
+	p.startContextErr = ctx.Err()
+	if p.startContextErr != nil {
+		return nil, p.startContextErr
+	}
+	return p.supervisor.Start(ctx, r, opts...)
+}
+
+func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t)
+		pm := &deadlineSupervisor{supervisor: f.pm}
+		f.c.pm = pm
+		f.rc.onRead = func() {
+			f.rc.onRead = nil
+			// Model a scheduling pause after successful supervisor inspection.
+			time.Sleep(6 * time.Second)
+		}
+		require.Zero(t, f.c.step(context.Background()))
+		require.NoError(t, pm.startContextErr, "Start must not inherit an exhausted preflight deadline")
+		require.Equal(t, 1, pm.starts)
+		require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+		f.c.step(context.Background())
+		require.Equal(t, 1, pm.starts)
+	})
 }
 
 func TestStartupPreservesLegacyRecoveryAndRequiresOnDemandSupervisor(t *testing.T) {
