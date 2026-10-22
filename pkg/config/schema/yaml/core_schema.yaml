@@ -5059,6 +5059,10 @@ properties:
     node_type: setting
     type: integer
     default: 200
+  aggregator_flush_yield_budget_ms:
+    node_type: setting
+    type: integer
+    default: 0
   aggregator_tag_filter_cache_capacity:
     node_type: setting
     type: integer

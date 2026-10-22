@@ -12,6 +12,7 @@ import (
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
@@ -64,6 +65,12 @@ type timeSamplerWorker struct {
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
+
+	// flushYieldBudget is the longest a flush runs before it reads samplesChan.
+	// 0 turns the feature off (aggregator_flush_yield_budget_ms).
+	flushYieldBudget time.Duration
+	// lastYield is when the flush last read samplesChan (or started).
+	lastYield time.Time
 }
 
 type dumpTrigger struct {
@@ -95,6 +102,8 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		tagFilterListChan:    make(chan filterlist.TagMatcher),
 
 		tagsStore: tagsStore,
+
+		flushYieldBudget: time.Duration(pkgconfigsetup.Datadog().GetInt("aggregator_flush_yield_budget_ms")) * time.Millisecond,
 	}
 }
 
@@ -171,7 +180,37 @@ func (w *timeSamplerWorker) stop() {
 	w.stopChan <- struct{}{}
 }
 
+// yieldToIntake is called from inside a flush. If the flush ran for flushYieldBudget since
+// the last read, it processes the batches already queued in samplesChan.
+func (w *timeSamplerWorker) yieldToIntake() {
+	if time.Since(w.lastYield) < w.flushYieldBudget {
+		return
+	}
+	// Read len once: a producer that keeps up must not extend the flush forever.
+	for n := len(w.samplesChan); n > 0; n-- {
+		select {
+		case ms := <-w.samplesChan:
+			if ms == nil {
+				close(w.samplesDrained)
+				continue
+			}
+			w.processBatch(ms)
+		default:
+			n = 0
+		}
+	}
+	tlmChannelSize.Set(float64(len(w.samplesChan)), w.sampler.idString)
+	w.lastYield = time.Now()
+}
+
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
+	// A forceFlushAll flush (Stop after the intake drain, or ForceFlushToSerializer) does not
+	// read intake: a sample read mid-flush would land in a new bucket that this flush skips.
+	if w.flushYieldBudget > 0 && !trigger.forceFlushAll {
+		w.lastYield = time.Now()
+		w.sampler.yield = w.yieldToIntake
+		defer func() { w.sampler.yield = nil }()
+	}
 	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, &w.flushFilterList, trigger.forceFlushAll)
 	trigger.blockChan <- struct{}{}
 }
