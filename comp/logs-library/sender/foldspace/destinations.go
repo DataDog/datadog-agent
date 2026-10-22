@@ -77,6 +77,9 @@ type DestinationConfig struct {
 	// StreamMethod is the full gRPC method path every stream opens, in the form
 	// /<package>.<Service>/<Method>.
 	StreamMethod string
+	// ExtraHeaders is gRPC metadata added when every sender opens a stream, from
+	// logs_config.foldspace.extra_headers. Keys are lowercase and validated.
+	ExtraHeaders map[string]string
 }
 
 // ErrWindowing is returned when max_inflight_payloads is below S × pipeline_depth.
@@ -226,6 +229,11 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	}
 	log.Infof("foldspace stream lifetime: %s (%d ns)", streamLifetime, streamLifetime.Nanoseconds())
 
+	extraHeaders, err := parseExtraHeaders(cfg.GetStringMapString("logs_config.foldspace.extra_headers"))
+	if err != nil {
+		return nil, fmt.Errorf("logs_config.foldspace.extra_headers: %w", err)
+	}
+
 	return &DestinationConfig{
 		Senders: senders,
 		Core: Config{
@@ -253,7 +261,63 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		AckTimeout:        ackTimeout,
 		BatchWait:         batchWait,
 		StreamMethod:      streamMethod,
+		ExtraHeaders:      extraHeaders,
 	}, nil
+}
+
+// reservedStreamHeaders are set by the transport itself or by grpc-go and
+// HTTP/2, so extra_headers may not override or duplicate them.
+var reservedStreamHeaders = map[string]struct{}{
+	"dd-api-key":                  {},
+	"dd-content-encoding":         {},
+	"dd-state-request-bytes":      {},
+	config.FoldspaceRoutingHeader: {},
+	"content-type":                {},
+	"user-agent":                  {},
+	"te":                          {},
+	"host":                        {},
+	"connection":                  {},
+	"keep-alive":                  {},
+	"proxy-connection":            {},
+	"transfer-encoding":           {},
+	"upgrade":                     {},
+}
+
+// parseExtraHeaders lowercases and validates extra stream metadata against the
+// gRPC wire spec: keys are 0-9 a-z _ - . (no grpc- prefix, no binary -bin
+// suffix) and values are printable ASCII. Empty input yields nil.
+func parseExtraHeaders(raw map[string]string) (map[string]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	headers := make(map[string]string, len(raw))
+	for k, v := range raw {
+		key := strings.ToLower(strings.TrimSpace(k))
+		if key == "" {
+			return nil, errors.New("header name must not be empty")
+		}
+		for _, c := range key {
+			if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' && c != '_' && c != '.' {
+				return nil, fmt.Errorf("header name %q may contain only 0-9 a-z _ - .", k)
+			}
+		}
+		if strings.HasPrefix(key, "grpc-") || strings.HasSuffix(key, "-bin") {
+			return nil, fmt.Errorf("header name %q may not use the grpc- prefix or -bin suffix", k)
+		}
+		if _, ok := reservedStreamHeaders[key]; ok {
+			return nil, fmt.Errorf("header name %q is set by the agent or gRPC and cannot be overridden", k)
+		}
+		if _, dup := headers[key]; dup {
+			return nil, fmt.Errorf("header name %q is configured more than once", key)
+		}
+		for i := 0; i < len(v); i++ {
+			if v[i] < 0x20 || v[i] > 0x7e {
+				return nil, fmt.Errorf("value of header %q must be printable ASCII", key)
+			}
+		}
+		headers[key] = v
+	}
+	return headers, nil
 }
 
 // parseStreamMethod validates a full gRPC method path. Empty selects the

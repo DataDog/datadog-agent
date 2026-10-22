@@ -160,6 +160,20 @@ properties:
           Foldspace dual shipping. Sets x-dd-logs-routing to http for HTTP requests
           and grpc for gRPC streams. Requires foldspace.enabled and dual_ship.
           Additional and MRF endpoints do not receive these headers.
+      extra_headers:
+        node_type: setting
+        type: object
+        default: {}
+        additionalProperties:
+          type: string
+        env_parser: json
+        comment: |-
+          Extra gRPC metadata sent when every foldspace stream opens, on every
+          foldspace sender, for example {"x-dd-logs-shadow": "true"} so an
+          ingress or intake can tell shadow traffic apart. Keys are lowercased
+          and must be valid HTTP/2 header names; grpc- prefixed keys and the
+          headers foldspace sets itself are rejected. Values must be printable
+          ASCII. Read at startup; a value applies to streams opened after it.
       max_inflight_payloads:
         node_type: setting
         type: integer

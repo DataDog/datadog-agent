@@ -44,3 +44,25 @@ When all three settings are enabled, the primary HTTP endpoint sends
 `x-dd-logs-routing: grpc`, including when `foldspace.dd_url` overrides its address.
 Additional and MRF endpoints retain their existing behavior without these headers.
 The setting defaults to false and is read at startup, not dynamically.
+
+## Extra stream headers
+
+`extra_headers` adds gRPC metadata to every stream of every Foldspace sender,
+for example to mark the dual-shipped copy so an ingress or intake can route
+or account for it separately:
+
+```yaml
+logs_config:
+  foldspace:
+    extra_headers:
+      x-dd-logs-shadow: "true"
+```
+
+The environment override takes JSON:
+`DD_LOGS_CONFIG_FOLDSPACE_EXTRA_HEADERS='{"x-dd-logs-shadow":"true"}'`.
+Keys are lowercased and must use only `0-9 a-z _ - .`; `grpc-` prefixed and
+`-bin` suffixed keys, the metadata Foldspace sets itself (`dd-api-key`,
+`dd-content-encoding`, `dd-state-request-bytes`, `x-dd-logs-routing`) and
+HTTP/2 connection headers are rejected, as are values that are not printable
+ASCII. An invalid map fails Foldspace configuration. Metadata is sent once
+when a stream opens, so it cannot vary per batch. HTTP requests are unaffected.

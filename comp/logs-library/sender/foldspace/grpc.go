@@ -37,6 +37,8 @@ type GRPCTransport struct {
 	enc       string
 	method    string
 	keepalive keepalive.ClientParameters
+	// extra is validated metadata sent on every stream of every sender.
+	extra map[string]string
 }
 
 // NewGRPCTransport builds a transport for dest.
@@ -63,6 +65,7 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 		state:  dest.StateRequestBytes,
 		enc:    enc,
 		method: method,
+		extra:  dest.ExtraHeaders,
 		// Pings only while a stream is open: servers reject stream-less pings by
 		// default, and between streams there is nothing to detect a stall in.
 		keepalive: keepalive.ClientParameters{
@@ -89,6 +92,9 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 	)
 	if spec.RoutingHeaders {
 		md.Set(config.FoldspaceRoutingHeader, "grpc")
+	}
+	for k, v := range t.extra {
+		md.Set(k, v)
 	}
 	streamCtx, cancel := context.WithCancel(metadata.NewOutgoingContext(context.Background(), md))
 	stop := context.AfterFunc(ctx, cancel)

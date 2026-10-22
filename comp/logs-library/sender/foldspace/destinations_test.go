@@ -274,3 +274,55 @@ func TestStreamLifetimeEnvOverride(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 90*time.Second, dest.Core.StreamLifetime)
 }
+
+func singleEndpoint() *config.Endpoints {
+	main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+	endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+	endpoints.Main = main
+	return endpoints
+}
+
+func TestExtraHeadersDefaultEmpty(t *testing.T) {
+	dest, err := BuildDestinationConfig(configmock.New(t), singleEndpoint())
+	require.NoError(t, err)
+	assert.Empty(t, dest.ExtraHeaders)
+}
+
+func TestExtraHeadersConfigured(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.foldspace.extra_headers", map[string]string{"X-DD-Logs-Shadow": "true", "x-dd-run": "a b.c"})
+	dest, err := BuildDestinationConfig(cfg, singleEndpoint())
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"x-dd-logs-shadow": "true", "x-dd-run": "a b.c"}, dest.ExtraHeaders)
+}
+
+func TestExtraHeadersEnvOverride(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_EXTRA_HEADERS", `{"x-dd-logs-shadow":"true"}`)
+	dest, err := BuildDestinationConfig(configmock.New(t), singleEndpoint())
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"x-dd-logs-shadow": "true"}, dest.ExtraHeaders)
+}
+
+func TestExtraHeadersInvalid(t *testing.T) {
+	for name, headers := range map[string]map[string]string{
+		"empty name":       {" ": "v"},
+		"illegal char":     {"x dd": "v"},
+		"pseudo header":    {":authority": "v"},
+		"grpc prefix":      {"grpc-timeout": "1S"},
+		"binary suffix":    {"x-trace-bin": "v"},
+		"agent header":     {"DD-API-Key": "k"},
+		"routing header":   {config.FoldspaceRoutingHeader: "http"},
+		"http2 header":     {"connection": "close"},
+		"case duplicate":   {"x-a": "1", "X-A": "2"},
+		"non-ascii value":  {"x-a": "é"},
+		"control in value": {"x-a": "a\nb"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("logs_config.foldspace.extra_headers", headers)
+			_, err := BuildDestinationConfig(cfg, singleEndpoint())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "logs_config.foldspace.extra_headers")
+		})
+	}
+}

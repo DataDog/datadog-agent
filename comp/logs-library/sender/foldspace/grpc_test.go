@@ -249,7 +249,7 @@ func TestGRPCRoutingHeaders(t *testing.T) {
 		{name: "enabled", enabled: true, want: []string{"grpc"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			transport, headers := newRoutingHeaderTransport(t, tc.enabled)
+			transport, headers := newRoutingHeaderTransport(t, tc.enabled, nil)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			for i, spec := range transport.specs {
@@ -278,7 +278,36 @@ func TestGRPCRoutingHeaders(t *testing.T) {
 	}
 }
 
-func newRoutingHeaderTransport(t *testing.T, enabled bool) (*GRPCTransport, <-chan metadata.MD) {
+// Extra headers reach the server on every sender's stream, alongside the
+// primary's routing header and without displacing the agent's own metadata.
+func TestGRPCExtraHeaders(t *testing.T) {
+	transport, headers := newRoutingHeaderTransport(t, true, map[string]string{"x-dd-logs-shadow": "true"})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for i, spec := range transport.specs {
+		stream, err := transport.OpenStream(ctx, spec.ID, 1)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, stream.Close()) })
+		require.NoError(t, stream.Send(ctx, 7, []byte("ping")))
+		_, _, err = stream.Recv(ctx)
+		require.NoError(t, err)
+		var md metadata.MD
+		select {
+		case md = <-headers:
+		case <-ctx.Done():
+			t.Fatal("server did not receive stream metadata")
+		}
+		assert.Equal(t, []string{"true"}, md.Get("x-dd-logs-shadow"), "sender %d", i)
+		assert.Equal(t, []string{spec.APIKey()}, md.Get("dd-api-key"))
+		if i == 0 {
+			assert.Equal(t, []string{"grpc"}, md.Get(config.FoldspaceRoutingHeader))
+		} else {
+			assert.Empty(t, md.Get(config.FoldspaceRoutingHeader))
+		}
+	}
+}
+
+func newRoutingHeaderTransport(t *testing.T, enabled bool, extra map[string]string) (*GRPCTransport, <-chan metadata.MD) {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -301,6 +330,9 @@ func newRoutingHeaderTransport(t *testing.T, enabled bool) (*GRPCTransport, <-ch
 	cfg.SetInTest("logs_config.foldspace.enabled", true)
 	cfg.SetInTest("logs_config.foldspace.dual_ship", true)
 	cfg.SetInTest("logs_config.foldspace.routing_headers", enabled)
+	if extra != nil {
+		cfg.SetInTest("logs_config.foldspace.extra_headers", extra)
+	}
 	cfg.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{
 		{"host": "127.0.0.1", "port": lis.Addr().(*net.TCPAddr).Port, "api_key": "additional-key"},
 	})
