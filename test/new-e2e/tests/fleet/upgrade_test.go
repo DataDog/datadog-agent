@@ -235,3 +235,32 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	s.Require().NoError(err)
 	s.Require().Contains(odbcInst, "[ODBC Driver 18 for SQL Server]")
 }
+
+func (s *upgradeSuite) TestLogsRegistryPreservedOnUpgrade() {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("Logs registry preservation is only relevant on Linux")
+	}
+	// Both packages must contain the save/restore hooks until they reach a stable release.
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
+
+	// Log collection stays disabled so the auditor cannot rewrite this preservation fixture.
+	const registry = `{"Version":2,"Registry":{"file:/var/log/registry-preservation-test.log":{"LastUpdated":"2026-10-22T10:00:00Z","Offset":"12345","TailingMode":"beginning","IngestionTimestamp":1792663200000000000}}}`
+	_, err := s.Env().RemoteHost.Execute(`printf '%s' '` + registry + `' | sudo tee /opt/datadog-agent/run/registry.json > /dev/null`)
+	s.Require().NoError(err)
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+
+	experimentRegistry, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/datadog-agent/experiment/run/registry.json")
+	s.Require().NoError(err)
+	s.Require().JSONEq(registry, experimentRegistry)
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	stableRegistry, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/datadog-agent/stable/run/registry.json")
+	s.Require().NoError(err)
+	s.Require().JSONEq(registry, stableRegistry)
+}
