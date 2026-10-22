@@ -5469,6 +5469,14 @@ properties:
         node_type: section
         type: object
         properties:
+          allowed_types:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            comment: Allowed metric types for anomaly detection. When empty, all metric
+              types are allowed.
           enabled:
             node_type: setting
             type: boolean
@@ -8383,6 +8391,33 @@ properties:
             node_type: setting
             type: integer
             default: 1
+      private_action_runner:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Gates the Private Action Runner delivery path for Kubernetes Actions: when
+              true, the com.datadoghq.kubernetes.kubeactions actions are added to the
+              runner's allowlist. Only effective when kubeactions.enabled is true. The
+              runner itself is enabled by private_action_runner.enabled. Set to false to
+              receive actions only through Remote Configuration.
+      remote_config:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Gates the remote-config delivery path for Kubernetes Actions (K8S_ACTIONS
+              product subscription and config retriever). Only effective when
+              kubeactions.enabled is true. Set to false to receive actions only through
+              the Private Action Runner.
   kubelet_collector_pull_interval:
     node_type: setting
     type: integer

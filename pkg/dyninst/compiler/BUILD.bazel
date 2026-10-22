@@ -43,6 +43,7 @@ go_stringer(
 dd_agent_go_test(
     name = "compiler_test",
     srcs = [
+        "coordinated_sample_test.go",
         "generate_test.go",
         "instructions_test.go",
         "snapshot_test.go",

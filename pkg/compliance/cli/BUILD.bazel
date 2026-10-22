@@ -12,8 +12,8 @@ go_library(
     ],
     data = select({
         "@platforms//os:linux": [
-            "@openscap//:openscap_pkg",
-            "@openscap//:openscap_sce_pkg",
+            "@openscap//:oscap-io_pkg",
+            "@openscap//:oscap_pkg",
         ],
         "//conditions:default": [],
     }),

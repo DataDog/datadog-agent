@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
@@ -90,7 +91,8 @@ func TestResolvePath(t *testing.T) {
 // resolves the relative paths).
 func newDefaultsConfig(t *testing.T, defaults map[string]interface{}) *ntmConfig {
 	t.Helper()
-	cfg := NewNodeTreeConfig("test", "TEST", nil).(*ntmConfig)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema).(*ntmConfig)
+	cfg.SetEnvPrefix("TEST")
 	for key, val := range defaults {
 		cfg.SetDefault(key, val)
 	}

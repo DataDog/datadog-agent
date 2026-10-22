@@ -6,7 +6,6 @@ load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 load("//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 
 package(
     default_package_metadata = [":package_metadata"],
@@ -120,7 +119,7 @@ pkg_files(
 
 # The unversioned linker-name symlink lives in a sibling directory of the
 # real .so so it cannot be expressed through so_symlink's same-dir chain.
-# Emit it manually and pass it through installed_files so it flows through
+# Emit it manually and pass it through data so it flows through
 # dd_collect_dependencies alongside the rpath-patched library.
 pkg_mklink(
     name = "_lib_symlink",
@@ -139,24 +138,15 @@ pkg_filegroup(
 # separate cross-directory linker-name symlink under lib/.
 dd_cc_packaged(
     name = "msodbcsql_pkg",
-    dest_dir = "embedded/msodbcsql/lib64",
-    input = ":msodbcsql_shared",
-    installed_files = [
+    data = [
         ":lib_symlink",
         ":license_files",
         ":resource_files",
-    ],
-)
-
-# Single public entry point for "ship msodbcsql18 and its runtime deps".
-# libodbcinst.so.2 is a runtime dependency of libmsodbcsql, included
-# explicitly because cc_import doesn't expose dynamic_deps for the aspect
-# to discover.
-dd_collect_dependencies(
-    name = "installed_libs",
-    srcs = [
-        ":msodbcsql_pkg",
+        # libodbcinst.so.2 is a runtime dependency of libmsodbcsql that cc_import
+        # doesn't expose as dynamic_deps for dd_collect_dependencies to discover.
         "@unixodbc//:odbcinst_pkg",
     ],
+    dest_dir = "embedded/msodbcsql/lib64",
+    input = ":msodbcsql_shared",
     visibility = ["//packages:__subpackages__"],
 )

@@ -324,6 +324,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 
-	return resourcetotelemetry.WrapMetricsExporter(
-		resourcetotelemetry.Settings{Enabled: cfg.Metrics.Metrics.ExporterConfig.ResourceAttributesAsTags}, exporter), nil
+	var rttSettings resourcetotelemetry.Settings
+	if cfg.Metrics.Metrics.ExporterConfig.ResourceAttributesAsTags {
+		rttSettings.Included = []string{"*"}
+	}
+	return resourcetotelemetry.WrapMetricsExporter(rttSettings, exporter), nil
 }

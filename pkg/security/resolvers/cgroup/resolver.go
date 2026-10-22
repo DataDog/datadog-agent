@@ -191,7 +191,7 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	}
 
 	if !cgroupContext.IsResolved() {
-		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false)
+		path, err := cr.dentryResolver.Resolve(cgroupContext.CGroupPathKey, false, dentry.CallerCGroup)
 		if err != nil {
 			seclog.Debugf("failed to fallback to resolve dentry for pid %d and path key %+v: %v", pid, cgroupContext.CGroupPathKey, err)
 			return nil
