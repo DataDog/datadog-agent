@@ -47,7 +47,7 @@ func ProtoDecodeMounts(dest *ActivityTree, nodes []*adproto.MountNode) {
 				mn.RecordWithTimestamps(getIDFromTag(tag), firstSeen, lastSeen)
 			}
 		}
-		dest.indexMount(mountNodeKey{mountPoint: m.MountPoint, filesystem: m.Filesystem, mountFlags: m.MountFlags}, mn)
+		dest.indexMount(mountNodeKey{mountPoint: m.MountPoint, filesystem: m.Filesystem, mountFlags: m.MountFlags, inBaseNamespace: m.BaseNamespace}, mn)
 	}
 }
 

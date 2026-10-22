@@ -2149,6 +2149,24 @@ func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
 	pce.SID = sid
 }
 
+func (p *EBPFResolver) UpdateMntNS(pce *model.ProcessCacheEntry, mntNS uint32) {
+	p.RLock()
+	currMntNS := pce.MntNS
+	p.RUnlock()
+
+	if currMntNS == mntNS {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	pce.MntNS = mntNS
+	if p.mountResolver != nil {
+		p.mountResolver.SetPidMntNs(pce.Pid, mntNS)
+	}
+}
+
 const (
 	inodeErrTagForkParentMissing = "type:fork_parent_missing"
 	inodeErrTagExecParentMissing = "type:exec_parent_missing"

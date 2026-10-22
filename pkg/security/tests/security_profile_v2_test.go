@@ -10,10 +10,13 @@ package tests
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -41,6 +44,17 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.CloseTest()
+
+	proc1Dir := filepath.Join(test.Root(), "proc1")
+	if err := os.MkdirAll(proc1Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("/proc/1", proc1Dir, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = unix.Unmount(proc1Dir, unix.MNT_DETACH)
+	}()
 
 	dockerInstance, err := test.StartADocker()
 	if err != nil {
@@ -83,4 +97,43 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 		}
 		return true
 	}, 30*time.Second, 500*time.Millisecond, "the workload mounts should be recorded in the base namespace")
+
+	hostOnlyMount := t.TempDir()
+	if err := unix.Mount("tmpfs", hostOnlyMount, "tmpfs", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = unix.Unmount(hostOnlyMount, unix.MNT_DETACH)
+	}()
+
+	setnsCmd := exec.Command("docker", "exec", "--privileged", dockerInstance.containerName, "nsenter", "--mount="+filepath.Join(proc1Dir, "ns/mnt"), "sleep", "1")
+	if out, err := setnsCmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to nsenter host mount namespace: %v (%s)", err, string(out))
+	}
+
+	assert.Eventually(t, func() bool {
+		msg, err := p.GetProfileManager().SaveSecurityProfile(&api.SecurityProfileSaveParams{Selector: selector})
+		if err != nil || msg.GetError() != "" {
+			return false
+		}
+		defer os.Remove(msg.GetFile())
+
+		prof, err := DecodeSecurityProfile(msg.GetFile())
+		if err != nil {
+			return false
+		}
+		foundHostMount := false
+		foundBaseMount := false
+		for _, mn := range prof.ActivityTree.Mounts {
+			if mn.MountPoint == hostOnlyMount {
+				if mn.InBaseNamespace {
+					return false
+				}
+				foundHostMount = true
+			} else if mn.InBaseNamespace {
+				foundBaseMount = true
+			}
+		}
+		return foundHostMount && foundBaseMount
+	}, 30*time.Second, 500*time.Millisecond, "mounts from a foreign namespace entered via setns should be seeded with base_namespace=false")
 }

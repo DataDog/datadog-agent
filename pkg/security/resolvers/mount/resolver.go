@@ -656,10 +656,39 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 	}
 }
 
-// IterateNamespace calls cb for every cached mount in the given mount namespace
-func (mr *Resolver) IterateNamespace(nsInode uint32, cb func(*model.Mount)) {
+// IterateNamespace calls cb for every cached mount in the given mount namespace,
+// syncing from pid first if no mounts for that namespace are cached yet.
+func (mr *Resolver) IterateNamespace(nsInode uint32, pid uint32, cb func(*model.Mount)) {
 	mr.lock.RLock()
-	defer mr.lock.RUnlock()
+	found := false
+	for mount := range mr.mounts.ValuesIter() {
+		if mount.NamespaceInode == nsInode {
+			found = true
+			cb(mount)
+		}
+	}
+	mr.lock.RUnlock()
+	if found || pid == 0 {
+		return
+	}
+
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	for mount := range mr.mounts.ValuesIter() {
+		if mount.NamespaceInode == nsInode {
+			found = true
+			cb(mount)
+		}
+	}
+	if found {
+		return
+	}
+
+	mr.pidNs.Add(pid, nsInode)
+	if err := mr.syncPidNamespace(pid); err != nil {
+		return
+	}
 
 	for mount := range mr.mounts.ValuesIter() {
 		if mount.NamespaceInode == nsInode {
