@@ -33,11 +33,8 @@ import (
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
-const (
-	// SDKTraceMetricName is the Datadog SDK OTLP duration histogram converted to APM stats.
-	SDKTraceMetricName       = "traces.span.sdk.metrics.duration"
-	defaultSDKBucketDuration = 10 * time.Second
-)
+// SDKTraceMetricName identifies the SDK duration histogram used for APM stats.
+const SDKTraceMetricName = "traces.span.sdk.metrics.duration"
 
 // SDKTraceStatsError identifies a datapoint that could not be translated.
 type SDKTraceStatsError struct {
@@ -49,28 +46,17 @@ func (e SDKTraceStatsError) Error() string {
 	return fmt.Sprintf("datapoint %d: %v", e.DataPointIndex, e.Err)
 }
 
-// IsSDKTraceMetric reports whether name is the Datadog SDK OTLP duration histogram.
-func IsSDKTraceMetric(name string) bool {
-	return name == SDKTraceMetricName
-}
-
-// MarshalStatsPayload serializes a trace stats payload for the APM stats intake.
-func MarshalStatsPayload(payload *stats.OTLPIntakeStatsPayload) ([]byte, error) {
-	return proto.Marshal(payload)
-}
-
 // BuildSDKTraceStatsPayload converts a Datadog SDK OTLP duration histogram into
 // an APM stats payload with caller-provided envelope metadata. Invalid
 // datapoints are skipped and returned as errors.
 func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric pmetric.Metric) (*stats.OTLPIntakeStatsPayload, []SDKTraceStatsError) {
-	if !IsSDKTraceMetric(metric.Name()) || metric.Type() != pmetric.MetricTypeHistogram {
+	if metric.Name() != SDKTraceMetricName || metric.Type() != pmetric.MetricTypeHistogram {
 		return nil, nil
 	}
-	if metric.Histogram().AggregationTemporality() != pmetric.AggregationTemporalityDelta {
+	if metric.Unit() != "s" || metric.Histogram().AggregationTemporality() != pmetric.AggregationTemporalityDelta {
 		return nil, nil
 	}
 
-	unit := metric.Unit()
 	service := attributes.GetService(rattrs, true)
 	env := attributes.GetEnv(rattrs)
 	version := attributes.GetVersion(rattrs)
@@ -82,15 +68,18 @@ func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric p
 		if dp.Flags().NoRecordedValue() {
 			continue
 		}
-		groupedStats, err := sdkGroupedStats(service, env, version, &dp, unit)
+		groupedStats, err := sdkGroupedStats(service, env, version, &dp)
 		if err != nil {
 			conversionErrors = append(conversionErrors, SDKTraceStatsError{DataPointIndex: i, Err: err})
 			continue
 		}
-		start, duration := sdkBucketWindow(dp.StartTimestamp(), dp.Timestamp())
+		if dp.StartTimestamp() == 0 || dp.Timestamp() <= dp.StartTimestamp() || uint64(dp.Timestamp()) > math.MaxInt64 {
+			conversionErrors = append(conversionErrors, SDKTraceStatsError{DataPointIndex: i, Err: errors.New("invalid histogram time window")})
+			continue
+		}
 		buckets = append(buckets, &stats.StatsBucketV3{
-			Start:    int64(start),
-			Duration: int64(duration),
+			Start:    int64(dp.StartTimestamp()),
+			Duration: int64(dp.Timestamp() - dp.StartTimestamp()),
 			Stats:    []*stats.StatsBucketV3_GroupedStats{groupedStats},
 		})
 	}
@@ -101,14 +90,14 @@ func BuildSDKTraceStatsPayload(host, source string, rattrs pcommon.Map, metric p
 	return &stats.OTLPIntakeStatsPayload{
 		HostName:    host,
 		Stats:       buckets,
-		HostTags:    attributes.TagsFromAttributes(rattrs),
+		HostTags:    append(append(attributes.TagsFromAttributes(rattrs), sdkTagArray(rattrs, "datadog.process_tags")...), sdkTagArray(rattrs, "datadog.tracer_tags")...),
 		Source:      source,
 		Aggregate:   true,
 		ContainerId: attributes.GetContainerID(rattrs),
 	}, conversionErrors
 }
 
-func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoint, unit string) (*stats.StatsBucketV3_GroupedStats, error) {
+func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoint) (*stats.StatsBucketV3_GroupedStats, error) {
 	attrs := dp.Attributes()
 	hits := dp.Count()
 	isError := attributes.GetOTelAttrVal(attrs, false, "status.code") == "STATUS_CODE_ERROR"
@@ -131,7 +120,7 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 		synthetics = true
 	}
 
-	duration := sdkDurationNanos(dp, unit)
+	duration := sdkDurationNanos(dp)
 	groupedStats := &stats.StatsBucketV3_GroupedStats{
 		Service:        service,
 		Env:            env,
@@ -149,13 +138,14 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 		HasDuration:    duration > 0,
 		Synthetics:     synthetics,
 		OtherTags:      sdkOtherTags(attrs),
+		PeerTags:       sdkTagArray(attrs, "datadog.peer_tags"),
 	}
 	if isError {
 		groupedStats.Errors = hits
 		groupedStats.HasErrors = hits > 0
 	}
 
-	sketch, err := sdkDurationSketch(dp, unit)
+	sketch, err := sdkDurationSketch(dp)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +157,7 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 	return groupedStats, nil
 }
 
-func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, error) {
+func sdkDurationSketch(dp *pmetric.HistogramDataPoint) ([]byte, error) {
 	if dp == nil || dp.Count() == 0 {
 		return nil, errors.New("count cannot be zero")
 	}
@@ -176,24 +166,23 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, err
 	}
 
 	minimum, maximum, sum := math.NaN(), math.NaN(), math.NaN()
-	scale := timeUnitScaleToNanos(unit) / float64(time.Second)
 	if dp.HasMin() {
-		minimum = dp.Min() * scale
+		minimum = dp.Min()
 	}
 	if dp.HasMax() {
-		maximum = dp.Max() * scale
+		maximum = dp.Max()
 	}
 	if dp.HasSum() {
-		sum = dp.Sum() * scale
+		sum = dp.Sum()
 	}
-	if dp.HasMin() && math.IsNaN(minimum) {
-		return nil, errors.New("histogram minimum is NaN")
+	if dp.HasMin() && (math.IsNaN(minimum) || math.IsInf(minimum, 0) || minimum < 0) {
+		return nil, errors.New("histogram minimum must be finite and nonnegative")
 	}
-	if dp.HasMax() && math.IsNaN(maximum) {
-		return nil, errors.New("histogram maximum is NaN")
+	if dp.HasMax() && (math.IsNaN(maximum) || math.IsInf(maximum, 0) || maximum < 0) {
+		return nil, errors.New("histogram maximum must be finite and nonnegative")
 	}
-	if dp.HasSum() && math.IsNaN(sum) {
-		return nil, errors.New("histogram sum is NaN")
+	if dp.HasSum() && (math.IsNaN(sum) || math.IsInf(sum, 0) || sum < 0 || sum*float64(time.Second) >= 0x1p64) {
+		return nil, errors.New("histogram sum must be finite, nonnegative, and fit uint64 nanoseconds")
 	}
 	if dp.HasMin() && dp.HasMax() && minimum > maximum {
 		return nil, fmt.Errorf("min %g is greater than max %g", minimum, maximum)
@@ -204,23 +193,21 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, err
 	if len(bounds) > 64 {
 		return nil, fmt.Errorf("bounds length %d is too high, maximum 64", len(bounds))
 	}
-	if len(bounds) > 0 || len(counts) > 0 {
-		if len(counts) != len(bounds)+1 {
-			return nil, fmt.Errorf("counts length %d must be 1 greater than bounds length %d", len(counts), len(bounds))
+	if len(counts) != len(bounds)+1 {
+		return nil, fmt.Errorf("counts length %d must be 1 greater than bounds length %d", len(counts), len(bounds))
+	}
+	var total uint64
+	for i, count := range counts {
+		if count > math.MaxUint64-total {
+			return nil, errors.New("bucket counts overflow uint64")
 		}
-		var total uint64
-		for i, count := range counts {
-			if count > math.MaxUint64-total {
-				return nil, errors.New("bucket counts overflow uint64")
-			}
-			total += count
-			if count > math.MaxUint32 {
-				return nil, fmt.Errorf("bucket count %d at index %d exceeds maximum %d", count, i, uint64(math.MaxUint32))
-			}
+		total += count
+		if count > math.MaxUint32 {
+			return nil, fmt.Errorf("bucket count %d at index %d exceeds maximum %d", count, i, uint64(math.MaxUint32))
 		}
-		if total != dp.Count() {
-			return nil, fmt.Errorf("count %d mismatch total bins %d", dp.Count(), total)
-		}
+	}
+	if total != dp.Count() {
+		return nil, fmt.Errorf("count %d mismatch total bins %d", dp.Count(), total)
 	}
 
 	sketch := &stats.SparseSketch{
@@ -233,9 +220,8 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, err
 	var previous float64
 	var previousF32 float32
 	for i, bound := range bounds {
-		bound *= scale
 		boundF32 := float32(bound)
-		if math.IsNaN(bound) || math.IsInf(bound, 0) || math.IsInf(float64(boundF32), 0) {
+		if bound < 0 || math.IsNaN(bound) || math.IsInf(bound, 0) || math.IsInf(float64(boundF32), 0) {
 			return nil, fmt.Errorf("bound must be a finite float32, got %v", bound)
 		}
 		if i > 0 && (previous >= bound || !(previousF32 < boundF32)) {
@@ -252,41 +238,15 @@ func sdkDurationSketch(dp *pmetric.HistogramDataPoint, unit string) ([]byte, err
 	return proto.Marshal(sketch)
 }
 
-func sdkDurationNanos(dp *pmetric.HistogramDataPoint, unit string) uint64 {
+func sdkDurationNanos(dp *pmetric.HistogramDataPoint) uint64 {
 	if !dp.HasSum() {
 		return 0
 	}
-	nanoseconds := dp.Sum() * timeUnitScaleToNanos(unit)
-	if nanoseconds < 0 || nanoseconds >= 0x1p64 {
+	nanoseconds := dp.Sum() * float64(time.Second)
+	if !(nanoseconds >= 0 && nanoseconds < 0x1p64) {
 		return 0
 	}
 	return uint64(nanoseconds)
-}
-
-func timeUnitScaleToNanos(unit string) float64 {
-	switch unit {
-	case "ns":
-		return float64(time.Nanosecond)
-	case "us", "μs":
-		return float64(time.Microsecond)
-	case "ms":
-		return float64(time.Millisecond)
-	case "s":
-		return float64(time.Second)
-	case "min":
-		return float64(time.Minute)
-	case "h":
-		return float64(time.Hour)
-	default:
-		return float64(time.Second)
-	}
-}
-
-func sdkBucketWindow(startTimestamp, endTimestamp pcommon.Timestamp) (start, duration uint64) {
-	if startTimestamp == 0 || endTimestamp <= startTimestamp {
-		return uint64(endTimestamp), uint64(defaultSDKBucketDuration)
-	}
-	return uint64(startTimestamp), uint64(endTimestamp - startTimestamp)
 }
 
 func sdkIsTraceRoot(attrs pcommon.Map) stats.Trilean {
@@ -320,7 +280,22 @@ var sdkGroupedStatsAttributeKeys = map[string]struct{}{
 	"datadog.is_trace_root": {}, "datadog.operation.name": {}, "datadog.span.top_level": {},
 	"datadog.span.type": {}, "http.request.method": {}, "http.response.status_code": {},
 	"http.route": {}, "rpc.response.status_code": {}, "service.name": {}, "span.kind": {},
-	"span.name": {}, "status.code": {},
+	"span.name": {}, "status.code": {}, "datadog.peer_tags": {},
+}
+
+func sdkTagArray(attrs pcommon.Map, key string) []string {
+	value, ok := attrs.Get(key)
+	if !ok || value.Type() != pcommon.ValueTypeSlice {
+		return nil
+	}
+	tags := make([]string, 0, value.Slice().Len())
+	for _, item := range value.Slice().All() {
+		if item.Type() == pcommon.ValueTypeStr {
+			tags = append(tags, normalizeutil.NormalizeTag(item.Str()))
+		}
+	}
+	sort.Strings(tags)
+	return tags
 }
 
 func sdkAdditionalMetricTags(attrs pcommon.Map) []string {

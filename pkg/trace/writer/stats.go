@@ -255,7 +255,7 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 	sendPayloads(w.senders, req, w.syncMode)
 }
 
-// SendOTLPIntakePayload sends a protobuf-encoded V4 stats payload to the Datadog backend.
+// SendOTLPIntakePayload sends a protobuf-encoded OTLP intake stats payload to the Datadog backend.
 func (w *DatadogStatsWriter) SendOTLPIntakePayload(payload []byte) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),

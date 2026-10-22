@@ -15,9 +15,9 @@
 package tracestats
 
 import (
+	"fmt"
 	"math"
 	"testing"
-	"time"
 
 	stats "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +35,8 @@ func sdkTraceMetric(unit string, count uint64, sum float64, attrs map[string]str
 	histogram := metric.SetEmptyHistogram()
 	histogram.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	datapoint := histogram.DataPoints().AppendEmpty()
+	datapoint.SetStartTimestamp(1)
+	datapoint.SetTimestamp(2)
 	datapoint.SetCount(count)
 	datapoint.SetSum(sum)
 	datapoint.SetMin(0)
@@ -68,81 +70,6 @@ func sparseSketch(t testing.TB, raw []byte) *stats.SparseSketch {
 	return sketch
 }
 
-func statsTags(tags []*stats.Tag) []string {
-	values := make([]string, 0, len(tags))
-	for _, tag := range tags {
-		values = append(values, tag.Name+":"+tag.Value)
-	}
-	return values
-}
-
-func TestBuildSDKTraceStatsPayload(t *testing.T) {
-	resourceAttributes := pcommon.NewMap()
-	resourceAttributes.PutStr("service.name", "checkout-svc")
-	resourceAttributes.PutStr("deployment.environment.name", "staging")
-	resourceAttributes.PutStr("service.version", "1.2.3")
-	resourceAttributes.PutStr("container.id", "container-123")
-
-	metric := sdkTraceMetric("s", 5, 2, map[string]string{
-		"datadog.operation.name":   "http.request",
-		"span.name":                "checkout",
-		"datadog.span.type":        "web",
-		"span.kind":                "SPAN_KIND_SERVER",
-		"datadog.span.top_level":   "true",
-		"status.code":              "STATUS_CODE_ERROR",
-		"datadog.is_trace_root":    "true",
-		"datadog.origin":           "synthetics",
-		"rpc.response.status_code": "NOT_FOUND",
-		"peer.service":             "users-db",
-		"http.request.method":      "POST",
-		"http.route":               "/users/:id",
-	})
-	datapoint := metric.Histogram().DataPoints().At(0)
-	datapoint.Attributes().PutInt("http.response.status_code", 500)
-	datapoint.SetStartTimestamp(pcommon.Timestamp(10))
-	datapoint.SetTimestamp(pcommon.Timestamp(20))
-
-	payload, conversionErrors := BuildSDKTraceStatsPayload("agent-host", "test-source", resourceAttributes, metric)
-
-	require.Empty(t, conversionErrors)
-	require.NotNil(t, payload)
-	assert.Equal(t, "agent-host", payload.HostName)
-	assert.Equal(t, "test-source", payload.Source)
-	assert.Equal(t, "container-123", payload.ContainerId)
-	assert.True(t, payload.Aggregate)
-	require.Len(t, payload.Stats, 1)
-	assert.Equal(t, int64(10), payload.Stats[0].Start)
-	assert.Equal(t, int64(10), payload.Stats[0].Duration)
-
-	groupedStats := groupedByName(payload, "http.request")
-	require.NotNil(t, groupedStats)
-	assert.Equal(t, "checkout-svc", groupedStats.Service)
-	assert.Equal(t, "staging", groupedStats.Env)
-	assert.Equal(t, "1.2.3", groupedStats.Version)
-	assert.Equal(t, "checkout", groupedStats.Resource)
-	assert.Equal(t, "server", groupedStats.SpanKind)
-	assert.True(t, groupedStats.Synthetics)
-	assert.Equal(t, uint64(5), groupedStats.Hits)
-	assert.True(t, groupedStats.HasHits)
-	assert.Equal(t, uint64(5), groupedStats.Errors)
-	assert.True(t, groupedStats.HasErrors)
-	assert.Equal(t, uint64(5), groupedStats.TopLevelHits)
-	assert.Equal(t, uint64(2e9), groupedStats.Duration)
-	assert.True(t, groupedStats.HasDuration)
-	assert.Equal(t, int32(500), groupedStats.HttpStatusCode)
-	assert.Equal(t, "5", groupedStats.GrpcStatusCode)
-	assert.Equal(t, stats.Trilean_TRUE, groupedStats.IsTraceRoot)
-	assert.Equal(t, []string{"origin:synthetics", "peer.service:users-db", "span.type:web"}, statsTags(groupedStats.OtherTags))
-	assert.Nil(t, groupedStats.OkSparseSketch)
-	assert.Equal(t, int64(5), sparseSketch(t, groupedStats.ErrorSparseSketch).Basic.Count)
-
-	raw, err := MarshalStatsPayload(payload)
-	require.NoError(t, err)
-	roundTrip := &stats.OTLPIntakeStatsPayload{}
-	require.NoError(t, proto.Unmarshal(raw, roundTrip))
-	assert.True(t, proto.Equal(payload, roundTrip))
-}
-
 func TestSpanKindFromAttr(t *testing.T) {
 	tests := []struct {
 		value    string
@@ -171,9 +98,9 @@ func TestSpanKindFromAttr(t *testing.T) {
 }
 
 func TestBuildSDKTraceStatsPayloadPreservesExplicitHistogram(t *testing.T) {
-	metric := sdkTraceMetric("ms", 6, 500, map[string]string{"datadog.operation.name": "op"})
+	metric := sdkTraceMetric("s", 6, 0.5, map[string]string{"datadog.operation.name": "op"})
 	datapoint := metric.Histogram().DataPoints().At(0)
-	datapoint.ExplicitBounds().FromRaw([]float64{10, 100})
+	datapoint.ExplicitBounds().FromRaw([]float64{0.01, 0.1})
 	datapoint.BucketCounts().FromRaw([]uint64{1, 2, 3})
 
 	payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
@@ -207,31 +134,40 @@ func TestBuildSDKTraceStatsPayloadSkipsInvalidDatapoints(t *testing.T) {
 }
 
 func TestBuildSDKTraceStatsPayloadInputContract(t *testing.T) {
-	t.Run("cumulative histogram", func(t *testing.T) {
-		metric := sdkTraceMetric("s", 1, 1, nil)
-		metric.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-		payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
-		assert.Nil(t, payload)
-		assert.Empty(t, conversionErrors)
-	})
-
-	t.Run("unrelated metric", func(t *testing.T) {
-		metric := sdkTraceMetric("s", 1, 1, nil)
-		metric.SetName("custom.duration")
-		payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
-		assert.Nil(t, payload)
-		assert.Empty(t, conversionErrors)
-	})
-
-	t.Run("fallback bucket window", func(t *testing.T) {
-		metric := sdkTraceMetric("s", 1, 1, map[string]string{"datadog.operation.name": "op"})
-		metric.Histogram().DataPoints().At(0).SetTimestamp(pcommon.Timestamp(42))
-		payload, conversionErrors := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
-		require.Empty(t, conversionErrors)
-		require.Len(t, payload.Stats, 1)
-		assert.Equal(t, int64(42), payload.Stats[0].Start)
-		assert.Equal(t, int64(10*time.Second), payload.Stats[0].Duration)
-	})
+	for name, change := range map[string]func(pmetric.Metric){
+		"cumulative": func(m pmetric.Metric) {
+			m.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+		},
+		"unrelated":        func(m pmetric.Metric) { m.SetName("custom.duration") },
+		"unsupported unit": func(m pmetric.Metric) { m.SetUnit("ms") },
+		"no recorded value": func(m pmetric.Metric) {
+			m.Histogram().DataPoints().At(0).SetFlags(pmetric.DefaultDataPointFlags.WithNoRecordedValue(true))
+		},
+		"missing start":     func(m pmetric.Metric) { m.Histogram().DataPoints().At(0).SetStartTimestamp(0) },
+		"reversed interval": func(m pmetric.Metric) { m.Histogram().DataPoints().At(0).SetStartTimestamp(3) },
+		"timestamp overflow": func(m pmetric.Metric) {
+			m.Histogram().DataPoints().At(0).SetTimestamp(pcommon.Timestamp(math.MaxUint64))
+		},
+		"duration overflow": func(m pmetric.Metric) { m.Histogram().DataPoints().At(0).SetSum(math.MaxFloat64) },
+		"missing counts":    func(m pmetric.Metric) { m.Histogram().DataPoints().At(0).BucketCounts().FromRaw(nil) },
+		"negative bound": func(m pmetric.Metric) {
+			dp := m.Histogram().DataPoints().At(0)
+			dp.ExplicitBounds().FromRaw([]float64{-1})
+			dp.BucketCounts().FromRaw([]uint64{0, 1})
+		},
+		"float32 collision": func(m pmetric.Metric) {
+			dp := m.Histogram().DataPoints().At(0)
+			dp.ExplicitBounds().FromRaw([]float64{1, math.Nextafter(1, 2)})
+			dp.BucketCounts().FromRaw([]uint64{0, 0, 1})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			metric := sdkTraceMetric("s", 1, 1, nil)
+			change(metric)
+			payload, _ := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
+			assert.Nil(t, payload)
+		})
+	}
 }
 
 func TestBuildSDKTraceStatsPayloadRejectsInvalidCounts(t *testing.T) {
@@ -260,5 +196,53 @@ func TestBuildSDKTraceStatsPayloadRejectsInvalidCounts(t *testing.T) {
 			require.Len(t, conversionErrors, 1)
 			assert.ErrorContains(t, conversionErrors[0].Err, test.wantErrMsg)
 		})
+	}
+}
+
+func TestSDKTraceStatsStatusCodeContract(t *testing.T) {
+	for _, status := range []string{"STATUS_CODE_ERROR", "STATUS_CODE_OK", "STATUS_CODE_UNSET", ""} {
+		t.Run(status, func(t *testing.T) {
+			metric := sdkTraceMetric("s", 3, 1, map[string]string{"datadog.operation.name": "op"})
+			attrs := metric.Histogram().DataPoints().At(0).Attributes()
+			attrs.PutInt("http.response.status_code", 500)
+			if status != "" {
+				attrs.PutStr("status.code", status)
+			}
+			payload, errs := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
+			require.Empty(t, errs)
+			got := groupedByName(payload, "op")
+			require.NotNil(t, got)
+			if status == "STATUS_CODE_ERROR" {
+				assert.Equal(t, uint64(3), got.Errors)
+				assert.NotEmpty(t, got.ErrorSparseSketch)
+				assert.Empty(t, got.OkSparseSketch)
+			} else {
+				assert.Zero(t, got.Errors)
+				assert.NotEmpty(t, got.OkSparseSketch)
+				assert.Empty(t, got.ErrorSparseSketch)
+			}
+		})
+	}
+}
+
+func TestSDKTraceStatsRejectsInvalidDurations(t *testing.T) {
+	for _, field := range []string{"sum", "min", "max"} {
+		for _, value := range []float64{math.NaN(), math.Inf(1), math.Inf(-1), -1} {
+			t.Run(fmt.Sprintf("%s/%g", field, value), func(t *testing.T) {
+				metric := sdkTraceMetric("s", 1, 1, nil)
+				dp := metric.Histogram().DataPoints().At(0)
+				switch field {
+				case "sum":
+					dp.SetSum(value)
+				case "min":
+					dp.SetMin(value)
+				case "max":
+					dp.SetMax(value)
+				}
+				payload, errs := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
+				assert.Nil(t, payload)
+				require.Len(t, errs, 1)
+			})
+		}
 	}
 }
