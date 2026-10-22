@@ -111,6 +111,8 @@ func TestPull(t *testing.T) {
 		require.Equal(t, "none", gpu.VirtualizationMode)
 		require.Equal(t, "0000:00:1e.0", gpu.PCIBusID)
 		require.Empty(t, gpu.FabricClusterUUID)
+		require.Empty(t, gpu.ChassisSerial)
+		require.Empty(t, gpu.BoardSerial)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
@@ -155,6 +157,83 @@ func TestPullWithoutNVLink(t *testing.T) {
 	for _, gpu := range wmetaMock.ListGPUs() {
 		require.Equalf(t, "not_nvlink_capable", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
 	}
+}
+
+func TestPullPlatformInfo(t *testing.T) {
+	// Values reported by a GB200 NVL72 compute tray.
+	var chassisSerial [16]uint8
+	copy(chassisSerial[:], "1821825880999")
+	parentIdx := testutil.DefaultMIGParentDeviceIdx
+
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithDefaultMIGDevices(),
+		testutil.WithDeviceOptions(parentIdx, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
+				return nvml.PlatformInfo{ChassisSerialNumber: chassisSerial, SlotNumber: 20, TrayIndex: 10, HostId: 1, ModuleId: 2}, nvml.SUCCESS
+			}
+			d.GetSerialFunc = func() (string, nvml.Return) {
+				return "1650825051135", nvml.SUCCESS
+			}
+		})),
+	)
+	c := newTestCollector(t, wmetaMock)
+
+	c.Pull(context.Background())
+
+	parentUUID := testutil.GPUUUIDs[parentIdx]
+	withPlatform := map[string]bool{parentUUID: true}
+	for _, migUUID := range testutil.MIGChildrenUUIDs[parentIdx] {
+		withPlatform[migUUID] = true
+	}
+	for _, gpu := range wmetaMock.ListGPUs() {
+		if !withPlatform[gpu.ID] {
+			require.Emptyf(t, gpu.ChassisSerial, "unexpected chassis serial for GPU %s", gpu.ID)
+			require.Emptyf(t, gpu.BoardSerial, "unexpected board serial for GPU %s", gpu.ID)
+			continue
+		}
+		require.Equalf(t, "1821825880999", gpu.ChassisSerial, "GPU %s", gpu.ID)
+		require.Equalf(t, uint8(20), gpu.SlotNumber, "GPU %s", gpu.ID)
+		require.Equalf(t, uint8(10), gpu.TrayIndex, "GPU %s", gpu.ID)
+		require.Equalf(t, uint8(2), gpu.ModuleID, "GPU %s", gpu.ID)
+		require.Equalf(t, "1650825051135", gpu.BoardSerial, "GPU %s", gpu.ID)
+	}
+}
+
+func TestPullPlatformInfoHGXB200(t *testing.T) {
+	// Real HGX B200 (driver 595.71): empty chassis serial, 255 sentinels, non-zero module ID.
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
+				return nvml.PlatformInfo{SlotNumber: 255, TrayIndex: 255, HostId: 1, PeerType: 1, ModuleId: 1}, nvml.SUCCESS
+			}
+			d.GetSerialFunc = func() (string, nvml.Return) {
+				return "1650825051135", nvml.SUCCESS
+			}
+		}),
+	)
+	c := newTestCollector(t, wmetaMock)
+
+	c.Pull(context.Background())
+
+	gpus := wmetaMock.ListGPUs()
+	require.NotEmpty(t, gpus)
+	for _, gpu := range gpus {
+		require.Emptyf(t, gpu.ChassisSerial, "GPU %s", gpu.ID)
+		require.Zerof(t, gpu.SlotNumber, "GPU %s", gpu.ID)
+		require.Zerof(t, gpu.TrayIndex, "GPU %s", gpu.ID)
+		require.Zerof(t, gpu.ModuleID, "GPU %s", gpu.ID)
+		require.Emptyf(t, gpu.BoardSerial, "GPU %s", gpu.ID)
+	}
+}
+
+func TestPlatformChassisSerial(t *testing.T) {
+	var padded [16]uint8
+	copy(padded[:], "1821825880999")
+	require.Equal(t, "1821825880999", platformChassisSerial(nvml.PlatformInfo{ChassisSerialNumber: padded}))
+	// Non-rack systems report an empty serial, e.g. HGX H100 where only the module ID is set.
+	require.Empty(t, platformChassisSerial(nvml.PlatformInfo{HostId: 1, ModuleId: 3}))
 }
 
 func TestFabricInfoToTags(t *testing.T) {

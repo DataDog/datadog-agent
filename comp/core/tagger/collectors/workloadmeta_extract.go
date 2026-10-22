@@ -1024,6 +1024,15 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 		tagList.AddLow(tags.GPUFabricClusterUUID, strings.ToLower(gpu.FabricClusterUUID))
 		tagList.AddLow(tags.GPUFabricCliqueID, strconv.FormatUint(uint64(gpu.FabricCliqueID), 10))
 	}
+	if gpu.ChassisSerial != "" {
+		tagList.AddLow(tags.GPUChassisSerial, strings.ToLower(gpu.ChassisSerial))
+		tagList.AddLow(tags.GPUSlotNumber, strconv.FormatUint(uint64(gpu.SlotNumber), 10))
+		tagList.AddLow(tags.GPUTrayIndex, strconv.FormatUint(uint64(gpu.TrayIndex), 10))
+		tagList.AddLow(tags.GPUModuleID, strconv.FormatUint(uint64(gpu.ModuleID), 10))
+	}
+	if gpu.BoardSerial != "" {
+		tagList.AddLow(tags.GPUBoardSerial, strings.ToLower(gpu.BoardSerial))
+	}
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
 	}

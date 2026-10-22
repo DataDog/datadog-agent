@@ -258,6 +258,22 @@ func getGpuFabricInfoV3(getV3 func() (nvml.GpuFabricInfo_v3, nvml.Return), getV2
 	return info, nil
 }
 
+func (d *safeDeviceImpl) GetPlatformInfo() (nvml.PlatformInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetPlatformInfo")); err != nil {
+		return nvml.PlatformInfo{}, err
+	}
+	info, ret := d.nvmlDevice.GetPlatformInfo()
+	return info, NewNvmlAPIErrorOrNil("GetPlatformInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetSerial() (string, error) {
+	if err := d.lib.lookup(toNativeName("GetSerial")); err != nil {
+		return "", err
+	}
+	serial, ret := d.nvmlDevice.GetSerial()
+	return serial, NewNvmlAPIErrorOrNil("GetSerial", ret)
+}
+
 func (d *safeDeviceImpl) GetIndex() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
 		return 0, err

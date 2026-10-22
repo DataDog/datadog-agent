@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    gpu: Add rack-scale placement tags to GPU metrics on systems that report NVML platform information, such as GB200 NVL72: ``gpu_chassis_serial``, ``gpu_slot_number``, ``gpu_tray_index``, ``gpu_module_id`` and ``gpu_board_serial``.

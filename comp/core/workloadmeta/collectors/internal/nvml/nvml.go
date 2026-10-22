@@ -8,6 +8,7 @@
 package nvml
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -140,6 +141,11 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.MemoryBusWidth = prev.MemoryBusWidth
 			gpuDeviceInfo.FabricClusterUUID = prev.FabricClusterUUID
 			gpuDeviceInfo.FabricCliqueID = prev.FabricCliqueID
+			gpuDeviceInfo.ChassisSerial = prev.ChassisSerial
+			gpuDeviceInfo.SlotNumber = prev.SlotNumber
+			gpuDeviceInfo.TrayIndex = prev.TrayIndex
+			gpuDeviceInfo.ModuleID = prev.ModuleID
+			gpuDeviceInfo.BoardSerial = prev.BoardSerial
 			gpuDeviceInfo.MaxClockRates = prev.MaxClockRates
 		}
 		return
@@ -166,6 +172,19 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
 			gpuDeviceInfo.FabricClusterUUID = clusterUUID
 			gpuDeviceInfo.FabricCliqueID = cliqueID
+		}
+	}
+
+	// Platform info is only populated on rack-scale systems; other GPUs report an empty chassis serial.
+	if platformInfo, err := physicalDevice.GetPlatformInfo(); err == nil {
+		if chassisSerial := platformChassisSerial(platformInfo); chassisSerial != "" {
+			gpuDeviceInfo.ChassisSerial = chassisSerial
+			gpuDeviceInfo.SlotNumber = platformInfo.SlotNumber
+			gpuDeviceInfo.TrayIndex = platformInfo.TrayIndex
+			gpuDeviceInfo.ModuleID = platformInfo.ModuleId
+			if boardSerial, err := physicalDevice.GetSerial(); err == nil {
+				gpuDeviceInfo.BoardSerial = strings.TrimSpace(boardSerial)
+			}
 		}
 	}
 
@@ -208,6 +227,15 @@ func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
 	}
 
 	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
+}
+
+// platformChassisSerial returns the NUL-padded chassis serial as a string.
+func platformChassisSerial(info nvml.PlatformInfo) string {
+	serial := info.ChassisSerialNumber[:]
+	if end := bytes.IndexByte(serial, 0); end >= 0 {
+		serial = serial[:end]
+	}
+	return strings.TrimSpace(string(serial))
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
