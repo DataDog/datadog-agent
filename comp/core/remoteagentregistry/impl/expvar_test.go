@@ -10,12 +10,62 @@ import (
 	"encoding/json"
 	"expvar"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	configcomponent "github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	logcomponent "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
+	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
+	dogstatsdserver "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	dogstatsdserverimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/server/impl"
+	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
+	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
+	offlinereportermock "github.com/DataDog/datadog-agent/comp/offlinereporter/mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	_ "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 )
+
+var agentExpvarSetup sync.Once
+
+func initializeAgentExpvars(t *testing.T) {
+	agentExpvarSetup.Do(func() {
+		_ = fxutil.Test[dogstatsdserver.Component](t, fx.Options(
+			fx.Provide(func() logcomponent.Component { return logmock.New(t) }),
+			fx.Provide(func() configcomponent.Component {
+				return configcomponent.NewMockWithOverrides(t, map[string]interface{}{"dogstatsd_port": 0})
+			}),
+			telemetrymock.Module(),
+			hostnameimpl.MockModule(),
+			serverdebugmock.MockModule(),
+			replaymock.MockModule(),
+			pidmapfx.Module(),
+			demultiplexerimpl.FakeSamplerMockModule(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			logscompression.MockModule(),
+			metricscompression.MockModule(),
+			filterlistmock.MockModule(),
+			fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
+			fxutil.ProvideComponentConstructor(dogstatsdserverimpl.NewComponent),
+			fx.Supply(dogstatsdserver.Params{Serverless: false}),
+		))
+	})
+}
 
 const compatibilityTelemetry = `
 # TYPE dogstatsd__udp_packets counter
@@ -36,21 +86,22 @@ dogstatsd__processed{message_type="events",state="error",origin="host"} 6
 dogstatsd__processed{message_type="service_checks",state="ok",origin="host"} 60
 dogstatsd__processed{message_type="service_checks",state="error",origin="host"} 7
 dogstatsd__processed{message_type="logs",state="ok",origin="host"} 100
-# TYPE transactions__dropped counter
-transactions__dropped{domain="metrics",endpoint="series"} 8
 # TYPE transactions__retry_queue_size gauge
 transactions__retry_queue_size{domain="metrics"} 4
 # TYPE transactions__success counter
-transactions__success{domain="metrics",endpoint="series",proto_version="v2"} 9
+transactions__success{domain="metrics",endpoint="/api/v1/series",proto_version="HTTP/2.0"} 9
+transactions__success{domain="metrics",endpoint="/api/v1/validate",proto_version="HTTP/2.0"} 1000
 # TYPE transactions__errors counter
-transactions__errors{domain="metrics",endpoint="series",error_type="dns_lookup_failure"} 1
-transactions__errors{domain="metrics",endpoint="series",error_type="tls_handshake_failure"} 2
-transactions__errors{domain="metrics",endpoint="series",error_type="connection_failure"} 3
-transactions__errors{domain="metrics",endpoint="series",error_type="writing_failure"} 4
-transactions__errors{domain="metrics",endpoint="series",error_type="invalid_request"} 5
-transactions__errors{domain="metrics",endpoint="series",error_type="cant_send"} 6
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="dns_error"} 1
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="tls_error"} 2
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="connection_error"} 3
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="wrote_request_error"} 4
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="sent_request_error"} 5
+transactions__errors{domain="metrics",endpoint="/api/v1/series",error_type="cant_send"} 6
+transactions__errors{domain="metrics",endpoint="/api/v1/validate",error_type="dns_error"} 1000
 # TYPE transactions__http_errors counter
-transactions__http_errors{domain="metrics",endpoint="series",code="500"} 2
+transactions__http_errors{domain="metrics",endpoint="/api/v1/series",code="500"} 2
+transactions__http_errors{domain="metrics",endpoint="/api/v1/validate",code="500"} 1000
 `
 
 func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
@@ -73,7 +124,6 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(6), values["dogstatsd_event_parse_errors"])
 	assert.Equal(t, int64(60), values["dogstatsd_service_check_packets"])
 	assert.Equal(t, int64(7), values["dogstatsd_service_check_parse_errors"])
-	assert.Equal(t, int64(8), values["forwarder_dropped_on_input"])
 	assert.Equal(t, int64(4), values["forwarder_retry_queue_size"])
 	assert.Equal(t, int64(9), values["forwarder_success"])
 	assert.Equal(t, int64(21), values["forwarder_errors"])
@@ -84,6 +134,37 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(5), values["forwarder_sent_request_errors"])
 	assert.Equal(t, int64(2), values["forwarder_http_errors"])
 	assert.Len(t, values, len(expvarMappings))
+}
+
+func TestExpvarSeriesDistinguishesNoMatchFromMatchedZero(t *testing.T) {
+	noMatch, parsed := expvarSeriesFromPromText(`# TYPE dogstatsd__processed counter
+dogstatsd__processed{message_type="logs",state="ok"} 0
+`)
+	require.True(t, parsed)
+	assert.Empty(t, noMatch)
+
+	matchedZero, parsed := expvarSeriesFromPromText(`# TYPE dogstatsd__processed counter
+dogstatsd__processed{message_type="metrics",state="ok"} 0
+`)
+	require.True(t, parsed)
+	require.Len(t, matchedZero, 1)
+	assert.Equal(t, "dogstatsd_metric_packets", matchedZero[0].mappingID)
+	assert.Zero(t, matchedZero[0].value)
+}
+
+func TestExpvarMappingsDeclareLabelPolicy(t *testing.T) {
+	seen := make(map[string]struct{}, len(expvarMappings))
+	for _, mapping := range expvarMappings {
+		_, duplicate := seen[mapping.id]
+		require.Falsef(t, duplicate, "duplicate mapping id %q", mapping.id)
+		seen[mapping.id] = struct{}{}
+
+		if len(mapping.selectors) == 0 {
+			require.Truef(t, mapping.matchAllLabelSets, "mapping %q must opt into matching all label sets", mapping.id)
+		} else {
+			require.Falsef(t, mapping.matchAllLabelSets, "mapping %q has both selectors and match-all enabled", mapping.id)
+		}
+	}
 }
 
 func TestExpvarSeriesFromPromTextRejectsTypeMismatchAndMalformedText(t *testing.T) {
@@ -251,10 +332,13 @@ func TestWrapExpvarCreatesMissingCompatibilityPath(t *testing.T) {
 	assert.Equal(t, "0", transactions.Get("DroppedOnInput").String())
 }
 
-func TestExpvarMappingsResolve(t *testing.T) {
+func TestExpvarMappingsResolveInAgentComponents(t *testing.T) {
+	initializeAgentExpvars(t)
 	for _, mapping := range expvarMappings {
-		ensureExpvarInt(t, mapping.expvarPath)
-		require.Truef(t, wrapExpvar(mapping), "mapping %q did not resolve", mapping.id)
+		parent, leaf, err := resolveExpvarMappingTarget(mapping)
+		require.NoErrorf(t, err, "mapping %q did not resolve", mapping.id)
+		require.NotNil(t, parent)
+		require.NotNil(t, leaf)
 	}
 }
 

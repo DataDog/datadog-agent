@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Expose DogStatsD and forwarder telemetry from the Agent Data Plane through the Core Agent's ``go_expvar`` paths when ADP is enabled. Existing ``go_expvar`` users can continue to use their current configuration while the compatibility layer combines Core Agent and ADP values. The ``forwarder/Transactions/DroppedOnInput`` expvar currently uses ADP's broader ``transactions__dropped`` counter; it may include drops beyond those represented by the legacy name.
+    Expose DogStatsD and forwarder telemetry from the Agent Data Plane through the Core Agent's ``go_expvar`` paths when ADP is enabled. Existing ``go_expvar`` users can continue to use their current configuration while the compatibility layer combines Core Agent and ADP values using label-selected mappings. API-key validation requests are excluded from Forwarder transaction totals to preserve the legacy expvar semantics. ADP's broader ``transactions__dropped`` metric is not mapped to ``forwarder/Transactions/DroppedOnInput``; that legacy expvar remains Core-Agent-only.

@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"expvar"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -37,25 +38,28 @@ const (
 // The metric names are the names emitted by ADP's RAR remapping, not the names from ADP's direct /compat/metrics
 // endpoint.
 type expvarMapping struct {
-	id              string
-	metricName      string
-	expvarPath      []string
-	selectors       []labelSelector
-	metricType      dto.MetricType
-	createIfMissing bool
+	id                string
+	metricName        string
+	expvarPath        []string
+	selectors         []labelSelector
+	matchAllLabelSets bool
+	metricType        dto.MetricType
+	createIfMissing   bool
 }
 
 type labelSelector struct {
-	name   string
-	values map[string]struct{}
+	name           string
+	values         map[string]struct{}
+	excludedValues map[string]struct{}
 }
 
 var expvarMappings = []expvarMapping{
 	{
-		id:         "dogstatsd_udp_packets",
-		metricName: "dogstatsd__udp_packets",
-		expvarPath: []string{"dogstatsd-udp", "Packets"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "dogstatsd_udp_packets",
+		metricName:        "dogstatsd__udp_packets",
+		expvarPath:        []string{"dogstatsd-udp", "Packets"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "dogstatsd_udp_packet_reading_errors",
@@ -82,10 +86,11 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "dogstatsd_uds_origin_detection_errors",
-		metricName: "dogstatsd__uds_origin_detection_errors",
-		expvarPath: []string{"dogstatsd-uds", "OriginDetectionErrors"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "dogstatsd_uds_origin_detection_errors",
+		metricName:        "dogstatsd__uds_origin_detection_errors",
+		expvarPath:        []string{"dogstatsd-uds", "OriginDetectionErrors"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "dogstatsd_metric_packets",
@@ -147,71 +152,84 @@ var expvarMappings = []expvarMapping{
 		),
 		metricType: dto.MetricType_COUNTER,
 	},
-	// ADP exposes a broader dropped count; keep the legacy expvar path but document the semantic difference.
 	{
-		id:              "forwarder_dropped_on_input",
-		metricName:      "transactions__dropped",
-		expvarPath:      []string{"forwarder", "Transactions", "DroppedOnInput"},
-		metricType:      dto.MetricType_COUNTER,
-		createIfMissing: true,
+		id:                "forwarder_retry_queue_size",
+		metricName:        "transactions__retry_queue_size",
+		expvarPath:        []string{"forwarder", "Transactions", "RetryQueueSize"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_GAUGE,
 	},
-	{
-		id:         "forwarder_retry_queue_size",
-		metricName: "transactions__retry_queue_size",
-		expvarPath: []string{"forwarder", "Transactions", "RetryQueueSize"},
-		metricType: dto.MetricType_GAUGE,
-	},
+	// Exclude API-key validation requests: ADP counts them as transactions, while the Core Agent's
+	// legacy Forwarder expvars do not.
 	{
 		id:         "forwarder_success",
 		metricName: "transactions__success",
 		expvarPath: []string{"forwarder", "Transactions", "Success"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "Errors"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_dns_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "DNSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "dns_lookup_failure")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "dns_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_tls_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "TLSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "tls_handshake_failure")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "tls_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_connection_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "ConnectionErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "connection_failure")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "connection_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_wrote_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "WroteRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "writing_failure")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "wrote_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_sent_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "SentRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "invalid_request")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "sent_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_http_errors",
 		metricName: "transactions__http_errors",
 		expvarPath: []string{"forwarder", "Transactions", "HTTPErrors"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 }
@@ -222,6 +240,14 @@ func labelSelectorValues(name string, values ...string) labelSelector {
 		allowed[value] = struct{}{}
 	}
 	return labelSelector{name: name, values: allowed}
+}
+
+func labelSelectorExcludingValues(name string, values ...string) labelSelector {
+	excluded := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		excluded[value] = struct{}{}
+	}
+	return labelSelector{name: name, excludedValues: excluded}
 }
 
 func selectors(values ...labelSelector) []labelSelector {
@@ -293,8 +319,29 @@ func (ra *remoteAgentRegistry) registerExpvars() {
 
 // Increment ExpVar quantity
 func wrapExpvar(mapping expvarMapping) bool {
-	if len(mapping.expvarPath) < 2 {
+	parent, local, err := resolveExpvarMappingTarget(mapping)
+	if err != nil {
+		log.Warnf("Not exposing remote agent values at expvar %q: %v", strings.Join(mapping.expvarPath, "/"), err)
 		return false
+	}
+
+	leaf := mapping.expvarPath[len(mapping.expvarPath)-1]
+	// Wrap the local leaf so reads return the combined Core Agent and remote ADP value.
+	parent.Set(leaf, expvar.Func(func() any {
+		total := local.Value()
+		if registry := remoteExpvarRegistry.Load(); registry != nil {
+			for _, values := range registry.getRemoteExpvarValues() {
+				total = saturatingAdd(total, values[mapping.id])
+			}
+		}
+		return total
+	}))
+	return true
+}
+
+func resolveExpvarMappingTarget(mapping expvarMapping) (*expvar.Map, *expvar.Int, error) {
+	if len(mapping.expvarPath) < 2 {
+		return nil, nil, fmt.Errorf("expected a root and leaf path")
 	}
 
 	rootName := mapping.expvarPath[0]
@@ -305,7 +352,7 @@ func wrapExpvar(mapping expvarMapping) bool {
 		ok = true
 	}
 	if !ok {
-		return false
+		return nil, nil, fmt.Errorf("expected root %q to be an *expvar.Map", rootName)
 	}
 	for _, key := range mapping.expvarPath[1 : len(mapping.expvarPath)-1] {
 		child := parent.Get(key)
@@ -317,7 +364,7 @@ func wrapExpvar(mapping expvarMapping) bool {
 		}
 		parent, ok = child.(*expvar.Map)
 		if !ok {
-			return false
+			return nil, nil, fmt.Errorf("expected nested path %q to be an *expvar.Map", key)
 		}
 	}
 
@@ -330,21 +377,9 @@ func wrapExpvar(mapping expvarMapping) bool {
 		ok = true
 	}
 	if !ok {
-		log.Warnf("Not exposing remote agent values at expvar %q: expected an *expvar.Int", strings.Join(mapping.expvarPath, "/"))
-		return false
+		return nil, nil, fmt.Errorf("expected leaf %q to be an *expvar.Int", leaf)
 	}
-
-	// Wrap the local leaf so reads return the combined Core Agent and remote ADP value.
-	parent.Set(leaf, expvar.Func(func() any {
-		total := local.Value()
-		if registry := remoteExpvarRegistry.Load(); registry != nil {
-			for _, values := range registry.getRemoteExpvarValues() {
-				total = saturatingAdd(total, values[mapping.id])
-			}
-		}
-		return total
-	}))
-	return true
+	return parent, local, nil
 }
 
 // getRemoteAgentExpvars formats remote compatibility values as nested expvar data grouped by remote-agent name.
@@ -571,7 +606,7 @@ func expvarSeriesFromPromText(promText string) ([]remoteExpvarSeries, bool) {
 			continue
 		}
 		for _, metric := range family.GetMetric() {
-			if metric == nil || !matchesSelectors(metric.GetLabel(), mapping.selectors) {
+			if metric == nil || !matchesMappingLabels(metric.GetLabel(), mapping) {
 				continue
 			}
 			value, ok := metricValue(metric, mapping.metricType)
@@ -623,6 +658,16 @@ func gaugeValue(metric *dto.Metric) (int64, bool) {
 	return int64(value), true
 }
 
+func matchesMappingLabels(labels []*dto.LabelPair, mapping expvarMapping) bool {
+	if len(mapping.selectors) == 0 {
+		return mapping.matchAllLabelSets
+	}
+	if mapping.matchAllLabelSets {
+		return false
+	}
+	return matchesSelectors(labels, mapping.selectors)
+}
+
 func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 	values := make(map[string]string, len(labels))
 	for _, label := range labels {
@@ -635,7 +680,12 @@ func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 		if !ok {
 			return false
 		}
-		if _, ok := selector.values[value]; !ok {
+		if len(selector.values) > 0 {
+			if _, ok := selector.values[value]; !ok {
+				return false
+			}
+		}
+		if _, excluded := selector.excludedValues[value]; excluded {
 			return false
 		}
 	}
