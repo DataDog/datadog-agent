@@ -136,6 +136,7 @@ go_library(
 dd_agent_go_test(
     name = "config_test",
     srcs = [
+        "config_darwin_test.go",
         "config_nix_test.go",
         "config_test.go",
         "config_windows_test.go",

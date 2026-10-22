@@ -33,6 +33,7 @@ go_library(
 dd_agent_go_test(
     name = "paths_test",
     srcs = [
+        "installer_paths_darwin_test.go",
         "paths_windows_test.go",
         "remove_all_test.go",
         "remove_all_windows_test.go",

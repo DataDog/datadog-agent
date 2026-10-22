@@ -66,10 +66,6 @@ dd_agent_go_test(
             "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
         ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/fleet/installer/env",
-            "@com_github_stretchr_testify//assert",
-        ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
@@ -79,10 +75,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:illumos": [
-            "//pkg/fleet/installer/env",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
         ],

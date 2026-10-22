@@ -101,6 +101,7 @@ dd_agent_go_test(
     srcs = [
         "daemon_test.go",
         "ddot_state_test.go",
+        "local_api_peer_darwin_test.go",
         "local_api_test.go",
         "remote_config_test.go",
         "task_db_test.go",
