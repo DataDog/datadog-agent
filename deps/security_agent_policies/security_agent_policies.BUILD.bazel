@@ -2,6 +2,7 @@
 # Policy files for the security agent: compliance and runtime policies.
 
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//packages/agent:defs.bzl", "etc_dir")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -43,13 +44,13 @@ _RUNTIME_FILES = glob(
 pkg_files(
     name = "compliance_files",
     srcs = _COMPLIANCE_FILES,
-    prefix = "etc/datadog-agent/compliance.d",
+    prefix = etc_dir("compliance.d"),
 )
 
 pkg_files(
     name = "runtime_files",
     srcs = _RUNTIME_FILES,
-    prefix = "etc/datadog-agent/runtime-security.d",
+    prefix = etc_dir("runtime-security.d"),
 )
 
 pkg_filegroup(
