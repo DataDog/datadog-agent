@@ -206,6 +206,9 @@ Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extens
 content in sync with source files automatically. When a new language or generator is added to the binary, its rules
 become part of the same automated workflow — you do not need to know which extensions are loaded.
 
+After deleting a package's last test file, check for an obsolete `dd_agent_go_test` rule: Gazelle can retain the macro
+and its stale source references. Remove the obsolete rule and its unused load explicitly.
+
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
