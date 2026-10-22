@@ -210,6 +210,19 @@ func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.Pr
 	}
 
 	prev := p.entryCache[key]
+	if prev == nil && entry.PPid != 0 && entry.PPid != key.Pid && key.Pid != 1 {
+		// A child can exec without a fork report after the ptracer's bounded
+		// creation wait. Reconstruct its inherited image so Exec() stops that
+		// image, not the parent's cached image. Link only within the same PID
+		// namespace, and invent neither a fork timestamp nor a fork event.
+		prev = model.NewProcessCacheEntry()
+		prev.Pid = key.Pid
+		prev.PPid = entry.PPid
+		prev.Source = model.ProcessCacheEntryFromPlaceholder
+		if parent := p.entryCache[CacheResolverKey{Pid: entry.PPid, NSID: key.NSID}]; parent != nil {
+			parent.Fork(prev)
+		}
+	}
 	if prev != nil {
 		prev.Exec(entry)
 
@@ -218,7 +231,8 @@ func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.Pr
 			entry.PPid = prev.PPid
 		}
 
-		// inheritate credentials as exec event, uid/gid can be update by setuid/setgid events
+		// Inherit credentials from the previous image; setuid/setgid events
+		// can update them independently of exec events.
 		entry.Credentials = prev.Credentials
 	}
 

@@ -66,6 +66,10 @@ type SocketInfo struct {
 type Process struct {
 	Pid                      int
 	Tgid                     int
+	startTime                uint64 // /proc/<tgid>/stat starttime in clock ticks; zero if unavailable
+	forkPPID                 uint32 // known process parent, not necessarily the creating TID
+	creationHandled          bool   // creation hooks completed, or an initial tracee with no creation event
+	creationWaitTimedOut     bool   // resumed without creation; inherited resources must not be reapplied
 	CGroupID                 containerutils.CGroupID
 	ContainerID              containerutils.ContainerID
 	containerContextResolved bool
@@ -77,9 +81,12 @@ type Process struct {
 
 // NewProcess returns a new process
 func NewProcess(pid int) *Process {
+	tgid := getPidTGID(pid)
+	_, startTime, _ := readProcessStat(tgid)
 	return &Process{
 		Pid:        pid,
-		Tgid:       pid,
+		Tgid:       tgid,
+		startTime:  startTime,
 		Nr:         make(map[int]*ebpfless.SyscallMsg),
 		FdToSocket: make(map[int32]SocketInfo),
 
@@ -89,6 +96,21 @@ func NewProcess(pid int) *Process {
 		},
 		FsRes: &FSResources{},
 	}
+}
+
+func (p *Process) identity() processIdentity {
+	// A nonleader exec changes its TID to the TGID, not the process generation.
+	return processIdentity{tgid: uint32(p.Tgid), startTime: p.startTime}
+}
+
+func (p *Process) execPPID() uint32 {
+	if p.forkPPID != 0 {
+		return p.forkPPID
+	}
+	// Creation may have timed out, or this may be an initial tracee.
+	// Resolve at the exec stop, not at network delivery: queuing delays must
+	// not change the observed parent. This preserves lineage without a fork.
+	return getPidPPID(p.Pid)
 }
 
 var errPipeFd = errors.New("pipe fd")
@@ -163,6 +185,18 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	// share resources, parent should never be nil
 	if cloneFlags&unix.CLONE_THREAD != 0 {
 		process.Tgid = parent.Tgid
+		process.startTime = parent.startTime
+	}
+	switch {
+	case cloneFlags&unix.CLONE_THREAD != 0:
+		// A thread belongs to the same process, with the same known parent.
+		process.forkPPID = parent.forkPPID
+	case cloneFlags&unix.CLONE_PARENT != 0:
+		// The creator is not the child's parent, and may have been reparented.
+		// Its original fork PPID is insufficient: keep the procfs fallback.
+		process.forkPPID = 0
+	default:
+		process.forkPPID = uint32(parent.Tgid)
 	}
 	process.CGroupID = parent.CGroupID
 	process.ContainerID = parent.ContainerID

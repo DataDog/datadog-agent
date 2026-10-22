@@ -278,15 +278,19 @@ func (ctx *CWSPtracerCtx) trace() (int, error) {
 		tracker = NewSyscallStateTracker()
 		regs    syscall.PtraceRegs
 	)
+	children := newChildCreationWaiter(func(pid int) error { return syscall.PtraceSyscall(pid, 0) })
+	defer children.detachAll(syscall.PtraceDetach)
 
 	for {
-		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
+		pid, status, err := children.waitAnyTracee(syscall.Wait4)
 		if err != nil {
 			logger.Errorf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
+		waitStatus = status
 
 		if isExited(waitStatus) {
+			children.forget(pid)
 			tracker.Exit(pid)
 
 			if ctx.pidExited(pid) == 0 {
@@ -297,6 +301,9 @@ func (ctx *CWSPtracerCtx) trace() (int, error) {
 		}
 
 		if waitStatus.Stopped() {
+			if ctx.holdChildAtInitialStop(pid, waitStatus, children) {
+				continue // keep this TID stopped, but consume other tracees' events
+			}
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
 				if signal == syscall.SIGSTOP {
 					signal = syscall.Signal(0)
@@ -325,7 +332,9 @@ func (ctx *CWSPtracerCtx) trace() (int, error) {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
 				// called at the exit of the syscall
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
-					ctx.handleHooks(CallbackPostType, nr, int(npid), pid, regs, nil)
+					ctx.handleChildCreationEvent(nr, pid, int(npid), regs, children)
+				} else {
+					logger.Errorf("unable to get child pid for %d: %v", pid, err)
 				}
 			case syscall.PTRACE_EVENT_EXEC:
 				// called at the exit of the syscall
@@ -377,15 +386,19 @@ func (ctx *CWSPtracerCtx) traceWithSeccomp() (int, error) {
 	var (
 		regs syscall.PtraceRegs
 	)
+	children := newChildCreationWaiter(func(pid int) error { return syscall.PtraceCont(pid, 0) })
+	defer children.detachAll(syscall.PtraceDetach)
 
 	for {
-		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
+		pid, status, err := children.waitAnyTracee(syscall.Wait4)
 		if err != nil {
 			logger.Errorf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
+		waitStatus = status
 
 		if isExited(waitStatus) {
+			children.forget(pid)
 			if ctx.pidExited(pid) == 0 {
 				break
 			}
@@ -394,6 +407,9 @@ func (ctx *CWSPtracerCtx) traceWithSeccomp() (int, error) {
 		}
 
 		if waitStatus.Stopped() {
+			if ctx.holdChildAtInitialStop(pid, waitStatus, children) {
+				continue // keep this TID stopped, but consume other tracees' events
+			}
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
 				if signal == syscall.SIGSTOP {
 					signal = syscall.Signal(0)
@@ -422,7 +438,9 @@ func (ctx *CWSPtracerCtx) traceWithSeccomp() (int, error) {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
 				// called at the exit of the syscall
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
-					ctx.handleHooks(CallbackPostType, nr, int(npid), pid, regs, nil)
+					ctx.handleChildCreationEvent(nr, pid, int(npid), regs, children)
+				} else {
+					logger.Errorf("unable to get child pid for %d: %v", pid, err)
 				}
 			case syscall.PTRACE_EVENT_EXEC:
 				// called at the exit of the syscall
@@ -531,8 +549,9 @@ func (ctx *CWSPtracerCtx) AttachTracer() error {
 			return fmt.Errorf("unable to ptrace `%d`, please verify the capabilities: %w", pid, err)
 		}
 
-		// first process
+		// Initial tracees have no creation event to wait for.
 		process := NewProcess(pid)
+		process.creationHandled = true
 		ctx.processCache.Add(pid, process)
 	}
 
@@ -607,8 +626,9 @@ func (ctx *CWSPtracerCtx) NewTracer() error {
 
 	ctx.stopSignalForwarder = startSignalForwarder(pid)
 
-	// first process
+	// Initial tracees have no creation event to wait for.
 	process := NewProcess(pid)
+	process.creationHandled = true
 	ctx.processCache.Add(pid, process)
 
 	ctx.userCacheRefreshLimiter = rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1)

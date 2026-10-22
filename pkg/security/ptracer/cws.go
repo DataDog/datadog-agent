@@ -63,16 +63,22 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts                *Opts
-	wg                  sync.WaitGroup
-	cancel              context.Context
-	cancelFnc           context.CancelFunc
-	containerID         containerutils.ContainerID
-	cgroupID            containerutils.CGroupID
-	probeAddr           string
-	client              net.Conn
-	clientReady         chan bool
-	msgDataChan         chan []byte
+	opts        *Opts
+	wg          sync.WaitGroup
+	cancel      context.Context
+	cancelFnc   context.CancelFunc
+	containerID containerutils.ContainerID
+	cgroupID    containerutils.CGroupID
+	probeAddr   string
+	client      net.Conn
+	clientReady chan bool
+	msgDataChan chan []byte
+	// The network sender owns this single dequeued payload until its write
+	// succeeds. Keep it across reconnects; requeueing at the tail breaks FIFO.
+	inFlightMsgData []byte
+	// The tracing thread owns lifecycle metadata, not a telemetry queue.
+	// This guard filters late forks after a child-creation wait has expired.
+	lifecycleGuard      *processLifecycleGuard
 	helloMsg            *ebpfless.Message
 	processCache        *ProcessCache
 	traceesReported     []int
@@ -197,12 +203,19 @@ func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
 		return err
 	}
 
+	ctx.enqueueMsgData(data)
+	return nil
+}
+
+// enqueueMsgData never waits for the network: a stalled probe must not hold
+// tracees stopped. A full outbound queue drops the new message rather than
+// blocking the tracing thread.
+func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) {
 	select {
 	case ctx.msgDataChan <- data:
 	default:
 		logger.Errorf("unable to send message")
 	}
-	return nil
 }
 
 func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
@@ -236,18 +249,25 @@ func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
 	}
 }
 
-// returns nil if client needs to be reconnected
+// sendMessagesLoop returns nil when the connection needs to be re-established.
+// The in-flight payload survives that return and is retried after the next hello,
+// before any later queued message. This preserves FIFO retries, not exactly-once
+// delivery: the protocol has no per-message acknowledgement.
 func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
 	for {
+		if ctx.inFlightMsgData != nil {
+			// In particular, an exec must not overtake a fork whose write failed.
+			if err := ctx.sendMsgData(ctx.inFlightMsgData); err != nil {
+				logger.Debugf("error sending msg: %v", err)
+				return nil
+			}
+			ctx.inFlightMsgData = nil
+		}
 		select {
 		case <-ctx.cancel.Done():
 			return errors.New("Exiting")
 		case data := <-ctx.msgDataChan:
-			if err := ctx.sendMsgData(data); err != nil {
-				logger.Debugf("error sending msg: %v", err)
-				ctx.msgDataChan <- data
-				return nil
-			}
+			ctx.inFlightMsgData = data
 		}
 	}
 }
@@ -454,6 +474,16 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 	if ctx.probeAddr == "" {
 		logger.Debugf("sending message: %s", ctx.helloMsg)
 	} else {
+		initial := make([]processIdentity, 0, len(ctx.PIDs))
+		for _, pid := range ctx.PIDs {
+			if process := ctx.processCache.Get(pid); process != nil {
+				initial = append(initial, process.identity())
+			}
+		}
+		// Seed roots explicitly: they have no instrumented creation event.
+		// Only ptrace events use this guard; concurrent procfs snapshots are
+		// not authoritative creation notifications and use the outbound FIFO directly.
+		ctx.lifecycleGuard = newProcessLifecycleGuard(initial, ctx.enqueueMsgData)
 		ctx.handleClientConnection()
 	}
 
