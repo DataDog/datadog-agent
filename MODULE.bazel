@@ -139,12 +139,13 @@ single_version_override(
     ],
 )
 
-# Temporary until rules_pkg > 1.3.0 is in BCR
+# Fork of rules_pkg main carrying bazelbuild/rules_pkg#1089 (pkg_rpm
+# rpm_own_tree_dirs). Go back to upstream main once it's merged.
 archive_override(
     module_name = "rules_pkg",
-    sha256 = "4ee2a57a0adbb5c70d9b180ea40167093ba7b890d5ac4bdd50fd45c89db92697",
-    strip_prefix = "rules_pkg-ad778d2f59b297486933936242cedbb0b5521d8d",
-    urls = ["https://github.com/bazelbuild/rules_pkg/archive/ad778d2f59b297486933936242cedbb0b5521d8d.tar.gz"],  # main as of Oct 10, 2026
+    sha256 = "05ba3462560329bf6757b4369c238d6997f418e3eda3db0da41db3c6e939a8fb",
+    strip_prefix = "rules_pkg-a0fea16700948eeefc885f23200e8e52d5e914eb",
+    urls = ["https://github.com/chouquette/rules_pkg/archive/a0fea16700948eeefc885f23200e8e52d5e914eb.tar.gz"],
 )
 
 single_version_override(
