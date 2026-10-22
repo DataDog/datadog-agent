@@ -7,7 +7,7 @@
     "registry.ddbuild.io/workspaces/features/trajectory:0.2.144437157": {},
     "registry.ddbuild.io/workspaces/features/codex:0.1.140920752": {},
     "registry.ddbuild.io/workspaces/features/pi:0.1.144713203": {},
-    "registry.ddbuild.io/workspaces/features/base:0.4.145742757": {
+    "registry.ddbuild.io/workspaces/features/base:0.4.146822481": {
       "installDeveloperTools": "false"
     },
     "./features/datadog-agent": {}
