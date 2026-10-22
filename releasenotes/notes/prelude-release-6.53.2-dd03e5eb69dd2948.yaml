@@ -1,0 +1,5 @@
+prelude:
+    |
+    Release on: 2026-10-22
+
+    - Please refer to the `6.53.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6532>`_ for the list of changes on the Core Checks
