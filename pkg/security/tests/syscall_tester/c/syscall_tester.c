@@ -1095,6 +1095,26 @@ int test_exec_in_pthread(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+void *thread_wait_and_exec(void *arg) {
+    getchar();
+    return thread_exec(arg);
+}
+
+int test_leader_exit_pthread_exec(int argc, char **argv) {
+    if (argc <= 1) {
+        return EXIT_FAILURE;
+    }
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_wait_and_exec, &argv[1]) < 0) {
+        return EXIT_FAILURE;
+    }
+    if (pthread_detach(thread) != 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_exit(NULL);
+}
+
 int test_sleep(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "%s: Please pass a duration in seconds.\n", __FUNCTION__);
@@ -2537,6 +2557,8 @@ int main(int argc, char **argv) {
             exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "leader-exit-pthread-exec") == 0) {
+            exit_code = test_leader_exit_pthread_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
