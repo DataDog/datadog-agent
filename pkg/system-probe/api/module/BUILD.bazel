@@ -27,6 +27,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//comp/forwarder/connectionsforwarder/def",
+        "//comp/healthplatform/remotereporter/def",
         "//comp/networkpath/npcollector/def",
         "//comp/networkpath/traceroute/def",
         "//comp/remote-config/rcclient/def",
