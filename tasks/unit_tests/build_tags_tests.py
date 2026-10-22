@@ -85,6 +85,15 @@ class TestCodegenPayloadData(unittest.TestCase):
     def test_base_excludes_requirefips(self):
         self.assertNotIn("requirefips", _payload()["flavor_specific_tags"]["base"])
 
+    def test_rc_x509_is_enabled_for_supported_agent_flavors_but_not_iot(self):
+        for flavor in (AgentFlavor.base, AgentFlavor.fips, AgentFlavor.heroku, AgentFlavor.recorder):
+            with self.subTest(flavor=flavor.name):
+                tags = build_tags.get_default_build_tags(build="agent", flavor=flavor, platform="linux")
+                self.assertIn("rc_x509", tags)
+
+        iot_tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.iot, platform="linux")
+        self.assertNotIn("rc_x509", iot_tags)
+
     def test_common_tags_disjoint_from_flavor_specific(self):
         # The .bzl/.go consumers compose flavor tag sets as
         # flavor_specific + common_tags + unit_test_tags; if common appears in

@@ -1,0 +1,421 @@
+load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@//bazel/rules:platform_transition.bzl", "platform_transition_wrapper")
+load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_static_library")
+
+package(
+    default_package_metadata = [
+        ":aws_lc_fips_package_metadata",
+        ":libdd_rc_package_metadata",
+    ],
+)
+
+exports_files(["LICENSE"])
+
+package_metadata(
+    name = "libdd_rc_package_metadata",
+    attributes = [":libdd_rc_license"],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/libdd-rc/archive/{version}.tar.gz",
+        package = "libdd-rc",
+        version = "fa51ea529a2bf21d21f479827447d698a2b92523",
+    ),
+)
+
+license(
+    name = "libdd_rc_license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+)
+
+# aws-lc-fips-sys builds and packages the native AWS-LC FIPS runtime. Cargo's
+# generated BUILD file does not carry package_metadata, so attach its upstream
+# license to the libdd-rc wrapper targets that introduce it into the Agent.
+package_metadata(
+    name = "aws_lc_fips_package_metadata",
+    attributes = [":aws_lc_fips_license"],
+    purl = purl_for_generic(
+        download_url = "https://crates.io/api/v1/crates/aws-lc-fips-sys/{version}/download",
+        package = "aws-lc-fips-sys",
+        version = "0.14.2",
+    ),
+)
+
+license(
+    name = "aws_lc_fips_license",
+    license_kinds = [
+        "@rules_license//licenses/spdx:Apache-2.0",
+        "@rules_license//licenses/spdx:ISC",
+        "@rules_license//licenses/spdx:OpenSSL",
+    ],
+    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:LICENSE",
+)
+
+proto_library(
+    name = "signature_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/signature/v1/signature.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+)
+
+proto_library(
+    name = "magic_tunnel_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/v1/protocol.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+)
+
+proto_library(
+    name = "remote_config_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/remote_config/v1/remote_config.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+proto_library(
+    name = "protocol_proto",
+    srcs = glob(["lib/rc-x509-proto/protos/rc/x509/protocol/v1/*.proto"]),
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = [
+        ":magic_tunnel_proto",
+        ":signature_proto",
+    ],
+)
+
+go_proto_library(
+    name = "signature_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/signature",
+    proto = ":signature_proto",
+)
+
+go_proto_library(
+    name = "magic_tunnel_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel",
+    proto = ":magic_tunnel_proto",
+)
+
+go_proto_library(
+    name = "remote_config_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config",
+    proto = ":remote_config_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "protocol_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/protocol",
+    proto = ":protocol_proto",
+    deps = [
+        ":magic_tunnel_go_proto",
+        ":signature_go_proto",
+    ],
+)
+
+rust_static_library(
+    name = "rc_x509_ffi",
+    srcs = [
+        "lib/rc-x509-ffi/src/connection.rs",
+        "lib/rc-x509-ffi/src/ctx.rs",
+        "lib/rc-x509-ffi/src/io_handle.rs",
+        "lib/rc-x509-ffi/src/lib.rs",
+        "lib/rc-x509-ffi/src/log_sink.rs",
+    ],
+    compile_data = ["lib/rc-x509-ffi/README.md"],
+    crate_name = "rc_x509_ffi",
+    crate_root = "lib/rc-x509-ffi/src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@libdd_rc_crates//:futures",
+        "@libdd_rc_crates//:rc-x509-client",
+        "@libdd_rc_crates//:rc-x509-proto",
+        "@libdd_rc_crates//:tokio",
+        "@libdd_rc_crates//:tokio-stream",
+        "@libdd_rc_crates//:tokio-util",
+        "@libdd_rc_crates//:tracing",
+        "@libdd_rc_crates//:tracing-subscriber",
+    ],
+)
+
+# The shipping Windows Agent is built with MinGW, but AWS-LC's Windows FIPS
+# backend requires MSVC. Keep that ABI boundary inside a DLL: this target is
+# configured for the MSVC platform by the consumer-side transition in the
+# Agent repository, and its generated import library is then linked by cgo.
+rust_shared_library(
+    name = "rc_x509_ffi_windows_dll",
+    srcs = [
+        "lib/rc-x509-ffi/src/connection.rs",
+        "lib/rc-x509-ffi/src/ctx.rs",
+        "lib/rc-x509-ffi/src/io_handle.rs",
+        "lib/rc-x509-ffi/src/lib.rs",
+        "lib/rc-x509-ffi/src/log_sink.rs",
+    ],
+    compile_data = ["lib/rc-x509-ffi/README.md"],
+    crate_name = "rc_x509_ffi",
+    crate_root = "lib/rc-x509-ffi/src/lib.rs",
+    edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@//bazel/platforms:rust_abi_msvc",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@libdd_rc_crates//:futures",
+        "@libdd_rc_crates//:rc-x509-client",
+        "@libdd_rc_crates//:rc-x509-proto",
+        "@libdd_rc_crates//:tokio",
+        "@libdd_rc_crates//:tokio-stream",
+        "@libdd_rc_crates//:tokio-util",
+        "@libdd_rc_crates//:tracing",
+        "@libdd_rc_crates//:tracing-subscriber",
+    ],
+)
+
+# Build the Windows DLL behind an MSVC-only transition while its Go/cgo
+# consumer remains on the Agent's MinGW platform. Only the shared library's own
+# import-library inputs cross the ABI boundary.
+platform_transition_wrapper(
+    name = "_rc_x509_ffi_windows_dll_msvc",
+    actual = ":rc_x509_ffi_windows_dll",
+    forward_own_linker_inputs_only = True,
+    platform = "@//bazel/platforms:windows_x86_64_msvc_fips",
+)
+
+cc_library(
+    name = "rc_x509_ffi_headers",
+    hdrs = ["include/libdd_rc.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+# The published Go module's cgo bridge links these version-agnostic names from
+# the Agent's embedded build prefix. AWS-LC is static on Linux, but its archive
+# is emitted inside the Cargo build script's tree artifact with a versioned
+# filename, so materialize the stable linker name expected by ffi.go.
+genrule(
+    name = "aws_lc_fips_crypto_linux_static_file",
+    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
+    outs = ["libaws_lc_fips_crypto.a"],
+    cmd = "cp $(execpath @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)/build/artifacts/libaws_lc_fips_0_14_2_crypto.a $@",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_linux_header_file",
+    srcs = ["include/libdd_rc.h"],
+    prefix = "embedded/include",
+    strip_prefix = "include",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_linux_static_files",
+    srcs = [
+        ":aws_lc_fips_crypto_linux_static_file",
+        ":rc_x509_ffi",
+    ],
+    prefix = "embedded/lib",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_ffi_linux_build_files",
+    srcs = [
+        ":rc_x509_ffi_linux_header_file",
+        ":rc_x509_ffi_linux_static_files",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install_rc_x509_ffi_linux_build_files",
+    srcs = [":rc_x509_ffi_linux_build_files"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# FIPS AWS-LC is necessarily dynamic on macOS. Cargo build scripts expose their
+# output directory as a Bazel tree artifact, so materialize the dylib as a
+# regular declared output that cc_import can propagate through cgo and place in
+# test runfiles.
+genrule(
+    name = "aws_lc_fips_crypto_dylib_file",
+    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
+    outs = ["libaws_lc_fips_0_14_2_crypto.dylib"],
+    cmd = "cp $(execpath @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)/build/artifacts/libaws_lc_fips_0_14_2_crypto.dylib $@",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+# The published Go bridge links a version-agnostic -laws_lc_fips_crypto name,
+# while the runtime dylib deliberately retains its crate-versioned install
+# name. Keep both names in the build prefix: this copy is a link-time input and
+# the versioned file above is the runtime artifact that remains in the package.
+genrule(
+    name = "aws_lc_fips_crypto_macos_linker_file",
+    srcs = [":aws_lc_fips_crypto_dylib_file"],
+    outs = ["libaws_lc_fips_crypto.dylib"],
+    cmd = "cp $(execpath :aws_lc_fips_crypto_dylib_file) $@",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_macos_header_file",
+    srcs = ["include/libdd_rc.h"],
+    prefix = "embedded/include",
+    strip_prefix = "include",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_macos_native_files",
+    srcs = [
+        ":aws_lc_fips_crypto_dylib_file",
+        ":aws_lc_fips_crypto_macos_linker_file",
+        ":rc_x509_ffi",
+    ],
+    prefix = "embedded/lib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_ffi_macos_build_files",
+    srcs = [
+        ":rc_x509_ffi_macos_header_file",
+        ":rc_x509_ffi_macos_native_files",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install_rc_x509_ffi_macos_build_files",
+    srcs = [":rc_x509_ffi_macos_build_files"],
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
+# The AWS-LC build script exposes a tree artifact. Materialize its Windows
+# runtime DLL as a regular declared file so the Agent package graph can place
+# it beside agent.exe. This target itself is built in the MSVC configuration by
+# a narrow transition in the main repository.
+genrule(
+    name = "aws_lc_fips_crypto_windows_dll_file",
+    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
+    outs = ["aws_lc_fips_0_14_2_crypto.dll"],
+    cmd_bat = "copy /B /Y \"$(execpath @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)\\build\\artifacts\\aws_lc_fips_0_14_2_crypto.dll\" \"$@\" >NUL",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@//bazel/platforms:rust_abi_msvc",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "aws_lc_fips_crypto_dylib",
+    shared_library = ":aws_lc_fips_crypto_dylib_file",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+foreign_cc_shared_wrapper(
+    name = "_aws_lc_fips_crypto_dylib_shared",
+    input = ":aws_lc_fips_crypto_dylib",
+    lib_filter = "libaws_lc_fips_0_14_2_crypto",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+# Make the dylib visible to the Agent's transitive package collector. The
+# packaged copy is rpath/install-name rewritten for embedded/lib. It is added
+# to rc_x509_ffi_cc's data below, while the original cc_import retains normal
+# C++/cgo linking and runfiles behavior.
+dd_cc_packaged(
+    name = "_aws_lc_fips_crypto_dylib_packaged",
+    dest_dir = "embedded/lib",
+    input = ":_aws_lc_fips_crypto_dylib_shared",
+)
+
+cc_library(
+    name = "rc_x509_ffi_cc",
+    hdrs = ["include/libdd_rc.h"],
+    data = select({
+        "@rules_go//go/platform:darwin": [":_aws_lc_fips_crypto_dylib_packaged"],
+        "//conditions:default": [],
+    }),
+    includes = ["include"],
+    linkopts = select({
+        "@rules_go//go/platform:linux": [
+            "-lpthread",
+            "-ldl",
+            "-lm",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [":_rc_x509_ffi_windows_dll_msvc"],
+        "//conditions:default": [":rc_x509_ffi"],
+    }) + select({
+        "@rules_go//go/platform:darwin": [":aws_lc_fips_crypto_dylib"],
+        "//conditions:default": [],
+    }),
+)
+
+# bridge.go is intentionally omitted: it contains Cargo-relative #cgo paths.
+# Bazel supplies the header, Rust archive, and any platform-specific native
+# runtime libraries through rc_x509_ffi_cc.
+# The optional log-sink API currently transports a Unix integer file descriptor
+# and cannot represent a 64-bit Windows HANDLE. Keep both Go wrappers out of the
+# Windows package; the x509 client itself does not depend on native tracing.
+go_library(
+    name = "libddrcffi",
+    srcs = [
+        "ffi-hosts/go/internal/libddrcffi/cachebust.go",
+        "ffi-hosts/go/internal/libddrcffi/connection.go",
+        "ffi-hosts/go/internal/libddrcffi/context.go",
+        "ffi-hosts/go/internal/libddrcffi/doc.go",
+        "ffi-hosts/go/internal/libddrcffi/fakeconn.go",
+        "ffi-hosts/go/internal/libddrcffi/ffi.go",
+        "ffi-hosts/go/internal/libddrcffi/invokepool.go",
+        "ffi-hosts/go/internal/libddrcffi/lifecycle.go",
+        "ffi-hosts/go/internal/libddrcffi/pinnedhandle.go",
+        "ffi-hosts/go/internal/libddrcffi/registry.go",
+    ] + select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["ffi-hosts/go/internal/libddrcffi/log_sink.go"],
+    }),
+    cdeps = [":rc_x509_ffi_cc"],
+    cgo = True,
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/internal/libddrcffi",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":magic_tunnel_go_proto",
+        ":protocol_go_proto",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_library(
+    name = "rcx509",
+    srcs = [
+        "ffi-hosts/go/rcx509/backoff.go",
+        "ffi-hosts/go/rcx509/client.go",
+        "ffi-hosts/go/rcx509/session.go",
+    ] + select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["ffi-hosts/go/rcx509/log_sink.go"],
+    }),
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":libddrcffi",
+        "@com_github_coder_websocket//:websocket",
+    ],
+)

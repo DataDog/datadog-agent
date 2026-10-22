@@ -1,0 +1,99 @@
+diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
+index 36ea768..2e9d2de 100644
+--- a/builder/cmake_builder.rs
++++ b/builder/cmake_builder.rs
+@@ -8,7 +8,7 @@ use crate::{
+     get_crate_cflags, is_crt_static, is_fips_build, is_fips_crate, is_no_asm,
+     is_no_pregenerated_src, is_small, optional_env, optional_env_optional_crate_target, sanitizer,
+     set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
+-    target_is_msvc, target_os, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
+-    OutputLibType,
++    target_is_msvc, target_os, target_vendor, test_clang_cl_command, test_nasm_command,
++    use_prebuilt_nasm, OutputLibType,
+ };
+ use std::collections::HashMap;
+@@ -36,0 +37,25 @@ fn strip_lto_flags(cflags: &str) -> String {
++/// Remove Bazel LLVM's builtin-header selection when an Apple system compiler
++/// is used. Mixing LLVM 19 resource headers with AppleClang 16 builtins causes
++/// ARM NEON intrinsic compilation failures.
++fn strip_compiler_resource_flags(flags: &str) -> String {
++    let mut filtered = Vec::new();
++    let mut skip_value = false;
++
++    for flag in flags.split_whitespace() {
++        if skip_value {
++            skip_value = false;
++            continue;
++        }
++        if flag == "-resource-dir" || flag == "-idirafter" {
++            skip_value = true;
++            continue;
++        }
++        if flag.starts_with("-resource-dir=") || flag.starts_with("-idirafter=") {
++            continue;
++        }
++        filtered.push(flag);
++    }
++
++    filtered.join(" ")
++}
++
+@@ -101,3 +126,19 @@ impl CmakeBuilder {
+     fn get_cmake_config(&self) -> cmake::Config {
+-        cmake::Config::new(&self.manifest_dir)
++        let mut config = cmake::Config::new(&self.manifest_dir);
++        if is_fips_build() && target_vendor() == "apple" {
++            // Bazel's hermetic LLVM driver brings its bundled libc++ into the
++            // Apple linker process. Xcode's linker expects the host libc++ and
++            // aborts before CMake's compiler check with a missing
++            // `___cxa_demangle` symbol. Keep the Bazel-provided target, SDK,
++            // and hardening flags, but use Apple's compiler drivers for this
++            // CMake sub-build so Apple's linker runs with its matching host
++            // runtime.
++            let mut c_config = cc::Build::new();
++            c_config.compiler("/usr/bin/clang");
++            config.init_c_cfg(c_config);
++            let mut cxx_config = cc::Build::new();
++            cxx_config.cpp(true).compiler("/usr/bin/clang++");
++            config.init_cxx_cfg(cxx_config);
++        }
++        config
+     }
+@@ -135,4 +177,27 @@ impl CmakeBuilder {
+     fn prepare_cmake_build(&self) -> cmake::Config {
++        // Bazel's macOS C++ toolchain selects ld64.lld through LDFLAGS. That
++        // linker rejects an __eh_frame relocation emitted by the validated
++        // AWS-LC FIPS assembly when producing the required shared library.
++        // Use Apple's system linker for this dylib while retaining the rest of
++        // the Bazel-provided link flags and SDK configuration.
++        if is_fips_build() && target_vendor() == "apple" {
++            if let Ok(ldflags) = env::var("LDFLAGS") {
++                let ldflags = ldflags
++                    .split_whitespace()
++                    .filter(|flag| *flag != "-fuse-ld=lld" && *flag != "--ld-path=ld64.lld")
++                    .collect::<Vec<_>>()
++                    .join(" ");
++                set_env("LDFLAGS", ldflags);
++            }
++            for env_var in ["CFLAGS", "CXXFLAGS"] {
++                if let Some(flags) = optional_env_optional_crate_target(env_var) {
++                    let flags = strip_compiler_resource_flags(&flags);
++                    set_env_for_target(env_var, &flags);
++                    set_env(env_var, &flags);
++                }
++            }
++        }
++
+         if is_fips_build() {
+             unsafe {
+                 env::set_var("GOFLAGS", "-buildvcs=false");
+@@ -150,4 +215,9 @@ impl CmakeBuilder {
+         let mut cmake_cfg = self.get_cmake_config();
++        if is_fips_build() {
++            if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
++                cmake_cfg.define("GO_EXECUTABLE", go_executable);
++            }
++        }
+         if let Some(generator) = optional_env_optional_crate_target("CMAKE_GENERATOR") {
+             set_env("CMAKE_GENERATOR", generator);
+         }

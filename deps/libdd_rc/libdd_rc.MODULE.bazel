@@ -1,0 +1,129 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "libdd_rc_crates",
+    cargo_lock = "//deps/libdd_rc:Cargo.lock",
+    cargo_toml = "//deps/libdd_rc:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+    ],
+    validate_lockfile = True,
+)
+crate.annotation(
+    build_script_env = {
+        "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
+        "PROTOBUF_WELL_KNOWN_PROTOS": "$(execpaths @protobuf//:well_known_type_protos)",
+    },
+    build_script_tools = [
+        "@@//bazel/toolchains/protoc:protoc",
+        "@protobuf//:well_known_type_protos",
+    ],
+    crate = "rc-x509-proto",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
+    repositories = ["libdd_rc_crates"],
+)
+
+# libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
+# valuable integration is gated on both the Cargo feature and this cfg in
+# tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
+crate.annotation(
+    crate = "tracing",
+    repositories = ["libdd_rc_crates"],
+    rustc_flags = ["--cfg=tracing_unstable"],
+)
+crate.annotation(
+    crate = "tracing-core",
+    repositories = ["libdd_rc_crates"],
+    rustc_flags = ["--cfg=tracing_unstable"],
+    # Cargo declares this edge under cfg(tracing_unstable), which
+    # crate_universe cannot infer from a custom rustc cfg.
+    deps = ["@libdd_rc_crates//:valuable-0.1.1"],
+)
+
+# rules_rust consumes non-Cargo build-script stdout, hiding the command stream
+# from a failed nested Ninja build. Retain the normal behavior unless the
+# Windows AWS-LC diagnostic explicitly asks cmake-rs to mirror failed output.
+crate.annotation(
+    crate = "cmake",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:cmake-forward-failed-output.patch"],
+    repositories = ["libdd_rc_crates"],
+)
+
+# rc-crypto's FIPS feature reaches aws-lc-rs through both rcgen/aws_lc_rs and
+# x509-parser/verify-aws. Those upstream feature declarations retain the
+# non-FIPS aws-lc-sys dependency edge even though aws-lc-rs imports only
+# aws-lc-fips-sys when its `fips` feature is enabled. Avoid building the unused
+# native backend; the placeholder preserves the resolved Rust dependency until
+# the feature graph is fixed upstream.
+crate.annotation(
+    crate = "aws-lc-sys",
+    gen_build_script = "off",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:aws-lc-sys-unused-fips-backend.patch"],
+    repositories = ["libdd_rc_crates"],
+)
+
+# TODO: update as needed
+crate.annotation(
+    additive_build_file_content = """
+alias(
+    name = "aws_lc_fips_build_output",
+    actual = ":aws-lc-fips-sys_build_script",
+    visibility = ["//visibility:public"],
+)
+
+# The Agent's package metadata rule references the exact upstream license text.
+exports_files(["LICENSE"], visibility = ["//visibility:public"])
+""",
+    build_script_env_select = {
+        "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
+        "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
+        "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
+        # Keep Go, libclang, and NASM action-scoped. Perl intentionally follows
+        # the existing Windows OpenSSL/OpenSSL-FIPS build convention and is
+        # resolved from the CI image PATH exposed by --action_env=PATH.
+        "x86_64-pc-windows-msvc": "{\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\",\"NUM_JOBS\":\"8\",\"PERL_EXECUTABLE\":\"perl\"}",
+        "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
+    },
+    build_script_tools = ["@go_work_sdk//:files"],
+    build_script_tools_select = {
+        "aarch64-apple-darwin": ["@go_work_sdk//:bin/go"],
+        "aarch64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
+        "x86_64-apple-darwin": ["@go_work_sdk//:bin/go"],
+        "x86_64-pc-windows-msvc": [
+            "@go_work_sdk//:bin/go.exe",
+            "@libclang_windows//:clang/native/libclang.dll",
+            "@nasm_windows//:nasm.exe",
+        ],
+        "x86_64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
+    },
+    crate = "aws-lc-fips-sys",
+    patch_args = ["-p1"],
+    patches = [
+        # The hermetic MSVC patch extends get_cmake_config() as rewritten by
+        # the macOS linker patch, so this order is intentional.
+        "//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch",
+        "//deps/libdd_rc:aws-lc-fips-sys-hermetic-msvc.patch",
+        "//deps/libdd_rc:aws-lc-sys-nasm-command.patch",
+    ],
+    repositories = ["libdd_rc_crates"],
+)
+
+inject_repo(crate, "go_work_sdk", "libclang_windows", "nasm_windows", "protobuf")
+
+use_repo(crate, "libdd_rc_crates")
+
+http_archive(
+    name = "libdd_rc_source",
+    build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
+    sha256 = "6844883994aba4277148bd062d8b47b7fbfc1da1a23d25501ccf72090aab2eb5",
+    strip_prefix = "libdd-rc-fa51ea529a2bf21d21f479827447d698a2b92523",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/fa51ea529a2bf21d21f479827447d698a2b92523.tar.gz"],
+)

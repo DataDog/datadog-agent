@@ -1,0 +1,37 @@
+diff --git a/build.rs b/build.rs
+--- a/build.rs
++++ b/build.rs
+@@ -82,6 +82,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
+         protos.push(v.to_owned());
+     }
+ 
++    // Bazel's hermetic protoc action does not implicitly include the
++    // well-known protobuf sources shipped alongside protoc. When Bazel
++    // supplies those sources, add their common source root explicitly.
++    let mut includes = vec![std::path::PathBuf::from("protos")];
++    if let Some(well_known_protos) = std::env::var_os("PROTOBUF_WELL_KNOWN_PROTOS") {
++        let well_known_protos = well_known_protos.to_string_lossy();
++        let timestamp_proto = well_known_protos
++            .split_whitespace()
++            .map(std::path::Path::new)
++            .find(|path| path.file_name() == Some(std::ffi::OsStr::new("timestamp.proto")))
++            .ok_or("PROTOBUF_WELL_KNOWN_PROTOS does not contain timestamp.proto")?;
++        let protobuf_include = timestamp_proto
++            .ancestors()
++            .nth(3)
++            .ok_or("timestamp.proto is not below google/protobuf")?;
++        includes.push(protobuf_include.to_owned());
++    }
++
+     // Export a `FileDescriptorSet` so downstream crates can reference these
+     // message types with `extern_path_with_descriptor()`.
+     let out_dir = std::env::var_os("OUT_DIR")
+@@ -92,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
+         .type_attribute(".", "#[derive(proptest_derive::Arbitrary)]")
+         .protoc_arg("--experimental_allow_proto3_optional") // Old protoc versions
+         .file_descriptor_set_path(&descriptor_path)
+-        .compile_protos(&protos, &["protos"])?;
++        .compile_protos(&protos, &includes)?;
+ 
+     // Magic tunnel request payloads are passed to policy evaluation by callers,
+     // which requires a `Serialize` impl for eval.

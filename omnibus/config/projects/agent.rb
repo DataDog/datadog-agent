@@ -370,6 +370,8 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
       "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
+      "#{install_dir}\\bin\\agent\\rc_x509_ffi.dll",
+      "#{install_dir}\\bin\\agent\\aws_lc_fips_0_14_2_crypto.dll",
     ] + (fips_mode? ? [] : ["#{install_dir}\\bin\\agent\\par-control.exe"])
 
     BINARIES_TO_SIGN.each do |bin|
