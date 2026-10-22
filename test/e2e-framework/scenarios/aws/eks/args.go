@@ -140,8 +140,8 @@ func WithAutoMode() Option {
 
 // WithoutInternetAccess blocks internet egress for the cluster nodes: the account's
 // default security groups are replaced by a per-stack security group whose egress is
-// restricted to the VPC CIDR, on every security group we create and attach to nodes,
-// pod ENIs and the control plane.
+// restricted to the VPC CIDRs and HTTPS to regional S3, on every security group we
+// create and attach to nodes, pod ENIs and the control plane.
 //
 // The Kubernetes test provisioner applies this by default; direct scenario callers
 // must opt in. Image pulls require internal connectivity (e.g. ECR VPC endpoints and

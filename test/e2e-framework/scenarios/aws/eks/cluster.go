@@ -6,8 +6,6 @@
 package eks
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
 	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
@@ -70,21 +68,12 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			VpcId: pulumi.StringPtr(e.DefaultVPCID()),
 		}
 		if params.WithoutInternetAccess {
-			// Restrict the cluster SG egress (control plane ENIs) to the VPC: the API endpoint is
-			// private-only, so all control-plane traffic stays in the VPC and internet egress is not
-			// needed. The default would be allow-all.
-			vpc, err := ec2.LookupVpc(e.Ctx(), &ec2.LookupVpcArgs{Id: pulumi.StringRef(e.DefaultVPCID())}, e.WithProvider(config.ProviderAWS))
+			// Use the same private destinations as the node groups, including secondary VPC CIDRs.
+			egress, err := localEks.NoInternetEgressRules(e)
 			if err != nil {
-				return fmt.Errorf("failed to look up VPC %s: %w", e.DefaultVPCID(), err)
+				return err
 			}
-			clusterSGArgs.Egress = ec2.SecurityGroupEgressArray{
-				ec2.SecurityGroupEgressArgs{
-					CidrBlocks: pulumi.StringArray{pulumi.String(vpc.CidrBlock)},
-					FromPort:   pulumi.Int(0),
-					ToPort:     pulumi.Int(0),
-					Protocol:   pulumi.String("-1"),
-				},
-			}
+			clusterSGArgs.Egress = egress
 		}
 		clusterSG, err := ec2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName("eks-sg"), clusterSGArgs, e.WithProviders(config.ProviderAWS))
 		if err != nil {

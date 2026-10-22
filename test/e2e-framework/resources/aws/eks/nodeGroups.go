@@ -6,7 +6,6 @@
 package eks
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -29,7 +28,8 @@ const (
 	windowsAmiType                  = "WINDOWS_CORE_2022_x86_64"
 )
 
-// NewNoInternetNodeSG creates a security group for EKS nodes whose egress is restricted to the VPC CIDR,
+// NewNoInternetNodeSG creates a security group for EKS nodes whose egress is restricted to the VPC CIDRs
+// and HTTPS to regional S3 through the account's gateway endpoint,
 // so that nodes cannot reach the internet. It replaces the account's default security groups (which allow all
 // egress) in the node groups' launch templates.
 //
@@ -40,9 +40,9 @@ const (
 // It must only be used together with a launch template: when a node group does not use a custom launch template,
 // EKS attaches its own security groups with allow-all egress to the nodes, which would defeat the restriction.
 func NewNoInternetNodeSG(e aws.Environment, cluster *eks.Cluster, opts ...pulumi.ResourceOption) (*awsEc2.SecurityGroup, error) {
-	vpc, err := awsEc2.LookupVpc(e.Ctx(), &awsEc2.LookupVpcArgs{Id: pulumi.StringRef(e.DefaultVPCID())}, e.WithProvider(config.ProviderAWS))
+	egress, err := NoInternetEgressRules(e)
 	if err != nil {
-		return nil, fmt.Errorf("failed to look up VPC %s: %w", e.DefaultVPCID(), err)
+		return nil, err
 	}
 
 	return awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName("eks-no-internet-node-sg"), &awsEc2.SecurityGroupArgs{
@@ -64,18 +64,10 @@ func NewNoInternetNodeSG(e aws.Environment, cluster *eks.Cluster, opts ...pulumi
 				Protocol:       pulumi.String("tcp"),
 			},
 		},
-		// Egress restricted to the VPC: control plane (private endpoint), VPC endpoints, node-to-node,
-		// fakeintake and other in-VPC resources remain reachable; internet egress is blocked.
+		// All associated VPC networks and S3 image layers remain reachable; general internet egress is blocked.
 		// Note: instance metadata (IMDS, 169.254.169.254) is not subject to security group evaluation.
-		Egress: awsEc2.SecurityGroupEgressArray{
-			awsEc2.SecurityGroupEgressArgs{
-				CidrBlocks: pulumi.StringArray{pulumi.String(vpc.CidrBlock)},
-				FromPort:   pulumi.Int(0),
-				ToPort:     pulumi.Int(0),
-				Protocol:   pulumi.String("-1"),
-			},
-		},
-		VpcId: pulumi.StringPtr(e.DefaultVPCID()),
+		Egress: egress,
+		VpcId:  pulumi.StringPtr(e.DefaultVPCID()),
 	}, append(opts, e.WithProviders(config.ProviderAWS))...)
 }
 
@@ -140,7 +132,7 @@ func NewGPULinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *aws
 }
 
 // newNodeRemoteAccessSG creates the security group allowing direct SSH access to the nodes of a node group.
-// When restrictEgress is set, its egress is restricted to the VPC CIDR instead of the default allow-all, so that
+// When restrictEgress is set, its egress is restricted to VPC CIDRs and regional S3 instead of allow-all, so that
 // attaching it does not defeat the no-internet restriction (security group rules are additive).
 func newNodeRemoteAccessSG(e aws.Environment, name string, restrictEgress bool, opts ...pulumi.ResourceOption) (*awsEc2.SecurityGroup, error) {
 	prefixLists := make([]string, 0, len(e.EKSAllowedInboundManagedPrefixListNames()))
@@ -170,18 +162,11 @@ func newNodeRemoteAccessSG(e aws.Environment, name string, restrictEgress bool, 
 		VpcId: pulumi.StringPtr(e.DefaultVPCID()),
 	}
 	if restrictEgress {
-		vpc, err := awsEc2.LookupVpc(e.Ctx(), &awsEc2.LookupVpcArgs{Id: pulumi.StringRef(e.DefaultVPCID())}, e.WithProvider(config.ProviderAWS))
+		egress, err := NoInternetEgressRules(e)
 		if err != nil {
-			return nil, fmt.Errorf("failed to look up VPC %s: %w", e.DefaultVPCID(), err)
+			return nil, err
 		}
-		sgArgs.Egress = awsEc2.SecurityGroupEgressArray{
-			awsEc2.SecurityGroupEgressArgs{
-				CidrBlocks: pulumi.StringArray{pulumi.String(vpc.CidrBlock)},
-				FromPort:   pulumi.Int(0),
-				ToPort:     pulumi.Int(0),
-				Protocol:   pulumi.String("-1"),
-			},
-		}
+		sgArgs.Egress = egress
 	}
 
 	return awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName(name+"-remote-access-sg"), sgArgs, append(opts, e.WithProviders(config.ProviderAWS))...)
