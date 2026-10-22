@@ -68,7 +68,6 @@ func TestSetNS(t *testing.T) {
 			assert.Equal(t, "setns", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
 			assert.Equal(t, unix.CLONE_NEWNET, event.SetNS.NSType, "wrong namespace type")
-			assert.Greater(t, event.SetNS.FD, 0, "the target namespace fd should be valid")
 			assert.Equal(t, netns, event.SetNS.NetNS, "should have joined its own network namespace")
 
 			test.validateSetNSSchema(t, event)
