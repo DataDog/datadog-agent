@@ -61,6 +61,44 @@ static __attribute__((always_inline)) void flush_capabilities_usage(void *ctx, u
     bpf_map_delete_elem(&capabilities_usage, &key);
 }
 
+// capabilities contexts are only ever accessed by the thread they belong to, tid is the one of the current thread
+static __attribute__((always_inline)) struct capabilities_context_t *get_capabilities_context(u32 tid) {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        return (struct capabilities_context_t *)bpf_task_storage_get(&capabilities_contexts, bpf_get_current_task_btf(), NULL, 0);
+    }
+#endif
+    return (struct capabilities_context_t *)bpf_map_lookup_elem(&capabilities_contexts, &tid);
+}
+
+// new_capabilities_context must only be called when the current thread has no context yet: the task storage
+// variant doesn't overwrite an existing context
+static __attribute__((always_inline)) void new_capabilities_context(u32 tid, struct capabilities_context_t *context) {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        bpf_task_storage_get(&capabilities_contexts, bpf_get_current_task_btf(), context, BPF_LOCAL_STORAGE_GET_F_CREATE);
+        return;
+    }
+#endif
+    bpf_map_update_elem(&capabilities_contexts, &tid, context, BPF_ANY);
+}
+
+static __attribute__((always_inline)) void delete_capabilities_context(u32 tid) {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        bpf_task_storage_delete(&capabilities_contexts, bpf_get_current_task_btf());
+        return;
+    }
+#endif
+    bpf_map_delete_elem(&capabilities_contexts, &tid);
+}
+
 // tids are reused: a leftover override depth would silently suppress the next thread's tracking
 static __attribute__((always_inline)) void cleanup_capabilities_context(u32 tid) {
     u64 capabilities_monitoring_enabled = 0;
@@ -69,6 +107,14 @@ static __attribute__((always_inline)) void cleanup_capabilities_context(u32 tid)
         return;
     }
 
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        // the task storage is freed along with the task
+        return;
+    }
+#endif
     bpf_map_delete_elem(&capabilities_contexts, &tid);
 }
 

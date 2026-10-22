@@ -11,6 +11,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"slices"
@@ -713,4 +714,69 @@ func TestCGroupWriteEvent(t *testing.T) {
 			validateProcessContext(t, event)
 		}, "test_cgroup_write_rule")
 	})
+}
+
+// TestCGroupFailedWrite checks that a cgroup migration rejected by the kernel doesn't
+// change the cgroup context of the process
+func TestCGroupFailedWrite(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup failed write test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.subtree_control"); err != nil {
+		t.Skip("cgroup v2 unified hierarchy is required")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_failed_write",
+			Expression: `open.file.path == "{{.Root}}/test-open-failed-write"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	// a cgroup with controllers enabled for its children can't contain processes, writing
+	// to its cgroup.procs file fails with EBUSY
+	parentCGroupPath := "/sys/fs/cgroup/cws-failed-write"
+	if err := os.Mkdir(parentCGroupPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(parentCGroupPath)
+
+	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+pids"), 0700); err != nil {
+		t.Skipf("failed to enable the pids controller: %v", err)
+	}
+
+	childCGroupPath := parentCGroupPath + "/child"
+	if err := os.Mkdir(childCGroupPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(childCGroupPath)
+
+	testFile, testFilePtr, err := test.Path("test-open-failed-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		if err := os.WriteFile(parentCGroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err == nil {
+			return errors.New("cgroup write should have failed")
+		}
+
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_failed_write")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldNotEqual(t, event, "process.cgroup.id", "/cws-failed-write")
+	}, "test_cgroup_failed_write")
 }
