@@ -386,6 +386,71 @@ func TestEvent_DeepCopyCopiesEveryField(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(original, copied))
 }
 
+type nilableField struct {
+	path  string
+	value reflect.Value
+}
+
+// nilableFields returns the non-nil pointers, slices and maps reachable from v. It doesn't look inside
+// maps, as map values can't be set in place.
+func nilableFields(v reflect.Value, path string) []nilableField {
+	var fields []nilableField
+	switch v.Kind() {
+	case reflect.Pointer:
+		if !v.IsNil() {
+			fields = append(fields, nilableField{path, v})
+			fields = append(fields, nilableFields(v.Elem(), path)...)
+		}
+	case reflect.Slice:
+		if !v.IsNil() {
+			fields = append(fields, nilableField{path, v})
+			for i := 0; i < v.Len(); i++ {
+				fields = append(fields, nilableFields(v.Index(i), fmt.Sprintf("%s[%d]", path, i))...)
+			}
+		}
+	case reflect.Map:
+		if !v.IsNil() {
+			fields = append(fields, nilableField{path, v})
+		}
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if f := v.Type().Field(i); f.IsExported() {
+				fields = append(fields, nilableFields(v.Field(i), path+"."+f.Name)...)
+			}
+		}
+	case reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			fields = append(fields, nilableFields(v.Index(i), fmt.Sprintf("%s[%d]", path, i))...)
+		}
+	}
+	return fields
+}
+
+func deepCopyRecover(e *Event) (copied *Event, panicked any) {
+	defer func() { panicked = recover() }()
+	return e.DeepCopy(), nil
+}
+
+func TestEvent_DeepCopyNilFields(t *testing.T) {
+	assert.Nil(t, (*Event)(nil).DeepCopy())
+	checkCopy(t, &Event{}, (&Event{}).DeepCopy())
+
+	original := newFilledEvent()
+	fields := nilableFields(reflect.ValueOf(original).Elem(), "Event")
+	t.Logf("%d pointers, slices and maps", len(fields))
+	for _, f := range fields {
+		saved := reflect.ValueOf(f.value.Interface())
+		f.value.SetZero()
+		copied, panicked := deepCopyRecover(original)
+		if panicked != nil {
+			t.Errorf("%s set to nil: DeepCopy panicked: %v", f.path, panicked)
+		} else if !reflect.DeepEqual(original, copied) {
+			t.Errorf("%s set to nil: the copy differs from the original", f.path)
+		}
+		f.value.Set(saved)
+	}
+}
+
 func evalField(e *Event, field string) (value any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
