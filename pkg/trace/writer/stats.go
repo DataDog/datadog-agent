@@ -255,7 +255,8 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 	sendPayloads(w.senders, req, w.syncMode)
 }
 
-// SendOTLPIntakePayload sends a protobuf-encoded OTLP intake stats payload to the Datadog backend.
+// SendOTLPIntakePayload queues protobuf OTLP stats without blocking on sender capacity.
+// Full or stopped senders drop the payload and record the existing stats-writer drop metrics.
 func (w *DatadogStatsWriter) SendOTLPIntakePayload(payload []byte) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),
@@ -265,19 +266,36 @@ func (w *DatadogStatsWriter) SendOTLPIntakePayload(payload []byte) {
 	})
 	gz, err := gzip.NewWriterLevel(req.body, gzip.BestSpeed)
 	if err != nil {
+		ppool.Put(req)
 		log.Errorf("OTLP stats encoding error: %v", err)
 		return
 	}
 	if _, err := gz.Write(payload); err != nil {
 		_ = gz.Close()
+		ppool.Put(req)
 		log.Errorf("OTLP stats encoding error: %v", err)
 		return
 	}
 	if err := gz.Close(); err != nil {
+		ppool.Put(req)
 		log.Errorf("OTLP stats encoding error: %v", err)
 		return
 	}
-	sendPayloads(w.senders, req, w.syncMode)
+	req.uncompressedSize = len(payload)
+	var last *sender
+	for _, s := range w.senders {
+		if s.isEnabled() {
+			if last != nil {
+				last.tryPush(req.clone())
+			}
+			last = s
+		}
+	}
+	if last != nil {
+		last.tryPush(req)
+	} else {
+		ppool.Put(req)
+	}
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {
@@ -499,7 +517,7 @@ func (w *DatadogStatsWriter) recordEvent(t eventType, data *eventData) {
 		w.stats.Errors.Inc()
 
 	case eventTypeDropped:
-		w.easylog.Warn("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
+		w.easylog.Warn("Stats writer payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
 		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}

@@ -103,6 +103,7 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_config_confignet//:confignet",
         "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
         "@io_opentelemetry_go_collector_config_configretry//:configretry",
+        "@io_opentelemetry_go_collector_consumer//:consumer",
         "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",

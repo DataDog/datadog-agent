@@ -36,6 +36,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -135,7 +137,7 @@ func TestSDKMetricsExporterIntegration(t *testing.T) {
 			ctx := context.Background()
 			exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(Type), ecfg)
 			require.NoError(t, err)
-			require.False(t, exp.Capabilities().MutatesData)
+			require.True(t, exp.Capabilities().MutatesData)
 			require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
 			t.Cleanup(func() { require.NoError(t, exp.Shutdown(ctx)) })
 			md := sdkMetricsContractFixture()
@@ -274,4 +276,46 @@ func sdkMetricsContractFixture() pmetric.Metrics {
 	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 	dp.SetDoubleValue(42)
 	return md
+}
+
+type sdkMetricsSink struct {
+	exporter.Metrics
+	consume func(context.Context, pmetric.Metrics) error
+}
+
+func (*sdkMetricsSink) Capabilities() consumer.Capabilities {
+	return consumer.Capabilities{MutatesData: true}
+}
+
+func (s *sdkMetricsSink) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) error {
+	return s.consume(ctx, md)
+}
+
+func TestSDKMetricsExporterOrdinaryPassthrough(t *testing.T) {
+	md := pmetric.NewMetrics()
+	metric := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	metric.SetName("ordinary.gauge")
+	metric.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+	wantErr := errors.New("ordinary export failed")
+	exp := &sdkMetricsExporter{Metrics: &sdkMetricsSink{consume: func(ctx context.Context, got pmetric.Metrics) error {
+		assert.Equal(t, md, got, "ordinary-only input must pass through without a copy")
+		got.ResourceMetrics().At(0).Resource().Attributes().PutBool("serializer.mutated", true)
+		return wantErr
+	}}}
+	require.True(t, exp.Capabilities().MutatesData)
+	require.ErrorIs(t, exp.ConsumeMetrics(context.Background(), md), wantErr)
+	_, mutated := md.ResourceMetrics().At(0).Resource().Attributes().Get("serializer.mutated")
+	require.True(t, mutated, "the wrapper must advertise the underlying serializer's ownership contract")
+}
+
+func BenchmarkSDKMetricsExporterOrdinaryPassthrough(b *testing.B) {
+	md := sdkMetricsContractFixture()
+	md.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).SetName("ordinary.duration")
+	exp := &sdkMetricsExporter{Metrics: &sdkMetricsSink{consume: func(context.Context, pmetric.Metrics) error { return nil }}}
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := exp.ConsumeMetrics(context.Background(), md); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

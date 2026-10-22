@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -70,29 +69,20 @@ func sparseSketch(t testing.TB, raw []byte) *stats.SparseSketch {
 	return sketch
 }
 
-func TestSpanKindFromAttr(t *testing.T) {
-	tests := []struct {
-		value    string
-		expected ptrace.SpanKind
-	}{
-		{value: "SPAN_KIND_SERVER", expected: ptrace.SpanKindServer},
-		{value: "server", expected: ptrace.SpanKindServer},
-		{value: "SPAN_KIND_CLIENT", expected: ptrace.SpanKindClient},
-		{value: "client", expected: ptrace.SpanKindClient},
-		{value: "SPAN_KIND_PRODUCER", expected: ptrace.SpanKindProducer},
-		{value: "producer", expected: ptrace.SpanKindProducer},
-		{value: "SPAN_KIND_CONSUMER", expected: ptrace.SpanKindConsumer},
-		{value: "consumer", expected: ptrace.SpanKindConsumer},
-		{value: "SPAN_KIND_INTERNAL", expected: ptrace.SpanKindInternal},
-		{value: "internal", expected: ptrace.SpanKindInternal},
-		{value: "unknown", expected: ptrace.SpanKindUnspecified},
-	}
-
-	for _, test := range tests {
-		t.Run(test.value, func(t *testing.T) {
-			attrs := pcommon.NewMap()
-			attrs.PutStr("span.kind", test.value)
-			assert.Equal(t, test.expected, spanKindFromAttr(attrs))
+func TestSDKTraceStatsSpanKindContract(t *testing.T) {
+	for value, expected := range map[string]string{
+		"SPAN_KIND_SERVER": "server", "SPAN_KIND_CLIENT": "client",
+		"SPAN_KIND_PRODUCER": "producer", "SPAN_KIND_CONSUMER": "consumer",
+		"SPAN_KIND_INTERNAL": "internal", "SPAN_KIND_UNSPECIFIED": "unspecified",
+		"server": "unspecified", "unknown": "unspecified",
+	} {
+		t.Run(value, func(t *testing.T) {
+			metric := sdkTraceMetric("s", 1, 1, map[string]string{"span.kind": value, "http.request.method": "GET"})
+			payload, errs := BuildSDKTraceStatsPayload("", "", pcommon.NewMap(), metric)
+			require.Empty(t, errs)
+			group := groupedByName(payload, "unknown")
+			require.NotNil(t, group, "missing Datadog operation name must not trigger OTel inference")
+			assert.Equal(t, expected, group.SpanKind)
 		})
 	}
 }

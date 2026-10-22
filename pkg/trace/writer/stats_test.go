@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -32,7 +33,52 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
+	"go.uber.org/atomic"
 )
+
+func TestOTLPStatsQueueAdmission(t *testing.T) {
+	recorder := &mockRecorder{}
+	newQueue := func() *sender {
+		return &sender{
+			queue: make(chan *payload, 1), inflight: atomic.NewInt32(0),
+			cfg: &senderConfig{url: &url.URL{Host: "intake"}, recorder: recorder},
+		}
+	}
+	full, available, disabled, stopped := newQueue(), newQueue(), newQueue(), newQueue()
+	full.tryPush(newPayload(nil))
+	disabled.cfg.isMRF = true
+	disabled.cfg.MRFFailoverAPM = func() bool { return false }
+	disabled.enabled = atomic.NewBool(false)
+	stopped.closed = true
+	close(stopped.queue)
+	w := &DatadogStatsWriter{senders: []*sender{full, available, disabled, stopped}, syncMode: true}
+	done := make(chan struct{})
+	go func() {
+		w.SendOTLPIntakePayload([]byte("sdk stats"))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("SDK stats blocked on a full or stopped sender")
+	}
+	require.Len(t, recorder.data(eventTypeDropped), 2)
+	assert.Equal(t, int32(1), full.inflight.Load())
+	assert.Zero(t, stopped.inflight.Load())
+	assert.Empty(t, disabled.queue)
+	assert.Zero(t, disabled.inflight.Load())
+	require.Len(t, available.queue, 1)
+	p := <-available.queue
+	r, err := gzip.NewReader(p.body)
+	require.NoError(t, err)
+	raw, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+	assert.Equal(t, "sdk stats", string(raw), "a full endpoint must not prevent delivery to another endpoint")
+	assert.Equal(t, len(raw), p.uncompressedSize)
+	available.releasePayload(p, eventTypeSent, &eventData{})
+	full.releasePayload(<-full.queue, eventTypeSent, &eventData{})
+}
 
 const (
 	testHostname = "agent-test-host"

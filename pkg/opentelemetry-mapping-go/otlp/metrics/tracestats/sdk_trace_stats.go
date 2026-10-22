@@ -25,7 +25,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -109,6 +108,14 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 	if value := attributes.GetOTelAttrVal(attrs, false, "span.name"); value != "" {
 		resource = value
 	}
+	operation := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name")
+	if operation == "" {
+		operation = "unknown"
+	}
+	spanKind := sdkSpanKinds[attributes.GetOTelAttrVal(attrs, false, "span.kind")]
+	if spanKind == "" {
+		spanKind = "unspecified"
+	}
 	var topLevelHits uint64
 	switch attributes.GetOTelAttrVal(attrs, false, "datadog.span.top_level") {
 	case "true", "1":
@@ -125,9 +132,9 @@ func sdkGroupedStats(service, env, version string, dp *pmetric.HistogramDataPoin
 		Service:        service,
 		Env:            env,
 		Version:        version,
-		Name:           sdkOperationName(attrs),
+		Name:           operation,
 		Resource:       resource,
-		SpanKind:       strings.ToLower(spanKindFromAttr(attrs).String()),
+		SpanKind:       spanKind,
 		HttpStatusCode: int32(attributes.GetStatusCode(attrs)),
 		GrpcStatusCode: sdkGRPCStatusCode(attrs),
 		IsTraceRoot:    sdkIsTraceRoot(attrs),
@@ -329,27 +336,8 @@ func sdkOtherTags(attrs pcommon.Map) []*stats.Tag {
 	return otherTags
 }
 
-func sdkOperationName(attrs pcommon.Map) string {
-	if operation := attributes.GetOTelAttrVal(attrs, false, "datadog.operation.name"); operation != "" {
-		return operation
-	}
-	spanKind := spanKindFromAttr(attrs)
-	if operation := attributes.GetOperationName(attrs, spanKind); operation != "" {
-		return operation
-	}
-	return "unknown"
-}
-
-var sdkSpanKinds = map[string]ptrace.SpanKind{
-	"SERVER": ptrace.SpanKindServer, "CLIENT": ptrace.SpanKindClient,
-	"PRODUCER": ptrace.SpanKindProducer, "CONSUMER": ptrace.SpanKindConsumer,
-	"INTERNAL": ptrace.SpanKindInternal,
-}
-
-func spanKindFromAttr(attrs pcommon.Map) ptrace.SpanKind {
-	value := strings.TrimPrefix(strings.ToUpper(attributes.GetOTelAttrVal(attrs, false, "span.kind")), "SPAN_KIND_")
-	if kind, ok := sdkSpanKinds[value]; ok {
-		return kind
-	}
-	return ptrace.SpanKindUnspecified
+var sdkSpanKinds = map[string]string{
+	"SPAN_KIND_SERVER": "server", "SPAN_KIND_CLIENT": "client",
+	"SPAN_KIND_PRODUCER": "producer", "SPAN_KIND_CONSUMER": "consumer",
+	"SPAN_KIND_INTERNAL": "internal",
 }
