@@ -518,7 +518,7 @@ require (
 	mvdan.cc/sh/v3 v3.14.1
 	pgregory.net/rapid v1.3.0
 	sigs.k8s.io/custom-metrics-apiserver v1.37.0
-	sigs.k8s.io/gateway-api v1.5.1
+	sigs.k8s.io/gateway-api v1.6.3
 	sigs.k8s.io/karpenter v1.9.0
 	sigs.k8s.io/yaml v1.6.0
 )
