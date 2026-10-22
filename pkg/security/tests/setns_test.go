@@ -301,16 +301,15 @@ func TestSetNS(t *testing.T) {
 		if testEnvironment == DockerEnvironment {
 			t.Skip("Skip test spawning docker containers on docker")
 		}
-		if _, err := whichNonFatal("docker"); err != nil {
-			t.Skip("Skip test where docker is unavailable")
-		}
 		if ownNamespaceIDs(t, test).MntNS == 0 {
 			t.Skip("the mount namespace ID isn't resolved on this kernel")
 		}
 
+		// fails when the docker binary is missing or its daemon doesn't answer `docker version`,
+		// as on the suse_12.5 KMT image where containerd times out
 		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 		if err != nil {
-			t.Fatalf("failed to create docker wrapper: %v", err)
+			t.Skipf("Skip test where docker is unavailable: %v", err)
 		}
 		// unshare and setns need CAP_SYS_ADMIN for a mount namespace
 		dockerWrapper.runArgs = []string{"--privileged"}
