@@ -181,8 +181,11 @@ func TestWebhookSelectors(t *testing.T) {
 	assert.NotNil(t, ns, "namespace selector fallback fails closed")
 	assert.Nil(t, obj)
 
-	assert.False(t, NewWebhook(configmock.New(t), hardening.NewStore(cluster)).IsEnabled(), "disabled by default")
 	cfg := configmock.New(t)
 	cfg.SetInTest("admission_controller.hardening.enabled", true)
 	assert.False(t, NewWebhook(cfg, nil).IsEnabled(), "disabled without a store")
+}
+
+func TestWebhookDisabledByDefault(t *testing.T) {
+	assert.False(t, NewWebhook(configmock.New(t), hardening.NewStore(cluster)).IsEnabled())
 }
