@@ -28,6 +28,5 @@ deploy_packages_aix-ppc64:
         exit 1
       fi
       # Upload the BFF to the per-pipeline directory of the internal release
-      # artifacts bucket. agent-release-management promotes it to the public
-      # dd-agent-aix bucket, like for dmg artifacts for macOS.
+      # artifacts bucket.
       $S3_CP_CMD --content-type "application/octet-stream" "${bff_files[0]}" "${S3_RELEASE_ARTIFACTS_URI}/bff/ppc64/"
