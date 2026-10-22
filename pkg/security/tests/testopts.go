@@ -18,63 +18,52 @@ import (
 )
 
 type testOpts struct {
-	disableFilters                             bool
-	disableApprovers                           bool
-	disableEnvVarsResolution                   bool
-	enableActivityDump                         bool
-	activityDumpRateLimiter                    int
-	activityDumpTagRules                       bool
-	activityDumpDuration                       time.Duration
-	activityDumpCleanupPeriod                  time.Duration
-	activityDumpTracedCgroupsCount             int
-	activityDumpCgroupDifferentiateArgs        bool
-	activityDumpTracedEventTypes               []string
-	activityDumpLocalStorageDirectory          string
-	activityDumpLocalStorageCompression        bool
-	activityDumpLocalStorageFormats            []string
-	activityDumpSyscallMonitorPeriod           time.Duration
-	enableSecurityProfile                      bool
-	securityProfileMaxImageTags                int
-	securityProfileDir                         string
-	securityProfileWatchDir                    bool
-	securityProfileNodeEvictionTimeout         time.Duration
-	enableAnomalyDetection                     bool
-	anomalyDetectionEventTypes                 []string
-	anomalyDetectionDefaultMinimumStablePeriod time.Duration
-	anomalyDetectionMinimumStablePeriodExec    time.Duration
-	anomalyDetectionMinimumStablePeriodDNS     time.Duration
-	anomalyDetectionWarmupPeriod               time.Duration
-	disableDiscarders                          bool
-	disableERPCDentryResolution                bool
-	disableMapDentryResolution                 bool
-	envsWithValue                              []string
-	disableRuntimeSecurity                     bool
-	enableSBOM                                 bool
-	enableHostSBOM                             bool
-	preStartCallback                           func(test *testModule)
-	tagger                                     tags.Tagger
-	ruleMatchHandler                           func(*testModule, *model.Event, *rules.Rule)
-	enableFIM                                  bool // only valid on windows
-	networkIngressEnabled                      bool
-	networkRawPacketEnabled                    bool
-	disableOnDemandRateLimiter                 bool
-	ebpfLessEnabled                            bool
-	dontWaitEBPFLessClient                     bool
-	enforcementExcludeBinary                   string
-	enforcementDisarmerContainerEnabled        bool
-	enforcementDisarmerContainerMaxAllowed     int
-	enforcementDisarmerContainerPeriod         time.Duration
-	enforcementDisarmerExecutableEnabled       bool
-	enforcementDisarmerExecutableMaxAllowed    int
-	enforcementDisarmerExecutablePeriod        time.Duration
-	eventServerRetention                       time.Duration
-	discardRuntime                             bool
-	enableSelfTests                            bool
-	networkFlowMonitorEnabled                  bool
-	dnsPort                                    uint16
-	traceSystemdCgroups                        bool
-	capabilitiesMonitoringEnabled              bool
-	captureAllSyscallErrorsEnabled             bool
+	disableFilters                          bool
+	disableApprovers                        bool
+	disableEnvVarsResolution                bool
+	enableSecurityProfile                   bool
+	securityProfileNodeEvictionTimeout      time.Duration
+	securityProfileSampleRefreshPeriod      time.Duration
+	enableAnomalyDetection                  bool
+	workloadProfileStorageDir               string
+	workloadProfilePersistencePeriod        time.Duration
+	workloadProfileEventTypes               []string
+	workloadProfileDifferentiateArgs        bool
+	profilingStartupDelay                   time.Duration
+	profileReportingWaitPersistence         bool
+	eventSamplingSyscallsEnabled            bool
+	eventSamplingOpenRateUnlimited          bool
+	disableDiscarders                       bool
+	disableERPCDentryResolution             bool
+	disableMapDentryResolution              bool
+	envsWithValue                           []string
+	disableRuntimeSecurity                  bool
+	enableSBOM                              bool
+	enableHostSBOM                          bool
+	preStartCallback                        func(test *testModule)
+	tagger                                  tags.Tagger
+	ruleMatchHandler                        func(*testModule, *model.Event, *rules.Rule)
+	enableFIM                               bool // only valid on windows
+	networkIngressEnabled                   bool
+	networkRawPacketEnabled                 bool
+	disableOnDemandRateLimiter              bool
+	ebpfLessEnabled                         bool
+	dontWaitEBPFLessClient                  bool
+	enforcementExcludeBinary                string
+	enforcementDisarmerContainerEnabled     bool
+	enforcementDisarmerContainerMaxAllowed  int
+	enforcementDisarmerContainerPeriod      time.Duration
+	enforcementDisarmerExecutableEnabled    bool
+	enforcementDisarmerExecutableMaxAllowed int
+	enforcementDisarmerExecutablePeriod     time.Duration
+	eventServerRetention                    time.Duration
+	discardRuntime                          bool
+	enableSelfTests                         bool
+	networkFlowMonitorEnabled               bool
+	dnsPort                                 uint16
+	capabilitiesMonitoringEnabled           bool
+	capabilitiesMonitoringPeriod            time.Duration
+	captureAllSyscallErrorsEnabled          bool
 }
 
 type dynamicTestOpts struct {
@@ -87,13 +76,23 @@ type tmOpts struct {
 	staticOpts  testOpts
 	dynamicOpts dynamicTestOpts
 	forceReload bool
+
+	// staticOptsSet distinguishes "no static opts" from "the default config,
+	// explicitly": an empty testOpts is a legitimate config, so the zero value
+	// of staticOpts cannot answer that on its own.
+	staticOptsSet bool
 }
 
 type optFunc = func(opts *tmOpts)
 
+// withStaticOpts supplies the config for this newTestModule call, for a config
+// only knowable at run time; it pairs with declareInlineConfig. Prefer
+// declaring it next to the test function (testdecl.go), which lets the test
+// share a module with the others using the same config.
 func withStaticOpts(opts testOpts) optFunc {
 	return func(tmo *tmOpts) {
 		tmo.staticOpts = opts
+		tmo.staticOptsSet = true
 	}
 }
 

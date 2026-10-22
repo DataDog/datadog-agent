@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
-func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
+func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
 	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
 	if totalNVLinks <= 0 {
 		return nil, 0, errUnsupportedDevice
@@ -49,25 +51,25 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	}
 
 	// Return metrics
-	allMetrics := []Metric{
-		{
+	allSamples := []Sample{
+		&Metric{
 			Name:  "nvlink.count.total",
 			Value: float64(totalNVLinks),
 			Type:  metrics.GaugeType,
 		},
-		{
+		&Metric{
 			Name:  "nvlink.count.active",
 			Value: float64(active),
 			Type:  metrics.GaugeType,
 		},
-		{
+		&Metric{
 			Name:  "nvlink.count.inactive",
 			Value: float64(inactive),
 			Type:  metrics.GaugeType,
 		},
 	}
 
-	return allMetrics, 0, errors.Join(multiErr...)
+	return allSamples, 0, errors.Join(multiErr...)
 }
 
 type processMemoryUsageData struct {
@@ -75,8 +77,8 @@ type processMemoryUsageData struct {
 	usedGpuMemory uint64
 }
 
-func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, priority MetricPriority) []Metric {
-	var processMetrics []Metric
+func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, priority MetricPriority) []Sample {
+	var processSamples []Sample
 	var allWorkloadIDs []workloadmeta.EntityID
 
 	for _, usage := range usage {
@@ -86,12 +88,11 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 		}}
 		allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
-		processMetrics = append(processMetrics, Metric{
-			Name:                "process.memory.usage",
-			Value:               float64(usage.usedGpuMemory),
-			Type:                metrics.GaugeType,
-			Priority:            priority,
-			AssociatedWorkloads: workloads,
+		processSamples = append(processSamples, &Metric{
+			baseSample: baseSample{priority: priority, associatedWorkloads: workloads},
+			Name:       "process.memory.usage",
+			Value:      float64(usage.usedGpuMemory),
+			Type:       metrics.GaugeType,
 		})
 	}
 
@@ -138,19 +139,20 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
-	processMetrics = append(processMetrics, Metric{
-		Name:                "memory.limit",
-		Value:               float64(devInfo.Memory),
-		Type:                metrics.GaugeType,
-		Priority:            metricLimitPriority,
-		AssociatedWorkloads: allWorkloadIDs,
-	})
+	if devInfo.Memory > 0 {
+		processSamples = append(processSamples, &Metric{
+			baseSample: baseSample{priority: metricLimitPriority, associatedWorkloads: allWorkloadIDs},
+			Name:       "memory.limit",
+			Value:      float64(devInfo.Memory),
+			Type:       metrics.GaugeType,
+		})
+	}
 
-	return processMetrics
+	return processSamples
 }
 
 // processMemorySample handles process memory usage collection logic
-func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
+func processMemorySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	procs, err := device.GetComputeRunningProcesses()
 	var usage []processMemoryUsageData
 	if err == nil {
@@ -165,7 +167,7 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return processMemoryUsage(device, usage, Medium), 0, err
 }
 
-func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
+func processDetailListSample(device ddnvml.Device) ([]Sample, uint64, error) {
 	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_HOPPER {
 		// This API is only supported on Hopper and later, but it doesn't return "not supported" error,
 		// instead it reports "Argument version mismatch", so just do the check here.
@@ -215,7 +217,26 @@ func shouldSkipLegacyEccMetric(device ddnvml.Device, errorType nvml.MemoryErrorT
 	return memoryLocation == nvml.MEMORY_LOCATION_SRAM || (errorType == nvml.MEMORY_ERROR_TYPE_UNCORRECTED && memoryLocation == nvml.MEMORY_LOCATION_L2_CACHE)
 }
 
-func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
+// retiredPagesSample reports the number of GPU memory pages the driver has retired,
+// or will retire on the next driver reload, for a given retirement cause.
+// Only the number of retired pages is reported, not their addresses.
+func retiredPagesSample(device ddnvml.Device, cause nvml.PageRetirementCause, causeName string) ([]Sample, uint64, error) {
+	count, err := device.GetRetiredPagesCount(cause)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return []Sample{
+		&Metric{
+			baseSample: baseSample{tags: []string{"cause:" + causeName}},
+			Name:       "retired_pages",
+			Value:      float64(count),
+			Type:       metrics.GaugeType,
+		},
+	}, 0, nil
+}
+
+func sramEccErrorStatusSample(device ddnvml.Device) ([]Sample, uint64, error) {
 	// SRAM ECC error status is only supported on Ampere and later. Some of the metrics
 	// overlap with the legacy ECC metrics, so we need to check the architecture and return an error
 	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_AMPERE {
@@ -227,81 +248,81 @@ func sramEccErrorStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
 		return nil, 0, err
 	}
 
-	metricsOut := []Metric{
-		{
-			Name:  "errors.ecc.corrected.total",
-			Value: float64(status.AggregateCor),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sram"},
+	samplesOut := []Sample{
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sram"}},
+			Name:       "errors.ecc.corrected.total",
+			Value:      float64(status.AggregateCor),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.corrected.volatile",
-			Value: float64(status.VolatileCor),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sram"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sram"}},
+			Name:       "errors.ecc.corrected.volatile",
+			Value:      float64(status.VolatileCor),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
-			Value: float64(status.AggregateUncParity),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sram", "error_subtype:parity"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:parity"}},
+			Name:       "errors.ecc.sram.uncorrected_by_subtype.total",
+			Value:      float64(status.AggregateUncParity),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.sram.uncorrected_by_subtype.volatile",
-			Value: float64(status.VolatileUncParity),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sram", "error_subtype:parity"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:parity"}},
+			Name:       "errors.ecc.sram.uncorrected_by_subtype.volatile",
+			Value:      float64(status.VolatileUncParity),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.sram.uncorrected_by_subtype.total",
-			Value: float64(status.AggregateUncSecDed),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sram", "error_subtype:secded"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:secded"}},
+			Name:       "errors.ecc.sram.uncorrected_by_subtype.total",
+			Value:      float64(status.AggregateUncSecDed),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.sram.uncorrected_by_subtype.volatile",
-			Value: float64(status.VolatileUncSecDed),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sram", "error_subtype:secded"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sram", "error_subtype:secded"}},
+			Name:       "errors.ecc.sram.uncorrected_by_subtype.volatile",
+			Value:      float64(status.VolatileUncSecDed),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.uncorrected.total",
-			Value: float64(status.AggregateUncBucketL2),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:l2_cache"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:l2_cache"}},
+			Name:       "errors.ecc.uncorrected.total",
+			Value:      float64(status.AggregateUncBucketL2),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.uncorrected.total",
-			Value: float64(status.AggregateUncBucketSm),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:sm"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:sm"}},
+			Name:       "errors.ecc.uncorrected.total",
+			Value:      float64(status.AggregateUncBucketSm),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.uncorrected.total",
-			Value: float64(status.AggregateUncBucketPcie),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:pcie"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:pcie"}},
+			Name:       "errors.ecc.uncorrected.total",
+			Value:      float64(status.AggregateUncBucketPcie),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.uncorrected.total",
-			Value: float64(status.AggregateUncBucketMcu),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:microcontroller"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:microcontroller"}},
+			Name:       "errors.ecc.uncorrected.total",
+			Value:      float64(status.AggregateUncBucketMcu),
+			Type:       metrics.GaugeType,
 		},
-		{
-			Name:  "errors.ecc.uncorrected.total",
-			Value: float64(status.AggregateUncBucketOther),
-			Type:  metrics.GaugeType,
-			Tags:  []string{"memory_location:other"},
+		&Metric{
+			baseSample: baseSample{tags: []string{"memory_location:other"}},
+			Name:       "errors.ecc.uncorrected.total",
+			Value:      float64(status.AggregateUncBucketOther),
+			Type:       metrics.GaugeType,
 		},
-		{
+		&Metric{
 			Name:  "errors.ecc.sram.threshold_exceeded",
 			Value: boolToFloat(status.BThresholdExceeded != 0),
 			Type:  metrics.GaugeType,
 		},
 	}
 
-	return metricsOut, 0, nil
+	return samplesOut, 0, nil
 }
 
 // gpuRecoveryActionToTag maps the NVML GPU recovery action enum to the
@@ -317,7 +338,7 @@ var gpuRecoveryActionToTag = map[nvml.DeviceGpuRecoveryAction]string{
 // needsRecoverySample queries the GPU recovery action field and emits a single
 // device.needs_recovery metric: 0 when no action is required, 1 otherwise. The
 // metric is tagged with the specific recovery action.
-func needsRecoverySample(device ddnvml.Device) ([]Metric, uint64, error) {
+func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	action, err := fieldValueForField(device, nvml.FI_DEV_GET_GPU_RECOVERY_ACTION, "FI_DEV_GET_GPU_RECOVERY_ACTION")
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get GPU recovery action: %w", err)
@@ -331,101 +352,51 @@ func needsRecoverySample(device ddnvml.Device) ([]Metric, uint64, error) {
 		actionTag = "unknown_" + strconv.Itoa(action)
 	}
 
-	return []Metric{{
-		Name:  "device.needs_recovery",
-		Value: boolToFloat(recoveryAction != nvml.GPU_RECOVERY_ACTION_NONE),
-		Type:  metrics.GaugeType,
-		Tags:  []string{"recovery_action:" + actionTag},
+	return []Sample{&Metric{
+		baseSample: baseSample{tags: []string{"recovery_action:" + actionTag}},
+		Name:       "device.needs_recovery",
+		Value:      boolToFloat(recoveryAction != nvml.GPU_RECOVERY_ACTION_NONE),
+		Type:       metrics.GaugeType,
 	}}, 0, nil
 }
 
-// pcieGenSpec describes the physical-layer characteristics of a PCIe generation. Values come from the PCI-SIG base
-// specification and are fixed by the standard.
-type pcieGenSpec struct {
-	// gtPerSecondPerLane is the raw per-lane transfer rate in GT/s.
-	gtPerSecondPerLane float64
-	// encodedBytesPerTransfer is the useful data bytes carried per raw transfer,
-	// accounting for line-coding overhead (8b/10b, 128b/130b, etc.).
-	encodedBytesPerTransfer float64
-}
-
-// pcieGenTable provides a lookup for encoding keyed off of the PCIe generation.
-var pcieGenTable = map[uint32]pcieGenSpec{
-	// Source: PCI Express Base Specification 1.0a (PCI-SIG, 2003).
-	// 2.5 GT/s per lane, 8b/10b encoding → 250 MB/s per lane.
-	1: {gtPerSecondPerLane: 2.5, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
-	// Source: PCI Express Base Specification 2.0 (PCI-SIG, 2007).
-	// 5.0 GT/s per lane, 8b/10b encoding → 500 MB/s per lane.
-	2: {gtPerSecondPerLane: 5.0, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
-	// Source: PCI Express Base Specification 3.0 (PCI-SIG, 2010).
-	// 8.0 GT/s per lane, 128b/130b encoding → 985 MB/s per lane.
-	3: {gtPerSecondPerLane: 8.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 4.0 (PCI-SIG, 2017).
-	// 16.0 GT/s per lane, 128b/130b encoding → ~1.969 GB/s per lane.
-	4: {gtPerSecondPerLane: 16.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 5.0 (PCI-SIG, 2019).
-	// 32.0 GT/s per lane, 128b/130b NRZ encoding → ~3.938 GB/s per lane.
-	5: {gtPerSecondPerLane: 32.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 6.0 (PCI-SIG, 2022).
-	// 64.0 GT/s per lane with PAM4 signaling, no line-coding overhead (1b/1b).
-	// FLIT mode frames data as 256-byte FLITs with 14 bytes of CRC+FEC+framing
-	// overhead, giving 242 bytes of usable payload per 256 wire bytes
-	// → ~7.563 GB/s per lane of usable bandwidth.
-	6: {gtPerSecondPerLane: 64.0, encodedBytesPerTransfer: 242.0 / 256.0 / 8.0},
-}
-
-// pcieLinkBytesPerSecond returns the usable bandwidth for a given generation and lane width.
-func pcieLinkBytesPerSecond(gen int, width int) (float64, error) {
-	spec, ok := pcieGenTable[uint32(gen)]
-	if !ok {
-		return 0, fmt.Errorf("unknown PCIe generation %d (extend pcieGenTable)", gen)
-	}
-	if width < 1 {
-		return 0, fmt.Errorf("invalid PCIe link width: %d", width)
-	}
-
-	// bytes/sec = GT/s/lane * 1e9 transfers/sec/GT * bytes/transfer * lanes
-	bps := spec.gtPerSecondPerLane * 1e9 * spec.encodedBytesPerTransfer * float64(width)
-	return bps, nil
-}
-
-func pcieLinkMetrics(device ddnvml.Device) ([]Metric, uint64, error) {
-	var metricsOut []Metric
+func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
+	var samplesOut []Sample
 
 	currentWidth, err := device.GetCurrPcieLinkWidth()
 	if err != nil {
-		return metricsOut, 0, fmt.Errorf("get current PCIe link width: %w", err)
+		return samplesOut, 0, fmt.Errorf("get current PCIe link width: %w", err)
 	}
-	metricsOut = append(metricsOut, Metric{Name: "pci.link.width.current", Value: float64(currentWidth), Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.width.current", Value: float64(currentWidth), Type: metrics.GaugeType})
 
 	maxWidth, err := device.GetMaxPcieLinkWidth()
 	if err != nil {
-		return metricsOut, 0, fmt.Errorf("get max PCIe link width: %w", err)
+		return samplesOut, 0, fmt.Errorf("get max PCIe link width: %w", err)
 	}
-	metricsOut = append(metricsOut, Metric{Name: "pci.link.width.max", Value: float64(maxWidth), Type: metrics.GaugeType})
-	metricsOut = append(metricsOut, Metric{Name: "pci.link.width.degraded", Value: boolToFloat(currentWidth < maxWidth), Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.width.max", Value: float64(maxWidth), Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.width.degraded", Value: boolToFloat(currentWidth < maxWidth), Type: metrics.GaugeType})
 
 	currentGeneration, err := device.GetCurrPcieLinkGeneration()
 	if err != nil {
-		return metricsOut, 0, fmt.Errorf("get current PCIe link generation: %w", err)
+		return samplesOut, 0, fmt.Errorf("get current PCIe link generation: %w", err)
 	}
-	currentSpeed, err := pcieLinkBytesPerSecond(currentGeneration, currentWidth)
+	currentSpeed, err := gpuutil.PCIeLinkBytesPerSecond(currentGeneration, currentWidth)
 	if err != nil {
-		return metricsOut, 0, fmt.Errorf("compute current PCIe link speed: %w", err)
+		return samplesOut, 0, fmt.Errorf("compute current PCIe link speed: %w", err)
 	}
-	metricsOut = append(metricsOut, Metric{Name: "pci.link.speed.current", Value: currentSpeed, Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.speed.current", Value: currentSpeed, Type: metrics.GaugeType})
 
 	maxGeneration, err := device.GetMaxPcieLinkGeneration()
 	if err != nil {
-		return metricsOut, 0, fmt.Errorf("get max PCIe link generation: %w", err)
+		return samplesOut, 0, fmt.Errorf("get max PCIe link generation: %w", err)
 	}
-	maxSpeed, err := pcieLinkBytesPerSecond(maxGeneration, maxWidth)
+	maxSpeed, err := gpuutil.PCIeLinkBytesPerSecond(maxGeneration, maxWidth)
 	if err != nil {
-		return metricsOut, 0, fmt.Errorf("compute max PCIe link speed: %w", err)
+		return samplesOut, 0, fmt.Errorf("compute max PCIe link speed: %w", err)
 	}
-	metricsOut = append(metricsOut, Metric{Name: "pci.link.speed.max", Value: maxSpeed, Type: metrics.GaugeType})
-	metricsOut = append(metricsOut, Metric{Name: "pci.link.speed.degraded", Value: boolToFloat(currentSpeed < maxSpeed), Type: metrics.GaugeType})
-	return metricsOut, 0, nil
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.speed.max", Value: maxSpeed, Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.speed.degraded", Value: boolToFloat(currentSpeed < maxSpeed), Type: metrics.GaugeType})
+	return samplesOut, 0, nil
 }
 
 type clockThrottleReason struct {
@@ -449,8 +420,23 @@ var clockThrottleReasons = []clockThrottleReason{
 const notThrottledReason = "not_throttled"
 const throttleReasonTag = "throttle_reason"
 
-func clockThrottleReasonMetrics(reasons uint64) []Metric {
-	allMetrics := make([]Metric, 0, len(clockThrottleReasons)*2)
+// vgpuProductTag identifies the licensed vGPU software product of each
+// vgpu.license_status sample.
+const vgpuProductTag = "vgpu_product"
+
+// gridFeatureCodeToTag maps the NVML licensable feature code to the
+// vgpu_product tag value. The code is used instead of the product name, which
+// NVIDIA has renamed across driver releases.
+var gridFeatureCodeToTag = map[nvml.GridLicenseFeatureCode]string{
+	nvml.GRID_LICENSE_FEATURE_CODE_UNKNOWN:    "unknown",
+	nvml.GRID_LICENSE_FEATURE_CODE_VGPU:       "vgpu",
+	nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX: "nvidia_rtx",
+	nvml.GRID_LICENSE_FEATURE_CODE_GAMING:     "gaming",
+	nvml.GRID_LICENSE_FEATURE_CODE_COMPUTE:    "compute",
+}
+
+func clockThrottleReasonMetrics(reasons uint64) []Sample {
+	allSamples := make([]Sample, 0, len(clockThrottleReasons)*2)
 
 	// emit per-reason metrics
 	throttledWhileActiveValueReason := notThrottledReason
@@ -468,7 +454,7 @@ func clockThrottleReasonMetrics(reasons uint64) []Metric {
 			}
 		}
 
-		allMetrics = append(allMetrics, Metric{
+		allSamples = append(allSamples, &Metric{
 			Name:  "clock.throttle_reasons." + reason.name,
 			Value: throttleReasonValue,
 			Type:  metrics.GaugeType,
@@ -480,19 +466,19 @@ func clockThrottleReasonMetrics(reasons uint64) []Metric {
 		throttledWhileActiveValue = 1.0
 	}
 
-	allMetrics = append(allMetrics, Metric{
-		Name:  "clock.throttled_while_active",
-		Value: throttledWhileActiveValue,
-		Type:  metrics.GaugeType,
-		Tags:  []string{throttleReasonTag + ":" + throttledWhileActiveValueReason},
+	allSamples = append(allSamples, &Metric{
+		baseSample: baseSample{tags: []string{throttleReasonTag + ":" + throttledWhileActiveValueReason}},
+		Name:       "clock.throttled_while_active",
+		Value:      throttledWhileActiveValue,
+		Type:       metrics.GaugeType,
 	})
 
-	return allMetrics
+	return allSamples
 }
 
 // vGPU environments may return an error other than ERROR_NOT_SUPPORTED from GetMaxClockInfo,
 // so check the cached device virtualization mode before calling it.
-func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricName string) ([]Metric, uint64, error) {
+func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricName string) ([]Sample, uint64, error) {
 	if device.GetDeviceInfo().VirtualizationMode == nvml.GPU_VIRTUALIZATION_MODE_VGPU {
 		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMaxClockInfo", nvml.ERROR_NOT_SUPPORTED)
 	}
@@ -502,7 +488,54 @@ func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricNa
 		return nil, 0, err
 	}
 
-	return []Metric{{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+	return []Sample{&Metric{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
+}
+
+// gridLicenseStatusSample reports whether the vGPU software license of each
+// enabled product is active (1) or not (0).
+func gridLicenseStatusSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if device.GetDeviceInfo().VirtualizationMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	features, err := device.GetGridLicensableFeatures()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if features.IsGridLicenseSupported == 0 {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	var samples []Sample
+	for i := uint32(0); i < features.LicensableFeaturesCount && i < uint32(len(features.GridLicensableFeatures)); i++ {
+		feature := features.GridLicensableFeatures[i]
+		// featureEnabled marks the product the driver runs as, not the license
+		// state. Skip the other products so they don't report as unlicensed.
+		if feature.FeatureEnabled == 0 {
+			continue
+		}
+
+		productTag, ok := gridFeatureCodeToTag[nvml.GridLicenseFeatureCode(feature.FeatureCode)]
+		if !ok {
+			productTag = "unknown_" + strconv.FormatUint(uint64(feature.FeatureCode), 10)
+		}
+
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{vgpuProductTag + ":" + productTag}},
+			Name:       "vgpu.license_status",
+			Value:      boolToFloat(feature.FeatureState != 0),
+			Type:       metrics.GaugeType,
+		})
+	}
+
+	if len(samples) == 0 {
+		// Without an enabled product there is no license state to report. Keep
+		// the handler without returning an error, as the state may change.
+		log.Debugf("vGPU licensing is supported on device %s but no licensable product is enabled", device.GetDeviceInfo().UUID)
+	}
+
+	return samples, 0, nil
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
@@ -511,90 +544,88 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		// Memory collector APIs
 		{
 			Name: "bar1_memory",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				bar1Info, err := device.GetBAR1MemoryInfo()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{
-					{Name: "memory.bar1.total", Value: float64(bar1Info.Bar1Total), Type: metrics.GaugeType},
-					{Name: "memory.bar1.free", Value: float64(bar1Info.Bar1Free), Type: metrics.GaugeType},
-					{Name: "memory.bar1.used", Value: float64(bar1Info.Bar1Used), Type: metrics.GaugeType},
+				return []Sample{
+					&Metric{Name: "memory.bar1.total", Value: float64(bar1Info.Bar1Total), Type: metrics.GaugeType},
+					&Metric{Name: "memory.bar1.free", Value: float64(bar1Info.Bar1Free), Type: metrics.GaugeType},
+					&Metric{Name: "memory.bar1.used", Value: float64(bar1Info.Bar1Used), Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},
 		{
 			Name: "device_memory_v2",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				memInfo, err := device.GetMemoryInfoV2()
 				if err != nil {
 					return nil, 0, err
 				}
-				// Prevent division by zero if the total is zero.
-				memoryUtilization := 0.0
-				if memInfo.Total > 0 {
-					memoryUtilization = float64(memInfo.Used) / float64(memInfo.Total)
+				samples := []Sample{
+					&Metric{baseSample: baseSample{priority: Medium}, Name: "memory.free", Value: float64(memInfo.Free), Type: metrics.GaugeType},
+					&Metric{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
 				}
-				return []Metric{
-					{Name: "memory.free", Value: float64(memInfo.Free), Priority: Medium, Type: metrics.GaugeType},
-					{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
-					{Name: "memory.utilization", Value: memoryUtilization, Type: metrics.GaugeType},
-				}, 0, nil
+				if memInfo.Total > 0 {
+					samples = append(samples, &Metric{Name: "memory.utilization", Value: float64(memInfo.Used) / float64(memInfo.Total), Type: metrics.GaugeType})
+				}
+				return samples, 0, nil
 			},
 		},
 		{
 			Name: "device_memory_v1",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				memInfo, err := device.GetMemoryInfo()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{
-					{Name: "memory.free", Value: float64(memInfo.Free), Type: metrics.GaugeType},
+				return []Sample{
+					&Metric{Name: "memory.free", Value: float64(memInfo.Free), Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},
 		// Device collector APIs
 		{
 			Name: "pci_throughput_rx",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				rxTput, err := device.GetPcieThroughput(nvml.PCIE_UTIL_RX_BYTES)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "pci.throughput.rx", Value: float64(rxTput) * 1024, Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "pci.throughput.rx", Value: float64(rxTput) * 1024, Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "pci_throughput_tx",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				txTput, err := device.GetPcieThroughput(nvml.PCIE_UTIL_TX_BYTES)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "pci.throughput.tx", Value: float64(txTput) * 1024, Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "pci.throughput.tx", Value: float64(txTput) * 1024, Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "pci_link",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return pcieLinkMetrics(device)
 			},
 		},
 		{
 			Name: "fan_speed",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				speed, err := device.GetFanSpeed()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "fan_speed", Value: float64(speed), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "fan_speed", Value: float64(speed), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "fan_speed_v2",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				var output []Metric
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				var output []Sample
 				numFans, err := device.GetNumFans()
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
@@ -606,12 +637,11 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					if err != nil {
 						multiErr = append(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
 					} else {
-						output = append(output, Metric{
-							Name:     "fan_speed",
-							Value:    float64(speed),
-							Type:     metrics.GaugeType,
-							Priority: Medium,
-							Tags:     []string{"fan_index:" + strconv.Itoa(i)},
+						output = append(output, &Metric{
+							baseSample: baseSample{priority: Medium, tags: []string{"fan_index:" + strconv.Itoa(i)}},
+							Name:       "fan_speed",
+							Value:      float64(speed),
+							Type:       metrics.GaugeType,
 						})
 					}
 				}
@@ -621,127 +651,131 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 		{
 			Name: "power_management_limit",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				limit, err := device.GetPowerManagementLimit()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "power.management_limit", Value: float64(limit), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "power.management_limit", Value: float64(limit), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "power_usage",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				power, err := device.GetPowerUsage()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "power.usage", Value: float64(power), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "power.usage", Value: float64(power), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "performance_state",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				state, err := device.GetPerformanceState()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "performance_state", Value: float64(state), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "performance_state", Value: float64(state), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "temperature",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				temp, err := device.GetTemperature(nvml.TEMPERATURE_GPU)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "temperature", Value: float64(temp), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "temperature", Value: float64(temp), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "clock_speed_sm",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				smClock, err := device.GetClockInfo(nvml.CLOCK_SM)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "clock.speed.sm", Value: float64(smClock), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "clock.speed.sm", Value: float64(smClock), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "clock_speed_memory",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				memoryClock, err := device.GetClockInfo(nvml.CLOCK_MEM)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "clock.speed.memory", Value: float64(memoryClock), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "clock.speed.memory", Value: float64(memoryClock), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "clock_speed_graphics",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				graphicsClock, err := device.GetClockInfo(nvml.CLOCK_GRAPHICS)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "clock.speed.graphics", Value: float64(graphicsClock), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "clock.speed.graphics", Value: float64(graphicsClock), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "clock_speed_video",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				videoClock, err := device.GetClockInfo(nvml.CLOCK_VIDEO)
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "clock.speed.video", Value: float64(videoClock), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "clock.speed.video", Value: float64(videoClock), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "max_clock_speed_sm",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return maxClockInfoSample(device, nvml.CLOCK_SM, "clock.speed.sm.max")
 			},
 		},
 		{
 			Name: "max_clock_speed_memory",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return maxClockInfoSample(device, nvml.CLOCK_MEM, "clock.speed.memory.max")
 			},
 		},
 		{
 			Name: "max_clock_speed_graphics",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return maxClockInfoSample(device, nvml.CLOCK_GRAPHICS, "clock.speed.graphics.max")
 			},
 		},
 		{
 			Name: "max_clock_speed_video",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return maxClockInfoSample(device, nvml.CLOCK_VIDEO, "clock.speed.video.max")
 			},
 		},
 		{
 			Name: "energy_consumption",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				energy, err := device.GetTotalEnergyConsumption()
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "device_count",
-			Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return []Metric{{Name: "device.total", Value: 1, Type: metrics.GaugeType}}, 0, nil
+			Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				return []Sample{&Metric{
+					Name:  "device.total",
+					Value: 1,
+					Type:  metrics.GaugeType,
+				}}, 0, nil
 			},
 		},
 		{
 			Name: "device_unhealthy_count",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
 					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
 				}
@@ -754,12 +788,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				if !gpu.Healthy {
 					count = 1
 				}
-				return []Metric{{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
+				return []Sample{&Metric{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "clock_throttle_reasons",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				reasons, err := device.GetCurrentClocksThrottleReasons()
 				if err != nil {
 					return nil, 0, err
@@ -770,35 +804,35 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 		{
 			Name: "remapped_rows",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				correctable, uncorrectable, pending, failed, err := device.GetRemappedRows()
 				if err != nil {
 					return nil, 0, err
 				}
 
-				return []Metric{
-					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.GaugeType},
-					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
-					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
-					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
+				return []Sample{
+					&Metric{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.GaugeType},
+					&Metric{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
+					&Metric{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
+					&Metric{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},
 		{
 			Name: "repair_status",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				repairStatus, err := device.GetRepairStatus()
 				if err != nil {
 					return nil, 0, err
 				}
 
-				return []Metric{
-					{
+				return []Sample{
+					&Metric{
 						Name:  "ecc.repair_pending.channel",
 						Value: float64(repairStatus.BChannelRepairPending),
 						Type:  metrics.GaugeType,
 					},
-					{
+					&Metric{
 						Name:  "ecc.repair_pending.tpc",
 						Value: float64(repairStatus.BTpcRepairPending),
 						Type:  metrics.GaugeType,
@@ -808,34 +842,34 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 		{
 			Name: "sram_ecc_error_status",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return sramEccErrorStatusSample(device)
 			},
 		},
 		{
 			Name: "needs_recovery",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return needsRecoverySample(device)
 			},
 		},
 		// Process memory APIs (stateless - just current snapshot)
 		{
 			Name: "process_memory_usage",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return processMemorySample(device)
 			},
 		},
 		// similar to process_memory_usage, but works with MIG. However, only supported on Hopper and later.
 		{
 			Name: "process_detail_list",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return processDetailListSample(device)
 			},
 		},
 		// NVLink collector APIs
 		{
 			Name: "nvlink_metrics",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return nvlinkSample(device)
 			},
 		},
@@ -855,7 +889,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				counterTypeName := counterTypeName
 				apis = append(apis, apiCallInfo{
 					Name: fmt.Sprintf("ecc_errors.%s.%s.%s", errorTypeName, memoryLocationName, counterTypeName),
-					Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 						if shouldSkipLegacyEccMetric(device, errorType, memoryLocation, counterType) {
 							return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", nvml.ERROR_NOT_SUPPORTED)
 						}
@@ -866,12 +900,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 						}
 
 						tags := []string{"memory_location:" + memoryLocationName}
-						return []Metric{
-							{
-								Name:  fmt.Sprintf("errors.ecc.%s.%s", errorTypeName, counterTypeName),
-								Value: float64(count),
-								Type:  metrics.GaugeType,
-								Tags:  tags,
+						return []Sample{
+							&Metric{
+								baseSample: baseSample{tags: tags},
+								Name:       fmt.Sprintf("errors.ecc.%s.%s", errorTypeName, counterTypeName),
+								Value:      float64(count),
+								Type:       metrics.GaugeType,
 							},
 						}, 0, nil
 					},
@@ -879,6 +913,47 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			}
 		}
 	}
+
+	apis = append(apis, apiCallInfo{
+		Name: "device_unavailable",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if !ok || physicalDevice.HasMIGFeatureEnabled {
+				return nil, 0, errUnsupportedDevice
+			}
+
+			value := 0.0
+			if _, err := device.GetIndex(); err != nil {
+				if !ddnvml.IsGPULost(err) {
+					return nil, 0, err
+				}
+				value = 1
+			}
+			return []Sample{&Metric{
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
+				Name:       "device.unavailable",
+				Value:      value,
+				Type:       metrics.GaugeType,
+			}}, 0, nil
+		},
+	})
+
+	// Create APIs for retired memory pages, one per retirement cause.
+	for cause, causeName := range pageRetirementCauseToName {
+		apis = append(apis, apiCallInfo{
+			Name: "retired_pages." + causeName,
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				return retiredPagesSample(device, cause, causeName)
+			},
+		})
+	}
+
+	apis = append(apis, apiCallInfo{
+		Name: "grid_license_status",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			return gridLicenseStatusSample(device)
+		},
+	})
 
 	return apis
 }

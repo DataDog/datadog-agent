@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 const (
@@ -185,6 +185,8 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 			continue
 		}
 
+		convertJSONNumbers(actionsMap)
+
 		// Copy auth fields first
 		maps.Copy(actionsMap, auth)
 		actionsMap["run_once"] = true
@@ -210,6 +212,31 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 		return
 	}
 	c.configChanges <- changes
+}
+
+// convertJSONNumbers replaces every json.Number in v, recursively, with an
+// int64 or float64. yaml v3 marshals json.Number as a quoted string, and the
+// kafka_actions Python check expects native numbers.
+func convertJSONNumbers(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, e := range t {
+			t[k] = convertJSONNumbers(e)
+		}
+	case []any:
+		for i, e := range t {
+			t[i] = convertJSONNumbers(e)
+		}
+	case json.Number:
+		if i, err := t.Int64(); err == nil {
+			return i
+		}
+		if f, err := t.Float64(); err == nil {
+			return f
+		}
+		return t.String()
+	}
+	return v
 }
 
 type parsedActionsConfig struct {

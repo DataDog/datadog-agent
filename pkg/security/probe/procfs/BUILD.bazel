@@ -5,8 +5,10 @@ go_library(
     name = "procfs",
     srcs = [
         "proc_maps_parser.go",
+        "proc_mem.go",
         "snapshot_bound_sockets.go",
         "snapshot_mmapped_files.go",
+        "snapshot_script.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/procfs",
     visibility = ["//visibility:public"],
@@ -16,6 +18,7 @@ go_library(
             "//pkg/security/seclog",
             "//pkg/security/utils",
             "//pkg/util/kernel",
+            "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
             "@com_github_shirou_gopsutil_v4//process",
             "@org_golang_x_sys//unix",
         ],
@@ -24,6 +27,7 @@ go_library(
             "//pkg/security/seclog",
             "//pkg/security/utils",
             "//pkg/util/kernel",
+            "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
             "@com_github_shirou_gopsutil_v4//process",
             "@org_golang_x_sys//unix",
         ],
@@ -33,14 +37,22 @@ go_library(
 
 dd_agent_go_test(
     name = "procfs_test",
-    srcs = ["snapshot_bound_sockets_test.go"],
+    srcs = [
+        "proc_maps_parser_test.go",
+        "proc_mem_test.go",
+        "snapshot_bound_sockets_test.go",
+        "snapshot_mmapped_files_test.go",
+        "snapshot_script_test.go",
+    ],
     embed = [":procfs"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

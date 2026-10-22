@@ -28,9 +28,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.158.0"
+OCB_VERSION = "0.162.0"
 # The version the core collector and collector-contrib may or may not match
-OTEL_CONTRIB_VERSION = "0.158.0"
+OTEL_CONTRIB_VERSION = "0.162.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -122,6 +122,13 @@ def versions_equal(version1, version2, fuzzy=False):
         return major_minor_match and parts1 == parts2
 
 
+def is_stable_version(version):
+    """Return True for a v1+ module version, which follows its own (stable) versioning line."""
+    # Like versions_equal, only consider the last version of a "v1.xx.0/v0.yyy.0" pair
+    version = version.split("/")[-1]
+    return int(version.removeprefix("v").split(".")[0]) >= 1
+
+
 def validate_manifest(manifest) -> list:
     """Return a list of components to remove, or empty list if valid.
     If invalid components are found, raise a YAMLValidationError."""
@@ -143,6 +150,10 @@ def validate_manifest(manifest) -> list:
                     module_info = module.split(" ")
                     if len(module_info) == 2:
                         _, module_version = module_info
+                        # Stable (v1+) components (e.g. k8sattributesprocessor) are versioned
+                        # independently of the collector release, so they cannot match OCB_VERSION.
+                        if is_stable_version(module_version):
+                            continue
                         if not versions_equal(module_version, OCB_VERSION, True):
                             raise YAMLValidationError(
                                 f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
@@ -206,7 +217,7 @@ def generate(ctx):
             print(f"Downloaded to {binary_path}")
         except Exception as e:
             raise Exit(
-                color_message("Error: Failed to download the binary", Color.RED),
+                color_message(f"Error: Failed to download the binary from {binary_url}: {e}", Color.RED),
                 code=1,
             ) from e
 

@@ -6,14 +6,32 @@
 package trace
 
 import (
+	"encoding/binary"
 	"sync"
 	"testing"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
 )
+
+// idxTraceID builds a 128-bit trace ID byte slice with the given low 64 bits.
+func idxTraceID(low uint64) []byte {
+	id := make([]byte, 16)
+	binary.BigEndian.PutUint64(id[8:], low)
+	return id
+}
+
+// newIdxSpan builds an InternalSpan/InternalTraceChunk pair for a given trace/span/parent ID and name.
+func newIdxSpan(traceIDLow, spanID, parentID uint64, name string) (*idx.InternalTraceChunk, *idx.InternalSpan) {
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{SpanID: spanID, ParentID: parentID})
+	span.SetName(name)
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, idxTraceID(traceIDLow), 0)
+	return chunk, span
+}
 
 func TestCloudRunJobsSpanModifier_PreservesHierarchy(t *testing.T) {
 	// Create job span
@@ -379,4 +397,97 @@ func TestCloudRunJobsSpanModifier_NoUpgradeFromDifferentTrace(t *testing.T) {
 	// Verify: only trace A span was reparented
 	assert.Equal(t, jobSpan.SpanID, traceASpan.ParentID, "Trace A span should be reparented")
 	assert.Equal(t, uint64(0), traceBSpan.ParentID, "Trace B span should NOT be reparented")
+}
+
+func TestCloudRunJobsSpanModifier_V1_PreservesHierarchy(t *testing.T) {
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	rootChunk, rootSpan := newIdxSpan(0xAAAA, 100, 0, "root.operation")
+	_, childSpan := newIdxSpan(0xAAAA, 200, 100, "child.operation")
+
+	modifier.ModifySpanV1(rootChunk, rootSpan)
+	modifier.ModifySpanV1(rootChunk, childSpan)
+
+	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID(), "Root span should be reparented under job span")
+	assert.Equal(t, uint64(100), childSpan.ParentID(), "Child span should still point to root span")
+}
+
+func TestCloudRunJobsSpanModifier_V1_AdoptsFirstTraceID(t *testing.T) {
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	originalJobTraceID := jobSpan.TraceID
+
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	chunk, userSpan := newIdxSpan(0xBEEF, 42, 0, "user.operation")
+
+	modifier.ModifySpanV1(chunk, userSpan)
+
+	assert.Equal(t, uint64(0xBEEF), jobSpan.TraceID, "Job span should adopt user's TraceID")
+	assert.NotEqual(t, originalJobTraceID, jobSpan.TraceID, "Job span TraceID should change")
+	assert.Equal(t, jobSpan.SpanID, userSpan.ParentID(), "User span should be reparented under job span")
+}
+
+func TestCloudRunJobsSpanModifier_V1_MultipleTraces(t *testing.T) {
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	firstChunk, firstSpan := newIdxSpan(0x1111, 1, 0, "operation-a")
+	secondChunk, secondSpan := newIdxSpan(0x2222, 2, 0, "operation-b")
+
+	modifier.ModifySpanV1(firstChunk, firstSpan)
+	modifier.ModifySpanV1(secondChunk, secondSpan)
+
+	assert.Equal(t, uint64(0x1111), jobSpan.TraceID, "Job span should adopt first trace's ID")
+	assert.Equal(t, jobSpan.SpanID, firstSpan.ParentID(), "First span should be reparented")
+	assert.Equal(t, uint64(0), secondSpan.ParentID(), "Second span should NOT be reparented (different trace)")
+}
+
+func TestCloudRunJobsSpanModifier_V1_JobSpanNeverModified(t *testing.T) {
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	originalTraceID := jobSpan.TraceID
+	originalSpanID := jobSpan.SpanID
+	originalParentID := jobSpan.ParentID
+
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	chunk, jobSpanV1 := newIdxSpan(0x3333, jobSpan.SpanID, 0, "gcp.run.job.task")
+	modifier.ModifySpanV1(chunk, jobSpanV1)
+
+	assert.Equal(t, originalSpanID, jobSpan.SpanID, "Job span's SpanID should not change")
+	assert.Equal(t, originalParentID, jobSpan.ParentID, "Job span's ParentID should not change")
+	assert.Equal(t, originalTraceID, jobSpan.TraceID, "Job span's TraceID should not change when processing itself")
+	assert.Equal(t, uint64(0), jobSpanV1.ParentID(), "Job span itself should not be reparented")
+}
+
+func TestCloudRunJobsSpanModifier_V1_NilChunk(t *testing.T) {
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	strings := idx.NewStringTable()
+	span := idx.NewInternalSpan(strings, &idx.Span{SpanID: 1, ParentID: 0})
+	span.SetName("user.operation")
+
+	assert.NotPanics(t, func() { modifier.ModifySpanV1(nil, span) })
+	assert.Equal(t, uint64(0), span.ParentID(), "Span should not be reparented when chunk is nil")
+}
+
+func TestCloudRunJobsSpanModifier_V1_128BitTraceID(t *testing.T) {
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	traceID := idxTraceID(0x1111)
+	binary.BigEndian.PutUint64(traceID[:8], 0x6958127700000000)
+
+	strings := idx.NewStringTable()
+	rootSpan := idx.NewInternalSpan(strings, &idx.Span{SpanID: 55, ParentID: 0})
+	rootSpan.SetName("root.operation")
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{rootSpan}, false, traceID, 0)
+
+	modifier.ModifySpanV1(chunk, rootSpan)
+
+	tidHigh, ok := traceutil.GetTraceIDHigh(jobSpan)
+	assert.True(t, ok, "Job span should adopt the high 64 bits")
+	assert.Equal(t, "6958127700000000", tidHigh)
+	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID(), "Root span should be reparented under job span")
 }

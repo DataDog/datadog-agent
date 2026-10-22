@@ -7,17 +7,23 @@ package sender
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
+	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+var cwdLogLimiter = logutil.NewLogLimit(20, 10*time.Minute)
 
 type directSenderConsumer struct {
 	log       log.Component
@@ -57,7 +63,7 @@ func (d *directSenderConsumer) handleNewProcess(p *process) {
 	pidStr := strconv.Itoa(int(p.Pid))
 	if p.Cwd == "" {
 		cwd, err := os.Readlink(kernel.HostProc(pidStr, "cwd"))
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !os.IsNotExist(err) && !errors.Is(err, syscall.ESRCH) {
 			if cwdLogLimiter.ShouldLog() {
 				d.log.Warnf("error reading working directory for pid %d: %s", p.Pid, err)
 			}
@@ -67,7 +73,7 @@ func (d *directSenderConsumer) handleNewProcess(p *process) {
 
 	if p.Comm == "" {
 		comm, err := os.ReadFile(kernel.HostProc(pidStr, "comm"))
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !os.IsNotExist(err) && !errors.Is(err, syscall.ESRCH) {
 			if cwdLogLimiter.ShouldLog() {
 				d.log.Warnf("error reading comm for pid %d: %s", p.Pid, err)
 			}
@@ -77,7 +83,7 @@ func (d *directSenderConsumer) handleNewProcess(p *process) {
 
 	if p.Exe == "" {
 		exe, err := os.Readlink(kernel.HostProc(pidStr, "exe"))
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !os.IsNotExist(err) && !errors.Is(err, syscall.ESRCH) {
 			if cwdLogLimiter.ShouldLog() {
 				d.log.Warnf("error reading exe for pid %d: %s", p.Pid, err)
 			}
@@ -90,7 +96,10 @@ func (d *directSenderConsumer) collectProcesses() error {
 	if !d.fetchProcesses {
 		return nil
 	}
+	return d.loadCurrentProcesses()
+}
 
+func (d *directSenderConsumer) loadCurrentProcesses() error {
 	rootProc := kernel.ProcFSRoot()
 	pids, err := kernel.AllPidsProcs(rootProc)
 	if err != nil {

@@ -10,6 +10,8 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"slices"
@@ -19,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -111,7 +114,7 @@ func TestCGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testCGroup, err := newCGroup("cg1", "systemd")
 	if err != nil {
@@ -197,6 +200,174 @@ ExecStart=/usr/bin/touch ` + testFile2
 	})
 }
 
+// TestCGroupKubernetesPodUID validates that kubelet-shaped cgroup paths populate
+// process.container.pod_uid, and that the field is serialized in CWS events.
+func TestCGroupKubernetesPodUID(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup Kubernetes pod UID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	const podUID = "48d25824-cbe2-4fdc-9928-5bb49e05473d"
+	const systemdPodUID = "48d25824_cbe2_4fdc_9928_5bb49e05473d"
+	const podCGroupName = "kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod" + systemdPodUID + ".slice"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_kubernetes_pod_uid",
+			Expression: `open.file.path == "{{.Root}}/test-kubernetes-pod-uid" && process.container.pod_uid == "` + podUID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testCGroup, err := newCGroup(podCGroupName, "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		testCGroup.remove(t)
+		_ = os.Remove("/sys/fs/cgroup/systemd/kubepods.slice/kubepods-burstable.slice")
+		_ = os.Remove("/sys/fs/cgroup/systemd/kubepods.slice")
+	}()
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	testFile, testFilePtr, err := test.Path("test-kubernetes-pod-uid")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_kubernetes_pod_uid")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldEqual(t, event, "process.container.id", "")
+		assertFieldEqual(t, event, "process.container.pod_uid", podUID)
+
+		test.validateOpenSchema(t, event)
+		validateSerializedPodUID(t, test, event, podUID)
+	}, "test_cgroup_kubernetes_pod_uid")
+}
+
+func validateSerializedPodUID(t *testing.T, test *testModule, event *model.Event, podUID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		PodUID string `json:"pod_uid"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, podUID, payload.Container.PodUID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, podUID, payload.Process.Container.PodUID)
+}
+
+// TestCGroupContainerForkNoExec validates that, in ebpfless mode, a child forked
+// inside a container keeps the container ID before it execs. ebpfless process
+// cache entries only have a cgroup ID, no cgroup path key.
+func TestCGroupContainerForkNoExec(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless only")
+	}
+
+	const containerID = "e7a1c3b5d9f20486a1c3e5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e6a8c0b1d3f5"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_container_fork_no_exec",
+			Expression: `open.file.path == "/dev/null" && process.file.name == "syscall_tester" && process.is_thread && process.container.id == "` + containerID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCGroup, err := newCGroup("docker-"+containerID+".scope", "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.remove(t)
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	test.WaitSignalFromRule(t, func() error {
+		_ = exec.Command(syscallTester, "fork").Run()
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_container_fork_no_exec")
+		assert.False(t, event.ProcessContext.IsExec, "process shouldn't be marked as being an exec")
+		assertFieldEqual(t, event, "process.container.id", containerID)
+
+		validateSerializedContainerID(t, test, event, containerID)
+	}, "test_cgroup_container_fork_no_exec")
+}
+
+func validateSerializedContainerID(t *testing.T, test *testModule, event *model.Event, containerID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		ID string `json:"id"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, containerID, payload.Container.ID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, containerID, payload.Process.Container.ID)
+}
+
 // TestCGroupPropagation validates cgroup propagation when a process is born into
 // a different cgroup via CLONE_INTO_CGROUP. The "open-event" subtest checks that
 // the child's open is correctly attributed to the new cgroup; the
@@ -261,7 +432,7 @@ func TestCGroupPropagation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer test.Close()
+			defer test.CloseTest()
 
 			targetCGroupPath := "/sys/fs/cgroup/" + tc.cgroupName
 			if err := os.MkdirAll(targetCGroupPath, 0700); err != nil {
@@ -340,7 +511,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
@@ -405,7 +576,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
 		ebpfProbe := test.probe.PlatformProbe.(*probe.EBPFProbe)
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteEntry.PPid, testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
@@ -415,7 +586,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
 		newEntry = nil
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterEntry.PPid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
@@ -460,7 +631,7 @@ func TestCGroupVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -539,7 +710,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
@@ -601,7 +772,7 @@ func TestCGroupWriteEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
@@ -622,4 +793,69 @@ func TestCGroupWriteEvent(t *testing.T) {
 			validateProcessContext(t, event)
 		}, "test_cgroup_write_rule")
 	})
+}
+
+// TestCGroupFailedWrite checks that a cgroup migration rejected by the kernel doesn't
+// change the cgroup context of the process
+func TestCGroupFailedWrite(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup failed write test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	if _, err := os.Stat("/sys/fs/cgroup/cgroup.subtree_control"); err != nil {
+		t.Skip("cgroup v2 unified hierarchy is required")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_failed_write",
+			Expression: `open.file.path == "{{.Root}}/test-open-failed-write"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	// a cgroup with controllers enabled for its children can't contain processes, writing
+	// to its cgroup.procs file fails with EBUSY
+	parentCGroupPath := "/sys/fs/cgroup/cws-failed-write"
+	if err := os.Mkdir(parentCGroupPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(parentCGroupPath)
+
+	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+pids"), 0700); err != nil {
+		t.Skipf("failed to enable the pids controller: %v", err)
+	}
+
+	childCGroupPath := parentCGroupPath + "/child"
+	if err := os.Mkdir(childCGroupPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(childCGroupPath)
+
+	testFile, testFilePtr, err := test.Path("test-open-failed-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		if err := os.WriteFile(parentCGroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err == nil {
+			return errors.New("cgroup write should have failed")
+		}
+
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_failed_write")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldNotEqual(t, event, "process.cgroup.id", "/cws-failed-write")
+	}, "test_cgroup_failed_write")
 }

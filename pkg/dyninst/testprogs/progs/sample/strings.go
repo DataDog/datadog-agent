@@ -5,7 +5,12 @@
 
 package main
 
-import "strings"
+import (
+	"context"
+	"strings"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 //nolint:all
 //go:noinline
@@ -62,7 +67,10 @@ func testInvalidUtf8Strings(a string, b string) {}
 func testMultibyteUtf8String(x string) {}
 
 //nolint:all
-func executeStringFuncs() {
+func executeStringFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.strings")
+	defer span.Finish()
+
 	abc := "abc"
 	testSingleString(abc)
 	testThreeStrings(abc, "def", "ghi")

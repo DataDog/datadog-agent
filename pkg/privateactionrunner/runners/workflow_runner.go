@@ -16,8 +16,10 @@ import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -40,6 +42,8 @@ type WorkflowRunner struct {
 
 func NewWorkflowRunner(
 	configuration *config.Config,
+	coreConfig model.Reader,
+	rcClient rcclient.Client,
 	keysManager taskverifier.KeysManager,
 	verifier taskverifier.TaskVerifier,
 	opmsClient opms.Client,
@@ -50,7 +54,10 @@ func NewWorkflowRunner(
 	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	taskExecutor, err := NewWorkflowTaskExecutor(configuration, coreConfig, rcClient, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	if err != nil {
+		return nil, err
+	}
 
 	return &WorkflowRunner{
 		config:          configuration,
@@ -196,7 +203,8 @@ func (n *WorkflowRunner) handleTask(ctx context.Context, preparedTask *PreparedW
 	if err == nil {
 		n.publishSuccess(ctx, task, output)
 	} else {
-		logger.Warn("task execution failed", log.ErrorField(err))
+		// The error text can carry credentials, so it is only published to OPMS.
+		logger.Warn("task execution failed", log.Int32("error_code", int32(util.DefaultPARError(err).ErrorCode)))
 		n.publishFailure(ctx, task, err)
 	}
 }
@@ -208,7 +216,9 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, l
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("Heartbeat stopped for task", log.String("task_id", task.Data.ID))
+			// task_id is already bound on logger's context fields (set by the caller
+			// in handleTask), so it is not passed again here.
+			logger.Info("Heartbeat stopped for task")
 			return
 		case <-ticker.C:
 			err := n.opmsClient.Heartbeat(ctx, task.Data.Attributes.Client, task.Data.ID, task.GetFQN(), task.Data.Attributes.JobId)

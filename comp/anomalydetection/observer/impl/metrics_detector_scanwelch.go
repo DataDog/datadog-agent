@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -22,15 +21,12 @@ type scanwelchStateKey struct {
 // scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
 // Same pattern as scanmwSeriesState and BOCPD (metrics_detector_bocpd.go).
 type scanwelchSeriesState struct {
-	lastWriteGen       int64
-	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
+	lastObservedTime   int64
+	observedPoints     int // cumulative completed points, independent of storage eviction
+	lastProcessedCount int // cumulative point count at the last scan
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	segmentStartTime int64
-
-	// Reusable point buffer — grows once per series, reused across scans
-	// to avoid per-call allocation from GetSeriesRange.
-	buf []observer.Point
 }
 
 // ScanWelchDetector detects changepoints by scanning all possible split points
@@ -69,6 +65,10 @@ type ScanWelchDetector struct {
 
 	// per-series state keyed by ref+agg
 	series map[scanwelchStateKey]*scanwelchSeriesState
+	// scanBuf is shared by this single-writer detector instead of being retained
+	// once per live series and aggregation.
+	scanBuf   []observer.Point
+	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -115,10 +115,7 @@ func (d *ScanWelchDetector) Reset() {
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
-// Each per-series entry holds a reusable point buffer that grows to the
-// segment size, so without this teardown the map keeps growing with the
-// cumulative series count even after storage shrinks. Called by the engine
-// right after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+// RemoveSeries drops segment-tracking state for refs that storage has freed.
 func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
@@ -144,7 +141,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 		d.cachedGen = gen
 	}
 
-	// Bulk-fetch write generations in a single lock acquisition.
+	// Bulk-fetch visible point counts for series activation.
 	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
@@ -168,49 +165,47 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				d.series[sk] = state
 			}
 
-			// Skip unless at least MinSegment new points are visible since the
-			// last scan. Gating on visible point count (not WriteGeneration
-			// alone) is required for replay: storage may already hold future
-			// points, so WriteGeneration reaches its final value before the
-			// simulated dataTime has advanced far enough to expose them, which
-			// would otherwise suppress every scan. WriteGeneration is still
-			// checked to catch same-bucket merges that leave the count
-			// unchanged but move stored values. Mirrors the BOCPD replay gate.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Count newly visible completed buckets, not storage writes. Preloaded
+			// replay has already written future points; streaming writes them as
+			// time advances. Retained point counts also stop growing on eviction.
+			storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+				state.observedPoints++
+				state.lastObservedTime = p.Timestamp
+			})
+			if !activated && state.observedPoints < state.lastProcessedCount+d.MinSegment {
 				continue
 			}
 
-			// Collect points into reusable buffer to avoid per-call allocation.
-			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
-				if seriesMeta == nil {
-					sCopy := *s
-					seriesMeta = &sCopy
+			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.MaxPoints, agg, d.scanBuf)
+			if state.segmentStartTime > 0 {
+				kept := d.scanBuf[:0]
+				for _, p := range d.scanBuf {
+					if p.Timestamp > state.segmentStartTime {
+						kept = append(kept, p)
+					}
 				}
-				state.buf = appendPointWindow(state.buf, d.MaxPoints, p)
-			})
+				d.scanBuf = kept
+			}
 
-			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
-				state.lastWriteGen = status.writeGeneration
+			if seriesMeta == nil || len(d.scanBuf) < d.MinPoints {
+				state.lastProcessedCount = state.observedPoints
 				continue
 			}
 			d.ready = true
 
-			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
+			anomaly, changeIdx, found := d.scanWelch(d.scanBuf, seriesMeta, agg)
 			if found {
 				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
-				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
+				state.segmentStartTime = d.scanBuf[changeIdx].Timestamp - 1
 			}
 
 			if activated {
-				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+				state.lastProcessedCount = 1 + ((state.observedPoints-1)/d.MinSegment)*d.MinSegment
 			} else {
-				state.lastProcessedCount = status.pointCount
+				state.lastProcessedCount = state.observedPoints
 			}
-			state.lastWriteGen = status.writeGeneration
 		}
 	}
 
@@ -221,33 +216,42 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 // Returns (anomaly, changeIndex, found).
 func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
-
-	values := make([]float64, n)
-	for i, p := range points {
-		values[i] = p.Value
+	minSeg := d.MinSegment
+	// A valid split requires MinSegment points on each side. MinPoints is
+	// independently configurable, so a newly activated series may legitimately
+	// reach this method before a candidate split exists.
+	if n < 2*minSeg {
+		return observer.Anomaly{}, 0, false
 	}
 
-	// Phase 1: Scan using Welch's t-statistic (fast, O(n) with cumulative sums).
-	cumSum := make([]float64, n+1)
-	cumSumSq := make([]float64, n+1)
-	for i, v := range values {
-		cumSum[i+1] = cumSum[i] + v
-		cumSumSq[i+1] = cumSumSq[i] + v*v
+	values := d.workspace.valuesFromPoints(points)
+
+	// Phase 1: Scan using Welch's t-statistic. Keep the total moments and
+	// advance the left-side moments as the split moves, instead of retaining a
+	// prefix array for every candidate split.
+	var totalSum, totalSumSq float64
+	for _, v := range values {
+		totalSum += v
+		totalSumSq += v * v
+	}
+	var leftSum, leftSumSq float64
+	for _, v := range values[:minSeg] {
+		leftSum += v
+		leftSumSq += v * v
 	}
 
 	bestTAbs := 0.0
 	bestK := -1
-
-	minSeg := d.MinSegment
 	for k := minSeg; k <= n-minSeg; k++ {
 		fk := float64(k)
 		fnk := float64(n - k)
 
-		leftMean := cumSum[k] / fk
-		rightMean := (cumSum[n] - cumSum[k]) / fnk
+		leftMean := leftSum / fk
+		rightSum := totalSum - leftSum
+		rightMean := rightSum / fnk
 
-		leftVar := cumSumSq[k]/fk - leftMean*leftMean
-		rightVar := (cumSumSq[n]-cumSumSq[k])/fnk - rightMean*rightMean
+		leftVar := leftSumSq/fk - leftMean*leftMean
+		rightVar := (totalSumSq-leftSumSq)/fnk - rightMean*rightMean
 
 		if leftVar < 1e-12 {
 			leftVar = 1e-12
@@ -266,6 +270,12 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 			bestTAbs = t
 			bestK = k
 		}
+
+		if k < n-minSeg {
+			v := values[k]
+			leftSum += v
+			leftSumSq += v * v
+		}
 	}
 
 	if bestK < 0 || bestTAbs < d.MinTStatistic {
@@ -273,7 +283,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	}
 
 	// Phase 2: Verify using Mann-Whitney at the best split point.
-	ranks, tieCorrection := assignRanks(values)
+	ranks, tieCorrection := d.workspace.assignRanks(values)
 	var R1 float64
 	for i := 0; i < bestK; i++ {
 		R1 += ranks[i]
@@ -315,9 +325,9 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	// Phase 3: Robust deviation check
 	preVals := values[:bestK]
 	postVals := values[bestK:]
-	preMedian := detectorMedian(preVals)
-	postMedian := detectorMedian(postVals)
-	preMAD := detectorMAD(preVals, preMedian, false)
+	preMedian := d.workspace.median(preVals)
+	postMedian := d.workspace.median(postVals)
+	preMAD := d.workspace.mad(preVals, preMedian)
 
 	denom := preMAD
 	if denom < 1e-10 {
@@ -329,32 +339,26 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	}
 
 	changePtTime := points[bestK].Timestamp
-	direction := "increased"
-	if postMedian < preMedian {
-		direction = "decreased"
-	}
-
 	score := -math.Log10(pValue)
 	if math.IsInf(score, 1) {
 		score = 300.0
 	}
 
-	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
-		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
-		DetectorName: d.Name(),
-		Title:        "ScanWelch changepoint: " + seriesName,
-		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
-			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
+		Type:                observer.AnomalyTypeMetric,
+		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
+		DetectorName:        d.Name(),
 		Timestamp:           changePtTime,
 		Score:               &score,
-		SamplingIntervalSec: medianPointInterval(points),
+		SamplingIntervalSec: d.workspace.medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,
 			CurrentValue:   postMedian,
 			DeviationSigma: deviation,
+			PValue:         pValue,
+			EffectSize:     effectSize,
+			TestStatistic:  bestTAbs,
 		},
 	}
 

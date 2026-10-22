@@ -186,7 +186,11 @@ def _extract_call_names(text: str, call_name: str, path: Path) -> set[str]:
         i = pos + len(marker)
         while i < len(text) and depth:
             c = text[i]
-            if c == "(":
+            if c == "#":
+                while i < len(text) and text[i] != "\n":
+                    i += 1
+                continue
+            elif c == "(":
                 depth += 1
             elif c == ")":
                 depth -= 1

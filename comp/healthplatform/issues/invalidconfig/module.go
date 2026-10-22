@@ -34,7 +34,7 @@ type invalidConfigModule struct {
 
 // NewModule captures the config so the once-only startup check can read it.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config, deps.Hostname)}
+	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config, deps.Hostname, deps.SelfIdent)}
 }
 
 func (m *invalidConfigModule) IssueName() string {
@@ -60,7 +60,7 @@ func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPer
 // the flag is disabled — returning nil/empty resolves any previously-stored
 // issues rather than leaving them orphaned.
 //
-// The gate exists because schema.ValidateCoreConfig decompresses, parses, and
+// The gate exists because schema.ValidateConfig decompresses, parses, and
 // compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema
 // stored in a process-lifetime global — adding ~8 MiB of permanent heap even
 // when the agent config is valid.

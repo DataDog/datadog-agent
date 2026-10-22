@@ -1,0 +1,12 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//visibility:private"])
+
+# Version parsing/comparison helper. Imported as `tasks.libs.types.version` by
+# tools that need to order settings by the agent version they were introduced
+# in (e.g. //tasks/schema:codegen_settings_main). Stdlib-only.
+py_library(
+    name = "version",
+    srcs = ["version.py"],
+    visibility = ["//tasks/schema:__pkg__"],
+)

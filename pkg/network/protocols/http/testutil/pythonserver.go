@@ -87,8 +87,7 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) *exec.Cmd {
 	require.NoError(t, err)
 
 	cmd := exec.Command("python3", scriptFile.Name(), strconv.FormatBool(options.EnableTLS))
-
-	go require.NoError(t, cmd.Start())
+	require.NoError(t, cmd.Start())
 
 	// Waiting for the server to be ready
 	portCtx, cancelPortCtx := context.WithDeadline(context.Background(), time.Now().Add(time.Second*5))

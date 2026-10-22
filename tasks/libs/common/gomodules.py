@@ -96,7 +96,7 @@ class GoModule:
     """A Go module abstraction.
 
     See:
-        Documentation can be found in <docs/dev/modules.md>.
+        Documentation can be found at https://datadoghq.dev/datadog-agent/how-to/go/modules/.
 
     Args:
         test_targets: Directories to unit test.
@@ -129,6 +129,7 @@ class GoModule:
         'always': lambda platform=None: True,
         'never': lambda platform=None: False,
         'is_linux': lambda platform=None: (platform or sys.platform) == "linux",
+        'not_aix': lambda platform=None: (platform or sys.platform) != "aix",
     }
 
     # Posix path of the module's directory

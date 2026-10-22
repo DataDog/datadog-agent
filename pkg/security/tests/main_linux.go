@@ -85,6 +85,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSetrlimitEvent",
 			"TestPrCtl",
 			"TestCGroupVariables",
+			"TestCGroupContainerForkNoExec",
 			"TestTimestampVariable",
 		}
 
@@ -207,7 +208,7 @@ func preTestsHook() {
 
 func postTestsHook() {
 	if testMod != nil {
-		testMod.cleanup()
+		testMod.CloseTestAndMonitor()
 	}
 
 	if restoreRCU != nil {

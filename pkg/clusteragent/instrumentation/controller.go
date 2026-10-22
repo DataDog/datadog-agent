@@ -15,11 +15,13 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,13 +37,14 @@ type Controller struct {
 	workqueue    workqueue.TypedRateLimitingInterface[string]
 	handlers     []Handler
 	isLeader     func() bool
+	telemetry    *controllerTelemetry
 
 	lastSeenMu sync.Mutex
 	lastSeen   map[string]*datadoghq.DatadogInstrumentation
 }
 
 // NewController creates a DatadogInstrumentation controller backed by a dynamic informer.
-func NewController(statusClient dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, handlers []Handler, isLeader func() bool) (*Controller, error) {
+func NewController(statusClient dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, handlers []Handler, isLeader func() bool, telemetryComp coretelemetry.Component) (*Controller, error) {
 	datadogInstrumentationInformer := informer.ForResource(DatadogInstrumentationGVR)
 	c := &Controller{
 		statusClient: statusClient,
@@ -50,6 +53,7 @@ func NewController(statusClient dynamic.Interface, informer dynamicinformer.Dyna
 		workqueue:    workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedItemBasedRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "datadoginstrumentations"}),
 		handlers:     handlers,
 		isLeader:     isLeader,
+		telemetry:    newControllerTelemetry(telemetryComp),
 		lastSeen:     make(map[string]*datadoghq.DatadogInstrumentation),
 	}
 
@@ -71,7 +75,6 @@ func (c *Controller) Run(ctx context.Context) {
 		log.Errorf("Failed to wait for DatadogInstrumentation caches to sync")
 		return
 	}
-
 	go c.worker(ctx)
 
 	log.Infof("Started DatadogInstrumentation Controller (cache sync finished)")
@@ -132,6 +135,8 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 			eventCR = old
 		}
 		status, err := handler.Handle(ctx, eventType, eventCR)
+		success := err == nil && status.Status == metav1.ConditionTrue
+		c.telemetry.recordReconciliation(handler.Name(), success)
 		if err != nil {
 			return err
 		}
@@ -200,6 +205,7 @@ func (c *Controller) enqueueKey(obj interface{}) {
 }
 
 func (c *Controller) handleAdd(obj interface{}) {
+	c.telemetry.resources.Inc()
 	c.enqueueKey(obj)
 }
 
@@ -213,6 +219,7 @@ func (c *Controller) handleUpdate(oldObj, newObj interface{}) {
 }
 
 func (c *Controller) handleDelete(obj interface{}) {
+	c.telemetry.resources.Dec()
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
 	}

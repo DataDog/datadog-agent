@@ -8,11 +8,16 @@ package os
 // Implements commonly used descriptors for easier usage
 // See platforms.go for the AMIs used for each OS
 var (
-	WindowsServerDefault = WindowsServer2025
+	WindowsServerDefault = WindowsServer2025E2E
 	WindowsServer2025    = NewDescriptor(WindowsServer, "2025")
 	WindowsServer2022    = NewDescriptor(WindowsServer, "2022")
 	WindowsServer2019    = NewDescriptor(WindowsServer, "2019")
 	WindowsServer2016    = NewDescriptor(WindowsServer, "2016")
+
+	WindowsServer2025E2E = NewDescriptor(WindowsServer, "2025-e2e")
+	WindowsServer2022E2E = NewDescriptor(WindowsServer, "2022-e2e")
+	WindowsServer2019E2E = NewDescriptor(WindowsServer, "2019-e2e")
+	WindowsServer2016E2E = NewDescriptor(WindowsServer, "2016-e2e")
 
 	WindowsClientDefault = WindowsClient1124H2
 	WindowsClient11      = WindowsClient1124H2
@@ -31,8 +36,8 @@ var WindowsDescriptorsDefault = map[Flavor]Descriptor{
 
 // WindowsServerVersionsForE2E is the set of Windows Server versions used for e2e random selection (CI coverage across 2016–2025).
 var WindowsServerVersionsForE2E = []Descriptor{
-	WindowsServer2016,
-	WindowsServer2019,
-	WindowsServer2022,
-	WindowsServer2025,
+	WindowsServer2016E2E,
+	WindowsServer2019E2E,
+	WindowsServer2022E2E,
+	WindowsServer2025E2E,
 }

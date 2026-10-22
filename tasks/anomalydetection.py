@@ -35,6 +35,7 @@ from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
     DETECTORS,
     EXTRACTORS,
+    F1_SCORING_VERSION,
     SCENARIOS,
     SUPPORTED_CORRELATORS,
     StepLogger,
@@ -120,16 +121,19 @@ def launch_testbench(
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",
-    profile: bool = False,
+    mem_profile: bool = False,
+    cpu_profile: bool = False,
     open_pprof: bool = False,
     verbose: bool = False,
-    profile_path: str = "",
+    mem_profile_path: str = "",
+    cpu_profile_path: str = "",
     config: str = "",
     enable: str = "",
     disable: str = "",
     timeout: int = 0,
     logs_only: bool = False,
     retain_parquet: bool = False,
+    allowed_types: str = "",
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -137,20 +141,28 @@ def launch_testbench(
     Args:
         scenarios_dir: Directory containing the scenarios to load.
         build: Whether to build the binary before launching.
-        profile: Whether to capture a heap profile (headless mode only).
-        open_pprof: Open pprof UI after headless run (requires --profile).
+        mem_profile: Whether to capture a heap profile (headless mode only).
+        cpu_profile: Whether to capture a CPU profile (headless mode only).
+        open_pprof: Open pprof UI after headless run (requires exactly one profile type).
         verbose: Pass --verbose to the testbench.
-        profile_path: Override the default heap-profile output path.
+        mem_profile_path: Override the default heap-profile output path.
+        cpu_profile_path: Override the default CPU-profile output path.
         config: JSON params file; overrides --enable/--disable when set.
         enable: Comma-separated components to enable (passed as --enable).
         disable: Comma-separated components to disable (passed as --disable).
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
         retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
+        allowed_types: Comma-separated allowed metric types (passed as --allowed_types).
     """
     if build:
         print("Building anomalydetection-testbench...")
         build_testbench(ctx)
+
+    if open_pprof and not (mem_profile or cpu_profile):
+        raise Exit("--open-pprof requires --mem-profile or --cpu-profile")
+    if open_pprof and mem_profile and cpu_profile:
+        raise Exit("--open-pprof supports one profile type at a time; choose --mem-profile or --cpu-profile")
 
     flags = ""
     if verbose:
@@ -159,6 +171,8 @@ def launch_testbench(
         flags += " --logs-only"
     if retain_parquet:
         flags += " --retain-parquet"
+    if allowed_types:
+        flags += f" --allowed_types {shlex.quote(allowed_types)}"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:
@@ -170,10 +184,14 @@ def launch_testbench(
     if headless_scenario:
         if not headless_output:
             headless_output = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.json"
-        if profile:
-            if not profile_path:
-                profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.prof"
-            flags += f" --memprofile {profile_path}"
+        if mem_profile:
+            if not mem_profile_path:
+                mem_profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.mem.prof"
+            flags += f" --memprofile {shlex.quote(mem_profile_path)}"
+        if cpu_profile:
+            if not cpu_profile_path:
+                cpu_profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.cpu.prof"
+            flags += f" --cpuprofile {shlex.quote(cpu_profile_path)}"
         print(
             f"Launching anomalydetection-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
@@ -187,12 +205,13 @@ def launch_testbench(
                 print(color_message(f"testbench timed out after {timeout}s", Color.ORANGE))
             else:
                 raise
-        if profile:
+        selected_profile_path = mem_profile_path if mem_profile else cpu_profile_path
+        if selected_profile_path:
             if open_pprof:
                 print("Running pprof...")
-                ctx.run(f"go tool pprof -http=:8081 {profile_path}")
+                ctx.run(f"go tool pprof -http=:8081 {shlex.quote(selected_profile_path)}")
             else:
-                print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
+                print(f"To profile, run: go tool pprof -http=:8081 {selected_profile_path}")
     else:
         if not config and not enable and not disable:
             flags += " --only scanmw,scanwelch,bocpd"
@@ -498,23 +517,23 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd, rrcf, and
+    Default (no --only): uses testbench defaults (bocpd and
       anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
-      time_cluster is auto-added if not specified.
+      anomaly_scorer is auto-added to emit the high-severity episodes scored by F1.
     With --config: JSON params file for testbench; overrides --only when both are set.
 
     Examples:
         dda inv anomalydetection.eval-scenarios                            # defaults
-        dda inv anomalydetection.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
-        dda inv anomalydetection.eval-scenarios --only bocpd,time_cluster  # explicit
+        dda inv anomalydetection.eval-scenarios --only scanmw              # scanmw + anomaly_scorer (auto)
+        dda inv anomalydetection.eval-scenarios --only bocpd,anomaly_scorer # explicit
         dda inv anomalydetection.eval-scenarios --config /tmp/params.json  # custom params
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
-        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
+        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds anomaly_scorer.
         build: Whether to build the anomalydetection-testbench and anomalydetection-scorer binaries.
         main_report_path: Path for the aggregated JSON report.
         config: Path to anomalydetection-testbench JSON params file (--config). Empty: omit flag.
@@ -528,7 +547,7 @@ def eval_scenarios(
     only_flag = ""
     if only:
         components = {name.strip() for name in only.split(",") if name.strip()}
-        components.add("time_cluster")
+        components.add("anomaly_scorer")
         only_flag = ",".join(sorted(components))
         print(color_message(f"Only: {only_flag}", Color.BLUE))
 
@@ -1014,6 +1033,7 @@ def _bayesian_evaluation_inputs(
         sorted(s.strip() for s in scenarios.split(",") if s.strip()) if scenarios else sorted(SCENARIOS)
     )
     inputs = {
+        "scoring_version": F1_SCORING_VERSION if eval_backend == "local" else "ddeval",
         "scenarios": selected_scenarios if eval_backend == "local" else [],
         "scenarios_dir": os.path.abspath(scenarios_dir) if eval_backend == "local" else "",
         "sigma": float(sigma),
@@ -1241,7 +1261,7 @@ def eval_bayesian(
 
     Examples:
         dda inv --dep optuna anomalydetection.eval-bayesian
-        dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
+        dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,scanmw,time_cluster
         dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
         dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
         dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval \

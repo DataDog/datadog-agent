@@ -74,7 +74,7 @@ func (s *testInstallSuite) TestInstall() {
 
 	// run tests
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 	s.testCodeSignatures(t, remoteMSIPath)
 	for _, f := range filesThatNeedToBeReplaced {
@@ -231,7 +231,7 @@ func (s *testInstallAltDirSuite) TestInstallAltDir() {
 
 	// run tests
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
@@ -258,9 +258,15 @@ func (s *testInstallAltDirAndCorruptForUninstallSuite) TestInstallAltDirAndCorru
 		windowsAgent.WithApplicationDataDirectory(configRoot),
 	)
 
+	// Stop the agent before deleting the registry key below: otherwise the running
+	// service (as ddagentuser) can lose track of configRoot and recreate the default
+	// config dir itself, leaving it with an untrusted owner.
+	err := windowsCommon.StopService(vm, "DatadogAgent")
+	s.Require().NoError(err)
+
 	// remove registry key that contains install info to ensure uninstall succeeds
 	// with a corrupted install
-	err := windowsCommon.DeleteRegistryKey(vm, windowsAgent.RegistryKeyPath)
+	err = windowsCommon.DeleteRegistryKey(vm, windowsAgent.RegistryKeyPath)
 	s.Require().NoError(err)
 
 	// uninstall the agent
@@ -315,12 +321,12 @@ func (s *testRepairSuite) TestRepair() {
 		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
 		s.Require().NoError(err)
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests, agent should function normally after repair
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
@@ -479,7 +485,7 @@ func (s *testInstallFailSuite) TestInstallFail() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// currently the install failure tests are the same as the uninstall tests

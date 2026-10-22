@@ -5,10 +5,10 @@ go_library(
     srcs = [
         "config_overrides.go",
         "config_overrides_test_helpers.go",
+        "delegated_auth.go",
         "doc.go",
         "stringify.go",
         "types.go",
-        "warnings.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/model",
     visibility = ["//visibility:public"],

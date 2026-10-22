@@ -11,11 +11,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -179,7 +181,8 @@ func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 		pathForPID := filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid)))
 		cmd := strings.Join(probe.getCmdline(pathForPID), " ")
 		statInfo := probe.parseStat(pathForPID, pid, time.Now())
-		if cmd == "" && (isKernelThread(statInfo.flags) || probe.ignoreZombieProcesses) {
+		statusInfo := probe.parseStatus(pathForPID)
+		if (cmd == "" && isKernelThread(statInfo.flags)) || (probe.ignoreZombieProcesses && statusInfo.isZombie()) {
 			assert.NotContains(t, procByPID, pid)
 		} else {
 			assert.Contains(t, procByPID, pid)
@@ -204,6 +207,171 @@ func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 		// Make sure that the memory stats are not collected
 		assert.Empty(t, proc.Stats.MemInfoEx)
 	}
+}
+
+func setupSyntheticProcessFS(t *testing.T, state string, cmdline []byte) (string, int32) {
+	t.Helper()
+
+	const pid int32 = 12345
+	root := t.TempDir()
+	pidPath := filepath.Join(root, strconv.Itoa(int(pid)))
+	require.NoError(t, os.MkdirAll(filepath.Join(pidPath, "fd"), 0755))
+
+	writeFile := func(name, content string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(pidPath, name), []byte(content), 0644))
+	}
+
+	writeFile("status", "Name:\tzombie-test\n"+
+		"State:\t"+state+"\n"+
+		"Uid:\t1000\t1001\t1002\t1003\n"+
+		"Gid:\t2000\t2001\t2002\t2003\n"+
+		"NSpid:\t54321\n"+
+		"Threads:\t1\n"+
+		"VmRSS:\t100 kB\n"+
+		"VmSize:\t200 kB\n"+
+		"VmSwap:\t300 kB\n"+
+		"voluntary_ctxt_switches:\t7\n"+
+		"nonvoluntary_ctxt_switches:\t8\n")
+	writeFile("stat", strconv.Itoa(int(pid))+" (zombie-test) "+state[:1]+" 42 0 0 0 0 0 0 0 0 0 10 5 0 0 20 0 1 0 100 0 0 0 0\n")
+	writeFile("comm", "zombie-comm\n")
+	require.NoError(t, os.WriteFile(filepath.Join(pidPath, "cmdline"), cmdline, 0644))
+	writeFile("statm", "1 2 3 4 5 6 7\n")
+	writeFile("io", "syscr: 11\nsyscw: 12\nread_bytes: 13\nwrite_bytes: 14\n")
+	writeFile(filepath.Join("fd", "1"), "sentinel")
+	require.NoError(t, os.Symlink("sentinel-cwd", filepath.Join(pidPath, "cwd")))
+	require.NoError(t, os.Symlink("sentinel-exe", filepath.Join(pidPath, "exe")))
+
+	return root, pid
+}
+
+func watchProcEntryOpens(t *testing.T, pidPath string) func() []string {
+	t.Helper()
+
+	fd, err := syscall.InotifyInit1(syscall.O_CLOEXEC | syscall.O_NONBLOCK)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, syscall.Close(fd)) })
+
+	entriesByWatch := make(map[int]string)
+	for _, entry := range []string{"status", "stat", "comm", "cmdline", "statm", "io", "fd"} {
+		watch, err := syscall.InotifyAddWatch(fd, filepath.Join(pidPath, entry), syscall.IN_OPEN)
+		require.NoError(t, err)
+		entriesByWatch[watch] = entry
+	}
+
+	return func() []string {
+		t.Helper()
+
+		opened := make(map[string]struct{})
+		buffer := make([]byte, 4096)
+		for {
+			n, err := syscall.Read(fd, buffer)
+			if err == syscall.EAGAIN {
+				break
+			}
+			require.NoError(t, err)
+
+			for offset := 0; offset+syscall.SizeofInotifyEvent <= n; {
+				event := (*syscall.InotifyEvent)(unsafe.Pointer(&buffer[offset]))
+				if event.Mask&syscall.IN_OPEN != 0 {
+					opened[entriesByWatch[int(event.Wd)]] = struct{}{}
+				}
+				offset += syscall.SizeofInotifyEvent + int(event.Len)
+			}
+		}
+
+		entries := make([]string, 0, len(opened))
+		for entry := range opened {
+			entries = append(entries, entry)
+		}
+		sort.Strings(entries)
+		return entries
+	}
+}
+
+func TestZombieProcessCollectionSkipsUnavailableProcFiles(t *testing.T) {
+	root, pid := setupSyntheticProcessFS(t, "Z (zombie)", []byte("sentinel\x00argument"))
+	probe := getProbeWithPermission(WithProcFSRoot(root))
+	defer probe.Close()
+	openedEntries := watchProcEntryOpens(t, filepath.Join(root, strconv.Itoa(int(pid))))
+
+	proc, err := probe.processFromPID(pid, true, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, proc)
+	require.NotNil(t, proc.Stats)
+
+	assert.Equal(t, pid, proc.Pid)
+	assert.Equal(t, int32(42), proc.Ppid)
+	assert.Equal(t, int32(54321), proc.NsPid)
+	assert.Equal(t, "zombie-test", proc.Name)
+	assert.Equal(t, "zombie-comm", proc.Comm)
+	assert.Equal(t, []int32{1000, 1001, 1002, 1003}, proc.Uids)
+	assert.Equal(t, []int32{2000, 2001, 2002, 2003}, proc.Gids)
+	assert.Equal(t, "Z", proc.Stats.Status)
+	assert.Equal(t, int32(1), proc.Stats.NumThreads)
+	assert.Equal(t, &NumCtxSwitchesStat{Voluntary: 7, Involuntary: 8}, proc.Stats.CtxSwitches)
+	assert.NotZero(t, proc.Stats.CreateTime)
+	assert.NotNil(t, proc.Stats.CPUTime)
+
+	assert.Empty(t, proc.Cmdline)
+	assert.Empty(t, proc.Cwd)
+	assert.Empty(t, proc.Exe)
+	assert.Equal(t, &MemoryInfoStat{RSS: 100 * 1024, VMS: 200 * 1024, Swap: 300 * 1024}, proc.Stats.MemInfo)
+	assert.Equal(t, &MemoryInfoExStat{}, proc.Stats.MemInfoEx)
+	assert.Zero(t, proc.Stats.OpenFdCount)
+	require.NotNil(t, proc.Stats.IOStat)
+	assert.True(t, proc.Stats.IOStat.IsZeroValue())
+	assert.Equal(t, []string{"comm", "stat", "status"}, openedEntries())
+}
+
+func TestZombieStatsForPIDsSkipsUnavailableProcFiles(t *testing.T) {
+	root, pid := setupSyntheticProcessFS(t, "Z (zombie)", []byte("sentinel\x00argument"))
+	probe := getProbeWithPermission(WithProcFSRoot(root))
+	defer probe.Close()
+	openedEntries := watchProcEntryOpens(t, filepath.Join(root, strconv.Itoa(int(pid))))
+
+	statsByPID, err := probe.StatsForPIDs([]int32{pid}, time.Now())
+	require.NoError(t, err)
+	stats := statsByPID[pid]
+	require.NotNil(t, stats)
+
+	assert.Equal(t, "Z", stats.Status)
+	assert.Equal(t, int32(1), stats.NumThreads)
+	assert.Equal(t, &NumCtxSwitchesStat{Voluntary: 7, Involuntary: 8}, stats.CtxSwitches)
+	assert.NotZero(t, stats.CreateTime)
+	assert.NotNil(t, stats.CPUTime)
+	assert.Equal(t, &MemoryInfoStat{RSS: 100 * 1024, VMS: 200 * 1024, Swap: 300 * 1024}, stats.MemInfo)
+	assert.Equal(t, &MemoryInfoExStat{}, stats.MemInfoEx)
+	assert.Zero(t, stats.OpenFdCount)
+	require.NotNil(t, stats.IOStat)
+	assert.True(t, stats.IOStat.IsZeroValue())
+	assert.Equal(t, []string{"stat", "status"}, openedEntries())
+}
+
+func TestIgnoreZombieProcessesUsesProcessState(t *testing.T) {
+	t.Run("zombie is ignored", func(t *testing.T) {
+		root, pid := setupSyntheticProcessFS(t, "Z (zombie)", []byte("sentinel\x00argument"))
+		probe := getProbeWithPermission(WithProcFSRoot(root), WithIgnoreZombieProcesses(true))
+		defer probe.Close()
+		openedEntries := watchProcEntryOpens(t, filepath.Join(root, strconv.Itoa(int(pid))))
+
+		proc, err := probe.processFromPID(pid, true, time.Now())
+		require.NoError(t, err)
+		assert.Nil(t, proc)
+		assert.Equal(t, []string{"status"}, openedEntries())
+	})
+
+	t.Run("live process with empty cmdline is retained", func(t *testing.T) {
+		root, pid := setupSyntheticProcessFS(t, "S (sleeping)", nil)
+		probe := getProbeWithPermission(WithProcFSRoot(root), WithIgnoreZombieProcesses(true))
+		defer probe.Close()
+
+		proc, err := probe.processFromPID(pid, false, time.Now())
+		require.NoError(t, err)
+		require.NotNil(t, proc)
+		assert.Equal(t, "S", proc.Stats.Status)
+		assert.Empty(t, proc.Cmdline)
+	})
 }
 
 func compareProcess(t *testing.T, procV1, procV2 *Process) {
@@ -591,6 +759,13 @@ func TestParseStatusLine(t *testing.T) {
 		probe.parseStatusLine(tc.line, result)
 		assert.EqualValues(t, tc.expected, result)
 	}
+}
+
+func TestStatusInfoIsZombie(t *testing.T) {
+	assert.False(t, (*statusInfo)(nil).isZombie())
+	assert.False(t, (&statusInfo{}).isZombie())
+	assert.False(t, (&statusInfo{status: []byte("R")}).isZombie())
+	assert.True(t, (&statusInfo{status: []byte("Z")}).isZombie())
 }
 
 func BenchmarkParseStatusLine(b *testing.B) {

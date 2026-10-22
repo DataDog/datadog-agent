@@ -44,6 +44,14 @@ func (r *stubRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAge
 
 func (r *stubRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return nil }
 
+func (r *stubRegistry) ListCommands(_ context.Context) []*pb.CommandProvider {
+	return nil
+}
+
+func (r *stubRegistry) ExecuteCommand(_ context.Context, _ *pb.ExecuteCommandRequest, _ func(*pb.ExecuteCommandResponse) error) error {
+	return nil
+}
+
 func serverWithStore(store healthplatformstore.Component) *serverSecure {
 	return &serverSecure{healthPlatformStore: store}
 }

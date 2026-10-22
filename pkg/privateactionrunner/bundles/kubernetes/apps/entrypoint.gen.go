@@ -15,10 +15,12 @@ func NewKubernetesApps() *KubernetesApps {
 	return &KubernetesApps{
 		actions: map[string]types.Action{
 			// Manual actions
-			"restartDeployment":         NewRestartDeploymentHandler(),
-			"rollbackDeployment":        NewRollbackDeploymentHandler(),
-			"scaleDeployment":           NewScaleDeploymentHandler(),
-			"scaleDeploymentVertically": NewScaleDeploymentVerticallyHandler(),
+			"restartDeployment":            NewRestartDeploymentHandler(),
+			"rollbackDeployment":           NewRollbackDeploymentHandler(),
+			"scaleDeployment":              NewScaleDeploymentHandler(),
+			"scaleDeploymentVertically":    NewScaleDeploymentVerticallyHandler(),
+			"scaleStatefulSetHorizontally": NewScaleStatefulSetHorizontallyHandler(),
+			"scaleStatefulSetVertically":   NewScaleStatefulSetVerticallyHandler(),
 			// Auto-generated actions
 			"createControllerRevision":          NewCreateControllerRevisionHandler(),
 			"updateControllerRevision":          NewUpdateControllerRevisionHandler(),

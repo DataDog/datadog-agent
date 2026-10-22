@@ -47,41 +47,28 @@ go_library(
     }),
 )
 
-# ebpf_types_linux_test.go and probe_test.go must be in separate rules because
-# ebpf_types_linux_test.go needs //pkg/ebpf/ebpftest:cgo_align (for TestCgoAlignment)
-# while probe_test.go needs //pkg/ebpf/ebpftest (for TestBuildMode/CORE).
-# Both targets share importpath "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-# and cannot coexist in the same rule's deps.
-
-dd_agent_go_test(
-    name = "noisyneighbor_types_test",
-    # keep: split from noisyneighbor_test; see comment above.
-    srcs = ["ebpf_types_linux_test.go"],
-    embed = [":noisyneighbor"],
-    # keep: cgo_align has the same importpath as ebpftest; see pkg/ebpf/ebpftest/BUILD.bazel.
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "//pkg/ebpf/ebpftest:cgo_align",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/ebpf/ebpftest:cgo_align",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
 dd_agent_go_test(
     name = "noisyneighbor_test",
-    # keep: split from noisyneighbor_types_test; see comment above.
-    srcs = ["probe_test.go"],
+    srcs = [
+        "ebpf_types_linux_test.go",
+        "probe_test.go",
+    ],
     embed = [":noisyneighbor"],
     gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
-    # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
-    deps = [
-        "//pkg/ebpf",
-        "//pkg/ebpf/ebpftest",
-        "//pkg/util/kernel",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/ebpftest",
+            "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/ebpftest",
+            "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

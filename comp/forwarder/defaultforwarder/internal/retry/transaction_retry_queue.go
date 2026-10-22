@@ -131,7 +131,7 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 		}
 		tc.onDropPoints(pointCountDroppped)
 		inMemTransactionDroppedCount = len(transactions)
-		tc.telemetry.addTransactionsDroppedCount(inMemTransactionDroppedCount)
+		tc.telemetry.addTransactionsDropped(transactions)
 	}
 
 	tc.transactions = append(tc.transactions, t)

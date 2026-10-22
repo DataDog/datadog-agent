@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
@@ -39,9 +40,10 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 var datadogConnectorType = component.MustNewType("datadog")
@@ -77,7 +79,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewComponent(t.Context(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
+	extension, err := NewComponent(t.Context(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.New[ipc.Component](ipcmock.New(t)), true, false)
 	assert.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, extension.Shutdown(t.Context()))
@@ -135,7 +137,7 @@ func TestGetConfDump(t *testing.T) {
 	err = conf.Marshal(c)
 	assert.NoError(t, err)
 
-	err = ext.NotifyConfig(t.Context(), conf)
+	err = ext.NotifyConfigSnapshot(t.Context(), extensioncapabilities.NewConfigSnapshot(conf, nil))
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {

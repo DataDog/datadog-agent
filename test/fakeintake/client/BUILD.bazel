@@ -5,6 +5,8 @@ go_library(
     name = "client",
     srcs = [
         "client.go",
+        "dbStatement.go",
+        "idxTracePayload.go",
         "par.go",
         "rc.go",
     ],
@@ -12,6 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/metrics/event",
+        "//pkg/proto/pbgo/trace/idx",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
@@ -25,7 +28,10 @@ dd_agent_go_test(
     name = "client_test",
     srcs = [
         "client_integration_test.go",
+        "client_sketches_test.go",
         "client_test.go",
+        "dbStatement_test.go",
+        "idxTracePayload_test.go",
     ],
     embed = [":client"],
     embedsrcs = [
@@ -45,11 +51,16 @@ dd_agent_go_test(
         "fixtures/api_v2_series_response",
     ],
     deps = [
+        "//pkg/proto/pbgo/sds",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
         "@com_github_datadog_agent_payload_v5//agentdiscovery",
+        "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_datadog_agent_payload_v5//metrics/intake_v3",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",

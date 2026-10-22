@@ -7,7 +7,6 @@ package structure
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 )
 
 func constructNtmConfig(content string, dynamicSchema bool, setupFunc func(model.Setup)) model.Config {
-	conf := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := nodetreemodel.NewNodeTreeConfig("datadog", model.CoreSchema) // nolint: forbidigo // legit use case
 
 	if dynamicSchema {
 		conf.SetTestOnlyDynamicSchema(true)
@@ -79,7 +78,7 @@ network_devices:
 
 	// Keys are declared with a default, no warnings generated
 	warnings := conf.Warnings()
-	assert.Equal(t, 0, len(warnings.Errors))
+	assert.Equal(t, 0, len(warnings))
 
 	type simpleConfig struct {
 		Workers int `mapstructure:"workers"`

@@ -62,7 +62,7 @@ func (h *ChecksHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
 func (h *ChecksHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind:
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind, kubernetes.StrimziPodSetKind:
 		return true
 	case kubernetes.ServiceKind:
 		// Service target support is backed by endpoint slices CR provider. If Endpointslice collection
@@ -184,12 +184,14 @@ func translateWorkloadCheck(cr *datadoghq.DatadogInstrumentation, check datadogh
 	}
 
 	return integration.Config{
-		Name:          check.Integration,
-		ADIdentifiers: adIdentifiers,
-		InitConfig:    initConfig,
-		Instances:     instances,
-		CELSelector:   rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
-		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
+		Name:                    check.Integration,
+		ADIdentifiers:           adIdentifiers,
+		InitConfig:              initConfig,
+		Instances:               instances,
+		IgnoreAutodiscoveryTags: check.IgnoreAutodiscoveryTags,
+		CheckTagCardinality:     check.CheckTagCardinality,
+		CELSelector:             rootOwnerCELFilter(cr.Spec.TargetRef, cr.Namespace),
+		Source:                  fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
@@ -199,10 +201,12 @@ func translateServiceCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq
 		return integration.Config{}, err
 	}
 	return integration.Config{
-		Name:       check.Integration,
-		InitConfig: initConfig,
-		Instances:  instances,
-		Source:     fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
+		Name:                    check.Integration,
+		InitConfig:              initConfig,
+		Instances:               instances,
+		IgnoreAutodiscoveryTags: check.IgnoreAutodiscoveryTags,
+		CheckTagCardinality:     check.CheckTagCardinality,
+		Source:                  fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 

@@ -27,18 +27,11 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(
-			// RHEL9
-			ec2.WithAMI(
-				"ami-04e7f0e0bde783f77", // https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462
-				compos.AmazonLinux2,
-				compos.AMD64Arch,
-			),
+			// RHEL9 with SELinux, Docker and network utilities pre-baked (ami-builder: redhat.x86_64."9-selinux-npm").
+			ec2.WithOS(compos.RedHat9SELinuxNPM),
 			ec2.WithInstanceType("t3.medium"))), nil)),
 	}
 
-	// Source of our kitchen CI images test/kitchen/platforms.json
-	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
-	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
 	e2e.Run(t, s, e2eParams...)
 }
 

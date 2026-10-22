@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -20,6 +20,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -34,8 +35,9 @@ type cfg struct {
 	// and uses globals in that package.
 	pkgconfigmodel.Config
 
-	// warnings are the warnings generated during setup
-	warnings *pkgconfigmodel.Warnings
+	// loadError saves the error silenced at loading time when 'WithIgnoreErrors' is used. This option is and should
+	// only be used for flares
+	loadError string
 }
 
 type dependencies struct {
@@ -51,8 +53,9 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          Component
-	FlareProvider flaretypes.Provider
+	Comp           Component
+	FlareProvider  flaretypes.Provider
+	StatusProvider status.InformationProvider
 }
 
 // NewServerlessConfig initializes a config component from the given config file
@@ -76,31 +79,40 @@ func NewServerlessConfig(path string) (Component, error) {
 func newComponent(deps dependencies) (provides, error) {
 	c, err := newConfig(deps)
 	return provides{
-		Comp:          c,
-		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+		Comp:           c,
+		FlareProvider:  flaretypes.NewProvider(c.fillFlare),
+		StatusProvider: status.NewInformationProvider(statusProvider{config: c}),
 	}, err
 }
 
 func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
-	warnings := &pkgconfigmodel.Warnings{}
+	loadError := ""
 
 	if deps.Cfgstream != nil && deps.Cfgstream.IsActive() {
 		// Snapshot already in the global builder; skip disk load to avoid
 		// clobbering streamed values via same-source last-write-wins.
+
 		// Feature detection still needs to run here since LoadDatadog (which
 		// normally triggers it) is skipped on this path.
 		pkgconfigenv.DetectFeatures(config)
-		return &cfg{Config: config, warnings: warnings}, nil
+
+		if deps.Params.configLoadSecurityAgent {
+			if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
+				return &cfg{Config: config}, err
+			}
+		}
+
+		return &cfg{Config: config}, nil
 	}
 
 	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
-			warnings.Errors = []error{e}
+			loadError = e.Error()
 			e = nil
 		}
-		return &cfg{Config: config, warnings: warnings}, e
+		return &cfg{Config: config, loadError: loadError}, e
 	}
 
 	if err != nil {
@@ -113,11 +125,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 		}
 	}
 
-	return &cfg{Config: config, warnings: warnings}, nil
-}
-
-func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
-	return c.warnings
+	return &cfg{Config: config}, nil
 }
 
 func (c *cfg) StartTime() time.Time {
@@ -142,6 +150,10 @@ func (c *cfg) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 		// use best effort to include application_monitoring.yaml to the flare
 		// application_monitoring.yaml is a file that lets customers configure Datadog SDKs at the level of the host
 		fb.CopyFileTo(filepath.Join(confDir, "application_monitoring.yaml"), filepath.Join("etc", "application_monitoring.yaml")) //nolint:errcheck
+	}
+
+	if c.loadError != "" {
+		fb.Logf("Error loading the configuration: %s", c.loadError) // nolint:errcheck
 	}
 
 	for _, path := range c.ExtraConfigFilesUsed() {

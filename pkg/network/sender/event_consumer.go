@@ -9,7 +9,6 @@ package sender
 
 import (
 	"sync/atomic"
-	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -17,7 +16,6 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const eventConsumerSubsystem = "sender__event_consumer"
@@ -87,13 +85,11 @@ func (d *directSenderConsumer) EventTypes() []model.EventType {
 
 // Start implements eventmonitor.EventConsumer
 func (d *directSenderConsumer) Start() error {
-	return nil
+	return d.loadCurrentProcesses()
 }
 
 // Stop implements eventmonitor.EventConsumer
 func (d *directSenderConsumer) Stop() {}
-
-var cwdLogLimiter = logutil.NewLogLimit(20, 10*time.Minute)
 
 // HandleEvent implements eventmonitor.EventConsumerHandler
 func (d *directSenderConsumer) HandleEvent(ev any) {

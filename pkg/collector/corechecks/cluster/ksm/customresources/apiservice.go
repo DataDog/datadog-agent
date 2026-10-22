@@ -130,13 +130,12 @@ func (f *apiserviceFactory) ExpectedType() interface{} {
 
 func (f *apiserviceFactory) ListWatch(customresourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
 	client := customresourceClient.(apiregistrationclient.ApiregistrationV1Interface)
-	ctx := context.Background()
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
 			return client.APIServices().List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
 			return client.APIServices().Watch(ctx, opts)
 		},

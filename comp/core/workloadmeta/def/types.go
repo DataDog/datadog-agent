@@ -87,6 +87,9 @@ const (
 	// SourceNVML represents entities detected by the NVML GPU collector.
 	SourceNVML Source = "nvml"
 
+	// SourceAMDGPU represents entities detected by the AMD GPU (amdgpu sysfs) collector.
+	SourceAMDGPU Source = "amdgpu"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
@@ -544,10 +547,24 @@ type ContainerAllocatedResource struct {
 
 	// ID is the unique ID of the resource, the format depends on the provider
 	ID string
+
+	// PoolName is the DRA pool the device was allocated from (DRA only).
+	PoolName string
+
+	// CdiDevices are the fully-qualified CDI device names for the allocated
+	// resource (DRA only), e.g. "k8s.gpu.nvidia.com/claim=<uid>-gpu-0".
+	CdiDevices []string
 }
 
 func (c ContainerAllocatedResource) String() string {
-	return fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+	s := fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+	if c.PoolName != "" {
+		s += ", Pool: " + c.PoolName
+	}
+	if len(c.CdiDevices) > 0 {
+		s += ", CDI Devices: " + strings.Join(c.CdiDevices, " ")
+	}
+	return s
 }
 
 // OrchestratorContainer is a reference to a Container with
@@ -648,8 +665,8 @@ type Container struct {
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext `proto:"ignore"`
-	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
+	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe `proto:"ignore"`
 	Resources       ContainerResources
 	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
@@ -657,10 +674,16 @@ type Container struct {
 	// PodResources API to query that data.
 	ResolvedAllocatedResources []ContainerAllocatedResource
 	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
-	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
-	// Note: Currently only reliably populated in ECS environments, where it is extracted
-	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
-	GPUDeviceIDs []string `proto:"ignore"`
+	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", "MIG-xxxxxxxx-..."]
+	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
+	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
+	// populated node-locally by resolving the container's CDI device
+	// allocations to NVML UUIDs (physical GPUs and MIG instances). With KAI
+	// Scheduler (gpu.kai_scheduler.enabled), it also holds the GPUs of
+	// fractional pods, read from their reservation pods. It is sent to remote
+	// workloadmeta clients, as system-probe needs it to attribute GPU process
+	// metrics to the right device.
+	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -773,18 +796,24 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernetes pod
+// PodSecurityContext is the Security Context of a Kubernetes pod. Containers
+// inherit RunAsNonRoot and SeccompProfile from here unless they set their own.
 type PodSecurityContext struct {
-	RunAsUser  int32
-	RunAsGroup int32
-	FsGroup    int32
+	RunAsUser      int32
+	RunAsGroup     int32
+	FsGroup        int32
+	RunAsNonRoot   *bool
+	SeccompProfile *SeccompProfile
 }
 
-// ContainerSecurityContext is the Security Context of a Container
+// ContainerSecurityContext is the Security Context of a Container.
 type ContainerSecurityContext struct {
 	*Capabilities
-	Privileged     bool
-	SeccompProfile *SeccompProfile
+	Privileged               bool
+	SeccompProfile           *SeccompProfile
+	RunAsNonRoot             *bool
+	AllowPrivilegeEscalation *bool
+	ReadOnlyRootFilesystem   *bool
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of
@@ -832,12 +861,12 @@ type KubernetesPod struct {
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string   `proto:"ignore"`
-	FinishedAt                 time.Time           `proto:"ignore"`
-	SecurityContext            *PodSecurityContext `proto:"ignore"`
-	Resources                  ContainerResources  `proto:"ignore"`
-	DeletionTimestamp          *time.Time          `proto:"ignore"`
-	ReadyTimestamp             *time.Time          `proto:"ignore"`
+	NamespaceAnnotations       map[string]string `proto:"ignore"`
+	FinishedAt                 time.Time         `proto:"ignore"`
+	SecurityContext            *PodSecurityContext
+	Resources                  ContainerResources `proto:"ignore"`
+	DeletionTimestamp          *time.Time         `proto:"ignore"`
+	ReadyTimestamp             *time.Time         `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
@@ -1774,6 +1803,7 @@ type ContainerImageMetadata struct {
 	OSVersion    string
 	Architecture string
 	Variant      string
+	Created      time.Time
 	Layers       []ContainerImageLayer
 	SBOM         *CompressedSBOM
 }
@@ -1872,6 +1902,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+		_, _ = fmt.Fprintln(&sb, "Created:", i.Created)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
 		if i.SBOM != nil {
@@ -2335,11 +2366,21 @@ type GPU struct {
 	// Healthy indicates whether or not the GPU device is healthy
 	Healthy bool
 
+	// Lost indicates that the driver reports the GPU as lost (e.g., it fell off
+	// the bus). Attributes that require querying the device keep the values
+	// reported before the GPU was lost.
+	Lost bool
+
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
 	ParentGPUUUID string
 
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
+
+	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
+	// as reported by the driver for the device's GPU instance. Empty for physical
+	// devices and for MIG devices on drivers that do not expose the profile name.
+	MIGProfile string
 }
 
 var _ Entity = &GPU{}
@@ -2398,6 +2439,9 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+	if g.Lost {
+		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
 
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {

@@ -7,6 +7,7 @@ package bench
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,13 +21,14 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 var benchmarkLogSink []recorderdef.LogData
 
 func TestScorerReportContributorNameUsesLogContext(t *testing.T) {
 	name := scorerReportContributorName(
-		&observerdef.SeriesMeta{Namespace: "log_metrics_extractor", Name: "log.pattern.abc.count", Tags: []string{"service:api"}},
+		&observerdef.SeriesMeta{Namespace: "log_metrics_extractor", Name: "log.pattern.abc.count", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
 		&observerdef.MetricContext{Pattern: "ERROR <*>", Example: "ERROR: connection refused"},
 		observerdef.AggregateCount,
 	)
@@ -58,56 +60,59 @@ func TestStreamOrderedLogsV1MatchesBatchReader(t *testing.T) {
 	require.Equal(t, batch, got)
 }
 
-func TestStreamOrderedLogsV1RejectsDisorder(t *testing.T) {
-	t.Run("within a file", func(t *testing.T) {
-		dir := t.TempDir()
-		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{
-			{TimestampMs: 2001},
-			{TimestampMs: 1000},
-		}, 1)
-
-		count, err := streamOrderedLogs(dir, FormatV1, func(recorderdef.LogData) error { return nil })
-		require.Equal(t, 1, count)
-		require.ErrorContains(t, err, "observer-logs-000000.parquet contains 1000 after 2001")
-	})
-
-	t.Run("across files", func(t *testing.T) {
-		dir := t.TempDir()
-		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 2001}}, 1)
-		writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000001.parquet"), []recorderdef.LogData{{TimestampMs: 1000}}, 1)
-
-		count, err := streamOrderedLogs(dir, FormatV1, func(recorderdef.LogData) error { return nil })
-		require.Equal(t, 1, count)
-		require.ErrorContains(t, err, "observer-logs-000001.parquet contains 1000 after 2001")
-	})
+func TestStreamOrderedLogsV1ReordersDisorder(t *testing.T) {
+	for _, acrossFiles := range []bool{false, true} {
+		t.Run(fmt.Sprint("acrossFiles=", acrossFiles), func(t *testing.T) {
+			dir := t.TempDir()
+			input := []recorderdef.LogData{
+				{TimestampMs: 4174, Content: []byte("first tie")},
+				{TimestampMs: 3981, Content: []byte("late")},
+				{TimestampMs: 4174, Content: []byte("second tie")},
+				{TimestampMs: 10000, Content: []byte("advance")},
+				{TimestampMs: 5000, Content: []byte("exact window")},
+			}
+			if acrossFiles {
+				writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), input[:1], 1)
+				writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000001.parquet"), input[1:], 1)
+			} else {
+				writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), input, 1)
+			}
+			var got []recorderdef.LogData
+			count, err := streamOrderedLogs(dir, FormatV1, func(entry recorderdef.LogData) error { got = append(got, entry); return nil })
+			require.NoError(t, err)
+			require.Equal(t, len(input), count)
+			require.Equal(t, []recorderdef.LogData{input[1], input[0], input[2], input[4], input[3]}, got)
+		})
+	}
 }
 
-func TestStreamOrderedLogsV1AllowsDisorderWithinObserverSecond(t *testing.T) {
+func TestStreamOrderedLogsV1RejectsDisorderBeyondWindow(t *testing.T) {
 	dir := t.TempDir()
-	want := []recorderdef.LogData{
-		{TimestampMs: 1999},
-		{TimestampMs: 1000},
-		{TimestampMs: 1500},
-		{TimestampMs: 2000},
-	}
-	writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), want, 1)
+	writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 6001}, {TimestampMs: 1000}}, 1)
+	count, err := streamOrderedLogs(dir, FormatV1, func(recorderdef.LogData) error { return nil })
+	require.Zero(t, count)
+	require.ErrorContains(t, err, "log timestamp disorder exceeds 5s")
+}
 
-	var got []recorderdef.LogData
-	count, err := streamOrderedLogs(dir, FormatV1, func(entry recorderdef.LogData) error {
-		got = append(got, entry)
-		return nil
-	})
-	require.NoError(t, err)
-	require.Equal(t, len(want), count)
-	require.Equal(t, want, got)
+func TestStreamOrderedLogsV1PropagatesCallbackError(t *testing.T) {
+	for _, timestamp := range []int64{1001, 10000} {
+		t.Run(fmt.Sprint(timestamp), func(t *testing.T) {
+			dir := t.TempDir()
+			writeLogParquetV1(t, filepath.Join(dir, "observer-logs-000000.parquet"), []recorderdef.LogData{{TimestampMs: 1000}, {TimestampMs: timestamp}}, 1)
+			sentinel := errors.New("stop")
+			count, err := streamOrderedLogs(dir, FormatV1, func(recorderdef.LogData) error { return sentinel })
+			require.Zero(t, count)
+			require.ErrorIs(t, err, sentinel)
+		})
+	}
 }
 
 func TestStreamOrderedMetricsV1MatchesBatchReader(t *testing.T) {
 	dir := t.TempDir()
 	want := []recorderdef.MetricData{
-		{Source: "run", Name: "system.cpu", Value: 1.5, Timestamp: 1000, Tags: []string{"host:a"}},
-		{Source: "run", Name: "system.cpu", Value: 2.5, Timestamp: 1001, Tags: []string{"host:a"}},
-		{Source: "run", Name: "system.memory", Value: 3.5, Timestamp: 1002, Tags: []string{"host:b"}},
+		{Source: "run", Name: "system.cpu", Value: 1.5, Timestamp: 1000, Tags: []string{"host:a"}, SampleRate: 1},
+		{Source: "run", Name: "system.cpu", Value: 2.5, Timestamp: 1001, Tags: []string{"host:a"}, SampleRate: 1},
+		{Source: "run", Name: "system.memory", Value: 3.5, Timestamp: 1002, Tags: []string{"host:b"}, SampleRate: 1},
 	}
 	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000000.parquet"), want[:2], 1)
 	writeMetricParquetV1(t, filepath.Join(dir, "observer-metrics-000001.parquet"), want[2:], 1)
@@ -124,6 +129,12 @@ func TestStreamOrderedMetricsV1MatchesBatchReader(t *testing.T) {
 	batch, err := readAllMetrics(dir)
 	require.NoError(t, err)
 	require.Equal(t, batch, got)
+	for _, metric := range got {
+		require.Empty(t, metric.MetricType)
+		view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp, metric.MetricType, metric.SampleRate)
+		require.Equal(t, observerdef.UnknownType, view.GetMetricType())
+		require.Equal(t, float64(1), view.GetSampleRate())
+	}
 }
 
 func TestStreamOrderedMetricsV1ReordersBoundedDisorderAcrossFiles(t *testing.T) {
@@ -233,6 +244,9 @@ func TestStreamOrderedObservationsV2(t *testing.T) {
 		if observation.metric != nil {
 			kinds = append(kinds, "metric")
 			require.Equal(t, []string{"host:host-a", "source:check"}, observation.metric.Tags)
+			view := newParquetMetricView(observation.metric.Name, observation.metric.Value, observation.metric.Tags, observation.metric.Timestamp, observation.metric.MetricType, observation.metric.SampleRate)
+			require.Equal(t, observerdef.UnknownType, view.GetMetricType())
+			require.Equal(t, float64(1), view.GetSampleRate())
 		} else {
 			kinds = append(kinds, "log")
 			require.Equal(t, []string{"host:host-b", "source:logs"}, observation.log.Tags)

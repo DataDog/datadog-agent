@@ -27,7 +27,7 @@ import (
 // constructNtmConfig builds a nodetreemodel config for tests, applying the optional setup
 // function and loading the given YAML content (or reading from disk when content is empty).
 func constructNtmConfig(content string, dynamicSchema bool, setupFunc func(model.Setup)) model.BuildableConfig {
-	conf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := NewNodeTreeConfig("datadog", model.CoreSchema)
 
 	if dynamicSchema {
 		conf.SetTestOnlyDynamicSchema(true)
@@ -144,26 +144,6 @@ func TestGetEnvVarsBindings(t *testing.T) {
 		})
 
 		assert.Contains(t, conf.GetEnvVars(), "MYAPP_PORT", "should apply EnvPrefix")
-	})
-
-	t.Run("With EnvKeyReplacer", func(t *testing.T) {
-		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnvAndSetDefault("log.level", "")
-		})
-
-		// Default prefix is "DD" when initializing the config
-		assert.Contains(t, conf.GetEnvVars(), "DD_LOG_LEVEL", "should apply EnvKeyReplacer")
-	})
-
-	t.Run("With EnvPrefix and EnvKeyReplacer", func(t *testing.T) {
-		conf := constructNtmConfig(dataYaml, false, func(cfg model.Setup) {
-			cfg.SetEnvPrefix("MYAPP")
-			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-			cfg.BindEnvAndSetDefault("db.connection.url", "")
-		})
-
-		assert.Contains(t, conf.GetEnvVars(), "MYAPP_DB_CONNECTION_URL", "should apply prefix and replacer")
 	})
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
@@ -396,7 +376,7 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	err = os.WriteFile(configBPath, []byte(configB), 0o644)
 	assert.NoError(t, err)
 
-	conf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := NewNodeTreeConfig("datadog", model.CoreSchema)
 	conf.SetTestOnlyDynamicSchema(true)
 	conf.SetConfigFile(configAPath)
 	conf.BuildSchema()

@@ -7,6 +7,10 @@ go_library(
         "collector_darwin.go",
         "format_darwin.go",
         "reader_darwin.go",
+        "shutdown_cause_darwin.go",
+        "shutdown_cause_iokit_darwin.c",
+        "shutdown_cause_iokit_darwin.h",
+        "shutdown_classify_darwin.go",
         "stats_darwin.go",
         "store_darwin.go",
         "watcher_darwin.go",
@@ -17,9 +21,11 @@ go_library(
     clinkopts = select({
         "@rules_go//go/platform:darwin": [
             "-framework CoreServices",
+            "-framework CoreFoundation -framework IOKit",
         ],
         "@rules_go//go/platform:ios": [
             "-framework CoreServices",
+            "-framework CoreFoundation -framework IOKit",
         ],
         "//conditions:default": [],
     }),
@@ -49,17 +55,22 @@ dd_agent_go_test(
         "collector_darwin_test.go",
         "format_darwin_test.go",
         "reader_darwin_test.go",
+        "shutdown_cause_darwin_test.go",
+        "shutdown_classify_darwin_test.go",
+        "shutdown_event_darwin_test.go",
         "store_darwin_test.go",
         "watcher_darwin_test.go",
     ],
     embed = [":notableevents"],
     deps = select({
         "@rules_go//go/platform:darwin": [
+            "//pkg/notableevents/types",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/notableevents/types",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",

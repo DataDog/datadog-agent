@@ -103,12 +103,18 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 
 	a := result.Anomalies[0]
 	assert.Equal(t, "holt_residual", a.DetectorName)
-	assert.Contains(t, a.Title, "Holt residual")
+	title, description := observer.FormatAnomaly(a)
+	assert.Equal(t, "Holt residual: metric:avg", title)
+	assert.Contains(t, description, "deviated from forecast")
 	require.NotNil(t, a.Score)
 	assert.Greater(t, *a.Score, 4.5, "score should clear the |z| threshold")
 	assert.NotNil(t, a.SourceRef, "SourceRef must be populated for downstream correlators")
 	require.NotNil(t, a.DebugInfo, "DebugInfo must be populated")
 	assert.Equal(t, 4.5, a.DebugInfo.Threshold)
+	assert.NotZero(t, a.DebugInfo.Forecast)
+	assert.NotZero(t, a.DebugInfo.Residual)
+	assert.NotZero(t, a.DebugInfo.HoltLevel)
+	assert.NotZero(t, a.DebugInfo.ValueMADs)
 	// Fire timestamp lands on the second spike point (M=2 confirmation).
 	assert.Equal(t, spikeStart+spikeLen-1, a.Timestamp)
 }
@@ -247,7 +253,7 @@ func TestHoltResidual_RemoveSeries(t *testing.T) {
 
 	d.RemoveSeries([]observer.SeriesRef{ref})
 	assert.Empty(t, d.series, "RemoveSeries must drop per-series state for freed refs")
-	assert.Nil(t, d.cachedSeries, "RemoveSeries should invalidate the series cache")
+	assert.Nil(t, d.cachedRefs, "RemoveSeries should invalidate the series cache")
 }
 
 // TestHoltResidual_Reset confirms that Reset wipes per-series state.
@@ -261,7 +267,7 @@ func TestHoltResidual_Reset(t *testing.T) {
 
 	d.Reset()
 	assert.Empty(t, d.series, "Reset must clear per-series state")
-	assert.Nil(t, d.cachedSeries, "Reset must clear cached series")
+	assert.Nil(t, d.cachedRefs, "Reset must clear cached series")
 }
 
 // TestHoltResidual_DefaultsApplied confirms ensureDefaults populates a
@@ -296,8 +302,7 @@ func TestHoltResidual_Name(t *testing.T) {
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
-// observer.Detector AND observer.SeriesRemover (it is stateful and is NOT
-// listed in statelessDetectorAllowlist).
+// observer.Detector AND observer.SeriesRemover so eviction frees its state.
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
 	d := NewHoltResidualDetector()
 	var _ observer.Detector = d
@@ -504,17 +509,18 @@ func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
 		valWin:   []float64{0, 0, 0},
 	}
 
-	_, fired := d.processPoint(state, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage, true)
+	series := &observer.Series{Name: "metric"}
+	_, fired := d.processPoint(state, series, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage, true)
 	require.False(t, fired)
 	assert.Zero(t, state.consecutivePos, "under-filled windows must not pre-arm confirmation")
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage, true)
+	_, fired = d.processPoint(state, series, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage, true)
 	require.False(t, fired, "first ready-window breach should only arm confirmation")
 	assert.Equal(t, 1, state.consecutivePos)
 	assert.Zero(t, state.consecutiveNeg)
 
-	_, fired = d.processPoint(state, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage, true)
+	_, fired = d.processPoint(state, series, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage, true)
 	require.True(t, fired, "second ready-window breach should satisfy ConfirmM")
 }
 

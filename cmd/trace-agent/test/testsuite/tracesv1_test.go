@@ -310,7 +310,9 @@ func spansEqualV1(s1 *idx.InternalSpan, toStrings []string, s2 *idx.Span) bool {
 	if s1.Component() != toStrings[s2.ComponentRef] {
 		return false
 	}
-	// TODO check attributes
+	// TODO check attributes. Compare values only for tags the agent doesn't
+	// rewrite: see obfuscatedTags in traces_test.go, otherwise obfuscation of
+	// randomly generated tags makes this comparison flaky.
 	// for k := range s1.Meta {
 	// 	if _, ok := s2.Meta[k]; !ok {
 	// 		return false

@@ -24,6 +24,7 @@ import (
 	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -92,6 +93,7 @@ type ControllerContext struct {
 	Client                      kubernetes.Interface
 	IsLeaderFunc                func() bool
 	InstrumentationHandlers     []instrumentation.Handler
+	Telemetry                   telemetry.Component
 	EventRecorder               record.EventRecorder
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]
@@ -142,6 +144,12 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 	// same goes for the apiextension informer factory
 	ctx.APIExentionsInformerFactory.Start(ctx.StopCh)
 
+	// and for the dynamic informer factory, used by the autoscalers controller
+	// on clusters that don't serve autoscaling/v2 HPAs (Kubernetes < 1.23)
+	if ctx.DynamicInformerFactory != nil {
+		ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	}
+
 	// Wait for the cache to sync
 	if err := apiserver.SyncInformers(ctx.informers, 0); err != nil {
 		errs = append(errs, err)
@@ -183,11 +191,15 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 		return
 	}
 
+	if err := autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory, ctx.DynamicInformerFactory); err != nil {
+		c <- err
+		return
+	}
+
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") {
 		go autoscalersController.runWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
 	}
 
-	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
 	go autoscalersController.runHPA(ctx.StopCh)
 
 	autoscalersController.runControllerLoop(ctx.StopCh)

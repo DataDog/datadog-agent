@@ -90,6 +90,24 @@ func TestNoAggregate(t *testing.T) {
 	assertMessageContent(t, msgs[0], "3")
 }
 
+func TestCombiningAggregatorPreservesSafeCheckpointLength(t *testing.T) {
+	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
+
+	first := newMessage("START")
+	first.SetRawDataLenForCheckpoint(0)
+	require.Empty(t, processMsg(ag, first, startGroup))
+
+	continuation := newMessage("continuation")
+	continuation.SetRawDataLenForCheckpoint(42)
+	expectedRawDataLen := first.RawDataLen + continuation.RawDataLen
+	require.Empty(t, processMsg(ag, continuation, aggregate))
+
+	msgs := flushMsgs(ag)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, expectedRawDataLen, msgs[0].RawDataLen)
+	assert.Equal(t, 42, msgs[0].RawDataLenForCheckpoint())
+}
+
 // TestNoAggregateEndsGroup anchors:
 //
 //	surface CombiningAggregation (combining_aggregator.allium)

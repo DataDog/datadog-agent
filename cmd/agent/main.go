@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/spf13/cobra"
 )
@@ -33,7 +34,10 @@ func coreAgentMain() *cobra.Command {
 }
 
 func init() {
-	registerAgent([]string{"agent", "datadog-agent", "dd-agent"}, coreAgentMain)
+	// "agent-bin" is the core Agent binary name in the AIX installp package
+	// (the "agent" entry point there is a wrapper script that execs agent-bin
+	// with LIBPATH/NLSPATH set, see packaging/aix/agent-wrapper.sh).
+	registerAgent([]string{"agent", "datadog-agent", "dd-agent", "agent-bin"}, coreAgentMain)
 }
 
 func main() {
@@ -57,12 +61,22 @@ func main() {
 	}
 
 	agentCmdBuilder := agents[process]
+	// The core Agent process names below construct the Core Agent command tree and must
+	// run RemoteCommandProvider discovery; other bundled binaries must not perform it
+	// before their own Cobra dispatch.
+	isCoreAgent := agentCmdBuilder == nil || process == "agent" || process == "datadog-agent" || process == "dd-agent" || process == "agent-bin"
 	if agentCmdBuilder == nil {
 		fmt.Fprintf(os.Stderr, "Invoked as '%s', acting as main Agent.\n", process)
 		agentCmdBuilder = coreAgentMain
 	}
 
 	rootCmd := agentCmdBuilder()
+	if isCoreAgent {
+		if err := remotecommand.Prepare(rootCmd, os.Args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
 	if err := setProcessName(process); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to set process name as '%s': %s\n", process, err)
 	}

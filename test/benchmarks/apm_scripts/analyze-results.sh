@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Without this, a failing `benchmark_analyzer convert` leaves base.json/pr.json missing and the
+# job still reports success (the remaining steps are guarded with `|| :`), silently producing
+# no report at all.
+set -e
+
 export UNCONFIDENCE_THRESHOLD=2.0
 
 CI_JOB_DATE=$(date +%s)

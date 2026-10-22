@@ -27,14 +27,14 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
-from tasks.coverage import PROFILE_COV, CodecovWorkaround
+from tasks.coverage import PROFILE_COV, GotestsumCoverageWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.common.git import get_modified_files
+from tasks.libs.common.git import get_modified_files, get_untracked_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
@@ -78,8 +78,11 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/bu
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+BAZEL_EXIT_NO_TESTS_FOUND = 4  # https://bazel.build/run/scripts#exit-codes
+# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
+# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
 
 
@@ -469,15 +472,31 @@ def test_flavor(
     res = None
     for batch in batches:
         batch_packages = ' '.join(batch)
-        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
-            res = bazel(
-                "run",
-                "//internal/tools:gotestsum",
-                "--",
-                *shlex.split(cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)),
-                env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
-                ignore_errors=True,
-            )
+        with GotestsumCoverageWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+            formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
+            if sys.platform == "aix":
+                # AIX has no Bazel yet. ctx.run goes through a shell, so build the
+                # exact argv (the same shlex.split list the bazel path passes) and
+                # re-quote it with shlex.join — otherwise shell metacharacters in
+                # the command (e.g. `|` in a `-run TestA|TestB` regex) would be
+                # interpreted by the shell instead of passed literally to go test.
+                gotestsum_argv = ["gotestsum", *shlex.split(formatted_cmd)]
+                run_res = ctx.run(shlex.join(gotestsum_argv), env=env, warn=True, hide=False)
+                res = subprocess.CompletedProcess(
+                    args=gotestsum_argv,
+                    returncode=run_res.return_code,
+                    stdout=run_res.stdout,
+                    stderr=run_res.stderr,
+                )
+            else:
+                res = bazel(
+                    "run",
+                    "//internal/tools:gotestsum",
+                    "--",
+                    *shlex.split(formatted_cmd),
+                    env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
+                    ignore_errors=True,
+                )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
             if res is not None and res.returncode in (130, -signal.SIGINT):
                 raise KeyboardInterrupt()
@@ -603,7 +622,7 @@ def process_test_result(
 
 @task
 @run_on_devcontainer
-def test(
+def test_legacy(
     ctx,
     module=None,
     targets=None,
@@ -867,7 +886,7 @@ def test(
         "bazel_args": "Additional flags passed directly to bazel test. Quote the value when passing multiple flags.",
     },
 )
-def test_new(
+def test(
     ctx,
     module=None,
     targets=None,
@@ -879,8 +898,7 @@ def test_new(
     """
     Run go tests.
 
-    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
-    will be renamed to `legacy` and eventually be dropped.
+    This task is a thin wrapper around Bazel.
     """
 
     if only_modified_packages:
@@ -889,6 +907,9 @@ def test_new(
         modules, _ = process_input_args(ctx, module, targets, input_flavor=None)
 
     if not modules:
+        if only_modified_packages:
+            print("No modified Go packages to test")
+            return
         raise Exit("No targets selected for testing!")
 
     bazel_flags = [
@@ -909,11 +930,17 @@ def test_new(
         for target in module.test_targets
     ]
 
-    bazel(
+    result = bazel(
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
+        ignore_errors=True,
     )
+    if result.returncode == BAZEL_EXIT_NO_TESTS_FOUND and only_modified_packages:
+        print("No test targets in modified packages")
+        return
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
 
 
 @task
@@ -952,15 +979,18 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         build_tags = []
 
     modules_to_test = {}
-    go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
+        # go.mod/go.sum changes are ignored: dependency bumps touch many of them and
+        # running tests for the whole module would be too costly.
         if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
             continue
 
         best_module_path = Path(get_go_module(modified_file))
 
-        # Check if the package is in the target list of the module we want to test
+        # Check if the package is in the target list of the module we want to test.
+        # Use a prefix check: after normpath the `./pkg` target becomes `pkg`,
+        # which a substring check would also find in `internal/somepkg`.
         targeted = False
 
         assert best_module_path, f"No module found for {modified_file}"
@@ -972,14 +1002,11 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         targets = module.lint_targets if lint else module.test_targets
 
         for target in targets:
-            if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
+            target_path = os.path.normpath(os.path.join(best_module_path, target))
+            if modified_file.startswith(f"./{target_path}/"):
                 targeted = True
                 break
         if not targeted:
-            continue
-
-        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
-        if best_module_path in go_mod_modified_modules:
             continue
 
         # If the package has been deleted we do not try to run tests
@@ -1383,6 +1410,10 @@ def should_run_all_tests(ctx, trigger_files):
 def get_go_modified_files(ctx):
     base_branch = _get_release_json_value("base_branch")
     files = get_modified_files(ctx, base_branch=base_branch)
+    # git diff only sees files known to git; include untracked files so that
+    # brand-new packages are detected before being staged (no-op in CI).
+    untracked = list(get_untracked_files(ctx))
+    files.extend(file for file in untracked if file not in files)
     return [
         file
         for file in files
@@ -1493,6 +1524,11 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
+    print(
+        f"Checking against opentelemetry-collector-contrib main instead of the latest "
+        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
+    )
+
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
@@ -1523,7 +1559,14 @@ def check_otel_module_versions(ctx, fix=False):
                     continue
 
                 actual_local_version = local_matches[0]
-                if actual_local_version != expected_local_version:
+                # A local module's go directive can legitimately be higher than the version derived
+                # from the contrib repo root's go.mod: contrib is a multi-module repo, and MVS can
+                # force a higher version when one of our actual dependencies (e.g. pkg/datadog) declares
+                # a newer `go` directive than the repo root does. Only flag/fix versions that are lower
+                # than expected, since those would fail to build against such a dependency.
+                actual_tuple = tuple(int(part) for part in actual_local_version.split('.'))
+                expected_tuple = tuple(int(part) for part in expected_local_version.split('.'))
+                if actual_tuple < expected_tuple:
                     if fix:
                         update_file(
                             True,
@@ -1533,7 +1576,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
+                            f"{mod_file} version {actual_local_version} is lower than expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

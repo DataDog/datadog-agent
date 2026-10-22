@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The Agent now logs a warning instead of an informational message when it
+    finds a Docker, CRI or PodResources socket that exists but cannot be
+    reached. On Unix this condition is only reported when opening the socket
+    fails with a permission error, so it means the Agent user lacks access to
+    the socket. Because these messages are emitted while the configuration is
+    still loading, they were previously discarded on Agents running with
+    ``log_level`` set to ``warn`` or above.

@@ -19,9 +19,10 @@ type bucket struct {
 	tagMultiLineLogs bool
 	maxContentSize   int
 
-	originalDataLen int
-	contentLen      int
-	lines           []AggregatedMessageWithTokens
+	originalDataLen   int
+	checkpointDataLen int
+	contentLen        int
+	lines             []AggregatedMessageWithTokens
 	// shouldTruncate carries truncation state between emitted frames of one oversized
 	// single-line log.
 	shouldTruncate bool
@@ -29,7 +30,7 @@ type bucket struct {
 
 // add appends msg and its first-line tokens to the bucket. The caller chooses
 // the token lifetime: pass the borrowed tokens as-is when the line is flushed
-// within the current Process call, or tokens.retained() when the line stays
+// within the current Process call, or tokens.Retained() when the line stays
 // buffered for a later call (the tokenizer's scratch buffer is reused between
 // lines, so a buffered line must own a copy).
 func (b *bucket) add(msg *message.Message, tokens BorrowedTokens) {
@@ -39,6 +40,7 @@ func (b *bucket) add(msg *message.Message, tokens BorrowedTokens) {
 	b.contentLen += len(msg.GetContent())
 	b.lines = append(b.lines, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 	b.originalDataLen += msg.RawDataLen
+	b.checkpointDataLen += msg.RawDataLenForCheckpoint()
 }
 
 func (b *bucket) isEmpty() bool {
@@ -49,6 +51,7 @@ func (b *bucket) reset() {
 	b.lines = nil
 	b.contentLen = 0
 	b.originalDataLen = 0
+	b.checkpointDataLen = 0
 }
 
 // applyTruncation applies the shared single-line truncation behavior used by both
@@ -114,6 +117,7 @@ func (b *bucket) flush() AggregatedMessageWithTokens {
 	content, isTruncated := b.applyTruncation(msg, content, b.contentLen >= b.maxContentSize, truncatedReason)
 	msg.SetContent(content)
 	msg.RawDataLen = b.originalDataLen
+	msg.SetRawDataLenForCheckpoint(b.checkpointDataLen)
 	tlmTags := []string{"false", "single_line"}
 
 	if lineCount > 1 {
@@ -250,7 +254,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 		} else {
 			// Under the limit: buffered until its continuation lines arrive, so it
 			// must own its tokens.
-			a.bucket.add(msg, tokens.retained())
+			a.bucket.add(msg, tokens.Retained())
 		}
 		return a.collected
 	}
@@ -266,7 +270,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 
 	// We're an aggregate label within a startGroup and within the maxContentSize.
 	// Append new multiline; the line stays buffered, so it must own its tokens.
-	a.bucket.add(msg, tokens.retained())
+	a.bucket.add(msg, tokens.Retained())
 	return a.collected
 }
 

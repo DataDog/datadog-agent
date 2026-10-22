@@ -17,6 +17,8 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	"github.com/DataDog/datadog-agent/pkg/util/log/observer"
+	"github.com/DataDog/datadog-agent/pkg/util/log/scrub"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -34,36 +36,41 @@ const (
 	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
 
+// modulePrefix is the Go import path substituted for a leading "." in
+// relative package patterns (e.g. "./pkg/...=debug") in a log level rules
+// specification.
+const modulePrefix = "github.com/DataDog/datadog-agent"
+
 // SetupLogger sets up a logger with the specified logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, strLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	logLevel, err := log.ValidateLogLevel(strLogLevel)
+func SetupLogger(loggerName LoggerName, logLevelSpec, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
+	levelRules, err := types.ParseLevelRules(logLevelSpec, modulePrefix)
 	if err != nil {
 		return err
 	}
-	loggerInterface, levelVar, err := buildLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	loggerInterface, rulesSync, err := buildLogger(loggerName, levelRules, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return err
 	}
 	handler := loggerInterface.(*slog.Wrapper).Handler()
 	stdslog.SetDefault(stdslog.New(handler))
-	log.SetupLoggerWithLevelVar(loggerInterface, levelVar)
+	log.SetupLoggerWithLevelRules(loggerInterface, rulesSync)
 
 	// Registering a callback in case of "log_level" update
-	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64) {
+	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64, _ pkgconfigmodel.Source) {
 		if setting != "log_level" || oldValue == newValue {
 			return
 		}
-		level := newValue.(string)
+		logLevelSpec := newValue.(string)
 
-		logLevel, err := log.ValidateLogLevel(level)
+		newLevelRules, err := types.ParseLevelRules(logLevelSpec, modulePrefix)
 		if err != nil {
 			log.Warnf("Unable to set new log level: %v", err)
 			return
 		}
-		if err := log.ChangeLogLevel(logLevel); err != nil {
+		if err := log.ChangeLogLevelRules(newLevelRules); err != nil {
 			log.Warnf("Unable to change log level: %v", err)
 		}
 	})
@@ -78,7 +85,7 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering and provides all messages to the logger at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	logger, _, err := buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	logger, _, err := buildLogger(JMXLoggerName, types.NewLevelRules(log.InfoLvl), logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -88,14 +95,14 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 // SetupDogstatsdLogger returns a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	logger, _, err := buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
+	logger, _, err := buildDogstatsdLogger(DogstatsDLoggerName, types.NewLevelRules(log.InfoLvl), logFile, cfg)
 	if err != nil {
 		return nil, err
 	}
 	return logger, nil
 }
 
-func buildDogstatsdLogger(loggerName LoggerName, logLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, *stdslog.LevelVar, error) {
+func buildDogstatsdLogger(loggerName LoggerName, levelRules *types.LevelRules, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, *types.RulesSync, error) {
 	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
 	if dogstatsdLogFileMaxRolls < 0 {
 		dogstatsdLogFileMaxRolls = 3
@@ -103,7 +110,7 @@ func buildDogstatsdLogger(loggerName LoggerName, logLevel log.LogLevel, logFile 
 	}
 
 	return buildSlogLogger(
-		logLevel,
+		levelRules,
 		false,
 		logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls),
 		"",
@@ -111,7 +118,7 @@ func buildDogstatsdLogger(loggerName LoggerName, logLevel log.LogLevel, logFile 
 	)
 }
 
-func buildLogger(loggerName LoggerName, logLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, *stdslog.LevelVar, error) {
+func buildLogger(loggerName LoggerName, levelRules *types.LevelRules, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, *types.RulesSync, error) {
 	var formatter func(context.Context, stdslog.Record) string
 	if jsonFormat {
 		formatter = jsonFormatter(loggerName, cfg)
@@ -129,7 +136,7 @@ func buildLogger(loggerName LoggerName, logLevel log.LogLevel, logFile, syslogUR
 	}
 
 	return buildSlogLogger(
-		logLevel,
+		levelRules,
 		logToConsole,
 		logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")),
 		syslogURI,
@@ -141,7 +148,7 @@ func buildLogger(loggerName LoggerName, logLevel log.LogLevel, logFile, syslogUR
 // formatter is used for console and file output; syslogFormatter is used for syslog output
 // and may be nil when syslogURI is empty.
 func buildSlogLogger(
-	logLevel log.LogLevel,
+	levelRules *types.LevelRules,
 	logToConsole bool,
 	logFile string,
 	maxsize uint,
@@ -149,7 +156,7 @@ func buildSlogLogger(
 	syslogURI string,
 	formatter func(context.Context, stdslog.Record) string,
 	syslogFormatter func(context.Context, stdslog.Record) string,
-) (log.LoggerInterface, *stdslog.LevelVar, error) {
+) (log.LoggerInterface, *types.RulesSync, error) {
 	if !logToConsole && logFile == "" && syslogURI == "" {
 		return nil, nil, errors.New("no logging configuration provided")
 	}
@@ -171,6 +178,8 @@ func buildSlogLogger(
 	}
 
 	var handlerList []stdslog.Handler
+	handlerList = append(handlerList, observer.NewHandler())
+
 	if len(writers) > 0 {
 		handlerList = append(handlerList, handlers.NewFormat(formatter, newSplitWriter(writers...)))
 	}
@@ -185,7 +194,7 @@ func buildSlogLogger(
 	}
 
 	multiHandler := handlers.NewMulti(handlerList...)
-	asyncHandler := handlers.NewAsync(multiHandler)
+	asyncHandler := handlers.NewAsync(scrub.NewHandler(multiHandler))
 
 	// errortracking branch is a sibling of asyncHandler under the
 	// global level filter. The Handler atomic-loads the current Submitter
@@ -197,9 +206,8 @@ func buildSlogLogger(
 		WithBouncerLoader(loadErrortrackingBouncer)
 	topHandler := handlers.NewMulti(asyncHandler, errortrackingHandler)
 
-	levelVar := new(stdslog.LevelVar)
-	levelVar.Set(types.ToSlogLevel(logLevel))
-	levelHandler := handlers.NewLevel(levelVar, topHandler)
+	rulesSync := types.NewRulesSync(levelRules)
+	levelHandler := handlers.NewLevel(rulesSync, topHandler)
 
 	// Close async handler first so it drains and stops writing, then close writers.
 	// Otherwise the async goroutine can still call Write() while the file writer is closed (data race).
@@ -211,7 +219,7 @@ func buildSlogLogger(
 	}
 
 	logger := slog.NewWrapperWithCloseAndFlush(levelHandler, asyncHandler.Flush, closeFunc)
-	return logger, levelVar, nil
+	return logger, rulesSync, nil
 }
 
 // logWriter is a Writer that logs all written messages with the global logger

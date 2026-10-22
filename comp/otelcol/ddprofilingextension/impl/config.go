@@ -13,6 +13,16 @@ type Config struct {
 	// Endpoint is the local port the profiling HTTP server listens on; used as "localhost:<endpoint>".
 	// Default: "7501"
 	Endpoint string `mapstructure:"endpoint"`
+	// UnixSocket sends profiles straight to a trace agent listening on this unix
+	// socket, bypassing the local forwarding server. Every other agent process
+	// already supports this via <component>.internal_profiling.unix_socket; without
+	// it the otel-agent is the only one that cannot be profiled in environments
+	// that expose a socket rather than HTTP egress (the SMP regression sandbox,
+	// for one).
+	// Ignored on Windows, where the Agent serves no APM unix socket: profiles
+	// are sent over HTTP there as if this were unset.
+	// Default: DD_OTELCOLLECTOR_INTERNAL_PROFILING_UNIX_SOCKET, then unset.
+	UnixSocket string `mapstructure:"unix_socket"`
 }
 
 // ProfilerOptions defines settings relevant to the profiler.

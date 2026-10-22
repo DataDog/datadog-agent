@@ -10,27 +10,21 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func newPCE(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
-	pce := &ProcessCacheEntry{
-		ProcessContext: ProcessContext{
-			Process: Process{
-				PIDContext: PIDContext{
-					Pid: pid,
-				},
-
-				IsParentMissing: isParentMissing,
-			},
-			Ancestor: parent,
-		},
-	}
+	pce := &ProcessCacheEntry{}
+	pce.Pid = pid
+	pce.IsParentMissing = isParentMissing
 	if parent != nil {
 		pce.PPid = parent.Pid
+		pce.setAncestor(parent)
 	}
-
 	return pce
 }
 
@@ -70,33 +64,40 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
-	t.Run("parent-missing", func(t *testing.T) {
-		pid1 := newPCE(1, nil, false)
-		child1 := newPCE(2, pid1, true)
-		child2 := newPCE(3, child1, false)
+}
 
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
+func TestExecSetsStopExecutionTimeWithoutExitTime(t *testing.T) {
+	parent := newPCE(2, nil, false)
+	exec := newPCE(2, nil, false)
+	exec.ExecTime = time.Now()
 
-		var mn *ErrProcessMissingParentNode
-		assert.ErrorAs(t, err, &mn)
-	})
+	parent.Exec(exec)
 
-	t.Run("cycle-detection", func(t *testing.T) {
-		pid1 := newPCE(2, nil, false)
-		child1 := newPCE(3, pid1, false)
-		child2 := newPCE(4, child1, false)
+	assert.True(t, parent.ExitTime.IsZero())
+	assert.Equal(t, exec.ExecTime, parent.StopExecutionTime)
+	assert.Equal(t, parent, exec.Ancestor)
+}
 
-		// create cycle
-		pid1.setAncestor(child2)
+func TestExitSetsExitAndStopExecutionTime(t *testing.T) {
+	entry := newPCE(2, nil, false)
+	exitTime := time.Now()
 
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
+	entry.Exit(exitTime)
 
-		assert.ErrorIs(t, err, ErrCycleInProcessLineage)
-	})
+	assert.Equal(t, exitTime, entry.ExitTime)
+	assert.Equal(t, exitTime, entry.StopExecutionTime)
+}
+
+func TestExitPreservesExistingStopExecutionTime(t *testing.T) {
+	entry := newPCE(2, nil, false)
+	stopTime := time.Now()
+	exitTime := stopTime.Add(time.Second)
+	entry.StopExecution(stopTime)
+
+	entry.Exit(exitTime)
+
+	assert.Equal(t, exitTime, entry.ExitTime)
+	assert.Equal(t, stopTime, entry.StopExecutionTime)
 }
 
 func TestEntryEquals(t *testing.T) {
@@ -194,5 +195,72 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.NetNS, child.NetNS)
 		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
+	})
+}
+
+func TestCGroupAndContainerInheritedAsPair(t *testing.T) {
+	containerParent := func() *ProcessCacheEntry {
+		parent := newPCE(1, nil, false)
+		parent.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 5678},
+			CGroupID:      "/kubepods.slice/cri-containerd-abcdef.scope",
+		}
+		parent.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+		return parent
+	}
+
+	t.Run("own-host-cgroup-does-not-inherit-container", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		child.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 1111},
+			CGroupID:      "/runtime.slice/containerd.service",
+		}
+
+		child.SetForkParent(containerParent())
+
+		assert.Equal(t, containerutils.CGroupID("/runtime.slice/containerd.service"), child.CGroup.CGroupID)
+		assert.True(t, child.ContainerContext.IsNull())
+	})
+
+	t.Run("no-cgroup-inherits-both", func(t *testing.T) {
+		parent := containerParent()
+		child := newPCE(2, nil, false)
+
+		child.SetForkParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+	})
+
+	// ebpfless entries only have a cgroup ID, no path key
+	t.Run("cgroup-id-only-parent-inherits-both", func(t *testing.T) {
+		parent := newPCE(1, nil, false)
+		parent.CGroup = CGroupContext{CGroupID: "/kubepods.slice/cri-containerd-abcdef.scope"}
+		parent.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+		child := newPCE(2, nil, false)
+
+		child.SetForkParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, containerutils.ContainerID("abcdef"), child.ContainerContext.ContainerID)
+	})
+
+	t.Run("host-parent-does-not-clear-own-container", func(t *testing.T) {
+		hostParent := newPCE(1, nil, false)
+		hostParent.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 1111},
+			CGroupID:      "/runtime.slice/containerd.service",
+		}
+
+		child := newPCE(2, nil, false)
+		child.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 5678},
+			CGroupID:      "/kubepods.slice/cri-containerd-abcdef.scope",
+		}
+		child.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+
+		child.SetForkParent(hostParent)
+
+		assert.Equal(t, containerutils.ContainerID("abcdef"), child.ContainerContext.ContainerID)
 	})
 }
