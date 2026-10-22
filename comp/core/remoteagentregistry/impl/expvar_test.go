@@ -9,8 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"expvar"
+	"os"
+	"os/exec"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -41,30 +42,28 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 )
 
-var agentExpvarSetup sync.Once
+const expvarMappingResolutionHelperEnv = "DD_TEST_EXPVAR_MAPPING_RESOLUTION_HELPER"
 
 func initializeAgentExpvars(t *testing.T) {
-	agentExpvarSetup.Do(func() {
-		_ = fxutil.Test[dogstatsdserver.Component](t, fx.Options(
-			fx.Provide(func() logcomponent.Component { return logmock.New(t) }),
-			fx.Provide(func() configcomponent.Component {
-				return configcomponent.NewMockWithOverrides(t, map[string]interface{}{"dogstatsd_port": 0})
-			}),
-			telemetrymock.Module(),
-			hostnameimpl.MockModule(),
-			serverdebugmock.MockModule(),
-			replaymock.MockModule(),
-			pidmapfx.Module(),
-			demultiplexerimpl.FakeSamplerMockModule(),
-			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			logscompression.MockModule(),
-			metricscompression.MockModule(),
-			filterlistmock.MockModule(),
-			fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
-			fxutil.ProvideComponentConstructor(dogstatsdserverimpl.NewComponent),
-			fx.Supply(dogstatsdserver.Params{Serverless: false}),
-		))
-	})
+	_ = fxutil.Test[dogstatsdserver.Component](t, fx.Options(
+		fx.Provide(func() logcomponent.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomponent.Component {
+			return configcomponent.NewMockWithOverrides(t, map[string]interface{}{"dogstatsd_port": 0})
+		}),
+		telemetrymock.Module(),
+		hostnameimpl.MockModule(),
+		serverdebugmock.MockModule(),
+		replaymock.MockModule(),
+		pidmapfx.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		logscompression.MockModule(),
+		metricscompression.MockModule(),
+		filterlistmock.MockModule(),
+		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
+		fxutil.ProvideComponentConstructor(dogstatsdserverimpl.NewComponent),
+		fx.Supply(dogstatsdserver.Params{Serverless: false}),
+	))
 }
 
 const compatibilityTelemetry = `
@@ -333,6 +332,16 @@ func TestWrapExpvarCreatesMissingCompatibilityPath(t *testing.T) {
 }
 
 func TestExpvarMappingsResolveInAgentComponents(t *testing.T) {
+	if os.Getenv(expvarMappingResolutionHelperEnv) != "1" {
+		// expvar's registry is process-global, and other tests wrap its leaves with expvar.Func.
+		// Run this check in a fresh process so it remains valid under shuffled and repeated tests.
+		cmd := exec.Command(os.Args[0], "-test.run=^TestExpvarMappingsResolveInAgentComponents$")
+		cmd.Env = append(os.Environ(), expvarMappingResolutionHelperEnv+"=1")
+		output, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "mapping resolution helper process failed:\n%s", output)
+		return
+	}
+
 	initializeAgentExpvars(t)
 	for _, mapping := range expvarMappings {
 		parent, leaf, err := resolveExpvarMappingTarget(mapping)

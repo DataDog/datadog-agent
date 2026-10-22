@@ -7,6 +7,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"math"
@@ -341,7 +342,7 @@ func wrapExpvar(mapping expvarMapping) bool {
 
 func resolveExpvarMappingTarget(mapping expvarMapping) (*expvar.Map, *expvar.Int, error) {
 	if len(mapping.expvarPath) < 2 {
-		return nil, nil, fmt.Errorf("expected a root and leaf path")
+		return nil, nil, errors.New("expected a root and leaf path")
 	}
 
 	rootName := mapping.expvarPath[0]
