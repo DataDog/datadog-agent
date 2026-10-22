@@ -76,7 +76,7 @@ archive_override(
 )
 
 bazel_dep(name = "apple_support", version = "2.10.1")  # provides --platforms=@apple_support//platforms:macos_x86_64
-bazel_dep(name = "bazel_features", version = "1.52.0")
+bazel_dep(name = "bazel_features", version = "1.53.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.4.0.bcr.3")
@@ -94,10 +94,8 @@ bazel_dep(name = "rules_go", version = "0.64.2")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.3.0")
-bazel_dep(name = "rules_python", version = "2.4.2")
-bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.74.0")
-bazel_dep(name = "rules_rust_prost", version = "0.74.0")
+bazel_dep(name = "rules_python", version = "2.4.3")
+bazel_dep(name = "rules_rs", version = "0.1.3")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.5.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
@@ -147,6 +145,15 @@ archive_override(
     sha256 = "4ee2a57a0adbb5c70d9b180ea40167093ba7b890d5ac4bdd50fd45c89db92697",
     strip_prefix = "rules_pkg-ad778d2f59b297486933936242cedbb0b5521d8d",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/ad778d2f59b297486933936242cedbb0b5521d8d.tar.gz"],  # main as of Oct 10, 2026
+)
+
+single_version_override(
+    module_name = "rules_rs",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_rs-windows-gnu.patch",
+    ],
+    version = "0.1.3",
 )
 
 ##########################################
@@ -482,29 +489,21 @@ use_repo(pip, "py_agent_integrations_tool_requirements", "py_dev_requirements")
 ## Rust dependencies ##
 #######################
 
-rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
-
-# Register a GNU-ABI Rust toolchain for Windows so that rustc generates
-# GNU-style linker flags (-lkernel32, -o, etc.) compatible with the MinGW
-# cc_toolchain used on the Windows CI runner.
-rust.repository_set(
-    name = "rust_windows_gnu_x86_64",
+toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+toolchains.toolchain(
     edition = "2024",
-    exec_triple = "x86_64-pc-windows-gnu",
-    target_compatible_with = [
-        "@platforms//os:windows",
-        "@platforms//cpu:x86_64",
-    ],
-    target_triple = "x86_64-pc-windows-gnu",
-    versions = ["1.94.0"],
+    use_rust_redist = False,  # rust-redist lacks the GNU-hosted Windows archives our patch needs
+    version = "1.94.0",
 )
-rust.toolchain(
-    edition = "2024",
-    versions = ["1.94.0"],
-)
-use_repo(rust, "rust_toolchains")
+use_repo(toolchains, "default_rust_toolchains")
 
-register_toolchains("@rust_toolchains//:all")
+register_toolchains("@default_rust_toolchains//...")
+
+rules_rust_shim = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(rules_rust_shim, "rules_rust")
+
+rules_rust_prost_shim = use_extension("@rules_rs//rs:rules_rust_prost.bzl", "rules_rust_prost")
+use_repo(rules_rust_prost_shim, "rules_rust_prost")
 
 register_toolchains("//bazel/toolchains/prost:prost_toolchain")
 

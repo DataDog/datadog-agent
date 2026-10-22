@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = [".cache"]
 members = [
     "cmd/ai_prompt_logger",
     "comp/core/log/rust",

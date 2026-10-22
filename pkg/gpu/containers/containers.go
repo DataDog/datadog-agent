@@ -37,7 +37,8 @@ const (
 
 // HasGPUs returns true if the container has GPUs assigned to it.
 func HasGPUs(container *workloadmeta.Container) bool {
-	// ECS: Check GPUDeviceIDs (populated by Docker collector for ECS only)
+	// GPUDeviceIDs is populated by the Docker collector on ECS and by the NVML
+	// collector for Kubernetes DRA allocations and KAI Scheduler fractional GPUs.
 	if len(container.GPUDeviceIDs) > 0 {
 		return true
 	}

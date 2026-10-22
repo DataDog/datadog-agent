@@ -13,10 +13,13 @@ import (
 // team: agent-anomaly-detection
 
 // Component is the recorder middleware component.
-// It wraps observer handles to record observations after forwarding them.
+// It wraps observer handles to record metrics after forwarding them and records
+// logs after observer admission.
 type Component interface {
 	// GetHandle wraps the provided handle factory with recording capability.
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
+	// RecordLog records a log observation that has passed observer admission.
+	RecordLog(source string, msg observer.LogView)
 }
 
 // MetricData is a recorded metric. Timestamp is in Unix seconds.

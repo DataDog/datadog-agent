@@ -36,10 +36,10 @@ const (
 	FormatV1   ParquetFormat = "v1" // observer-metrics-*.parquet / observer-logs-*.parquet (inline tags)
 	FormatV2   ParquetFormat = "v2" // contexts.parquet + metrics-*.parquet / logs-*.parquet
 
-	// GenSim recordings can contain a small amount of metric timestamp disorder
+	// GenSim recordings can contain a small amount of timestamp disorder
 	// from concurrent collection. Keep a bounded look-ahead instead of retaining
 	// and sorting the complete scenario.
-	parquetMetricReorderWindowSeconds int64 = 5
+	parquetReorderWindowSeconds int64 = 5
 )
 
 // detectParquetFormat returns FormatV2 if contexts.parquet exists in dir, else FormatV1.
@@ -433,6 +433,33 @@ func (h *metricMinHeap) Pop() any {
 	return value
 }
 
+type queuedLog struct {
+	value    recorderdef.LogData
+	sequence uint64
+}
+
+type logMinHeap []queuedLog
+
+func (h logMinHeap) Len() int { return len(h) }
+func (h logMinHeap) Less(i, j int) bool {
+	if h[i].value.TimestampMs == h[j].value.TimestampMs {
+		return h[i].sequence < h[j].sequence
+	}
+	return h[i].value.TimestampMs < h[j].value.TimestampMs
+}
+func (h logMinHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h *logMinHeap) Push(value any) {
+	*h = append(*h, value.(queuedLog))
+}
+func (h *logMinHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	value := old[last]
+	old[last] = queuedLog{}
+	*h = old[:last]
+	return value
+}
+
 func cloneMetricData(metric recorderdef.MetricData) recorderdef.MetricData {
 	metric.Source = strings.Clone(metric.Source)
 	metric.Name = strings.Clone(metric.Name)
@@ -487,10 +514,10 @@ func streamOrderedMetricsWithContexts(
 	}
 
 	consume := func(filePath string, metric recorderdef.MetricData) error {
-		if haveMaxSeen && metric.Timestamp < maxSeen-parquetMetricReorderWindowSeconds {
+		if haveMaxSeen && metric.Timestamp < maxSeen-parquetReorderWindowSeconds {
 			return fmt.Errorf(
 				"metric timestamp disorder exceeds %ds: %s contains %d after %d",
-				parquetMetricReorderWindowSeconds, filepath.Base(filePath), metric.Timestamp, maxSeen,
+				parquetReorderWindowSeconds, filepath.Base(filePath), metric.Timestamp, maxSeen,
 			)
 		}
 		if !haveMaxSeen || metric.Timestamp > maxSeen {
@@ -500,7 +527,7 @@ func streamOrderedMetricsWithContexts(
 		heap.Push(&pending, queuedMetric{value: cloneMetricData(metric), sequence: sequence})
 		sequence++
 
-		watermark := maxSeen - parquetMetricReorderWindowSeconds
+		watermark := maxSeen - parquetReorderWindowSeconds
 		for pending.Len() > 0 && pending[0].value.Timestamp <= watermark {
 			if err := emit(); err != nil {
 				return err
@@ -548,9 +575,8 @@ func streamAllMetricsV1(dir string, fn func(string, recorderdef.MetricData) erro
 // ---- Log reader ----
 
 // streamOrderedLogs reads log parquet files in filename and row order without
-// retaining the full dataset. The caller must provide parquet files whose rows
-// are globally ordered at the Observer's one-second scheduling resolution.
-// Millisecond-level disorder within a second is allowed.
+// retaining the full dataset. A bounded look-ahead restores millisecond timestamp
+// order, including disorder across file boundaries. Equal timestamps retain row order.
 func streamOrderedLogs(dir string, format ParquetFormat, fn func(recorderdef.LogData) error) (int, error) {
 	return streamOrderedLogsWithContexts(dir, format, nil, fn)
 }
@@ -562,24 +588,39 @@ func streamOrderedLogsWithContexts(
 	fn func(recorderdef.LogData) error,
 ) (int, error) {
 	var (
-		count        int
-		previousTime int64
-		havePrevious bool
+		count       int
+		maxSeen     int64
+		haveMaxSeen bool
+		sequence    uint64
+		pending     logMinHeap
 	)
-
-	consume := func(filePath string, entry recorderdef.LogData) error {
-		if havePrevious && entry.TimestampMs/1000 < previousTime/1000 {
-			return fmt.Errorf(
-				"log timestamps are not globally ordered: %s contains %d after %d",
-				filepath.Base(filePath), entry.TimestampMs, previousTime,
-			)
-		}
-		if err := fn(cloneLogData(entry)); err != nil {
+	heap.Init(&pending)
+	emit := func() error {
+		entry := heap.Pop(&pending).(queuedLog).value
+		if err := fn(entry); err != nil {
 			return err
 		}
-		previousTime = entry.TimestampMs
-		havePrevious = true
 		count++
+		return nil
+	}
+	consume := func(filePath string, entry recorderdef.LogData) error {
+		windowMs := parquetReorderWindowSeconds * 1000
+		if haveMaxSeen && entry.TimestampMs < maxSeen-windowMs {
+			return fmt.Errorf("log timestamp disorder exceeds %ds: %s contains %d after %d",
+				parquetReorderWindowSeconds, filepath.Base(filePath), entry.TimestampMs, maxSeen)
+		}
+		if !haveMaxSeen || entry.TimestampMs > maxSeen {
+			maxSeen = entry.TimestampMs
+			haveMaxSeen = true
+		}
+		heap.Push(&pending, queuedLog{value: cloneLogData(entry), sequence: sequence})
+		sequence++
+		watermark := maxSeen - windowMs
+		for pending.Len() > 0 && pending[0].value.TimestampMs <= watermark {
+			if err := emit(); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -595,6 +636,11 @@ func streamOrderedLogsWithContexts(
 	}
 	if err != nil {
 		return count, err
+	}
+	for pending.Len() > 0 {
+		if err := emit(); err != nil {
+			return count, err
+		}
 	}
 	return count, nil
 }
