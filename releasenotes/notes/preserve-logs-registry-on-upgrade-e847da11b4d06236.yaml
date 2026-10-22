@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Preserve saved log collection positions across Linux Agent upgrades and
-    Fleet Automation experiments to avoid replaying logs or skipping unread logs
-    when switching installation directories.
