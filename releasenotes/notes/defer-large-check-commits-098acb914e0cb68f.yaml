@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduce the Agent's memory peak when a check that reports a very large
+    number of metric contexts finishes a run. The run's metrics are now sent
+    as they are prepared instead of being held in memory until the next
+    flush.

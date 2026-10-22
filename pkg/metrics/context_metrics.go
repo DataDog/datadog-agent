@@ -100,6 +100,22 @@ func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return series, errors
 }
 
+// FlushTo flushes every metric like Flush, but passes each serie to add as it
+// is produced instead of collecting them all first.
+func (m ContextMetrics) FlushTo(timestamp float64, add func(*Serie)) map[ckey.ContextKey]error {
+	var series []*Serie
+	errors := make(map[ckey.ContextKey]error)
+
+	for contextKey, metric := range m {
+		series = flushToSeries(contextKey, metric, timestamp, series[:0], errors)
+		for _, serie := range series {
+			add(serie)
+		}
+	}
+
+	return errors
+}
+
 func flushToSeries(
 	contextKey ckey.ContextKey,
 	metric Metric,

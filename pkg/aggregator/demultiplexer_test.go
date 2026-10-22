@@ -315,3 +315,65 @@ func createDemuxDepsWithOrchestratorFwd(
 		Tagger:           deps.Tagger,
 	}
 }
+
+func startDeferredCommitDemux(t *testing.T, flushInterval time.Duration) (*AgentDemultiplexer, checkid.ID) {
+	previous := deferredCommitMinContexts
+	deferredCommitMinContexts = 2
+	t.Cleanup(func() { deferredCommitMinContexts = previous })
+	opts := demuxTestOptions()
+	opts.FlushInterval = flushInterval
+	demux := createDemuxDeps(t, opts, eventplatform.NewDefaultParams()).Demultiplexer
+	id := checkid.ID("deferred:demux:1")
+	agg := demux.Aggregator()
+	agg.checkItems <- &registerSampler{id: id}
+	agg.checkItems <- deferredTestGauge(id, "a", 1)
+	agg.checkItems <- deferredTestGauge(id, "b", 2)
+	agg.checkItems <- &senderMetricSample{id: id, commit: true}
+	return demux, id
+}
+
+func TestDemuxFlushesDeferredCommitOnRequest(t *testing.T) {
+	// The hour-long interval means only the aggregator's request can flush.
+	flushes := aggregatorNumberOfFlush.Value()
+	demux, _ := startDeferredCommitDemux(t, time.Hour)
+	defer demux.Stop()
+	agg := demux.Aggregator()
+
+	require.Eventually(t, func() bool { return aggregatorNumberOfFlush.Value() > flushes }, 10*time.Second, time.Millisecond)
+	assert.Zero(t, agg.deferredCommitCount.Load())
+	series, _ := agg.GetSeriesAndSketches(time.Now())
+	assert.Empty(t, deferredTestPoints(t, series), "the requested flush already sent the deferred run")
+}
+
+func TestDemuxWithoutAutomaticFlushKeepsDeferredCommitForReaders(t *testing.T) {
+	// `agent check` disables automatic flushing and reads the samplers.
+	demux, _ := startDeferredCommitDemux(t, 0)
+	defer demux.Stop()
+	agg := demux.Aggregator()
+
+	require.Eventually(t, func() bool { return agg.deferredCommitCount.Load() == 1 }, 10*time.Second, time.Millisecond)
+
+	series, _ := agg.GetSeriesAndSketches(time.Now())
+	points := deferredTestPoints(t, series)
+	assert.Len(t, points, 2)
+	assert.Equal(t, 2.0, points["context:b"].Value)
+}
+
+func TestDemuxStopFlushesPendingDeferredCommit(t *testing.T) {
+	demux, _ := startDeferredCommitDemux(t, 0)
+	agg := demux.Aggregator()
+	require.Eventually(t, func() bool { return agg.deferredCommitCount.Load() == 1 }, 10*time.Second, time.Millisecond)
+
+	demux.Stop()
+
+	assert.Zero(t, agg.deferredCommitCount.Load(), "the final flush applies the deferred run")
+}
+
+func TestDemuxServesFlushRequestsOnlyWhenFlushingIsAutomatic(t *testing.T) {
+	opts := demuxTestOptions()
+	demux := createDemuxDeps(t, opts, eventplatform.NewDefaultParams()).Demultiplexer
+	defer demux.Stop()
+
+	assert.Nil(t, demux.flushRequests(false))
+	assert.Equal(t, (<-chan struct{})(demux.Aggregator().flushRequests), demux.flushRequests(true))
+}

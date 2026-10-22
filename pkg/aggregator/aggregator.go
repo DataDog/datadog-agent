@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -284,6 +285,9 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
+	deferredCommits        map[checkid.ID]*deferredCommit // only accessed by the run goroutine
+	deferredCommitCount    atomic.Int64
+	flushRequests          chan struct{} // asks the demultiplexer for a flush, without waiting
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -370,6 +374,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
+		deferredCommits:             make(map[checkid.ID]*deferredCommit),
+		flushRequests:               make(chan struct{}, 1),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -487,7 +493,22 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
+			commitTime := ss.commitTime
+			if commitTime == 0 {
+				commitTime = timeNowNano()
+			}
+			if checkSampler.contextResolver.length() >= deferredCommitMinContexts {
+				agg.deferredCommits[ss.id] = &deferredCommit{timestamp: commitTime}
+				agg.deferredCommitCount.Add(1)
+				// Send the run's output now rather than at the next tick, so that
+				// it is not left for a time-bounded final flush.
+				select {
+				case agg.flushRequests <- struct{}{}:
+				default:
+				}
+			} else {
+				checkSampler.commit(commitTime, &agg.flushFilterList)
+			}
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
@@ -562,6 +583,13 @@ func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
 func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
+	if agg.deferredCommitCount.Load() > 0 {
+		// Deferred commits belong to the run goroutine; apply them there, after
+		// the items already queued.
+		applied := &applyDeferredCommitsItem{done: make(chan struct{})}
+		agg.checkItems <- applied
+		<-applied.done
+	}
 	agg.getSeriesAndSketches(before, &series, &sketches)
 	return series, sketches
 }
@@ -685,6 +713,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
+	agg.applyDeferredCommits(trigger.seriesSink)
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 }
@@ -812,6 +841,108 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.updateChecksTelemetry()
 }
 
+// deferredCommitMinContexts is the sampler size from which a check commit is
+// deferred to the next flush. The commit then produces its series directly into
+// the flush instead of holding a serie for every context until that flush.
+var deferredCommitMinContexts = 10000
+
+// maxDeferredItems bounds the later items queued for a sampler whose commit is
+// deferred. Beyond it, the commit is applied immediately as without deferral.
+const maxDeferredItems = 10000
+
+type deferredCommit struct {
+	timestamp float64
+	queued    []senderItem
+}
+
+// handleCheckItem queues items for a sampler with a deferred commit, so they
+// are applied after that commit, in their original order.
+func (agg *BufferedAggregator) handleCheckItem(item senderItem) {
+	if len(agg.deferredCommits) > 0 {
+		if id, ok := checkItemID(item); ok {
+			if deferred, ok := agg.deferredCommits[id]; ok {
+				if len(deferred.queued) < maxDeferredItems {
+					deferred.queued = append(deferred.queued, withCommitTime(item))
+					return
+				}
+				// Replaying the queue may defer another commit for this sampler,
+				// so the item must go through the deferral check again.
+				agg.applyDeferredCommit(id, nil)
+				agg.handleCheckItem(item)
+				return
+			}
+		}
+	}
+	item.handle(agg)
+}
+
+// withCommitTime records when a commit reached the aggregator, so that a
+// queued commit keeps that time once it is replayed.
+func withCommitTime(item senderItem) senderItem {
+	if s, ok := item.(*senderMetricSample); ok && s.commit && s.commitTime == 0 {
+		queued := *s
+		queued.commitTime = timeNowNano()
+		return &queued
+	}
+	return item
+}
+
+func checkItemID(item senderItem) (checkid.ID, bool) {
+	switch item := item.(type) {
+	case *senderMetricSample:
+		return item.id, true
+	case *senderHistogramBucket:
+		return item.id, true
+	case *registerSampler:
+		return item.id, true
+	case *deregisterSampler:
+		return item.id, true
+	}
+	return "", false
+}
+
+// applyDeferredCommits applies every deferred commit, including commits that
+// replayed items defer again, so that no completed run is left behind.
+func (agg *BufferedAggregator) applyDeferredCommits(sink metrics.SerieSink) {
+	for len(agg.deferredCommits) > 0 {
+		for id := range agg.deferredCommits {
+			agg.applyDeferredCommit(id, sink)
+		}
+	}
+}
+
+// applyDeferredCommit commits a deferred check run into sink, or into the
+// sampler's pending series if sink is nil, then handles its queued items.
+func (agg *BufferedAggregator) applyDeferredCommit(id checkid.ID, sink metrics.SerieSink) {
+	deferred := agg.deferredCommits[id]
+	delete(agg.deferredCommits, id)
+	agg.deferredCommitCount.Add(-1)
+
+	agg.mu.Lock()
+	if checkSampler, ok := agg.checkSamplers[id]; ok {
+		if sink == nil {
+			sink = (*metrics.Series)(&checkSampler.series)
+		}
+		checkSampler.commitTo(deferred.timestamp, &agg.flushFilterList, sink)
+	}
+	agg.mu.Unlock()
+
+	for _, item := range deferred.queued {
+		agg.handleCheckItem(item)
+	}
+}
+
+// applyDeferredCommitsItem is an item that commits every deferred check run into
+// its sampler's pending series.
+type applyDeferredCommitsItem struct {
+	done chan struct{}
+}
+
+func (a *applyDeferredCommitsItem) handle(agg *BufferedAggregator) {
+	agg.applyDeferredCommits(nil)
+	close(a.done)
+}
+
 // Stop stops the aggregator, blocking until the run() goroutine exits.
 func (agg *BufferedAggregator) Stop() {
 	stop := make(chan struct{})
@@ -846,7 +977,7 @@ func (agg *BufferedAggregator) run() {
 			agg.setFilterList(matcher)
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
-			checkItem.handle(agg)
+			agg.handleCheckItem(checkItem)
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
 			tlmProcessed.Inc("", "events")
