@@ -416,8 +416,10 @@ func (d *AgentDemultiplexer) flushLoop() {
 	} else {
 		d.log.Debug("flushInterval set to 0: will never flush automatically")
 	}
+	// Serve the aggregator's flush requests only when flushing is automatic:
+	// with it disabled (e.g. `agent check`), output is read from the samplers.
 	var flushRequests <-chan struct{}
-	if d.aggregator != nil {
+	if d.aggregator != nil && flushTicker != nil {
 		flushRequests = d.aggregator.flushRequests
 	}
 

@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -971,4 +972,58 @@ func TestDeferredCommitRequestsFlush(t *testing.T) {
 	agg.handleCheckItem(deferredTestGauge(id, "a", 3))
 	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
 	assert.Len(t, agg.flushRequests, 1)
+}
+
+func TestDeferredCommitKeepsLaterBucketsInTheNextRun(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	bucket := func(value int64) senderItem {
+		return &senderHistogramBucket{id: id, bucket: &metrics.HistogramBucket{Name: "test.deferred.histogram", Value: value, LowerBound: 10, UpperBound: 20, Tags: []string{"context:h"}, Timestamp: 12345}}
+	}
+	agg.handleCheckItem(deferredTestGauge(id, "a", 1))
+	agg.handleCheckItem(bucket(4))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	require.Contains(t, agg.deferredCommits, id)
+
+	// Same sketch timestamp, but submitted by the next run: it must not join
+	// the deferred run's sketch.
+	agg.handleCheckItem(bucket(6))
+
+	sketchesAfterFlush := func() metrics.SketchSeriesList {
+		var series metrics.Series
+		var sketches metrics.SketchSeriesList
+		agg.flushSeriesAndSketches(flushTrigger{trigger: trigger{time: time.Now()}, seriesSink: &series, sketchesSink: &sketches})
+		return sketches
+	}
+	expected := func(count uint) *metrics.SketchSeries {
+		sketch := &quantile.Agent{}
+		sketch.InsertInterpolate(10, 20, count)
+		return &metrics.SketchSeries{
+			DistributionMetadata: metrics.DistributionMetadata{Name: "test.deferred.histogram", Tags: tagset.CompositeTagsFromSlice([]string{"context:h"})},
+			Points:               []metrics.SketchPoint{{Ts: 12345, Sketch: sketch.Finish()}},
+		}
+	}
+
+	first := sketchesAfterFlush()
+	require.Len(t, first, 1)
+	metrics.AssertSketchSeriesApproxEqual(t, expected(4), first[0], .03)
+
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	second := sketchesAfterFlush()
+	require.Len(t, second, 1)
+	metrics.AssertSketchSeriesApproxEqual(t, expected(6), second[0], .03)
+}
+
+func TestDeferredCommitBeforeDeregistration(t *testing.T) {
+	agg, id := newDeferredCommitTestAggregator(t)
+	agg.handleCheckItem(deferredTestGauge(id, "a", 1))
+	agg.handleCheckItem(deferredTestGauge(id, "b", 2))
+	agg.handleCheckItem(&senderMetricSample{id: id, commit: true})
+	agg.handleCheckItem(&deregisterSampler{id: id})
+	require.Contains(t, agg.checkSamplers, id, "deregistration is queued behind the deferred commit")
+
+	points := deferredTestPoints(t, deferredTestFlush(agg))
+
+	assert.Len(t, points, 2, "the deferred run is flushed before the sampler is released")
+	assert.NotContains(t, agg.checkSamplers, id)
+	assert.Zero(t, agg.deferredCommitCount.Load())
 }
