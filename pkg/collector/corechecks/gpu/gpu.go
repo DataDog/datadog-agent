@@ -337,7 +337,8 @@ func (c *Check) Run() error {
 	// error in the agent status.
 	if c.skipNVML {
 		if c.issueReporter != nil {
-			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
 		c.telemetry.metrics.deviceCount.Set(0)
 		return nil

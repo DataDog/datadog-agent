@@ -95,7 +95,7 @@ func TestNVIDIACheckOnAMDOnlyHost(t *testing.T) {
 	check := setupNVIDIACheckOnHost(t, fakeAMDHost(t), nil)
 	check.SetIssueReporter(healthStore)
 	check.syncNvmlHealthIssue(true, false)
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	issueID := check.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	require.NotNil(t, healthStore.GetIssue(issueID))
 
 	for range 3 {
@@ -119,7 +119,7 @@ func TestNVIDIACheckOnAMDHostWithNVIDIAAudio(t *testing.T) {
 	check.syncNvmlHealthIssue(true, false)
 
 	require.NoError(t, check.Run())
-	assert.Nil(t, healthStore.GetIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
+	assert.Nil(t, healthStore.GetIssue(check.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
 }
 
 // An AMD GPU does not make a broken NVIDIA driver healthy: with an NVIDIA GPU,
@@ -157,7 +157,7 @@ func TestNVIDIACheckKeepsNVMLIssueUnlessAMDOnly(t *testing.T) {
 			check.syncNvmlHealthIssue(true, false)
 
 			require.Error(t, check.Run())
-			assert.NotNil(t, healthStore.GetIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
+			assert.NotNil(t, healthStore.GetIssue(check.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
 		})
 	}
 }
