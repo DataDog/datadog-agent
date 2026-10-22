@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
     APM: The OTLP receiver now includes the upstream sampling probability encoded
     in the W3C tracestate (``ot=th:`` or ``ot=p:``) in the ``_dd.otlp_sr`` sampling

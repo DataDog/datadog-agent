@@ -801,7 +801,7 @@ func TestCreateChunks(t *testing.T) {
 				} else {
 					id := c.Spans[0].TraceID
 					require.ElementsMatch(t, c.Spans, traces[id])
-					require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+					require.Equal(t, "0.5", c.Tags["_dd.otlp_sr"])
 					switch id {
 					case traceID1:
 						require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"], "traceID1: dm must be -9")
@@ -829,12 +829,12 @@ func TestCreateChunksSamplingRateFromTracestate(t *testing.T) {
 		{
 			name:        "no tracestate",
 			tracestates: []string{"", ""},
-			want:        "1.00",
+			want:        "1",
 		},
 		{
 			name:        "th on all spans",
 			tracestates: []string{"ot=th:8", "ot=th:8"},
-			want:        "0.50",
+			want:        "0.5",
 		},
 		{
 			name:        "th only on a non-first span",
@@ -847,15 +847,31 @@ func TestCreateChunksSamplingRateFromTracestate(t *testing.T) {
 			want:        "0.25",
 		},
 		{
+			name:        "small p encoding is not rounded",
+			tracestates: []string{"ot=p:8"},
+			want:        "0.00390625",
+		},
+		{
+			name:        "small th encoding is not rounded",
+			tracestates: []string{"ot=th:fff"},
+			want:        "0.000244140625",
+		},
+		{
 			name:                  "combined with receiver probabilistic sampling",
 			probabilisticSampling: 50,
 			tracestates:           []string{"ot=th:8"},
 			want:                  "0.25",
 		},
 		{
+			name:                  "small product with receiver probabilistic sampling is not rounded",
+			probabilisticSampling: 50,
+			tracestates:           []string{"ot=p:7"},
+			want:                  "0.00390625",
+		},
+		{
 			name:        "malformed tracestate falls back to receiver rate",
 			tracestates: []string{"ot=th:zz"},
-			want:        "1.00",
+			want:        "1",
 		},
 	}
 	for _, tt := range tests {

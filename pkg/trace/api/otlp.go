@@ -601,7 +601,7 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		if len(spans) == 0 {
 			continue
 		}
-		rate := strconv.FormatFloat(o.chunkSamplingRate(spans), 'f', 2, 64)
+		rate := strconv.FormatFloat(o.chunkSamplingRate(spans), 'f', -1, 64)
 		chunk := &pb.TraceChunk{
 			Tags:  map[string]string{"_dd.otlp_sr": rate},
 			Spans: spans,
