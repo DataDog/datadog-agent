@@ -13,6 +13,7 @@ http_archive(
     patch_tool = "patch",
     patches = [
         "//deps:openscap/patches/fsdev-ignore-host.patch",
+        "//deps:openscap/patches/fsdev-proc-self-mounts.patch",
         "//deps:openscap/patches/systemd-dbus-address.patch",
         "//deps:openscap/patches/rpm-verbosity-err.patch",
         "//deps:openscap/patches/session-print-syschar.patch",
