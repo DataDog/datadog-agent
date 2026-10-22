@@ -198,8 +198,6 @@ static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 par
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
     }
 
-    // TODO should inherit the nmtns
-
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
         goto pop_and_exit;
@@ -239,9 +237,20 @@ static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 par
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 
-    u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
-    if (inum) {
-        event->process.mntns = *inum;
+    u32 child_mntns_entry = 0;
+    if (syscall->fork.flags & CLONE_NEWNS) {
+        if (syscall->fork.newmnt) {
+            child_mntns_entry = get_mount_mount_ns_inum(syscall->fork.newmnt);
+        }
+    } else {
+        u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
+        if (inum) {
+            child_mntns_entry = *inum;
+        }
+    }
+    if (child_mntns_entry) {
+        event->process.mntns = child_mntns_entry;
+        bpf_map_update_elem(&mntns_cache, &pid, &child_mntns_entry, BPF_ANY);
     }
 
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &ppid);
@@ -363,6 +372,8 @@ static __always_inline int handle_do_exit(ctx_t *ctx) {
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
     if (tgid == pid && exec_transfer == NULL) {
+        bpf_map_delete_elem(&mntns_cache, &tgid);
+
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
