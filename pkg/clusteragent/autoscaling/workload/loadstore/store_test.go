@@ -99,6 +99,17 @@ func TestCreateEntitiesFromPayload(t *testing.T) {
 	}
 }
 
+func TestCreateEntitiesFromPayloadWithTagsWithoutColon(t *testing.T) {
+	payload := createSeriesPayload(1, 100)
+	payload.Series[0].Tags = append(payload.Series[0].Tags, "x", "", "pod_name")
+	var entities map[*Entity]*EntityValue
+	assert.NotPanics(t, func() { entities = createEntitiesFromPayload(payload) })
+	assert.Len(t, entities, 1)
+	for k := range entities {
+		assert.Equal(t, "redis_1", k.PodName)
+	}
+}
+
 func TestStoreAndPurgeEntities(t *testing.T) {
 	numPayloads := 100
 	store := EntityStore{
