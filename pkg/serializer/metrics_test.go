@@ -748,7 +748,7 @@ func TestSketchesV3Mode(t *testing.T) {
 		{
 			name: "experimental endpoints still opt in",
 			config: map[string]any{
-				"use_v3_api.distributions.enabled":                           "false",
+				"use_v3_api.distributions.enabled":                      "false",
 				"serializer_experimental_use_v3_api.sketches.endpoints": []string{proxyURL},
 			},
 			wantV3: map[string]bool{ddURL: false, proxyURL: true},
