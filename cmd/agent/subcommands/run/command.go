@@ -327,6 +327,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	eventPlatform eventplatform.Component,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -392,6 +393,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		eventPlatform,
 	); err != nil {
 		return err
 	}
@@ -627,6 +629,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	eventPlatform eventplatform.Component,
 ) error {
 	var err error
 
@@ -675,7 +678,7 @@ func startAgent(
 		ac.AddConfigProvider(actionsController, false, 0)
 
 		if configUtils.IsDataSecurityEnabled(cfg) {
-			dataSecurityController := datasecurity.NewController(ac, rcclient, cfg.GetBool("data_security.enforce_ssl"))
+			dataSecurityController := datasecurity.NewController(ac, rcclient, eventPlatform, cfg.GetBool("data_security.enforce_ssl"))
 			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
 	}

@@ -9,6 +9,7 @@ package datasecurity
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -60,6 +62,8 @@ type controller struct {
 	configChanges chan integration.ConfigChanges
 	closeMutex    sync.RWMutex
 	closed        bool
+	// sdsReporter sends sds-results for scan tasks that fail before the check can run.
+	sdsReporter *sdsResultReporter
 
 	// scheduledByPath holds the config scheduled per RC path: at most one task per path.
 	scheduledByPath map[string]integration.Config
@@ -71,11 +75,12 @@ type controller struct {
 // NewController creates a Data Security controller. Only call it when both `data_security.enabled`
 // and `shared_library_check.enabled` are set (see configUtils.IsDataSecurityEnabled).
 // enforceSSL is the value of `data_security.enforce_ssl`.
-func NewController(ac autodiscovery.Component, rcclient rcclient.Component, enforceSSL bool) types.ConfigProvider {
+func NewController(ac autodiscovery.Component, rcclient rcclient.Component, eventPlatform eventplatform.Component, enforceSSL bool) types.ConfigProvider {
 	c := &controller{
-		ac:         ac,
-		rcclient:   rcclient,
-		enforceSSL: enforceSSL,
+		ac:          ac,
+		rcclient:    rcclient,
+		sdsReporter: &sdsResultReporter{eventPlatform: eventPlatform},
+		enforceSSL:  enforceSSL,
 		// TODO(dsec-198): include backpressure to avoid blocking indefinitely
 		configChanges:   make(chan integration.ConfigChanges, 10),
 		scheduledByPath: make(map[string]integration.Config),
@@ -159,8 +164,10 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 	for path, rawConfig := range updates {
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
-			// TODO(dsec-214): send sds-results to report task failure
 			log.Errorf("failed to decode Data Security scan task from remote-config: %v", err)
+			// Decoding may have been partial (e.g. a field of the wrong type): report whatever
+			// sub tasks could be read. A syntactically invalid payload yields none.
+			c.sdsReporter.reportFailure(payload, nil, fmt.Sprintf("failed to decode scan task: %v", err))
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
@@ -168,8 +175,8 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		// TODO(dsec-197): validate data security scan task payload if needed before building the check instance
 		instance, err := c.buildCheckInstance(payload)
 		if err != nil {
-			// TODO(dsec-214): send sds-results to report task failure
 			log.Warnf("failed to build datasecurity instance for scan task %s: %v", path, err)
+			c.reportBuildFailure(payload, err)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
@@ -200,6 +207,31 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 	c.configChanges <- changes
 }
 
+// subTaskError is the failure to build the check instance for a given sub task.
+type subTaskError struct {
+	SubTaskID string
+	Err       error
+}
+
+func (e *subTaskError) Error() string {
+	return fmt.Sprintf("failed to build sub task %q: %v", e.SubTaskID, e.Err)
+}
+
+func (e *subTaskError) Unwrap() error { return e.Err }
+
+// reportBuildFailure reports an ERROR sds-result for every sub task of a scan task that could not
+// be scheduled. The task is scheduled as a whole, so sub tasks that built fine are not run either.
+func (c *controller) reportBuildFailure(payload scanTaskPayload, err error) {
+	reasons := map[string]string{}
+	defaultReason := err.Error()
+	var stErr *subTaskError
+	if errors.As(err, &stErr) {
+		reasons[stErr.SubTaskID] = stErr.Err.Error()
+		defaultReason = fmt.Sprintf("sub task not run: scan task aborted: %v", err)
+	}
+	c.sdsReporter.reportFailure(payload, reasons, defaultReason)
+}
+
 // buildCheckInstance resolves the local connection for every sub task and marshals the
 // datasecurity check instance.
 func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error) {
@@ -214,14 +246,12 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 	for i := range payload.ScanData {
 		st := payload.ScanData[i]
 		if st.Entity.Platform != postgresPlatform {
-			// TODO(dsec-214): send sds-results to report sub task failure
-			return nil, fmt.Errorf("failed to build sub task %q: unsupported platform %q", st.SubTaskID, st.Entity.Platform)
+			return nil, &subTaskError{SubTaskID: st.SubTaskID, Err: fmt.Errorf("unsupported platform %q", st.Entity.Platform)}
 		}
 
 		conn, err := c.resolvePostgresConnection(st.Entity)
 		if err != nil {
-			// TODO(dsec-214): send sds-results to report sub task failure
-			return nil, fmt.Errorf("failed to build sub task %q: %w", st.SubTaskID, err)
+			return nil, &subTaskError{SubTaskID: st.SubTaskID, Err: err}
 		}
 
 		inst.ScanData = append(inst.ScanData, checkSubTask{
