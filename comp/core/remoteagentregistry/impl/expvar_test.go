@@ -51,6 +51,27 @@ transactions__errors{domain="metrics",endpoint="series",error_type="invalid_requ
 transactions__errors{domain="metrics",endpoint="series",error_type="cant_send"} 6
 # TYPE transactions__http_errors counter
 transactions__http_errors{domain="metrics",endpoint="series",code="500"} 2
+# TYPE aggregator__dogstatsd_contexts gauge
+aggregator__dogstatsd_contexts 11
+# TYPE aggregator__processed counter
+aggregator__processed{data_type="dogstatsd_metrics"} 12
+aggregator__processed{data_type="events"} 13
+aggregator__processed{data_type="service_checks"} 14
+# TYPE aggregator__flush counter
+aggregator__flush{data_type="series"} 15
+aggregator__flush{data_type="events"} 16
+aggregator__flush{data_type="service_checks"} 17
+# TYPE aggregator__number_of_flush counter
+aggregator__number_of_flush 18
+# TYPE aggregator__flush_count gauge
+aggregator__flush_count{flush_type="series"} 19
+aggregator__flush_count{flush_type="sketches"} 20
+aggregator__flush_count{flush_type="events"} 21
+aggregator__flush_count{flush_type="service_checks"} 22
+# TYPE aggregator__flush_time gauge
+aggregator__flush_time{flush_type="main"} 23
+aggregator__flush_time{flush_type="event"} 24
+aggregator__flush_time{flush_type="service_check"} 25
 `
 
 func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
@@ -73,7 +94,6 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(6), values["dogstatsd_event_parse_errors"])
 	assert.Equal(t, int64(60), values["dogstatsd_service_check_packets"])
 	assert.Equal(t, int64(7), values["dogstatsd_service_check_parse_errors"])
-	assert.Equal(t, int64(8), values["forwarder_dropped_on_input"])
 	assert.Equal(t, int64(4), values["forwarder_retry_queue_size"])
 	assert.Equal(t, int64(9), values["forwarder_success"])
 	assert.Equal(t, int64(21), values["forwarder_errors"])
@@ -83,7 +103,80 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(4), values["forwarder_wrote_request_errors"])
 	assert.Equal(t, int64(5), values["forwarder_sent_request_errors"])
 	assert.Equal(t, int64(2), values["forwarder_http_errors"])
+	assert.Equal(t, int64(11), values["aggregator_dogstatsd_contexts"])
+	assert.Equal(t, int64(12), values["aggregator_dogstatsd_metric_sample"])
+	assert.Equal(t, int64(15), values["aggregator_series_flushed"])
+	assert.Equal(t, int64(13), values["aggregator_event"])
+	assert.Equal(t, int64(14), values["aggregator_service_check"])
+	assert.Equal(t, int64(16), values["aggregator_events_flushed"])
+	assert.Equal(t, int64(17), values["aggregator_service_check_flushed"])
+	assert.Equal(t, int64(18), values["aggregator_number_of_flush"])
+	assert.Equal(t, int64(19), values["aggregator_flush_count_series"])
+	assert.Equal(t, int64(20), values["aggregator_flush_count_sketches"])
+	assert.Equal(t, int64(21), values["aggregator_flush_count_events"])
+	assert.Equal(t, int64(22), values["aggregator_flush_count_service_checks"])
+	assert.Equal(t, int64(23), values["aggregator_main_flush_time"])
+	assert.Equal(t, int64(24), values["aggregator_event_flush_time"])
+	assert.Equal(t, int64(25), values["aggregator_service_check_flush_time"])
+	assert.NotContains(t, values, "forwarder_dropped_on_input", "the broader ADP dropped counter is not equivalent to the legacy expvar")
 	assert.Len(t, values, len(expvarMappings))
+}
+
+func TestMergeDynamicExpvarValuesAddsRemoteValuesToNestedStats(t *testing.T) {
+	local := map[string]any{
+		"Series": map[string]any{
+			"LastFlush": int64(8),
+			"Name":      "Series",
+		},
+	}
+	mappings := []dynamicExpvarMapping{{id: "series_flush_count", path: []string{"Series", "LastFlush"}}}
+	remote := map[string]map[string]int64{
+		"adp-1": {"series_flush_count": 3},
+		"adp-2": {"series_flush_count": 2},
+	}
+
+	merged, ok := mergeDynamicExpvarValues(local, mappings, remote).(map[string]any)
+	require.True(t, ok)
+	series, ok := merged["Series"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, int64(13), series["LastFlush"])
+	assert.Equal(t, "Series", series["Name"])
+	assert.Equal(t, int64(8), local["Series"].(map[string]any)["LastFlush"], "the local expvar snapshot must not be mutated")
+}
+
+func TestWrapDynamicExpvarOverlaysRemoteValues(t *testing.T) {
+	rootName := "remote-expvar-dynamic-compat-test"
+	root := expvar.NewMap(rootName)
+	root.Set("FlushCount", expvar.Func(func() any {
+		return map[string]any{
+			"Series": map[string]any{
+				"LastFlush": int64(8),
+				"Name":      "Series",
+			},
+		}
+	}))
+
+	provides, _, _, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, adpAgentFlavor, "Agent Data Plane", "123",
+		withTelemetryProvider(compatibilityTelemetry),
+	)
+	component.expvarCache.values = nil
+	previousRegistry := remoteExpvarRegistry.Swap(component)
+	t.Cleanup(func() { remoteExpvarRegistry.Store(previousRegistry) })
+
+	mapping := expvarMapping{
+		id:         "aggregator_flush_count_series",
+		expvarPath: []string{rootName, "FlushCount", "Series", "LastFlush"},
+	}
+	require.True(t, wrapExpvar(mapping))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(root.String()), &got))
+	series, ok := got["FlushCount"].(map[string]any)["Series"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(27), series["LastFlush"])
+	assert.Equal(t, "Series", series["Name"])
 }
 
 func TestExpvarSeriesFromPromTextRejectsTypeMismatchAndMalformedText(t *testing.T) {
