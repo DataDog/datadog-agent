@@ -15,7 +15,7 @@ single_machine_performance-experiments-resolve:
           - test/regression/**/*
         compare_to: $COMPARE_TO_BRANCH
   variables:
-    SMP_VERSION: dev-pr4947-8d3ac465d
+    SMP_VERSION: v0.29.1
     CONFIG_DIR: test/regression/container
     AWS_NAMED_PROFILE: single-machine-performance
     BOT_LOGIN: bot_login
