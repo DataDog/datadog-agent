@@ -65,7 +65,7 @@ pkg_filegroup(
     prefix = "$(install_dir)",
 )
 
-# iot_files, example_config, and system_dirs already carry their own
+# iot_files, example_config, and log_dir already carry their own
 # absolute-style prefix (etc/datadog-agent, var/log/datadog), so they must
 # stay outside of the install dir prefix applied above.
 pkg_filegroup(
@@ -73,8 +73,8 @@ pkg_filegroup(
     srcs = [
         ":everything",
         ":example_config",
-        ":system_dirs",
         "//cmd/agent/dist/conf.d:iot_files",
+        "//packages/common:log_dir",
     ],
 )
 
@@ -222,11 +222,4 @@ pkg_install(
         ":example_config",
         "//cmd/agent/dist/conf.d:iot_files",
     ],
-)
-
-# System directories required by the iot-agent but outside the install prefix.
-pkg_mkdirs(
-    name = "system_dirs",
-    attributes = pkg_attributes(mode = "0775"),
-    dirs = ["var/log/datadog"],
 )
