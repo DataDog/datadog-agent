@@ -46,6 +46,7 @@ const (
 	nvlinkFields    CollectorName = "nvlink_fields"
 	nvlinkStateless CollectorName = "nvlink_stateless"
 	nvlinkGPM       CollectorName = "nvlink_gpm"
+	sharing         CollectorName = "sharing"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -68,6 +69,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	gpm:             newGPMCollector,
 	deviceEvents:    newDeviceEventsCollector,
 	ebpf:            newEbpfCollector,
+	sharing:         newSharingCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -145,6 +147,9 @@ func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
 		return !config.Enabled || !config.EnableEBPFProbes
 	case nvlinkPLR:
 		return !config.Enabled || !config.PRMEndpointEnabled
+	case sharing:
+		// Only KAI Scheduler fractions assign containers a share of a GPU.
+		return !config.KAISchedulerEnabled
 	default:
 		return false
 	}

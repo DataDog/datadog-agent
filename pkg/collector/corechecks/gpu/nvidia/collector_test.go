@@ -211,11 +211,12 @@ func TestAllCollectorsWork(t *testing.T) {
 		DeviceEventsGatherer: eventsGatherer,
 		SystemProbeCache:     spCache,
 		PRMCache:             prmCache,
-		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		Workloadmeta:         workloadMetaMockWithGPUShares(t, devices),
 		Config: gpuconfig.Config{
-			Enabled:            true,
-			EnableEBPFProbes:   true,
-			PRMEndpointEnabled: true,
+			Enabled:             true,
+			EnableEBPFProbes:    true,
+			PRMEndpointEnabled:  true,
+			KAISchedulerEnabled: true,
 		},
 	}
 	seedPRMCacheForDevices(t, deps.PRMCache, devices)
@@ -333,10 +334,11 @@ func TestDisabledCollectors(t *testing.T) {
 				PRMCache:             prmCache,
 				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 				Config: gpuconfig.Config{
-					DisabledCollectors: tt.disabledCollectors,
-					Enabled:            true,
-					EnableEBPFProbes:   true,
-					PRMEndpointEnabled: true,
+					DisabledCollectors:  tt.disabledCollectors,
+					Enabled:             true,
+					EnableEBPFProbes:    true,
+					PRMEndpointEnabled:  true,
+					KAISchedulerEnabled: true,
 				},
 			}
 			seedPRMCacheForDevices(t, deps.PRMCache, devices)
