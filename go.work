@@ -200,4 +200,5 @@ use (
 	test/otel
 	tools/build-ddot-byoc
 	tools/retry_file_dump
+	tools/update-ddot-manifest
 )
