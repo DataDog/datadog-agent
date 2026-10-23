@@ -1,6 +1,6 @@
 # RC- and AAA-gated PAR startup POC
 
-PR 2 adds an independently useful RC-only startup gate. PR 3 composes it with AAA
+The core Agent combines an RC startup gate with AAA scope discovery through
 `GET /api/v2/validate`: after RC's last successful `Enabled && Authorized`, require
 `private_action_runner_enroll` before **every new PAR start**, including a stopped
 runner with a saved identity. Neither gate changes Go enrollment/persistence/retries
@@ -40,19 +40,19 @@ A failed/exited child requires operator review; already-active children are left
 It never stops an action-serving PAR or a process that might hold credentials.
 
 The existing enrollment implementation retains its own retry/persistence behavior and its
-existing limitations on ambiguous network failures. This PR adds no new enrollment POST
+existing limitations on ambiguous network failures. The startup gate adds no enrollment POST
 retry, journal, idempotency promise or credential-recovery policy. An operator restart can
 re-arm the gate: reconcile any possibly committed enrollment before manually retrying. The
 provided supervisor and core QA unit must not independently restart failed attempts.
 
 Old POC `.phone-home` attempt journals block new startup rather than silently discarding
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
-The previous recovery experiment is retained in backup refs, outside this scoped stack.
 
 Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
-No new `datadog-agent status` fields are added here; those belong to PR 4.
+When the POC is enabled, `datadog-agent status` also reports the startup-gate state,
+reason and next check in JSON, text and HTML.
 
-## AAA discovery (PR 3)
+## AAA discovery
 
 The PAR-owned core worker uses the same RC source as startup; it does not duplicate
 RC freshness or identity rules. Requests use only `DD-API-KEY`, a 10-second timeout,
@@ -66,7 +66,7 @@ confirmed. The established Go enrollment path owns everything after that handoff
 A subsequent deliberate core restart with stopped children requires fresh AAA approval,
 even with a saved identity. No post-enrollment revocation or automatic relaunch is added.
 
-## COAT diagnostics (PR 5)
+## COAT diagnostics
 
 The opted-in core component records `par_phone_home.state` (a gauge) and
 `par_phone_home.transitions` (a counter), with only `state` and `reason` labels.
