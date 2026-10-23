@@ -228,6 +228,19 @@ func TestLossWindowRecency(t *testing.T) {
 	assert.True(t, missed)
 }
 
+func TestLossWindowDroppedRecently(t *testing.T) {
+	var w LossWindow
+	base := time.Unix(1000, 0)
+
+	w.Observe(Counters{Dropped: 5}, base)
+	assert.False(t, w.DroppedRecently(base))
+
+	missed, _ := w.Observe(Counters{Dropped: 7}, base.Add(time.Second))
+	assert.False(t, missed, "drops are not missed bytes")
+	assert.True(t, w.DroppedRecently(base.Add(time.Second)))
+	assert.False(t, w.DroppedRecently(base.Add(2*time.Second+LossRecencyWindow)))
+}
+
 func TestLossWindowDelivering(t *testing.T) {
 	var w LossWindow
 	base := time.Unix(1000, 0)
