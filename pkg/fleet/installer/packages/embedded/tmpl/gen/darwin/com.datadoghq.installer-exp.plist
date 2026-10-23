@@ -34,10 +34,12 @@
             <string>-p</string>
             <string>/opt/datadog-packages/run/installer.pid</string>
         </array>
+        <!-- launchd opens these as root: they go to the daemon's own root-owned log directory,
+             never to the Agent's, where a planted link would redirect the write. -->
         <key>StandardOutPath</key>
-        <string>/opt/datadog-agent/logs/launchd_installer-exp.log</string>
+        <string>/opt/datadog-packages/logs/launchd_installer-exp.log</string>
         <key>StandardErrorPath</key>
-        <string>/opt/datadog-agent/logs/launchd_installer-exp.log</string>
+        <string>/opt/datadog-packages/logs/launchd_installer-exp.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

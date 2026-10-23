@@ -254,6 +254,10 @@ func TestLaunchdInstallerExperimentVariant(t *testing.T) {
 		// Agent's, whatever datadog.yaml says.
 		assert.Regexp(t, `<key>DD_RUN_PATH</key>\s*<string>/opt/datadog-packages/run</string>`, string(content))
 		assert.NotContains(t, string(content), "/opt/datadog-agent/run")
+		// launchd opens the daemon's log files as root.
+		assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-packages/logs/`, string(content))
+		assert.Regexp(t, `<key>StandardErrorPath</key>\s*<string>/opt/datadog-packages/logs/`, string(content))
+		assert.NotContains(t, string(content), "/opt/datadog-agent/logs")
 	}
 }
 

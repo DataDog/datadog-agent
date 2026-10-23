@@ -539,7 +539,7 @@ func (s *configMacOSSuite) dumpDiagnostics() {
 	// The uptane store logs one line per key on every poll, which is thousands of lines saying
 	// nothing about why a task was refused; drop them or they crowd out the reason entirely.
 	if out, err := s.Env().RemoteHost.Execute(
-		"sudo grep -v transactional_store.go /opt/datadog-agent/logs/updater.log | tail -n 100"); err == nil {
+		"sudo grep -v transactional_store.go /opt/datadog-packages/logs/updater.log | tail -n 100"); err == nil {
 		s.T().Logf("last 100 lines of updater.log:\n%s", out)
 	} else {
 		s.T().Logf("could not read the installer daemon log: %v", err)
@@ -676,7 +676,7 @@ func experimentLabels() []string {
 // daemon's log, so a test can assert it never grows.
 func (s *configMacOSSuite) updaterLogEIOCount() int {
 	out, err := s.Env().RemoteHost.Execute(
-		`sudo grep -cE 'Bootstrap failed|Input/output error' /opt/datadog-agent/logs/updater.log || true`)
+		`sudo grep -cE 'Bootstrap failed|Input/output error' /opt/datadog-packages/logs/updater.log || true`)
 	require.NoError(s.T(), err)
 	count := 0
 	_, _ = fmt.Sscanf(strings.TrimSpace(out), "%d", &count)
@@ -1138,7 +1138,7 @@ func (s *configMacOSSuite) TestWatcherRevertsOnSysprobeCrashMacOS() {
 	// Best-effort: the watcher's own log line corroborates *why* it reverted, but the daemon-state
 	// assertions above already establish *that* it did, so this is a soft check.
 	if out, err := s.Env().RemoteHost.Execute(
-		"sudo grep -c 'watcher: reverting configuration experiment' /opt/datadog-agent/logs/updater.log || true"); err == nil {
+		"sudo grep -c 'watcher: reverting configuration experiment' /opt/datadog-packages/logs/updater.log || true"); err == nil {
 		s.T().Logf("watcher revert log line occurrences in updater.log: %s", strings.TrimSpace(out))
 	} else {
 		s.T().Logf("could not read updater.log for the watcher's revert log line: %v", err)

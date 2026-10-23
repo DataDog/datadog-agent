@@ -104,6 +104,9 @@ type launchdTemplateData struct {
 	// InstallerRunDir is the installer daemon's own run directory. The daemon runs as root, so
 	// unlike RunDir it is root-owned (see pkg/fleet/installer/paths.RunPath).
 	InstallerRunDir string
+	// InstallerLogDir is the installer daemon's own log directory, root-owned like
+	// InstallerRunDir (see pkg/fleet/installer/paths.InstallerLogPath).
+	InstallerLogDir string
 	AgentUser       string
 	AgentGroup      string
 }
@@ -351,6 +354,7 @@ var (
 		RunDir:          "/opt/datadog-agent/run",
 		LogDir:          "/opt/datadog-agent/logs",
 		InstallerRunDir: "/opt/datadog-packages/run",
+		InstallerLogDir: "/opt/datadog-packages/logs",
 		AgentUser:       "_dd-agent",
 		AgentGroup:      "daemon",
 	}
@@ -363,6 +367,7 @@ var (
 		RunDir:          "/opt/datadog-agent/run",
 		LogDir:          "/opt/datadog-agent/logs",
 		InstallerRunDir: "/opt/datadog-packages/run",
+		InstallerLogDir: "/opt/datadog-packages/logs",
 		AgentUser:       "_dd-agent",
 		AgentGroup:      "daemon",
 	}

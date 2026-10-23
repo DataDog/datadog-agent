@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // TestDarwinPathsMatchTheLayout pins every constant to the macOS layout. The Linux values these
@@ -68,6 +70,10 @@ func TestThereIsOnlyOneInstallerBinary(t *testing.T) {
 func TestTheInstallerRunPathIsOutsideTheAgentsTree(t *testing.T) {
 	assert.False(t, strings.HasPrefix(RunPath, DefaultUserConfigsDir+"/"))
 	assert.True(t, strings.HasPrefix(RunPath, PackagesPath+"/"))
+	assert.False(t, strings.HasPrefix(InstallerLogPath, DefaultUserConfigsDir+"/"))
+	assert.True(t, strings.HasPrefix(InstallerLogPath, PackagesPath+"/"))
+	assert.Equal(t, filepath.Join(InstallerLogPath, "updater.log"), defaultpaths.GetDefaultUpdaterLogFile(),
+		"the daemon's own log file must go to its root-owned log directory")
 }
 
 func testOwner() dirOwner {

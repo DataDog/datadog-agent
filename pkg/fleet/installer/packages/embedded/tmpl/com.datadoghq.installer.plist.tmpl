@@ -45,10 +45,12 @@
             <string>-p</string>
             <string>{{.InstallerRunDir}}/installer.pid</string>
         </array>
+        <!-- launchd opens these as root: they go to the daemon's own root-owned log directory,
+             never to the Agent's, where a planted link would redirect the write. -->
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>
+        <string>{{.InstallerLogDir}}/launchd_installer{{.LabelSuffix}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>
+        <string>{{.InstallerLogDir}}/launchd_installer{{.LabelSuffix}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

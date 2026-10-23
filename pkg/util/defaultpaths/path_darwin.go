@@ -41,8 +41,11 @@ const (
 	defaultDogstatsDProtocolLogFile = defaultLogPath + "/dogstatsd_info/dogstatsd-stats.log"
 	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
 	defaultStreamlogsLogFile = defaultLogPath + "/streamlogs_info/streamlogs.log"
-	// defaultUpdaterLogFile is the default log file location for updater
-	defaultUpdaterLogFile = defaultLogPath + "/updater.log"
+	// defaultUpdaterLogFile is the default log file location for updater. On macOS the installer
+	// daemon runs as root, so its log goes to its own root-owned directory rather than to
+	// defaultLogPath, which belongs to the Agent's account. It must agree with
+	// pkg/fleet/installer/paths.InstallerLogPath.
+	defaultUpdaterLogFile = "/opt/datadog-packages/logs/updater.log"
 	// defaultTraceAgentLogFile is the default log file location for trace agent
 	defaultTraceAgentLogFile = defaultLogPath + "/trace-agent.log"
 	// defaultSecurityAgentLogFile is the default log file location for security agent

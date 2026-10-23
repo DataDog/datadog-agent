@@ -57,6 +57,11 @@ const (
 	// to the Agent's account, and the daemon runs as root. Like on Linux, it lives under
 	// PackagesPath, which only root can write to (see EnsureInstallerDataDir).
 	RunPath = "/opt/datadog-packages/run"
+	// InstallerLogPath is where the root installer daemon's logs go: its launchd job's standard
+	// output and error, and its own log file. Root-owned for the same reason as RunPath: the
+	// Agent's log directory belongs to the Agent's account, and a root process writing in it
+	// would follow any link that account planted there.
+	InstallerLogPath = "/opt/datadog-packages/logs"
 	// DatadogDataDir is the path to the Datadog data directory.
 	DatadogDataDir = "/opt/datadog-agent/etc"
 	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
@@ -78,14 +83,14 @@ func SetupInstallerDataDir() error {
 var rootOwner = dirOwner{uid: 0, gid: 0}
 
 // EnsureInstallerDataDir makes sure the directories the root installer keeps its own state in,
-// PackagesPath and RunPath, are real directories owned by root:wheel and writable by root only,
+// PackagesPath, RunPath and InstallerLogPath, are real directories owned by root:wheel and writable by root only,
 // creating them when missing and repairing their ownership and mode when they drifted.
 //
 // The root daemon, its detached watcher and its resume step trust what these directories hold,
 // so they must never be writable by the Agent's account. A path that is not a directory (a
 // symbolic link in particular) is refused rather than repaired.
 func EnsureInstallerDataDir() error {
-	for _, dir := range []string{PackagesPath, RunPath} {
+	for _, dir := range []string{PackagesPath, RunPath, InstallerLogPath} {
 		if err := ensureTrustedDir(dir, rootOwner); err != nil {
 			return err
 		}
