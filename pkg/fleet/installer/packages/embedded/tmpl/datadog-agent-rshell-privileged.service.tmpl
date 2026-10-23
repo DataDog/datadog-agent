@@ -2,15 +2,17 @@
 {{- if .Stable}}
 Description=Datadog rshell privileged helper
 PartOf=datadog-agent.service
+Requires=datadog-agent-rshell-privileged-check.service
+After=datadog-agent-rshell-privileged-check.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
-ConditionPathExists=/etc/datadog-agent-rshell/enabled
 {{- else}}
 Description=Datadog rshell privileged helper experiment
 PartOf=datadog-agent-exp.service
+Requires=datadog-agent-rshell-privileged-check-exp.service
+After=datadog-agent-rshell-privileged-check-exp.service
 Conflicts=datadog-agent-rshell-privileged.service
 ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
-ConditionPathExists=/etc/datadog-agent-rshell/enabled
 {{- end}}
 
 [Service]

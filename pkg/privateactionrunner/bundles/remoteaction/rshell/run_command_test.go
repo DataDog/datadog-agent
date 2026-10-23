@@ -700,10 +700,19 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 }
 
+// supportPrivilegedHelper makes the host look able to run the helper, so the
+// tests do not depend on the CI kernel's Landlock support.
+func supportPrivilegedHelper(t *testing.T, err error) {
+	original := checkPrivilegedHelperSupported
+	checkPrivilegedHelperSupported = func() error { return err }
+	t.Cleanup(func() { checkPrivilegedHelperSupported = original })
+}
+
 func TestEnabledPrivilegedHelperWithoutSocketRunsUnprivileged(t *testing.T) {
+	supportPrivilegedHelper(t, nil)
 	cfg := defaultRunCommandHandlerConfig()
 	cfg.PrivilegedEnabled = true
-	// systemd only creates the socket once root opted the host in.
+	// The socket is absent, as when the Agent socket unit is stopped.
 	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "missing-helper.sock")
 	for _, action := range []struct {
 		name    string
@@ -749,6 +758,7 @@ func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the privileged helper only runs on Linux")
 	}
+	supportPrivilegedHelper(t, nil)
 	// Keep the path short: Unix socket paths are limited to about 100 bytes.
 	dir, err := os.MkdirTemp("", "rsh")
 	require.NoError(t, err)
@@ -795,6 +805,28 @@ func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
 			assert.Nil(t, out)
 		})
 	}
+}
+
+func TestUnsupportedHostRunsUnprivileged(t *testing.T) {
+	supportPrivilegedHelper(t, errors.New("landlock ABI 1 is older than the required 3"))
+	// systemd listens on the socket even when the kernel cannot run the
+	// helper: the task must not reach it.
+	socket := filepath.Join(t.TempDir(), "helper.sock")
+	require.NoError(t, os.WriteFile(socket, nil, 0600))
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	cfg.PrivilegedSocket = socket
+
+	task := makeTask("echo hello", []string{"rshell:echo"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+	out, err := NewRunCommandHandler(cfg).Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
 }
 
 func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {

@@ -8,6 +8,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
+	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/privilegedhelperenabled"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/runexecutor"
@@ -21,5 +22,6 @@ func PrivateActionRunnerSubcommands() []command.SubcommandFactory {
 		runexecutor.Commands,
 		version.Commands,
 		rotateidentity.Commands,
+		privilegedhelperenabled.Commands,
 	}
 }

@@ -44,7 +44,6 @@ const (
 	privilegedRshellPolicy         = "/etc/datadog-agent-rshell/policy.json"
 	privilegedRshellPolicyStage    = "/tmp/par-rshell-e2e-policy.json"
 	privilegedRshellSocket         = "/run/datadog-agent-rshell/privileged.sock"
-	privilegedRshellMarker         = "/etc/datadog-agent-rshell/enabled"
 	privilegedRshellSocketUnit     = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellServiceUnit    = "datadog-agent-rshell-privileged.service"
 	privilegedRshellFixtureDir     = "/root/par-rshell-e2e"
@@ -103,8 +102,7 @@ func stagePrivateActionRunnerConfig(configContent string) func(*aws.Environment,
 			return nil, err
 		}
 		return host.OS.Runner().Command("install-private-action-runner-config", &command.Args{
-			// The root-owned marker opts the host in to the privileged helper.
-			Create: pulumi.String("sudo install -d -o root -g root -m 0755 /etc/datadog-agent /etc/datadog-agent-rshell && sudo install -o root -g root -m 0640 " + privateActionRunnerConfigStage + " /etc/datadog-agent/datadog.yaml && sudo install -o root -g root -m 0644 /dev/null " + privilegedRshellMarker),
+			Create: pulumi.String("sudo install -d -o root -g root -m 0755 /etc/datadog-agent && sudo install -o root -g root -m 0640 " + privateActionRunnerConfigStage + " /etc/datadog-agent/datadog.yaml"),
 		}, utils.PulumiDependsOn(staged))
 	}
 }
