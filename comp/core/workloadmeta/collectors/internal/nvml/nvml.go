@@ -249,10 +249,13 @@ func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
 // pciNUMANode reads the NUMA node of a PCI device from sysfs. It returns -1
 // when the kernel doesn't know it.
 func pciNUMANode(roots []string, pciBusID string) (int, error) {
-	// sysfs uses a 4-digit PCI domain; NVML may report 8 digits.
+	// sysfs pads the PCI domain to at least 4 digits, while NVML may pad it to 8.
+	// Only drop leading zeros: domains above 0xffff keep all their digits.
 	address := strings.ToLower(pciBusID)
-	if domain, rest, ok := strings.Cut(address, ":"); ok && len(domain) > 4 {
-		address = domain[len(domain)-4:] + ":" + rest
+	if domain, rest, ok := strings.Cut(address, ":"); ok {
+		if value, err := strconv.ParseUint(domain, 16, 32); err == nil {
+			address = fmt.Sprintf("%04x:%s", value, rest)
+		}
 	}
 
 	lastErr := errors.New("no sysfs PCI devices directory")

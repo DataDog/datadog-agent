@@ -222,6 +222,8 @@ func TestPCINUMANode(t *testing.T) {
 	writeNUMA(containerSys, "0019:01:00.0", "1\n")
 	writeNUMA(hostSys, "0019:01:00.0", "1\n")
 	writeNUMA(containerSys, "0000:00:1e.0", "-1\n")
+	writeNUMA(containerSys, "10000:01:00.0", "3\n")
+	writeNUMA(containerSys, "0000:01:00.0", "5\n")
 	roots := []string{hostSys, containerSys}
 
 	node, err := pciNUMANode(roots, "0008:01:00.0") // only in the second root
@@ -235,6 +237,15 @@ func TestPCINUMANode(t *testing.T) {
 	node, err = pciNUMANode(roots, "0000:00:1E.0") // unknown to the kernel
 	require.NoError(t, err)
 	require.Equal(t, -1, node)
+
+	// Domains above 0xffff keep their significant digits.
+	node, err = pciNUMANode(roots, "00010000:01:00.0")
+	require.NoError(t, err)
+	require.Equal(t, 3, node)
+
+	node, err = pciNUMANode(roots, "10000:01:00.0")
+	require.NoError(t, err)
+	require.Equal(t, 3, node)
 
 	_, err = pciNUMANode(roots, "0009:01:00.0")
 	require.Error(t, err)
