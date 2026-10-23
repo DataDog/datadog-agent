@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    YAML errors in ``datadog.yaml`` are now reported in a dedicated
+    ``Config File Error`` section of ``agent status`` and in the Datadog Agent
+    Manager, instead of only appearing as a single line above the output. The
+    message names the offending file, quotes the offending line with surrounding
+    context, and states explicitly when the file could not be parsed at all and
+    none of its settings are in effect. Files that parse only because duplicate
+    keys were resolved to the last value are also reported.

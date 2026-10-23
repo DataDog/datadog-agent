@@ -90,10 +90,19 @@ func TextFmap() pkgtexttemplate.FuncMap {
 			"version":             getVersion,
 			"percent":             func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 			"complianceResult":    complianceResult,
+			"indent":              indentLines,
 		}
 	})
 
 	return textFuncMap
+}
+
+// indentLines prefixes every line of s with n spaces. Templates indent only the
+// interpolation point, so without this a multi-line value falls back to column 0
+// after its first line.
+func indentLines(n int, s string) string {
+	pad := strings.Repeat(" ", n)
+	return pad + strings.ReplaceAll(s, "\n", "\n"+pad)
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"

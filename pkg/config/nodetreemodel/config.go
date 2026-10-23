@@ -154,6 +154,9 @@ type ntmConfig struct {
 
 	// warnings contains a list of warnings about the config.
 	warnings []string
+	// configFileError holds the last config file parse problem, if any, so status
+	// and the GUI can surface it without string-matching warnings.
+	configFileError string
 
 	// deprecation maps setting to their deprecated names
 	deprecations map[string]deprecation
@@ -1089,7 +1092,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, model.SourceFile, content); err != nil {
+	if err = c.readConfigurationContent(other, model.SourceFile, content, ""); err != nil {
 		return err
 	}
 
@@ -1129,7 +1132,7 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content); err != nil {
+	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content, configPath); err != nil {
 		return err
 	}
 
@@ -1369,6 +1372,10 @@ func (c *ntmConfig) BindEnvAndSetDefaultWithDeprecation(key string, defaultVal i
 // Warnings just returns nil
 func (c *ntmConfig) Warnings() []string {
 	return slices.Clone(c.warnings)
+}
+
+func (c *ntmConfig) ConfigFileError() string {
+	return c.configFileError
 }
 
 func (c *ntmConfig) StartTime() time.Time {
