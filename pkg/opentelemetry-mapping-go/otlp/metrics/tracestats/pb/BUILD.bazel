@@ -1,0 +1,33 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+proto_library(
+    name = "pb_proto",
+    srcs = ["trace_stats.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "pb_go_proto",
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb",
+    proto = ":pb_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "pb",
+    embed = [":pb_go_proto"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/tracestats/pb",
+    visibility = ["//visibility:public"],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        ":pb_go_proto": [
+            "trace_stats.pb.go",
+        ],
+    },
+)

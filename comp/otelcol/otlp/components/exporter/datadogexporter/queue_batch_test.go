@@ -191,7 +191,7 @@ func newTracesTestHarness(t *testing.T, tcfgOpts ...func(*config.AgentConfig)) *
 	go agent.Run()
 
 	return &tracesTestHarness{
-		factory: NewFactory(comp, nil, nil, nil,
+		factory: NewFactory(comp, nil, nil, nil, nil,
 			metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}),
 			otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil),
 		params:   params,

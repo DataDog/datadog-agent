@@ -76,6 +76,7 @@ type dependencies struct {
 }
 
 var _ traceagent.Component = (*component)(nil)
+var _ traceagent.OTLPStatsSender = (*component)(nil)
 
 func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
 	// c.Agent is nil when the trace-agent is disabled (see NewAgent). Guard
@@ -92,6 +93,10 @@ func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceS
 
 func (c component) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
+}
+
+func (c component) SendOTLPStatsPayload(payload []byte) {
+	c.Agent.StatsWriter.SendOTLPIntakePayload(payload)
 }
 
 func (c component) GetHTTPHandler(endpoint string) http.Handler {
@@ -118,7 +123,7 @@ type component struct {
 }
 
 // NewAgent creates a new Agent component.
-func NewAgent(deps dependencies) (traceagent.Component, error) {
+func NewAgent(deps dependencies) (traceagent.Component, traceagent.OTLPStatsSender, error) {
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
@@ -126,7 +131,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, errors.New(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
-		return c, nil
+		return c, c, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
@@ -143,7 +148,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
 
@@ -180,7 +185,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		OnStart: func(_ context.Context) error { return start(c) },
 		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
-	return c, nil
+	return c, c, nil
 }
 
 func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {

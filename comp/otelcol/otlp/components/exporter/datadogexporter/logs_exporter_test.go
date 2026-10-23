@@ -154,7 +154,7 @@ func newTestLogsExporter(t *testing.T, agent logsagentpipeline.Component, retry 
 	set := exportertest.NewNopSettings(Type)
 	set.TelemetrySettings.MeterProvider = sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
-	f := NewFactory(nil, nil, agent, sourceProvider, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
+	f := NewFactory(nil, nil, nil, agent, sourceProvider, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 	cfg := f.CreateDefaultConfig().(*datadogconfig.Config)
 	cfg.API.Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	cfg.HostMetadata.Enabled = false
@@ -315,7 +315,7 @@ func TestLogsExporter_SyncSender_WarnsThatMultiRegionFailoverIsNotSupported(t *t
 				"multi_region_failover.api_key": "cccccccccccccccccccccccccccccccc",
 				"multi_region_failover.dd_url":  intake.URL,
 			})
-			f := NewFactory(nil, nil, startTestLogsAgent(t, coreCfg), sourceProvider, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, coreCfg)
+			f := NewFactory(nil, nil, nil, startTestLogsAgent(t, coreCfg), sourceProvider, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, coreCfg)
 			cfg := f.CreateDefaultConfig().(*datadogconfig.Config)
 			cfg.API.Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 			cfg.HostMetadata.Enabled = false
