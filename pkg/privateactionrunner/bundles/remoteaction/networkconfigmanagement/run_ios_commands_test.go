@@ -71,12 +71,12 @@ func (f *fakeIPCClient) NewIPCEndpoint(_ string) (ipc.Endpoint, error) {
 // showVersion is a command block that renders to "show version".
 var showVersion = []any{map[string]any{"type": "show version"}}
 
-func makeRunIOSCommandsTask(deviceID string, command any, credentialSet string) *types.Task {
+func makeRunIOSCommandsTask(deviceID string, commands any, credentialSet string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{
 			"deviceID":      deviceID,
-			"command":       command,
+			"commands":      commands,
 			"credentialSet": credentialSet,
 		},
 	}
@@ -151,10 +151,10 @@ func TestRunIOSCommandsHandler_PassesCommandThrough(t *testing.T) {
 	}`, string(client.postBody))
 }
 
-func TestRunIOSCommandsHandler_MissingCommand(t *testing.T) {
+func TestRunIOSCommandsHandler_MissingCommands(t *testing.T) {
 	for name, inputs := range map[string]map[string]any{
 		"absent": {"deviceID": "default:10.0.0.1", "credentialSet": "readonly"},
-		"null":   {"deviceID": "default:10.0.0.1", "command": nil, "credentialSet": "readonly"},
+		"null":   {"deviceID": "default:10.0.0.1", "commands": nil, "credentialSet": "readonly"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			client := &fakeIPCClient{}
@@ -163,7 +163,7 @@ func TestRunIOSCommandsHandler_MissingCommand(t *testing.T) {
 			task.Data.Attributes = &types.Attributes{Inputs: inputs}
 
 			_, err := handler.Run(t.Context(), task, nil)
-			assert.ErrorContains(t, err, "Command input is required")
+			assert.ErrorContains(t, err, "Commands input is required")
 			assert.Nil(t, client.postBody, "should not call the agent")
 		})
 	}
