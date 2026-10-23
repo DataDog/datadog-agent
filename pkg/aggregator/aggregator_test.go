@@ -847,3 +847,41 @@ func TestStatsCopy(t *testing.T) {
 	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
 	assert.Equal(t, stats.Name, statsCopy.Name)
 }
+
+func TestCommitDecomposableCheckMetrics(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		checks   []string
+		expected []string
+	}{
+		{name: "all", checks: []string{"first", "second"}, expected: []string{"first.check", "second.check"}},
+		{name: "one", checks: []string{"first"}, expected: []string{"first.check"}},
+		{name: "none", checks: nil, expected: nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("check_sampler_periodic_flush_checks", tc.checks)
+
+			agg := NewBufferedAggregator(&MockSerializerIterableSerie{}, nil, nil, taggerfxmock.SetupFakeTagger(t), "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+			for id, name := range map[checkid.ID]string{"first:check:1": "first.check", "second:check:1": "second.check"} {
+				agg.handleRegisterSampler(id)
+				agg.handleSenderSample(senderMetricSample{id, &metrics.MetricSample{
+					Name:       name,
+					Value:      1,
+					Mtype:      metrics.GaugeType,
+					SampleRate: 1,
+					Timestamp:  timeNowNano(),
+				}, false})
+			}
+
+			agg.commitDecomposableCheckMetrics()
+			series, _ := agg.GetSeriesAndSketches(time.Now())
+
+			var names []string
+			for _, s := range series {
+				names = append(names, s.Name)
+			}
+			assert.ElementsMatch(t, tc.expected, names)
+		})
+	}
+}
