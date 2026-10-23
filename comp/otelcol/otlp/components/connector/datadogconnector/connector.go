@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -71,6 +72,10 @@ type traceToMetricConnector struct {
 
 	// isStarted tracks whether Start() has been called.
 	isStarted bool
+
+	// rootFilter, if set, excludes from stats the traces whose root resource matches the trace-agent's
+	// apm_config.ignore_resources.
+	rootFilter *filters.Blacklister
 }
 
 // newTraceToMetricConnector creates a new connector with native OTel span ingestion
@@ -200,6 +205,9 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// _sample_rate (head-based sampling weight) is injected during OTel→DD span
 	// conversion in pkg/trace/transform, so the Concentrator scales stats by the
 	// head-sampling weight without any connector-local logic.
+	if c.rootFilter != nil {
+		traces = dropIgnoredTraces(traces, c.tcfg, c.rootFilter)
+	}
 	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
 	for _, input := range inputs {
 		c.concentrator.Add(input)
