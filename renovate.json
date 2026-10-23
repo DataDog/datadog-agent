@@ -143,6 +143,12 @@
         "enabled": false
       },
       {
+        "description": "Test programs built with the oldest supported Go toolchain (tasks/system_probe.py) pin compatible dd-trace-go versions",
+        "matchManagers": ["gomod"],
+        "matchFileNames": ["pkg/dyninst/testprogs/**"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/moby/moby{,/**}"],
         "groupName": "moby/moby"
@@ -225,11 +231,6 @@
           "supply_chain_tools"
         ],
         "enabled": false
-      },
-      {
-        "matchManagers": ["bazel-module"],
-        "matchDepNames": ["rules_rust", "rules_rust_prost"],
-        "groupName": "rules_rust"
       },
       {
         "matchManagers": ["bundler"],

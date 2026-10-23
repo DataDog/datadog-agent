@@ -38,6 +38,12 @@ lint_docs_links:
   script:
     - dda inv -- -e linter.docs-links
 
+lint_e2e_internet_access:
+  extends: .lint
+  script:
+    - dda self dep sync -f go-ast
+    - dda inv -- -e linter.e2e-internet-access
+
 lint_codeowners:
   extends: .lint
   script:

@@ -91,7 +91,11 @@ int hook_vfs_rename(ctx_t *ctx) {
 
     // use src_dentry as target inode is currently empty and the target file will
     // have the src inode anyway
-    set_file_inode(src_dentry, &syscall->rename.target_file, invalidate_type);
+    fill_file_inode(src_dentry, &syscall->rename.target_file);
+
+    // the target file is the src file once renamed, so it has to carry the path id after the invalidation
+    struct path_id_pair_t path_ids = get_path_id_pair(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.metadata.nlink, invalidate_type);
+    syscall->rename.target_file.path_key.path_id = path_ids.after;
 
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();

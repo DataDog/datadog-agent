@@ -8,7 +8,7 @@
 package k8s
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -20,7 +20,8 @@ import (
 
 // ConfigMapHandlers implements the Handlers interface for Kubernetes ConfigMaps.
 // ConfigMap is manifest-only (IsMetadataProducer: false): no structured metadata model is
-// produced or forwarded. Data and BinaryData are stripped before the manifest is emitted.
+// produced or forwarded. Resources are collected through a metadata-only informer, so
+// Data and BinaryData are never fetched and the manifest only contains the object metadata.
 type ConfigMapHandlers struct {
 	common.BaseHandlers
 }
@@ -38,11 +39,12 @@ func (h *ConfigMapHandlers) AfterMarshalling(_ processors.ProcessorContext, _, _
 }
 
 // BeforeMarshalling is a handler called before resource marshalling.
-// Sets Kind and APIVersion on the object, which the Kubernetes API omits on typed responses.
+// Sets Kind and APIVersion on the object, which the metadata API reports as
+// PartialObjectMetadata, so the manifest is emitted as a ConfigMap.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, _ interface{}) (skip bool) {
-	r := resource.(*corev1.ConfigMap)
+	r := resource.(*metav1.PartialObjectMetadata)
 	r.Kind = ctx.GetKind()
 	r.APIVersion = ctx.GetAPIVersion()
 	return
@@ -68,7 +70,7 @@ func (h *ConfigMapHandlers) ExtractResource(_ processors.ProcessorContext, _ int
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ResourceList(_ processors.ProcessorContext, list interface{}) []interface{} {
-	resourceList := list.([]*corev1.ConfigMap)
+	resourceList := list.([]*metav1.PartialObjectMetadata)
 	resources := make([]interface{}, 0, len(resourceList))
 	for _, r := range resourceList {
 		resources = append(resources, r)
@@ -81,45 +83,43 @@ func (h *ConfigMapHandlers) ResourceList(_ processors.ProcessorContext, list int
 //
 //nolint:revive
 func (h *ConfigMapHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*corev1.ConfigMap).DeepCopy()
+	return resource.(*metav1.PartialObjectMetadata).DeepCopy()
 }
 
 // ResourceVersionFromRaw returns the resource version without requiring model extraction.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*corev1.ConfigMap).ResourceVersion
+	return resource.(*metav1.PartialObjectMetadata).ResourceVersion
 }
 
 // ResourceUID returns the UID of the ConfigMap.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ResourceUID(_ processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*corev1.ConfigMap).UID
+	return resource.(*metav1.PartialObjectMetadata).UID
 }
 
 // ResourceVersion returns the resource version of the ConfigMap.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ResourceVersion(_ processors.ProcessorContext, resource, _ interface{}) string {
-	return resource.(*corev1.ConfigMap).ResourceVersion
+	return resource.(*metav1.PartialObjectMetadata).ResourceVersion
 }
 
 // ScrubBeforeExtraction redacts sensitive annotation and label keys before the resource is processed.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ScrubBeforeExtraction(_ processors.ProcessorContext, resource interface{}) {
-	r := resource.(*corev1.ConfigMap)
+	r := resource.(*metav1.PartialObjectMetadata)
 	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
-// ScrubBeforeMarshalling strips Data, BinaryData, and ManagedFields so that ConfigMap
-// values and field-manager history are never included in the emitted manifest.
+// ScrubBeforeMarshalling strips ManagedFields so that field-manager history is never
+// included in the emitted manifest.
 //
 //nolint:revive
 func (h *ConfigMapHandlers) ScrubBeforeMarshalling(_ processors.ProcessorContext, resource interface{}) {
-	r := resource.(*corev1.ConfigMap)
-	r.Data = nil
-	r.BinaryData = nil
+	r := resource.(*metav1.PartialObjectMetadata)
 	r.ManagedFields = nil
 }

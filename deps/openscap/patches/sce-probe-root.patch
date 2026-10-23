@@ -1,0 +1,379 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -424,6 +424,137 @@
+ 	execve(interp, argv, env);
+ }
+ 
++/*
++ * script_flag returns the option with which the interpreter of a "#!" line
++ * runs program text given as an argument, or NULL when it knows none for
++ * it. The interpreter is the basename of interp, or of arg when interp is
++ * env.
++ */
++static const char *script_flag(const char *interp, const char *arg)
++{
++	static const struct {
++		const char *name;
++		const char *flag;
++	} flags[] = {
++		{ "sh", "-c" },
++		{ "bash", "-c" },
++		{ "dash", "-c" },
++		{ "ash", "-c" },
++		{ "ksh", "-c" },
++		{ "mksh", "-c" },
++		{ "zsh", "-c" },
++		{ "perl", "-e" },
++	};
++	const char *name = strrchr(interp, '/');
++
++	name = name != NULL ? name + 1 : interp;
++	if (strcmp(name, "env") == 0) {
++		if (arg == NULL)
++			return NULL;
++		name = strrchr(arg, '/');
++		name = name != NULL ? name + 1 : arg;
++	}
++	if (strncmp(name, "python", 6) == 0 && strspn(name + 6, "0123456789.") == strlen(name + 6))
++		return "-c";
++	for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
++		if (strcmp(name, flags[i].name) == 0)
++			return flags[i].flag;
++	}
++	return NULL;
++}
++
++/*
++ * exec_script_in_root runs script with root as its root directory, so that
++ * the script assesses the system mounted there, as the probes do when
++ * OSCAP_PROBE_ROOT is set. It reads the script before entering root and
++ * hands its text to the interpreter of its first line, with the option that
++ * interpreter takes for program text (script_flag), since the script lives
++ * in the container's OSCAP_TEMP_DIR, outside root, and root may be
++ * read-only. The script sees its path outside root as $0, and its text must
++ * fit in one argument (128 KiB on Linux). A script for another interpreter
++ * exits with the error result.
++ *
++ * It returns without entering root when chroot is refused, as for a process
++ * without CAP_SYS_CHROOT, after a warning on warnfd, so that the caller runs
++ * the script in place, where the probes that chroot also stay. The file
++ * probes keep reading root. Any other failure exits with the error result.
++ */
++static void exec_script_in_root(const char *script, const char *root, char **env, int warnfd)
++{
++	FILE *f = fopen(script, "r");
++	if (f == NULL) {
++		printf("Cannot read script '%s': %s\n", script, strerror(errno));
++		exit(103);
++	}
++	size_t size = 0, cap = 4096;
++	char *text = malloc(cap + 1);
++	size_t n;
++	while (text != NULL && (n = fread(text + size, 1, cap - size, f)) > 0) {
++		size += n;
++		if (size == cap) {
++			char *bigger = realloc(text, 2 * cap + 1);
++			if (bigger == NULL) {
++				free(text);
++				text = NULL;
++				break;
++			}
++			text = bigger;
++			cap *= 2;
++		}
++	}
++	int bad = text == NULL || ferror(f);
++	fclose(f);
++	if (bad) {
++		printf("Cannot read script '%s'\n", script);
++		exit(103);
++	}
++	text[size] = '\0';
++
++	char line[PATH_MAX + 64];
++	snprintf(line, sizeof(line), "%.*s", (int)strcspn(text, "\n"), text);
++	char *interp = "/bin/sh";
++	char *arg = NULL;
++	parse_shebang(line, &interp, &arg);
++
++	const char *flag = script_flag(interp, arg);
++	if (flag == NULL) {
++		printf("Cannot run script '%s' in OSCAP_PROBE_ROOT '%s' with interpreter '%s'.\n", script, root, interp);
++		exit(103);
++	}
++	// "#!/bin/sh -" ends the options, which would make -c a script name
++	if (arg != NULL && strcmp(arg, "-") == 0)
++		arg = NULL;
++
++	if (chroot(root) != 0) {
++		if (errno == EPERM) {
++			dprintf(warnfd, "Cannot enter OSCAP_PROBE_ROOT '%s': %s. Running script '%s' in place.\n",
++				root, strerror(errno), script);
++			free(text);
++			return;
++		}
++		printf("Cannot enter OSCAP_PROBE_ROOT '%s' to run script '%s': %s\n", root, script, strerror(errno));
++		exit(103);
++	}
++	if (chdir("/") != 0) {
++		printf("Cannot change to / in OSCAP_PROBE_ROOT '%s': %s\n", root, strerror(errno));
++		exit(103);
++	}
++
++	char *argv[6];
++	int i = 0;
++	argv[i++] = interp;
++	if (arg != NULL)
++		argv[i++] = arg;
++	argv[i++] = (char *)flag;
++	argv[i++] = text;
++	argv[i++] = (char *)script;
++	argv[i] = NULL;
++	execve(interp, argv, env);
++	printf("Unexpected error when executing script '%s' in OSCAP_PROBE_ROOT '%s'. Error message follows.\n", script, root);
++	perror("execve");
++	exit(103);
++}
++
+ xccdf_test_result_type_t sce_engine_eval_rule(struct xccdf_policy *policy, const char *rule_id, const char *id, const char *href,
+ 		struct xccdf_value_binding_iterator *value_binding_it,
+ 		struct xccdf_check_import_iterator *check_import_it,
+@@ -593,6 +724,9 @@
+ 			close(stdout_pipefd[0]);
+ 			close(stderr_pipefd[0]);
+ 
++			// keep the standard error of oscap for warnings, closed on exec
++			int oscap_stderr = fcntl(fileno(stderr), F_DUPFD_CLOEXEC, 3);
++
+ 			// forward stdout and stderr to our custom opened pipes
+ 			dup2(stdout_pipefd[1], fileno(stdout));
+ 			dup2(stderr_pipefd[1], fileno(stderr));
+@@ -616,6 +750,10 @@
+ #endif
+ 
+ 			// we are the child process
++			const char *probe_root = getenv("OSCAP_PROBE_ROOT");
++			if (probe_root != NULL && *probe_root != '\0' && strcmp(probe_root, "/") != 0)
++				exec_script_in_root(tmp_href, probe_root, env_values, oscap_stderr);
++
+ 			execve(tmp_href, argvp, env_values);
+ 
+ 			// a script without exec rights or on a noexec mount fails with
+--- a/tests/sce/CMakeLists.txt
++++ b/tests/sce/CMakeLists.txt
+@@ -8,4 +8,5 @@
+ 	add_oscap_test("test_sce_in_report.sh")
+ 	add_oscap_test("test_sce_stdout_stderr.sh")
+ 	add_oscap_test("test_sce_streams_fill.sh")
++	add_oscap_test("test_sce_probe_root.sh")
+ endif()
+diff --git a/tests/sce/probe_root.sh b/tests/sce/probe_root.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/probe_root.sh
+@@ -0,0 +1,11 @@
++#!/bin/sh
++#
++# This is an SCE script used to test SCE in OSCAP_PROBE_ROOT. It passes when
++# /etc/marker holds the word the test writes in the root. It runs shell
++# builtins alone: the root holds /bin/sh and its libraries.
++
++read -r word </etc/marker
++if [ "$word" = probe_root ]; then
++	exit "$XCCDF_RESULT_PASS"
++fi
++exit "$XCCDF_RESULT_FAIL"
+diff --git a/tests/sce/probe_root_awk.awk b/tests/sce/probe_root_awk.awk
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/probe_root_awk.awk
+@@ -0,0 +1,6 @@
++#!/usr/bin/awk -f
++#
++# This is an SCE script used to test an interpreter for which SCE knows no
++# option that runs program text, which it refuses in OSCAP_PROBE_ROOT.
++
++BEGIN { exit 101 }
+diff --git a/tests/sce/probe_root_dash.sh b/tests/sce/probe_root_dash.sh
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/probe_root_dash.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh -
++#
++# This is an SCE script used to test, in OSCAP_PROBE_ROOT, an interpreter
++# line whose argument "-" ends the options of sh.
++
++read -r word </etc/marker
++if [ "$word" = probe_root ]; then
++	exit "$XCCDF_RESULT_PASS"
++fi
++exit "$XCCDF_RESULT_FAIL"
+diff --git a/tests/sce/probe_root_perl.pl b/tests/sce/probe_root_perl.pl
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/probe_root_perl.pl
+@@ -0,0 +1,9 @@
++#!/usr/bin/perl
++#
++# This is an SCE script used to test a Perl script in OSCAP_PROBE_ROOT. It
++# passes when /etc/marker holds the word the test writes in the root.
++
++open(my $f, '<', '/etc/marker') or exit($ENV{XCCDF_RESULT_FAIL});
++my $word = <$f>;
++chomp $word;
++exit($word eq 'probe_root' ? $ENV{XCCDF_RESULT_PASS} : $ENV{XCCDF_RESULT_FAIL});
+diff --git a/tests/sce/test_sce_probe_root.sh b/tests/sce/test_sce_probe_root.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/test_sce_probe_root.sh
+@@ -0,0 +1,113 @@
++#!/usr/bin/env bash
++
++# Test that SCE runs scripts in OSCAP_PROBE_ROOT, the root of the system the
++# probes assess.
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++# copy_program copies the program at path, and the libraries ldd lists for
++# it, to the same paths under root.
++function copy_program {
++	local path="$1"
++	local root="$2"
++	local lib
++
++	mkdir -p "$root$(dirname "$path")"
++	cp -L "$path" "$root$path"
++	for lib in $(ldd "$path" | grep -o '/[^ ]*'); do
++		mkdir -p "$root$(dirname "$lib")"
++		cp -L "$lib" "$root$lib"
++	done
++	return 0
++}
++
++# rule_result prints the XPath of the result of rule n.
++function rule_result {
++	local n="$1"
++	local want="$2"
++
++	echo "//rule-result[@idref='xccdf_moc.elpmaxe.www_rule_$n']/result[text()='$want']"
++	return 0
++}
++
++function test_sce_probe_root {
++	local xccdf="$1"
++
++	# The root holds the programs and the libraries ldd lists in its Linux
++	# format, and the chroot into it needs root.
++	[[ "$(uname)" == Linux ]] || return 255
++	if [[ "$(id -u)" -ne 0 ]]; then
++		echo "you need to be root" >&2
++		return 255
++	fi
++	require "ldd" || return 255
++	[[ -x /usr/bin/perl ]] || return 255
++
++	local root result
++	root=$(mktemp -d)
++	result=$(mktemp)
++
++	copy_program /bin/sh "$root"
++	copy_program /usr/bin/perl "$root"
++	# perl -e reads its script file, /dev/null
++	mkdir "$root/dev"
++	mknod -m 600 "$root/dev/null" c 1 3
++	mkdir -p "$root/etc"
++	echo probe_root >"$root/etc/marker"
++
++	set_offline_chroot_dir "$root"
++	$OSCAP xccdf eval --results "$result" "$srcdir/$xccdf" || true
++	set_offline_chroot_dir ""
++
++	assert_exists 1 "$(rule_result 1 pass)"
++	assert_exists 1 "$(rule_result 2 pass)"
++	assert_exists 1 "$(rule_result 3 pass)"
++	assert_exists 1 "$(rule_result 4 error)"
++
++	rm -r "$root" "$result"
++	return 0
++}
++
++# Without CAP_SYS_CHROOT the scripts run in place, after a warning on the
++# standard error of oscap.
++function test_sce_probe_root_refused {
++	local xccdf="$1"
++
++	[[ "$(uname)" == Linux ]] || return 255
++	if [[ "$(id -u)" -ne 0 ]]; then
++		echo "you need to be root" >&2
++		return 255
++	fi
++	require "capsh" || return 255
++
++	local root result stderr
++	root=$(mktemp -d)
++	result=$(mktemp)
++	stderr=$(mktemp)
++
++	mkdir "$root/etc"
++	echo probe_root >"$root/etc/marker"
++
++	set_offline_chroot_dir "$root"
++	# The command runs in the shell capsh starts, with its arguments.
++	# shellcheck disable=SC2016
++	capsh --drop=cap_sys_chroot -- -c '$OSCAP xccdf eval --results "$0" "$1"' "$result" "$srcdir/$xccdf" 2>"$stderr" || true
++	set_offline_chroot_dir ""
++
++	[[ "$(grep -c "Running script .* in place" "$stderr")" -eq 3 ]]
++	assert_exists 1 "$(rule_result 1 fail)"
++	assert_exists 1 "$(rule_result 4 error)"
++
++	rm -r "$root" "$result" "$stderr"
++	return 0
++}
++
++# Testing.
++test_init
++
++test_run "SCE in OSCAP_PROBE_ROOT" test_sce_probe_root test_sce_probe_root.xccdf.xml
++test_run "SCE in OSCAP_PROBE_ROOT without CAP_SYS_CHROOT" test_sce_probe_root_refused test_sce_probe_root.xccdf.xml
++
++test_exit
+diff --git a/tests/sce/test_sce_probe_root.xccdf.xml b/tests/sce/test_sce_probe_root.xccdf.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/test_sce_probe_root.xccdf.xml
+@@ -0,0 +1,31 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_moc.elpmaxe.www_benchmark_test">
++  <status>incomplete</status>
++  <version>1.0</version>
++  <model system="urn:xccdf:scoring:default"/>
++  <model system="urn:xccdf:scoring:flat"/>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_1">
++    <title>Test SCE Rule</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="probe_root.sh"/>
++    </check>
++  </Rule>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_2">
++    <title>Perl script</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="probe_root_perl.pl"/>
++    </check>
++  </Rule>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_3">
++    <title>Interpreter line ending in "-"</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="probe_root_dash.sh"/>
++    </check>
++  </Rule>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_4">
++    <title>Interpreter without an option for program text</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="probe_root_awk.awk"/>
++    </check>
++  </Rule>
++</Benchmark>

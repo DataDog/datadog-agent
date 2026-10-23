@@ -152,6 +152,16 @@ func (c *fakeCluster) createPod(pod *corev1.Pod) {
 	c.createPending(pod)
 }
 
+// createRejectedPod runs all registered admission hooks on the pod and then drops it,
+// simulating a create that the API server rejects after admission, e.g. with AlreadyExists.
+// No pod ever appears for it.
+func (c *fakeCluster) createRejectedPod(pod *corev1.Pod) {
+	for _, hook := range c.podCreatedHooks {
+		_, err := hook(pod)
+		require.NoError(c.t, err)
+	}
+}
+
 func (c *fakeCluster) createPending(pod *corev1.Pod) {
 	require.Empty(c.t, pod.Name)
 	require.NotEmpty(c.t, pod.GenerateName)
@@ -449,6 +459,17 @@ func (d *fakeDeployment) Reconcile() {
 	for range max(0, d.replicas-active) {
 		d.cluster.createPod(newPod(d.namespace, kubernetes.ReplicaSetKind, d.existingReplicaSet, d.podSelector))
 	}
+}
+
+// CreateRejectedPod simulates a pod create of the current ReplicaSet that is rejected after admission.
+func (d *fakeDeployment) CreateRejectedPod() {
+	d.cluster.createRejectedPod(newPod(d.namespace, kubernetes.ReplicaSetKind, d.existingReplicaSet, d.podSelector))
+}
+
+// ScaleUp sets the replica count of the current ReplicaSet to the given value and creates the missing pods.
+func (d *fakeDeployment) ScaleUp(replicas int) {
+	d.replicas = replicas
+	d.Reconcile()
 }
 
 // ScaleDown deletes pods selected by deleteFilter and updates the replica count to the number of remaining pods.

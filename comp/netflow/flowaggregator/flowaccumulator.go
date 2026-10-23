@@ -141,6 +141,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
+		// schedule the flow to flush on the next tick
+		// but we add rdns asynchronously
+		// can rdns take longer than the flush interval? if so, we may not have the rdns info on the first flush
 		nextFlush := f.scheduler.ScheduleNewFlowFlush(timeNow())
 		f.flows[aggHash] = flowContext{
 			flow:      flowToAdd,
@@ -149,35 +152,40 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
+
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
+		// store the flow before enriching it: on a cache hit the hostname is set synchronously
+		// by looking up the flow in f.flows, which must not still hold the flushed (nil) flow
+		f.flows[aggHash] = aggFlow
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
-	} else {
-		// use go routine for hash collision detection to avoid blocking critical path
-		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+		return
+	}
 
-		// accumulate flowToAdd with existing flow(s) with same hash
-		aggFlow.flow.Bytes += flowToAdd.Bytes
-		aggFlow.flow.Packets += flowToAdd.Packets
-		aggFlow.flow.StartTimestamp = min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
-		aggFlow.flow.EndTimestamp = max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
-		aggFlow.flow.SequenceNum = max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
-		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
-		if aggFlow.flow.ApplicationID == 0 {
-			aggFlow.flow.ApplicationID = flowToAdd.ApplicationID
+	// use go routine for hash collision detection to avoid blocking critical path
+	go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+
+	// accumulate flowToAdd with existing flow(s) with same hash
+	aggFlow.flow.Bytes += flowToAdd.Bytes
+	aggFlow.flow.Packets += flowToAdd.Packets
+	aggFlow.flow.StartTimestamp = min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
+	aggFlow.flow.EndTimestamp = max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
+	aggFlow.flow.SequenceNum = max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
+	aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+	if aggFlow.flow.ApplicationID == 0 {
+		aggFlow.flow.ApplicationID = flowToAdd.ApplicationID
+	}
+
+	// keep first non-null value for custom fields
+	if flowToAdd.AdditionalFields != nil {
+		if aggFlow.flow.AdditionalFields == nil {
+			aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
 		}
 
-		// keep first non-null value for custom fields
-		if flowToAdd.AdditionalFields != nil {
-			if aggFlow.flow.AdditionalFields == nil {
-				aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
-			}
-
-			for field, value := range flowToAdd.AdditionalFields {
-				if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
-					aggFlow.flow.AdditionalFields[field] = value
-				}
+		for field, value := range flowToAdd.AdditionalFields {
+			if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
+				aggFlow.flow.AdditionalFields[field] = value
 			}
 		}
 	}

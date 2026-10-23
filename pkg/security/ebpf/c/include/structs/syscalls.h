@@ -128,6 +128,7 @@ struct syscall_cache_t {
             int source;
             u64 ns_inum;
             u64 unshare_flags;
+            u32 mnt_flags;
         } mount;
 
         struct {
@@ -277,6 +278,10 @@ struct syscall_cache_t {
         struct {
             u32 auid;
         } login_uid;
+
+        struct {
+            u32 pid;
+        } cgroup_write;
 
         struct {
             u8 in_flight;

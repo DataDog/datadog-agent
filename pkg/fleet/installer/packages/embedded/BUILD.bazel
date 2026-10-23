@@ -66,6 +66,7 @@ go_library(
         "tmpl/com.datadoghq.agent.plist.tmpl",
         "tmpl/com.datadoghq.data-plane.plist.tmpl",
         "tmpl/com.datadoghq.installer.plist.tmpl",
+        "tmpl/com.datadoghq.procmgr.plist.tmpl",
         "tmpl/com.datadoghq.sysprobe.plist.tmpl",
         "tmpl/datadog-agent-par-control.yaml.tmpl",
         "tmpl/datadog-agent-par-control-windows.yaml.tmpl",

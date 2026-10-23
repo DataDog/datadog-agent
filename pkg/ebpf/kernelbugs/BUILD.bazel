@@ -26,58 +26,58 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android_386": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:android_amd64": [
-            "//pkg/ebpf",
-            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/ebpf/ksyms",
+            "//pkg/ebpf/protectedfile",
             "//pkg/util/funcs",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:android_arm": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:android_arm64": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_386": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_amd64": [
-            "//pkg/ebpf",
-            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/ebpf/ksyms",
+            "//pkg/ebpf/protectedfile",
             "//pkg/util/funcs",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux_arm": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_arm64": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_mips": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_mips64": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_mips64le": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_mipsle": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_ppc64": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_ppc64le": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_riscv64": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "@rules_go//go/platform:linux_s390x": [
-            "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
         ],
         "//conditions:default": [],
     }),

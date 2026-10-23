@@ -60,6 +60,8 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/forwarder/connectionsforwarder/fx",
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/transaction",
         "//comp/process/forwarders/def",
         "//comp/process/forwarders/fx",
         "//comp/process/types",

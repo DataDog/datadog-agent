@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Minimizes the ``gstatus`` binary used for the GlusterFS integration to remove unused dependencies.

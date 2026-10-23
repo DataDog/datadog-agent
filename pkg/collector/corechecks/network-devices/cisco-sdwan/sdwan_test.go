@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -439,4 +440,91 @@ collect_cloud_applications_metrics: false
 	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bgp.neighbor", mock.Anything, mock.Anything, mock.Anything)
 
 	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
+}
+
+func TestConfigureRateLimitValidation(t *testing.T) {
+	tests := []struct {
+		name          string
+		rate          string
+		expectedError string
+	}{
+		{name: "disabled", rate: "0"},
+		{name: "valid", rate: "0.5"},
+		{name: "one request per interval", rate: "0.0167"},
+		{name: "negative", rate: "-1", expectedError: "max_requests_per_second must be positive"},
+		{name: "less than one request per interval", rate: "0.001", expectedError: "at least one request per check interval"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := createDeps(t)
+			chk := newCheck()
+
+			// language=yaml
+			rawInstanceConfig := []byte(`
+vmanage_endpoint: localhost
+username: admin
+password: 'test-password'
+max_requests_per_second: ` + tt.rate + `
+`)
+
+			err := chk.Configure(deps.Demultiplexer, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+			if tt.expectedError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedError)
+			}
+		})
+	}
+}
+
+func TestCancelInterruptsRateLimitedRun(t *testing.T) {
+	deps := createDeps(t)
+	senderManager := deps.Demultiplexer
+
+	// One request per 50s: the second login request waits for a token until the check is cancelled
+	// language=yaml
+	rawInstanceConfig := []byte(`
+vmanage_endpoint: sdwan.test
+username: admin
+password: 'test-password'
+use_http: true
+max_requests_per_second: 0.02
+`)
+
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
+	sender.SetupAcceptAll()
+
+	synctest.Test(t, func(t *testing.T) {
+		transport := client.NewMockAPITransport()
+		originalNewClient := newClient
+		newClient = func(endpoint, username, password string, useHTTP bool, options ...client.ClientOptions) (*client.Client, error) {
+			return client.NewClient(endpoint, username, password, useHTTP, append(options, client.WithTransport(transport))...)
+		}
+		defer func() { newClient = originalNewClient }()
+
+		chk := newCheck()
+		err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+		require.NoError(t, err)
+
+		start := time.Now()
+		done := make(chan struct{})
+		go func() {
+			chk.Run()
+			close(done)
+		}()
+
+		// Wait until the run is durably blocked: the first login request was sent and
+		// the second one is waiting for a rate limiter token
+		synctest.Wait()
+		require.Equal(t, int32(1), transport.Requests.Load())
+
+		chk.Cancel()
+		<-done
+
+		// The wait was interrupted by the cancellation, not by a token becoming available,
+		// and no further request was sent
+		require.Zero(t, time.Since(start))
+		require.Equal(t, int32(1), transport.Requests.Load())
+	})
 }

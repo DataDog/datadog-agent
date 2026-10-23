@@ -42,6 +42,11 @@ properties:
         - os
         items:
           type: string
+      scan_timeout:
+        node_type: setting
+        type: integer
+        default: 600
+        comment: Integer seconds
   container_image:
     node_type: section
     type: object
@@ -106,6 +111,8 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        deprecated: true
+        comment: deprecated and ignored, SBOM scans keep their cache in memory
       scan_interval:
         node_type: setting
         type: integer
@@ -149,26 +156,32 @@ properties:
   cache:
     node_type: section
     type: object
+    deprecated: true
     properties:
       clean_interval:
         node_type: setting
         type: string
         default: 1h
-        comment: used by custom cache.
+        deprecated: true
+        comment: deprecated and ignored, SBOM scans keep their cache in memory
       max_disk_size:
         node_type: setting
         type: integer
         default: 100000000
-        comment: 'used by custom cache: max disk space used by cached objects. Not
-          equal to max disk usage'
+        deprecated: true
+        comment: deprecated and ignored, SBOM scans keep their cache in memory
   cache_directory:
     node_type: setting
     type: string
     default: ${run_path}/sbom-agent
+    deprecated: true
+    comment: deprecated and ignored, SBOM scans keep their cache in memory
   clear_cache_on_exit:
     node_type: setting
     type: boolean
     default: false
+    deprecated: true
+    comment: deprecated and ignored, SBOM scans keep their cache in memory
   compression_kind:
     node_type: setting
     type: string

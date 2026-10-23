@@ -31,8 +31,10 @@ func TestCompressUncompressSBOM(t *testing.T) {
 		},
 		GenerationTime:     time.Now(),
 		GenerationDuration: 100 * time.Millisecond,
+		GenerationMethod:   "tarball",
 		Status:             workloadmeta.Success,
 		Error:              "",
+		OSFallback:         true,
 	}
 
 	csbom, err := CompressSBOM(sbom)
