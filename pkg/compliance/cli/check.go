@@ -80,7 +80,7 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 	}
 
 	// Resolved once: querying the cloud provider metadata endpoints is costly.
-	hostCCRID := compliance.FetchHostCCRID(context.Background(), config)
+	hostCCRID := compliance.FetchCCRID(context.Background(), config)
 
 	var resolver compliance.Resolver
 	if checkArgs.OverrideRegoInput != "" {
@@ -143,7 +143,7 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 				}
 			}
 			for _, event := range ruleEvents {
-				event.HostCCRID = hostCCRID
+				event.CCRID = hostCCRID
 				b, _ := json.MarshalIndent(event, "", "\t")
 				fmt.Println(string(b))
 				if event.Result != compliance.CheckSkipped {

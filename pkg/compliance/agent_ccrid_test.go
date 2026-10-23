@@ -20,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// TestReportedEventsCarryHostCCRID pins the invariant that every payload the
+// TestReportedEventsCarryCCRID pins the invariant that every payload the
 // compliance agent reports is stamped with the host CCRID resolved at startup,
 // whatever the evaluator that produced it.
-func TestReportedEventsCarryHostCCRID(t *testing.T) {
+func TestReportedEventsCarryCCRID(t *testing.T) {
 	const hostCCRID = "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0"
 
 	logChan := make(chan *message.Message, 100)
@@ -39,8 +39,8 @@ func TestReportedEventsCarryHostCCRID(t *testing.T) {
 
 	a := &Agent{
 		opts: AgentOptions{
-			Reporter:  reporter,
-			HostCCRID: hostCCRID,
+			Reporter: reporter,
+			CCRID:    hostCCRID,
 		},
 		statuses: map[string]*CheckStatus{rule.ID: {RuleID: rule.ID}},
 	}
@@ -54,7 +54,7 @@ func TestReportedEventsCarryHostCCRID(t *testing.T) {
 	}
 	a.reportCheckEvents(time.Minute, events...)
 	for _, event := range events {
-		assert.Equal(t, hostCCRID, event.HostCCRID)
+		assert.Equal(t, hostCCRID, event.CCRID)
 	}
 
 	a.reportResourceLog(time.Minute, NewResourceLog("host", types.ResourceType("test"), nil))
@@ -64,10 +64,10 @@ func TestReportedEventsCarryHostCCRID(t *testing.T) {
 	reported := 0
 	for msg := range logChan {
 		var payload struct {
-			HostCCRID string `json:"host_ccrid"`
+			CCRID string `json:"ccrid"`
 		}
 		require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
-		assert.Equal(t, hostCCRID, payload.HostCCRID)
+		assert.Equal(t, hostCCRID, payload.CCRID)
 		reported++
 	}
 	// 3 check events (the skipped one is not reported) + 1 resource log.
