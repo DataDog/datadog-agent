@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,7 +42,7 @@ func renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName st
 	)
 	archivePath := filepath.Join(filepath.Dir(filePath), archiveName)
 	if err := os.Rename(filePath, archivePath); err != nil {
-		log.Infof("[RemoteFlare] Could not add Cluster Agent resource identity to flare archive name, using generic name: %v", err)
+		log.Infof("Could not add Cluster Agent resource identity to flare archive name, using generic name: %v", err)
 		return filePath
 	}
 	return archivePath
@@ -100,22 +99,6 @@ func HandleRCFlareTask(
 
 	rcSource := flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
 
-	_, err = sendFlareFunc(
-		cfg,
-		filePath,
-		caseID,
-		userHandle,
-		cfg.GetString("api_key"),
-		configUtils.GetInfraEndpoint(cfg),
-		rcSource,
-	)
-	if err != nil {
-		return err
-	}
-	if removeErr := os.Remove(filePath); removeErr != nil {
-		log.Warnf("[RemoteFlare] Could not remove local flare archive %s: %v", filePath, removeErr)
-	} else {
-		log.Infof("[RemoteFlare] Removed local flare archive %s", filePath)
-	}
-	return nil
+	_, err = NewCreator(cfg, statusComp, diagnoseComp, ipcComp).Send(filePath, caseID, userHandle, rcSource)
+	return err
 }

@@ -38,7 +38,8 @@ func NewCreator(cfg pkgconfigmodel.Reader, statusComp status.Component, diagnose
 	}
 }
 
-// CreateWithArgs creates a Cluster Agent flare and returns its path.
+// CreateWithArgs creates a Cluster Agent flare and returns its path. The Cluster Agent
+// flare doesn't use providerTimeout, ipcError or diagnoseResult, so they're ignored.
 func (c *Creator) CreateWithArgs(flareArgs flaretypes.FlareArgs, _ time.Duration, _ error, _ []byte) (string, error) {
 	return createIdentifiedDCAArchive(c.cfg, flareArgs, c.statusComp, c.diagnoseComp, c.ipcComp)
 }
