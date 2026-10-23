@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = [
         "client.go",
+        "expvar.go",
         "registry.go",
         "services.go",
     ],
@@ -43,6 +44,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "client_test.go",
+        "expvar_test.go",
         "registry_test.go",
         "services_test.go",
     ],
