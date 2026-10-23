@@ -2,6 +2,41 @@
 Release Notes
 =============
 
+.. _Release Notes_6.53.2:
+
+6.53.2
+======
+
+.. _Release Notes_6.53.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2026-10-22
+
+- Please refer to the `6.53.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6532>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_6.53.2_Security Notes:
+
+Security Notes
+--------------
+
+- Update the embedded CA certificate bundle to the Mozilla bundle dated 2026-10-20.
+  This removes the ``emSign ECC Root CA - G3``, ``emSign ECC Root CA - C3`` and
+  ``emSign Root CA - C1`` root certificates, which Mozilla removed from its root store.
+  The CA bundles vendored by the ``certifi``, ``pip``, ``boto`` and ``botocore`` Python
+  packages are replaced with this bundle as well.
+
+
+.. _Release Notes_6.53.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Stop chunking outputs in manual checks for container, process, and process_discovery checks to allow JSON unmarshaler to parse output.
+
+
 .. _Release Notes_6.53.1_6.53.x:
 
 6.53.1

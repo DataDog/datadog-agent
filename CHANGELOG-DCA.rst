@@ -2,6 +2,19 @@
 Release Notes
 =============
 
+.. _Release Notes_6.53.2:
+
+6.53.2
+======
+
+.. _Release Notes_6.53.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-22
+Pinned to datadog-agent v6.53.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/6.53.x/CHANGELOG.rst#6532>`_.
+
 .. _Release Notes_6.53.1_6.53.x:
 
 6.53.1
