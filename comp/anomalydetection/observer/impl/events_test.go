@@ -377,7 +377,7 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
-	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
+	assert.Equal(t, extractor.logSignature("GET /users/123 returned 500"), anomaly.Context.Pattern)
 }
 
 func TestNewEnginePanicsOnDuplicateExtractorNames(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/tokenizer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -40,7 +41,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	}
 
 	// Pattern count is based on the full JSON payload.
-	sig := logSignature(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`, 0)
+	sig := a.logSignature(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
@@ -73,10 +74,36 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:web"}), res.Metrics[0].Tags)
 
 	// Compute expected metric name (hash of signature).
-	sig := logSignature("Request completed in 45ms", 0)
+	sig := a.logSignature("Request completed in 45ms")
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+}
+
+// TestLogMetricsExtractor_LogSignature pins the signatures that name the
+// log.pattern.<hash>.count series: if one changes, the series is renamed.
+func TestLogMetricsExtractor_LogSignature(t *testing.T) {
+	assert.Equal(t, 1, tokenizer.ProfileVersion, "the Logs tokenizer output changed: map new tokens in logSignature back to what AAD printed before, or accept renamed log.pattern series, then update this pin")
+
+	// One extractor for every case, so its tokenizer is reused across logs.
+	a := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+	for _, tt := range []struct{ content, want string }{
+		{"", ""},
+		{"Request completed in 45ms", "CCCCCCC CCCCCCCCC CC DDCC"},
+		{"Mon Jan 15 14:30:00 UTC 2024", "DAY MTH DD DD:DD:DD ZONE DDDD"},
+		{"ERROR: connection failed", "CCCCC: CCCCCCCCCC CCCCCC"},
+		{"WARNING timeout", "CCCCCCC CCCCCCC"},
+		{"accepted from 10.0.0.1", "CCCCCCCC CCCC DD.D.D.D"},
+		{"accepted from 192.168.100.200:8080", "CCCCCCCC CCCC DDD.DDD.DDD.DDD:DDDD"},
+		{"v1.2.3.4.5 error0.0.0.0", "CD.D.D.D.D CCCCCD.D.D.D"},
+		{"voilà ok", "CCCCCC CC"},
+	} {
+		assert.Equal(t, tt.want, a.logSignature(tt.content), "content %q", tt.content)
+	}
+
+	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: 8})
+	assert.Equal(t, "DD.D.D.D", capped.logSignature("10.0.0.1 x"))
+	assert.Equal(t, "CCCCCCCC", capped.logSignature("abcdefgh 123"))
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
@@ -103,7 +130,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 		assert.Equal(t, float64(45), m.Value)
 	}
 
-	sig := logSignature(`{"duration_ms":45,"status":200}`, 0)
+	sig := a.logSignature(`{"duration_ms":45,"status":200}`)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
@@ -122,7 +149,7 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
 
-	sig := logSignature(input, 0)
+	sig := a.logSignature(input)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
