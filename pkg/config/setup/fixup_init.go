@@ -115,6 +115,7 @@ func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 // called only for full-agent, NOT serverless-init, after declaring settings
 func fixupInitFullAgentOnlyComponents(_ pkgconfigmodel.Config) {
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
+	pkgconfigmodel.AddOverrideFunc(EnableAgentIPCForSystemProbeSecurity)
 }
 
 // postProcessSystemProbe rewrites system-probe repo dir defaults to live under HOST_ETC.

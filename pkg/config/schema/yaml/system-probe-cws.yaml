@@ -243,7 +243,7 @@ properties:
   direct_send_from_system_probe:
     node_type: setting
     type: boolean
-    default: false
+    default: true
   ebpfless:
     node_type: section
     type: object
