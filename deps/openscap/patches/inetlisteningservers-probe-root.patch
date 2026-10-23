@@ -1,0 +1,379 @@
+--- a/src/OVAL/probes/probe-table.c
++++ b/src/OVAL/probes/probe-table.c
+@@ -263,7 +263,7 @@
+ 	{OVAL_LINUX_IFLISTENERS, NULL, iflisteners_probe_main, NULL, NULL},
+ #endif
+ #ifdef OPENSCAP_PROBE_LINUX_INETLISTENINGSERVERS
+-	{OVAL_LINUX_INET_LISTENING_SERVERS, NULL, inetlisteningservers_probe_main, NULL, NULL},
++	{OVAL_LINUX_INET_LISTENING_SERVERS, NULL, inetlisteningservers_probe_main, NULL, inetlisteningservers_probe_offline_mode_supported},
+ #endif
+ #ifdef OPENSCAP_PROBE_LINUX_PARTITION
+ 	{OVAL_LINUX_PARTITION, NULL, partition_probe_main, NULL, patition_probe_offline_mode_supported},
+--- a/src/OVAL/probes/unix/linux/inetlisteningservers_probe.c
++++ b/src/OVAL/probes/unix/linux/inetlisteningservers_probe.c
+@@ -55,6 +55,8 @@
+ #include <stdio_ext.h>
+ #include <errno.h>
+ #include <dirent.h>
++#include <limits.h>
++#include <unistd.h>
+ #include <fcntl.h>
+ #include <netdb.h>
+ #include <arpa/inet.h>
+@@ -62,6 +64,7 @@
+ 
+ #include "_seap.h"
+ #include "probe-api.h"
++#include "probe/probe.h"
+ #include "probe/entcmp.h"
+ #include "common/debug_priv.h"
+ #include "inetlisteningservers_probe.h"
+@@ -171,19 +174,21 @@
+ 	return NULL;
+ }
+ 
+-static int collect_process_info(llist *l)
++static int collect_process_info(llist *l, const char *root)
+ {
+ 	DIR *d, *f;
+ 	struct dirent *ent;
++	char proc[PATH_MAX];
+ 
+-	d = opendir("/proc");
++	snprintf(proc, sizeof(proc), "%s/proc", root);
++	d = opendir(proc);
+ 	if (d == NULL)
+ 		return 1;
+ 
+ 	while (( ent = readdir(d) )) {
+ 		FILE *sf;
+ 		int pid, ppid;
+-		char buf[100];
++		char buf[PATH_MAX];
+ 		char *tmp, cmd[16], state, *text = NULL;
+ 		int fd, len, euid = 0;
+ 
+@@ -196,7 +201,7 @@
+ 			continue;
+ 
+ 		// Parse up the stat file for the proc
+-		snprintf(buf, 32, "/proc/%d/stat", pid);
++		snprintf(buf, sizeof(buf), "%s/proc/%d/stat", root, pid);
+ 		fd = open(buf, O_RDONLY, 0);
+ 		if (fd < 0)
+ 			continue;
+@@ -219,7 +224,7 @@
+ 			continue;
+ 
+ 		// Get the effective uid
+-		snprintf(buf, 32, "/proc/%d/status", pid);
++		snprintf(buf, sizeof(buf), "%s/proc/%d/status", root, pid);
+ 		sf = fopen(buf, "rt");
+ 		if (sf) {
+ 			int line = 0;
+@@ -240,7 +245,7 @@
+ 		}
+ 
+ 		// Now lets get the inodes each process has open
+-		snprintf(buf, 32, "/proc/%d/fd", pid);
++		snprintf(buf, sizeof(buf), "%s/proc/%d/fd", root, pid);
+ 		f = opendir(buf);
+ 		if (f == NULL) {
+ 			// Process might have ended or we don;t have access - ignore it
+@@ -397,23 +402,16 @@
+ }
+ 
+ 
+-static int read_tcp(const char *proc, const char *type, llist *l, probe_ctx *ctx, struct server_info *req)
++/* read_tcp_file reports the listening sockets of the open table f, and closes it */
++static int read_tcp_file(FILE *f, const char *type, llist *l, probe_ctx *ctx, struct server_info *req)
+ {
+ 	int line = 0;
+-	FILE *f;
+ 	char buf[256];
+ 	unsigned long rxq, txq, time_len, retr, inode;
+ 	unsigned local_port, rem_port, uid;
+ 	int d, state, timer_run, timeout;
+ 	char rem_addr[128], local_addr[128], more[512];
+ 
+-	f = fopen(proc, "rt");
+-	if (f == NULL) {
+-		if (errno != ENOENT)
+-			return 1;
+-		else
+-			return 0;
+-	}
+ 	__fsetlocking(f, FSETLOCKING_BYCALLER);
+ 	while (fgets(buf, sizeof(buf), f)) {
+ 		if (line == 0) {
+@@ -449,6 +447,18 @@
+ 	return 0;
+ }
+ 
++static int read_tcp(const char *proc, const char *type, llist *l, probe_ctx *ctx, struct server_info *req)
++{
++	FILE *f = fopen(proc, "rt");
++	if (f == NULL) {
++		if (errno != ENOENT)
++			return 1;
++		else
++			return 0;
++	}
++	return read_tcp_file(f, type, l, ctx, req);
++}
++
+ static int read_udp(const char *proc, const char *type, llist *l, probe_ctx *ctx, struct server_info *req)
+ {
+ 	int line = 0;
+@@ -581,9 +591,30 @@
+ 		goto cleanup;
+ 	}
+ 
++	/*
++	 * /proc/net lists the sockets of the reading process's network
++	 * namespace, so under a probe root read those of the root's init.
++	 */
++	const char *root = getenv("OSCAP_PROBE_ROOT");
++	if (root == NULL)
++		root = "";
++	const char *net = *root != '\0' ? "/proc/1/net" : "/proc/net";
++	char path[PATH_MAX];
++	FILE *tcp = NULL;
++	if (*root != '\0') {
++		/* a root without the sockets of its init, as a disk image */
++		snprintf(path, sizeof(path), "%s%s/tcp", root, net);
++		tcp = fopen(path, "rt");
++		if (tcp == NULL && errno == ENOENT) {
++			probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
++			err = 0;
++			goto cleanup;
++		}
++	}
++
+ 	// Now start collecting the info
+ 	list_create(&ll);
+-	if (collect_process_info(&ll)) {
++	if (collect_process_info(&ll, root)) {
+ 		SEXP_t *msg;
+ 
+ 		msg = probe_msg_creat(OVAL_MESSAGE_LEVEL_ERROR, "Permission error.");
+@@ -591,22 +622,34 @@
+ 		SEXP_free(msg);
+ 		probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_ERROR);
+ 
++		if (tcp != NULL)
++			fclose(tcp);
+ 		err = 0;
+ 		goto cleanup;
+ 	}
+ 
+ 	// Now we check the tcp socket list...
+-	read_tcp("/proc/net/tcp", "tcp", &ll, ctx, req);
+-	read_tcp("/proc/net/tcp6", "tcp", &ll, ctx, req);
++	if (tcp != NULL) {
++		read_tcp_file(tcp, "tcp", &ll, ctx, req);
++	} else {
++		snprintf(path, sizeof(path), "%s%s/tcp", root, net);
++		read_tcp(path, "tcp", &ll, ctx, req);
++	}
++	snprintf(path, sizeof(path), "%s%s/tcp6", root, net);
++	read_tcp(path, "tcp", &ll, ctx, req);
+ 
+ 	// Next udp sockets...
+-	read_udp("/proc/net/udp", "udp", &ll, ctx, req);
+-	read_udp("/proc/net/udp6", "udp", &ll, ctx, req);
++	snprintf(path, sizeof(path), "%s%s/udp", root, net);
++	read_udp(path, "udp", &ll, ctx, req);
++	snprintf(path, sizeof(path), "%s%s/udp6", root, net);
++	read_udp(path, "udp", &ll, ctx, req);
+ 
+ 	// Next, raw sockets...not exactly part of standard yet. They
+ 	// can be used to send datagrams, so we will pretend they are udp
+-	read_raw("/proc/net/raw", "udp", &ll, ctx, req);
+-	read_raw("/proc/net/raw6", "udp", &ll, ctx, req);
++	snprintf(path, sizeof(path), "%s%s/raw", root, net);
++	read_raw(path, "udp", &ll, ctx, req);
++	snprintf(path, sizeof(path), "%s%s/raw6", root, net);
++	read_raw(path, "udp", &ll, ctx, req);
+ 
+ 	list_clear(&ll);
+ 
+@@ -619,3 +662,8 @@
+ 
+ 	return err;
+ }
++
++int inetlisteningservers_probe_offline_mode_supported(void)
++{
++	return PROBE_OFFLINE_OWN;
++}
+--- a/src/OVAL/probes/unix/linux/inetlisteningservers_probe.h
++++ b/src/OVAL/probes/unix/linux/inetlisteningservers_probe.h
+@@ -26,5 +26,6 @@
+ #include "probe-api.h"
+ 
+ int inetlisteningservers_probe_main(probe_ctx *ctx, void *arg);
++int inetlisteningservers_probe_offline_mode_supported(void);
+ 
+ #endif /* OPENSCAP_INETLISTENINGSERVERS_PROBE_H */
+--- a/tests/probes/CMakeLists.txt
++++ b/tests/probes/CMakeLists.txt
+@@ -9,6 +9,7 @@
+ add_subdirectory("filemd5")
+ add_subdirectory("fwupdsecattr")
+ add_subdirectory("iflisteners")
++add_subdirectory("inetlisteningservers")
+ add_subdirectory("interface")
+ add_subdirectory("isainfo")
+ add_subdirectory("maskattr")
+diff --git a/tests/probes/inetlisteningservers/CMakeLists.txt b/tests/probes/inetlisteningservers/CMakeLists.txt
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/inetlisteningservers/CMakeLists.txt
+@@ -0,0 +1,3 @@
++if(ENABLE_PROBES_LINUX)
++	add_oscap_test("test_probes_inetlisteningservers_offline_mode.sh" LABELS linux linux_only)
++endif()
+diff --git a/tests/probes/inetlisteningservers/test_probes_inetlisteningservers_offline_mode.sh b/tests/probes/inetlisteningservers/test_probes_inetlisteningservers_offline_mode.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/probes/inetlisteningservers/test_probes_inetlisteningservers_offline_mode.sh
+@@ -0,0 +1,94 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_probes_inetlisteningservers_offline_mode {
++	probecheck "inetlisteningservers" || return 255
++
++	local definition="${srcdir}/test_probes_inetlisteningservers_offline_mode.xml"
++	local result="results_offline_mode.xml"
++	[[ -f "$result" ]] && rm -f "$result"
++
++	# The probe reads the sockets of the init process of the root. This
++	# init, named sendmail, listens on 127.0.0.1:8080 (0100007F:1F90)
++	# with the socket of inode 12345.
++	local tmpdir
++	tmpdir=$(make_temp_dir /tmp "test_offline_mode_inetlisteningservers")
++	mkdir -p "${tmpdir}/proc/1/net" "${tmpdir}/proc/1/fd"
++	cat > "${tmpdir}/proc/1/net/tcp" <<'END'
++  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
++   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 12345 1 0000000000000000 100 0 0 10 0
++END
++	echo "1 (sendmail) S 0 1 1 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 0" > "${tmpdir}/proc/1/stat"
++	printf 'Name:\tsendmail\nUid:\t0\t0\t0\t0\n' > "${tmpdir}/proc/1/status"
++	ln -s "socket:[12345]" "${tmpdir}/proc/1/fd/3"
++	set_offline_chroot_dir "${tmpdir}"
++
++	$OSCAP oval eval --results "$result" "$definition"
++
++	set_offline_chroot_dir ""
++	rm -rf "${tmpdir}"
++
++	local item='oval_results/results/system/oval_system_characteristics/system_data/lin-sys:inetlisteningserver_item'
++	assert_exists 1 "$item"
++	assert_exists 1 "$item/lin-sys:local_port[text()=\"8080\"]"
++	assert_exists 1 "$item/lin-sys:program_name[text()=\"sendmail\"]"
++	assert_exists 1 "$item/lin-sys:pid[text()=\"1\"]"
++	assert_exists 1 'oval_results/results/system/tests/test[@test_id="oval:1:tst:1"][@result="true"]'
++	return 0
++}
++
++function test_probes_inetlisteningservers_offline_mode_no_procfs {
++	probecheck "inetlisteningservers" || return 255
++
++	local definition="${srcdir}/test_probes_inetlisteningservers_offline_mode.xml"
++	local result="results_offline_mode_no_procfs.xml"
++	[[ -f "$result" ]] && rm -f "$result"
++
++	# The /proc of this root is empty, as in a disk image.
++	local tmpdir
++	tmpdir=$(make_temp_dir /tmp "test_offline_mode_inetlisteningservers")
++	mkdir "${tmpdir}/proc"
++	set_offline_chroot_dir "${tmpdir}"
++
++	$OSCAP oval eval --results "$result" "$definition"
++
++	set_offline_chroot_dir ""
++	rm -rf "${tmpdir}"
++
++	assert_exists 1 'oval_results/results/system/tests/test[@test_id="oval:1:tst:1"][@result="not applicable"]'
++	assert_exists 1 'oval_results/results/system/oval_system_characteristics/collected_objects/object[@id="oval:1:obj:1"][@flag="not applicable"]'
++	return 0
++}
++
++function test_probes_inetlisteningservers_offline_mode_no_proc {
++	probecheck "inetlisteningservers" || return 255
++
++	local definition="${srcdir}/test_probes_inetlisteningservers_offline_mode.xml"
++	local result="results_offline_mode_no_proc.xml"
++	[[ -f "$result" ]] && rm -f "$result"
++
++	# This root has no /proc at all.
++	local tmpdir
++	tmpdir=$(make_temp_dir /tmp "test_offline_mode_inetlisteningservers")
++	set_offline_chroot_dir "${tmpdir}"
++
++	$OSCAP oval eval --results "$result" "$definition"
++
++	set_offline_chroot_dir ""
++	rm -rf "${tmpdir}"
++
++	assert_exists 1 'oval_results/results/system/tests/test[@test_id="oval:1:tst:1"][@result="not applicable"]'
++	assert_exists 1 'oval_results/results/system/oval_system_characteristics/collected_objects/object[@id="oval:1:obj:1"][@flag="not applicable"]'
++	return 0
++}
++
++test_init
++
++test_run "test_probes_inetlisteningservers_offline_mode" test_probes_inetlisteningservers_offline_mode
++test_run "test_probes_inetlisteningservers_offline_mode_no_procfs" test_probes_inetlisteningservers_offline_mode_no_procfs
++test_run "test_probes_inetlisteningservers_offline_mode_no_proc" test_probes_inetlisteningservers_offline_mode_no_proc
++
++test_exit
+diff --git a/tests/probes/inetlisteningservers/test_probes_inetlisteningservers_offline_mode.xml b/tests/probes/inetlisteningservers/test_probes_inetlisteningservers_offline_mode.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/inetlisteningservers/test_probes_inetlisteningservers_offline_mode.xml
+@@ -0,0 +1,39 @@
++<?xml version="1.0"?>
++<oval_definitions xmlns:oval-def="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:lin-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux linux-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-common-5 oval-common-schema.xsd">
++
++  <generator>
++    <oval:product_name>inetlisteningservers</oval:product_name>
++    <oval:product_version>1.0</oval:product_version>
++    <oval:schema_version>5.11.1</oval:schema_version>
++    <oval:timestamp>2026-10-20T00:00:00+00:00</oval:timestamp>
++  </generator>
++
++  <definitions>
++
++    <definition class="compliance" version="1" id="oval:1:def:1">
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:1:tst:1"/>
++      </criteria>
++    </definition>
++
++  </definitions>
++
++  <tests>
++    <inetlisteningservers_test version="1" id="oval:1:tst:1" check="all" check_existence="at_least_one_exists" comment="A server listens on 127.0.0.1:8080" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <object object_ref="oval:1:obj:1"/>
++    </inetlisteningservers_test>
++  </tests>
++
++  <objects>
++    <inetlisteningservers_object version="1" id="oval:1:obj:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux">
++      <protocol>tcp</protocol>
++      <local_address>127.0.0.1</local_address>
++      <local_port datatype="int">8080</local_port>
++    </inetlisteningservers_object>
++  </objects>
++
++</oval_definitions>
