@@ -1,10 +1,10 @@
 ---
 .static_quality_gate_docker: |
   # Measure Docker image size and generate in-place report
-  # This runs after the main script and won't fail the job if there are issues.
+  # This should fail the job if there are issues.
   # This is common for all Docker image builds
 
-  if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
+  if [[ -n "${STATIC_QUALITY_GATE_NAME:-}" ]]; then
     echo "📊 Starting Docker image measurement..."
 
     # Construct the built image reference from build variables
@@ -12,7 +12,7 @@
     ECR_RELEASE_SUFFIX=${ECR_RELEASE_SUFFIX:-}
     TAG_SUFFIX=${TAG_SUFFIX:-}
     IMAGE_REF="${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-$ARCH"
-    
+
     echo "🔍 Measuring Docker image: $IMAGE_REF"
 
     # Extract report prefix from gate name (e.g. static_quality_gate_docker_agent_amd64 -> docker_agent_amd64)
@@ -24,7 +24,7 @@
       --gate-name "$STATIC_QUALITY_GATE_NAME" \
       --build-job-name "$CI_JOB_NAME" \
       --output-path "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
-      --debug || { echo "⚠️  Docker image measurement failed for $IMAGE_REF"; exit 0; }
+      --debug
 
     echo "✅ Docker image measurement completed"
 
