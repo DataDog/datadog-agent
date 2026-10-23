@@ -3311,6 +3311,7 @@ core,go.temporal.io/sdk/internal/common/metrics,MIT,"Copyright (c) 2020 Temporal
 core,go.temporal.io/sdk/internal/common/retry,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/serializer,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/util,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/workflowcontext,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/extstore,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/log,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/protocol,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
