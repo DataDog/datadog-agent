@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -250,7 +252,8 @@ func TestCreateOrUpdateDDConfigMap_UpdateExistingConfigMap(t *testing.T) {
 				"namespace":       "ingress-nginx",
 				"resourceVersion": "1",
 				"labels": map[string]interface{}{
-					"stale": "label",
+					"stale":                        "label",
+					"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue,
 				},
 			},
 			"data": map[string]interface{}{
@@ -322,6 +325,9 @@ func TestCreateOrUpdateDDConfigMap_ConflictRetry(t *testing.T) {
 				"name":            ddName,
 				"namespace":       "ingress-nginx",
 				"resourceVersion": "1",
+				"labels": map[string]interface{}{
+					"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue,
+				},
 			},
 		},
 	}
@@ -359,4 +365,36 @@ func TestCreateOrUpdateDDConfigMap_ConflictRetry(t *testing.T) {
 	require.True(t, found)
 	assert.Contains(t, data[mainSnippetKey], "load_module /modules_mount/ngx_http_datadog_module.so;")
 	assert.Contains(t, data[mainSnippetKey], "worker_connections 4096;")
+}
+
+func TestCreateOrUpdateDDConfigMap_LeavesForeignConfigMap(t *testing.T) {
+	ctx := t.Context()
+	originalName := "ingress-nginx-controller"
+	ddName := ddConfigMapName(originalName)
+	foreign := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      ddName,
+				"namespace": "ingress-nginx",
+				"labels":    map[string]interface{}{"app": "someone-else"},
+			},
+			"data": map[string]interface{}{"keep": "me"},
+		},
+	}
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{configMapGVR: "ConfigMapList"},
+		foreign,
+	)
+
+	err := createOrUpdateDDConfigMap(ctx, client, "ingress-nginx", originalName, "/modules_mount",
+		map[string]string{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue}, map[string]string{})
+	require.ErrorIs(t, err, errForeignConfigMap)
+
+	cm, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, ddName, metav1.GetOptions{})
+	require.NoError(t, err)
+	data, _, _ := unstructured.NestedStringMap(cm.Object, "data")
+	assert.Equal(t, map[string]string{"keep": "me"}, data, "ConfigMap not created by the injector must be left untouched")
+	assert.Equal(t, map[string]string{"app": "someone-else"}, cm.GetLabels())
 }

@@ -10,6 +10,7 @@ package envoygateway
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,10 @@ import (
 
 // newTestEnvoyGatewayPattern creates a test instance with mocked dependencies
 func newTestEnvoyGatewayPattern(_ *testing.T, client dynamic.Interface, logger log.Component, config appsecconfig.Config) *envoyGatewayInjectionPattern {
+	// Like production config, created resources carry the managed-by label
+	labels := map[string]string{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue}
+	maps.Copy(labels, config.CommonLabels)
+	config.CommonLabels = labels
 	recorder := record.NewFakeRecorder(100)
 	eventRec := eventRecorder{recorder: recorder}
 
@@ -68,6 +73,7 @@ func newTestEnvoyExtensionPolicy(namespace string) *unstructured.Unstructured {
 	policy.SetKind("EnvoyExtensionPolicy")
 	policy.SetNamespace(namespace)
 	policy.SetName(extProcName)
+	policy.SetLabels(map[string]string{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue})
 	return policy
 }
 
@@ -80,6 +86,7 @@ func newTestReferenceGrant(namespace, fromNamespace string) *unstructured.Unstru
 			"metadata": map[string]any{
 				"name":      referenceGrantName,
 				"namespace": namespace,
+				"labels":    map[string]any{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue},
 			},
 			"spec": map[string]any{
 				"from": []any{
@@ -108,6 +115,7 @@ func newTestBackend(namespace, socketPath string) *unstructured.Unstructured {
 		"metadata": map[string]any{
 			"name":      extProcName,
 			"namespace": namespace,
+			"labels":    map[string]any{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue},
 		},
 		"spec": map[string]any{
 			"endpoints": []any{
@@ -1009,4 +1017,111 @@ func TestIsInjectionPossible_SidecarChecksBackendCRD(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDeleted_OnlyDeletesResourcesCreatedByInjector verifies that deleting the last Gateway of a
+// namespace leaves an EnvoyExtensionPolicy and ReferenceGrant the injector did not create in place,
+// and still removes ones created before the managed-by label existed (component label only).
+func TestDeleted_OnlyDeletesResourcesCreatedByInjector(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		labels  map[string]string
+		deleted bool
+	}{
+		{name: "not created by the injector", labels: map[string]string{"app": "someone-else"}, deleted: false},
+		{name: "created before the managed-by label", labels: map[string]string{"app.kubernetes.io/component": "datadog-appsec-injector"}, deleted: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			policy := newTestEnvoyExtensionPolicy("test-ns")
+			policy.SetLabels(tc.labels)
+			grant := newTestReferenceGrant("datadog", "test-ns")
+			grant.SetLabels(tc.labels)
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), policy, grant)
+			config := appsecconfig.Config{
+				Product: appsecconfig.Product{
+					Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+				},
+			}
+			pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+			// The deleted Gateway was the last one of the namespace
+			require.NoError(t, pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway")))
+
+			_, policyErr := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+			_, grantErr := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+			if tc.deleted {
+				assert.True(t, apierrors.IsNotFound(policyErr), "EnvoyExtensionPolicy created by the injector must be deleted")
+				assert.True(t, apierrors.IsNotFound(grantErr), "ReferenceGrant created by the injector must be deleted")
+			} else {
+				require.NoError(t, policyErr, "EnvoyExtensionPolicy not created by the injector must be left in place")
+				require.NoError(t, grantErr, "ReferenceGrant not created by the injector must be left in place")
+			}
+		})
+	}
+}
+
+func TestRemoveNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
+	ctx := context.Background()
+	grant := newTestReferenceGrant("datadog", "test-ns")
+	grant.SetLabels(map[string]string{"app": "someone-else"})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns"))
+
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	require.NoError(t, err, "ReferenceGrant not created by the injector must be left in place")
+}
+
+func TestDeleted_SidecarForeignPolicyStillDeletesOurBackend(t *testing.T) {
+	ctx := context.Background()
+	policy := newTestEnvoyExtensionPolicy("test-ns")
+	policy.SetLabels(map[string]string{"app": "someone-else"})
+	backend := newTestBackend("test-ns", "/var/run/datadog/extproc.sock")
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), policy, backend)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Mode:    appsecconfig.InjectionModeSidecar,
+			Sidecar: appsecconfig.Sidecar{UDSPath: "/var/run/datadog/extproc.sock"},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	// The deleted Gateway was the last one of the namespace
+	require.NoError(t, pattern.Deleted(ctx, newTestGateway("test-ns", "test-gateway")))
+
+	_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	require.NoError(t, err, "EnvoyExtensionPolicy not created by the injector must be left in place")
+	_, err = client.Resource(backendGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "Backend created by the injector must still be deleted")
+}
+
+func TestAddNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
+	ctx := context.Background()
+	grant := newTestReferenceGrant("datadog", "other-ns")
+	grant.SetLabels(map[string]string{"app": "someone-else"})
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	require.NoError(t, pattern.AddNamespaceToGrant(ctx, "test-ns"))
+
+	got, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	require.NoError(t, err)
+	from, _, err := unstructured.NestedSlice(got.Object, "spec", "from")
+	require.NoError(t, err)
+	require.Len(t, from, 1, "ReferenceGrant not created by the injector must be left untouched")
+	ref, ok := from[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "other-ns", ref["namespace"])
 }

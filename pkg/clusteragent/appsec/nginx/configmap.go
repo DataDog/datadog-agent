@@ -13,6 +13,7 @@ import (
 	"maps"
 	"strings"
 
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +39,9 @@ const (
 )
 
 var configMapGVR = corev1.SchemeGroupVersion.WithResource("configmaps")
+
+// errForeignConfigMap signals that the DD ConfigMap name is taken by a ConfigMap the cluster agent did not create.
+var errForeignConfigMap = &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonForeignConfigMap}
 
 // mainSnippetDirectives returns the nginx main-context directives for loading the datadog module.
 // The env directive preserves DD_AGENT_HOST for nginx worker processes so the module
@@ -174,6 +178,9 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 			existing, getErr := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, ddName, metav1.GetOptions{})
 			if getErr != nil {
 				return fmt.Errorf("failed to get existing DD ConfigMap for update: %w", getErr)
+			}
+			if !appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
+				return fmt.Errorf("%w: %s/%s", errForeignConfigMap, namespace, ddName)
 			}
 			target.SetResourceVersion(existing.GetResourceVersion())
 			_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, target, metav1.UpdateOptions{})

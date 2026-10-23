@@ -16,6 +16,7 @@ import (
 	gwapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -104,6 +105,10 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 	// Skip namespaces already listed, e.g. when Added is retried after the policy creation failed
 	grant, err := g.client.Resource(referenceGrantGVR).Namespace(g.namespace).Get(ctx, referenceGrantName, metav1.GetOptions{})
 	if err == nil {
+		if !appsecconfig.IsManagedByDatadog(grant.GetLabels()) {
+			g.logger.Warnf("Not updating ReferenceGrant %s/%s: it was not created by the Datadog Cluster Agent", g.namespace, referenceGrantName)
+			return nil
+		}
 		from, _, _ := unstructured.NestedSlice(grant.Object, "spec", "from")
 		for _, entry := range from {
 			if ref, ok := entry.(map[string]any); ok && ref["namespace"] == namespace {
@@ -159,6 +164,11 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 		Get(ctx, referenceGrantName, metav1.GetOptions{})
 	if err != nil {
 		return err
+	}
+
+	if !appsecconfig.IsManagedByDatadog(unstructuredGrant.GetLabels()) {
+		g.logger.Warnf("Not updating ReferenceGrant %s/%s: it was not created by the Datadog Cluster Agent", g.namespace, referenceGrantName)
+		return nil
 	}
 
 	var grant gwapiv1beta1.ReferenceGrant
