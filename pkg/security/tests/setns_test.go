@@ -98,8 +98,11 @@ func TestSetNS(t *testing.T) {
 			Expression: `setns.nstype & CLONE_NEWNS > 0 && process.file.name == "syscall_tester"`,
 		},
 		{
+			// any setns made from the host mntns has mntns_host, a netns join too: without the
+			// no-op filter, the late test_setns_mntns_host match of the netns-roundtrip event
+			// could be taken by the join-host-mntns subtest that follows it
 			ID:         "test_setns_mntns_host",
-			Expression: `setns.mntns_host && process.file.name == "syscall_tester"`,
+			Expression: `setns.mntns_host && setns.previous.mntns != setns.mntns && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setns_mntns_outside_base",
