@@ -292,8 +292,8 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 // memory KAI limits the container to. Whichever of the two the pod did not
 // request is derived from the other and the GPU's memory, see kaiGPUShare. An
 // invalid value is skipped in favour of the next source. A GPU whose share
-// cannot be determined still gets an entry, with a zero fraction and memory,
-// so that the container is not taken for having it whole.
+// cannot be fully determined still gets an entry, with the unknown part left
+// at zero, so that the container is not taken for having it whole.
 func kaiGPUShares(pod *workloadmeta.KubernetesPod, containerName string, uuids []string, deviceCache ddnvml.DeviceCache) map[string]workloadmeta.GPUShare {
 	var fraction float64
 	if raw := pod.Annotations[kaiGPUFractionAnnotation]; raw != "" {
@@ -304,7 +304,7 @@ func kaiGPUShares(pod *workloadmeta.KubernetesPod, containerName string, uuids [
 			warnInvalidKAIShare(pod, kaiGPUFractionAnnotation, raw)
 		}
 	}
-	memory, _ := kaiRequestedGPUMemory(pod, containerName)
+	memory := kaiRequestedGPUMemory(pod, containerName)
 
 	shares := make(map[string]workloadmeta.GPUShare, len(uuids))
 	for _, uuid := range uuids {
@@ -363,14 +363,14 @@ func kaiAssignedFraction(memory, total uint64) float64 {
 }
 
 // kaiRequestedGPUMemory returns the memory, in bytes, that the pod's
-// fractional container requests on each of its GPUs, and whether it could be
+// fractional container requests on each of its GPUs, or 0 when it cannot be
 // read: from the per-container gpu-memory.request annotation, else from the
 // gpu-memory annotation.
-func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string) (uint64, bool) {
+func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string) uint64 {
 	key := kaiContainerAnnotationPrefix + containerName + kaiGPUMemoryRequestSuffix
 	if raw := pod.Annotations[key]; raw != "" {
 		if requested, ok := parseMemoryQuantity(raw); ok {
-			return requested, true
+			return requested
 		}
 		warnInvalidKAIShare(pod, key, raw)
 	}
@@ -378,12 +378,12 @@ func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string
 	if raw := pod.Annotations[kaiGPUMemoryAnnotation]; raw != "" {
 		mib, err := strconv.ParseUint(raw, 10, 64)
 		if err == nil && mib > 0 && mib <= math.MaxUint64>>20 {
-			return mib << 20, true
+			return mib << 20
 		}
 		warnInvalidKAIShare(pod, kaiGPUMemoryAnnotation, raw)
 	}
 
-	return 0, false
+	return 0
 }
 
 // parseMemoryQuantity parses a positive memory amount written as a Kubernetes
