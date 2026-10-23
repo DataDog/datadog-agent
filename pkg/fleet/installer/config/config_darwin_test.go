@@ -625,3 +625,22 @@ func TestReadDeploymentIDReadsAnID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, id, "a missing directory reports no deployment ID")
 }
+
+// TestWriteExperimentDoesNotMigrateALegacyLayout pins that macOS, which never had the legacy
+// managed/ layout, does not run its migration: that walk reads the Agent-writable stable tree as
+// root and follows a managed/datadog-agent/stable link wherever it points.
+func TestWriteExperimentDoesNotMigrateALegacyLayout(t *testing.T) {
+	dirs := newTestDirectories(t)
+	outside := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "datadog.yaml"), []byte("api_key: stolen\n"), 0600))
+	managed := filepath.Join(dirs.StablePath, "managed", "datadog-agent")
+	require.NoError(t, os.MkdirAll(managed, 0755))
+	require.NoError(t, os.Symlink(outside, filepath.Join(managed, "stable")))
+
+	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
+
+	content, err := os.ReadFile(filepath.Join(dirs.ExperimentPath, "datadog.yaml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "stolen", "a file reached through the legacy link must not be merged in")
+	assert.Contains(t, string(content), "debug")
+}

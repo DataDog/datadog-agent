@@ -99,7 +99,9 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return err
 	}
 
-	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
+	// Unlike Linux and Windows, no legacy managed/ layout is migrated here: macOS never had one, and
+	// that migration walks and reads the stable tree, which belongs to the Agent's account, as
+	// root while following its links.
 	if err = operations.Apply(ctx, incoming); err != nil {
 		return err
 	}
