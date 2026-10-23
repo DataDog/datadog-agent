@@ -1495,7 +1495,12 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
-		s := newProcessSerializer(&pce.Process, e)
+		ancestorEvent := e
+		if !first && &pce.Process != pc.Parent {
+			evCopy := *e
+			ancestorEvent = &evCopy
+		}
+		s := newProcessSerializer(&pce.Process, ancestorEvent)
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce

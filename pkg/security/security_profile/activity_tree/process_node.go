@@ -75,8 +75,7 @@ type ProcessInfo struct {
 // node. The cache entries are deep-copied onto the local copy first: pc := *p is only a
 // shallow copy, so pc.ArgsEntry/EnvsEntry alias the live event's entries, and scrubbing
 // (which rewrites ArgsEntry.Values in place) would otherwise redact the arguments still
-// referenced by the event — e.g. a rule evaluating raw process.args after the V2 profile
-// insert (which happens before rule evaluation) would see the scrubbed values.
+// referenced by the event.
 func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
 	pc := *p
 	if pc.ArgsEntry != nil {
