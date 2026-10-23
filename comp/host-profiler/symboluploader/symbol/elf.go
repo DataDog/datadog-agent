@@ -52,8 +52,11 @@ func NewElfFromMapping(m *process.RawMapping, gnuBuildID, goBuildID string, file
 	return newElf(wrapper, fileID, gnuBuildID, goBuildID)
 }
 
-func NewElfForTest(arch, gnuBuildID, goBuildID string, fileID libpf.FileID) *Elf {
+func NewElfForTest(path, arch, gnuBuildID, goBuildID string, fileID libpf.FileID) *Elf {
 	return &Elf{
+		elfWrapperWithSource: elfWrapperWithSource{
+			wrapper: &elfWrapper{filePath: path},
+		},
 		arch:       arch,
 		gnuBuildID: gnuBuildID,
 		goBuildID:  goBuildID,

@@ -697,8 +697,9 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 	}
 
 	// An SBOM sent before the first container of the image runs leaves the
-	// image waiting, as the usage comes with that container.
-	if p.usageEnrichment && cyclosbom.Status == workloadmeta.Success {
+	// image waiting, as the usage comes with that container. An SBOM of the
+	// OS packages alone leaves the full SBOM that replaces it waiting.
+	if p.usageEnrichment && cyclosbom.Status == workloadmeta.Success && !cyclosbom.OSFallback {
 		delete(p.heldImages, img.ID)
 		if inUse {
 			p.imagesWaited[img.ID] = struct{}{}
@@ -710,9 +711,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 // runtime usage of the image before it goes out, as the first successful SBOM
 // of an image in use does until its usage merges, for usageGracePeriod at most,
 // counted from the first time it waited. Usage covers the OS packages alone, so
-// the SBOM waits when it lists one.
+// the SBOM waits when it lists one. The remote SBOM collector merges usage into
+// full SBOMs only, so an SBOM of the OS packages alone goes out at once.
 func (p *processor) imageWaitsForUsage(imgID string, s *workloadmeta.SBOM, inUse bool, now time.Time) bool {
-	if !p.usageEnrichment || !inUse || s.Status != workloadmeta.Success {
+	if !p.usageEnrichment || !inUse || s.Status != workloadmeta.Success || s.OSFallback {
 		return false
 	}
 

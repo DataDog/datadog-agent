@@ -65,6 +65,7 @@
     "agent_data_plane_darwin-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
-    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
+    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped."
   }
 }

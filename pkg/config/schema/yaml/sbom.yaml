@@ -42,6 +42,11 @@ properties:
         - os
         items:
           type: string
+      scan_timeout:
+        node_type: setting
+        type: integer
+        default: 600
+        comment: Integer seconds
   container_image:
     node_type: section
     type: object
