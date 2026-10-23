@@ -376,8 +376,9 @@ func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
 	assert.Equal(t, 2, countRefGrantPatch)
 }
 
-// TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant verifies that Gateways in several
-// namespaces each get an EnvoyExtensionPolicy and are all listed in the ReferenceGrant.
+// The ReferenceGrant tests below check the stored objects rather than counting client calls: the
+// fake client applies JSON patches like the API server, so a patch that corrupts spec.from shows up.
+
 func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
@@ -434,6 +435,62 @@ func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, want, ref["namespace"])
 	}
+}
+
+func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds())
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	gateway1 := newTestGateway("test-ns1", "test-gateway")
+	gateway2 := newTestGateway("test-ns2", "test-gateway")
+
+	grantNamespaces := func() []string {
+		grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+		require.NoError(t, err)
+		from, _, err := unstructured.NestedSlice(grant.Object, "spec", "from")
+		require.NoError(t, err)
+		var namespaces []string
+		for _, entry := range from {
+			ref, ok := entry.(map[string]any)
+			require.True(t, ok)
+			ns, ok := ref["namespace"].(string)
+			require.True(t, ok)
+			namespaces = append(namespaces, ns)
+		}
+		return namespaces
+	}
+
+	require.NoError(t, pattern.Added(ctx, gateway1))
+
+	// The first policy creation in test-ns2 fails after the grant was extended, then the item is retried
+	failOnce := true
+	client.PrependReactor("create", "envoyextensionpolicies", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		if failOnce && action.GetNamespace() == "test-ns2" {
+			failOnce = false
+			return true, nil, errors.New("transient error")
+		}
+		return false, nil, nil
+	})
+	require.Error(t, pattern.Added(ctx, gateway2))
+	require.NoError(t, pattern.Added(ctx, gateway2))
+	assert.Equal(t, []string{"test-ns1", "test-ns2"}, grantNamespaces())
+
+	// Deleting the last Gateway of test-ns2 removes its grant entry
+	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*gateway2}}, nil
+	})
+	require.NoError(t, pattern.Deleted(ctx, gateway2))
+	assert.Equal(t, []string{"test-ns1"}, grantNamespaces())
 }
 
 func TestAdded_PolicyAlreadyExists(t *testing.T) {
