@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    CWS: fixed kernel space filtering dropping events for rules that match a flag value of
+    32 or more. This affected ``bpf.cmd``, ``connect.addr_family``, ``prctl.option``,
+    ``setsockopt.level``, ``setsockopt.optname``, ``socket.domain``, ``socket.type`` and
+    ``socket.protocol``, for values such as ``AF_VSOCK``, ``BPF_LINK_DETACH``,
+    ``PR_SET_NO_NEW_PRIVS`` and ``SO_ATTACH_BPF``. Rules using those values never triggered.
