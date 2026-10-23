@@ -53,3 +53,9 @@ func (r *Rate) flush(_ float64) ([]*Serie, error) {
 func (r *Rate) isStateful() bool {
 	return true
 }
+
+// Rates flushed for the parts of a window cover different durations, and can't be combined
+// into the rate of the whole window.
+func (r *Rate) isDecomposable() bool {
+	return false
+}
