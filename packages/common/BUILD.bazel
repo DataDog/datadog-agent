@@ -1,0 +1,12 @@
+"""Package components shared across products."""
+
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_mkdirs")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_mkdirs(
+    name = "log_dir",
+    attributes = pkg_attributes(mode = "0775"),
+    dirs = ["/var/log/datadog"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
