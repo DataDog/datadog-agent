@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,6 +64,9 @@ func TestCreatorSend(t *testing.T) {
 	origSend := sendFlareFunc
 	t.Cleanup(func() { sendFlareFunc = origSend })
 
+	flarePath := filepath.Join(t.TempDir(), "flare.zip")
+	require.NoError(t, os.WriteFile(flarePath, nil, 0600))
+
 	var capturedPath, capturedCaseID, capturedEmail, capturedAPIKey string
 	var capturedSource flarehelpers.FlareSource
 	sendFlareFunc = func(_ pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, _ string, source flarehelpers.FlareSource) (string, error) {
@@ -77,13 +81,32 @@ func TestCreatorSend(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("api_key", "test-api-key", pkgconfigmodel.SourceAgentRuntime)
 
-	response, err := NewCreator(cfg, nil, nil, nil).Send("/tmp/flare.zip", "12345", "test@example.com", flarehelpers.NewLocalFlareSource())
+	response, err := NewCreator(cfg, nil, nil, nil).Send(flarePath, "12345", "test@example.com", flarehelpers.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	assert.Equal(t, "flare sent", response)
-	assert.Equal(t, "/tmp/flare.zip", capturedPath)
+	assert.Equal(t, flarePath, capturedPath)
 	assert.Equal(t, "12345", capturedCaseID)
 	assert.Equal(t, "test@example.com", capturedEmail)
 	assert.Equal(t, "test-api-key", capturedAPIKey)
 	assert.Equal(t, flarehelpers.NewLocalFlareSource(), capturedSource)
+	assert.NoFileExists(t, flarePath, "flare archive should be removed after a successful upload")
+}
+
+func TestCreatorSendErrorKeepsArchive(t *testing.T) {
+	origSend := sendFlareFunc
+	t.Cleanup(func() { sendFlareFunc = origSend })
+
+	flarePath := filepath.Join(t.TempDir(), "flare.zip")
+	require.NoError(t, os.WriteFile(flarePath, nil, 0600))
+
+	sendFlareFunc = func(_ pkgconfigmodel.Reader, _, _, _, _, _ string, _ flarehelpers.FlareSource) (string, error) {
+		return "bad request", errors.New("HTTP 400")
+	}
+
+	response, err := NewCreator(configmock.New(t), nil, nil, nil).Send(flarePath, "12345", "test@example.com", flarehelpers.NewLocalFlareSource())
+	require.Error(t, err)
+
+	assert.Equal(t, "bad request", response)
+	assert.FileExists(t, flarePath, "flare archive should be kept when the upload fails")
 }

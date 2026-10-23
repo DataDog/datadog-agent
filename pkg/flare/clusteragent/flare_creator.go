@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"os"
 	"time"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -42,9 +43,18 @@ func (c *Creator) CreateWithArgs(flareArgs flaretypes.FlareArgs, _ time.Duration
 	return createIdentifiedDCAArchive(c.cfg, flareArgs, c.statusComp, c.diagnoseComp, c.ipcComp)
 }
 
-// Send sends the flare to Datadog support.
+// Send sends the flare to Datadog support and removes the local archive once it's uploaded.
 func (c *Creator) Send(flarePath string, caseID string, email string, source flarehelpers.FlareSource) (string, error) {
-	return sendFlareFunc(c.cfg, flarePath, caseID, email, c.cfg.GetString("api_key"), configUtils.GetInfraEndpoint(c.cfg), source)
+	response, err := sendFlareFunc(c.cfg, flarePath, caseID, email, c.cfg.GetString("api_key"), configUtils.GetInfraEndpoint(c.cfg), source)
+	if err != nil {
+		return response, err
+	}
+	if removeErr := os.Remove(flarePath); removeErr != nil {
+		log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
+	} else {
+		log.Infof("Removed local flare archive %s", flarePath)
+	}
+	return response, nil
 }
 
 func createIdentifiedDCAArchive(cfg pkgconfigmodel.Reader, flareArgs flaretypes.FlareArgs, statusComp status.Component, diagnoseComp diagnose.Component, ipcComp ipc.Component) (string, error) {
