@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    Internal CI builds temporarily use the same TLS remote-cache frontend across
+    Linux, macOS, and Windows to evaluate build performance and reliability while
+    bypassing the edge cache. This does not change the installed Agent's behavior
+    or require changes to customer configuration.
