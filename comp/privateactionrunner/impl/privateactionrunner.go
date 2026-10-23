@@ -461,7 +461,8 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		}
 	}
 
-	// Flush spans after draining actions, including exits before the periodic flush.
+	// Flush completed spans after draining, or best-effort if the stop deadline expired.
+	// Actions still running after the deadline may finish after the sender stops.
 	p.stopTelemetry()
 
 	var stopErr error
