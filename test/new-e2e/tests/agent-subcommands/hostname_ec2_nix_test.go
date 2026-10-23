@@ -25,7 +25,7 @@ type linuxHostnameSuite struct {
 func TestLinuxHostnameSuite(t *testing.T) {
 	t.Parallel()
 	osOption := awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)))
-	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithInternetAccess())))))
+	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxHostnameSuite) TestAgentConfigHostnameFileOverride() {

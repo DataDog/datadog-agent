@@ -74,12 +74,17 @@ func TestInstallScript(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
-			vmOpts = append(vmOpts, ec2.WithInternetAccess())
+			// The full agent installs integration wheels from public Datadog hosts
+			// (agent-integration-wheels.datadoghq.com), which are unreachable without
+			// internet access; the iot-agent flavor does not install them.
+			if *flavorName != "datadog-iot-agent" {
+				vmOpts = append(vmOpts, ec2.WithInternetAccess())
+			}
 
 			suite := &installScriptSuite{cwsSupported: cwsSupported, osDesc: osDesc}
 			// will be set as TESTING_KEYS_URL in the install script
 			// the used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
-			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
+			suite.testingKeysURL = "s3.amazonaws.com/apttesting.datad0g.com/test-keys"
 
 			e2e.Run(tt,
 				suite,
@@ -102,7 +107,7 @@ func DockerTest(t *testing.T) {
 	}
 
 	suite := &installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)}
-	suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
+	suite.testingKeysURL = "s3.amazonaws.com/apttesting.datad0g.com/test-keys"
 	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
 		e2e.Run(tt,
 			suite,

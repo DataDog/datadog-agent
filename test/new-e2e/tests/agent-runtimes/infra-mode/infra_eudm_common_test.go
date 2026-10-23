@@ -52,7 +52,7 @@ host_aliases: ["eudm-test-alias"]`),
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInternetAccess()),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor)),
 				ec2.WithAgentOptions(agentOptions...),
 			),
 		),

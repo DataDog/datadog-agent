@@ -27,7 +27,6 @@ type autoDiscoverySuite struct {
 func autoDiscoverySuiteProvisioner(agentConfig string) provisioners.Provisioner {
 	return awshost.Provisioner(
 		awshost.WithRunOptions(
-			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 			scenec2.WithDocker(),
 			scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
 		),
