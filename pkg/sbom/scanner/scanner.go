@@ -34,14 +34,26 @@ var (
 	globalScanner *Scanner
 )
 
-// deprecatedSettings configured the on-disk Trivy cache. SBOM scans keep their
-// cache in memory and ignore them.
-var deprecatedSettings = []string{
-	"sbom.cache_directory",
-	"sbom.cache.clean_interval",
-	"sbom.cache.max_disk_size",
-	"sbom.clear_cache_on_exit",
-	"sbom.container_image.overlayfs_disable_cache",
+// A deprecatedSetting is a setting that SBOM scans ignore, for reason.
+type deprecatedSetting struct {
+	key    string
+	reason string
+}
+
+const (
+	cacheReason = "SBOM scans keep their cache in memory"
+	dirsReason  = "SBOM scans read the files their analyzers need"
+)
+
+// deprecatedSettings lists the settings that SBOM scans ignore.
+var deprecatedSettings = []deprecatedSetting{
+	{"sbom.cache_directory", cacheReason},
+	{"sbom.cache.clean_interval", cacheReason},
+	{"sbom.cache.max_disk_size", cacheReason},
+	{"sbom.clear_cache_on_exit", cacheReason},
+	{"sbom.container_image.overlayfs_disable_cache", cacheReason},
+	{"sbom.container_image.additional_directories", dirsReason},
+	{"sbom.host.additional_directories", dirsReason},
 }
 
 // Scanner defines the scanner
@@ -87,8 +99,8 @@ func CreateGlobalScanner(cfg config.Component, wmeta option.Option[workloadmeta.
 		return nil, errors.New("global SBOM scanner already set, should only happen once")
 	}
 
-	for _, key := range configuredDeprecatedSettings(cfg) {
-		log.Warnf("%s is deprecated and ignored because SBOM scans keep their cache in memory. Remove it from the configuration.", key)
+	for _, s := range configuredDeprecatedSettings(cfg) {
+		log.Warnf("%s is deprecated and ignored because %s. Remove it from the configuration.", s.key, s.reason)
 	}
 
 	for name, collector := range collectors.Collectors {
@@ -102,14 +114,14 @@ func CreateGlobalScanner(cfg config.Component, wmeta option.Option[workloadmeta.
 }
 
 // configuredDeprecatedSettings returns the deprecated settings set in cfg.
-func configuredDeprecatedSettings(cfg config.Component) []string {
-	var keys []string
-	for _, key := range deprecatedSettings {
-		if cfg.IsConfigured(key) {
-			keys = append(keys, key)
+func configuredDeprecatedSettings(cfg config.Component) []deprecatedSetting {
+	var settings []deprecatedSetting
+	for _, s := range deprecatedSettings {
+		if cfg.IsConfigured(s.key) {
+			settings = append(settings, s)
 		}
 	}
-	return keys
+	return settings
 }
 
 // SetGlobalScanner sets a global instance of the SBOM scanner. It should be
