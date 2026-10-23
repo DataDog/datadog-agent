@@ -68,6 +68,11 @@ func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.A
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if !configsRequest.GetClient().GetIsTracer() {
+			statusCode = http.StatusBadRequest
+			http.Error(w, "client.is_tracer must be true for tracer config requests", statusCode)
+			return
+		}
 		if configsRequest.GetClient().GetClientTracer() != nil {
 			normalize(&configsRequest)
 			configsRequest.Client.ClientTracer.ContainerTags = getContainerTags(req, cfg, cidProvider)
