@@ -60,7 +60,7 @@ func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath 
 	return
 }
 
-func TestReadSecretFile(t *testing.T) {
+func TestReadSecretFileConfined(t *testing.T) {
 	_, testSecretsAbsPath := setupReadSecretFileTree(t)
 
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestReadSecretFile(t *testing.T) {
 				t.Skip("skipped on windows")
 			}
 
-			secret := ReadSecretFile(testSecretsAbsPath, test.inputFile)
+			secret := ReadSecretFileConfined(testSecretsAbsPath, test.inputFile)
 
 			if test.expectAnyError {
 				assert.NotEmpty(t, secret.ErrorMsg)

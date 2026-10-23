@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -43,6 +44,7 @@ import (
 
 const (
 	providerPrefixesFlag    = "with-provider-prefixes"
+	confineFileSecretsFlag  = "confine-file-secrets"
 	providerPrefixSeparator = "@"
 	filePrefix              = "file"
 	k8sSecretPrefix         = "k8s_secret"
@@ -50,7 +52,8 @@ const (
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
-	usePrefixes bool
+	usePrefixes        bool
+	confineFileSecrets bool
 
 	// args are the positional command-line arguments
 	args []string
@@ -63,7 +66,7 @@ func Commands() []*cobra.Command {
 		Use:   "read",
 		Short: "Read secrets",
 		Long:  ``,
-		Args:  cobra.MaximumNArgs(1), // 0 when using the provider prefixes option, 1 when reading a file
+		Args:  cobra.MaximumNArgs(1), // optional directory for file secrets
 		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(readCmd,
@@ -72,6 +75,7 @@ func Commands() []*cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().BoolVarP(&cliParams.usePrefixes, providerPrefixesFlag, "", false, "Use prefixes to select the secrets provider (file, k8s_secret)")
+	cmd.PersistentFlags().BoolVar(&cliParams.confineFileSecrets, confineFileSecretsFlag, false, "Limit file secrets to the directory argument")
 
 	secretHelperCmd := &cobra.Command{
 		Use:   "secret-helper",
@@ -94,20 +98,20 @@ func readCmd(cliParams *cliParams) error {
 		dir = cliParams.args[0]
 	}
 
-	return readSecrets(os.Stdin, os.Stdout, dir, cliParams.usePrefixes, apiserver.GetKubeSecret)
+	return readSecrets(os.Stdin, os.Stdout, dir, cliParams.usePrefixes, cliParams.confineFileSecrets, apiserver.GetKubeSecret)
 }
 
-func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, kubeSecretGetter providers.KubeSecretGetter) error {
+func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes, confineFileSecrets bool, kubeSecretGetter providers.KubeSecretGetter) error {
 	inputSecrets, err := parseInputSecrets(r)
 	if err != nil {
 		return err
 	}
 
 	if usePrefixes {
-		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, kubeSecretGetter))
+		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, confineFileSecrets, kubeSecretGetter))
 	}
 
-	return writeFetchedSecrets(w, readSecretsFromFile(inputSecrets, dir))
+	return writeFetchedSecrets(w, readSecretsFromFile(inputSecrets, dir, confineFileSecrets))
 }
 
 func parseInputSecrets(r io.Reader) ([]string, error) {
@@ -145,21 +149,25 @@ func writeFetchedSecrets(w io.Writer, fetchedSecrets map[string]secrets.SecretVa
 	return err
 }
 
-func readSecretsFromFile(secretsList []string, dir string) map[string]secrets.SecretVal {
+func readSecretsFromFile(secretsList []string, dir string, confineFileSecrets bool) map[string]secrets.SecretVal {
 	res := make(map[string]secrets.SecretVal)
 
 	for _, secretID := range secretsList {
-		res[secretID] = providers.ReadSecretFile(dir, secretID)
+		if confineFileSecrets {
+			res[secretID] = providers.ReadSecretFileConfined(dir, secretID)
+		} else {
+			res[secretID] = providers.ReadSecretFile(filepath.Join(dir, secretID))
+		}
 	}
 
 	return res
 }
 
-func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretGetter providers.KubeSecretGetter) map[string]secrets.SecretVal {
+func readSecretsUsingPrefixes(secretsList []string, rootPath string, confineFileSecrets bool, kubeSecretGetter providers.KubeSecretGetter) map[string]secrets.SecretVal {
 	res := make(map[string]secrets.SecretVal)
 
 	for _, secretID := range secretsList {
-		prefix, id, err := parseSecretWithPrefix(secretID)
+		prefix, id, err := parseSecretWithPrefix(secretID, rootPath)
 		if err != nil {
 			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
 			continue
@@ -167,7 +175,11 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 
 		switch prefix {
 		case filePrefix:
-			res[secretID] = providers.ReadSecretFile(rootPath, id)
+			if confineFileSecrets {
+				res[secretID] = providers.ReadSecretFileConfined(rootPath, id)
+			} else {
+				res[secretID] = providers.ReadSecretFile(id)
+			}
 		case k8sSecretPrefix:
 			res[secretID] = providers.ReadKubernetesSecret(kubeSecretGetter, id)
 		default:
@@ -178,7 +190,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 	return res
 }
 
-func parseSecretWithPrefix(secretID string) (prefix string, id string, err error) {
+func parseSecretWithPrefix(secretID string, rootPath string) (prefix string, id string, err error) {
 	split := strings.SplitN(secretID, providerPrefixSeparator, 2)
 
 	// This is to make the migration from "readsecret.sh" (without
@@ -189,10 +201,11 @@ func parseSecretWithPrefix(secretID string) (prefix string, id string, err error
 	// handle them when the "--with-provider-prefixes" is disabled. That is,
 	// they should be fetched from the file system, and they specify a path
 	// that's relative to the one specified in the first arg when calling the
-	// program (the directory argument of the read command).
+	// program (rootPath arg of this func).
 	if len(split) < 2 {
 		prefix = filePrefix
-		return prefix, secretID, nil
+		id, err = filepath.Abs(filepath.Join(rootPath, secretID))
+		return prefix, id, err
 	}
 
 	prefix, id = split[0], split[1]

@@ -188,7 +188,7 @@ func TestReadSecrets(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var w bytes.Buffer
-			err := readSecrets(strings.NewReader(test.in), &w, path, test.usePrefixes, newKubeClientFunc)
+			err := readSecrets(strings.NewReader(test.in), &w, path, test.usePrefixes, false, newKubeClientFunc)
 			out := w.String()
 
 			if test.out != "" {
@@ -206,7 +206,7 @@ func TestReadSecrets(t *testing.T) {
 	}
 }
 
-func TestReadSecretsCannotEscapeDirectory(t *testing.T) {
+func TestConfinedReadSecretsCannotEscapeDirectory(t *testing.T) {
 	root := t.TempDir()
 	allowed := filepath.Join(root, "allowed")
 	require.NoError(t, os.Mkdir(allowed, 0o700))
@@ -226,18 +226,53 @@ func TestReadSecretsCannotEscapeDirectory(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			input := fmt.Sprintf(`{"version":"1.0","secrets":[%q]}`, test.secretID)
 			var output bytes.Buffer
-			require.NoError(t, readSecrets(strings.NewReader(input), &output, allowed, test.usePrefixes, nil))
+			require.NoError(t, readSecrets(strings.NewReader(input), &output, allowed, test.usePrefixes, true, nil))
 			assert.NotContains(t, output.String(), "outside-value")
 			assert.Contains(t, output.String(), `"error"`)
 		})
 	}
 }
 
-func TestFileProviderRequiresDirectory(t *testing.T) {
+func TestConfinedFileProviderRequiresDirectory(t *testing.T) {
 	var output bytes.Buffer
 	input := `{"version":"1.0","secrets":["file@/outside"]}`
-	require.NoError(t, readSecrets(strings.NewReader(input), &output, "", true, nil))
+	require.NoError(t, readSecrets(strings.NewReader(input), &output, "", true, true, nil))
 	assert.JSONEq(t, `{"file@/outside":{"error":"secret directory is required"}}`, output.String())
+}
+
+func TestConfinedKubernetesSecretDoesNotRequireDirectory(t *testing.T) {
+	var output bytes.Buffer
+	input := `{"version":"1.0","secrets":["k8s_secret@ns/name/key"]}`
+	getter := func(_, _ string) (map[string][]byte, error) {
+		return map[string][]byte{"key": []byte("value")}, nil
+	}
+	require.NoError(t, readSecrets(strings.NewReader(input), &output, "", true, true, getter))
+	assert.JSONEq(t, `{"k8s_secret@ns/name/key":{"value":"value"}}`, output.String())
+}
+
+func TestLegacyFilePathsStillWork(t *testing.T) {
+	root := t.TempDir()
+	allowed := filepath.Join(root, "allowed")
+	require.NoError(t, os.Mkdir(allowed, 0o700))
+	outside := filepath.Join(root, "outside")
+	require.NoError(t, os.WriteFile(outside, []byte("outside-value"), 0o600))
+
+	for _, test := range []struct {
+		name        string
+		secretID    string
+		dir         string
+		usePrefixes bool
+	}{
+		{name: "relative traversal", secretID: "../outside", dir: allowed},
+		{name: "absolute file handle without directory", secretID: "file@" + outside, usePrefixes: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input := fmt.Sprintf(`{"version":"1.0","secrets":[%q]}`, test.secretID)
+			var output bytes.Buffer
+			require.NoError(t, readSecrets(strings.NewReader(input), &output, test.dir, test.usePrefixes, false, nil))
+			assert.JSONEq(t, fmt.Sprintf(`{%q:{"value":"outside-value"}}`, test.secretID), output.String())
+		})
+	}
 }
 
 func TestReadCmdCommand(t *testing.T) {
