@@ -235,6 +235,7 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	_ = group.Wait()
 
 	log.Debugf("Processed %d chunks with %d chunks in global error", len(chunks), responsesGlobalErrors)
+	p.updateRateLimitingMetrics()
 	return responses
 }
 
