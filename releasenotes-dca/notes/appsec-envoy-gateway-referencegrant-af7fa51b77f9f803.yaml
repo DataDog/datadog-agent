@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix the AppSec proxy injector in external mode only enabling AppSec for Envoy
+    Gateway ``Gateways`` in the first namespace when ``Gateways`` exist in several
+    namespaces.

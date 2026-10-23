@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
@@ -115,6 +116,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
@@ -152,6 +154,7 @@ import (
 	// Core checks
 
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -224,7 +227,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[integrations.Component]()
 				}),
 				agenttelemetryfx.Module(),
-				healthplatform.Bundle(),
+				healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
 
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -545,7 +548,7 @@ func start(log log.Component,
 			// Otherwise the autoscaling client below serves them.
 			products = append(products, autoscalingProducts...)
 		}
-		if config.GetBool("kubeactions.enabled") {
+		if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.remote_config.enabled") {
 			products = append(products, state.ProductK8SActions)
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
@@ -570,7 +573,7 @@ func start(log log.Component,
 	}
 
 	// Set up check collector
-	registerChecks(wmeta, taggerComp, config)
+	registerChecks(wmeta, taggerComp, config, statusComponent, diagnoseComp, ipc)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
@@ -677,9 +680,10 @@ func start(log log.Component,
 		}
 	}
 
-	// Kubernetes Actions
+	// Kubernetes Actions (remote-config delivery path). The Private Action Runner
+	// delivery path is gated separately by private_action_runner.enabled.
 	var kubeactionsRetriever *kubeactions.ConfigRetriever
-	if config.GetBool("kubeactions.enabled") {
+	if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.remote_config.enabled") {
 		if rcClient == nil {
 			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
@@ -804,8 +808,11 @@ func start(log log.Component,
 
 	pkglog.Infof("All components started. Cluster Agent now running.")
 
-	// Block here until we receive the interrupt signal
-	<-signalCh
+	// Block here until we receive the interrupt signal or a stop request
+	select {
+	case <-signalCh:
+	case <-signals.Stopper:
+	}
 
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
@@ -972,9 +979,10 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	return rcClient, nil
 }
 
-func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component) {
+func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component, statusComponent status.Component, diagnoseComp diagnose.Component, ipc ipc.Component) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
+	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(clusterAgentFlare.NewCreator(cfg, statusComponent, diagnoseComp, ipc), cfg))
 }

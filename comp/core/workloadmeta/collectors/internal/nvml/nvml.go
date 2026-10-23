@@ -25,6 +25,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -55,6 +56,7 @@ type collector struct {
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
 	kaiSchedulerEnabled                bool
+	kaiAssignmentFailed                telemetry.Counter
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
@@ -247,7 +249,7 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 }
 
 // newCollector creates a new collector with the default values, useful for testing.
-func newCollector(store workloadmeta.Component, config config.Component) *collector {
+func newCollector(store workloadmeta.Component, config config.Component, tm telemetry.Component) *collector {
 	collector := &collector{
 		id:                      collectorID,
 		catalog:                 workloadmeta.NodeAgent,
@@ -259,6 +261,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
+		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
 	}
 
 	if config != nil {
@@ -272,9 +275,9 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector(config config.Component) (workloadmeta.CollectorProvider, error) {
+func NewCollector(config config.Component, tm telemetry.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: newCollector(nil, config),
+		Collector: newCollector(nil, config, tm),
 	}, nil
 }
 
@@ -338,6 +341,10 @@ func (c *collector) Pull(ctx context.Context) error {
 			return fmt.Errorf("failed to get all devices: %w", err)
 		}
 
+		// Resolved before the devices are published, as it says which of
+		// them KAI shares.
+		kai := c.resolveKAIFractions(c.deviceCache)
+
 		// add/update current devices
 		currentUUIDs := map[string]struct{}{}
 		pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
@@ -355,6 +362,9 @@ func (c *collector) Pull(ctx context.Context) error {
 			gpu.Healthy = !unhealthy
 
 			uuid := dev.GetDeviceInfo().UUID
+			if _, shared := kai.sharedGPUs[uuid]; shared {
+				gpu.SharingMode = workloadmeta.GPUSharingModeKAIFraction
+			}
 			currentUUIDs[uuid] = struct{}{}
 			c.lastPublishedGPUs[uuid] = gpu
 			events = append(events, workloadmeta.CollectorEvent{
@@ -395,7 +405,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(c.deviceCache)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache, kai)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
@@ -497,8 +507,9 @@ var migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 // pkg/gpu/containers cannot make on a DRA node, where the allocated device name
 // is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID,
 // and that it cannot make at all for a KAI fraction, which never appears as an
-// allocation.
-func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
+// allocation. kai holds the KAI fractions resolved for this pull, see
+// resolveKAIFractions.
+func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai kaiFractions) []workloadmeta.CollectorEvent {
 	var events []workloadmeta.CollectorEvent
 	// Containers that still claim a device, whether or not this pull could
 	// resolve it. Retraction keys off this rather than off resolution success:
@@ -511,11 +522,7 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []w
 	// lives on a different pod than the workload -- so it is resolved up front
 	// and merged into each container's UUIDs below, rather than inside the
 	// loop.
-	var kai kaiFractions
-	if c.kaiSchedulerEnabled {
-		kai = c.kaiFractionalGPUs(deviceCache)
-		maps.Copy(claiming, kai.claiming)
-	}
+	maps.Copy(claiming, kai.claiming)
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -613,6 +620,9 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []w
 					ID:   container.ID,
 				},
 				GPUDeviceIDs: uuids,
+				// Only KAI fractions carry a share; DRA devices are allocated
+				// to the container whole.
+				GPUShares: kai.sharesByContainer[container.ID],
 			},
 		})
 		published[container.ID] = uuids

@@ -2215,6 +2215,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
+		// the process remains in its previous cgroup if the write failed
+		if event.CgroupWrite.Retval < 0 {
+			return false
+		}
 		pid := event.CgroupWrite.Pid
 
 		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, p.onNewPCE)

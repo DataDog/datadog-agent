@@ -21,6 +21,7 @@ processors:
         allow_hostname_override: true
 receivers:
     profiling:
+        send_error_frames: false
         symbol_uploader:
             enabled: true
             symbol_endpoints:
