@@ -60,6 +60,22 @@ func getMapNames(m *manager.Manager) ([]names.MapName, error) {
 	return mapNames, nil
 }
 
+// getProgramNames returns the names of the programs in the manager. This is the same set of
+// program specs the instruction patcher derives helper-error keys from.
+func getProgramNames(m *manager.Manager) ([]names.ProgramName, error) {
+	specs, err := m.GetProgramSpecs()
+	if err != nil {
+		return nil, err
+	}
+
+	programNames := make([]names.ProgramName, 0, len(specs))
+	for _, spec := range specs {
+		programNames = append(programNames, names.NewProgramNameFromProgramSpec(spec))
+	}
+
+	return programNames, nil
+}
+
 // MapTelemetryKeyName builds the name of the parameterized constant used in bpf code
 func MapTelemetryKeyName(mapName names.MapName) string {
 	return mapName.Name() + "_telemetry_key"
@@ -181,7 +197,12 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 		return err
 	}
 
-	if err := errorsTelemetry.fill(mapNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
+	programNames, err := getProgramNames(m)
+	if err != nil {
+		return err
+	}
+
+	if err := errorsTelemetry.fill(mapNames, programNames, module, genericMapErrMap, genericHelperErrMap); err != nil {
 		return err
 	}
 

@@ -599,6 +599,10 @@ properties:
           type: integer
         visibility: public
         description: A list of ports that should be monitored for DNS traffic.
+      allow_kprobe_fallback:
+        node_type: setting
+        type: boolean
+        default: true
       allow_netlink_conntracker_fallback:
         node_type: setting
         type: boolean

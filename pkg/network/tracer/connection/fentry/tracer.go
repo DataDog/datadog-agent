@@ -36,8 +36,9 @@ var ErrorDisabled = errors.New("fentry tracer is disabled")
 
 // ErrorUnsupported is the error that occurs when the fentry tracer is enabled but
 // cannot run on this system because of a known kernel limitation (as opposed to an
-// unexpected load failure). It is currently treated as a hard failure by callers;
-// a future changeset will validate falling back to another tracer in this case.
+// unexpected load failure). Callers fall back to the kprobe tracer for this error,
+// same as any other load failure (including verifier errors), unless
+// network_config.allow_kprobe_fallback disables that.
 var ErrorUnsupported = errors.New("fentry tracer is not supported on this system")
 
 // LoadTracer loads a new tracer
@@ -231,6 +232,12 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 		if closeProtocolClassifierSocketFilterFn != nil {
 			closeProtocolClassifierSocketFilterFn()
 		}
+		// Releases the maps and programs if init failed after they were loaded (e.g. in an
+		// AfterInit modifier), since the caller may fall back to another tracer. It is a no-op
+		// returning ErrManagerNotInitialized if loading itself failed. The ddebpf.Manager.Stop
+		// wrapper is deliberately not used: its modifier hooks would tear down the shared
+		// connection-close event handler that a fallback tracer reuses.
+		_ = m.Manager.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
