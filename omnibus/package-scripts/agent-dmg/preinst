@@ -201,7 +201,14 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
         rm -vf "$INSTALL_DIR/run/$stale"
     done
 
+    # The detached processes a configuration experiment runs outside of any launchd job: the
+    # watcher and the installer daemon hand-back. Either could otherwise swap jobs back in while
+    # this upgrade replaces the binaries they run. Killed outright: whatever they leave half done is
+    # undone by the bootouts below and by the postinstall script.
+    pkill -9 -f "$INSTALL_DIR/embedded/bin/installer package-command datadog-agent (watchConfigExperiment|handBackInstaller)" 2>/dev/null || true
+
     echo '# Stopping running services'
+    launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
     launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true

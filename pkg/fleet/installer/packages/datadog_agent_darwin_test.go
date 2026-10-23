@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,11 @@ func testLayout(t *testing.T) agentLayout {
 	original := ensureInstallerDataDir
 	ensureInstallerDataDir = func() error { return nil }
 	t.Cleanup(func() { ensureInstallerDataDir = original })
+	originalStopWatchers := stopSurvivingWatchers
+	stopSurvivingWatchers = func(context.Context) error { return nil }
+	t.Cleanup(func() { stopSurvivingWatchers = originalStopWatchers })
+	stubDeadlinePath(t)
+	stubConfigExperimentDirs(t)
 	return agentLayout{
 		installRoot:  filepath.Join(root, "opt", "datadog-agent"),
 		linkDir:      filepath.Join(root, "usr", "local", "bin"),
@@ -528,4 +534,76 @@ func TestPreRemoveStopsBothJobSets(t *testing.T) {
 	// The experiment set goes first: a leftover -exp job would otherwise keep running against a
 	// configuration that is about to be removed.
 	assert.Equal(t, "system/"+experimentJobs[0], bootedOut[0])
+}
+
+// TestPostInstallDMGCollapsesALeftoverExperiment pins that an install never leaves both job sets
+// behind: whatever is left of a configuration experiment -- its deadline, its jobs, including the
+// experiment installer daemon, and its configuration directory -- is discarded before the stable
+// set is loaded.
+func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	layout := testLayout(t)
+	stopped := 0
+	stopSurvivingWatchers = func(context.Context) error { stopped++; return nil }
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, experimentDeadline().Write(time.Hour))
+	for _, label := range experimentJobs {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte("leftover"), 0644))
+	}
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx, layout))
+
+	assert.Equal(t, 1, stopped, "a surviving watcher must be stopped before the jobs it watches go away")
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+	assert.Empty(t, experimentDeploymentID(t, dirs))
+	for _, label := range experimentJobs {
+		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, launchctlCalls(*calls, "bootout"), "system/"+label)
+	}
+	// The experiment jobs are all gone before the first stable job is loaded.
+	lastExperimentBootout, firstStableBootstrap := -1, -1
+	for i, args := range *calls {
+		target := strings.Join(args, " ")
+		if args[0] == "bootout" && strings.Contains(target, "-exp") {
+			lastExperimentBootout = i
+		}
+		if args[0] == "bootstrap" && firstStableBootstrap < 0 {
+			firstStableBootstrap = i
+		}
+	}
+	assert.Less(t, lastExperimentBootout, firstStableBootstrap)
+}
+
+// TestPostInstallDMGIsIdempotent pins that the post-install can run twice: the second run leaves
+// the same job definitions and the same registration.
+func TestPostInstallDMGIsIdempotent(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	layout := testLayout(t)
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx, layout))
+	first := map[string][]byte{}
+	for _, label := range stableJobs {
+		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
+		require.NoError(t, err)
+		first[label] = content
+	}
+	require.NoError(t, postInstallDMG(ctx, layout))
+	for _, label := range stableJobs {
+		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
+		require.NoError(t, err)
+		assert.Equal(t, first[label], content)
+	}
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+	state, err := repositories.GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, registeredVersion(), state.Stable)
 }

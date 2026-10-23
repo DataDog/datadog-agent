@@ -102,3 +102,30 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn("tmpl/gen/windows/datadog-agent-data-plane.yaml", embed_go)
         self.assertIn("ADPWindowsProcmgrConfig", embed_go)
         self.assertIn("embedded.ADPWindowsProcmgrConfig", adp_procmgr)
+
+    def test_postinst_falls_back_to_the_shipped_launchdaemons(self):
+        # When `installer postinst datadog-agent dmg` fails or the installer is missing, postinst
+        # installs the Agent's stable LaunchDaemons itself, from plain copies of the installer's own
+        # embedded definitions shipped under the root-owned embedded/ tree, never under etc/.
+        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
+        embedded_build = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/BUILD.bazel").read_text()
+        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
+
+        self.assertIn('"//pkg/fleet/installer/packages/embedded:launchd_fallback_jobs"', build_file)
+        self.assertIn('prefix = "embedded/share/launchd"', build_file)
+        self.assertIn('":launchd_fallback_jobs"', build_file)
+        self.assertIn('FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"', postinst)
+        self.assertEqual(postinst.count("install_fallback_launchdaemons\n"), 2)
+
+        for label in [
+            "com.datadoghq.procmgr",
+            "com.datadoghq.agent",
+            "com.datadoghq.sysprobe",
+            "com.datadoghq.data-plane",
+        ]:
+            with self.subTest(service=label):
+                self.assertIn(f'"tmpl/gen/darwin/{label}.plist"', embedded_build)
+                self.assertTrue((REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist").is_file())
+                self.assertIn(label, postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
+        # The installer daemon is Fleet's, not the Agent's: the fallback does not install it.
+        self.assertNotIn("com.datadoghq.installer", postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])

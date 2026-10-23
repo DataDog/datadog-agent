@@ -425,10 +425,32 @@ func postInstallDMG(ctx HookContext, layout agentLayout) error {
 	if err := registerPackageRepository(ctx, layout); err != nil {
 		errs = append(errs, err)
 	}
+	collapseConfigExperiment(ctx)
 	if err := installStableJobs(ctx); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+// collapseConfigExperiment discards whatever is left of a configuration experiment before the
+// stable job set is loaded, so a host never ends up running both job sets -- two Agents, or two
+// installer daemons -- after an install, and so running the post-install twice is harmless.
+//
+// The .dmg's preinstall script already does all of this on an upgrade; this repeats it for a host
+// it did not run on or did not finish on. Every step is allowed to fail.
+func collapseConfigExperiment(ctx HookContext) {
+	// A surviving watcher would read the experiment jobs going away below as a crash, and revert
+	// on top of the install.
+	if err := stopSurvivingWatchers(ctx); err != nil {
+		log.Warnf("could not stop a surviving experiment watcher: %v", err)
+	}
+	if err := experimentDeadline().Clear(); err != nil {
+		log.Warnf("could not clear the experiment deadline: %v", err)
+	}
+	removeJobs(ctx, experimentJobs)
+	if err := discardExperimentConfig(ctx); err != nil {
+		log.Warnf("%v", err)
+	}
 }
 
 // installWrappedPackage runs the .pkg installer payload an OCI-delivered Agent package wraps.

@@ -1457,6 +1457,52 @@ func (s *configMacOSSuite) TestUpgradeMidExperimentClearsDeadlineMacOS() {
 	s.requireWatcherExits("discarded by the upgrade")
 }
 
+// TestPostinstFallsBackWhenTheInstallerFailsMacOS pins omnibus/package-scripts/agent-dmg/postinst's
+// fallback: when `installer postinst datadog-agent dmg` fails, the script installs the Agent's
+// LaunchDaemons itself, so an install never leaves the Agent stopped whatever happens to the
+// installer.
+//
+// The installer is made to fail by replacing its root-owned run directory with a symlink, which
+// EnsureInstallerDataDir refuses. The Agent's job definitions are removed beforehand, so only the
+// fallback can bring them back if the installer does not.
+func (s *configMacOSSuite) TestPostinstFallsBackWhenTheInstallerFailsMacOS() {
+	s.requireResting()
+	const runDir = "/opt/datadog-packages/run"
+	agentJobs := []string{"com.datadoghq.procmgr", "com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"}
+
+	s.Env().RemoteHost.MustExecute("sudo mv " + runDir + " " + runDir + ".bak && sudo ln -s /var/empty " + runDir)
+	defer func() {
+		s.Env().RemoteHost.MustExecute("sudo rm -f " + runDir + " && sudo mv " + runDir + ".bak " + runDir)
+		s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/installer postinst datadog-agent dmg")
+		s.waitForDaemon()
+	}()
+	for _, label := range agentJobs {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+			"sudo launchctl bootout system/%[1]s 2>/dev/null; sudo rm -f /Library/LaunchDaemons/%[1]s.plist", label))
+	}
+
+	s.clearPendingUpdaterTasks()
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithRemoteConfig())
+
+	postinstall := s.readFile("/opt/datadog-agent/logs/postinstall.log")
+	require.Contains(s.T(), postinstall, "The installer postinst failed; falling back",
+		"the installer was made to fail, so postinst should have fallen back")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		loaded := s.launchdLabelsLoaded(agentJobs...)
+		for _, label := range agentJobs {
+			assert.True(c, loaded[label], "%s should be loaded by the fallback", label)
+		}
+	}, 60*time.Second, 5*time.Second)
+	for _, label := range agentJobs {
+		installed := s.readFile("/Library/LaunchDaemons/" + label + ".plist")
+		shipped := s.readFile("/opt/datadog-agent/embedded/share/launchd/" + label + ".plist")
+		require.Equal(s.T(), shipped, installed, "%s should be installed from the shipped definition", label)
+	}
+	perms, err := s.Host.GetFilePermissions("/opt/datadog-agent/embedded/share/launchd/com.datadoghq.agent.plist")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "root", perms.Owner, "the definitions the fallback installs must not be writable by the Agent's account")
+}
+
 // --- Set 16: on-disk and launchd invariants of the experiment lifecycle (macOS-specific) --------
 
 // jobPID returns the pid launchd reports for label, or "" when the job is not loaded or has no

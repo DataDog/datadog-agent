@@ -45,6 +45,19 @@ nocap_service_srcs = glob([
 # keep
 launchd_job_srcs = glob(["tmpl/gen/darwin/*.plist"])
 
+# The stable definitions of the Agent's own LaunchDaemons, also shipped as plain files: the .dmg
+# postinstall script installs them directly when the installer cannot.
+filegroup(
+    name = "launchd_fallback_jobs",
+    srcs = [
+        "tmpl/gen/darwin/com.datadoghq.agent.plist",
+        "tmpl/gen/darwin/com.datadoghq.data-plane.plist",
+        "tmpl/gen/darwin/com.datadoghq.procmgr.plist",
+        "tmpl/gen/darwin/com.datadoghq.sysprobe.plist",
+    ],
+    visibility = ["//packages/macos/app:__pkg__"],
+)
+
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
