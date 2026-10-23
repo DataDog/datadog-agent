@@ -436,12 +436,17 @@ func (r *distributionRecorder) Distribution(name string, value float64, _ []stri
 func TestManagerV2_queueEventForTagResolution_resolvesTimestampFirst(t *testing.T) {
 	recorder := &distributionRecorder{values: map[string][]float64{}}
 	m := &ManagerV2{
-		config:               &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{}},
-		statsdClient:         recorder,
-		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
-		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
-		queueSize:            atomic.NewUint64(0),
-		pendingProfiles:      atomic.NewUint64(0),
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+			SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
+		}},
+		statsdClient:              recorder,
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
 	}
 
 	const cgroupID = containerutils.CGroupID("test-cgroup")
