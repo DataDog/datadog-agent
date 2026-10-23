@@ -376,8 +376,6 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 h1:/Tnpcb2E0Pz/tN9s3bfEY2Q8ePC
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0/go.mod h1:zOBXOsUaBSjKgmH4OGzV1esUpR3oUSCPYVd2cUBjKYY=
 github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 h1:MJG/KsmcqMwFAkh8mTnAwhyKoB+sTAnY4CACC110tbU=
 github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645/go.mod h1:6iZfnjpejD4L/4DwD7NryNaJyCQdzwWwH2MWhCA90Kw=
-github.com/hairyhenderson/go-codeowners v0.7.1 h1:4yKuRk01b7DC+pnGMzsod4njH05EXsBjFlZcFmTn19g=
-github.com/hairyhenderson/go-codeowners v0.7.1/go.mod h1:oxxEFdmWj8geqXtG7tNO/rXF/hV7got2sSPdaIKpGVI=
 github.com/hairyhenderson/go-codeowners v0.7.2 h1:FFoahR2kVATI3WsFAFfpY07mbMMCz6dvz85sGTgHmpc=
 github.com/hairyhenderson/go-codeowners v0.7.2/go.mod h1:gmbRf2wE0YE3X9xR31FoP5jfun9gvBnAaw+FGeyd4C4=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
