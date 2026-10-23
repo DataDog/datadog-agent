@@ -1,0 +1,15 @@
+---
+security:
+  - |
+    Update ``OpenSCAP`` to 1.4.6, which fixes CVE-2026-85518: the
+    components of a source data stream, such as SCE scripts, could be
+    written outside the directory OpenSCAP extracts them to.
+fixes:
+  - |
+    ``OpenSCAP`` 1.4.6 evaluates an OVAL state with no entities as true,
+    as the OVAL specification says, where it reported unknown.
+other:
+  - |
+    The Agent builds ``OpenSCAP`` from the releases of
+    github.com/0intro/openscap, which hold an upstream release and the
+    Agent's changes to it, in place of the upstream tarball and patches.
