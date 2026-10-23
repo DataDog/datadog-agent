@@ -981,6 +981,11 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
     Py_XDECREF(py_value);
 }
 
+void Three::setMetricSubmissionGILRelease(bool enabled)
+{
+    _set_metric_submission_gil_release(enabled);
+}
+
 void Three::setSubmitMetricCb(cb_submit_metric_t cb)
 {
     _set_submit_metric_cb(cb);

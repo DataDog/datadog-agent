@@ -116,6 +116,12 @@ func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return cm.metrics.Flush(timestamp)
 }
 
+// FlushBatch drains an intermediate batch without resetting historate baselines.
+// The check's final Flush retains the normal end-of-run reset behavior.
+func (cm *CheckMetrics) FlushBatch(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
+	return cm.metrics.flush(timestamp, true)
+}
+
 // RemoveExpired removes stateful metrics that have expired before the given timestamp.
 func (cm *CheckMetrics) RemoveExpired(timestamp float64) {
 	removed := 0.0
