@@ -115,17 +115,21 @@ bazel:test:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=no-dd-agent-go-tests --keep_going //... --
+      bazel test --config=no-dd-agent-go-tests --build_tests_only --keep_going //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
 
+# The dd_agent_go_test targets are only in a select set of places
+# We limit analysis to those locations to keep memory usage down.
+# This could miss new things today, but we protect ourselves with vigilance.
+# In the future, we can build an intelligent test selection to know
+# the targets with ... expansion.
 bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel test --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
-      -//bazel/rules/dd_packaging/...
-      -//packages/agent/linux/...
+      bazel test --config=dd-agent-go-tests-only --build_tests_only --keep_going
+      //cmd/... //comp/... //internal/... pkg/... //test/... //tools/...
 
 bazel:coverage:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
