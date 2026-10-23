@@ -90,7 +90,6 @@ use (
 	internal/qbranch/anomalydetection-scorer
 	internal/qbranch/anomalydetection-testbench
 	internal/tools
-	internal/tools/gotest-custom
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
