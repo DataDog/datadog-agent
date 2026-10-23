@@ -16,7 +16,12 @@
 package trace
 
 import (
+	"testing"
+
+	"go.uber.org/fx"
+
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx-mock"
+	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigmock "github.com/DataDog/datadog-agent/comp/trace/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -24,8 +29,8 @@ import (
 // team: agent-apm
 
 // MockBundle defines the fx options for this bundle.
-func MockBundle() fxutil.BundleOptions {
+func MockBundle(t testing.TB) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		traceconfigmock.MockModule(),
+		fx.Provide(func() traceconfig.Component { return traceconfigmock.New(t) }),
 		traceagentfx.MockModule())
 }
