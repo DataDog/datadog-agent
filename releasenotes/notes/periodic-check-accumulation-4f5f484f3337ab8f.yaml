@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Emit eligible check metrics on the Agent flush cadence, including during long
+    check runs, to reduce transient metric accumulation. Gauges report their
+    latest value per flush; count contributions and monotonic deltas are emitted
+    periodically. Histograms, historates, rates, and sets retain check-run windows.
+    Serialization can delay other check submissions, and time-based flushing
+    does not impose a hard memory limit.

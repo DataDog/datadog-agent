@@ -2,8 +2,8 @@
 
 This experimental implementation accumulates check metrics automatically and
 drains eligible metric types on the Agent's existing flush cadence (normally
-about 15 seconds). It starts from the independent periodic branch, without the
-size-based sender/rtloader machinery or per-submission Python GIL release.
+about 15 seconds). It does not require a per-check size threshold or change the rtloader interface
+or per-submission Python GIL behavior.
 
 The aggregator input loop waits for streaming serialization to finish. Internal
 default-sender numeric telemetry bypasses that paused input channel, and the
@@ -96,3 +96,6 @@ identify exact retransmissions separately from distinct-payload point collisions
 This experimental branch has no per-check opt-in or runtime toggle. Roll back by
 deploying the prior Agent build. Native Linux validation does not establish
 Windows/macOS packaging or lifecycle coverage, or constitute release approval.
+
+For measured results, provenance, and unresolved delivery failures, see
+[review evidence](periodic-check-accumulation-evidence.md).
