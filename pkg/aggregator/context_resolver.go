@@ -402,15 +402,24 @@ func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 // expireContexts cleans up the contexts that haven't been tracked since `expirationCount`
 // call to `expireContexts` and returns the associated contextKeys
 func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
+	keys := cr.expireContextsAt(cr.expireCount, nil)
+	cr.expireCount++
+	return keys
+}
+
+// expireContextsAt performs deferred cleanup without advancing the check-run clock.
+func (cr *countBasedContextResolver) expireContextsAt(expireCount int64, retained map[ckey.ContextKey]struct{}) []ckey.ContextKey {
 	var keys []ckey.ContextKey
 	for key, entry := range cr.resolver.contextsByKey {
 		index := entry.lastSeen
-		if index <= cr.expireCount-cr.expireCountInterval {
+		if index <= expireCount-cr.expireCountInterval {
+			if _, pending := retained[key]; pending {
+				continue
+			}
 			keys = append(keys, key)
 			cr.resolver.remove(key)
 		}
 	}
-	cr.expireCount++
 	return keys
 }
 

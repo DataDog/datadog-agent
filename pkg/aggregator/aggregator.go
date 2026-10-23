@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -487,8 +488,15 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
+			checkSampler.commitNow(false, &agg.flushFilterList)
 		} else {
+			if checkSampler.deferredFinal {
+				// Preserve the previous run's gauge before a later run overwrites it.
+				now := float64(time.Now().UnixNano()) / 1e9
+				if int64(now) > checkSampler.lastCommitSecond {
+					checkSampler.commitAt(now, true, false, &agg.flushFilterList)
+				}
+			}
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
 		}
@@ -574,23 +582,35 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
 ) {
+	// Detach under the mutex; stream sinks can block on serialization, which
+	// may synchronously submit internal telemetry back into this aggregator.
+	type batch struct {
+		series   metrics.Series
+		sketches metrics.SketchSeriesList
+	}
+	var batches []batch
 	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	//nolint:revive // TODO(AML) Fix revive linter
-	for checkId, checkSampler := range agg.checkSamplers {
-		checkSeries, sketches := checkSampler.flush()
-		for _, s := range checkSeries {
-			seriesSink.Append(s)
+	for checkID, sampler := range agg.checkSamplers {
+		if sampler.deregistered {
+			// This sampler will never receive another periodic flush. Drain its
+			// deferred numeric state and every sketch before releasing metadata.
+			sampler.commitAt(float64(time.Now().UnixNano())/1e9, false, true, &agg.flushFilterList)
+			sampler.commitSketchesBefore(math.MaxInt64, &agg.flushFilterList)
 		}
-
-		for _, sk := range sketches {
-			sketchesSink.Append(sk)
+		series, sketches := sampler.flush()
+		batches = append(batches, batch{series, sketches})
+		if sampler.deregistered {
+			sampler.release()
+			delete(agg.checkSamplers, checkID)
 		}
-
-		if checkSampler.deregistered {
-			checkSampler.release()
-			delete(agg.checkSamplers, checkId)
+	}
+	agg.mu.Unlock()
+	for _, batch := range batches {
+		for _, serie := range batch.series {
+			seriesSink.Append(serie)
+		}
+		for _, sketch := range batch.sketches {
+			sketchesSink.Append(sketch)
 		}
 	}
 }
@@ -801,10 +821,29 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.flushMutex.Lock()
 	defer agg.flushMutex.Unlock()
+	if trigger.serializationDone != nil || trigger.finalFlush {
+		agg.mu.Lock()
+		for _, sampler := range agg.checkSamplers {
+			sampler.commitAt(float64(time.Now().UnixNano())/1e9, true, trigger.finalFlush, &agg.flushFilterList)
+		}
+		agg.mu.Unlock()
+	}
+	if trigger.finalFlush {
+		agg.mu.Lock()
+		// Drain every accepted sketch at shutdown, including buckets ahead of
+		// wall time after a clock rollback. Preserve their original timestamps.
+		for _, sampler := range agg.checkSamplers {
+			sampler.commitSketchesBefore(math.MaxInt64, &agg.flushFilterList)
+		}
+		agg.mu.Unlock()
+	}
 	agg.flushSeriesAndSketches(trigger)
 	// notify the triggerer that we're done flushing the series and sketches
 	if trigger.blockChan != nil {
 		trigger.blockChan <- struct{}{}
+	}
+	if trigger.serializationDone != nil {
+		<-trigger.serializationDone
 	}
 	agg.flushServiceChecks(trigger.time, trigger.waitForSerializer)
 	agg.flushEvents(trigger.time, trigger.waitForSerializer)
@@ -831,17 +870,28 @@ func (agg *BufferedAggregator) run() {
 			close(stop)
 			return
 		case trigger := <-agg.flushChan:
+			// A final synchronous flush must include input already accepted before it.
+			// Capture the length so a concurrent producer cannot extend this drain.
+			if trigger.waitForSerializer {
+				for pending := len(agg.checkItems); pending > 0; pending-- {
+					(<-agg.checkItems).handle(agg)
+				}
+			}
 			agg.Flush(trigger)
 
 			// Do this here, rather than in the Flush():
 			// - make sure Shrink doesn't happen concurrently with sample processing.
 			// - we don't need to Shrink() on stop
+			agg.mu.Lock()
 			agg.tagsStore.Shrink()
+			agg.mu.Unlock()
 
 			aggregatorEventPlatformErrorLogged = false
 
 		case matcher := <-agg.filterListChan:
+			agg.mu.Lock()
 			agg.flushFilterList = matcher
+			agg.mu.Unlock()
 		case matcher := <-agg.tagFilterListChan:
 			agg.setFilterList(matcher)
 		case <-agg.health.C:
@@ -909,6 +959,8 @@ func (agg *BufferedAggregator) run() {
 // Set a new filterlist, ensuring we also clear the context resolver strip cache
 // for each check sampler.
 func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
 	}

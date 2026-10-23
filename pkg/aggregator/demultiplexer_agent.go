@@ -424,7 +424,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 			if ok && trigger != nil {
 				// Final flush requested
 				shutdownEvent := d.takePendingShutdownEvent()
-				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll, true)
 				d.sendAgentShutdownEvent(shutdownEvent)
 				if trigger.blockChan != nil {
 					trigger.blockChan <- struct{}{}
@@ -433,13 +433,13 @@ func (d *AgentDemultiplexer) flushLoop() {
 			return
 		// manual flush sequence
 		case trigger := <-d.flushChan:
-			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll, false)
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
 		case t := <-flushTicker:
-			d.flushToSerializer(t, false, false)
+			d.flushToSerializer(t, false, false, false)
 		}
 	}
 }
@@ -543,7 +543,7 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 // If one day a better (faster?) solution is needed, we could either consider:
 // - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
 // - to have a thread-safe implementation of the underlying `util.BufferedChan`.
-func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
+func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, finalFlush bool) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -554,6 +554,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
+	serializationDone := make(chan struct{})
 	metrics.Serialize(
 		series,
 		sketches,
@@ -588,6 +589,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 			if d.aggregator != nil {
 				t := flushTrigger{
+					finalFlush:        finalFlush,
+					serializationDone: serializationDone,
 					trigger: trigger{
 						time:              start,
 						blockChan:         make(chan struct{}),
@@ -614,6 +617,8 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
 		})
+
+	close(serializationDone)
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
