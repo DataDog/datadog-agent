@@ -10,7 +10,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -59,7 +58,6 @@ type inventoryagent struct {
 	log          log.Component
 	conf         config.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
-	m            sync.Mutex
 	client       ipc.HTTPClient
 }
 
@@ -407,26 +405,17 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 
 	ia.log.Debugf("setting inventory agent metadata '%s': '%v'", name, value)
 
-	ia.m.Lock()
-	defer ia.m.Unlock()
-
 	if ia.Data.Set(name, value) {
 		ia.Refresh()
 	}
 }
 
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
-	ia.m.Lock()
-	defer ia.m.Unlock()
-
 	ia.refreshMetadata()
 	return ia.Data.GetPayload(nil, uuid.GetUUID())
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 func (ia *inventoryagent) Get() map[string]interface{} {
-	ia.m.Lock()
-	defer ia.m.Unlock()
-
 	return ia.Data.Get()
 }
