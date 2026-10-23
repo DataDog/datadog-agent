@@ -9,7 +9,6 @@ go_library(
         "kubelet_source_stub.go",
         "logssource.go",
         "pipeline.go",
-        "sampling.go",
         "source_provider.go",
         "source_settings.go",
     ],
@@ -18,7 +17,6 @@ go_library(
     deps = [
         "//comp/anomalydetection/config",
         "//comp/anomalydetection/internal/logging",
-        "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/logssource/def",
         "//comp/anomalydetection/observer/def",
         "//comp/core/autodiscovery/def",
@@ -59,13 +57,11 @@ dd_agent_go_test(
     srcs = [
         "ad_source_manager_test.go",
         "pipeline_test.go",
-        "sampling_test.go",
         "source_provider_test.go",
         "source_settings_test.go",
     ],
     embed = [":impl"],
     deps = [
-        "//comp/anomalydetection/internal/logsfilter",
         "//comp/anomalydetection/observer/def",
         "//comp/core/config",
         "//comp/core/log/def",

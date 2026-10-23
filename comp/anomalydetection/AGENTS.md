@@ -126,11 +126,15 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Container + kubelet logs** → `logssource` component
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
-Both paths share filtering primitives from `internal/logsfilter/`.
-The agent-internal logger callback performs only self/severity gates and a
-bounded non-blocking enqueue. Processing rules, rate limiting, tag construction,
-and Observer ingestion run on the `agent_logs` worker; never add that work back
-under `pkg/util/log`'s global logger lock.
+Both paths use shared filtering primitives from `internal/logsfilter/` inside
+the observer. Producer handles perform only cheap `MayAllowSource` and
+`min_severity` gates before copying the log snapshot and enqueueing to the
+observer channel; full `processing_rules` evaluation, priority rate limiting,
+and optional Parquet log recording happen asynchronously on the observer
+dispatch goroutine. The agent-internal logger callback performs only
+self/severity gates and a bounded non-blocking enqueue; tag construction and
+JSON formatting run on the `agent_logs` worker outside `pkg/util/log`'s global
+logger lock.
 
 ### Logging convention
 
