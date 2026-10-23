@@ -95,7 +95,9 @@ func TestRunAuthoredScriptUsesInjectedArtifactResolver(t *testing.T) {
 		SHA256:  testActionDigest,
 	}
 	materializer := &runTestMaterializer{}
-	resolver, err := authoredscriptssupport.NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
+	cacheRoot := filepath.Join(t.TempDir(), "cache")
+	cleanupReadOnlyTestCache(t, cacheRoot)
+	resolver, err := authoredscriptssupport.NewArtifactResolver(cacheRoot, materializer)
 	require.NoError(t, err)
 	handler := &RunAuthoredScriptHandler{
 		catalog:          runTestCatalog{descriptor: descriptor},
@@ -175,5 +177,24 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 
 		_, err := handler.Run(context.Background(), task, nil)
 		require.ErrorIs(t, err, expectedErr)
+	})
+}
+
+func cleanupReadOnlyTestCache(t *testing.T, root string) {
+	t.Helper()
+	t.Cleanup(func() {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return os.Chmod(path, 0o700)
+			}
+			return nil
+		})
+		require.NoError(t, err)
 	})
 }
