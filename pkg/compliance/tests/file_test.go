@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -324,4 +325,63 @@ findings[f] {
 `).
 		AssertPassedEvent(nil).
 		AssertPassedEvent(nil)
+}
+
+func TestFileUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file of mode 0")
+	}
+	b := newTestBench(t)
+	defer b.Run()
+
+	path := b.WriteTempFile(t, "secret")
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	b.AddRule("UnreadableNoParser").
+		WithInput(`
+- file:
+		path: %s
+`, path).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.file.content == ""
+	input.file.permissions == 0
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("UnreadableRaw").
+		WithInput(`
+- file:
+		path: %s
+		parser: raw
+`, path).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+has_key(o, k) {
+	_ := o[k]
+}
+
+findings[f] {
+	not has_key(input, "file")
+	f := dd.failing_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertFailedEvent(nil)
 }
