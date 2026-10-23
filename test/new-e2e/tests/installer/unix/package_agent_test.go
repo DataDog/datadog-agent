@@ -180,15 +180,19 @@ func (s *packageAgentSuite) TestPrivilegedRshellSocketLifecycle() {
 	s.Equal("dd-agent:dd-agent 600 socket", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a %F' "+rshellSocketPath)))
 	s.Equal("root:root 755", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a' "+rshellSocketDir)),
 		"dd-agent must reach the socket but not replace it")
-	s.False(s.fileExists(rshellLegacySocketPath))
+	s.False(s.socketExists(rshellLegacySocketPath))
 	// Pulled in by the Agent, never enabled, so no symlinks drift across upgrades.
 	s.Equal("static", strings.TrimSpace(s.host.Run("systemctl is-enabled "+rshellSocketUnit+" || true")))
 
 	// While the setting is disabled, the enablement check stops the root
 	// helper from ever running.
+	helperStart := func() string {
+		return strings.TrimSpace(s.host.Run("systemctl show -p ExecMainStartTimestampMonotonic " + rshellServiceUnit))
+	}
+	before := helperStart()
 	_, err := s.Env().RemoteHost.Execute("sudo systemctl start " + rshellServiceUnit)
 	s.Error(err, "the helper must not start while the setting is disabled")
-	s.Equal("ExecMainStartTimestampMonotonic=0", strings.TrimSpace(s.host.Run("systemctl show -p ExecMainStartTimestampMonotonic "+rshellServiceUnit)))
+	s.Equal(before, helperStart(), "the helper's ExecStart must not run")
 
 	// Enabling it only needs an Agent restart. The helper is socket-activated:
 	// started through the socket, it gets the listening socket, with real uid root.
@@ -261,6 +265,13 @@ func (s *packageAgentSuite) fileExists(path string) bool {
 	return exists
 }
 
+// socketExists reports whether path is a Unix socket. host.FileExists only
+// reports regular files.
+func (s *packageAgentSuite) socketExists(path string) bool {
+	_, err := s.Env().RemoteHost.Execute("test -S " + path)
+	return err == nil
+}
+
 // assertRshellSocket waits for the helper socket unit to be listening, or to
 // be inactive with its socket file removed.
 func (s *packageAgentSuite) assertRshellSocket(listening bool) {
@@ -270,8 +281,7 @@ func (s *packageAgentSuite) assertRshellSocket(listening bool) {
 	}
 	s.Require().Eventually(func() bool {
 		state := strings.TrimSpace(s.host.Run("systemctl show -p ActiveState " + rshellSocketUnit))
-		exists, err := s.host.FileExists(rshellSocketPath)
-		return err == nil && state == want && exists == listening
+		return state == want && s.socketExists(rshellSocketPath) == listening
 	}, time.Minute, time.Second, "expected %s %s with %s present=%t", rshellSocketUnit, want, rshellSocketPath, listening)
 }
 
