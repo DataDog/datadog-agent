@@ -108,6 +108,7 @@ class TestGetModifiedPackages(unittest.TestCase):
         self.assertEqual(len(modules), 1)
         self.assertEqual(modules[0].test_targets, ["./."])
         self.assertEqual(modules[0].lint_targets, ["./."])
+
     @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["pkg/aggregator/foo.go"]))
     @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
     @patch(
