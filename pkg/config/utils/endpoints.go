@@ -309,8 +309,8 @@ func ExtractSiteFromURL(rawURL string) string {
 // built from `multi_region_failover.site`, their site does not tell us where the org lives.
 var mrfAliasRegexp = regexp.MustCompile(`^([a-z0-9-]+)\.mrf\.` + ddSitePattern + `$`)
 
-// isMRFAliasURL reports whether the given URL points at a customer-specific Multi-Region Failover alias.
-func isMRFAliasURL(rawURL string) bool {
+// IsMRFAliasURL reports whether the given URL points at a customer-specific Multi-Region Failover alias.
+func IsMRFAliasURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return false
@@ -326,7 +326,7 @@ func isMRFAliasURL(rawURL string) bool {
 // returns "https://api.us3.datadoghq.com". Otherwise, such as for proxies or customer-specific Multi-Region Failover
 // aliases, the URL is returned unchanged.
 func APIEndpointFromURL(rawURL string) string {
-	if isMRFAliasURL(rawURL) {
+	if IsMRFAliasURL(rawURL) {
 		return rawURL
 	}
 	if site := ExtractSiteFromURL(rawURL); site != "" {
@@ -429,6 +429,11 @@ func IsDatadogURL(rawURL string) bool {
 func getDomainPrefix(app string) string {
 	v, _ := version.Agent()
 	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+}
+
+// AddAgentVersionToSite builds the versioned Agent host URL for a site and app.
+func AddAgentVersionToSite(site, app string) string {
+	return BuildURLWithPrefix("https://"+getDomainPrefix(app)+".", site)
 }
 
 // AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
