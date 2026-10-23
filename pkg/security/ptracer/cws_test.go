@@ -9,6 +9,7 @@ package ptracer
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"net"
 	"testing"
@@ -107,6 +108,95 @@ func TestSendMessagesLoopPreservesFIFOAcrossReconnects(t *testing.T) {
 			require.Error(t, ctx.sendMessagesLoop())
 			assert.Equal(t, []string{"fork", "exec"}, sent)
 			assert.Nil(t, ctx.inFlightMsgData)
+		})
+	}
+}
+
+func TestEnqueueMsgDataSizeLimit(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		size     int
+		accepted bool
+	}{
+		{name: "below limit", size: ebpfless.MaxMessageSize - 1, accepted: true},
+		{name: "at limit", size: ebpfless.MaxMessageSize, accepted: true},
+		{name: "above limit", size: ebpfless.MaxMessageSize + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := &CWSPtracerCtx{msgDataChan: make(chan []byte, 1)}
+			data := make([]byte, tc.size)
+			require.Equal(t, tc.accepted, ctx.enqueueMsgData(data))
+			if tc.accepted {
+				require.Len(t, ctx.msgDataChan, 1)
+				assert.Equal(t, data, <-ctx.msgDataChan)
+			} else {
+				assert.Empty(t, ctx.msgDataChan)
+			}
+		})
+	}
+}
+
+func TestSendMessagesLoopDropsOversizedMessages(t *testing.T) {
+	for _, location := range []string{"queued", "in flight"} {
+		t.Run(location, func(t *testing.T) {
+			ctx := &CWSPtracerCtx{msgDataChan: make(chan []byte, 3)}
+			var cancel context.CancelFunc
+			ctx.cancel, cancel = context.WithCancel(context.Background())
+			defer cancel()
+			oversized := make([]byte, ebpfless.MaxMessageSize+1)
+			// Exercise the defensive sender check even if an invalid frame
+			// bypassed enqueueMsgData and is already queued or retained.
+			if location == "queued" {
+				ctx.msgDataChan <- oversized
+			} else {
+				ctx.inFlightMsgData = oversized
+			}
+			fork := &ebpfless.Message{Type: ebpfless.MessageTypeSyscall, Syscall: &ebpfless.SyscallMsg{
+				Type: ebpfless.SyscallTypeFork, PID: 20, Fork: &ebpfless.ForkSyscallMsg{PPID: 10},
+			}}
+			forkData, err := msgpack.Marshal(fork)
+			require.NoError(t, err)
+			require.True(t, ctx.enqueueMsgData(forkData))
+			exec := &ebpfless.Message{Type: ebpfless.MessageTypeSyscall, Syscall: &ebpfless.SyscallMsg{
+				Type: ebpfless.SyscallTypeExec, PID: 20, Exec: &ebpfless.ExecSyscallMsg{File: ebpfless.FileSyscallMsg{Filename: "/worker"}},
+			}}
+			execData, err := msgpack.Marshal(exec)
+			require.NoError(t, err)
+			require.True(t, ctx.enqueueMsgData(execData))
+
+			// The oversized frame must never be written. A transient failure
+			// of the following valid fork must still retain it ahead of exec.
+			ctx.client = &messageTestConn{write: func(data []byte) (int, error) {
+				require.Len(t, data, 4)
+				require.EqualValues(t, len(forkData), binary.NativeEndian.Uint32(data))
+				return 0, errors.New("connection lost")
+			}}
+			require.NoError(t, ctx.sendMessagesLoop())
+			require.Equal(t, forkData, ctx.inFlightMsgData)
+			require.Len(t, ctx.msgDataChan, 1)
+
+			var sent []ebpfless.SyscallType
+			writes := 0
+			ctx.client = &messageTestConn{write: func(data []byte) (int, error) {
+				writes++
+				if writes%2 == 1 {
+					require.Len(t, data, 4)
+					require.LessOrEqual(t, binary.NativeEndian.Uint32(data), uint32(ebpfless.MaxMessageSize))
+				} else {
+					var message ebpfless.Message
+					require.NoError(t, msgpack.Unmarshal(data, &message))
+					require.NotNil(t, message.Syscall)
+					sent = append(sent, message.Syscall.Type)
+					if len(sent) == 2 {
+						cancel()
+					}
+				}
+				return len(data), nil
+			}}
+			require.Error(t, ctx.sendMessagesLoop())
+			assert.Equal(t, []ebpfless.SyscallType{ebpfless.SyscallTypeFork, ebpfless.SyscallTypeExec}, sent)
+			assert.Nil(t, ctx.inFlightMsgData)
+			assert.Empty(t, ctx.msgDataChan)
 		})
 	}
 }

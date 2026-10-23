@@ -117,6 +117,7 @@ dd_agent_go_test(
         "child_creation_wait_test.go",
         "cws_test.go",
         "proc_stat_test.go",
+        "proc_test.go",
         "process_context_test.go",
         "process_lifecycle_guard_test.go",
         "process_test.go",
@@ -128,6 +129,7 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/proto/ebpfless",
+            "//pkg/security/secl/model/sharedconsts",
             "@com_github_kraken_hpc_go_fork//:go-fork",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -136,6 +138,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/proto/ebpfless",
+            "//pkg/security/secl/model/sharedconsts",
             "@com_github_kraken_hpc_go_fork//:go-fork",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

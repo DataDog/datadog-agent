@@ -250,6 +250,8 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Scanner snapshots share the wire limit and argument bounds of traced execs.
+	cmdLine, argsTruncated := truncateArgs(cmdLine)
 
 	filename, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", proc.Pid))
 	if err != nil {
@@ -287,6 +289,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 					Filename: procExecutableName(filename),
 				},
 				Args:          cmdLine,
+				ArgsTruncated: argsTruncated,
 				Envs:          envs,
 				EnvsTruncated: truncated,
 				TTY:           getPidTTY(int(proc.Pid)),

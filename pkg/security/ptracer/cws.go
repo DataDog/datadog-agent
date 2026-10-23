@@ -74,7 +74,8 @@ type CWSPtracerCtx struct {
 	clientReady chan bool
 	msgDataChan chan []byte
 	// The network sender owns this single dequeued payload until its write
-	// succeeds. Keep it across reconnects; requeueing at the tail breaks FIFO.
+	// succeeds or it is rejected as oversized. Keep it across reconnects;
+	// requeueing at the tail breaks FIFO.
 	inFlightMsgData []byte
 	// The tracing thread owns lifecycle metadata, not a telemetry queue.
 	// This guard filters late forks after a child-creation wait has expired.
@@ -211,8 +212,12 @@ func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
 
 // enqueueMsgData never waits for the network: a stalled probe must not hold
 // tracees stopped. A full outbound queue drops the new message rather than
-// blocking the tracing thread.
+// blocking the tracing thread. Reject unsendable frames before queueing them.
 func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) bool {
+	if len(data) > ebpfless.MaxMessageSize {
+		logger.Errorf("dropping oversized message: %d bytes exceeds maximum %d", len(data), ebpfless.MaxMessageSize)
+		return false
+	}
 	select {
 	case ctx.msgDataChan <- data:
 		return true
@@ -255,13 +260,16 @@ func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
 
 // sendMessagesLoop returns nil when the connection needs to be re-established.
 // The in-flight payload survives that return and is retried after the next hello,
-// before any later queued message. This preserves FIFO retries, not exactly-once
-// delivery: the protocol has no per-message acknowledgement.
+// before any later queued message. Oversized payloads cannot be delivered and
+// are discarded without writing or reconnecting. This preserves FIFO retries
+// for valid frames, not exactly-once delivery: there is no acknowledgement.
 func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
 	for {
 		if ctx.inFlightMsgData != nil {
 			// In particular, an exec must not overtake a fork whose write failed.
-			if err := ctx.sendMsgData(ctx.inFlightMsgData); err != nil {
+			if len(ctx.inFlightMsgData) > ebpfless.MaxMessageSize {
+				logger.Errorf("dropping oversized in-flight message: %d bytes exceeds maximum %d", len(ctx.inFlightMsgData), ebpfless.MaxMessageSize)
+			} else if err := ctx.sendMsgData(ctx.inFlightMsgData); err != nil {
 				logger.Debugf("error sending msg: %v", err)
 				return nil
 			}
