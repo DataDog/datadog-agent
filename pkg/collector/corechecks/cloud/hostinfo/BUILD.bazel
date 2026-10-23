@@ -12,6 +12,7 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/metrics/event",
         "//pkg/util/cloudproviders",
+        "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_shirou_gopsutil_v4//host",
@@ -27,7 +28,9 @@ dd_agent_go_test(
         "//pkg/aggregator/mocksender",
         "//pkg/metrics/event",
         "//pkg/util/cloudproviders",
+        "//pkg/util/http",
         "@com_github_shirou_gopsutil_v4//host",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
     ],
 )
