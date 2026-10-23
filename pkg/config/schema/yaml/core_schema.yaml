@@ -3428,14 +3428,38 @@ properties:
       The list of environment variables that are allowed to be resolved in check
       configurations.
       If the list is not set or is empty, the default behavior applies: all envs
-      are allowed except the ones bound to Agent settings (for example
-      `DD_API_KEY`, `DD_CLUSTER_AGENT_AUTH_TOKEN`, `DD_ENV`), which must be
-      listed here explicitly to be resolved.
+      are allowed except the ones bound to Agent settings (see
+      `ad_allowed_agent_env_vars`).
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
         - <ENV_VAR_1>
         - <ENV_VAR_2>
+    tags:
+    - template_section:CoreAgent
+  ad_allowed_agent_env_vars:
+    node_type: setting
+    type: array
+    default:
+    - DD_CLUSTER_NAME
+    - DD_ENV
+    items:
+      type: string
+    visibility: public
+    description: |-
+      The list of environment variables bound to Agent settings that are allowed
+      to be resolved in check configurations. Other environment variables bound
+      to Agent settings are not resolved because some of them hold Agent
+      credentials, like `DD_API_KEY`.
+      Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
+      `DD_ENV` if you still need them.
+      This list only applies when `ad_allowed_env_vars` is not set or is empty,
+      and `ad_disable_env_var_resolution` is set to false.
+    example: |2-
+
+        - DD_CLUSTER_NAME
+        - DD_ENV
+        - <ENV_VAR_1>
     tags:
     - template_section:CoreAgent
   ad_disable_env_var_resolution:
