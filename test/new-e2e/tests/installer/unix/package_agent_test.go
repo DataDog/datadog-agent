@@ -159,10 +159,9 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 }
 
 // TestPrivilegedRshellSocketLifecycle verifies the privileged rshell helper
-// socket follows the core Agent. PAR's configuration decides whether to use
-// the helper, so the installer writes the units on every host and the socket
-// listens whenever the Agent runs; systemd only starts the root helper when a
-// client connects.
+// socket follows the core Agent. The installer writes the units on every host
+// and the socket listens whenever the Agent runs; systemd only starts the root
+// helper when a client connects and the setting is enabled.
 //
 // Previously the installer parsed datadog.yaml at install time and only wrote
 // the units when the setting was already enabled, so enabling it needed a
@@ -185,9 +184,22 @@ func (s *packageAgentSuite) TestPrivilegedRshellSocketLifecycle() {
 	// Pulled in by the Agent, never enabled, so no symlinks drift across upgrades.
 	s.Equal("static", strings.TrimSpace(s.host.Run("systemctl is-enabled "+rshellSocketUnit+" || true")))
 
-	// The helper is socket-activated: it only runs once started through the
-	// socket, which passes it the listening socket, with real uid root.
-	s.Equal("ActiveState=inactive", strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+rshellServiceUnit)))
+	// While the setting is disabled, the enablement check stops the root
+	// helper from ever running.
+	_, err := s.Env().RemoteHost.Execute("sudo systemctl start " + rshellServiceUnit)
+	s.Error(err, "the helper must not start while the setting is disabled")
+	s.Equal("ExecMainStartTimestampMonotonic=0", strings.TrimSpace(s.host.Run("systemctl show -p ExecMainStartTimestampMonotonic "+rshellServiceUnit)))
+
+	// Enabling it only needs an Agent restart. The helper is socket-activated:
+	// started through the socket, it gets the listening socket, with real uid root.
+	const configPath = "/etc/datadog-agent/datadog.yaml"
+	const backupPath = "/tmp/datadog.yaml.rshell-backup"
+	s.host.Run(fmt.Sprintf("sudo cp -p %s %s", configPath, backupPath))
+	defer s.host.Run(fmt.Sprintf("sudo mv %s %s", backupPath, configPath))
+	s.Require().Equal("0", strings.TrimSpace(s.host.Run(fmt.Sprintf("sudo grep -c '^private_action_runner:' %s || true", configPath))), "the test appends this section")
+	s.host.Run(fmt.Sprintf(`printf 'private_action_runner:\n  restricted_shell:\n    privileged:\n      enabled: true\n' | sudo tee -a %s > /dev/null`, configPath))
+	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.assertRshellSocket(true)
 	s.host.Run("sudo systemctl start " + rshellServiceUnit)
 	s.host.WaitForUnitActive(s.T(), rshellServiceUnit)
 	pid := strings.TrimPrefix(strings.TrimSpace(s.host.Run("systemctl show -p MainPID "+rshellServiceUnit)), "MainPID=")
