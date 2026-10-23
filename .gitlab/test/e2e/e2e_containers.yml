@@ -104,7 +104,6 @@ new-e2e-containers-eks-init:
   extends: .new_e2e_template
   timeout: 1h 05m
   needs:
-    - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_container_or_e2e_changes]
@@ -140,7 +139,6 @@ new-e2e-containers-openshift-init:
   stage: e2e_init
   extends: .new_e2e_template
   needs:
-    - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]
