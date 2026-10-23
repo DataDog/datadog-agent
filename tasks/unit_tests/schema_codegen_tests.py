@@ -214,6 +214,48 @@ class TestGenerateConst(unittest.TestCase):
         core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
         self.assertIsNone(codegen.gen_generate_const(core, {'properties': {}}))
 
+    def test_to_vartype(self):
+        # Array without a per-elemenet type
+        obj = {
+            'node_type': 'setting',
+            'type': 'array',
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, '{}'), '[]interface{}{}')
+
+        # Array of a given type
+        obj = {
+            'node_type': 'setting',
+            'type': 'array',
+            'items': {
+                'type': 'string'
+            },
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, '{}'), '[]string{}')
+
+        # Scalar elements just return None
+        obj = {
+            'node_type': 'setting',
+            'type': 'boolean',
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, ''), 'None')
+
+        # Map element
+        obj = {
+            'node_type': 'setting',
+            'type': 'object',
+            'env_parser': 'json',
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, '{}'), 'map[string]interface{}{}')
+
+
 
 if __name__ == "__main__":
     unittest.main()

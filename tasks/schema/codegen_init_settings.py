@@ -209,7 +209,11 @@ def dict_to_gotype(inp):
         return f"map[string]{dict_to_gotype(inp.get('additionalProperties'))}"
 
 
+# Returns the type of the node as a gotype. Should only be called for
+# nodes that are arrays or objects
 def to_vartype(node, setting_default):
+    if node.get('type') not in ['array', 'object']:
+        return 'None'
     if node.get('type') == 'array':
         tags = node.get('tags')
         if tags:
@@ -236,6 +240,8 @@ ENV_PARSERS = {
 
 
 def env_parser_to_func_call(name, env_parser, node):
+    if node.get('type') not in ['array', 'object']:
+        raise RuntimeError('env_parser only allowed for array or object typed settings')
     parser_func, shape = ENV_PARSERS[env_parser]
     if shape == 'helper':
         return f"\tpkgconfighelper.{parser_func}(\"{name}\", config)"
