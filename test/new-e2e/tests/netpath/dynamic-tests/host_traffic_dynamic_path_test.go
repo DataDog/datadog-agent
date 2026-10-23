@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -227,12 +228,72 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	}, 5*time.Minute, 10*time.Second)
 
 	if remoteConfigMatch != nil {
-		s.T().Logf("matched RC host traffic dynamic path destination=%s:%d test_run_id=%s",
+		s.T().Logf("matched RC host traffic dynamic path destination=%s:%d test_run_id=%s correlation_key=%s",
 			remoteConfigMatch.Destination.Hostname,
 			remoteConfigMatch.Destination.Port,
 			remoteConfigMatch.TestRunID,
+			remoteConfigMatch.CorrelationKey,
 		)
 	}
+
+	require.NotNil(s.T(), remoteConfigMatch, "no network path event to correlate")
+	s.assertCorrelatedConnection(remoteConfigMatch)
+}
+
+func (s *hostTrafficDynamicPathSuite) assertCorrelatedConnection(match *aggregator.Netpath) {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	require.NotEmptyf(s.T(), match.CorrelationKey,
+		"network path event for %s:%d carries no correlation key, so no CNM connection can join to it",
+		match.Destination.Hostname, match.Destination.Port)
+
+	destIPs := map[string]struct{}{}
+	for _, run := range match.Traceroute.Runs {
+		if len(run.Destination.IPAddress) > 0 {
+			destIPs[run.Destination.IPAddress.String()] = struct{}{}
+		}
+	}
+	require.NotEmpty(s.T(), destIPs, "matched network path has no traceroute destination IP to compare against")
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		conns, err := fakeintake.GetConnections()
+		require.NoError(c, err)
+
+		var eligible int
+		var matched []*agentmodel.Connection
+		var matchedHosts []string
+		conns.ForeachConnection(func(conn *agentmodel.Connection, _ *agentmodel.CollectorConnections, hostname string) {
+			if conn.NetworkPath == nil || !conn.NetworkPath.TestEligible {
+				return
+			}
+			eligible++
+			if conn.NetworkPath.CorrelationKey == match.CorrelationKey {
+				matched = append(matched, conn)
+				matchedHosts = append(matchedHosts, hostname)
+			}
+		})
+
+		require.NotZerof(c, eligible,
+			"no CNM connection was marked test_eligible, so the Agent never stamped the payload")
+		require.NotEmptyf(c, matched,
+			"%d eligible connections, none carrying the key %s from the network path event",
+			eligible, match.CorrelationKey)
+
+		for i, conn := range matched {
+			assert.Containsf(c, destIPs, conn.Raddr.GetIp(),
+				"connection carrying key %s targets %s, which is not a traceroute destination of the event",
+				match.CorrelationKey, conn.Raddr.GetIp())
+			assert.EqualValuesf(c, match.Destination.Port, conn.Raddr.GetPort(),
+				"connection carrying key %s targets port %d, event destination port is %d",
+				match.CorrelationKey, conn.Raddr.GetPort(), match.Destination.Port)
+			assert.Equalf(c, agentmodel.ConnectionType_tcp, conn.Type,
+				"connection carrying key %s is %s, event protocol is TCP",
+				match.CorrelationKey, conn.Type)
+			assert.Equalf(c, match.Source.Hostname, matchedHosts[i],
+				"connection carrying key %s was reported by %s, event source hostname is %s",
+				match.CorrelationKey, matchedHosts[i], match.Source.Hostname)
+		}
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {

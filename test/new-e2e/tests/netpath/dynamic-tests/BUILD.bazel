@@ -48,6 +48,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
+        "@com_github_datadog_agent_payload_v5//process",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

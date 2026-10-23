@@ -436,7 +436,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Type:              model.ConnectionType_udp,
 		},
 	}
-	npCollector.ScheduleNetworkPathTests(slices.Values(conns))
+	npCollector.ScheduleNetworkPathTests("", slices.Values(conns))
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -600,7 +600,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 			Type:              model.ConnectionType_tcp,
 		})
 	}
-	npCollector.ScheduleNetworkPathTests(slices.Values(conns))
+	npCollector.ScheduleNetworkPathTests("", slices.Values(conns))
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 10)
 
@@ -643,7 +643,7 @@ func Test_NpCollector_ScheduleNetworkPathTests_ScheduleDurationMetric(t *testing
 	}
 
 	// WHEN
-	npCollector.ScheduleNetworkPathTests(slices.Values(conns))
+	npCollector.ScheduleNetworkPathTests("", slices.Values(conns))
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -1135,7 +1135,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			if tt.scheduleNetflow {
 				npCollector.ScheduleNetflowPathTests(slices.Values(tt.conns))
 			} else {
-				npCollector.ScheduleNetworkPathTests(slices.Values(tt.conns))
+				npCollector.ScheduleNetworkPathTests("", slices.Values(tt.conns))
 			}
 
 			actualPathtests := []*common.Pathtest{}
@@ -1203,7 +1203,7 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 	require.Empty(t, errs)
 	collector.filter = filter
 
-	collector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{
+	collector.ScheduleNetworkPathTests("", slices.Values([]npmodel.NetworkPathConnection{
 		{
 			Domain:    "remote.example.com",
 			Dest:      netip.MustParseAddrPort("10.0.0.4:443"),
@@ -1313,7 +1313,7 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 			if tt.scheduleNetflow {
 				npCollector.ScheduleNetflowPathTests(slices.Values([]npmodel.NetworkPathConnection{tt.conn}))
 			} else {
-				npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{tt.conn}))
+				npCollector.ScheduleNetworkPathTests("", slices.Values([]npmodel.NetworkPathConnection{tt.conn}))
 			}
 
 			select {
@@ -1324,6 +1324,35 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 				require.Nil(t, tt.expectedPathtest, "expected pathtest")
 			}
 		})
+	}
+}
+
+func Test_npCollectorImpl_ScheduleNetworkPathTests_StampsCorrelationKey(t *testing.T) {
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
+
+	networkPaths := npCollector.ScheduleNetworkPathTests("web-01", slices.Values([]npmodel.NetworkPathConnection{{
+		Source:    netip.MustParseAddrPort("10.0.0.1:30000"),
+		Dest:      netip.MustParseAddrPort("10.0.0.2:80"),
+		Direction: model.ConnectionDirection_outgoing,
+		Family:    model.ConnectionFamily_v4,
+		Type:      model.ConnectionType_tcp,
+	}}))
+
+	require.Len(t, networkPaths, 1)
+	require.True(t, networkPaths[0].TestEligible)
+	require.NotEmpty(t, networkPaths[0].CorrelationKey,
+		"an eligible connection with a resolved source hostname must carry a key")
+
+	select {
+	case pathtest := <-npCollector.pathtestInputChan:
+		assert.Equal(t, networkPaths[0].CorrelationKey, pathtest.CorrelationKey)
+	default:
+		require.Fail(t, "expected a scheduled pathtest")
 	}
 }
 
@@ -1364,7 +1393,7 @@ func Test_npCollectorImpl_ScheduleNetflowPathTests_SkipsLocalAgentSource(t *test
 		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 		setTestLocalIPs(npCollector, localAgentSource.Addr().String())
 
-		npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{{
+		npCollector.ScheduleNetworkPathTests("", slices.Values([]npmodel.NetworkPathConnection{{
 			Source:    localAgentSource,
 			Dest:      dest,
 			Direction: model.ConnectionDirection_outgoing,
@@ -1403,6 +1432,8 @@ func Test_npCollectorImpl_ScheduleNetflowPathTests_SkipsLocalAgentSource(t *test
 		require.NotContains(t, stats.CountCalls, netflowAgentSourceSkippedStat)
 		select {
 		case pathtest := <-npCollector.pathtestInputChan:
+			// CorrelationKey is deliberately absent: netflow has no CNM connection to
+			// stamp, so a key here would be an orphan no consumer could join.
 			assert.Equal(t, &common.Pathtest{
 				Hostname: "10.0.0.20",
 				Port:     uint16(443),
@@ -1524,7 +1555,7 @@ func Test_npCollectorImpl_ScheduleMethods_VPCSubnetsOnlyFilterNetworkTraffic(t *
 		stats := &teststatsd.Client{}
 		_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)
 
-		npCollector.ScheduleNetworkPathTests(slices.Values([]npmodel.NetworkPathConnection{conn}))
+		npCollector.ScheduleNetworkPathTests("", slices.Values([]npmodel.NetworkPathConnection{conn}))
 
 		assert.Equal(t, 1, vpcSubnetFetches)
 		require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -1746,7 +1777,7 @@ func Benchmark_npCollectorImpl_ScheduleNetworkPathTests(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleNetworkPathTests(slices.Values(connections))
+		npCollector.ScheduleNetworkPathTests("", slices.Values(connections))
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}
