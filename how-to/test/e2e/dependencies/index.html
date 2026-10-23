@@ -4471,8 +4471,7 @@ The better alternative is to:</p>
 <li>Use a Docker image containing that tool that you can then pull the <a href="#ecr-pull-through-cache">ECR pull-through cache</a>.</li>
 <li>"Bake" the dependency into the VM machine image (AMI).</li>
 </ul>
-<p>We already provide <code>-e2e</code> AMI variants for most OSes for this purpose, that contain some common dependencies: docker itself, <code>jq</code>, <code>python3</code> etc.
-These <code>-e2e</code> variants are already the default for tests running on AWS.</p>
+<p>Every AMI pinned in <code>platforms.json</code> is already prebaked for this purpose (built from ami-builder's <code>-e2e</code> entries) and contains some common dependencies: docker itself, <code>jq</code>, <code>python3</code> etc.</p>
 <p>See <a href="../custom-amis/">Custom AMIs</a> for more details on how to do this.</p>
 <h2 id="s3-artifact-bucket">S3 artifact bucket<a class="headerlink" href="#s3-artifact-bucket" title="Permanent link">&para;</a></h2>
 <p>For a more miscellaneous third-party artifact, vendor it into <code>s3://agent-e2e-s3-bucket</code> and pull it from there. Hosts authenticate with their instance profile, so no credentials are involved in the test.</p>

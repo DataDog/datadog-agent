@@ -1271,10 +1271,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-e2e-amis" class="md-nav__link">
+  <a href="#prebaked-images-and-the-ami-builder-mapping" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The <code>-e2e</code> AMIs
+        Prebaked images and the ami-builder mapping
       </span>
     </span>
   </a>
@@ -4155,10 +4155,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-e2e-amis" class="md-nav__link">
+  <a href="#prebaked-images-and-the-ami-builder-mapping" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The <code>-e2e</code> AMIs
+        Prebaked images and the ami-builder mapping
       </span>
     </span>
   </a>
@@ -4256,10 +4256,10 @@
 <h1 id="custom-amis">Custom AMIs<a class="headerlink" href="#custom-amis" title="Permanent link">&para;</a></h1>
 <p>Many E2E tests rely on extra dependencies being installed - instead of installing them at runtime (via an <code>apt install</code> or similar), we prefer to "bake" them into the underlying AMI that is used for provisioning the test VMs, as installing at runtime is a big source of flakiness (see <a href="../dependencies/">here</a>)
 These images are pinned by ID in this repo (<code>test/e2e-framework/resources/aws/platforms.json</code>) and always associated with a specific OS Descriptior in the E2E framework (see below.)</p>
-<p>The images themselves are built in <a href="https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e">ami-builder</a>. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.</p>
+<p>The images themselves are built in <!-- markdown-link-check-disable --><a href="https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e">ami-builder</a><!-- markdown-link-check-enable -->. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.</p>
 <h2 id="how-an-ami-is-chosen">How an AMI is chosen<a class="headerlink" href="#how-an-ami-is-chosen" title="Permanent link">&para;</a></h2>
 <ol>
-<li><code>ec2.WithOS(e2eos.Ubuntu2204E2E)</code> resolves to a <code>Descriptor{Ubuntu, "22-04-e2e", x86_64}</code> — a <code>(flavor, version, architecture)</code> triple.</li>
+<li><code>ec2.WithOS(e2eos.Ubuntu2204)</code> resolves to a <code>Descriptor{Ubuntu, "22-04", x86_64}</code> — a <code>(flavor, version, architecture)</code> triple.</li>
 <li>No <code>WithOS</code> at all? The descriptor comes from a flavor default instead (<code>LinuxDescriptorsDefault</code>, <code>WindowsDescriptorsDefault</code>, or <code>MacOSDescriptorsDefault</code>).</li>
 <li>Either way, <code>aws.GetAMI(descriptor)</code> looks that triple up as <code>platforms.json[flavor][arch][version]</code> and returns the pinned AMI ID.</li>
 </ol>
@@ -4272,7 +4272,7 @@ These images are pinned by ID in this repo (<code>test/e2e-framework/resources/a
 </thead>
 <tbody>
 <tr>
-<td>Descriptors (<code>Ubuntu2204E2E</code>, <code>WindowsServer2025</code>, …)</td>
+<td>Descriptors (<code>Ubuntu2204</code>, <code>WindowsServer2025</code>, …)</td>
 <td><code>test/e2e-framework/components/os/{linux,windows,macos}_descriptors.go</code></td>
 </tr>
 <tr>
@@ -4293,9 +4293,9 @@ These images are pinned by ID in this repo (<code>test/e2e-framework/resources/a
 </tr>
 </tbody>
 </table>
-<p>The <code>version</code> field is a literal <code>platforms.json</code> key — hence <code>"22-04-e2e"</code>, not <code>"22.04"</code>.</p>
+<p>The <code>version</code> field is a literal <code>platforms.json</code> key — hence <code>"22-04"</code>, not <code>"22.04"</code>.</p>
 <div class="admonition tip">
-<p class="admonition-title">Seeing <code>version '22-04-e2e' not found in platforms.json</code>?</p>
+<p class="admonition-title">Seeing <code>version '22-04' not found in platforms.json</code>?</p>
 <p>The descriptor exists but the table entry does not — check <code>platforms.json</code> for a typo'd or missing key.</p>
 </div>
 <details class="info">
@@ -4303,27 +4303,23 @@ These images are pinned by ID in this repo (<code>test/e2e-framework/resources/a
 <p>Setting the <code>ddinfra:osImageIDUseLatest</code> Pulumi config bypasses <code>platforms.json</code> and resolves the latest published image (through SSM or an AMI search) when the OS descriptor has no version. There is deliberately no <code>VMOption</code> for it: it gives up reproducibility and it never gets you a prebaked image, so tests should not use it. Not every flavor can resolve a latest image; those log a warning and fall back to the pinned ID.</p>
 <p>It is meant for manual QA through <code>dda inv aws.create-vm --latest-ami</code> (which sets <code>ddinfra:osImageIDUseLatest</code>). That is the right way to check whether a new upstream image breaks something, before bumping the pin.</p>
 </details>
-<h2 id="the-e2e-amis">The <code>-e2e</code> AMIs<a class="headerlink" href="#the-e2e-amis" title="Permanent link">&para;</a></h2>
-<p>Some OS types have an <code>-e2e</code> variant defined in <code>platforms.json</code>, distinct from the plain image:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"windows-server"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"x86_64"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"2022"</span><span class="p">:</span><span class="w">     </span><span class="s2">"ami-0fcc930391c87ec7b"</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"2022-e2e"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ami-0979cd4acf7874ba9"</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
+<h2 id="prebaked-images-and-the-ami-builder-mapping">Prebaked images and the ami-builder mapping<a class="headerlink" href="#prebaked-images-and-the-ami-builder-mapping" title="Permanent link">&para;</a></h2>
+<p>Every image in <code>platforms.json</code> is prebaked: <code>ubuntu/x86_64/22-04</code> or <code>windows-server/x86_64/2025</code> already ships common test dependencies and config. See <a href="../dependencies/#prebake-into-the-machine-image">Prebake into the machine image</a> for what that covers.</p>
+<p>ami-builder is where the distinction lives. Its <!-- markdown-link-check-disable --><a href="https://github.com/ddoghq/ami-builder/blob/master/ami/images/e2e/config.yaml"><code>config.yaml</code></a><!-- markdown-link-check-enable --> builds a bare image (<code>"22-04"</code>) and a prebaked one (<code>"22-04-e2e"</code>) from the same upstream base, and maps the prebaked build to the <code>platforms.json</code> key it refreshes through <code>platforms_key</code>:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">ubuntu</span><span class="p">:</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">x86_64</span><span class="p">:</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="s">"22-04-e2e"</span><span class="p p-Indicator">:</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">platforms_key</span><span class="p">:</span><span class="w"> </span><span class="s">"22-04"</span><span class="w">   </span><span class="c1"># refreshes platforms.json ubuntu/x86_64/22-04</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">packer</span><span class="p">:</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">        </span><span class="nt">provisioner_script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">provision-e2e-apt</span>
 </span></code></pre></div>
-<p>Both derive from the same upstream base image, but the <code>-e2e</code> one contains extra stuff: common test dependencies, maybe some config files etc. See <a href="../dependencies/#prebake-into-the-machine-image">Prebake into the machine image</a> for more details.</p>
+<p>Entries without <code>platforms_key</code> refresh the key with their own name, e.g. <code>redhat/x86_64/9-selinux-npm</code>. Purpose-built images keep a descriptive suffix (<code>24-04-kind</code>, <code>9-selinux-npm</code>, <code>22-04-gpu</code>).</p>
 <div class="admonition tip">
-<p class="admonition-title">Some flavors have been fully consolidated</p>
-<p>Debian 11/12 and Ubuntu 22.04/24.04 (x86_64) no longer have a real distinction: their plain and <code>-e2e</code> keys in <code>platforms.json</code> point at the <em>same</em> AMI ID, because the plain image is prebaked too. The <code>-e2e</code> descriptors are kept around only for code that still references them explicitly. Don't assume a version lacks prebaked dependencies just because it also has an <code>-e2e</code> sibling (or lacks one) — check the actual AMI IDs in <code>platforms.json</code> for the flavor/arch/version you care about.</p>
-</div>
-<div class="admonition danger">
-<p class="admonition-title">Prefer using the <code>-e2e</code> variant in new tests, where the two still differ.</p>
-<p>Unless overriden, this should be the default on both Linux and Windows — <code>UbuntuDefault</code> is <code>Ubuntu2204E2E</code> — so a test that passes no OS at all gets the prebaked image. On flavors where the plain and <code>-e2e</code> images still differ (e.g. Windows Server), a test that explicitly asks for the plain descriptor opts <em>out</em> of the prebaked image, usually by accident.</p>
-<p>If you need an extra dependency in your test, <strong>prefer adding it to the existing <code>-e2e</code> variant (or, where consolidated, the plain image) over creating your own fully-custom AMI</strong> if at all possible. Feel free to ask #agent-devx-help for help.</p>
+<p class="admonition-title">Tip</p>
+<p>If you need an extra dependency in your test, <strong>prefer adding it to the existing prebaked image over creating your own fully-custom AMI</strong> if at all possible. Feel free to ask #agent-devx-help for help.</p>
 </div>
 <h2 id="adding-or-bumping-an-image">Adding or bumping an image<a class="headerlink" href="#adding-or-bumping-an-image" title="Permanent link">&para;</a></h2>
-<p>The build lives in <a href="https://github.com/ddoghq/ami-builder">ami-builder</a>; this repo only holds the resulting ID.</p>
+<p>The build lives in <!-- markdown-link-check-disable --><a href="https://github.com/ddoghq/ami-builder">ami-builder</a><!-- markdown-link-check-enable -->; this repo only holds the resulting ID.</p>
 <ol>
 <li>Make the image change in ami-builder under <code>ami/images/e2e/</code> and open a PR there.</li>
 <li>Run the manual <code>build:&lt;os&gt;-&lt;arch&gt;-&lt;version&gt;</code> job in that branch's child pipeline. The build jobs are manual-only, and a feature branch produces a real usable AMI even without merging.</li>
@@ -4334,19 +4330,19 @@ These images are pinned by ID in this repo (<code>test/e2e-framework/resources/a
 </ol>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>The scheduled <code>[bot] Update E2E AMIs</code> PRs <strong>only refresh keys that already exist</strong> in <code>platforms.json</code>. A brand-new key — a new OS version, a new <code>-e2e</code> variant — is built and shared but then silently dropped until someone adds the key by hand. Add the key in the same PR that starts consuming it.</p>
+<p>The scheduled <code>[bot] Update E2E AMIs</code> PRs <strong>only refresh keys that already exist</strong> in <code>platforms.json</code>. A brand-new key — a new OS version or a purpose-built image — is built and shared but then silently dropped until someone adds the key by hand. Add the key in the same PR that starts consuming it, and set <code>platforms_key</code> on the ami-builder entry when its name differs from the key. The bot lists the keys no build refreshes in its PR description.</p>
 </div>
 <h3 id="adding-a-new-image">Adding a new image<a class="headerlink" href="#adding-a-new-image" title="Permanent link">&para;</a></h3>
 <p>To add a new custom AMI, you also need to tell the e2e framework about it: this is done by creating a new <em>OS descriptor</em> alongside the <code>platforms.json</code> update
-1. Update <code>platforms.json</code>, adding your new key in the appropriate spot.</p>
+1. Update <code>platforms.json</code>, adding your new key in the appropriate spot. Name it after the OS version (plus a descriptive suffix for a purpose-built image).</p>
 <ol>
 <li>Use that descriptor in your test: <code>ec2.WithOS(e2eos.yourNewDescriptor)</code></li>
-<li><code>components/os/&lt;family&gt;_descriptors.go</code> — create a matching descriptor (<code>Ubuntu2204E2E</code> style naming).</li>
+<li><code>components/os/&lt;family&gt;_descriptors.go</code> — create a matching descriptor (<code>Ubuntu2404Kind</code> style naming, mirroring the key).</li>
 </ol>
 <h2 id="pinning-one-test-to-a-specific-ami">Pinning one test to a specific AMI<a class="headerlink" href="#pinning-one-test-to-a-specific-ami" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Avoid doing this if at all possible - prefer using the <code>-e2e</code> variants, adding your dependency to them if needed.</p>
+<p>Avoid doing this if at all possible - prefer the prebaked images from <code>platforms.json</code>, adding your dependency to them if needed.</p>
 </div>
 <p><code>ec2.WithAMI</code> skips resolution altogether:</p>
 <div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">ec2</span><span class="p">.</span><span class="nx">WithAMI</span><span class="p">(</span>
