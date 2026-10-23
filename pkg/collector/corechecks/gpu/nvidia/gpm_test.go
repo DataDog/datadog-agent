@@ -110,7 +110,7 @@ func TestGPMCollectorMixedPermissionAndUnsupportedMetricsIsNotUnsupported(t *tes
 	getCalls := 0
 	mockLib := nvmltestutil.SetupMockNVML(t,
 		testutil.WithGpmSupport(true),
-		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+		testutil.WithGpmMetricsGetCallback(func(_ *nvml.GpmMetricsGetType) nvml.Return {
 			getCalls++
 			if getCalls == 1 {
 				return nvml.ERROR_NOT_SUPPORTED
