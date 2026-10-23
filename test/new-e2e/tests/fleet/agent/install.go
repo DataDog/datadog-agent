@@ -376,6 +376,9 @@ func (a *Agent) configureMacOS(params *installParams) error {
 		// cmd/installer/subcommands/daemon/run_nix.go), so its local API socket never appears and
 		// every installer command against it fails.
 		extraConfig.WriteString("remote_updates: true\n")
+		// macOS also requires an explicit opt-in before the daemon does anything
+		// (daemonEnabledOnPlatform, cmd/installer/subcommands/daemon/platform_darwin.go).
+		extraConfig.WriteString("installer.macos_fleet.enabled: true\n")
 	}
 
 	if params.remoteConfig {
@@ -407,7 +410,7 @@ remote_configuration.director_root: '%s'
 	// duplicate key like remote_configuration.enabled outright, and every job reading
 	// datadog.yaml fails to start.
 	if _, err := a.host.RemoteHost.Execute(
-		`sudo sed -i '' -E '/^remote_updates:/d;/^remote_configuration\./d' ` + macOSAgentConfigFile,
+		`sudo sed -i '' -E '/^remote_updates:/d;/^installer\.macos_fleet\./d;/^remote_configuration\./d' ` + macOSAgentConfigFile,
 	); err != nil {
 		return fmt.Errorf("failed to strip a previous extra Agent configuration from %s: %w", macOSAgentConfigFile, err)
 	}

@@ -8074,6 +8074,17 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+      macos_fleet:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              Enable the installer daemon on macOS, which remote configuration management
+              and Fleet configuration experiments need. Has no effect on other platforms.
       mirror:
         node_type: setting
         type: string

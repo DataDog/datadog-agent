@@ -10,6 +10,8 @@ go_library(
         "command.go",
         "memory_linux.go",
         "memory_nix_nolinux.go",
+        "platform_darwin.go",
+        "platform_others.go",
         "run.go",
         "run_nix.go",
         "run_windows.go",
@@ -146,6 +148,7 @@ dd_agent_go_test(
     name = "daemon_test",
     srcs = [
         "api_test.go",
+        "platform_darwin_test.go",
         "run_nix_test.go",
         "run_windows_test.go",
     ],
@@ -154,6 +157,18 @@ dd_agent_go_test(
         "//cmd/installer/command",
         "//pkg/util/fxutil",
     ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/commands",
             "//pkg/fleet/installer/paths",

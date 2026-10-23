@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    On macOS, the Fleet installer daemon only runs once ``installer.macos_fleet.enabled`` is set to
+    ``true`` in ``datadog.yaml``, in addition to ``remote_updates``. Restart the
+    ``com.datadoghq.installer`` LaunchDaemon after changing it.

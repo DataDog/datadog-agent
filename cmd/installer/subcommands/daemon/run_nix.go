@@ -35,5 +35,10 @@ func startDaemon(shutdowner fx.Shutdowner, cfg config.Component) {
 		_ = shutdowner.Shutdown()
 		return
 	}
+	if !daemonEnabledOnPlatform(cfg) {
+		log.Infof("Datadog installer is not enabled on this platform, exiting")
+		_ = shutdowner.Shutdown()
+		return
+	}
 	releaseMemory()
 }
