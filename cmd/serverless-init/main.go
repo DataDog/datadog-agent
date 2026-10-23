@@ -95,8 +95,9 @@ const (
 	// to exit. Best-effort; logs a warning on overrun and continues shutdown.
 	traceStopTimeout = 2500 * time.Millisecond
 
-	// logsFlushTimeout bounds the flush of buffered customer log records via
-	// flushLogsAgent. Strict ctx; cancels in-progress sends on overrun.
+	// logsFlushTimeout bounds flushLogsAgent: draining the customer log channel,
+	// flushing buffered records, and waiting for their sends. On overrun the
+	// wait stops, but in-flight sends are not cancelled.
 	logsFlushTimeout = 1500 * time.Millisecond
 
 	// metricsAggregatorStopTimeoutSeconds bounds the demux Stop: forces a
@@ -391,8 +392,9 @@ func run(
 	//      time-sampler workers during step 5's demux drain.
 	//   3. trace agent stops (drains traces, flushes stats, sends) — bounded
 	//      by traceStopTimeout (2.5 s).
-	//   4. logs agent flushes any buffered records — bounded by
-	//      logsFlushTimeout (1.5 s).
+	//   4. logs agent closes the customer log channel, drains its queued lines,
+	//      flushes buffered records, and waits for their sends — all bounded
+	//      by logsFlushTimeout (1.5 s).
 	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
 	//      and the metrics pipeline flushes itself (no external orchestration):
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
@@ -689,11 +691,6 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 	otlpAgent.Start()
 }
 
-// channelDrainer is implemented by the logs agent. The mock used in tests is not.
-type channelDrainer interface {
-	DrainChannelInputs(ctx context.Context)
-}
-
 // flushLogsAgent drains channel inputs and flushes the logs agent, both within
 // flushTimeout. Metrics are flushed by the demultiplexer's Fx OnStop hook
 // (demux.Stop()), so this helper is logs-only.
@@ -703,9 +700,7 @@ func flushLogsAgent(flushTimeout time.Duration, agent logsAgent.ServerlessLogsAg
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
-	if drainer, ok := agent.(channelDrainer); ok {
-		drainer.DrainChannelInputs(ctx)
-	}
+	agent.DrainChannelInputs(ctx)
 	agent.Flush(ctx)
 }
 

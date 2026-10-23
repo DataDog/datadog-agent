@@ -420,12 +420,13 @@ func (p *provider) Flush(ctx context.Context) {
 		}
 	}
 	if p.serverlessMeta.IsEnabled() {
-		p.serverlessMeta.Lock()
-		defer p.serverlessMeta.Unlock()
 		// Pipeline.Flush blocks until Add(1), so this wait observes the payload.
-		// The context stops the wait. It does not cancel the HTTP POST.
+		// The waiter holds the lock until Wait returns, even after ctx is done,
+		// so no Add(1) can race a pending Wait. ctx does not cancel the HTTP POST.
 		sent := make(chan struct{})
 		go func() {
+			p.serverlessMeta.Lock()
+			defer p.serverlessMeta.Unlock()
 			p.serverlessMeta.WaitGroup().Wait()
 			close(sent)
 		}()

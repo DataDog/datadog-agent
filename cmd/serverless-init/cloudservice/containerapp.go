@@ -69,13 +69,10 @@ const (
 
 // GetTags returns a map of Azure-related tags
 func (c *ContainerApp) GetTags() map[string]string {
-	appName := os.Getenv(ContainerAppNameEnvVar)
+	appName, isJob := containerAppName()
 	resourceKind := "containerapps"
-	if appName == "" {
-		if jobName := os.Getenv(ContainerAppJobNameEnvVar); jobName != "" {
-			appName = jobName
-			resourceKind = "jobs"
-		}
+	if isJob {
+		resourceKind = "jobs"
 	}
 	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
 
@@ -105,18 +102,25 @@ func (c *ContainerApp) GetTags() map[string]string {
 	// an abbreviated namespace per Azure environment. We must maintain backwards
 	// compatibility. An example is "replica_name" and "aca.replica.name"
 	tags := map[string]string{
-		"app_name":     appName,
-		"region":       region,
-		"revision":     revision,
-		"replica_name": replica,
+		"app_name": appName,
+		"region":   region,
 		// new tags
-		acaAppName:     appName,
-		acaRegion:      region,
-		acaRevision:    revision,
-		acaReplicaName: replica,
+		acaAppName: appName,
+		acaRegion:  region,
 
 		"origin":     ContainerAppOrigin,
 		"_dd.origin": ContainerAppOrigin,
+	}
+
+	// Azure doesn't set the revision and replica variables for jobs.
+	if revision != "" {
+		tags["revision"] = revision
+		tags[acaRevision] = revision
+	}
+
+	if replica != "" {
+		tags["replica_name"] = replica
+		tags[acaReplicaName] = replica
 	}
 
 	if subscriptionID != "" {
@@ -194,19 +198,22 @@ func (c *ContainerApp) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Conf
 
 // Init initializes ContainerApp specific code
 func (c *ContainerApp) Init(_ *TracingContext) error {
-	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
-	// and DD_AZURE_RESOURCE_GROUP.
-	// These environment variables are optional for now. Once we go GA,
-	// return an error if these are not set.
+	// Apps must set DD_AZURE_SUBSCRIPTION_ID and DD_AZURE_RESOURCE_GROUP. Jobs
+	// only need them for the subscription, resource group, and resource ID tags.
+	_, isJob := containerAppName()
 	//nolint:revive // TODO(SERV) Fix revive linter
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
+	} else if isJob {
+		ddlog.Warnf("%v is not set. Set it to the subscription ID of your Container Apps job to add the subscription_id and resource_id tags.", AzureSubscriptionIdEnvVar)
 	} else {
 		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
 		c.ResourceGroup = resourceGroup
+	} else if isJob {
+		ddlog.Warnf("%v is not set. Set it to the resource group of your Container Apps job to add the resource_group and resource_id tags.", AzureResourceGroupEnvVar)
 	} else {
 		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}
@@ -225,6 +232,15 @@ func (c *ContainerApp) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricA
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(containerAppStartMetricName, 1.0, c.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(containerAppLegacyStartMetricName, 1.0, c.GetSource())
+}
+
+// containerAppName returns the app or job name, and whether it belongs to a job.
+func containerAppName() (string, bool) {
+	if appName := os.Getenv(ContainerAppNameEnvVar); appName != "" {
+		return appName, false
+	}
+	jobName := os.Getenv(ContainerAppJobNameEnvVar)
+	return jobName, jobName != ""
 }
 
 func isContainerAppService() bool {

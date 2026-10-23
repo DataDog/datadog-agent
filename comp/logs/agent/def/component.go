@@ -40,4 +40,7 @@ type ServerlessLogsAgent interface {
 
 	// Flush flushes synchronously the pipelines managed by the Logs Agent.
 	Flush(ctx context.Context)
+
+	// DrainChannelInputs flushes channel tailers into the pipelines, or returns when ctx is done
+	DrainChannelInputs(ctx context.Context)
 }
