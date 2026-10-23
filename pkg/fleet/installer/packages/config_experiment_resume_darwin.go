@@ -88,10 +88,10 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 }
 
 // revertOrphanedExperiment reverts an experiment configuration directory that is deployed with no
-// deadline beside it. Start writes the deadline before touching any job, and restoreStable clears
-// it before anything else, so this is a host whose previous daemon died either after the installer
-// published the directory but before the experiment job set ever started, or partway through a
-// deliberate stop. Either way nothing will ever resume the experiment, yet the directory alone
+// deadline beside it. Start writes the deadline before touching any job, and restoreStable only
+// clears it once the stable set is back, so this is a host whose previous daemon died either after
+// the installer published the directory but before the experiment job set ever started, or
+// between a deliberate stop's job hand-back and its discarding of the directory. Either way nothing will ever resume the experiment, yet the directory alone
 // would have the daemon report it as the running configuration indefinitely.
 func revertOrphanedExperiment(ctx HookContext) error {
 	state, err := configExperimentDirs.GetState()

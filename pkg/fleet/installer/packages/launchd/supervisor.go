@@ -114,7 +114,25 @@ func (d Deadline) readRaw() (string, error) {
 // into place, matching the convention Job.Write uses for job definitions, so a reader never
 // observes a partially written deadline.
 func (d Deadline) Write(window time.Duration) error {
-	deadline := time.Now().Add(window).Format(time.RFC3339Nano)
+	return d.write(time.Now().Add(window).Format(time.RFC3339Nano))
+}
+
+// DeadlineReverting is what MarkReverting persists in place of a deadline. It is never a value
+// Write persists, and Expired reports it as expired.
+const DeadlineReverting = "reverting"
+
+// MarkReverting replaces the deadline with DeadlineReverting: the experiment is being handed back
+// to the stable job set, and is to be reverted again by whoever finds the marker still there,
+// because the hand-back did not complete.
+//
+// Every process that read the deadline earlier sees it change, so a watcher stands down exactly as
+// it does when the file is cleared, while the file itself survives a failed or interrupted
+// hand-back for the next daemon start to finish.
+func (d Deadline) MarkReverting() error {
+	return d.write(DeadlineReverting)
+}
+
+func (d Deadline) write(deadline string) error {
 	path := d.Path
 	if err := d.checkDir(); err != nil {
 		return err

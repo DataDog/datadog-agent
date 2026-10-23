@@ -46,8 +46,8 @@ var installerLockPoll = time.Minute
 // read on start, reverting to the stable set if an experiment job exits in a way that fails the
 // experiment (exitFailsExperiment) or if the deadline expires.
 //
-// A deliberate stop or promote (configExperiment.restoreStable) clears the deadline file before
-// touching any job, which is this design's only signal between the two processes: there is no
+// A deliberate stop or promote (configExperiment.restoreStable) replaces the deadline with the
+// reverting marker before touching any job, which is this design's only signal between the two processes: there is no
 // way to send this process a message, so every event handler below re-checks the file
 // immediately before acting, and treats a cleared or rewritten file as "this experiment is over,
 // someone else is handling it" rather than a crash to revert. The same check on every tick is
@@ -69,7 +69,7 @@ func watchExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("watcher: could not read experiment deadline: %w", err)
 	}
-	if token == "" {
+	if !experimentPending(token) {
 		// Stopped or promoted before this process got to run: nothing left to supervise.
 		return nil
 	}

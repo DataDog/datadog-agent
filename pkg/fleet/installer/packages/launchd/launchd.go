@@ -13,6 +13,7 @@
 package launchd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -99,6 +101,37 @@ func (j Job) Write(content []byte) error {
 		return fmt.Errorf("could not move job definition into place: %w", err)
 	}
 	return nil
+}
+
+// WriteIfChanged writes the job definition unless the one on disk already has exactly this content
+// and the mode and owner Write gives it, and reports whether it wrote.
+//
+// Restoring a stable job never needs a new definition -- the stable set always reads etc, whatever
+// it holds -- so a restore that skips the write keeps working on a full disk.
+func (j Job) WriteIfChanged(content []byte) (bool, error) {
+	if j.upToDate(content) {
+		return false, nil
+	}
+	return true, j.Write(content)
+}
+
+// upToDate reports whether the definition on disk is a regular file with exactly content, mode
+// 0644, and the owner Write gives it: root, or this process when it cannot hand files to root.
+func (j Job) upToDate(content []byte) bool {
+	path := j.Path()
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0644 {
+		return false
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || (st.Uid != 0 && int(st.Uid) != os.Geteuid()) {
+		return false
+	}
+	current, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(current, content)
 }
 
 // Remove removes the job definition from disk. It succeeds when the definition is already absent.

@@ -34,13 +34,14 @@ const (
 
 	// configExperimentRestoreRetries bounds restoreStableJobs's attempts at handing each label back
 	// to its stable job. A transient disk or launchd hiccup is the most plausible failure here;
-	// anything that still fails after this many attempts is reported, not retried forever.
-	configExperimentRestoreRetries = 3
+	// anything that still fails after this many attempts is reported and left for the next daemon
+	// start to retry (see restoreStable), not retried forever here.
+	configExperimentRestoreRetries = 4
 )
 
-// configExperimentRestoreBackoff is the fixed delay between restoreStableJobs attempts. A
-// package-level var, not a constant, so tests can shrink it instead of a retrying test taking
-// several real seconds.
+// configExperimentRestoreBackoff is the delay before the second restoreStableJobs attempt; it
+// doubles before each further one. A package-level var, not a constant, so tests can shrink it
+// instead of a retrying test taking several real seconds.
 var configExperimentRestoreBackoff = 2 * time.Second
 
 // configExperimentDeadlinePath is where the watcher's deadline is persisted. A package-level var,
@@ -177,13 +178,19 @@ func (e configExperiment) Promote(ctx context.Context) error {
 // is indistinguishable from one that never ran one — including to an operator reading
 // /Library/LaunchDaemons.
 //
-// The deadline is cleared first, not last: nothing signals the detached watcher
-// (config_experiment_watcher_darwin.go) that a deliberate stop is starting, so the cleared
-// deadline file is itself that signal. Clearing it after jobs.Stop below would race the
-// watcher's own exit observer, which fires the instant that bootout kills the experiment jobs —
-// both this method and the watcher would then try to swap the job sets at once.
+// The deadline is replaced by the reverting marker first: nothing signals the detached watcher
+// (config_experiment_watcher_darwin.go) that a deliberate stop is starting, so the changed
+// deadline file is itself that signal. Changing it after jobs.Stop below would race the watcher's
+// own exit observer, which fires the instant that bootout kills the experiment jobs — both this
+// method and the watcher would then try to swap the job sets at once.
+//
+// The file is only cleared once every stable job is back. A restore that fails, or that is
+// interrupted, leaves the marker behind, and the marker reads as an expired deadline: the next
+// daemon start reverts again (resumeConfigExperimentDatadogAgent) instead of resuming the
+// experiment or leaving the host half switched.
 func (e configExperiment) restoreStable(ctx context.Context) error {
-	if err := (experimentDeadline()).Clear(); err != nil {
+	deadline := experimentDeadline()
+	if err := deadline.MarkReverting(); err != nil {
 		return err
 	}
 	// Unloading the whole experiment set first keeps the reverse teardown order. It is best
@@ -192,11 +199,13 @@ func (e configExperiment) restoreStable(ctx context.Context) error {
 	if err := e.jobs.Stop(ctx, launchd.Experiment); err != nil {
 		log.Warnf("could not unload every experiment job, retrying label by label: %v", err)
 	}
-	restoreErr := e.restoreStableJobs(ctx)
+	if err := e.restoreStableJobs(ctx); err != nil {
+		return err
+	}
 	// A leftover experiment definition is not loaded at boot, so failing to remove one does not
-	// stop the stable set from being restored; it is still reported.
+	// stop the stable set from being restored; it is still reported, but the hand-back is done.
 	removeErr := e.jobs.Remove(launchd.Experiment)
-	return errors.Join(restoreErr, removeErr)
+	return errors.Join(removeErr, deadline.Clear())
 }
 
 // handBackInstaller runs in a detached process, launched by the stop and promote hooks when the
@@ -219,14 +228,14 @@ func handBackInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("hand-back: %w", err)
 	}
-	token, readErr := (experimentDeadline()).Read()
+	token, readErr := experimentDeadline().Read()
 	if err := lock.Close(); err != nil {
 		log.Warnf("hand-back: could not release the installer lock: %v", err)
 	}
 	if readErr != nil {
 		return fmt.Errorf("hand-back: could not read experiment deadline: %w", readErr)
 	}
-	if token != "" {
+	if experimentPending(token) {
 		log.Infof("hand-back: a new configuration experiment started, leaving the installer daemon to it")
 		return nil
 	}
@@ -259,21 +268,31 @@ func waitForInstallerLock(ctx context.Context, stillWanted func() (bool, error))
 	}
 }
 
+// experimentPending reports whether a token read from the deadline file stands for a running
+// experiment, as opposed to none (empty) or one being handed back to the stable set.
+func experimentPending(token string) bool {
+	return token != "" && token != launchd.DeadlineReverting
+}
+
 // restoreStableJobs hands every label back from the experiment job to the stable one, retrying a
 // bounded number of times on failure before giving up.
 //
 // The labels are swapped one at a time: a stable job is started only once its experiment twin has
 // left the domain, so the two never run at once, and a label that fails does not keep the others
-// from coming back. Only the labels that failed are retried. Once the retries are exhausted the
-// error is reported and there is no further automated recovery — the deadline is already cleared
-// by this point, so the watcher does not act as a backstop for a failed rollback, only for a hung
-// experiment.
+// from coming back. Only the labels that failed are retried, after a doubling backoff. Once the
+// retries are exhausted the error is reported; restoreStable leaves the reverting marker behind,
+// so the next daemon start retries.
+//
+// The stable definitions are only written when the one on disk differs: they never change during
+// an experiment, so a restore normally writes nothing and still works on a full disk.
 func (e configExperiment) restoreStableJobs(ctx context.Context) error {
 	pending := e.jobs.Labels
 	var errs []error
+	backoff := configExperimentRestoreBackoff
 	for attempt := 0; attempt < configExperimentRestoreRetries && len(pending) > 0; attempt++ {
 		if attempt > 0 {
-			time.Sleep(configExperimentRestoreBackoff)
+			time.Sleep(backoff)
+			backoff *= 2
 		}
 		var failed []string
 		errs = nil

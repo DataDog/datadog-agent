@@ -415,11 +415,110 @@ func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
 	}
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	require.NoError(t, experimentDeadline().Write(time.Hour))
 
 	err := configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "after 3 attempts")
+	assert.Contains(t, err.Error(), fmt.Sprintf("after %d attempts", configExperimentRestoreRetries))
 	assert.Equal(t, len(agentJobs)*configExperimentRestoreRetries, bootstrapAttempts, "expected every label's retries to stop at the configured bound")
+
+	// The failed restore is left for the next daemon start to retry, not forgotten.
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Equal(t, launchd.DeadlineReverting, token)
+}
+
+// TestRestoreStableClearsTheDeadlineOnceTheStableSetIsBack pins the other half: a restore that
+// completes leaves no marker behind.
+func TestRestoreStableClearsTheDeadlineOnceTheStableSetIsBack(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	require.NoError(t, experimentDeadline().Write(time.Hour))
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
+
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
+// TestResumeRetriesAFailedRestore covers the backstop: a restore that gave up leaves the marker,
+// and the next daemon start reverts the experiment instead of resuming it.
+func TestResumeRetriesAFailedRestore(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, experimentDeadline().MarkReverting())
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+	var started []string
+	for _, label := range agentJobs {
+		started = append(started, "system/"+label)
+	}
+	assert.ElementsMatch(t, started, launchctlCalls(stableOnly(*calls), "kickstart"), "every stable agent job should be started again")
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration should be discarded")
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
+// stableOnly keeps the recorded launchctl calls that do not name an experiment job.
+func stableOnly(calls [][]string) [][]string {
+	var kept [][]string
+	for _, args := range calls {
+		if !strings.Contains(strings.Join(args, " "), "-exp") {
+			kept = append(kept, args)
+		}
+	}
+	return kept
+}
+
+// TestRestoreStableDoesNotRewriteAnUpToDateStableDefinition pins that handing a label back to its
+// stable job leaves an unchanged stable definition on disk alone, so a full disk cannot break a
+// rollback.
+func TestRestoreStableDoesNotRewriteAnUpToDateStableDefinition(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+	for _, label := range agentJobs {
+		definition, err := embedded.GetLaunchdJob(label, launchd.Stable)
+		require.NoError(t, err)
+		require.NoError(t, launchd.Job{Label: label, PlistPath: filepath.Join(dir, label+".plist")}.Write(definition))
+	}
+	before := map[string]os.FileInfo{}
+	for _, label := range agentJobs {
+		info, err := os.Stat(filepath.Join(dir, label+".plist"))
+		require.NoError(t, err)
+		before[label] = info
+	}
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
+
+	for _, label := range agentJobs {
+		info, err := os.Stat(filepath.Join(dir, label+".plist"))
+		require.NoError(t, err)
+		assert.True(t, os.SameFile(before[label], info), "%s should not have been rewritten", label)
+	}
+}
+
+// TestHandBackProceedsAfterAFailedRestore pins that the reverting marker a failed restore leaves
+// is not mistaken for a newer experiment: the daemon is still handed back to its stable job, whose
+// next start finishes the revert.
+func TestHandBackProceedsAfterAFailedRestore(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentLock(t)
+	require.NoError(t, experimentDeadline().MarkReverting())
+
+	require.NoError(t, handBackInstaller(context.Background()))
+
+	assert.Contains(t, launchctlCalls(*calls, "kickstart"), "system/"+installerJob)
 }
 
 // stubLaunchdScript is a launchctl stand-in driven by a function that decides each call's result,

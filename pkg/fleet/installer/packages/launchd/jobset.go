@@ -107,7 +107,7 @@ func (s JobSet) Swap(ctx context.Context, label string, from, to Variant) error 
 		return fmt.Errorf("could not read the job definition for %s: %w", label+string(to), err)
 	}
 	job := s.Job(label, to)
-	if err := job.Write(definition); err != nil {
+	if _, err := job.WriteIfChanged(definition); err != nil {
 		return err
 	}
 	return s.start(ctx, job)

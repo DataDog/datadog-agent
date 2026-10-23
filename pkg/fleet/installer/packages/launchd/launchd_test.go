@@ -375,3 +375,49 @@ func TestJobPathDefaultsToTheDomainDirectory(t *testing.T) {
 	assert.Equal(t, "/Library/LaunchAgents/com.datadoghq.gui.plist",
 		Job{Label: "com.datadoghq.gui", Domain: GUI}.Path())
 }
+
+// TestWriteIfChangedLeavesAnUpToDateDefinitionAlone pins that a definition already on disk with
+// the expected content is not rewritten: restoring a stable job must not need free disk space.
+func TestWriteIfChangedLeavesAnUpToDateDefinitionAlone(t *testing.T) {
+	dir := t.TempDir()
+	job := Job{Label: "com.datadoghq.agent", PlistPath: filepath.Join(dir, "com.datadoghq.agent.plist")}
+	require.NoError(t, job.Write([]byte("v1")))
+	before, err := os.Stat(job.Path())
+	require.NoError(t, err)
+
+	// A read-only directory makes any rewrite fail: the temporary file cannot be created.
+	require.NoError(t, os.Chmod(dir, 0555))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+	wrote, err := job.WriteIfChanged([]byte("v1"))
+	require.NoError(t, err)
+	assert.False(t, wrote)
+	after, err := os.Stat(job.Path())
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(before, after))
+
+	_, err = job.WriteIfChanged([]byte("v2"))
+	assert.Error(t, err, "a definition with different content must be rewritten")
+	require.NoError(t, os.Chmod(dir, 0755))
+
+	wrote, err = job.WriteIfChanged([]byte("v2"))
+	require.NoError(t, err)
+	assert.True(t, wrote)
+	content, err := os.ReadFile(job.Path())
+	require.NoError(t, err)
+	assert.Equal(t, "v2", string(content))
+}
+
+// TestWriteIfChangedRewritesADefinitionWithTheWrongMode pins that content alone is not enough: a
+// definition whose mode drifted is written again.
+func TestWriteIfChangedRewritesADefinitionWithTheWrongMode(t *testing.T) {
+	job := Job{Label: "com.datadoghq.agent", PlistPath: filepath.Join(t.TempDir(), "com.datadoghq.agent.plist")}
+	require.NoError(t, job.Write([]byte("v1")))
+	require.NoError(t, os.Chmod(job.Path(), 0666))
+
+	wrote, err := job.WriteIfChanged([]byte("v1"))
+	require.NoError(t, err)
+	assert.True(t, wrote)
+	info, err := os.Stat(job.Path())
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+}
