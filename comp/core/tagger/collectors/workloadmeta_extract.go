@@ -149,8 +149,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			// collector, so this only runs in the Cluster Agent.
 			//
 			// Autoscalers don't have tagger entities of their own. Their tags
-			// are added to the pods of the workloads they target, so the pods
-			// of the previous and the new target need to be re-tagged.
+			// are added to the pods of the workloads they target and to the
+			// autoscaled workload entities used by KSM, so the pods and
+			// entities of the previous and the new target need to be updated.
 			autoscaler := entity.(*workloadmeta.KubernetesAutoscaler)
 			// Set events don't carry the previous target, so it comes from
 			// the index
@@ -240,6 +241,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 	if len(autoscalerTargets) > 0 {
 		tagInfos = append(tagInfos, c.retagAutoscalerDependentPods(autoscalerTargets)...)
+		tagInfos = append(tagInfos, c.handleAutoscaledWorkloads(autoscalerTargets)...)
 	}
 
 	if len(tagInfos) > 0 {
@@ -1579,6 +1581,50 @@ func (c *WorkloadMetaCollector) retagAutoscalerDependentPods(targets map[workloa
 			IsComplete: c.entityCompleteness[pod.EntityID],
 		})...)
 	}
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleAutoscaledWorkloads(targets map[workloadmeta.AutoscalerTarget]struct{}) []*types.TagInfo {
+	tagInfos := make([]*types.TagInfo, 0, len(targets))
+	for target := range targets {
+		entityID := types.NewKubernetesAutoscaledWorkloadEntityID(string(target.Kind), target.Namespace, target.Name)
+
+		kinds := c.autoscalersByTarget[target]
+		if len(kinds) == 0 {
+			// DeleteEntity doesn't remove the tags right away: the tagger
+			// keeps serving them until deletedTTL expires. Set them to empty
+			// first so the workload stops being tagged immediately.
+			tagInfos = append(tagInfos,
+				&types.TagInfo{
+					Source:     autoscaledWorkloadSource,
+					EntityID:   entityID,
+					IsComplete: true,
+				},
+				&types.TagInfo{
+					Source:       autoscaledWorkloadSource,
+					EntityID:     entityID,
+					DeleteEntity: true,
+				},
+			)
+			continue
+		}
+
+		tagList := taglist.NewTagList()
+		for _, kind := range kinds {
+			tagList.AddLow(tags.KubeAutoscalerKind, string(kind))
+		}
+		low, orch, high, standard := tagList.Compute()
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:               autoscaledWorkloadSource,
+			EntityID:             entityID,
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+			IsComplete:           true,
+		})
+	}
+
 	return tagInfos
 }
 
