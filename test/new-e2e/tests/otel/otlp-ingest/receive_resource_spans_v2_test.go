@@ -50,4 +50,42 @@ func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {
 
 func (s *otlpIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {
 	utils.TestTracesWithSpanReceiverV2(s)
+	utils.TestTracePayloadFormat(s, false)
+}
+
+// otlpIngestSpanReceiverV2IdxTestSuite runs the same checks with the trace-agent's direct OTLP
+// to V1 decoder enabled.
+type otlpIngestSpanReceiverV2IdxTestSuite struct {
+	otlpIngestSpanReceiverV2TestSuite
+}
+
+func (s *otlpIngestSpanReceiverV2IdxTestSuite) TestTracesWithSpanReceiverV2() {
+	utils.TestTracesWithSpanReceiverV2(s)
+	utils.TestTracePayloadFormat(s, true)
+}
+
+func TestOTLPIngestSpanReceiverV2Idx(t *testing.T) {
+	values := `
+datadog:
+  otlp:
+    receiver:
+      protocols:
+        grpc:
+          enabled: true
+    logs:
+      enabled: true
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+agents:
+  containers:
+    traceAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'enable_otlp_idx'
+`
+	t.Parallel()
+	e2e.Run(t, &otlpIngestSpanReceiverV2IdxTestSuite{}, e2e.WithProvisioner(
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+	)
 }

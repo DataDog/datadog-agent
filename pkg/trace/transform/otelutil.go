@@ -226,10 +226,17 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 	return typ
 }
 
+// SpanKindNamer is the subset of an OTel span used by the span type, resource name and operation
+// name helpers. ptrace.Span implements it; decoders that don't build pdata can provide their own.
+type SpanKindNamer interface {
+	Kind() ptrace.SpanKind
+	Name() string
+}
+
 // GetOTelSpanTypeWithAccessor returns the DD span type based on OTel span kind and attributes,
 // using a pre-created accessor to avoid repeated allocation when multiple lookups share the
 // same span and resource attribute maps.
-func GetOTelSpanTypeWithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func GetOTelSpanTypeWithAccessor[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 	typ := lookupString(accessor, semantics.ConceptSpanType, false)
 	if typ != "" {
 		return typ
@@ -287,33 +294,55 @@ func GetOTelServiceWithAccessor[A semantics.Accessor](accessor A, normalize bool
 	return getOTelService(accessor, normalize)
 }
 
+// AttrStringLookup looks up span attributes the way GetOTelAttrValInResAndSpanAttrs does (without
+// normalization): it returns the AsString form of the first of keys present in the resource
+// attributes, or else in the span attributes, or "".
+type AttrStringLookup interface {
+	LookupString(keys ...string) string
+}
+
+// resSpanLookup is the AttrStringLookup over a pdata span and resource.
+type resSpanLookup struct {
+	span ptrace.Span
+	res  pcommon.Resource
+}
+
+func (l resSpanLookup) LookupString(keys ...string) string {
+	return GetOTelAttrValInResAndSpanAttrs(l.span, l.res, false, keys...)
+}
+
 // GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
-	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
+	return GetOTelResourceV1WithLookup(span, resSpanLookup{span, res})
+}
+
+// GetOTelResourceV1WithLookup is GetOTelResourceV1 over any span view and attribute lookup.
+func GetOTelResourceV1WithLookup[S SpanKindNamer, L AttrStringLookup](span S, lookup L) (resName string) {
+	resName = lookup.LookupString("resource.name")
 	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
+		if m := lookup.LookupString("http.request.method", string(semconv.HTTPMethodKey)); m != "" {
 			// use the HTTP method + route (if available)
 			resName = m
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
+			if route := lookup.LookupString(string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
+		} else if m := lookup.LookupString(string(semconv.MessagingOperationKey)); m != "" {
 			resName = m
 			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+			if dest := lookup.LookupString(string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
 				resName = resName + " " + dest
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
+		} else if m := lookup.LookupString(string(semconv.RPCMethodKey)); m != "" {
 			resName = m
 			// use the RPC method
-			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCServiceKey)); svc != "" {
+			if svc := lookup.LookupString(string(semconv.RPCServiceKey)); svc != "" {
 				resName = resName + " " + svc
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
+		} else if m := lookup.LookupString(string(semconv117.GraphqlOperationTypeKey)); m != "" {
 			// Enrich GraphQL query resource names.
 			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 			resName = m
-			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
+			if name := lookup.LookupString(string(semconv117.GraphqlOperationNameKey)); name != "" {
 				resName = resName + " " + name
 			}
 		} else {
@@ -327,7 +356,7 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 }
 
 // getOTelResourceV2 returns the DD resource name using a pre-created accessor.
-func getOTelResourceV2[A semantics.Accessor](span ptrace.Span, accessor A) (resName string) {
+func getOTelResourceV2[S SpanKindNamer, A semantics.Accessor](span S, accessor A) (resName string) {
 	defer func() {
 		if len(resName) > normalizeutil.MaxResourceLen {
 			resName = resName[:normalizeutil.MaxResourceLen]
@@ -405,12 +434,12 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) string {
 
 // GetOTelResourceV2WithAccessor is like GetOTelResourceV2 but uses a pre-created accessor to avoid
 // repeated allocation when multiple lookups share the same span and resource attribute maps.
-func GetOTelResourceV2WithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func GetOTelResourceV2WithAccessor[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 	return getOTelResourceV2(span, accessor)
 }
 
 // getOTelOperationNameV2 returns the DD operation name using a pre-created accessor.
-func getOTelOperationNameV2[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func getOTelOperationNameV2[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 
 	if operationName := lookupString(accessor, semantics.ConceptOperationName, true); operationName != "" {
 		return operationName
@@ -510,7 +539,7 @@ func GetOTelOperationNameV2(span ptrace.Span, res pcommon.Resource) string {
 
 // GetOTelOperationNameV2WithAccessor is like GetOTelOperationNameV2 but uses a pre-created accessor to avoid
 // repeated allocation when multiple lookups share the same span and resource attribute maps.
-func GetOTelOperationNameV2WithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func GetOTelOperationNameV2WithAccessor[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 	return getOTelOperationNameV2(span, accessor)
 }
 
@@ -522,15 +551,27 @@ func GetOTelOperationNameV1(
 	spanNameAsResourceName bool,
 	spanNameRemappings map[string]string,
 	normalize bool) string {
+	return GetOTelOperationNameV1WithLookup(span, lib.Name(), resSpanLookup{span, res}, spanNameAsResourceName, spanNameRemappings, normalize)
+}
+
+// GetOTelOperationNameV1WithLookup is GetOTelOperationNameV1 over any span view and attribute
+// lookup, given the instrumentation scope name.
+func GetOTelOperationNameV1WithLookup[S SpanKindNamer, L AttrStringLookup](
+	span S,
+	libName string,
+	lookup L,
+	spanNameAsResourceName bool,
+	spanNameRemappings map[string]string,
+	normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeName later
-	name := GetOTelAttrValInResAndSpanAttrs(span, res, false, "operation.name")
+	name := lookup.LookupString("operation.name")
 	if name == "" {
 		if spanNameAsResourceName {
 			name = span.Name()
 		} else {
 			name = strings.ToLower(span.Kind().String())
-			if lib.Name() != "" {
-				name = lib.Name() + "." + name
+			if libName != "" {
+				name = libName + "." + name
 			} else {
 				name = "opentelemetry." + name
 			}

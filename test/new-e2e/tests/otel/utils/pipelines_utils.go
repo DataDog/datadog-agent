@@ -84,6 +84,25 @@ type IAParams struct {
 	SkipCustomLabelTag bool
 }
 
+// TestTracePayloadFormat checks that the trace payloads received so far use the V1 (idx) format
+// when idx is set, which the trace-agent's direct OTLP decoder produces, or the legacy format
+// otherwise. The trace helpers read both formats, so this is what proves a suite exercises the
+// ingest path it means to rather than a fallback.
+func TestTracePayloadFormat(s OTelTestSuite, idx bool) {
+	traces, err := s.Env().FakeIntake.Client().GetTraces()
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), traces)
+	for _, p := range traces {
+		if idx {
+			assert.NotEmpty(s.T(), p.IdxTracerPayloads, "expected V1 (idx) trace payloads")
+			assert.Empty(s.T(), p.TracerPayloads, "unexpected legacy trace payloads")
+		} else {
+			assert.NotEmpty(s.T(), p.TracerPayloads, "expected legacy trace payloads")
+			assert.Empty(s.T(), p.IdxTracerPayloads, "unexpected V1 (idx) trace payloads")
+		}
+	}
+}
+
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
 func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -99,29 +118,29 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		if !assert.NotEmpty(c, traces) {
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.TracerPayloadsV04(traces[0])
+		if !assert.NotEmpty(c, tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
-		if !assert.NotEmpty(s.T(), tp.Chunks) {
+		tp := tps[0]
+		if !assert.NotEmpty(c, tp.Chunks) {
 			return
 		}
-		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+		if !assert.NotEmpty(c, tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(c, CalendarService, tp.Chunks[0].Spans[0].Service)
 		if iaParams.InfraAttributes {
-			ctags, ok := getContainerTags(s.T(), tp)
-			assert.True(s.T(), ok)
-			assert.NotNil(s.T(), ctags["kube_ownerref_kind"])
+			ctags, ok := getContainerTags(c, tp)
+			assert.True(c, ok)
+			assert.NotNil(c, ctags["kube_ownerref_kind"])
 		}
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tp := fakeintake.TracerPayloadsV04(traces[0])[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
@@ -167,24 +186,24 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.TracerPayloadsV04(traces[0])
+		if !assert.NotEmpty(c, tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
-		if !assert.NotEmpty(s.T(), tp.Chunks) {
+		tp := tps[0]
+		if !assert.NotEmpty(c, tp.Chunks) {
 			return
 		}
-		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+		if !assert.NotEmpty(c, tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(c, CalendarService, tp.Chunks[0].Spans[0].Service)
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tp := fakeintake.TracerPayloadsV04(traces[0])[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
@@ -245,23 +264,23 @@ func TestTracesWithOperationAndResourceName(
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.TracerPayloadsV04(traces[0])
+		if !assert.NotEmpty(c, tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
-		if !assert.NotEmpty(s.T(), tp.Chunks) {
+		tp := tps[0]
+		if !assert.NotEmpty(c, tp.Chunks) {
 			return
 		}
-		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+		if !assert.NotEmpty(c, tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(c, CalendarService, tp.Chunks[0].Spans[0].Service)
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
-	tp := traces[0].TracerPayloads[0]
+	tp := fakeintake.TracerPayloadsV04(traces[0])[0]
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
@@ -427,10 +446,9 @@ func TestHosts(s OTelTestSuite) {
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry")
-	trace := traces[0]
-	require.NotEmpty(s.T(), trace.TracerPayloads)
-	tp := trace.TracerPayloads[0]
-	traceHostname := tp.Hostname
+	tps := fakeintake.TracerPayloadsV04(traces[0])
+	require.NotEmpty(s.T(), tps)
+	traceHostname := tps[0].Hostname
 
 	var metricHostname string
 	metric := metrics[0]
@@ -735,7 +753,7 @@ func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload
 	spanMap := make(map[string][]*trace.Span)
 	spans := 0
 	for _, tracePayload := range traces {
-		for _, tracerPayload := range tracePayload.TracerPayloads {
+		for _, tracerPayload := range fakeintake.TracerPayloadsV04(tracePayload) {
 			for _, chunk := range tracerPayload.Chunks {
 				for _, span := range chunk.Spans {
 					if len(spanMap[span.Service]) < 3 {
@@ -1074,7 +1092,9 @@ func testCustomLabelAsTag(t *testing.T, log *aggregator.Log, logsTagsAsDDTags bo
 	assert.Equal(t, customLabelValue, fmt.Sprint(attrs[customLabelTag]))
 }
 
-func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
+// getContainerTags returns the container tags of tp. Both payload formats carry them in the
+// _dd.tags.container payload tag (an idx payload attribute, which TracerPayloadsV04 maps to Tags).
+func getContainerTags(t assert.TestingT, tp *trace.TracerPayload) (map[string]string, bool) {
 	ctags, ok := tp.Tags["_dd.tags.container"]
 	if !ok {
 		return nil, false
