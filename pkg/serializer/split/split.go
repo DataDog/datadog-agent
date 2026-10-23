@@ -15,22 +15,39 @@ import (
 var maxPayloadSizeCompressed = 2 * 1024 * 1024
 var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 
-// SizeLimit identifies the payload size limit exceeded by a serialized payload.
-type SizeLimit string
+// SizeLimit is a bitmap of the payload size limits exceeded by a serialized payload.
+type SizeLimit uint8
 
 const (
+	// CompressedLimit is set when the compressed payload exceeds maxPayloadSizeCompressed.
+	CompressedLimit SizeLimit = 1 << iota
+	// UncompressedLimit is set when the uncompressed payload exceeds maxPayloadSizeUnCompressed.
+	UncompressedLimit
+
 	// WithinLimits means the payload exceeds no size limit.
-	WithinLimits SizeLimit = ""
-	// CompressedLimit means the compressed payload exceeds maxPayloadSizeCompressed.
-	CompressedLimit SizeLimit = "compressed"
-	// UncompressedLimit means the uncompressed payload exceeds maxPayloadSizeUnCompressed.
-	UncompressedLimit SizeLimit = "uncompressed"
+	WithinLimits SizeLimit = 0
 )
+
+// String returns the exceeded limits as a bounded set of values, suitable as a telemetry tag.
+func (l SizeLimit) String() string {
+	switch l {
+	case WithinLimits:
+		return "none"
+	case CompressedLimit:
+		return "compressed"
+	case UncompressedLimit:
+		return "uncompressed"
+	case CompressedLimit | UncompressedLimit:
+		return "both"
+	default:
+		return "unknown"
+	}
+}
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-// The returned SizeLimit is the limit exceeded by the payload, WithinLimits if the payload doesn't need to be split.
-// When both limits are exceeded, CompressedLimit is returned.
+// The returned SizeLimit has a bit set for each limit exceeded by the payload, it is WithinLimits if the payload
+// doesn't need to be split.
 func CheckSizeAndSerialize(m marshaler.JSONMarshaler, compress bool, strategy compression.Component) (SizeLimit, []byte, []byte, error) {
 	compressedPayload, payload, err := serializeMarshaller(m, compress, strategy)
 	if err != nil {
@@ -39,9 +56,10 @@ func CheckSizeAndSerialize(m marshaler.JSONMarshaler, compress bool, strategy co
 
 	exceeded := WithinLimits
 	if tooBigCompressed(compressedPayload) {
-		exceeded = CompressedLimit
-	} else if tooBigUnCompressed(payload) {
-		exceeded = UncompressedLimit
+		exceeded |= CompressedLimit
+	}
+	if tooBigUnCompressed(payload) {
+		exceeded |= UncompressedLimit
 	}
 
 	return exceeded, compressedPayload, payload, nil

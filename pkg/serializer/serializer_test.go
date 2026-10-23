@@ -626,6 +626,6 @@ func TestSendMetadataTooBig(t *testing.T) {
 	require.ErrorContains(t, err, "metadata payload was too big to send")
 	f.AssertNotCalled(t, "SubmitMetadata", mock.Anything, mock.Anything)
 
-	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(string(split.CompressedLimit)).Get())
-	assert.Zero(t, dropMetrics.payloads.WithValues(string(split.UncompressedLimit)).Get())
+	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String()).Get())
+	assert.Zero(t, dropMetrics.payloads.WithValues(split.UncompressedLimit.String()).Get())
 }

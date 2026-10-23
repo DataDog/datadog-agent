@@ -30,7 +30,7 @@ func newMetadataDropMetrics(tel telemetry.Component) *metadataDropMetrics {
 	return &metadataDropMetrics{
 		payloads: tel.NewCounter("serializer", "metadata_payload_dropped",
 			[]string{"reason"},
-			"Metadata payloads dropped because they exceed the payload size limits, by limit exceeded"),
+			"Metadata payloads dropped because they exceed the payload size limits, by limits exceeded (compressed, uncompressed or both)"),
 		bytes: tel.NewHistogram("serializer", "metadata_payload_dropped_bytes",
 			[]string{"encoding"},
 			"Size, in bytes, of the metadata payloads dropped because they exceed the payload size limits",
@@ -42,7 +42,7 @@ var defaultMetadataDropMetrics = newMetadataDropMetrics(telemetryimpl.GetCompatC
 
 // record counts a dropped metadata payload and observes both its compressed and uncompressed sizes.
 func (m *metadataDropMetrics) record(exceeded split.SizeLimit, compressedSize, uncompressedSize int) {
-	m.payloads.Inc(string(exceeded))
+	m.payloads.Inc(exceeded.String())
 	m.bytes.Observe(float64(compressedSize), encodingCompressed)
 	m.bytes.Observe(float64(uncompressedSize), encodingUncompressed)
 }

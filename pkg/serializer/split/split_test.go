@@ -43,7 +43,7 @@ func TestCheckSizeAndSerialize(t *testing.T) {
 		{name: "within limits", uncompressedSize: 100, compressedSize: 10, expected: WithinLimits},
 		{name: "compressed too big", uncompressedSize: 100, compressedSize: 11, expected: CompressedLimit},
 		{name: "uncompressed too big", uncompressedSize: 101, compressedSize: 10, expected: UncompressedLimit},
-		{name: "both too big", uncompressedSize: 101, compressedSize: 11, expected: CompressedLimit},
+		{name: "both too big", uncompressedSize: 101, compressedSize: 11, expected: CompressedLimit | UncompressedLimit},
 	}
 
 	for _, tc := range tests {
@@ -56,4 +56,11 @@ func TestCheckSizeAndSerialize(t *testing.T) {
 			assert.Len(t, uncompressed, tc.uncompressedSize)
 		})
 	}
+}
+
+func TestSizeLimitString(t *testing.T) {
+	assert.Equal(t, "none", WithinLimits.String())
+	assert.Equal(t, "compressed", CompressedLimit.String())
+	assert.Equal(t, "uncompressed", UncompressedLimit.String())
+	assert.Equal(t, "both", (CompressedLimit | UncompressedLimit).String())
 }
