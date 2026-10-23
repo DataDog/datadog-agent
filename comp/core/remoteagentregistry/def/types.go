@@ -61,6 +61,45 @@ type InvalidAPIKey struct{}
 // EventType implements EventDetails.
 func (*InvalidAPIKey) EventType() string { return "invalid_api_key" }
 
+// HealthIssueSeverity grades how serious a reported health issue is.
+type HealthIssueSeverity int
+
+const (
+	// HealthIssueSeverityUnspecified means the remote agent did not specify a severity.
+	HealthIssueSeverityUnspecified HealthIssueSeverity = iota
+	// HealthIssueSeverityLow is a degraded but non-disruptive issue.
+	HealthIssueSeverityLow
+	// HealthIssueSeverityMedium is a partial loss of function.
+	HealthIssueSeverityMedium
+	// HealthIssueSeverityHigh means the remote agent cannot perform its core duty.
+	HealthIssueSeverityHigh
+)
+
+// String returns a stable lowercase identifier for the severity.
+func (s HealthIssueSeverity) String() string {
+	switch s {
+	case HealthIssueSeverityLow:
+		return "low"
+	case HealthIssueSeverityMedium:
+		return "medium"
+	case HealthIssueSeverityHigh:
+		return "high"
+	default:
+		return "unspecified"
+	}
+}
+
+// HealthIssue indicates a remote agent detected a health issue with one of its components.
+type HealthIssue struct {
+	// Severity grades how serious the issue is.
+	Severity HealthIssueSeverity
+	// Component is the affected component (e.g. "exporter", "receiver").
+	Component string
+}
+
+// EventType implements EventDetails.
+func (*HealthIssue) EventType() string { return "health_issue" }
+
 // RemoteAgentEvent is a single discrete event reported by a remote agent.
 type RemoteAgentEvent struct {
 	// Message is a simple human-friendly description of the event.

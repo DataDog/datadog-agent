@@ -77,11 +77,33 @@ message Event {
   oneof details {
     // Invalid API key detected when forwarding.
     InvalidApiKeyEvent invalid_api_key = 2;
+    // Health issue detected by the remote agent.
+    HealthIssueEvent health_issue = 3;
   }
 }
 
 // Invalid API key detected when forwarding.
 message InvalidApiKeyEvent {}
+
+// Severity of a reported health issue.
+enum HealthIssueSeverity {
+  // Severity was not specified by the remote agent.
+  HEALTH_ISSUE_SEVERITY_UNSPECIFIED = 0;
+  // Low severity: degraded but non-disruptive (e.g. a transient retry).
+  HEALTH_ISSUE_SEVERITY_LOW = 1;
+  // Medium severity: partial loss of function.
+  HEALTH_ISSUE_SEVERITY_MEDIUM = 2;
+  // High severity: the remote agent cannot perform its core duty.
+  HEALTH_ISSUE_SEVERITY_HIGH = 3;
+}
+
+// HealthIssueEvent indicates a remote agent detected a health issue with one of its components.
+message HealthIssueEvent {
+  // Severity of the health issue.
+  HealthIssueSeverity severity = 1;
+  // Component affected by the health issue (e.g. "exporter", "receiver").
+  string component = 2;
+}
 
 message ReportRemoteAgentEventRequest {
   // UUID of the remote agent session reporting the events.
