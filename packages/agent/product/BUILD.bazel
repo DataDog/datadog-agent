@@ -218,9 +218,16 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
+rewrite_rpath(
+    name = "trace_agent_binary_rpath",
+    destination = "{install_dir}/embedded/bin",
+    inputs = ["//cmd/trace-agent"],
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
 pkg_files(
     name = "trace_agent_binary",
-    srcs = ["//cmd/trace-agent"],
+    srcs = [":trace_agent_binary_rpath"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )
