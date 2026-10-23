@@ -37,6 +37,10 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
       >&2 echo "🔴 BUILDBARN_ID_TOKEN must be populated in CI!"
       exit 2
     fi
+    # TEMP: log BUILDBARN_ID_TOKEN lifetime
+    p=$(cut -d. -f2 <<<"$BUILDBARN_ID_TOKEN" | tr '_-' '/+')
+    p+=$(printf '%*s' $(( (4 - ${#p} % 4) % 4 )) '' | tr ' ' '=')
+    >&2 echo "TEMP BUILDBARN_ID_TOKEN $(base64 -d <<<"$p" | grep -oE '"(iat|exp)":[0-9]+' | tr '\n' ' ')"
     extra_args+=(--config=ci)
     # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
     if [ "$(uname -s)" = Linux ]; then
