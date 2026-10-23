@@ -7895,6 +7895,12 @@ properties:
         default: {}
         additionalProperties:
           type: string
+      send_error_frames:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |
+          Includes unwind error frames in profiles for troubleshooting.
       ddprofiling:
         node_type: section
         type: object
