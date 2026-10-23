@@ -282,6 +282,28 @@ config_setting(
     },
 )
 
+# Whether packages install the stripped form of binaries and shared libraries
+# that went through dd_strip_symbols. The default (False) preserves the
+# behavior from before dd_strip_symbols existed: packages carry the unstripped
+# files, so downstream packaging (e.g. the omnibus build) stays in charge of
+# stripping and debug-symbol capture. The stripped-vs-original split (and the
+# companion debug files for the //packages/...:debug_tar targets) is produced
+# either way; this flag only selects which of the two files packaging
+# installs.
+# This is a temporary measure while omnibus owns the final packaging while relying
+# on Bazel packaging targets for chunks of it.
+bool_flag(
+    name = "install_stripped_binaries",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_install_stripped",
+    flag_values = {
+        "//:install_stripped_binaries": "True",
+    },
+)
+
 # bazel run //:write_all regenerates all protobuf-generated Go files in the repo.
 write_source_files(
     name = "write_all",
