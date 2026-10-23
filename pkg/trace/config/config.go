@@ -407,7 +407,7 @@ type AgentConfig struct {
 	// the host and its current API keys, trimmed and without DELA[...] directives. Set by the
 	// config loader when the underlying
 	// config supports update notifications; nil means runtime updates are unavailable.
-	OnAdditionalEndpointsUpdate func(cb func(host string, apiKeys []string))
+	OnAdditionalEndpointsUpdate func(cb func(host string, apiKeys []string)) `json:"-"`
 
 	// SkipMainEndpoint makes the trace and stats writers skip the main endpoint
 	// (Endpoints[0], derived from api_key and apm_config.apm_dd_url) and send
