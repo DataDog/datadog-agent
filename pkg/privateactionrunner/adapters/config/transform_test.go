@@ -567,6 +567,12 @@ func TestFromDDConfigPARRestrictedShellPrivilegedDefaultsAndOverrides(t *testing
 	require.NoError(t, err)
 	assert.True(t, cfg.RShellPrivilegedEnabled)
 	assert.Equal(t, "/run/custom-rshell.sock", cfg.RShellPrivilegedSocket)
+
+	// A config naming the former default follows the socket to its new path.
+	mockConfig.SetInTest(par.RestrictedShellPrivilegedSocket, par.RShellPrivilegedSocketLegacy)
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, par.RShellPrivilegedSocketDefault, cfg.RShellPrivilegedSocket)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {

@@ -11,8 +11,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -698,10 +700,79 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 }
 
-func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
+func TestEnabledPrivilegedHelperWithoutSocketRunsUnprivileged(t *testing.T) {
 	cfg := defaultRunCommandHandlerConfig()
 	cfg.PrivilegedEnabled = true
+	// systemd only creates the socket once root opted the host in.
 	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "missing-helper.sock")
+	for _, action := range []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "read-only", handler: NewRunCommandHandler(cfg)},
+		{name: "remediation", handler: NewRunRemediationCommandHandler(cfg)},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			for _, script := range []struct {
+				name       string
+				command    string
+				wantExit   int
+				wantStdout string
+				wantStderr string
+			}{
+				{name: "ordinary command", command: "echo hello", wantStdout: "hello\n"},
+				{name: "sudo is rejected", command: "sudo echo unexpected", wantExit: 126, wantStderr: "sudo: echo: elevation not allowed"},
+			} {
+				t.Run(script.name, func(t *testing.T) {
+					task := makeTask(script.command, []string{"rshell:echo"})
+					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+					task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+					out, err := action.handler.Run(context.Background(), task, nil)
+
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Equal(t, script.wantExit, result.ExitCode)
+					assert.Equal(t, script.wantStdout, result.Stdout)
+					if script.wantStderr == "" {
+						assert.Empty(t, result.Stderr)
+					} else {
+						assert.Contains(t, result.Stderr, script.wantStderr)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the privileged helper only runs on Linux")
+	}
+	// Keep the path short: Unix socket paths are limited to about 100 bytes.
+	dir, err := os.MkdirTemp("", "rsh")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "h.sock")
+	// The socket exists but the helper fails after accepting the connection,
+	// as when socket activation cannot start it. The task may already have
+	// reached the helper, so it must not be retried locally.
+	listener, err := net.Listen("unix", socket)
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	cfg.PrivilegedSocket = socket
 	for _, action := range []struct {
 		name    string
 		handler *RunCommandHandler
@@ -720,7 +791,7 @@ func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
 
 			out, err := action.handler.Run(context.Background(), task, nil)
 
-			require.ErrorContains(t, err, "privileged rshell helper: connect to privileged helper")
+			require.ErrorContains(t, err, "privileged rshell helper")
 			assert.Nil(t, out)
 		})
 	}

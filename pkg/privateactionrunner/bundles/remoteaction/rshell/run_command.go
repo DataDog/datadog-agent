@@ -309,12 +309,13 @@ func (h *RunCommandHandler) Run(
 	if inputs.EffectivePermissions != "" {
 		switch inputs.EffectivePermissions {
 		case privilegedhelper.EscalationAllowed:
-			if h.privilegedEnabled {
+			if h.privilegedEnabled && h.privilegedSocketPresent() {
 				return h.runPrivileged(ctx, task, inputs)
 			}
 			// Permission to elevate does not require elevation. Without local
-			// opt-in, the ordinary interpreter runs commands and rejects sudo
-			// if it is invoked, including through shell expansion.
+			// opt-in, or when the helper socket is absent because the host
+			// has not enabled it, the ordinary interpreter runs commands and
+			// rejects sudo if it is invoked, including through shell expansion.
 		case "Root":
 			return nil, errors.New("whole-script root execution is not supported")
 		default:
@@ -450,6 +451,24 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 		return nil, fmt.Errorf("privileged rshell helper: %w", err)
 	}
 	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
+}
+
+// privilegedSocketPresent reports whether the privileged helper socket exists.
+// systemd only creates it when the host opted in with the root-owned marker,
+// and removes it when the socket stops. An absent socket therefore means no
+// helper can run the task, so the task is safe to run in the ordinary
+// interpreter. Any other failure, including a helper that accepts the
+// connection and then fails, is returned without retrying locally.
+func (h *RunCommandHandler) privilegedSocketPresent() bool {
+	if h.privilegedSocket == "" {
+		return true // runPrivileged reports the misconfiguration
+	}
+	_, err := os.Stat(h.privilegedSocket)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Warnf("rshell privileged helper is enabled but its socket %s does not exist; running without elevation. Create /etc/datadog-agent-rshell/enabled as root and restart the Agent to enable the helper.", h.privilegedSocket)
+		return false
+	}
+	return true
 }
 
 // buildAgentPolicy forwards configured local restrictions.

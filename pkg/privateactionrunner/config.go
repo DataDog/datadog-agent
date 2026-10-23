@@ -51,7 +51,10 @@ const (
 	RShellCommandNamespacePrefix                = "rshell:"
 	RShellCommandAllowAllWildcard               = RShellCommandNamespacePrefix + "*"
 	RShellPathAllowAll                          = "/"
-	RShellPrivilegedSocketDefault               = "/run/datadog/rshell-privileged.sock"
+	RShellPrivilegedSocketDefault               = "/run/datadog-agent-rshell/privileged.sock"
+	// RShellPrivilegedSocketLegacy is the default socket path before the
+	// socket moved out of the Agent's runtime directory.
+	RShellPrivilegedSocketLegacy = "/run/datadog/rshell-privileged.sock"
 
 	// Meant for internal usage
 	OPMSExtraHeaders = "private_action_runner.opms_extra_headers"
