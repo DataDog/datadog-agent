@@ -118,15 +118,14 @@ func (r *retryBackoff) recordFailure(now time.Time) time.Duration {
 // CollectorBuilder builds the NVML collectors for each device, and retries with a backoff the ones that failed to be
 // created (e.g. due to a permission error). Collectors that are disabled or unsupported by the device are not retried.
 type CollectorBuilder struct {
-	builders map[CollectorName]subsystemBuilder         // if nil, the package-level factory is used
+	builders map[CollectorName]subsystemBuilder         // subsystem builders, captured when the builder is created
 	failed   map[string]map[CollectorName]*retryBackoff // device UUID -> collector name -> retry state
 	now      func() time.Time
 }
 
 // NewCollectorBuilder creates a new CollectorBuilder with all the available collectors
 func NewCollectorBuilder() *CollectorBuilder {
-	// builders are resolved on each build, as the factory can be replaced in tests
-	return newCollectorBuilder(nil)
+	return newCollectorBuilder(factory)
 }
 
 func newCollectorBuilder(builders map[CollectorName]subsystemBuilder) *CollectorBuilder {
@@ -142,13 +141,6 @@ func (b *CollectorBuilder) Reset() {
 	clear(b.failed)
 }
 
-func (b *CollectorBuilder) subsystemBuilders() map[CollectorName]subsystemBuilder {
-	if b.builders == nil {
-		return factory
-	}
-	return b.builders
-}
-
 // Build builds all the collectors for the given devices. Devices with collectors pending a retry are skipped,
 // as those collectors are retried with RetryFailed.
 func (b *CollectorBuilder) Build(devices []ddnvml.Device, deps *CollectorDependencies) []Collector {
@@ -156,7 +148,7 @@ func (b *CollectorBuilder) Build(devices []ddnvml.Device, deps *CollectorDepende
 		return nil
 	}
 
-	builders := b.subsystemBuilders()
+	builders := b.builders
 
 	// Check that the disabled collectors are valid
 	for _, disabled := range deps.Config.DisabledCollectors {
@@ -199,7 +191,7 @@ func (b *CollectorBuilder) RetryFailed(devices []ddnvml.Device, deps *CollectorD
 		currentDevices[dev.GetDeviceInfo().UUID] = dev
 	}
 
-	builders := b.subsystemBuilders()
+	builders := b.builders
 	var collectors []Collector
 	for deviceUUID, failedCollectors := range b.failed {
 		dev, ok := currentDevices[deviceUUID]

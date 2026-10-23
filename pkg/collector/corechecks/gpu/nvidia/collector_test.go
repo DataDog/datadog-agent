@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -656,6 +657,23 @@ func TestGetSupportedNvlinkPortsPermissionErrorIsNotUnsupported(t *testing.T) {
 
 	_, err = getSupportedNvlinkPorts(device, failAllPorts(nvml.ERROR_NO_PERMISSION))
 	require.True(t, ddnvml.IsNoPermission(err))
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+}
+
+func TestGetSupportedNvlinkPortsMixedPermissionAndUnsupportedErrorIsNotUnsupported(t *testing.T) {
+	// A port's discovery can return a joined error mixing an unsupported failure with
+	// a permission one (e.g. per-metric GPM or per-field FEC queries). IsUnsupported
+	// stops at the first NVML error of a join, so the permission failure would be hidden
+	// and the collector marked as unsupported and never retried; permissions can be
+	// recovered, so the mixed error must be reported as a permission error instead.
+	device := setupMockDevice(t, testutil.WithCapabilities(testutil.Capabilities{NvLinkLinkCount: 1}))
+	mixedErr := fmt.Errorf("failed to remove unsupported metrics: %w", errors.Join(
+		&ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
+		&ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION},
+	))
+
+	_, err := getSupportedNvlinkPorts(device, func(int) ([]Sample, error) { return nil, mixedErr })
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
 	require.NotErrorIs(t, err, errUnsupportedDevice)
 }
 

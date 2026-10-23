@@ -19,7 +19,9 @@ import (
 // SubsystemBuilder creates a collector for a device. It is exposed only in test builds.
 type SubsystemBuilder = subsystemBuilder
 
-// WithCollectorFactoryForTest temporarily replaces the collector factory.
+// WithCollectorFactoryForTest temporarily replaces the collector factory. The replacement
+// must be installed before creating the check (or any other CollectorBuilder), as builders
+// are captured when the CollectorBuilder is created.
 func WithCollectorFactoryForTest(t testing.TB, testFactory map[CollectorName]SubsystemBuilder) {
 	t.Helper()
 	previousFactory := factory

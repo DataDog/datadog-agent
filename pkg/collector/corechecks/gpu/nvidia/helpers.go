@@ -258,7 +258,8 @@ func portIsAlwaysSupported(_ int) ([]Sample, error) {
 // as errors, so enrollment can continue on other ports. Any other error is treated as fatal and returned
 // (joined across ports), even when some ports succeeded. If no port succeeded,
 // errUnsupportedDevice is returned too, unless a port failed with a permission error,
-// as permissions can be recovered.
+// as permissions can be recovered. A joined error mixing unsupported and permission
+// failures is treated as a permission error.
 func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]Sample, error)) ([]int, error) {
 	totalPorts := device.GetDeviceInfo().NVLinkLinkCount
 	if totalPorts <= 0 {
@@ -271,7 +272,10 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 	for port := 1; port <= totalPorts; port++ {
 		_, err := sampleCollector(port)
 		if err != nil {
-			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) && !errors.Is(err, errUnsupportedDevice) {
+			// A joined error can mix an unsupported failure with a permission one. IsUnsupported
+			// stops at the first NVML error of a join, so check for a permission error first,
+			// as permissions can be recovered.
+			if ddnvml.IsNoPermission(err) || (!ddnvml.IsAPIUnsupportedOnDevice(err, device) && !errors.Is(err, errUnsupportedDevice)) {
 				// Genuine NVML failures (e.g. unexpected field IDs) must propagate.
 				fatalErrors = append(fatalErrors, fmt.Errorf("collect samples for port %d: %w", port, err))
 				permissionDenied = permissionDenied || ddnvml.IsNoPermission(err)

@@ -1644,12 +1644,6 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 		pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{})
 	})
 
-	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
-	nvmltestutil.SetupMockNVML(t,
-		testutil.WithMockAllFunctions(),
-		testutil.WithDeviceCount(2),
-	)
-
 	var createdCollectorUUIDs []string
 	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
 		"mock": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
@@ -1658,6 +1652,12 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 			return &mockCollector{name: "mock", deviceUUID: deviceUUID}, nil
 		},
 	})
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(2),
+	)
 
 	require.NoError(t, check.ensureInitCollectors())
 
@@ -1716,13 +1716,6 @@ func TestDeviceEventsRegisteredOnceGathererStarts(t *testing.T) {
 }
 
 func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
-	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
-	check.sysprobeNvmlState = func(model.NvmlState, time.Duration) error { return nil }
-	nvmltestutil.SetupMockNVML(t,
-		testutil.WithMockAllFunctions(),
-		testutil.WithDeviceCount(1),
-	)
-
 	okCalls := 0
 	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
 		"ok": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
@@ -1733,6 +1726,13 @@ func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
 			return nil, errors.New("insufficient permissions")
 		},
 	})
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	check.sysprobeNvmlState = func(model.NvmlState, time.Duration) error { return nil }
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+	)
 
 	require.NoError(t, check.ensureInitCollectors())
 	require.Len(t, check.collectors, 1)
