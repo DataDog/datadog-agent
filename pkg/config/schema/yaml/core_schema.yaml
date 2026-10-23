@@ -530,7 +530,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'false'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the distribution metrics intake version. Accepted values:
@@ -9245,7 +9245,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0.001
+            default: 0
           shadow_sites:
             node_type: setting
             type: array
