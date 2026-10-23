@@ -1,0 +1,21 @@
+cases:
+  - name: smoke
+    macros:
+      - id: sensitive
+        values: ["/etc/passwd", "/etc/shadow"]
+    rules:
+      - open.file.path in sensitive && process.uid != 0
+      - id: setter
+        expression: exec.file.name == "bash"
+        actions:
+          - set: {name: seen, value: true, scope: process}
+      - open.file.path == "/tmp/x" && ${process.seen}
+    processes:
+      init: {pid: 1, fields: {file.name: systemd}}
+      sh: {pid: 10, parent: init, fields: {file.name: bash, uid: 1000}}
+    events:
+      - {type: open, process: sh, fields: {open.file.path: /etc/passwd}}
+      - {type: open, process: sh, fields: {open.file.path: /tmp/x}}
+      - {type: exec, process: sh, fields: {exec.file.name: bash}}
+      - {type: open, process: sh, fields: {open.file.path: /tmp/x}}
+      - {type: open, process: init, fields: {open.file.path: /etc/shadow}}

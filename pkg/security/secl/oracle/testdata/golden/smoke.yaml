@@ -1,0 +1,111 @@
+smoke:
+    rules:
+        r0:
+            event_type: open
+            fields:
+                - open.file.path
+                - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                process.uid:
+                    - scalar:0
+        r2:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/tmp/x"
+        setter:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"bash"
+    approvers:
+        exec:
+            approvers:
+                exec.file.name:
+                    - scalar:"bash"
+            field_stats:
+                exec.file.name: 1
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/tmp/x"
+            field_stats:
+                open.file.path: 2
+    discarders_report:
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        open.file.path: supported
+        process.uid: none
+    steps:
+        - result: true
+          matched:
+            - r0
+          matching_values:
+            r0:
+                - open.file.path="/etc/passwd"@0+14
+          partials:
+            r0:
+                open.file.path: "true"
+                process.uid: "true"
+            r2:
+                open.file.path: "false"
+          variables:
+            process.pid: 10(true) own=10(true)
+            process.seen: false(false) own=false(false)
+        - result: false
+          partials:
+            r0:
+                open.file.path: "false"
+                process.uid: "true"
+            r2:
+                open.file.path: "true"
+          variables:
+            process.pid: 10(true) own=10(true)
+            process.seen: false(false) own=false(false)
+        - result: true
+          matched:
+            - setter
+          matching_values:
+            setter:
+                - exec.file.name="bash"@0+14
+                - ="bash"@18+6
+          partials:
+            setter:
+                exec.file.name: "true"
+          variables:
+            process.pid: 10(true) own=10(true)
+            process.seen: true(true) own=true(true)
+        - result: true
+          matched:
+            - r2
+          matching_values:
+            r2:
+                - open.file.path="/tmp/x"@0+14
+                - ="/tmp/x"@18+8
+          partials:
+            r0:
+                open.file.path: "false"
+                process.uid: "true"
+            r2:
+                open.file.path: "true"
+          variables:
+            process.pid: 10(true) own=10(true)
+            process.seen: true(true) own=true(true)
+        - result: false
+          partials:
+            r0:
+                open.file.path: "true"
+                process.uid: "false"
+            r2:
+                open.file.path: "false"
+          variables:
+            process.pid: 1(true) own=1(true)
+            process.seen: false(false) own=false(false)
