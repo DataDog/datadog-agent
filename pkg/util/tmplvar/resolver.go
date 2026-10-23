@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -516,37 +517,24 @@ func allowEnvVar(envVar string) bool {
 	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
 
 	// If the option is not set or is empty, the default behavior applies: all
-	// envs are allowed except the agent's own credentials.
+	// envs are allowed except the ones bound to agent settings, which can hold
+	// credentials that configs from untrusted sources (e.g. pod annotations)
+	// must not be able to read.
 	if len(allowedEnvs) == 0 {
-		return !containsEnvVar(disallowedEnvVars, envVar)
+		_, isAgentEnvVar := agentEnvVars()[strings.ToUpper(envVar)]
+		return !isAgentEnvVar
 	}
 
-	return containsEnvVar(allowedEnvs, envVar)
-}
-
-// disallowedEnvVars lists agent credentials that configs from untrusted sources
-// (e.g. pod annotations) must not be able to read. Listing one of them in
-// ad_allowed_env_vars still allows it.
-var disallowedEnvVars = []string{
-	"DD_API_KEY",
-	"DD_APP_KEY",
-	"DD_CLUSTER_AGENT_AUTH_TOKEN",
-	"DD_EXTERNAL_METRICS_PROVIDER_API_KEY",
-	"DD_EXTERNAL_METRICS_PROVIDER_APP_KEY",
-	"DD_LOGS_CONFIG_API_KEY",
-	"DD_REMOTE_CONFIGURATION_API_KEY",
-	"DD_EVP_PROXY_CONFIG_API_KEY",
-	"DD_MULTI_REGION_FAILOVER_API_KEY",
-	"DD_OL_PROXY_CONFIG_API_KEY",
-	"DD_APM_DEBUGGER_API_KEY",
-	"DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY",
-	"DD_APM_SYMDB_API_KEY",
-	"DD_SECURITY_AGENT_INTERNAL_PROFILING_API_KEY",
-	"DD_SYSTEM_PROBE_INTERNAL_PROFILING_API_KEY",
-}
-
-func containsEnvVar(envs []string, envVar string) bool {
-	return slices.ContainsFunc(envs, func(env string) bool {
+	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
 		return strings.EqualFold(env, envVar)
 	})
 }
+
+var agentEnvVars = sync.OnceValue(func() map[string]struct{} {
+	envVars := pkgconfigsetup.Datadog().GetEnvVars()
+	set := make(map[string]struct{}, len(envVars))
+	for _, envVar := range envVars {
+		set[strings.ToUpper(envVar)] = struct{}{}
+	}
+	return set
+})

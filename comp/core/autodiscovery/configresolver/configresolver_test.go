@@ -553,7 +553,7 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "agent credential env var is disallowed by default",
+			testName: "agent setting env var is disallowed by default",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -567,7 +567,7 @@ func TestResolve(t *testing.T) {
 			errorString: "envvar DD_CLUSTER_AGENT_AUTH_TOKEN is not allowed in check configs, skipping service a5901276aed1",
 		},
 		{
-			testName: "agent credential env var is disallowed by default (logs check)",
+			testName: "agent setting env var is disallowed by default (logs check)",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -582,7 +582,21 @@ func TestResolve(t *testing.T) {
 			errorString: "envvar dd_api_key is not allowed in check configs, skipping service a5901276aed1",
 		},
 		{
-			testName: "agent credential env var in the allow list",
+			testName: "non-credential agent setting env var is disallowed by default",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_ENV%%")},
+			},
+			errorString: "envvar DD_ENV is not allowed in check configs, skipping service a5901276aed1",
+		},
+		{
+			testName: "agent setting env var in the allow list",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
