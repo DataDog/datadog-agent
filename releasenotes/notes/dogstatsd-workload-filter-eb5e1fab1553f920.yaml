@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    DogStatsD can now drop custom metrics, events and service checks based on
+    the container they are sent from. Add ``dogstatsd`` to the ``products`` of a
+    ``cel_workload_exclude`` entry and write ``containers`` rules; the container's
+    pod properties (namespace, annotations, labels) are available through
+    ``container.pod``. For example:
+
+    .. code-block:: yaml
+
+        cel_workload_exclude:
+        - products: ["dogstatsd"]
+          rules:
+            containers:
+              - "container.pod.namespace == 'noisy-team'"
+
+    Set ``dogstatsd_workload_filter_drop_unresolved`` to ``true`` to also drop data
+    whose origin container cannot be determined, including data sent by
+    processes that do not run in a container. Existing ``global`` and ``metrics``
+    rules do not apply to DogStatsD data. Agent versions that do not support the
+    ``dogstatsd`` product fail to start when it is configured.

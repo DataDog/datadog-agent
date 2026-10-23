@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "originresolver",
+    srcs = ["originresolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/originresolver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/types",
+        "//pkg/tagger/types",
+        "//pkg/util/containers/metrics/provider",
+    ],
+)
+
+dd_agent_go_test(
+    name = "originresolver_test",
+    srcs = ["originresolver_test.go"],
+    embed = [":originresolver"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/types",
+        "//pkg/tagger/types",
+        "//pkg/util/containers/metrics/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
