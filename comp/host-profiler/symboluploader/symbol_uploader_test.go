@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"mime"
 	"mime/multipart"
@@ -83,12 +84,12 @@ func (d *dummyProcess) CalculateMappingFileID(m *process.RawMapping) (libpf.File
 	return libpf.FileIDFromExecutableFile(m.Path)
 }
 
-func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (process.ReadAtCloser, error) {
+func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
 	return os.Open(m.Path)
 }
 
-func (d *dummyProcess) OpenELF(name string) (*pfelf.File, error) {
-	return pfelf.Open(name)
+func (d *dummyProcess) Open(name string) (fs.File, error) {
+	return os.Open(name)
 }
 
 func (d *dummyProcess) Close() error {
@@ -103,8 +104,8 @@ func (d *dummyProcess) GetExe() (libpf.String, error) {
 	return libpf.Intern(str), nil
 }
 
-func (d *dummyProcess) GetProcessMeta(_ process.MetaConfig) process.ProcessMeta {
-	return process.ProcessMeta{}
+func (d *dummyProcess) GetProcessMeta(_ []process.MetaEnricher) process.Meta {
+	return process.Meta{}
 }
 
 func newExecutableMetadata(t *testing.T, filePath string) *reporter.ExecutableMetadata {
