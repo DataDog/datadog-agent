@@ -35,6 +35,7 @@ func (suite *kindSuite) SetupSuite() {
 	stackConfig := runner.ConfigMap{
 		"ddinfra:aws/defaultInstanceType": auto.ConfigValue{Value: "t3.xlarge"},
 		"ddagent:deploy":                  auto.ConfigValue{Value: "true"},
+		"ddagent:dualshipping":            auto.ConfigValue{Value: "true"},
 		"ddagent:fakeintake":              auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy":           auto.ConfigValue{Value: "true"},
 		"dddogstatsd:deploy":              auto.ConfigValue{Value: "false"},
