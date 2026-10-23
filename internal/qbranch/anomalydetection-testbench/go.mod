@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench
 
-go 1.26.5
+go 1.26.6
 
 replace github.com/DataDog/datadog-agent => ../../../
 
