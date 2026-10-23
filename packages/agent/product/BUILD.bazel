@@ -204,11 +204,16 @@ pkg_files(
     }),
 )
 
+rewrite_rpath(
+    name = "privateactionrunner_binary_rpath",
+    destination = "{install_dir}/embedded/bin",
+    inputs = ["//cmd/privateactionrunner"],
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
 pkg_files(
     name = "privateactionrunner_binary",
-    srcs = [
-        "//cmd/privateactionrunner",
-    ],
+    srcs = [":privateactionrunner_binary_rpath"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )
