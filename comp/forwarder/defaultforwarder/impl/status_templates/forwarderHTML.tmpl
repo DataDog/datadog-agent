@@ -1,4 +1,4 @@
-{{- with .forwarderStats -}}
+{{$status := .}}{{- with .forwarderStats -}}
 <div class="stat">
   <span class="stat_title">Forwarder</span>
   <span class="stat_data">
@@ -10,8 +10,8 @@
       {{- if .Transactions.Success }}
         <span class="stat_subtitle">Transaction Successes</span>
           <span class="stat_subdata">
-            Total number: {{.Transactions.Success}}<br>
-            Successes By Endpoint:<br>
+            Total number (Core Agent + ADP): {{.Transactions.Success}}<br>
+            Successes By Endpoint (Core Agent):<br>
             <span class="stat_subdata">
               {{- range $type, $count := .Transactions.SuccessByEndpoint }}
                 {{- if $count}}
@@ -25,8 +25,8 @@
       {{- if .Transactions.Errors }}
         <span class="stat_subtitle">Transaction Errors</span>
           <span class="stat_subdata">
-            Total number: {{.Transactions.Errors}}<br>
-            Errors By Type:<br>
+            Total number (Core Agent + ADP): {{.Transactions.Errors}}<br>
+            Errors By Type (Core Agent):<br>
             <span class="stat_subdata">
               {{- range $type, $count := .Transactions.ErrorsByType }}
                 {{- if $count}}
@@ -40,8 +40,8 @@
       {{- if .Transactions.HTTPErrors }}
         <span class="stat_subtitle">HTTP Errors</span>
           <span class="stat_subdata">
-            Total number: {{.Transactions.HTTPErrors}}<br>
-            HTTP Errors By Code:<br>
+            Total number (Core Agent + ADP): {{.Transactions.HTTPErrors}}<br>
+            HTTP Errors By Code (Core Agent):<br>
             <span class="stat_subdata">
               {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
                 {{- if $count}}
@@ -89,3 +89,28 @@
     </span>
   </div>
 {{- end -}}
+{{- with $status.adpForwarderStats}}
+<div class="stat">
+  <span class="stat_title">ADP Forwarder Transactions</span>
+  <span class="stat_data">
+    {{- range $agent, $agentStats := .}}
+      <span class="stat_subtitle">{{$agent}}</span>
+      <span class="stat_subdata">
+        {{- with $agentStats.Transactions}}
+          {{- if .DroppedOnInput}}Dropped on input: {{humanize .DroppedOnInput}}<br>{{end}}
+          {{- if .RetryQueueSize}}Retry queue size: {{humanize .RetryQueueSize}}<br>{{end}}
+          {{- if .Success}}Success: {{humanize .Success}}<br>{{end}}
+          {{- if .Errors}}Errors: {{humanize .Errors}}<br>{{end}}
+          {{- if .ErrorsByType}}
+            Errors by type:<br>
+            {{- range $type, $count := .ErrorsByType}}
+              {{- if $count}}{{$type}}: {{humanize $count}}<br>{{end}}
+            {{- end}}
+          {{- end}}
+          {{- if .HTTPErrors}}HTTP errors: {{humanize .HTTPErrors}}<br>{{end}}
+        {{- end}}
+      </span>
+    {{- end}}
+  </span>
+</div>
+{{- end}}
