@@ -313,3 +313,17 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	cmd.Env = []string{"GO_TEST_PROCESS=1", "DD_LOG_LEVEL=error"} // Set LOG LEVEL to error
 	return cmd
 }
+
+func TestEUDMFallbackUsesOSHostname(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	// The final fallback must not start independent hostname resolution.
+	cfg.SetInTest("hostname", "independently-resolved-hostname")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	name, err := getHostname(ctx, "/not/exist", 0, ipcclientmock.New(t))
+	require.NoError(t, err)
+	expected, err := os.Hostname()
+	require.NoError(t, err)
+	require.Equal(t, expected, name)
+}

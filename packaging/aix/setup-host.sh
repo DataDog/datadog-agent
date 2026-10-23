@@ -63,9 +63,12 @@ dnf_install \
     python3.12-pydantic-core
 
 # ── Step 3: Go toolchain at /opt/go ───────────────────────────────────────────
-# The AIX Toolbox golang maxes at 1.26.5 but .go-version requires 1.26.6, so
-# install the official aix-ppc64 tarball.
-if [ -x /opt/go/bin/go ] && [ "$(/opt/go/bin/go version | awk '{print $3}')" = "go${GO_VERSION}" ]; then
+# The AIX Toolbox golang lags behind .go-version, so install the official
+# aix-ppc64 tarball.
+# GOTOOLCHAIN=local: env.sh isn't sourced yet, and with the default (auto) the
+# go.work `go` directive makes an older /opt/go switch to a downloaded
+# toolchain and report its version instead of the installed one.
+if [ -x /opt/go/bin/go ] && [ "$(GOTOOLCHAIN=local /opt/go/bin/go version | awk '{print $3}')" = "go${GO_VERSION}" ]; then
     log "Go ${GO_VERSION} already installed"
 else
     log "Installing Go ${GO_VERSION} (aix-ppc64)"

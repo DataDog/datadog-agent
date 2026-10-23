@@ -9,6 +9,7 @@ package cloudfoundry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // testCCClient implements CCClientI for testing
@@ -381,4 +383,186 @@ func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+var serverError = cfclient.CloudFoundryError{Code: 10001, ErrorCode: "UnknownError", Description: "An unknown error occurred."}
+
+// flakyCCClient fails the configured list calls a given number of times before delegating to testCCClient
+type flakyCCClient struct {
+	testCCClient
+	mu        sync.Mutex
+	failures  map[string]int
+	calls     map[string]int
+	instances int
+	err       error
+}
+
+func (f *flakyCCClient) fail(resource string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls[resource]++
+	if f.failures[resource] > 0 {
+		f.failures[resource]--
+		if f.err != nil {
+			return f.err
+		}
+		return serverError
+	}
+	return nil
+}
+
+func (f *flakyCCClient) ListV3AppsByQuery(q url.Values) ([]cfclient.V3App, error) {
+	if err := f.fail("apps"); err != nil {
+		return nil, err
+	}
+	return f.testCCClient.ListV3AppsByQuery(q)
+}
+
+func (f *flakyCCClient) ListV3SpacesByQuery(q url.Values) ([]cfclient.V3Space, error) {
+	if err := f.fail("spaces"); err != nil {
+		return nil, err
+	}
+	return f.testCCClient.ListV3SpacesByQuery(q)
+}
+
+func (f *flakyCCClient) ListV3OrganizationsByQuery(q url.Values) ([]cfclient.V3Organization, error) {
+	if err := f.fail("orgs"); err != nil {
+		return nil, err
+	}
+	return f.testCCClient.ListV3OrganizationsByQuery(q)
+}
+
+func (f *flakyCCClient) ListAllProcessesByQuery(_ url.Values) ([]cfclient.Process, error) {
+	if err := f.fail("processes"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p1 := cfProcess1
+	p1.Instances = f.instances
+	return []cfclient.Process{p1, cfProcess2}, nil
+}
+
+func newFlakyCCCache(t *testing.T, client *flakyCCClient) *CCCache {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	config := newTestCCCacheConfig()
+	config.CCAPIClient = client
+	return newTestCCCache(ctx, config)
+}
+
+func TestCCCache_FailedFetchFallsBackToCachedInput(t *testing.T) {
+	for _, tc := range []struct {
+		resource      string
+		wantInstances int
+	}{
+		{resource: "apps", wantInstances: 5},
+		{resource: "processes", wantInstances: 3},
+		{resource: "spaces", wantInstances: 5},
+		{resource: "orgs", wantInstances: 5},
+	} {
+		t.Run(tc.resource, func(t *testing.T) {
+			client := &flakyCCClient{failures: map[string]int{}, calls: map[string]int{}, instances: 3}
+			cc := newFlakyCCCache(t, client)
+			before, err := cc.GetCFApplication(cfApp1.GUID)
+			require.NoError(t, err)
+
+			client.instances = 5
+			client.failures[tc.resource] = ccListAttempts
+			cc.readData()
+
+			after, err := cc.GetCFApplication(cfApp1.GUID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantInstances, after.Instances)
+			assert.Equal(t, before.Name, after.Name)
+			assert.Equal(t, before.SpaceName, after.SpaceName)
+			assert.Equal(t, before.OrgName, after.OrgName)
+		})
+	}
+}
+
+func TestCCCache_NoApplicationsServedUntilEveryInputFetched(t *testing.T) {
+	client := &flakyCCClient{failures: map[string]int{"processes": ccListAttempts}, calls: map[string]int{}, instances: 3}
+	cc := newFlakyCCCache(t, client)
+
+	cfapps, err := cc.GetCFApplications()
+	require.NoError(t, err)
+	assert.Empty(t, cfapps)
+
+	cc.readData()
+
+	cfapp, err := cc.GetCFApplication(cfApp1.GUID)
+	require.NoError(t, err)
+	assert.Equal(t, 3, cfapp.Instances)
+}
+
+func TestCCCache_RefreshOnMissBeforeEveryInputFetched(t *testing.T) {
+	client := &flakyCCClient{failures: map[string]int{"orgs": ccListAttempts}, calls: map[string]int{}, instances: 3}
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	config := newTestCCCacheConfig()
+	config.CCAPIClient = client
+	config.RefreshCacheOnMiss = true
+	cc := newTestCCCache(ctx, config)
+
+	cfapp, err := cc.GetCFApplication(cfApp1.GUID)
+	require.NoError(t, err)
+	assert.Equal(t, 3, cfapp.Instances)
+
+	cc.readData()
+
+	cfapps, err := cc.GetCFApplications()
+	require.NoError(t, err)
+	assert.Len(t, cfapps, 2)
+}
+
+func TestCCCache_FetchRetries(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		err           error
+		failures      int
+		wantCalls     int
+		wantInstances int
+	}{
+		{name: "transient server error is retried", err: serverError, failures: ccListAttempts - 1, wantCalls: ccListAttempts, wantInstances: 5},
+		{name: "permanent error is not retried", err: cfclient.CloudFoundryError{Code: 10003, ErrorCode: "CF-NotAuthorized"}, failures: ccListAttempts, wantCalls: 1, wantInstances: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &flakyCCClient{failures: map[string]int{}, calls: map[string]int{}, instances: 3}
+			cc := newFlakyCCCache(t, client)
+
+			client.err = tc.err
+			client.failures["processes"] = tc.failures
+			client.instances = 5
+			client.calls["processes"] = 0
+			cc.readData()
+
+			cfapp, err := cc.GetCFApplication(cfApp1.GUID)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantInstances, cfapp.Instances)
+			assert.Equal(t, tc.wantCalls, client.calls["processes"])
+		})
+	}
+}
+
+func TestIsRetryableCCError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "server error", err: serverError, want: true},
+		{name: "rate limited", err: cfclient.CloudFoundryError{Code: 10013}, want: true},
+		{name: "not authorized", err: cfclient.CloudFoundryError{Code: 10003}, want: false},
+		{name: "not authenticated", err: cfclient.CloudFoundryError{Code: 10002}, want: false},
+		{name: "non-JSON 502", err: cfclient.CloudFoundryHTTPError{StatusCode: 502}, want: true},
+		{name: "non-JSON 404", err: cfclient.CloudFoundryHTTPError{StatusCode: 404}, want: false},
+		{name: "wrapped server error", err: fmt.Errorf("listing processes: %w", serverError), want: true},
+		{name: "connection reset", err: errors.New("read tcp 10.0.0.1:43690->10.0.0.2:443: read: connection reset by peer"), want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isRetryableCCError(tc.err))
+		})
+	}
 }

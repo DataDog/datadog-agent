@@ -362,6 +362,22 @@ properties:
     node_type: section
     type: object
     properties:
+      bind:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
       connect:
         node_type: section
         type: object
@@ -790,6 +806,24 @@ properties:
             node_type: setting
             type: string
             default: 30s
+          tag_resolution:
+            node_type: section
+            type: object
+            properties:
+              max_pending_events:
+                node_type: setting
+                type: integer
+                default: 4096
+                description: |
+                  Maximum number of events, across all workloads, held while
+                  waiting for their workload tags to be resolved.
+              max_pending_events_per_cgroup:
+                node_type: setting
+                type: integer
+                default: 512
+                description: |
+                  Maximum number of events per workload held while waiting for
+                  its tags to be resolved.
       watch_dir:
         node_type: setting
         type: boolean

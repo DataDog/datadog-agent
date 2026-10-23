@@ -19,18 +19,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
+// defaultDatabaseFileName is the uptane cache database name of the process
+// default remote-config service.
+const defaultDatabaseFileName = "remote-config.db"
+
 // CopyRemoteConfigDB copies the remote-config bbolt DB from runPath into the flare, hashing target
 // bucket values to avoid including sensitive configuration payloads.
 func CopyRemoteConfigDB(fb flaretypes.FlareBuilder, runPath string) error {
-	dstPath, err := fb.PrepareFilePath("remote-config.db")
+	return CopyRemoteConfigDBFile(fb, runPath, defaultDatabaseFileName)
+}
+
+// CopyRemoteConfigDBFile copies the named remote-config bbolt DB from runPath into
+// the flare, hashing target bucket values to avoid including sensitive
+// configuration payloads. One service per DB, so the caller names the one it owns.
+func CopyRemoteConfigDBFile(fb flaretypes.FlareBuilder, runPath string, fileName string) error {
+	dstPath, err := fb.PrepareFilePath(fileName)
 	if err != nil {
 		return err
 	}
-	tempPath, err := fb.PrepareFilePath("remote-config.temp.db")
+	tempPath, err := fb.PrepareFilePath(strings.TrimSuffix(fileName, ".db") + ".temp.db")
 	if err != nil {
 		return err
 	}
-	srcPath := filepath.Join(runPath, "remote-config.db")
+	srcPath := filepath.Join(runPath, fileName)
 
 	// Copy the DB to avoid bbolt lock contention and concurrent modifications.
 	err = filesystem.CopyFileAll(srcPath, tempPath)

@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment credits the package that owns the path of a
+    binary or a library an upgrade replaced under a process running from
+    before system-probe started, which procfs names with a ``(deleted)``
+    suffix. The package read unused until the process restarted. This
+    covers the processes system-probe reads from procfs at start and,
+    with CWS enabled, their mappings on ruleset reloads. The package
+    fields of CWS events stay empty for such a file.

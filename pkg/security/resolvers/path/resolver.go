@@ -29,14 +29,22 @@ func NewResolver(dentryResolver *dentry.Resolver, mountResolver mount.ResolverIn
 	return &Resolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 
+// fileCaller returns the dentry resolution caller of a file, files with hard links bypass the dentry cache
+func fileCaller(e *model.FileFields) dentry.Caller {
+	if e.HasHardLinks() {
+		return dentry.CallerFileHardLink
+	}
+	return dentry.CallerFile
+}
+
 // ResolveBasename resolves an inode/mount ID pair to a file basename
 func (r *Resolver) ResolveBasename(e *model.FileFields) string {
-	return r.dentryResolver.ResolveName(e.PathKey, !e.HasHardLinks())
+	return r.dentryResolver.ResolveName(e.PathKey, !e.HasHardLinks(), fileCaller(e))
 }
 
 // ResolveDentryFilePath resolves an inode/mount ID pair to a path
 func (r *Resolver) ResolveDentryFilePath(e *model.FileFields) (string, error) {
-	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks())
+	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks(), fileCaller(e))
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: err}
@@ -113,7 +121,7 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
 	var err error
 
-	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true)
+	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true, dentry.CallerMountRoot)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
@@ -134,7 +142,7 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 func (r *Resolver) SetMountPoint(_ *model.Event, e *model.Mount) error {
 	var err error
 
-	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true)
+	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true, dentry.CallerMountPoint)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}

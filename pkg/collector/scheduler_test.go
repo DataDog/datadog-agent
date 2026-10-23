@@ -165,7 +165,7 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 	s := CheckScheduler{
 		configToChecks: make(map[string][]checkid.ID),
 		senderManager:  normalSenderManager,
-		infraTagger:    infratags.NewTagger(cfg),
+		infraTagger:    infratags.NewMetricTagger(cfg),
 	}
 	s.addLoader(loader)
 	s.SetMetricLookbackShadowSenderManager(shadowSenderManager)
@@ -231,7 +231,7 @@ func TestGetChecksFromConfigsRegistersPythonShadowCallbackRouteAndCleansUp(t *te
 	s := CheckScheduler{
 		configToChecks:      make(map[string][]checkid.ID),
 		senderManager:       normalSenderManager,
-		infraTagger:         infratags.NewTagger(cfg),
+		infraTagger:         infratags.NewMetricTagger(cfg),
 		shadowSenderManager: shadowSenderManager,
 	}
 	s.addLoader(loader)
@@ -414,6 +414,39 @@ func TestGetChecksFromConfigsSkipsShadowCheckForUnsupportedLoader(t *testing.T) 
 	assert.Empty(t, shadowSenderManager.destroyedIDs)
 }
 
+func TestGetChecksFromConfigsDoesNotInfraTagCustomChecks(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "cloud_cost_only")
+
+	senderManager := &recordingSchedulerSenderManager{name: "normal"}
+	loader := &recordingSchedulerLoader{name: "core"}
+	s := CheckScheduler{
+		configToChecks: make(map[string][]checkid.ID),
+		senderManager:  senderManager,
+		infraTagger:    infratags.NewMetricTagger(cfg),
+	}
+	s.addLoader(loader)
+
+	customConfig := integration.Config{
+		Name:       "custom_foo",
+		Instances:  []integration.Data{integration.Data("name: custom\n")},
+		InitConfig: integration.Data("{}"),
+	}
+	cpuConfig := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: cpu\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{customConfig, cpuConfig}, false)
+
+	require.Len(t, checks, 2)
+	assert.Equal(t, "custom_foo", checks[0].String())
+	assert.Equal(t, "cpu", checks[1].String())
+	assert.Equal(t, []checkid.ID{checks[1].ID()}, senderManager.infraTaggedIDs,
+		"custom_* checks must not get SetInfraTagger under cloud_cost_only")
+}
+
 func TestShadowLoaderForPythonReusesLoadedLoader(t *testing.T) {
 	loader := &recordingSchedulerLoader{name: "python"}
 	s := CheckScheduler{}
@@ -568,7 +601,7 @@ type recordingSchedulerSender struct {
 	manager *recordingSchedulerSenderManager
 }
 
-func (s *recordingSchedulerSender) SetInfraTagger(*infratags.Tagger) {
+func (s *recordingSchedulerSender) SetInfraTagger(*infratags.MetricTagger) {
 	s.manager.infraTaggedIDs = append(s.manager.infraTaggedIDs, s.id)
 }
 

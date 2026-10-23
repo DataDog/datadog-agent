@@ -1,0 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package model
+
+// DelaDirectivePrefix marks delegated-auth values in additional endpoint API key slots.
+const DelaDirectivePrefix = "DELA["
+
+// DelaLogsEndpointsKey is the logs setting delegated auth writes resolved API keys back into.
+const DelaLogsEndpointsKey = "logs_config.additional_endpoints"

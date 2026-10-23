@@ -437,8 +437,9 @@ func Initialize(paths ...string) error {
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
-		// bounded but never released allocations with CString
-		C.add_python_path(rtloader, TrackedCString(p))
+		path := TrackedCString(p)
+		C.add_python_path(rtloader, path)
+		C.call_free(unsafe.Pointer(path))
 	}
 
 	// Setup custom builtin before RtLoader initialization

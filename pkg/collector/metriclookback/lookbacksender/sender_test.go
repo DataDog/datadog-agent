@@ -161,7 +161,7 @@ func TestSenderCopiesTagsBeforeBuffering(t *testing.T) {
 func TestSenderAppendsInfraTags(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-	tagger := infratags.NewTagger(cfg)
+	tagger := infratags.NewMetricTagger(cfg)
 	require.NotNil(t, tagger)
 
 	writer := &recordingWriter{}

@@ -211,14 +211,11 @@ where
                                     Outcome::Success { .. } => {
                                         info!("task {} succeeded", task.task_id)
                                     }
-                                    Outcome::Failure {
-                                        error_code,
-                                        message,
-                                        ..
-                                    } => info!(
-                                        "task {} failed with code {error_code}: {message}",
-                                        task.task_id
-                                    ),
+                                    // Both failure messages can carry raw error text,
+                                    // including credentials; only OPMS gets them.
+                                    Outcome::Failure { error_code, .. } => {
+                                        info!("task {} failed with code {error_code}", task.task_id)
+                                    }
                                 }
                                 o
                             }
@@ -499,6 +496,7 @@ mod tests {
         executor_health_checks: usize,
         not_ready_checks_remaining: usize,
         ensure_started_calls: usize,
+        published_outcomes: Vec<Outcome>,
     }
 
     struct Fakes {
@@ -506,6 +504,8 @@ mod tests {
         tasks_to_serve: usize,
         release: tokio::sync::Semaphore,
         fail_run: bool,
+        // When set, run_action returns this outcome immediately.
+        run_outcome: Option<Outcome>,
         fail_dequeue: bool,
         dequeue_retry_after: Option<Duration>,
         block_dequeue: bool,
@@ -530,6 +530,7 @@ mod tests {
                 tasks_to_serve: 0,
                 release: tokio::sync::Semaphore::new(0),
                 fail_run: false,
+                run_outcome: None,
                 fail_dequeue: false,
                 dequeue_retry_after: None,
                 block_dequeue: false,
@@ -592,6 +593,7 @@ mod tests {
             }
             let mut s = self.state.lock().unwrap();
             s.published += 1;
+            s.published_outcomes.push(outcome.clone());
             if matches!(outcome, Outcome::Failure { .. }) {
                 s.failures += 1;
             }
@@ -652,6 +654,9 @@ mod tests {
             if self.fail_run {
                 anyhow::bail!("simulated broken stream");
             }
+            if let Some(outcome) = &self.run_outcome {
+                return Ok(outcome.clone());
+            }
             {
                 let mut s = self.state.lock().unwrap();
                 s.concurrent += 1;
@@ -683,6 +688,35 @@ mod tests {
             publish_max_backoff: Duration::from_millis(5),
             drain_timeout: Duration::from_secs(1),
         }
+    }
+
+    /// Records every log line emitted by the test binary. `log` allows a
+    /// single process-wide logger, so it is installed once and shared.
+    struct CapturedLogs(Mutex<Vec<String>>);
+
+    impl log::Log for CapturedLogs {
+        fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            self.0
+                .lock()
+                .unwrap()
+                .push(format!("{} {}", record.level(), record.args()));
+        }
+        fn flush(&self) {}
+    }
+
+    static CAPTURED_LOGS: CapturedLogs = CapturedLogs(Mutex::new(Vec::new()));
+
+    fn captured_logs() -> &'static CapturedLogs {
+        static INSTALL: std::sync::Once = std::sync::Once::new();
+        INSTALL.call_once(|| {
+            log::set_logger(&CAPTURED_LOGS).expect("no other test installs a logger");
+            // Capture every level so a message demoted to debug or trace still fails.
+            log::set_max_level(log::LevelFilter::Trace);
+        });
+        &CAPTURED_LOGS
     }
 
     async fn wait_until(mut condition: impl FnMut() -> bool, message: &str) {
@@ -1236,6 +1270,83 @@ mod tests {
             "the crashing task is dequeued once, not retried"
         );
         assert_eq!(s.failures, 1, "a crash publishes exactly one failure");
+    }
+
+    #[tokio::test]
+    async fn action_failure_log_omits_error_messages() {
+        const INTERNAL_MARKER: &str = "internal-secret-marker-7f3e";
+        const EXTERNAL_MARKER: &str = "external-secret-marker-2b9d";
+        const ERROR_CODE: i32 = 4242;
+        let logs = captured_logs();
+        let fakes = Arc::new(Fakes {
+            tasks_to_serve: 1,
+            run_outcome: Some(Outcome::Failure {
+                error_code: ERROR_CODE,
+                message: format!("token={INTERNAL_MARKER}"),
+                external_message: format!("password={EXTERNAL_MARKER}"),
+            }),
+            ..Default::default()
+        });
+
+        let orch = Orchestrator::new(
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            Arc::clone(&fakes),
+            test_params(1, Duration::from_secs(3600)),
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            orch.run(async {
+                let _ = rx.await;
+            })
+            .await;
+        });
+
+        wait_until(
+            || fakes.state.lock().unwrap().failures == 1,
+            "the action failure was not published",
+        )
+        .await;
+        tx.send(()).unwrap();
+        handle.await.unwrap();
+
+        {
+            let s = fakes.state.lock().unwrap();
+            assert_eq!(s.published, 1, "the failure is published exactly once");
+            match s.published_outcomes.as_slice() {
+                [
+                    Outcome::Failure {
+                        error_code,
+                        message,
+                        external_message,
+                    },
+                ] => {
+                    assert_eq!(*error_code, ERROR_CODE);
+                    assert!(
+                        message.contains(INTERNAL_MARKER),
+                        "OPMS still gets the details"
+                    );
+                    assert!(external_message.contains(EXTERNAL_MARKER));
+                }
+                other => panic!("expected one published failure, got {other:?}"),
+            }
+        }
+
+        let lines = logs.0.lock().unwrap().clone();
+        for line in lines.iter() {
+            assert!(
+                !line.contains(INTERNAL_MARKER) && !line.contains(EXTERNAL_MARKER),
+                "a failure message leaked into the log: {line}"
+            );
+        }
+        let expected = format!("task t1 failed with code {ERROR_CODE}");
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("INFO") && line.contains(&expected)),
+            "missing failure metadata log line in {lines:?}"
+        );
     }
 
     /// The always-on control plane must report liveness to OPMS on its own

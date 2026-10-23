@@ -44,6 +44,7 @@
     "compile_policy_arm64": "Pending tracking in Phase 2a. Shares VERSION with compile_policy_x86_64; tracked together.",
     "compile_policy_windows_x86_64": "Pending tracking in Phase 2a. Shares VERSION with compile_policy_x86_64; tracked together.",
     "gstatus_binary": "Pending tracking in Phase 2a (github-releases batch). Released at github.com/gluster/gstatus.",
+    "gstatus_license": "Intentionally untracked. License text only, pinned to the gstatus_binary version.",
     "msodbcsql18_deb_amd64": "Pending tracking. Microsoft .deb package; no native datasource for packages.microsoft.com. Both arches share VERSION and will be tracked as one bundle when a customDatasource is added. Phase 3.",
     "msodbcsql18_deb_arm64": "Pending tracking. Shares VERSION with msodbcsql18_deb_amd64; tracked together. Phase 3.",
     "snmp_traps": "Intentionally untracked. Datadog-internal SNMP traps DB published to dd-agent-omnibus S3; no public upstream to watch. Bumped manually when the traps DB is regenerated.",
@@ -64,6 +65,7 @@
     "agent_data_plane_darwin-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
-    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
+    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped."
   }
 }

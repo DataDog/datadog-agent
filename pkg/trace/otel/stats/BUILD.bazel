@@ -10,6 +10,7 @@ go_library(
         "//pkg/obfuscate",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/config",
+        "//pkg/trace/filters",
         "//pkg/trace/log",
         "//pkg/trace/stats",
         "//pkg/trace/traceutil",

@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "kubeinfo",
+    srcs = [
+        "kubeinfo.go",
+        "status.go",
+    ],
+    embedsrcs = ["status_templates/kubeinfo.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/status",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/cloudprovider",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/util/wait",
+        "@io_k8s_apimachinery//pkg/version",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kubeinfo_test",
+    srcs = [
+        "kubeinfo_test.go",
+        "status_test.go",
+    ],
+    embed = [":kubeinfo"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/version",
+        "@org_uber_go_fx//:fx",
+    ],
+)

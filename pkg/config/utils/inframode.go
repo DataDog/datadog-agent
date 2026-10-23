@@ -7,6 +7,7 @@ package utils
 
 import (
 	"slices"
+	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -16,6 +17,11 @@ import (
 // mode of the Agent that produced it. It differs from the `infrastructure_mode`
 // setting name on purpose: the setting name is not a tag key.
 const InfraModeTagKey = "infra_mode"
+
+const (
+	InfraModeFull          = constants.InfraModeFull
+	InfraModeEndUserDevice = constants.InfraModeEndUserDevice
+)
 
 // markedInfraModes lists the modes whose payloads carry the mark.
 //
@@ -44,11 +50,11 @@ func ResolveInfrastructureMode(c pkgconfigmodel.Reader) string {
 //
 // The value describes the Agent process and not an entity, so it is stored under
 // a dedicated Tagger entity and appended where a payload the Agent itself
-// produces is serialized.
-//
-// It must never reach a metric sample. The metrics intake renames series tagged
-// `infra_mode:cloud_cost_only` into the `dd.cloud_cost` namespace, so a mark that
-// leaks onto a customer custom metric removes that metric from dashboards,
+// produces is serialized. Eligible Agent integration metrics use the same value
+// via pkg/util/infratags (check-name gated). It must never reach a customer
+// custom metric or plain DogStatsD sample: the metrics intake renames series
+// tagged `infra_mode:cloud_cost_only` into the `dd.cloud_cost` namespace, so a
+// mark that leaks onto a customer series removes that metric from dashboards,
 // monitors and metering.
 func MarkedInfraMode(c pkgconfigmodel.Reader) string {
 	mode := ResolveInfrastructureMode(c)
@@ -66,4 +72,18 @@ func MarkedInfraModeTags(c pkgconfigmodel.Reader) []string {
 		return nil
 	}
 	return []string{InfraModeTagKey + ":" + mode}
+}
+
+const infraModeTagPrefix = InfraModeTagKey + ":"
+
+// WithoutInfraModeTags returns a copy of tags with every infra_mode:* entry removed.
+func WithoutInfraModeTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, infraModeTagPrefix) {
+			continue
+		}
+		out = append(out, tag)
+	}
+	return out
 }

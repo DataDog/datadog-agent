@@ -5,11 +5,11 @@
 # to repeat these exclusions.
 test --test_tag_filters=-tagset_bpf,-tagset_bpf_nvml,-tagset_bpf_functionaltests,-tagset_npm
 # To produce verbose test.xml files
-test --test_env=GO_TEST_WRAP_TESTV=1
+common --test_env=GO_TEST_WRAP_TESTV=1
 
 # Go race detector for test invocations. Usage: bazel test --config=gorace //...
 common:gorace --@rules_go//go/config:race # to use same analysis cache across test & run commands
-test:gorace --test_env=GORACE=atexit_sleep_ms=50
+common:gorace --test_env=GORACE=atexit_sleep_ms=50
 
 # Complementary filters that partition a `bazel test //...` invocation in two, so
 # one lane can build the repo while another runs the dd_agent_go_test targets.
