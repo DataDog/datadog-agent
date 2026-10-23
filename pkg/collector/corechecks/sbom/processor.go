@@ -538,13 +538,8 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		sbom.Status = model.SBOMStatus_FAILED
 	} else {
 		log.Infof("Successfully generated SBOM for procfs: %v, %v", result.CreatedAt, result.Duration)
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
-			sbom.Heartbeat = true
-		} else {
-			report := result.Report.ToCycloneDX()
-			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: report,
-			}
+		sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+			Cyclonedx: result.Report.ToCycloneDX(),
 		}
 	}
 

@@ -1232,6 +1232,28 @@ func TestProcessHostUsage(t *testing.T) {
 	})
 }
 
+// TestProcessProcfsScanGoesOutInFull checks that a container scan listing the
+// packages of the host SBOM sent last goes out in full, not as a heartbeat.
+func TestProcessProcfsScanGoesOutInFull(t *testing.T) {
+	scanned := time.Unix(1700000000, 0)
+	p := &processor{
+		queue:                 make(chan *model.SBOMEntity, 4),
+		hostname:              "host",
+		hostHeartbeatValidity: time.Hour,
+	}
+
+	p.processHostScanResult(newHostScan(scanned))
+	require.NotNil(t, (<-p.queue).GetCyclonedx())
+
+	scan := newHostScan(scanned.Add(time.Minute))
+	scan.RequestID = "container"
+	p.processProcfsScanResult(scan)
+	entity := <-p.queue
+	assert.Equal(t, "container", entity.GetId())
+	assert.False(t, entity.GetHeartbeat())
+	assert.NotNil(t, entity.GetCyclonedx())
+}
+
 // fakeScanner records the scan requests it receives.
 type fakeScanner struct {
 	requests []sbom.ScanRequest
