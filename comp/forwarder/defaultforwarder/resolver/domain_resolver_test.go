@@ -333,6 +333,34 @@ func TestUpdateAdditionalEndpointsKeepsKeysOnMissOutsideInfraSetting(t *testing.
 	assert.True(t, resolver.IsUsable())
 }
 
+func TestSingleDomainResolverConfigName(t *testing.T) {
+	apiKeys := []utils.APIKeys{utils.NewAPIKeys("api_key", "key")}
+
+	resolver, err := NewSingleDomainResolver2(utils.NewEndpointDescriptorWithConfigName("https://example.com/path", "https://example.com", apiKeys))
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/path", resolver.GetConfigName())
+	assert.Equal(t, "https://example.com", resolver.GetBaseDomain())
+
+	resolver, err = NewSingleDomainResolver2(utils.EndpointDescriptor{BaseURL: "https://example.com", APIKeySet: apiKeys})
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com", resolver.GetConfigName())
+}
+
+func TestUpdateAdditionalEndpointsUsesConfigName(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	const configName = "https://process.datadoghq.eu/"
+	resolver, err := NewSingleDomainResolver2(utils.NewEndpointDescriptorWithConfigName(configName, "https://process.datadoghq.eu", []utils.APIKeys{
+		utils.NewAPIKeys(setting, "process-key"),
+	}))
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest(setting, map[string][]string{configName: {"rotated-key"}})
+	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
+
+	assertKeys(t, []string{"rotated-key"}, resolver)
+}
+
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),
