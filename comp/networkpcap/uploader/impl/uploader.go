@@ -17,9 +17,11 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -45,6 +47,76 @@ const (
 	// defaultAttemptTimeout bounds a single request, body included.
 	defaultAttemptTimeout = 60 * time.Second
 )
+
+// Upload telemetry. Every endpoint an upload is sent to is counted on its own,
+// tagged reliable or unreliable: additional endpoints are reliable unless
+// configured otherwise, and the MRF endpoint is counted only while a failover
+// is active. An upload whose endpoints cannot be resolved is only timed.
+var (
+	uploadAttempts = telemetryimpl.GetCompatComponent().NewCounter(
+		"remote_pcap", "upload_attempts", []string{"status_class", "retry"},
+		"Packet capture upload requests sent to an intake endpoint, by response status class",
+	)
+	uploadResults = telemetryimpl.GetCompatComponent().NewCounter(
+		"remote_pcap", "upload_result", []string{"endpoint", "result"},
+		"Packet capture uploads by intake endpoint and final result, after retries",
+	)
+	uploadBytes = telemetryimpl.GetCompatComponent().NewSimpleHistogram(
+		"remote_pcap", "upload_bytes",
+		"Compressed request body size of successful packet capture uploads, per endpoint",
+		[]float64{64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20, 64 << 20, 256 << 20},
+	)
+	uploadDuration = telemetryimpl.GetCompatComponent().NewSimpleHistogram(
+		"remote_pcap", "upload_duration_seconds",
+		"Duration of packet capture uploads across all endpoints, retries included",
+		[]float64{0.5, 1, 2, 5, 10, 20, 30, 60, 120},
+	)
+)
+
+// statusClass returns the status_class tag of a response status.
+func statusClass(code int) string {
+	switch {
+	case code >= 200 && code < 300:
+		return "2xx"
+	case code >= 400 && code < 500:
+		return "4xx"
+	case code >= 500:
+		return "5xx"
+	default:
+		// The intake does not answer 1xx or 3xx; keep them apart from errors.
+		return "other"
+	}
+}
+
+// recordResult records the outcome of an upload to one endpoint, sent being
+// the compressed body size when it succeeded.
+func recordResult(endpoint *logsconfig.Endpoint, sent int64, err error) {
+	endpointTag := "unreliable"
+	if endpoint.IsReliable() {
+		endpointTag = "reliable"
+	}
+	switch {
+	case err == nil:
+		uploadResults.Inc(endpointTag, "success")
+		uploadBytes.Observe(float64(sent))
+	case errors.Is(err, uploader.ErrPayloadTooLarge):
+		uploadResults.Inc(endpointTag, "too_large")
+	default:
+		uploadResults.Inc(endpointTag, "failed")
+	}
+}
+
+// countingReader counts the bytes read from a request body.
+type countingReader struct {
+	io.ReadCloser
+	n *atomic.Int64
+}
+
+func (r countingReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.n.Add(int64(n))
+	return n, err
+}
 
 // Requires defines the component's dependencies.
 type Requires struct {
@@ -114,6 +186,9 @@ func (u *pcapUploader) getEndpoints() (*logsconfig.Endpoints, error) {
 // Upload sends req to every networkpcap endpoint concurrently. Failures on
 // reliable endpoints are returned; failures on unreliable ones are logged.
 func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) error {
+	start := time.Now()
+	defer func() { uploadDuration.Observe(time.Since(start).Seconds()) }()
+
 	endpoints, err := u.getEndpoints()
 	if err != nil {
 		return err
@@ -137,7 +212,9 @@ func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) e
 		go func() {
 			defer wg.Done()
 			endpointURL := buildURL(endpoint)
-			if err := u.sendWithRetries(ctx, endpoint, endpointURL, req); err != nil {
+			sent, err := u.sendWithRetries(ctx, endpoint, endpointURL, req)
+			recordResult(endpoint, sent, err)
+			if err != nil {
 				if !endpoint.IsReliable() {
 					log.Warnf("packet capture upload to unreliable endpoint %s failed: %v", endpointURL, err)
 					return
@@ -153,50 +230,60 @@ func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) e
 }
 
 // sendWithRetries retries transport errors, 408, 429 and 5xx. 413 is not
-// retried: resending the same bytes cannot succeed.
-func (u *pcapUploader) sendWithRetries(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest) error {
+// retried: resending the same bytes cannot succeed. On success it returns the
+// compressed body size of the accepted attempt.
+func (u *pcapUploader) sendWithRetries(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest) (int64, error) {
 	var lastErr error
 	for attempt := 0; attempt < u.maxAttempts; attempt++ {
 		if attempt > 0 {
 			select {
 			case <-time.After(u.retryBackoff * time.Duration(attempt)):
 			case <-ctx.Done():
-				return ctx.Err()
+				return 0, ctx.Err()
 			}
 		}
-		retryable, err := u.send(ctx, endpoint, endpointURL, req)
+		retryable, sent, err := u.send(ctx, endpoint, endpointURL, req, attempt > 0)
 		if err == nil {
-			return nil
+			return sent, nil
 		}
 		if !retryable {
-			return err
+			return 0, err
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("upload failed after %d attempts: %w", u.maxAttempts, lastErr)
+	return 0, fmt.Errorf("upload failed after %d attempts: %w", u.maxAttempts, lastErr)
 }
 
-// send makes one attempt. It reports whether a failure is worth retrying.
-func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest) (bool, error) {
+// send makes one attempt. It reports whether a failure is worth retrying and,
+// on success, the bytes sent. Attempts are counted once a request is sent;
+// failures to build one are not.
+func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest, retry bool) (bool, int64, error) {
 	apiKey, ready := endpoint.GetAPIKeyIfReady()
 	if !ready || apiKey == "" {
-		return false, errors.New("no API key available for this endpoint")
+		return false, 0, errors.New("no API key available for this endpoint")
 	}
 
 	boundary := multipart.NewWriter(io.Discard).Boundary()
+	var sent atomic.Int64
 	newBody := func() (io.ReadCloser, error) {
-		return newMultipartBody(boundary, req)
+		// A body re-read from the start (GetBody) replaces the earlier one.
+		sent.Store(0)
+		body, err := newMultipartBody(boundary, req)
+		if err != nil {
+			return nil, err
+		}
+		return countingReader{ReadCloser: body, n: &sent}, nil
 	}
 
 	body, err := newBody()
 	if err != nil {
 		// The attachments cannot be read; retrying will not help.
-		return false, err
+		return false, 0, err
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, body)
 	if err != nil {
 		_ = body.Close()
-		return false, fmt.Errorf("building request: %w", err)
+		return false, 0, fmt.Errorf("building request: %w", err)
 	}
 	httpReq.GetBody = newBody
 	httpReq.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
@@ -206,22 +293,25 @@ func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, 
 		httpReq.Header.Set(k, v)
 	}
 
+	retryTag := strconv.FormatBool(retry)
 	resp, err := u.httpClient.Do(httpReq)
 	if err != nil {
-		return true, fmt.Errorf("sending request: %w", err)
+		uploadAttempts.Inc("transport", retryTag)
+		return true, 0, fmt.Errorf("sending request: %w", err)
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	_ = resp.Body.Close()
+	uploadAttempts.Inc(statusClass(resp.StatusCode), retryTag)
 
 	switch code := resp.StatusCode; {
 	case code >= 200 && code < 300:
-		return false, nil
+		return false, sent.Load(), nil
 	case code == http.StatusRequestEntityTooLarge:
-		return false, fmt.Errorf("%w (%d)", uploader.ErrPayloadTooLarge, code)
+		return false, 0, fmt.Errorf("%w (%d)", uploader.ErrPayloadTooLarge, code)
 	case code == http.StatusRequestTimeout, code == http.StatusTooManyRequests, code >= 500:
-		return true, fmt.Errorf("intake returned status %d", code)
+		return true, 0, fmt.Errorf("intake returned status %d", code)
 	default:
-		return false, fmt.Errorf("intake returned status %d", code)
+		return false, 0, fmt.Errorf("intake returned status %d", code)
 	}
 }
 
