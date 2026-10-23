@@ -10,7 +10,6 @@ import %workspace%/.adms/adms.bazelrc
 common:adms --config=dd-internal
 
 # Startup options ------------------------------------------------------------------------------------------------------
-startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of inactivity
 startup --windows_enable_symlinks
 
 # Common options -------------------------------------------------------------------------------------------------------
