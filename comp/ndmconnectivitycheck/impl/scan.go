@@ -13,8 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// scan probes one request's targets. Its error is either an invalid request or
-// a cancelled context.
+// scan probes one request's targets.
 func (c *connectivityCheck) scan(ctx context.Context, req connectivity.Request) (connectivity.Result, error) {
 	opts, err := toProbeOptions(req, c.pingCapability())
 	if err != nil {

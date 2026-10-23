@@ -30,34 +30,28 @@ type scheduledRange struct {
 	cancel context.CancelFunc
 }
 
-// scheduler owns the sweep schedule. Every range runs its own goroutine and
-// they share one worker budget.
+// scheduler owns the sweep schedule: one goroutine per range, sharing one worker budget.
 type scheduler struct {
 	sweeper *sweeper
 	log     log.Component
 	opts    schedulerOptions
 
-	// newTimer is injectable so tests can drive time.
 	newTimer func(d time.Duration) (<-chan time.Time, func())
 
 	mu     sync.Mutex
 	ranges map[string]*scheduledRange
-	// cycles holds, per range id, the completion channel of the most recently
-	// launched goroutine, which a replacement waits on before it starts.
+	// cycles holds, per range id, the completion channel a replacement waits on.
 	cycles map[string]chan struct{}
 	ctx    context.Context
 	cancel context.CancelFunc
-	// wg is reused across start/stop pairs, which the sequential fx lifecycle
-	// hooks never call concurrently.
-	wg sync.WaitGroup
+	wg     sync.WaitGroup
 }
 
 func newScheduler(sw *sweeper, logger log.Component, opts schedulerOptions) *scheduler {
 	if opts.Workers < 1 {
 		opts.Workers = 1
 	}
-	// A share larger than the semaphore would block on Acquire until the
-	// context is done, so the sweeper's budget caps the schedule.
+	// A share larger than the semaphore could never be acquired.
 	if sw != nil && opts.Workers > sw.budget {
 		opts.Workers = sw.budget
 	}
@@ -74,8 +68,7 @@ func newScheduler(sw *sweeper, logger log.Component, opts schedulerOptions) *sch
 	}
 }
 
-// start makes the scheduler accept ranges. Ranges added before start are not
-// swept until it is called.
+// start makes the scheduler accept ranges.
 func (s *scheduler) start(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -85,8 +78,7 @@ func (s *scheduler) start(ctx context.Context) {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 }
 
-// stop cancels every range and waits for the running sweeps to unwind. It is
-// idempotent.
+// stop cancels every range and waits for the running sweeps to unwind.
 func (s *scheduler) stop() {
 	s.mu.Lock()
 	cancel := s.cancel
@@ -118,8 +110,7 @@ func (s *scheduler) count() int {
 	return len(s.ranges)
 }
 
-// workerShare is this dispatch's slice of the global budget. It is recomputed
-// per dispatch, so adding a range retimes the split without a restart.
+// workerShare is this dispatch's slice of the global budget, recomputed per dispatch.
 func (s *scheduler) workerShare() int64 {
 	s.mu.Lock()
 	active := int64(len(s.ranges))
@@ -137,8 +128,6 @@ func (s *scheduler) workerShare() int64 {
 
 // set adds or replaces a range. A range that is too large is rejected.
 func (s *scheduler) set(cfg rangeConfig) error {
-	// Validate before touching any state so a bad update cannot take down a
-	// range that is already running well.
 	if _, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, s.opts.MaxAddresses); err != nil {
 		return err
 	}
@@ -148,7 +137,6 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		s.mu.Unlock()
 		return errors.New("the discovery scheduler is not running")
 	}
-	// Cancelled after the lock is released, the way remove does it.
 	var replaced context.CancelFunc
 	if existing, ok := s.ranges[cfg.AutodiscoveryID]; ok {
 		replaced = existing.cancel
@@ -158,8 +146,7 @@ func (s *scheduler) set(cfg rangeConfig) error {
 	previous := s.cycles[cfg.AutodiscoveryID]
 	done := make(chan struct{})
 	s.cycles[cfg.AutodiscoveryID] = done
-	// Counted under the lock: stop takes the same lock before it waits, so a
-	// concurrent stop cannot start draining before this goroutine is counted.
+	// Counted under the lock, so a concurrent stop cannot start draining first.
 	s.wg.Add(1)
 	s.mu.Unlock()
 
@@ -172,8 +159,7 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		defer s.finishCycles(cfg.AutodiscoveryID, done)
 
 		if previous != nil {
-			// Unconditional: waiting for the cancelled predecessor to unwind
-			// keeps one cursor under one writer.
+			// Waiting for the predecessor keeps one cursor under one writer.
 			<-previous
 		}
 		if rangeCtx.Err() != nil {
@@ -184,8 +170,7 @@ func (s *scheduler) set(cfg rangeConfig) error {
 	return nil
 }
 
-// finishCycles releases the goroutines waiting on this range's turn, and drops
-// the bookkeeping entry when no newer goroutine has claimed it.
+// finishCycles releases the goroutines waiting on this range's turn.
 func (s *scheduler) finishCycles(autodiscoveryID string, done chan struct{}) {
 	s.mu.Lock()
 	if s.cycles[autodiscoveryID] == done {
@@ -196,7 +181,6 @@ func (s *scheduler) finishCycles(autodiscoveryID string, done chan struct{}) {
 }
 
 // remove stops a range and drops its cursor once the range has unwound.
-// Removing an unknown range is a no-op.
 func (s *scheduler) remove(autodiscoveryID string) {
 	s.mu.Lock()
 	r, ok := s.ranges[autodiscoveryID]
@@ -223,9 +207,8 @@ func (s *scheduler) remove(autodiscoveryID string) {
 	}()
 }
 
-// run sweeps one range once per interval, counting from the end of the last
-// completed cycle, so an Agent restart resumes the schedule instead of
-// resetting it. Cycles are sequential.
+// run sweeps one range once per interval, sequentially, counting from the end
+// of the last completed cycle.
 func (s *scheduler) run(ctx context.Context, cfg rangeConfig) {
 	// A non-positive interval would spin.
 	interval := time.Duration(cfg.IntervalSec) * time.Second

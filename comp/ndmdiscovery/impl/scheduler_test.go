@@ -277,8 +277,6 @@ func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 	require.NoError(t, s.set(negative))
 	assert.Equal(t, floor, <-intervals, "a negative interval waits the floor instead of spinning")
 
-	// parseRange clamps upstream, but a config reaching the scheduler by
-	// another route must not out-tick the floor either.
 	tooFast := testRangeConfig("ad-too-fast", "10.0.2.0/26")
 	tooFast.IntervalSec = 1
 	require.NoError(t, s.set(tooFast))
@@ -288,8 +286,7 @@ func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 		"every range is still swept once immediately")
 }
 
-// blockingScanner holds every scan until release is closed, and records how
-// many scans were in flight at once.
+// blockingScanner holds every scan until release is closed, recording peak concurrency.
 type blockingScanner struct {
 	recordingScanner
 	entered     chan struct{}
@@ -331,8 +328,7 @@ func (c *blockingScanner) sawTarget(ip string) bool {
 
 func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	scanner := newBlockingScanner()
-	// A share equal to the budget would let the global semaphore serialise the
-	// cycles on its own, so the cycle chain would go unexercised.
+	// A share equal to the budget would serialise the cycles on the semaphore alone.
 	sw := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, newMemCursorStore(), 10)
 	s := newScheduler(sw, logmock.New(t), schedulerOptions{
 		Workers:      1,

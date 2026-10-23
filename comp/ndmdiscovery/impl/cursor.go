@@ -26,8 +26,7 @@ type cursorState struct {
 	ConfigDigest string `json:"config_digest"`
 	// Failed marks a cycle that already reported a terminal failed status for RunID.
 	Failed bool `json:"failed"`
-	// EndedAtMs is when the cycle ended, whether it completed or failed, and
-	// zero while it is in flight.
+	// EndedAtMs is when the cycle ended, and zero while it is in flight.
 	EndedAtMs int64 `json:"ended_at_ms"`
 }
 
@@ -60,7 +59,6 @@ func (s *persistentCursorStore) Load(autodiscoveryID string) (cursorState, bool)
 
 	var state cursorState
 	if err := json.Unmarshal([]byte(raw), &state); err != nil {
-		// A corrupt cursor is treated as no cursor: the cycle restarts.
 		return cursorState{}, false
 	}
 	return state, true
@@ -78,8 +76,7 @@ func (s *persistentCursorStore) Clear(autodiscoveryID string) error {
 	return persistentcache.Write(cursorKey(autodiscoveryID), "")
 }
 
-// rangeDigest fingerprints the addresses probed and each probe's configuration,
-// so that a change to either invalidates a partial cycle.
+// rangeDigest fingerprints the addresses probed and each probe's configuration.
 func rangeDigest(cfg rangeConfig, fingerprints []string) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "network_address=%s\n", cfg.NetworkAddress)

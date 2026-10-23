@@ -15,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// toProbeOptions maps one request to probe options. Its error is answered with
-// a 400, so it must say what is wrong with the request.
+// toProbeOptions maps one request to probe options. Its error is answered with a 400.
 func toProbeOptions(req connectivity.Request, ping pingprobe.Capability) (probe.Options, error) {
 	var opts probe.Options
 

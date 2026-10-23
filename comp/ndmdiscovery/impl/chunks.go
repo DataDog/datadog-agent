@@ -19,16 +19,15 @@ type probeChunk struct {
 	Targets []string
 }
 
-// chunkPlan enumerates the addresses of a CIDR range one chunk at a time,
-// without materialising the whole range.
+// chunkPlan enumerates a CIDR range one chunk at a time, without materialising it.
 type chunkPlan struct {
 	prefix  netip.Prefix
 	total   int
 	ignored map[netip.Addr]struct{}
 }
 
-// newChunkPlan builds a plan for cidr, excluding ignored addresses from the
-// probed targets. A range holding more than maxAddresses addresses is rejected.
+// newChunkPlan builds a plan for cidr, leaving out the ignored addresses. A range
+// larger than maxAddresses is rejected.
 func newChunkPlan(cidr string, ignored []string, maxAddresses int) (*chunkPlan, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
@@ -52,7 +51,6 @@ func newChunkPlan(cidr string, ignored []string, maxAddresses int) (*chunkPlan, 
 	for _, raw := range ignored {
 		addr, err := netip.ParseAddr(raw)
 		if err != nil {
-			// A malformed ignore entry cannot match any enumerated address.
 			continue
 		}
 		if !p.prefix.Contains(addr) {
@@ -78,8 +76,7 @@ func (p *chunkPlan) ignoredCount() int {
 	return len(p.ignored)
 }
 
-// chunk materialises the targets of one chunk, leaving out ignored addresses.
-// An out-of-bounds index yields an empty chunk.
+// chunk materialises the targets of one chunk. An out-of-bounds index yields an empty chunk.
 func (p *chunkPlan) chunk(index int) probeChunk {
 	c := probeChunk{Index: index}
 	if index < 0 || index >= p.chunkCount() {

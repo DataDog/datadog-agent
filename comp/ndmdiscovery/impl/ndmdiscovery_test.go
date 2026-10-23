@@ -35,8 +35,7 @@ func (f fakeForwarder) SendEventPlatformEvent(m *message.Message, eventType stri
 
 func (f fakeForwarder) Purge() map[string][]*message.Message { return nil }
 
-// fakeEventPlatform is an eventplatform.Component whose forwarder is always
-// available.
+// fakeEventPlatform is an eventplatform.Component whose forwarder is always available.
 type fakeEventPlatform struct {
 	forwarder eventplatform.Forwarder
 }
@@ -165,8 +164,7 @@ func TestStartDetectsThePingCapabilityOnceAndStops(t *testing.T) {
 	require.NoError(t, lc.Stop(t.Context()))
 }
 
-// writeCredentialFile writes one v2c credential and returns the confd_path
-// holding it.
+// writeCredentialFile writes one v2c credential and returns the confd_path holding it.
 func writeCredentialFile(t *testing.T, name string) string {
 	t.Helper()
 	confd := t.TempDir()

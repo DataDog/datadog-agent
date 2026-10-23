@@ -36,8 +36,7 @@ type recordingReporter struct {
 	deviceErrLeft int
 }
 
-// failNextDeviceReports makes the next n ReportDevices calls fail with
-// deviceErr, which must be set.
+// failNextDeviceReports makes the next n ReportDevices calls fail with deviceErr.
 func (r *recordingReporter) failNextDeviceReports(n int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -97,8 +96,7 @@ func (r *recordingScanner) recorded() []scanCall {
 	return append([]scanCall(nil), r.calls...)
 }
 
-// answerAll marks the first target of each batch as an SNMP success and the
-// rest as failures.
+// answerAll marks the first target of each batch as an SNMP success, the rest as failures.
 func answerAll() *recordingScanner {
 	return &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
 		results := make([]probe.Result, 0, len(call.Targets))
@@ -220,8 +218,7 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	assert.Equal(t, int64(1700000030000), final.NextRunAtMs, "the backend learns when the range is next due")
 	assert.Empty(t, final.Error)
 
-	// answerAll answers on the first target of each chunk only, so one /26 is
-	// 64 addresses scanned and one device reported.
+	// answerAll answers on the first target of each chunk only.
 	assert.Len(t, reporter.devices, 1, "a silent address is absent from the run, not reported unreachable")
 	saved, ok := cursors.Load("ad-1")
 	require.True(t, ok, "a completed cycle keeps its cursor")
@@ -517,8 +514,7 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 
 func TestSweepClampsWorkersToTheBudget(t *testing.T) {
 	scanner := answerAll()
-	// The global budget is 4, so a range asking for 32 must not deadlock on
-	// semaphore.Acquire, which never returns for n greater than the size.
+	// semaphore.Acquire never returns for n greater than the semaphore's size.
 	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
 
 	req := testSweepRequest(t, "10.0.0.0/26", nil)
@@ -549,8 +545,6 @@ func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
 	s := newTestSweeper(t, answerAll(), reporter, cursors, 10)
 
 	req := testSweepRequest(t, "10.0.0.0/24", nil)
-	// Only the first chunk fails to report: a transport failure must not abort
-	// a multi-hour cycle.
 	reporter.failNextDeviceReports(1)
 	require.NoError(t, s.sweep(context.Background(), req))
 

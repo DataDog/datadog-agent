@@ -47,7 +47,7 @@ func newPayloadReporter(sender payloadSender, logger log.Component) *payloadRepo
 
 // ReportDevices sends the probed addresses in batches of metadata.PayloadMetadataBatchSize.
 func (r *payloadReporter) ReportDevices(namespace string, devices []metadata.DiscoveredDeviceMetadata) error {
-	// One collect time for every batch of a single call, matching metadata.BatchDeviceScan.
+	// One collect time for every batch of a single call.
 	collectTime := r.now()
 	for start := 0; start < len(devices); start += metadata.PayloadMetadataBatchSize {
 		end := start + metadata.PayloadMetadataBatchSize

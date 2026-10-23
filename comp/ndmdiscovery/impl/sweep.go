@@ -29,13 +29,12 @@ const (
 // progressInterval is how often a running sweep reports its progress.
 const progressInterval = 30 * time.Second
 
-// scanFunc probes a batch of addresses. It is satisfied by probe.Scan.
+// scanFunc probes a batch of addresses.
 type scanFunc func(ctx context.Context, workers int, targets []string, opts probe.Options) ([]probe.Result, error)
 
 // sweepRequest is everything one cycle over one range needs.
 type sweepRequest struct {
-	Config rangeConfig
-	// Options are this cycle's resolved probes.
+	Config  rangeConfig
 	Options probe.Options
 	Plan    *chunkPlan
 	Digest  string
@@ -45,8 +44,7 @@ type sweepRequest struct {
 	Interval time.Duration
 }
 
-// sweeper runs one cycle over one range, chunk by chunk, persisting a cursor
-// so that a restart resumes instead of starting again.
+// sweeper runs one cycle over one range, chunk by chunk, persisting a resumable cursor.
 type sweeper struct {
 	scan     scanFunc
 	reporter discoveryReporter
@@ -56,8 +54,7 @@ type sweeper struct {
 	budget int64
 	log    log.Component
 	// progressEvery paces the in_progress reports, and disables them at zero.
-	progressEvery time.Duration
-	// newProgressTicker is injectable so tests can drive time.
+	progressEvery     time.Duration
 	newProgressTicker func(d time.Duration) (<-chan time.Time, func())
 
 	now      func() int64
@@ -119,12 +116,10 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 		devices, err := s.probe(ctx, r, state.RunID, chunk)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				// The run is paused, not broken, so the next start resumes it.
 				s.saveCursor(id, state)
 				return err
 			}
-			// The cursor is kept to resume at this chunk, marked failed so
-			// that the resume opens a new run.
+			// Marked failed so the resume opens a new run.
 			ended := s.now()
 			state.Failed = true
 			state.EndedAtMs = ended
@@ -194,8 +189,7 @@ func (s *sweeper) dueIn(r sweepRequest) time.Duration {
 	return r.Interval - elapsed
 }
 
-// nextRunAt is the earliest the range is swept again, counting from the end of
-// the cycle that just ran.
+// nextRunAt is the earliest the range is swept again, counting from endedAtMs.
 func (s *sweeper) nextRunAt(r sweepRequest, endedAtMs int64) int64 {
 	if r.Interval <= 0 {
 		return 0
@@ -215,7 +209,7 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 		}
 
 		// The saved run already reported a terminal status, so the remaining
-		// chunks continue under a fresh run that carries over its progress.
+		// chunks continue under a fresh run.
 		saved.RunID = s.newRunID()
 		saved.StartedAtMs = s.now()
 		saved.Failed = false
@@ -242,14 +236,12 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 
 func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) ([]metadata.DiscoveredDeviceMetadata, error) {
 	if len(chunk.Targets) == 0 {
-		// Every address of this chunk is ignored, so there is nothing to probe.
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		return nil, nil
 	}
 
-	// The worker budget is global, so a chunk waits for its share.
 	if err := s.sem.Acquire(ctx, r.Workers); err != nil {
 		return nil, err
 	}
@@ -262,8 +254,7 @@ func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk
 	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
 }
 
-// clampWorkers keeps a range's worker share inside [1, budget]: a larger share
-// can never be acquired, and a zero share bounds nothing.
+// clampWorkers keeps a range's worker share inside [1, budget].
 func clampWorkers(workers, budget int64) int64 {
 	if workers < 1 {
 		return 1
@@ -280,9 +271,8 @@ func (s *sweeper) saveCursor(id string, state cursorState) {
 	}
 }
 
-// startProgress reports how far the run has got, every progressEvery, until
-// the returned stop is called. Stop waits for the reporter to go quiet, so no
-// progress report can land after a terminal one, and is safe to call twice.
+// startProgress reports the run's progress every progressEvery until the returned
+// stop is called. Stop is idempotent and waits for the reporter to go quiet.
 func (s *sweeper) startProgress(ctx context.Context, r sweepRequest, state cursorState, scanned *atomic.Int64) func() {
 	if s.progressEvery <= 0 {
 		return func() {}
@@ -328,8 +318,8 @@ func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadat
 	}
 }
 
-// toDiscoveredDevices converts one chunk's probe results into report documents.
-// Only addresses that answered at least one probe are reported.
+// toDiscoveredDevices converts one chunk's probe results into report documents,
+// skipping the addresses that answered no probe.
 func toDiscoveredDevices(autodiscoveryID, runID string, results []probe.Result) []metadata.DiscoveredDeviceMetadata {
 	devices := make([]metadata.DiscoveredDeviceMetadata, 0, len(results))
 	for _, r := range results {
@@ -391,8 +381,7 @@ func statusString(success bool) string {
 	return statusUnreachable
 }
 
-// rttMs is the round-trip time in milliseconds, reported only when the probe
-// answered.
+// rttMs is the round-trip time in milliseconds, set only when the probe answered.
 func rttMs(success bool, rtt time.Duration) *int64 {
 	if !success {
 		return nil

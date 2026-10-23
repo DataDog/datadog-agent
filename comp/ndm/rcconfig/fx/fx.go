@@ -29,8 +29,8 @@ import (
 
 const enabledConfigKey = "network_devices.remote_config.enabled"
 
-// newProvider depends on the discovery component so its lifecycle hook is
-// registered, and therefore runs, before the first Update.
+// newProvider depends on the discovery component so its lifecycle hook runs before
+// the first Update.
 func newProvider(lc fx.Lifecycle, cfg config.Component, logComp log.Component, ad autodiscovery.Component, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
 	return newListener(lc, cfg, logComp, ad, disco)
 }

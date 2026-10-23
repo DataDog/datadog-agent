@@ -44,15 +44,15 @@ func (o Options) Fingerprints() []string {
 	return fps
 }
 
-// Scan probes every target with every configured probe. It returns an error
-// only when its context is done, alongside the results it already collected.
+// Scan probes every target with every configured probe. It errors only when its
+// context is done, alongside the results it already collected.
 func Scan(ctx context.Context, workers int, targets []string, opts Options) ([]Result, error) {
 	return scan(ctx, workers, targets, func(ctx context.Context, target string) Result {
 		return scanOne(ctx, target, opts)
 	})
 }
 
-// scanOne probes one address, ping first because it is the cheaper probe.
+// scanOne probes one address, ping first.
 func scanOne(ctx context.Context, target string, opts Options) Result {
 	res := Result{Target: target}
 	if opts.Ping != nil {
@@ -67,8 +67,7 @@ func scanOne(ctx context.Context, target string, opts Options) Result {
 	return res
 }
 
-// scan is the bounded fan-out. It is separate from Scan so that the pool is
-// tested without a network.
+// scan is the bounded fan-out.
 func scan(ctx context.Context, workers int, targets []string, run func(context.Context, string) Result) ([]Result, error) {
 	if workers < 1 {
 		workers = 1

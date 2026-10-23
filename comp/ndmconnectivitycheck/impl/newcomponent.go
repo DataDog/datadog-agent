@@ -20,8 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
-// workersConfigKey sizes the interactive probe budget, separate from the
-// discovery sweep budget.
+// workersConfigKey sizes the interactive probe budget.
 const workersConfigKey = "network_devices.connectivity_check.workers"
 
 // Requires defines the dependencies for the ndmconnectivitycheck component.

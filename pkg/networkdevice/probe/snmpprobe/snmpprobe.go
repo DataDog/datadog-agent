@@ -57,8 +57,7 @@ type Reading struct {
 	SysName       string
 }
 
-// Validate reports what makes these options unusable. It names a credential id,
-// never the material behind it.
+// Validate reports what makes these options unusable, naming a credential by id only.
 func (o Options) Validate() error {
 	if o.Port == 0 {
 		return fmt.Errorf("%w: port 0 is out of range (expected 1-65535)", ErrInvalidOptions)
@@ -94,8 +93,7 @@ func (c Credential) validate() error {
 	}
 }
 
-// Fingerprint is a stable digest of these options. It hashes the credential
-// material, so no secret leaves this method.
+// Fingerprint is a stable digest of these options. No credential material leaves it.
 func (o Options) Fingerprint() string {
 	h := sha256.New()
 	fmt.Fprintf(h, "port=%d timeout=%s retries=%d\n", o.Port, o.Timeout, o.Retries)
@@ -114,8 +112,7 @@ func (o Options) Fingerprint() string {
 	return "snmp:" + hex.EncodeToString(h.Sum(nil))
 }
 
-// Run probes one address, trying each credential in order until one answers.
-// A failure is a Reading, not an error.
+// Run probes one address, trying each credential in order. A failure is a Reading, not an error.
 func Run(ctx context.Context, target string, opts Options) *Reading {
 	var last *Reading
 	for _, cred := range opts.Credentials {

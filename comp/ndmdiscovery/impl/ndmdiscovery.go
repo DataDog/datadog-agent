@@ -23,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
-// Config keys. The network_devices.autodiscovery.* prefix belongs to the
-// legacy snmp_listener, so this component uses network_devices.discovery.*.
+// Config keys. network_devices.autodiscovery.* belongs to the legacy snmp_listener.
 const (
 	enabledConfigKey         = "network_devices.discovery.enabled"
 	workersConfigKey         = "network_devices.discovery.workers"
@@ -61,8 +60,7 @@ type ndmDiscovery struct {
 	enabled  bool
 }
 
-// NewComponent builds the ndmdiscovery component. When the feature is off it
-// returns a component that rejects every range and registers no hooks.
+// NewComponent builds the ndmdiscovery component. A disabled component rejects every range.
 func NewComponent(reqs Requires) (Provides, error) {
 	comp := &ndmDiscovery{log: reqs.Log}
 
@@ -76,8 +74,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, errors.New("ndmdiscovery: the event platform forwarder is not available")
 	}
 
-	// The worker count is read once: the same value sizes the semaphore, the
-	// sweeper's budget, and the scheduler's global budget.
 	workers := reqs.Config.GetInt64(workersConfigKey)
 	if workers < 1 {
 		workers = 1
@@ -127,8 +123,6 @@ func (d *ndmDiscovery) pingCapability() pingprobe.Capability {
 func (d *ndmDiscovery) start(_ context.Context) error {
 	d.pingCapability()
 
-	// The scheduler outlives the start hook's context, which is cancelled once
-	// startup finishes.
 	d.sched.start(context.Background())
 	d.log.Info("ndmdiscovery: started")
 	return nil

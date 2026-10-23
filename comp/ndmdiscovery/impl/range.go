@@ -18,8 +18,7 @@ import (
 // minIntervalSec is the shortest cycle interval a range can ask for.
 const minIntervalSec = 60
 
-// autodiscoveryIDPattern is the character set the persistent cursor cache can
-// round-trip without two ids colliding on one file.
+// autodiscoveryIDPattern is the character set the persistent cursor cache round-trips safely.
 var autodiscoveryIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // rangeConfig is the validated, defaulted form of one range.
@@ -40,8 +39,7 @@ type rangeDefaults struct {
 	MaxAddresses int
 }
 
-// parseRange validates and defaults one range. The returned error is surfaced
-// to the backend, so it must say what is wrong with the range.
+// parseRange validates and defaults one range. Its error is surfaced to the backend.
 func parseRange(r ndmdiscovery.Range, def rangeDefaults, ping pingprobe.Capability, logger log.Component) (rangeConfig, error) {
 	if r.ID == "" {
 		return rangeConfig{}, errors.New("the range id is required")

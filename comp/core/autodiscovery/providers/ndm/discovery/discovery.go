@@ -21,8 +21,7 @@ import (
 // Key is the document key this handler owns.
 const Key = "discovery"
 
-// Handler hands the discovery component the complete set of ranges every NDM
-// document asks it to sweep.
+// Handler hands the discovery component the complete set of ranges to sweep.
 type Handler struct {
 	disco ndmdiscovery.Component
 	log   log.Component
@@ -88,8 +87,7 @@ type rangePayload struct {
 	Probes             map[string]json.RawMessage `json:"probes"`
 }
 
-// decodeRanges turns one path's discovery key into component ranges. The
-// component validates them, so this only rejects what it cannot address.
+// decodeRanges turns one path's discovery key into component ranges.
 func decodeRanges(raw json.RawMessage) ([]ndmdiscovery.Range, error) {
 	var doc keyConfig
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -114,8 +112,7 @@ func decodeRanges(raw json.RawMessage) ([]ndmdiscovery.Range, error) {
 	return ranges, nil
 }
 
-// sortedPaths orders the paths so a range id claimed by two of them is always
-// reported against the same one.
+// sortedPaths orders the paths so a range id claimed by two of them resolves the same way.
 func sortedPaths(docs map[string]json.RawMessage) []string {
 	paths := make([]string, 0, len(docs))
 	for path := range docs {

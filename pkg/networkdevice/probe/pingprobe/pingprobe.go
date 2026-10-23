@@ -15,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 )
 
-// detectTarget is always reachable, so a failed ping means this process cannot
-// send ICMP at all.
+// detectTarget is always reachable, so a failed ping means this process cannot send ICMP.
 const detectTarget = "127.0.0.1"
 
 // Options is one ping probe's configuration.

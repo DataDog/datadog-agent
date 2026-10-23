@@ -24,8 +24,7 @@ const (
 	kindSNMP = "snmp"
 )
 
-// Defaults and bounds of the ping probe options. An out-of-bounds value falls
-// back to its default.
+// Defaults and bounds of the ping probe options. An out-of-bounds value falls back to its default.
 const (
 	defaultPingCount      = 1
 	defaultPingIntervalMs = 1000
@@ -35,8 +34,7 @@ const (
 	maxPingTimeoutMs      = 3_600_000
 )
 
-// Defaults and bounds of the snmp probe options. An out-of-bounds value falls
-// back to its default.
+// Defaults and bounds of the snmp probe options. An out-of-bounds value falls back to its default.
 const (
 	defaultSNMPPort       = 161
 	defaultSNMPTimeoutSec = 2
@@ -66,8 +64,7 @@ type snmpJSON struct {
 	Retries    *int     `json:"retries"`
 }
 
-// snmpParams is the snmp probe's per-range configuration. The credentials are
-// resolved once per cycle, so a rotation lands without an RC redelivery.
+// snmpParams is the snmp probe's per-range configuration.
 type snmpParams struct {
 	Port    uint16
 	Timeout time.Duration
@@ -75,8 +72,7 @@ type snmpParams struct {
 	CredIDs []string
 }
 
-// probeParams is one range's usable probes. A nil field is a probe that does
-// not run.
+// probeParams is one range's usable probes. A nil field is a probe that does not run.
 type probeParams struct {
 	Ping *pingprobe.Options
 	SNMP *snmpParams
@@ -87,8 +83,7 @@ type credentialStore interface {
 	Load() (map[string]credentials.Credential, error)
 }
 
-// parseProbes validates one range's probes object. An unknown, unavailable or
-// rejecting probe is dropped and logged, so the rest of the range still runs.
+// parseProbes validates one range's probes object, dropping and logging each unusable probe.
 func parseProbes(rangeID string, raw map[string]json.RawMessage, ping pingprobe.Capability, logger log.Component) probeParams {
 	var params probeParams
 
@@ -153,8 +148,7 @@ func parsePing(body json.RawMessage, ping pingprobe.Capability, logger log.Compo
 		}
 	}
 
-	// The document can only turn the raw socket off, never on over what the
-	// Agent is able to do.
+	// The document can only turn the raw socket off, never on.
 	useRawSocket := ping.UseRawSocket
 	if opts.Linux != nil && opts.Linux.UseRawSocket != nil && !*opts.Linux.UseRawSocket {
 		useRawSocket = false
@@ -218,8 +212,7 @@ func parseSNMP(body json.RawMessage, logger log.Component) (*snmpParams, error) 
 	}, nil
 }
 
-// resolve builds this cycle's probe options. A probe whose credentials cannot
-// be resolved is dropped, and its reason is returned for the caller to log.
+// resolve builds this cycle's probe options, returning a reason per dropped probe.
 func (p probeParams) resolve(store credentialStore) (probe.Options, []string) {
 	var (
 		opts    probe.Options
@@ -248,8 +241,7 @@ func (p probeParams) resolve(store credentialStore) (probe.Options, []string) {
 	return opts, dropped
 }
 
-// resolveSNMPCredentials maps a range's credential ids to credentials, keeping
-// the configured order so the most likely credential is tried first.
+// resolveSNMPCredentials maps a range's credential ids to credentials, in the configured order.
 func resolveSNMPCredentials(store credentialStore, ids []string) ([]snmpprobe.Credential, error) {
 	if len(ids) == 0 {
 		return nil, errors.New("the range references no credentials")
