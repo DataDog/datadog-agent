@@ -16,9 +16,10 @@ import (
 )
 
 type mountNodeKey struct {
-	mountPoint string
-	filesystem string
-	mountFlags uint32
+	mountPoint      string
+	filesystem      string
+	mountFlags      uint32
+	inBaseNamespace bool
 }
 
 type MountNode struct {
@@ -61,38 +62,57 @@ func (at *ActivityTree) indexMount(key mountNodeKey, node *MountNode) {
 	at.mountIndex[key] = node
 }
 
-func (at *ActivityTree) AddBaseMountNamespaceID(nsID uint32) {
-	if nsID == 0 {
+func (at *ActivityTree) SetBaseMountNamespace(cgroupInode uint64, nsID uint32) {
+	if cgroupInode == 0 || nsID == 0 {
 		return
 	}
-	if at.baseMountNamespaceIDs == nil {
-		at.baseMountNamespaceIDs = make(map[uint32]int)
+	if at.baseMountNSByCgroup == nil {
+		at.baseMountNSByCgroup = make(map[uint64]uint32)
 	}
-	at.baseMountNamespaceIDs[nsID]++
+	at.baseMountNSByCgroup[cgroupInode] = nsID
 }
 
-func (at *ActivityTree) RemoveBaseMountNamespaceID(nsID uint32) {
-	if nsID == 0 || at.baseMountNamespaceIDs == nil {
+func (at *ActivityTree) RemoveBaseMountNamespace(cgroupInode uint64) {
+	if cgroupInode == 0 || at.baseMountNSByCgroup == nil {
 		return
 	}
-	if at.baseMountNamespaceIDs[nsID] <= 1 {
-		delete(at.baseMountNamespaceIDs, nsID)
-		return
-	}
-	at.baseMountNamespaceIDs[nsID]--
+	delete(at.baseMountNSByCgroup, cgroupInode)
 }
 
-func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
-	isBase := nsID != 0 && at.baseMountNamespaceIDs[nsID] > 0
+func (at *ActivityTree) ClaimMountNamespaceSeed(imageTagID uint64, nsID uint32) bool {
+	if nsID == 0 || imageTagID == 0 {
+		return false
+	}
+	if at.seededMountNamespaceIDs == nil {
+		at.seededMountNamespaceIDs = make(map[uint64]map[uint32]struct{})
+	}
+	ids := at.seededMountNamespaceIDs[imageTagID]
+	if ids == nil {
+		ids = make(map[uint32]struct{})
+		at.seededMountNamespaceIDs[imageTagID] = ids
+	}
+	if _, ok := ids[nsID]; ok {
+		return false
+	}
+	ids[nsID] = struct{}{}
+	return true
+}
 
-	key := mountNodeKey{mountPoint: mountPoint, filesystem: filesystem, mountFlags: mountFlags}
+func (at *ActivityTree) isBaseMountNamespace(cgroupInode uint64, nsID uint32) bool {
+	if cgroupInode == 0 || nsID == 0 {
+		return false
+	}
+	return at.baseMountNSByCgroup[cgroupInode] == nsID
+}
+
+func (at *ActivityTree) InsertMount(cgroupInode uint64, nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
+	isBase := at.isBaseMountNamespace(cgroupInode, nsID)
+
+	key := mountNodeKey{mountPoint: mountPoint, filesystem: filesystem, mountFlags: mountFlags, inBaseNamespace: isBase}
 	if mn, ok := at.mountIndex[key]; ok {
 		if !dryRun {
 			mn.MountRoot = mountRoot
 			mn.AppendImageTagID(imageTagID, timestamp)
-			if isBase {
-				mn.InBaseNamespace = true
-			}
 		}
 		return false
 	}
@@ -111,6 +131,11 @@ func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesyst
 func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, generationType NodeGenerationType, res *resolvers.EBPFResolvers, dryRun bool) bool {
 	m := &event.Mount.Mount
 
+	var cgroupInode uint64
+	if event.ProcessContext != nil {
+		cgroupInode = event.ProcessContext.Process.CGroup.CGroupPathKey.Inode
+	}
+
 	mountPoint := m.Path
 	if res != nil {
 		if resolved, _, _, err := res.MountResolver.ResolveMountPath(m.MountID, event.ProcessContext.Process.Pid); err == nil && resolved != "" {
@@ -118,5 +143,5 @@ func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, 
 		}
 	}
 
-	return at.InsertMount(m.NamespaceInode, mountPoint, m.RootStr, m.FSType, m.MountFlags, imageTagID, generationType, event.ResolveEventTime(), dryRun)
+	return at.InsertMount(cgroupInode, m.NamespaceInode, mountPoint, m.RootStr, m.FSType, m.MountFlags, imageTagID, generationType, event.ResolveEventTime(), dryRun)
 }

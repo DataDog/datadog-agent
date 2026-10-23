@@ -1542,6 +1542,10 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
 			}
 
+			if event.PIDContext.MntNS != 0 {
+				p.Resolvers.ProcessResolver.UpdateMntNS(entry, event.PIDContext.MntNS)
+			}
+
 			// Attempt to repair the lineage of processes that were orphaned
 			// during subreaper reparenting (the exit tracepoint may fire
 			// before the kernel has completed forget_original_parent).
