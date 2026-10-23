@@ -266,6 +266,14 @@ func (d *safeDeviceImpl) GetPlatformInfo() (nvml.PlatformInfo, error) {
 	return info, NewNvmlAPIErrorOrNil("GetPlatformInfo", ret)
 }
 
+func (d *safeDeviceImpl) GetNumaNodeId() (int, error) { //nolint:revive // Maintaining consistency with go-nvml API naming
+	if err := d.lib.lookup(toNativeName("GetNumaNodeId")); err != nil {
+		return 0, err
+	}
+	node, ret := d.nvmlDevice.GetNumaNodeId()
+	return node, NewNvmlAPIErrorOrNil("GetNumaNodeId", ret)
+}
+
 func (d *safeDeviceImpl) GetSerial() (string, error) {
 	if err := d.lib.lookup(toNativeName("GetSerial")); err != nil {
 		return "", err

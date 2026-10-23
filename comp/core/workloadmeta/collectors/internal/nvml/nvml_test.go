@@ -47,7 +47,10 @@ func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
 	config := config.NewMock(t)
 	config.SetInTest("gpu.enabled", true)
 
-	return newCollector(store, config, noopsimpl.NewComponent())
+	c := newCollector(store, config, noopsimpl.NewComponent())
+	// Keep tests independent of the host's PCI devices.
+	c.pciDevicesRoots = []string{t.TempDir()}
+	return c
 }
 
 func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
@@ -163,6 +166,7 @@ func TestPullPlatformInfo(t *testing.T) {
 	// Values reported by a GB200 NVL72 compute tray.
 	var chassisSerial [16]uint8
 	copy(chassisSerial[:], "1821825880999")
+	fabricGUID := [16]uint8{0xd4, 0x70, 0x91, 0xf5, 0x54, 0xc4, 0x05, 0x85}
 	parentIdx := testutil.DefaultMIGParentDeviceIdx
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
@@ -170,7 +174,10 @@ func TestPullPlatformInfo(t *testing.T) {
 		testutil.WithDefaultMIGDevices(),
 		testutil.WithDeviceOptions(parentIdx, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 			d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
-				return nvml.PlatformInfo{ChassisSerialNumber: chassisSerial, SlotNumber: 20, TrayIndex: 10, HostId: 1, ModuleId: 2}, nvml.SUCCESS
+				return nvml.PlatformInfo{IbGuid: fabricGUID, ChassisSerialNumber: chassisSerial, SlotNumber: 20, TrayIndex: 10, HostId: 1, ModuleId: 2}, nvml.SUCCESS
+			}
+			d.GetNumaNodeIdFunc = func() (int, nvml.Return) {
+				return 1, nvml.SUCCESS
 			}
 			d.GetSerialFunc = func() (string, nvml.Return) {
 				return "1650825051135", nvml.SUCCESS
@@ -190,6 +197,8 @@ func TestPullPlatformInfo(t *testing.T) {
 		if !withPlatform[gpu.ID] {
 			require.Emptyf(t, gpu.ChassisSerial, "unexpected chassis serial for GPU %s", gpu.ID)
 			require.Emptyf(t, gpu.BoardSerial, "unexpected board serial for GPU %s", gpu.ID)
+			require.Emptyf(t, gpu.FabricGUID, "unexpected fabric GUID for GPU %s", gpu.ID)
+			require.Nilf(t, gpu.NUMANode, "unexpected NUMA node for GPU %s", gpu.ID)
 			continue
 		}
 		require.Equalf(t, "1821825880999", gpu.ChassisSerial, "GPU %s", gpu.ID)
@@ -197,7 +206,64 @@ func TestPullPlatformInfo(t *testing.T) {
 		require.Equalf(t, uint8(10), gpu.TrayIndex, "GPU %s", gpu.ID)
 		require.Equalf(t, uint8(2), gpu.ModuleID, "GPU %s", gpu.ID)
 		require.Equalf(t, "1650825051135", gpu.BoardSerial, "GPU %s", gpu.ID)
+		require.Equalf(t, "0x8505c454f59170d4", gpu.FabricGUID, "GPU %s", gpu.ID)
+		require.NotNilf(t, gpu.NUMANode, "GPU %s", gpu.ID)
+		require.Equalf(t, 1, *gpu.NUMANode, "GPU %s", gpu.ID)
 	}
+}
+
+func TestPCINUMANode(t *testing.T) {
+	hostSys, containerSys := t.TempDir(), t.TempDir()
+	writeNUMA := func(root, address, value string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, address), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, address, "numa_node"), []byte(value), 0o644))
+	}
+	writeNUMA(containerSys, "0008:01:00.0", "0\n")
+	writeNUMA(containerSys, "0019:01:00.0", "1\n")
+	writeNUMA(hostSys, "0019:01:00.0", "1\n")
+	writeNUMA(containerSys, "0000:00:1e.0", "-1\n")
+	roots := []string{hostSys, containerSys}
+
+	node, err := pciNUMANode(roots, "0008:01:00.0") // only in the second root
+	require.NoError(t, err)
+	require.Equal(t, 0, node)
+
+	node, err = pciNUMANode(roots, "00000019:01:00.0") // 8-digit domain from NVML
+	require.NoError(t, err)
+	require.Equal(t, 1, node)
+
+	node, err = pciNUMANode(roots, "0000:00:1E.0") // unknown to the kernel
+	require.NoError(t, err)
+	require.Equal(t, -1, node)
+
+	_, err = pciNUMANode(roots, "0009:01:00.0")
+	require.Error(t, err)
+}
+
+func TestPullNUMANodeFromSysfs(t *testing.T) {
+	// NVML doesn't support GetNumaNodeId (default mock), so the collector reads sysfs.
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t)
+	c := newTestCollector(t, wmetaMock)
+	root := c.pciDevicesRoots[0]
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "0000:00:1e.0"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "0000:00:1e.0", "numa_node"), []byte("1\n"), 0o644))
+
+	c.Pull(context.Background())
+
+	gpus := wmetaMock.ListGPUs()
+	require.NotEmpty(t, gpus)
+	for _, gpu := range gpus {
+		require.NotNilf(t, gpu.NUMANode, "GPU %s", gpu.ID)
+		require.Equalf(t, 1, *gpu.NUMANode, "GPU %s", gpu.ID)
+	}
+}
+
+func TestPlatformFabricGUID(t *testing.T) {
+	// Bytes as returned on a GB200 GPU; nvidia-smi shows "GPU Fabric GUID: 0x8505c454f59170d4".
+	info := nvml.PlatformInfo{IbGuid: [16]uint8{0xd4, 0x70, 0x91, 0xf5, 0x54, 0xc4, 0x05, 0x85}}
+	require.Equal(t, "0x8505c454f59170d4", platformFabricGUID(info))
+	require.Empty(t, platformFabricGUID(nvml.PlatformInfo{}))
 }
 
 func TestPullPlatformInfoHGXB200(t *testing.T) {

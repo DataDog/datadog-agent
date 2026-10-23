@@ -10,6 +10,7 @@ package nvml
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"maps"
@@ -34,6 +35,7 @@ import (
 	gpucontainers "github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,6 +65,9 @@ type collector struct {
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
 	// lost GPUs keep the attributes that can no longer be queried from NVML.
 	lastPublishedGPUs map[string]*workloadmeta.GPU
+	// pciDevicesRoots are the sysfs PCI device directories used to read the
+	// NUMA node when NVML doesn't report it, in order of preference.
+	pciDevicesRoots []string
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -146,6 +151,8 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.TrayIndex = prev.TrayIndex
 			gpuDeviceInfo.ModuleID = prev.ModuleID
 			gpuDeviceInfo.BoardSerial = prev.BoardSerial
+			gpuDeviceInfo.FabricGUID = prev.FabricGUID
+			gpuDeviceInfo.NUMANode = prev.NUMANode
 			gpuDeviceInfo.MaxClockRates = prev.MaxClockRates
 		}
 		return
@@ -175,8 +182,18 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		}
 	}
 
+	numaNode, err := physicalDevice.GetNumaNodeId()
+	if err != nil {
+		// Not supported on all drivers (e.g. GB200 on R580); sysfs has it for every PCI device.
+		numaNode, err = pciNUMANode(c.pciDevicesRoots, gpuDeviceInfo.PCIBusID)
+	}
+	if err == nil && numaNode >= 0 {
+		gpuDeviceInfo.NUMANode = &numaNode
+	}
+
 	// Platform info is only populated on rack-scale systems; other GPUs report an empty chassis serial.
 	if platformInfo, err := physicalDevice.GetPlatformInfo(); err == nil {
+		gpuDeviceInfo.FabricGUID = platformFabricGUID(platformInfo)
 		if chassisSerial := platformChassisSerial(platformInfo); chassisSerial != "" {
 			gpuDeviceInfo.ChassisSerial = chassisSerial
 			gpuDeviceInfo.SlotNumber = platformInfo.SlotNumber
@@ -227,6 +244,37 @@ func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
 	}
 
 	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
+}
+
+// pciNUMANode reads the NUMA node of a PCI device from sysfs. It returns -1
+// when the kernel doesn't know it.
+func pciNUMANode(roots []string, pciBusID string) (int, error) {
+	// sysfs uses a 4-digit PCI domain; NVML may report 8 digits.
+	address := strings.ToLower(pciBusID)
+	if domain, rest, ok := strings.Cut(address, ":"); ok && len(domain) > 4 {
+		address = domain[len(domain)-4:] + ":" + rest
+	}
+
+	lastErr := errors.New("no sysfs PCI devices directory")
+	for _, root := range roots {
+		content, err := os.ReadFile(filepath.Join(root, address, "numa_node"))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return strconv.Atoi(strings.TrimSpace(string(content)))
+	}
+	return -1, lastErr
+}
+
+// platformFabricGUID formats the NVLink fabric GUID like nvidia-smi
+// ("0x" + the first 8 bytes, little endian), or "" when not reported.
+func platformFabricGUID(info nvml.PlatformInfo) string {
+	guid := binary.LittleEndian.Uint64(info.IbGuid[:8])
+	if guid == 0 {
+		return ""
+	}
+	return fmt.Sprintf("0x%016x", guid)
 }
 
 // platformChassisSerial returns the NUL-padded chassis serial as a string.
@@ -290,6 +338,9 @@ func newCollector(store workloadmeta.Component, config config.Component, tm tele
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
 		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
+		// The host sysfs is often only partly mounted in containers, but the PCI
+		// devices tree isn't namespaced, so the container's own /sys works too.
+		pciDevicesRoots: []string{kernel.HostSys("bus", "pci", "devices"), "/sys/bus/pci/devices"},
 	}
 
 	if config != nil {

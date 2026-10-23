@@ -59,6 +59,12 @@ tags:
   gpu_board_serial:
     regex: "^[a-z0-9_.-]+$"
     optional: true
+  gpu_numa_node:
+    regex: "^\\d+$"
+    optional: true
+  gpu_fabric_guid:
+    regex: "^0x[0-9a-f]{16}$"
+    optional: true
   gpu_host:
     regex: "^true$"
   pid:
@@ -122,6 +128,8 @@ tagsets:
       - gpu_tray_index
       - gpu_module_id
       - gpu_board_serial
+      - gpu_numa_node
+      - gpu_fabric_guid
       - gpu_host
   nvlink:
     tags:

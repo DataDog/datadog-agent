@@ -2403,6 +2403,13 @@ type GPU struct {
 	// superchip on GB200. It is set only when ChassisSerial is set.
 	BoardSerial string
 
+	// FabricGUID is the GPU's NVLink fabric GUID from NVML platform info (not an
+	// InfiniBand HCA GUID). Empty when not reported.
+	FabricGUID string
+
+	// NUMANode is the NUMA node closest to the GPU. Nil when not reported.
+	NUMANode *int
+
 	// NVLinkVersion is the version reported by the GPU's NVLink links.
 	NVLinkVersion string
 

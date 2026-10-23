@@ -4468,6 +4468,7 @@ func TestHandleGPU(t *testing.T) {
 	}
 
 	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+	numaNode := 0
 
 	tests := []struct {
 		name     string
@@ -4492,6 +4493,8 @@ func TestHandleGPU(t *testing.T) {
 				TrayIndex:         10,
 				ModuleID:          2,
 				BoardSerial:       "1650825051135",
+				NUMANode:          &numaNode,
+				FabricGUID:        "0x8505c454f59170d4",
 				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
@@ -4519,6 +4522,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_tray_index:10",
 						"gpu_module_id:2",
 						"gpu_board_serial:1650825051135",
+						"gpu_numa_node:0",
+						"gpu_fabric_guid:0x8505c454f59170d4",
 					},
 					StandardTags: []string{},
 				},

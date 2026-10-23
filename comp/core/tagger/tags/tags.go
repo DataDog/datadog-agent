@@ -181,6 +181,10 @@ const (
 	GPUModuleID = "gpu_module_id"
 	// GPUBoardSerial is the tag for the board serial number of the GPU
 	GPUBoardSerial = "gpu_board_serial"
+	// GPUNUMANode is the tag for the NUMA node closest to the GPU
+	GPUNUMANode = "gpu_numa_node"
+	// GPUFabricGUID is the tag for the NVLink fabric GUID of the GPU
+	GPUFabricGUID = "gpu_fabric_guid"
 	// GPUNVLinkVersion is the tag for the GPU's NVLink version.
 	GPUNVLinkVersion = "gpu_nvlink_version"
 	// GPUNVLinkCapable is the tag indicating whether the GPU has one or more NVLink links.

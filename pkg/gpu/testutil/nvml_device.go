@@ -171,6 +171,9 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		GetSerialFunc: func() (string, nvml.Return) {
 			return "", nvml.ERROR_NOT_SUPPORTED
 		},
+		GetNumaNodeIdFunc: func() (int, nvml.Return) {
+			return 0, nvml.ERROR_NOT_SUPPORTED
+		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
 				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS

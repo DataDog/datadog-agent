@@ -1033,6 +1033,12 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	if gpu.BoardSerial != "" {
 		tagList.AddLow(tags.GPUBoardSerial, strings.ToLower(gpu.BoardSerial))
 	}
+	if gpu.NUMANode != nil {
+		tagList.AddLow(tags.GPUNUMANode, strconv.Itoa(*gpu.NUMANode))
+	}
+	if gpu.FabricGUID != "" {
+		tagList.AddLow(tags.GPUFabricGUID, gpu.FabricGUID)
+	}
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
 	}
