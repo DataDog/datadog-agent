@@ -32,6 +32,7 @@ go_library(
             "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@in_yaml_go_yaml_v3//:yaml",
+            "@io_k8s_apimachinery//pkg/api/resource",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:darwin": [
@@ -67,6 +68,7 @@ go_library(
             "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@in_yaml_go_yaml_v3//:yaml",
+            "@io_k8s_apimachinery//pkg/api/resource",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:netbsd": [

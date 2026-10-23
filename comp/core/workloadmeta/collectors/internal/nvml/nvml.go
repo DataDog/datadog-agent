@@ -341,6 +341,10 @@ func (c *collector) Pull(ctx context.Context) error {
 			return fmt.Errorf("failed to get all devices: %w", err)
 		}
 
+		// Resolved before the devices are published, as it says which of
+		// them KAI shares.
+		kai := c.resolveKAIFractions(c.deviceCache)
+
 		// add/update current devices
 		currentUUIDs := map[string]struct{}{}
 		pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
@@ -358,6 +362,9 @@ func (c *collector) Pull(ctx context.Context) error {
 			gpu.Healthy = !unhealthy
 
 			uuid := dev.GetDeviceInfo().UUID
+			if _, shared := kai.sharedGPUs[uuid]; shared {
+				gpu.SharingMode = workloadmeta.GPUSharingModeKAIFraction
+			}
 			currentUUIDs[uuid] = struct{}{}
 			c.lastPublishedGPUs[uuid] = gpu
 			events = append(events, workloadmeta.CollectorEvent{
@@ -398,7 +405,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(c.deviceCache)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache, kai)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
@@ -500,8 +507,9 @@ var migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 // pkg/gpu/containers cannot make on a DRA node, where the allocated device name
 // is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID,
 // and that it cannot make at all for a KAI fraction, which never appears as an
-// allocation.
-func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
+// allocation. kai holds the KAI fractions resolved for this pull, see
+// resolveKAIFractions.
+func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai kaiFractions) []workloadmeta.CollectorEvent {
 	var events []workloadmeta.CollectorEvent
 	// Containers that still claim a device, whether or not this pull could
 	// resolve it. Retraction keys off this rather than off resolution success:
@@ -514,11 +522,7 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []w
 	// lives on a different pod than the workload -- so it is resolved up front
 	// and merged into each container's UUIDs below, rather than inside the
 	// loop.
-	var kai kaiFractions
-	if c.kaiSchedulerEnabled {
-		kai = c.kaiFractionalGPUs(deviceCache)
-		maps.Copy(claiming, kai.claiming)
-	}
+	maps.Copy(claiming, kai.claiming)
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -616,6 +620,9 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []w
 					ID:   container.ID,
 				},
 				GPUDeviceIDs: uuids,
+				// Only KAI fractions carry a share; DRA devices are allocated
+				// to the container whole.
+				GPUShares: kai.sharesByContainer[container.ID],
 			},
 		})
 		published[container.ID] = uuids
