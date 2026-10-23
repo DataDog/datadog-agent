@@ -47,6 +47,7 @@ FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION
 LABEL maintainer "Datadog <package@datadoghq.com>"
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
