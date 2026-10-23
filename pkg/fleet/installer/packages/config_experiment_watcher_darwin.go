@@ -200,6 +200,15 @@ func superviseExperiment(ctx context.Context, deadline launchd.Deadline, token s
 				continue
 			}
 			if !expired {
+				if !experimentConfigDeployed() {
+					// A promote that published the configuration but whose hook never handed the
+					// jobs back. revertFromWatcher waits for a promote still under way and only
+					// acts if the deadline is still this experiment's once it is done.
+					if _, err := revertFromWatcher(ctx, deadline, token, "experiment configuration no longer deployed"); err != nil {
+						return err
+					}
+					return nil
+				}
 				continue
 			}
 			if _, err := revertFromWatcher(ctx, deadline, token, "experiment deadline expired"); err != nil {
@@ -208,6 +217,18 @@ func superviseExperiment(ctx context.Context, deadline launchd.Deadline, token s
 			return nil
 		}
 	}
+}
+
+// experimentConfigDeployed reports whether the experiment configuration directory is still
+// deployed. A state that cannot be read counts as deployed: this check only ever ends an experiment
+// early, and the deadline still bounds it.
+func experimentConfigDeployed() bool {
+	state, err := configExperimentDirs.GetState()
+	if err != nil {
+		log.Warnf("watcher: could not read the configuration state: %v", err)
+		return true
+	}
+	return state.ExperimentDeploymentID != ""
 }
 
 // failSafeRevert reverts the experiment the watcher can no longer supervise, cause saying why, and

@@ -213,3 +213,50 @@ func TestFailSafeRevertDoesNothingOnceStopped(t *testing.T) {
 		assert.True(t, l.isLoaded(label+"-exp"))
 	}
 }
+
+// TestResumeFinishesAPromoteInterruptedBeforeItsHook covers a daemon that died between promoting
+// the experiment configuration and handing the jobs back: the deadline is still in force but the
+// configuration is no longer deployed, so the next start hands the jobs back to the stable set
+// instead of resuming the experiment on the stable configuration.
+func TestResumeFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	watchers := stubConfigExperimentWatcher(t)
+	stubConfigExperimentDirs(t)
+	require.NoError(t, experimentDeadline().Write(time.Hour))
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+	assert.Zero(t, *watchers, "no watcher should be launched for an experiment being handed back")
+	for _, target := range launchctlCalls(*calls, "kickstart") {
+		assert.NotContains(t, target, "-exp", "the experiment must not be resumed")
+	}
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
+// TestWatcherFinishesAPromoteInterruptedBeforeItsHook is the same window seen by a watcher that
+// survived: once the configuration is no longer deployed and no installer command holds the lock,
+// it hands the jobs back rather than running the experiment set until the deadline.
+func TestWatcherFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
+	original := deadlineTickInterval
+	deadlineTickInterval = 5 * time.Millisecond
+	t.Cleanup(func() { deadlineTickInterval = original })
+	l, _, experimentPath := runningExperiment(t)
+
+	done := make(chan error, 1)
+	go func() { done <- watchExperiment(context.Background()) }()
+	require.Eventually(t, func() bool { return l.isLoaded(installerJob + "-exp") }, 5*time.Second, time.Millisecond)
+	// What PromoteExperiment leaves: the experiment directory swapped in as etc, etc-exp resting.
+	require.NoError(t, configExperimentDirs.PromoteExperiment(context.Background()))
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the watcher should have handed the jobs back")
+	}
+	assertReverted(t, l, experimentPath)
+}

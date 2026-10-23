@@ -63,6 +63,19 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
+	// The installer publishes the experiment configuration before the experiment starts, and only
+	// promotes or discards it once a stop or promote is under way. A deadline still in force over a
+	// configuration that is no longer deployed is a promote whose hook never got to hand the jobs
+	// back -- the previous daemon died in between. Resuming would run the experiment job set on the
+	// stable configuration until the deadline; finish the hand-back instead.
+	if state, err := configExperimentDirs.GetState(); err != nil {
+		log.Warnf("resume: could not read the configuration state, resuming anyway: %v", err)
+	} else if state.ExperimentDeploymentID == "" {
+		log.Warnf("resume: the experiment configuration is no longer deployed, handing the jobs back to the stable set")
+		_, err := revertFromResume(ctx, deadline, token, "experiment configuration no longer deployed")
+		return err
+	}
+
 	log.Infof("resume: configuration experiment still within its deadline, resuming supervision")
 	// A daemon restart does not take the previous watcher with it: it is a detached process. It is
 	// still armed on the pids Resume is about to bounce, so it would read their termination as a
