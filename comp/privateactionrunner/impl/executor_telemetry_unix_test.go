@@ -21,9 +21,7 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 func TestExecutorTelemetryLifecycle(t *testing.T) {
@@ -99,20 +97,4 @@ func TestExecutorTelemetryLifecycle(t *testing.T) {
 			}
 		})
 	}
-}
-
-type telemetryTestRCClient struct{}
-
-func (telemetryTestRCClient) Subscribe(string, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-}
-func (telemetryTestRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
-	return state.ConfigTUFProof{}, false
-}
-
-type telemetryTestKeysManager struct{}
-
-func (telemetryTestKeysManager) Start(context.Context) {}
-func (telemetryTestKeysManager) WaitForReady()         {}
-func (telemetryTestKeysManager) GetKey(string) (types.DecodedKey, *types.DirectorKeyProof) {
-	return nil, nil
 }
