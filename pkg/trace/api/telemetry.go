@@ -190,6 +190,11 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 	var endpoints []*config.Endpoint
 	if conf.TelemetryConfig != nil {
 		for _, endpoint := range conf.TelemetryConfig.Endpoints {
+			if endpoint.HasPendingDelegatedAuth {
+				// A pending delegated-auth endpoint has no key yet; skip it rather than
+				// send with an empty one.
+				continue
+			}
 			u, err := url.Parse(endpoint.Host)
 			if err != nil {
 				log.Errorf("Error parsing apm_config.telemetry endpoint %q: %v", endpoint.Host, err)

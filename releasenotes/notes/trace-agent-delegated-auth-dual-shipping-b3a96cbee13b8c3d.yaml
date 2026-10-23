@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Add delegated authentication (Workload Identity Federation) support for trace-agent dual
+    shipping. A ``DELA[...]`` directive can now be used in place of a static API key in
+    ``apm_config.additional_endpoints``; the trace agent resolves it to an auto-refreshed
+    intake key and dual-ships traces and stats to the second destination once the credential
+    is available, adopting rotated keys as they are refreshed. Payloads for a destination
+    still waiting for its key are held while its queue has room, and dropped with a metric
+    once it is full, so the primary destination keeps shipping while the credential is
+    pending. Startup validation accepts a pending delegated-auth destination, so
+    ``apm_config.traces_send_to_main_endpoint: false`` with only delegated-auth additional
+    endpoints no longer fails the trace agent at startup.
