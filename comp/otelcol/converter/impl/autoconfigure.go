@@ -95,17 +95,19 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	if slices.Contains(enabledFeatures, "infraattributes") {
 		c.addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor, pipelineAll, false)
 	}
+	// prometheus receiver
+	if slices.Contains(enabledFeatures, "prometheus") {
+		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	}
 	// cumulativetodelta processor (metrics pipelines only — the processor only
 	// implements CreateMetrics, so it must never land in a traces/logs pipeline).
 	// warnOnMixedExporters: it changes metric temporality for every exporter in the
 	// pipeline, so warn (but still inject) when a metrics pipeline also fans out to a
 	// non-Datadog exporter, and let the user decide whether to split it.
+	// It runs after the prometheus receiver so that the internal telemetry pipeline,
+	// whose metrics are cumulative, gets it too.
 	if slices.Contains(enabledFeatures, "cumulativetodelta") {
 		c.addProcessorToPipelinesWithDDExporter(conf, cumulativeToDeltaProcessor, pipelineMetrics, true)
-	}
-	// prometheus receiver
-	if slices.Contains(enabledFeatures, "prometheus") {
-		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
 	}
 
 	// add datadog agent sourced config

@@ -22,7 +22,7 @@ import (
 
 func TestDaemonSetRolloutFactory_Name(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewDaemonSetRolloutFactory(client, tracker)
@@ -32,7 +32,7 @@ func TestDaemonSetRolloutFactory_Name(t *testing.T) {
 
 func TestDaemonSetRolloutFactory_ExpectedType(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewDaemonSetRolloutFactory(client, tracker)
@@ -44,7 +44,7 @@ func TestDaemonSetRolloutFactory_ExpectedType(t *testing.T) {
 
 func TestDaemonSetRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewDaemonSetRolloutFactory(client, tracker)
@@ -60,7 +60,7 @@ func TestDaemonSetRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 
 func TestDaemonSetRolloutTracking_OngoingRollout(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewDaemonSetRolloutFactory(client, tracker).(*daemonSetRolloutFactory)
@@ -101,7 +101,7 @@ func TestDaemonSetRolloutTracking_OngoingRollout(t *testing.T) {
 
 func TestDaemonSetRolloutTracking_CompletedRollout(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewDaemonSetRolloutFactory(client, tracker).(*daemonSetRolloutFactory)

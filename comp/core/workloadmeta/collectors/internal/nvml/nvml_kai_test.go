@@ -20,6 +20,9 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -232,6 +235,7 @@ func newKAICollector(store workloadmeta.Component) *collector {
 	return &collector{
 		store:                  store,
 		kaiSchedulerEnabled:    true,
+		kaiAssignmentFailed:    newKAIAssignmentFailedCounter(noopsimpl.NewComponent()),
 		seenContainerGPUs:      make(map[string]struct{}),
 		publishedContainerGPUs: make(map[string][]string),
 	}
@@ -663,7 +667,7 @@ func TestKAIFractionContainerID(t *testing.T) {
 				Containers:     test.containers,
 				InitContainers: test.initContainers,
 			}
-			require.Equal(t, test.want, kaiFractionContainerID(pod))
+			require.Equal(t, test.want, newKAICollector(nil).kaiFractionContainerID(pod))
 		})
 	}
 }
@@ -674,10 +678,10 @@ func TestNewCollectorReadsKAISchedulerSetting(t *testing.T) {
 	store := testutil.GetWorkloadMetaMock(t)
 
 	cfg := config.NewMock(t)
-	require.False(t, newCollector(store, cfg).kaiSchedulerEnabled, "gpu.kai_scheduler.enabled must default to off")
+	require.False(t, newCollector(store, cfg, noopsimpl.NewComponent()).kaiSchedulerEnabled, "gpu.kai_scheduler.enabled must default to off")
 
 	cfg.SetInTest("gpu.kai_scheduler.enabled", true)
-	require.True(t, newCollector(store, cfg).kaiSchedulerEnabled)
+	require.True(t, newCollector(store, cfg, noopsimpl.NewComponent()).kaiSchedulerEnabled)
 }
 
 func TestCreateContainerGPUEventsPublishesKAIFractions(t *testing.T) {
@@ -901,4 +905,126 @@ func TestCreateContainerGPUEventsMergesKAIWithDRA(t *testing.T) {
 
 	require.ElementsMatch(t, []string{draUUID, kaiGPUSharedByFracAAndB}, published[containerID],
 		"the container's DRA device and its KAI fraction must both be published, in one event")
+}
+
+// kaiAssignmentFailures returns the assignment_failed counter by reason.
+func kaiAssignmentFailures(tm telemetry.Mock) map[string]float64 {
+	failures := make(map[string]float64)
+	// Not gathered until the first Inc.
+	metrics, _ := tm.GetCountMetric(kaiTelemetrySubsystem, "assignment_failed")
+	for _, metric := range metrics {
+		failures[metric.Tags()["reason"]] = metric.Value()
+	}
+	return failures
+}
+
+func TestKAIAssignmentFailedTelemetry(t *testing.T) {
+	fixtures := allKAIFixturePods(t)
+	fractionPod := func(name string, annotations map[string]string, containers ...string) *workloadmeta.KubernetesPod {
+		pod := &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: name},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        name,
+				Namespace:   "kai-test",
+				Labels:      map[string]string{kaiGPUGroupLabel: fixtures["frac-a"].Labels[kaiGPUGroupLabel]},
+				Annotations: annotations,
+			},
+			Phase: podPhaseRunning,
+		}
+		for _, container := range containers {
+			pod.Containers = append(pod.Containers, workloadmeta.OrchestratorContainer{ID: name + "-" + container, Name: container})
+		}
+		return pod
+	}
+	withFixtures := func(extra ...*workloadmeta.KubernetesPod) []*workloadmeta.KubernetesPod {
+		return append(podSlice(fixtures), extra...)
+	}
+	nameAnnotation := map[string]string{kaiFractionContainerNameAnnotation: "gpu-workload"}
+
+	// Fractional pods whose reservation pods are not in the store.
+	pending := loadKAIFixturePods(t, "pods-kai-test.yaml")
+	for _, pod := range pending {
+		pod.Phase = "Pending"
+	}
+	terminating := loadKAIFixturePods(t, "pods-kai-test.yaml")
+	for _, pod := range terminating {
+		pod.DeletionTimestamp = &pod.CreationTimestamp
+	}
+
+	// A reservation pod before it writes its GPU annotation. KAI binds no
+	// fractional pod to its group until then.
+	unannotated := loadKAIFixturePods(t, "pods-kai-resource-reservation.yaml")["gpu-reservation-6d8e72c077c10ec9"]
+	delete(unannotated.Annotations, kaiReservationGPUAnnotation)
+
+	running := loadKAIFixturePods(t, "pods-kai-test.yaml")
+
+	notCreated := fractionPod("not-created", nameAnnotation, "sidecar")
+	notCreated.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{{Name: "gpu-workload"}, {Name: "sidecar"}}
+
+	tests := []struct {
+		name    string
+		pods    []*workloadmeta.KubernetesPod
+		reason  string
+		perPull int
+	}{
+		{name: "pending pods without a reservation pod", pods: podSlice(pending)},
+		{name: "terminating pods without a reservation pod", pods: podSlice(terminating)},
+		{name: "reservation pod without its GPU annotation yet", pods: []*workloadmeta.KubernetesPod{unannotated}},
+		{name: "named container not created yet", pods: withFixtures(notCreated)},
+		{name: "pod not managed by KAI", pods: withFixtures(&workloadmeta.KubernetesPod{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "plain"},
+			Phase:      podPhaseRunning,
+			Containers: []workloadmeta.OrchestratorContainer{{ID: "plain-app", Name: "app"}, {ID: "plain-sidecar", Name: "sidecar"}},
+		})},
+		{
+			name:    "running pods without a reservation pod",
+			pods:    podSlice(running),
+			reason:  kaiReasonReservationNotFound,
+			perPull: len(running),
+		},
+		{
+			name:    "reservation pod without a GPU group",
+			pods:    withFixtures(reservationPod("orphan", "", kaiGPUOfFracC, podPhaseRunning, time.Now())),
+			reason:  kaiReasonReservationWithoutGroup,
+			perPull: 1,
+		},
+		{
+			name: "annotations for several containers",
+			pods: withFixtures(fractionPod("several", map[string]string{
+				kaiContainerAnnotationPrefix + "app.gpu-memory.request":     "7680Mi",
+				kaiContainerAnnotationPrefix + "sidecar.gpu-memory.request": "7680Mi",
+			}, "app", "sidecar")),
+			reason:  kaiReasonMultipleFractionContainers,
+			perPull: 1,
+		},
+		{
+			name:    "named container that the pod does not have",
+			pods:    withFixtures(fractionPod("typo", nameAnnotation, "sidecar")),
+			reason:  kaiReasonNamedContainerNotFound,
+			perPull: 1,
+		},
+		{
+			name:    "no annotation says which container uses the GPU",
+			pods:    withFixtures(fractionPod("ambiguous", nil, "app", "sidecar")),
+			reason:  kaiReasonUnidentifiedContainer,
+			perPull: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tm := telemetrymock.New(t)
+			c := newKAICollector(storeWithPods(t, test.pods...))
+			c.kaiAssignmentFailed = newKAIAssignmentFailedCounter(tm)
+
+			for pull := 1; pull <= 2; pull++ {
+				c.createContainerGPUEvents(kaiFixtureDeviceCache())
+				want := map[string]float64{}
+				if test.reason != "" {
+					want[test.reason] = float64(pull * test.perPull)
+				}
+				assert.Equal(t, want, kaiAssignmentFailures(tm), "after pull %d", pull)
+			}
+		})
+	}
 }

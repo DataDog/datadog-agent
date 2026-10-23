@@ -206,6 +206,9 @@ Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extens
 content in sync with source files automatically. When a new language or generator is added to the binary, its rules
 become part of the same automated workflow — you do not need to know which extensions are loaded.
 
+After deleting a package's last test file, check for an obsolete `dd_agent_go_test` rule: Gazelle can retain the macro
+and its stale source references. Remove the obsolete rule and its unused load explicitly.
+
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
@@ -390,7 +393,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
   used outside their file.
 - Rule implementation functions are always private: `_myrule_impl` for `myrule`.
 - `print()` is for debugging only. Never leave `print()` calls in committed code unless guarded by `if DEBUG:` with
-  `DEBUG = False`.
+  `DEBUG = False`, or denoting an actionable warning, whose message then starts with `WARNING: `.
 - **Prefer rules over macros.** Macros expand before analysis, making `bazel query` output hard to interpret and aspects
   unaware of them. Use macros only for targets intended to be referenced directly at the CLI.
 - Internal macro targets (not meant to be used directly) must have:

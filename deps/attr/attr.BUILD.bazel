@@ -119,9 +119,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "attr_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":attr",
-    installed_files = [":hdr_files"],
     version = "1.1.2501",
     visibility = ["//visibility:public"],
 )

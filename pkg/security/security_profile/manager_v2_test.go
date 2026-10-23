@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -404,6 +405,80 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		m.HandleSampleRefresh(3)
 		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
+}
+
+// monotonicFieldHandlers mimics the eBPF field handler: Timestamp stays zero until
+// ResolveEventTime converts TimestampRaw, an offset from boot.
+type monotonicFieldHandlers struct {
+	model.FakeFieldHandlers
+	boot time.Time
+}
+
+func (fh *monotonicFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = fh.boot.Add(time.Duration(ev.TimestampRaw))
+	}
+	return ev.Timestamp
+}
+
+// distributionRecorder records the values sent through Distribution.
+type distributionRecorder struct {
+	statsd.NoOpClient
+	values map[string][]float64
+}
+
+func (r *distributionRecorder) Distribution(name string, value float64, _ []string, _ float64) error {
+	r.values[name] = append(r.values[name], value)
+	return nil
+}
+
+func TestManagerV2_queueEventForTagResolution_resolvesTimestampFirst(t *testing.T) {
+	recorder := &distributionRecorder{values: map[string][]float64{}}
+	m := &ManagerV2{
+		config:               &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{}},
+		statsdClient:         recorder,
+		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
+		queueSize:            atomic.NewUint64(0),
+		pendingProfiles:      atomic.NewUint64(0),
+	}
+
+	const cgroupID = containerutils.CGroupID("test-cgroup")
+	// Boot 5s ago, so the first event is about 5s old when its tags resolve.
+	fh := &monotonicFieldHandlers{boot: time.Now().Add(-5 * time.Second)}
+	newEvent := func(raw time.Duration) *model.Event {
+		event := model.NewFakeEvent()
+		event.FieldHandlers = fh
+		event.TimestampRaw = uint64(raw)
+		event.ProcessContext.Process.CGroup.CGroupID = cgroupID
+		return event
+	}
+
+	first := newEvent(time.Millisecond)
+	require.True(t, first.Timestamp.IsZero())
+	m.queueEventForTagResolution(first, nil)
+
+	pending := m.profilePendingEvents[cgroupID]
+	require.NotNil(t, pending)
+	assert.False(t, pending.firstSeen.IsZero(), "firstSeen must come from the resolved event time")
+	assert.Equal(t, first.Timestamp, pending.firstSeen)
+	assert.Equal(t, 1, pending.events.Len())
+	assert.EqualValues(t, 1, m.queueSize.Load())
+
+	// A second event for the same cgroup within 10s is queued, not dropped.
+	m.queueEventForTagResolution(newEvent(2*time.Second), nil)
+	assert.Equal(t, 2, pending.events.Len())
+	assert.EqualValues(t, 2, m.queueSize.Load())
+
+	// Resolving the tags dequeues everything and reports the latency since the first event.
+	m.processEventWithResolvedTags(newEvent(3 * time.Second))
+	assert.Empty(t, m.profilePendingEvents)
+	assert.EqualValues(t, 0, m.queueSize.Load())
+
+	latencies := recorder.values[metrics.MetricSecurityProfileV2TagResolutionLatency]
+	require.Len(t, latencies, 1)
+	assert.Greater(t, latencies[0], 4.0)
+	assert.Less(t, latencies[0], 60.0)
 }
 
 const (

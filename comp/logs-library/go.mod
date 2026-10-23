@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.213
+	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.75.4
@@ -66,7 +66,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect

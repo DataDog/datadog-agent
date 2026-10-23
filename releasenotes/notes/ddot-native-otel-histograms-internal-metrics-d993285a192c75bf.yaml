@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix DDOT dropping its own cumulative metrics, such as ``otelcol_process_uptime``,
+    when the ``datadog.serializerexporter.NativeOTelHistograms`` feature gate is enabled.
+    DDOT now adds the ``cumulativetodelta`` processor to the pipeline that sends these
+    metrics, as it already does for the other metrics pipelines that export to Datadog.
