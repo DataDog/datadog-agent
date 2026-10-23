@@ -56,7 +56,14 @@ type TimeSampler struct {
 	dogStatsDLookback DogStatsDLookback
 
 	finalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
+
+	// yield, when set, is called every flushYieldEveryContexts contexts while flushSeries emits
+	// series. The worker uses it to read its intake channel during a long flush.
+	yield func()
 }
+
+// flushYieldEveryContexts is how many contexts flushSeries emits between two calls to yield.
+const flushYieldEveryContexts = 256
 
 // NewTimeSampler returns a newly initialized TimeSampler
 func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string) *TimeSampler {
@@ -204,9 +211,13 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 
 	// serieBySignature is reused for each call of dedupSerieBySerieSignature to avoid allocations.
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
+	emitted := 0
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
 		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, filterList)
+		if emitted++; s.yield != nil && emitted%flushYieldEveryContexts == 0 {
+			s.yield()
+		}
 	})
 }
 
