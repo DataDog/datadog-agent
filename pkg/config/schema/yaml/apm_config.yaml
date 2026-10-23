@@ -861,6 +861,33 @@ properties:
     tags:
     - template_section:TraceAgent
     properties:
+      apm_basic:
+        node_type: section
+        type: object
+        description: |-
+          Configure APM Basic, which injects dd-trace-c into opted-in workloads to report RED metrics
+          without sending traces. Workloads opt in with the admission.datadoghq.com/apm-basic.enabled label.
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_APM_INSTRUMENTATION_APM_BASIC_ENABLED
+            description: Set to true to inject dd-trace-c into workloads opted into APM Basic.
+          tracer_versions:
+            node_type: setting
+            type: object
+            default:
+              c: '0'
+            env_vars:
+            - DD_APM_INSTRUMENTATION_APM_BASIC_TRACER_VERSIONS
+            additionalProperties:
+              type: string
+            env_parser: json
+            description: |-
+              Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+              Defaults to the latest major version 0 of the C tracer.
       enabled:
         node_type: setting
         type: boolean
