@@ -777,6 +777,9 @@ func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 		return
 	}
 	ev.GoLabels.Resolved = true
+	if fh.resolvers.GoLabelsCtxResolver == nil {
+		return
+	}
 
 	spanID, traceID, err := fh.resolvers.GoLabelsCtxResolver.Resolve(ev.GoLabels.ID)
 	fh.resolvers.ProcessResolver.CountGoLabelsLookup(err)
