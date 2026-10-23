@@ -122,11 +122,11 @@ func getPathsReducerPatterns() []PatternReducer {
 				if err != nil {
 					return
 				}
-				// replace the pid in the path between start and end with a * only if the replaced pid is not the pid of the process node
+				// a process reading its own entry is recorded as /proc/self, like the kernel alias
 				if ctx.processNode.Process.Pid == uint32(pid) {
 					ctx.replaceBy(start, end, "self")
 				} else {
-					ctx.replaceBy(start, end, "*")
+					ctx.replaceBy(start, end, classes[classNum].placeholder)
 				}
 			},
 		},
@@ -135,7 +135,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Hint:    "task",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.replaceBy(start, end, "*")
+				ctx.replaceBy(start, end, classes[classNum].placeholder)
 			},
 		},
 		{
@@ -146,7 +146,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.replaceBy(start, end, "*")
+				ctx.replaceBy(start, end, classes[classAny].placeholder)
 			},
 		},
 		{
@@ -157,7 +157,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.replaceBy(start, end, "*")
+				ctx.replaceBy(start, end, classes[classAny].placeholder)
 			},
 		},
 		{
@@ -178,7 +178,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
-				ctx.replaceBy(start, end, "*")
+				ctx.replaceBy(start, end, classes[classContainerID].placeholder)
 			},
 		},
 		{
@@ -189,7 +189,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.replaceBy(start, end, "*")
+				ctx.replaceBy(start, end, classes[classNum].placeholder)
 			},
 		},
 		{
@@ -197,10 +197,25 @@ func getPathsReducerPatterns() []PatternReducer {
 			Hint:    "serviceaccount",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.replaceBy(start, end, "*")
+				ctx.replaceBy(start, end, typedName(ctx.path[start:end]))
 			},
 		},
 	}
+}
+
+// typedName replaces every typed token of name with its placeholder,
+// keeping separators and unusual pieces.
+// Example: "..2023_05_25_09_34_13.734441344" -> "..<date>.<num>".
+func typedName(name string) string {
+	var out strings.Builder
+	for _, tok := range tokenizeName(name) {
+		if tok.class == classLiteral {
+			out.WriteString(tok.text)
+		} else {
+			out.WriteString(classes[tok.class].placeholder)
+		}
+	}
+	return out.String()
 }
 
 func isHexChar(c byte) bool {

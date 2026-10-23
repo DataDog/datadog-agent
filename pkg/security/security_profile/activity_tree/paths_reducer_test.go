@@ -51,7 +51,7 @@ var tests = []struct {
 				},
 			},
 		},
-		want: "/proc/*/status",
+		want: "/proc/<num>/status",
 	},
 	{
 		name: "proc_3",
@@ -77,7 +77,7 @@ var tests = []struct {
 				},
 			},
 		},
-		want: "/host/proc/*/smaps",
+		want: "/host/proc/<num>/smaps",
 	},
 	{
 		name: "proc_task_1",
@@ -90,7 +90,7 @@ var tests = []struct {
 				},
 			},
 		},
-		want: "/host/proc/self/task/*/smaps",
+		want: "/host/proc/self/task/<num>/smaps",
 	},
 	{
 		name: "proc_task_1",
@@ -103,7 +103,7 @@ var tests = []struct {
 				},
 			},
 		},
-		want: "/host/proc/self/task/*/smaps",
+		want: "/host/proc/self/task/<num>/smaps",
 	},
 	{
 		name: "cgroup_1",
@@ -113,7 +113,7 @@ var tests = []struct {
 				Filesystem: "sysfs",
 			},
 		},
-		want: "/sys/fs/cgroup/kubepods.slice/kubepods-*.slice/kubepods.slice/cri-containerd-*.scope/cpuset.threads",
+		want: "/sys/fs/cgroup/kubepods.slice/kubepods-<any>.slice/kubepods.slice/cri-containerd-<any>.scope/cpuset.threads",
 	},
 	{
 		name: "proc_cgroup_1",
@@ -128,7 +128,7 @@ var tests = []struct {
 				},
 			},
 		},
-		want: "/host/proc/*/root/sys/fs/cgroup/kubepods.slice/kubepods-*.slice/kubepods.slice/cri-containerd-*.scope/cpuset.threads",
+		want: "/host/proc/<num>/root/sys/fs/cgroup/kubepods.slice/kubepods-<any>.slice/kubepods.slice/cri-containerd-<any>.scope/cpuset.threads",
 	},
 	{
 		name: "container_id_1",
@@ -138,7 +138,7 @@ var tests = []struct {
 				Filesystem: "sysfs",
 			},
 		},
-		want: "/var/run/docker/overlay2/*/merged/etc/passwd",
+		want: "/var/run/docker/overlay2/<container_id>/merged/etc/passwd",
 	},
 	{
 		name: "block_device_1",
@@ -148,7 +148,7 @@ var tests = []struct {
 				Filesystem: "sysfs",
 			},
 		},
-		want: "/host/proc/self/root/sys/devices/virtual/block/dm-*",
+		want: "/host/proc/self/root/sys/devices/virtual/block/dm-<num>",
 	},
 	{
 		name: "block_device_2",
@@ -158,14 +158,21 @@ var tests = []struct {
 				Filesystem: "sysfs",
 			},
 		},
-		want: "/sys/devices/virtual/block/loop*",
+		want: "/sys/devices/virtual/block/loop<num>",
 	},
 	{
 		name: "k8s_service_account_secret_1",
 		input: input{
 			path: "/run/secrets/kubernetes.io/serviceaccount/..2023_05_25_09_34_13.734441344/token",
 		},
-		want: "/run/secrets/kubernetes.io/serviceaccount/*/token",
+		want: "/run/secrets/kubernetes.io/serviceaccount/..<date>.<num>/token",
+	},
+	{
+		name: "k8s_service_account_secret_2",
+		input: input{
+			path: "/run/secrets/kubernetes.io/serviceaccount/..data/token",
+		},
+		want: "/run/secrets/kubernetes.io/serviceaccount/..data/token",
 	},
 }
 

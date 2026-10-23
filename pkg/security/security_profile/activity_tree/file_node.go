@@ -78,6 +78,11 @@ type FileNode struct {
 	Open           *OpenNode
 
 	Children map[string]*FileNode
+
+	// pattern is the lazily compiled matcher of a pattern node's Name.
+	pattern *compiledPattern
+	// signature caches structureSignature(Name).
+	signature string
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -104,7 +109,7 @@ func (fn *FileNode) size() int64 {
 }
 
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, isPattern bool, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
@@ -113,7 +118,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
-		IsPattern:      strings.Contains(name, "*"),
+		IsPattern:      isPattern,
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
@@ -207,9 +212,10 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. Returns whether a new entry was added and
 // the NodeBase of the leaf FileNode reached or created.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, rawRemainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	currentFn := fn
 	currentPath := remainingPath
+	currentRawPath := rawRemainingPath
 	newEntry := false
 
 	for {
@@ -220,11 +226,18 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			}
 			break
 		}
+		rawParent, nextRawParentIndex := ExtractFirstParent(currentRawPath)
 
-		child, ok := currentFn.Children[parent]
+		lastComponent := len(currentPath) <= nextParentIndex+1
+		child, ok := findChildWithPatternFallback(currentFn.Children, parent, lastComponent, stats)
 		if ok {
+			if child.IsPattern && child.Name != parent && stats != nil {
+				stats.FilePatternLookupHits++
+			}
+			reducedPath = withPatternComponent(reducedPath, currentPath, parent, child.Name)
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
+			currentRawPath = currentRawPath[nextRawParentIndex:]
 			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
 			continue
 		}
@@ -236,19 +249,20 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if currentFn.Children == nil {
 			currentFn.Children = make(map[string]*FileNode)
 		}
-		if len(currentPath) <= nextParentIndex+1 {
-			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
-			currentFn.Children[parent] = leafNode
+		isPattern := reducedComponentIsPattern(parent, rawParent)
+		if lastComponent {
+			leafNode := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, reducedPath, resolvers)
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()
-			currentFn = leafNode
+			currentFn = insertChildAndMerge(currentFn.Children, parent, leafNode, stats)
 			break
 		}
-		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
-		currentFn.Children[parent] = newChild
+		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, "", resolvers)
 		stats.SizeBytes += newChild.size()
-		currentFn = newChild
+		currentFn = insertChildAndMerge(currentFn.Children, parent, newChild, stats)
+		reducedPath = withPatternComponent(reducedPath, currentPath, parent, currentFn.Name)
 		currentPath = currentPath[nextParentIndex:]
+		currentRawPath = currentRawPath[nextRawParentIndex:]
 	}
 	return newEntry, &currentFn.NodeBase
 }

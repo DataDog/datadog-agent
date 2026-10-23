@@ -60,6 +60,7 @@ type activityTreeOpts struct {
 	pathsReducer      *activity_tree.PathsReducer
 	differentiateArgs bool
 	dnsMatchMaxDepth  int
+	pathPatterns      activity_tree.PathPatternConfig
 }
 
 // Profile represents a security profile
@@ -213,6 +214,14 @@ func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
 	}
 }
 
+// WithPathPatterns enables path-pattern merging on the profile's
+// ActivityTree with the provided configuration.
+func WithPathPatterns(cfg activity_tree.PathPatternConfig) Opts {
+	return func(p *Profile) {
+		p.treeOpts.pathPatterns = cfg
+	}
+}
+
 // New returns a new profile
 func New(opts ...Opts) *Profile {
 	p := &Profile{
@@ -235,6 +244,9 @@ func New(opts ...Opts) *Profile {
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
+	}
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
 	}
 
 	if p.selector.Tag != "" && p.selector.Tag != "*" {
@@ -762,6 +774,10 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	p.selector = newProfile.selector
 	p.ActivityTree = newProfile.ActivityTree
 	p.ActivityTree.SetType("security_profile", p)
+	// patternCfg is not serialized; re-apply on reload
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
+	}
 	p.Header = newProfile.Header
 	p.tags = newProfile.tags
 	p.versionContexts = newProfile.versionContexts

@@ -587,6 +587,15 @@ func (m *ManagerV2) persistAllProfiles() {
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	enabled := p.IsEnabled()
 
+	// Group sibling files into patterns before encoding, even in
+	// directories below the insert-time fan-out threshold.
+	p.Lock()
+	if p.ActivityTree != nil {
+		p.ActivityTree.FinalizePatterns()
+		m.retargetSampleCookies(p, p.ActivityTree.Stats.TakeMovedNodes())
+	}
+	p.Unlock()
+
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
@@ -891,7 +900,9 @@ func (m *ManagerV2) SendStats() error {
 
 	var tags [][]string
 	m.profilesLock.Lock()
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
+		profiles = append(profiles, prof)
 		if prof.IsEnabled() {
 			continue
 		}
@@ -902,6 +913,13 @@ func (m *ManagerV2) SendStats() error {
 	for _, tag := range tags {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
+		}
+	}
+
+	// Profile.SendStats takes the profile lock, so iterate outside profilesLock.
+	for _, prof := range profiles {
+		if err := prof.SendStats(m.statsdClient); err != nil {
+			seclog.Debugf("couldn't send metrics for [%s]: %v", prof.GetSelectorStr(), err)
 		}
 	}
 
@@ -1120,8 +1138,14 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
-	// Insert the event into the profile's activity tree
-	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
+	secprof.Lock()
+	inserted, processNode, eventNodeBase, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	if err == nil {
+		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
+		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
+	}
+	secprof.Unlock()
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
@@ -1130,30 +1154,34 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Register the sample cookie → (process node, event node) mapping for sample refresh events
-	if processNode != nil {
-		var sampleCookie uint64
-		switch event.GetEventType() {
-		case model.FileOpenEventType:
-			sampleCookie = event.Open.SampleCookie
-		case model.BindEventType:
-			sampleCookie = event.Bind.SampleCookie
-		case model.ConnectEventType:
-			sampleCookie = event.Connect.SampleCookie
-		case model.SyscallsEventType:
-			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
-		}
-		if sampleCookie != 0 {
-			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
-				profile:       secprof,
-				processNode:   processNode,
-				eventNodeBase: eventNodeBase,
-				imageTag:      imageTag,
-			})
-		}
-	}
-
 	return secprof, inserted
+}
+
+// registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
+func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, imageTag string) {
+	if processNode == nil {
+		return
+	}
+	var sampleCookie uint64
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		sampleCookie = event.Open.SampleCookie
+	case model.BindEventType:
+		sampleCookie = event.Bind.SampleCookie
+	case model.ConnectEventType:
+		sampleCookie = event.Connect.SampleCookie
+	case model.SyscallsEventType:
+		sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
+	}
+	if sampleCookie == 0 {
+		return
+	}
+	m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+		profile:       prof,
+		processNode:   processNode,
+		eventNodeBase: eventNodeBase,
+		imageTag:      imageTag,
+	})
 }
 
 // buildWorkloadSelector creates a workload selector from the event's container tags
@@ -1347,6 +1375,16 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	return secprof, nil
 }
 
+// pathPatternConfig returns the path-pattern merging configuration of v2
+// profiles: built-in defaults overridden by the user-facing settings.
+func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
+	cfg := activity_tree.DefaultPathPatternConfig()
+	cfg.Enabled = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsEnabled
+	cfg.MinGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinGroupSize
+	cfg.MinDateGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinDateGroupSize
+	return cfg
+}
+
 // loadProfileFromStorage attempts to load a profile from local storage.
 // Returns the loaded profile and true if successful, otherwise nil and false.
 func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
@@ -1359,6 +1397,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithSeededSyscalls(m.seededSyscalls()),
+		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 
 	// Try to load from local storage
@@ -1412,6 +1451,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
 		profile.WithSeededSyscalls(m.seededSyscalls()),
+		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
@@ -1810,6 +1850,25 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
+	}
+}
+
+// retargetSampleCookies points the cookies of prof whose event node was
+// folded by a path-pattern merge at the node that absorbed it. Callers must
+// hold prof's lock since the merge.
+func (m *ManagerV2) retargetSampleCookies(prof *profile.Profile, moved map[*activity_tree.NodeBase]*activity_tree.NodeBase) {
+	if len(moved) == 0 {
+		return
+	}
+	for _, key := range m.sampleCookieMap.Keys() {
+		entry, ok := m.sampleCookieMap.Peek(key)
+		if !ok || entry.profile != prof || entry.eventNodeBase == nil {
+			continue
+		}
+		if to, ok := moved[entry.eventNodeBase]; ok {
+			entry.eventNodeBase = to
+			m.sampleCookieMap.Add(key, entry)
+		}
 	}
 }
 
