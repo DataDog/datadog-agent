@@ -320,6 +320,24 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_CACHE_LOOKUPID
     - DD_PROCESS_AGENT_CACHE_LOOKUPID
+  connections_send_to_main_endpoint:
+    node_type: setting
+    type: boolean
+    default: true
+    env_vars:
+    - DD_PROCESS_CONFIG_CONNECTIONS_SEND_TO_MAIN_ENDPOINT
+    - DD_PROCESS_AGENT_CONNECTIONS_SEND_TO_MAIN_ENDPOINT
+    visibility: public
+    description: |-
+      For internal use. We expect to remove this setting in a future version.
+
+      When false, network connections payloads (NPM and USM) skip the main endpoint
+      (api_key + process_config.process_dd_url) and are sent only to
+      process_config.additional_endpoints. Process, container and real-time payloads
+      are unaffected.
+
+      If no usable additional endpoint remains, the Agent refuses to start rather than
+      silently dropping NPM and USM data. Read once at startup, a change requires a restart.
   drop_check_payloads:
     node_type: setting
     type: array

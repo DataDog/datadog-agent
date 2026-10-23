@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Added ``process_config.connections_send_to_main_endpoint``
+    (``DD_PROCESS_CONFIG_CONNECTIONS_SEND_TO_MAIN_ENDPOINT``), default ``true``. When set to
+    ``false``, network connections payloads (NPM and USM) skip the main endpoint and are sent
+    only to ``process_config.additional_endpoints``. Process, container and real-time payloads
+    are unaffected. The Agent refuses to start if no usable additional endpoint remains.
