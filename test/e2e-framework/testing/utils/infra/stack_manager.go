@@ -595,6 +595,12 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		},
 	}
 
+	plugins, err := pulumiPlugins()
+	if err != nil {
+		return nil, err
+	}
+	project.Plugins = plugins
+
 	// create workspace directory
 	workspaceStackDir := profile.GetWorkspacePath(stackName)
 	if err := os.MkdirAll(workspaceStackDir, 0o700); err != nil {
@@ -608,6 +614,40 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		auto.WorkDir(workspaceStackDir),
 		auto.EnvVars(defaultWorkspaceEnvVars),
 	)
+}
+
+// pulumiPlugins returns the Pulumi plugins @e2e_tests ships as runfiles, laid out per repository as
+// in Pulumi's plugin directory, or nil outside of runfiles, Pulumi then looking in that directory.
+func pulumiPlugins() (*workspace.Plugins, error) {
+	runfiles := os.Getenv("TEST_SRCDIR")
+	if runfiles == "" {
+		return nil, nil
+	}
+	repositories, err := os.ReadDir(runfiles)
+	if err != nil {
+		return nil, err
+	}
+	var providers []workspace.PluginOptions
+	for _, repository := range repositories {
+		if !repository.IsDir() {
+			continue
+		}
+		infos, err := workspace.GetPluginsFromDir(filepath.Join(runfiles, repository.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for _, info := range infos {
+			providers = append(providers, workspace.PluginOptions{
+				Name:    info.Name,
+				Version: info.Version.String(),
+				Path:    info.Path,
+			})
+		}
+	}
+	if len(providers) == 0 {
+		return nil, nil
+	}
+	return &workspace.Plugins{Providers: providers}, nil
 }
 
 // recordStackName appends stackName to the StacksFileName file in outputDir
