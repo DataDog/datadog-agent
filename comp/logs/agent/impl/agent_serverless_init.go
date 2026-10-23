@@ -79,6 +79,7 @@ func (a *logAgent) SetupPipeline(
 		a.tagger,
 		fileOpener,
 		fingerprinter,
+		false,
 	))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx

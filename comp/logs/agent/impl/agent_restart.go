@@ -143,7 +143,10 @@ func (a *logAgent) setupAgentForRestart() error {
 // Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
+	pipelineMonitor := a.pipelineProvider.GetPipelineMonitor()
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, pipelineMonitor)
+	// The transport switch built a new pipeline; the old monitor's snapshots are stale.
+	logsmetrics.RegisterPipelineMonitor(pipelineMonitor)
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()
@@ -164,6 +167,8 @@ func (a *logAgent) restartPipeline() {
 func (a *logAgent) partialStop() error {
 	a.log.Info("Completing graceful partial stop of logs-agent for restart")
 	status.Clear()
+	// Stop blaming the stale monitor; restartPipeline registers the replacement.
+	logsmetrics.RegisterPipelineMonitor(nil)
 
 	toStop := []startstop.Stoppable{
 		a.launchers,
