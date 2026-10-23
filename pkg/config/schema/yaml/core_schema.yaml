@@ -5913,6 +5913,18 @@ properties:
     default: true
     tags:
     - full-agent-only:true
+  check_sampler_periodic_flush:
+    node_type: setting
+    type: boolean
+    default: false
+    tags:
+    - full-agent-only:true
+    comment: |-
+      Reduces the memory used by checks with long runs or many metrics, which
+      otherwise hold every metric in memory until the run ends. When enabled, gauge,
+      count and monotonic count values are sent on every Agent flush without waiting
+      for the check run to end. A metric timestamp can move up to 1s forward so that
+      two points of the same series don't share a second.
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
     type: string
