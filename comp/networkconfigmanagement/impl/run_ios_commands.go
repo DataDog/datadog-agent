@@ -13,6 +13,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd"
+	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
@@ -46,6 +47,10 @@ func (n *networkDeviceConfigImpl) RunIOSCommands(ctx context.Context, deviceID s
 		return nil, cerr
 	}
 	defer conn.Close()
+
+	if dc.profile.Name != ncmprofile.ProfileCiscoIOS {
+		return nil, types.WrapErrorf(types.ErrCommandUnsupported, "device %s has profile %q, not %q", deviceID, dc.profile.Name, ncmprofile.ProfileCiscoIOS)
+	}
 
 	// The lines are sent as a single exec payload, the same way
 	// PlainCommand.SetupCommands are.

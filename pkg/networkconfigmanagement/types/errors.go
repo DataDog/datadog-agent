@@ -27,7 +27,8 @@ const (
 	ErrCannotConnect ErrorType = "device_unreachable" // failed to connect to the device
 	ErrNoProfile     ErrorType = "no_profile"         // the device doesn't have a configured profile and no candidate matched
 	// ErrProfileNotMatched // the device DOES have an explicitly-configured profile but it doesn't agree with the Verify() method
-	ErrPushUnsupported ErrorType = "rollback_not_supported" // the device's profile doesn't support pushing config
+	ErrPushUnsupported    ErrorType = "rollback_not_supported" // the device's profile doesn't support pushing config
+	ErrCommandUnsupported ErrorType = "command_unsupported"    // the device's profile doesn't support the requested commands
 	// Failures during the actual rollback
 	ErrCopyFailed       ErrorType = "copy_failed"        // we couldn't copy the configuration to the device
 	ErrSetRunningFailed ErrorType = "set_running_failed" // we couldn't set the running config

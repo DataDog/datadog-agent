@@ -15,11 +15,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 // showVersion is a command block that renders to "show version".
 const showVersion = `[{"type":"show version"}]`
+
+func createTestIOSDevice() *ncmconfig.DeviceInstance {
+	device := createTestDevice()
+	device.Profile = string(ncmprofile.ProfileCiscoIOS)
+	return device
+}
 
 func doRunIOSCommandsRequest(t *testing.T, comp *networkDeviceConfigImpl, req RunIOSCommandsRequest) (*httptest.ResponseRecorder, types.RunIOSCommandsResponse) {
 	t.Helper()
@@ -43,7 +51,7 @@ func doRunIOSCommandsRequestBody(t *testing.T, comp *networkDeviceConfigImpl, bo
 
 func TestRunIOSCommandsEndpointHandler_Success(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	device := createTestDevice()
+	device := createTestIOSDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
 
@@ -61,9 +69,27 @@ func TestRunIOSCommandsEndpointHandler_Success(t *testing.T) {
 	}
 }
 
-func TestRunIOSCommandsEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
+func TestRunIOSCommandsEndpointHandler_NonIOSDevice(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(showVersion),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrCommandUnsupported), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
+}
+
+func TestRunIOSCommandsEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
 
@@ -96,7 +122,7 @@ func TestRunIOSCommandsEndpointHandler_UnknownDevice(t *testing.T) {
 
 func TestRunIOSCommandsEndpointHandler_UnknownCredentialSet(t *testing.T) {
 	comp, _ := createTestComponent(t)
-	device := createTestDevice()
+	device := createTestIOSDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 
 	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
@@ -123,7 +149,7 @@ func TestRunIOSCommandsEndpointHandler_BadRequestBody(t *testing.T) {
 
 func TestRunIOSCommandsEndpointHandler_MultiLineBlock(t *testing.T) {
 	comp, reqs := createTestComponent(t)
-	device := createTestDevice()
+	device := createTestIOSDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	rendered := "configure terminal\nhostname r1\nend\nshow version"
 	reqs.connFactory.conn.OutputMap[rendered] = ok(versionOutput)
@@ -155,7 +181,7 @@ func TestRunIOSCommandsEndpointHandler_InvalidCommand(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			comp, reqs := createTestComponent(t)
-			device := createTestDevice()
+			device := createTestIOSDevice()
 			require.NoError(t, comp.RegisterDevice(device))
 
 			w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
@@ -180,7 +206,7 @@ func TestRunIOSCommandsEndpointHandler_MissingCommand(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			comp, reqs := createTestComponent(t)
-			device := createTestDevice()
+			device := createTestIOSDevice()
 			require.NoError(t, comp.RegisterDevice(device))
 
 			w, resp := doRunIOSCommandsRequestBody(t, comp, []byte(body))
