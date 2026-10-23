@@ -42,28 +42,34 @@ func dropIgnoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilte
 	return kept
 }
 
-// ignoredTraces returns the resource traces with a root that rootFilter denies. Like traceutil.GetRoot, a root
-// is a span whose parent is not among the spans of its resource, and is matched on its converted Datadog span.
+// ignoredTraces returns the resource traces with a root that rootFilter denies. Like traceutil.GetRoot, the root
+// of a trace is its span without parent, or else a span whose parent is not among the spans of its resource.
+// The root is matched on its converted Datadog span.
 func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *filters.Blacklister) map[resourceTrace]struct{} {
 	var ignored map[resourceTrace]struct{}
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rspans := traces.ResourceSpans().At(i)
-		if _, ok := rspans.Resource().Attributes().Get(keyStatsComputed); ok {
+		if isStatsComputed(rspans.Resource().Attributes()) {
 			continue // the connector computes no stats for this resource
 		}
 		spanIDs := make(map[pcommon.SpanID]struct{})
+		hasRoot := make(map[pcommon.TraceID]bool)
 		computed := false
 		forEachSpan(rspans, func(span ptrace.Span, _ pcommon.InstrumentationScope) {
 			spanIDs[span.SpanID()] = struct{}{}
-			_, ok := span.Attributes().Get(keyStatsComputed)
-			computed = computed || ok
+			if span.ParentSpanID().IsEmpty() {
+				hasRoot[span.TraceID()] = true
+			}
+			computed = computed || isStatsComputed(span.Attributes())
 		})
 		if computed {
 			continue
 		}
 		forEachSpan(rspans, func(span ptrace.Span, scope pcommon.InstrumentationScope) {
-			if _, hasParent := spanIDs[span.ParentSpanID()]; hasParent {
-				return
+			if !span.ParentSpanID().IsEmpty() {
+				if _, hasParent := spanIDs[span.ParentSpanID()]; hasParent || hasRoot[span.TraceID()] {
+					return
+				}
 			}
 			if allowed, _ := rootFilter.Allows(transform.OtelSpanToDDSpan(span, rspans.Resource(), scope, conf)); allowed {
 				return
@@ -75,6 +81,12 @@ func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *f
 		})
 	}
 	return ignored
+}
+
+// isStatsComputed reports whether attrs carry a truthy client-computed stats marker, as the stats conversion checks it.
+func isStatsComputed(attrs pcommon.Map) bool {
+	value := transform.GetOTelAttrVal(attrs, true, keyStatsComputed)
+	return value != "" && value != "false"
 }
 
 func forEachSpan(rspans ptrace.ResourceSpans, f func(ptrace.Span, pcommon.InstrumentationScope)) {

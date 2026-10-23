@@ -103,11 +103,25 @@ func TestIgnoredTraces(t *testing.T) {
 			}),
 		},
 		{
+			name: "span without parent is the root rather than a span whose parent is missing",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, usersAttrs},
+				{1, 3, 9, ptrace.SpanKindServer, healthcheckAttrs},
+			}),
+		},
+		{
 			name: "resource with client-computed stats is skipped",
 			traces: newTestTraces([]testSpan{
 				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", keyStatsComputed: "true"}},
 				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
 			}),
+		},
+		{
+			name: "false client-computed stats marker does not skip the resource",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", keyStatsComputed: "false"}},
+			}),
+			wantIgnored: []resourceTrace{{0, pcommon.TraceID{15: 1}}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
