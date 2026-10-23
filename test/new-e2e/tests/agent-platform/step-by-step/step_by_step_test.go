@@ -177,8 +177,8 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
-	aptrepoDist := fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("CI_PIPELINE_ID"), *majorVersion, *architecture)
+	aptrepo := fmt.Sprintf("[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/datadog-agent/pipeline-%s-a%s", os.Getenv("CI_PIPELINE_ID"), *majorVersion)
+	aptrepoDist := fmt.Sprintf("stable-%s", *architecture)
 	fileManager := VMclient.FileManager
 	var err error
 
