@@ -50,10 +50,9 @@ type Scanner struct {
 	disk      filesystem.Disk
 	// scanQueue is the workqueue used to process scan requests
 	scanQueue workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
-	// scanMutex runs one scan at a time. A scan the flare provider starts with
-	// PerformScan waits for the one the queue is running, which holds the
-	// scanner to the memory and CPU of a single scan.
-	scanMutex sync.Mutex
+	// scanSlot holds a token while a scan runs: a flare's PerformScan waits
+	// for the queue's scan, which caps the scanner at the memory of one scan.
+	scanSlot chan struct{}
 
 	wmeta      option.Option[workloadmeta.Component]
 	collectors map[string]collectors.Collector
@@ -73,6 +72,7 @@ func NewScanner(cfg config.Component, collectors map[string]collectors.Collector
 				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
 		),
+		scanSlot:   make(chan struct{}, 1),
 		disk:       filesystem.NewDisk(),
 		wmeta:      wmeta,
 		collectors: collectors,
@@ -362,18 +362,20 @@ func (s *Scanner) checkDiskSpace(collectorName string, imgMeta *workloadmeta.Con
 	return result
 }
 
-// PerformScan processes a scan request with the selected collector and returns the SBOM
+// PerformScan runs request with collector once the scan in progress ends, or
+// returns the error of ctx if ctx ends first.
 func (s *Scanner) PerformScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) *sbom.ScanResult {
+	select {
+	case s.scanSlot <- struct{}{}:
+	case <-ctx.Done():
+		return &sbom.ScanResult{RequestID: request.ID(), Error: ctx.Err()}
+	}
+	defer func() { <-s.scanSlot }()
+
 	createdAt := time.Now()
-
-	s.scanMutex.Lock()
 	scanResult := collector.Scan(ctx, request)
-	s.scanMutex.Unlock()
-
-	generationDuration := time.Since(createdAt)
-
 	scanResult.CreatedAt = createdAt
-	scanResult.Duration = generationDuration
+	scanResult.Duration = time.Since(createdAt)
 	return &scanResult
 }
 

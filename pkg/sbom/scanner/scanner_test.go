@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -412,6 +414,62 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	cancel()
 	// Ensure the collector is stopped
 	shutdown.WaitUntil(time.After(5 * time.Second))
+}
+
+// TestPerformScanReturnsWhenContextEnds checks that a scan waiting for the
+// scan in progress returns the error of its context once the context ends.
+func TestPerformScanReturnsWhenContextEnds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		collector := collectors.NewMockCollector()
+		collector.On("Scan", mock.Anything, mock.Anything).Run(func(mock.Arguments) { <-release }).Return(sbom.ScanResult{})
+		scanner := NewScanner(configmock.New(t), nil, option.None[workloadmeta.Component]())
+		defer scanner.scanQueue.ShutDown()
+
+		go scanner.PerformScan(context.Background(), &scanRequest{id: "first"}, collector)
+		synctest.Wait()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		results := make(chan *sbom.ScanResult, 1)
+		go func() { results <- scanner.PerformScan(ctx, &scanRequest{id: "second"}, collector) }()
+		select {
+		case result := <-results:
+			assert.ErrorIs(t, result.Error, context.DeadlineExceeded)
+			assert.Equal(t, "second", result.RequestID)
+		case <-time.After(2 * time.Minute):
+			t.Error("PerformScan waited for the scan in progress past the end of its context")
+		}
+		close(release)
+	})
+}
+
+// TestPerformScanRunsOneScanAtATime checks that concurrent scans wait for each
+// other.
+func TestPerformScanRunsOneScanAtATime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		entered := make(chan string, 4)
+		release := make(chan struct{})
+		collector := collectors.NewMockCollector()
+		collector.On("Scan", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			entered <- args.Get(1).(sbom.ScanRequest).ID()
+			<-release
+		}).Return(sbom.ScanResult{})
+		scanner := NewScanner(configmock.New(t), nil, option.None[workloadmeta.Component]())
+		defer scanner.scanQueue.ShutDown()
+
+		var wg sync.WaitGroup
+		for i := range 4 {
+			wg.Go(func() { scanner.PerformScan(context.Background(), &scanRequest{id: strconv.Itoa(i)}, collector) })
+		}
+		for range 4 {
+			synctest.Wait()
+			assert.Len(t, entered, 1, "scans ran at once")
+			<-entered
+			release <- struct{}{}
+		}
+		wg.Wait()
+	})
 }
 
 // Test retry handling in case of an error when sending the result to a full channel
