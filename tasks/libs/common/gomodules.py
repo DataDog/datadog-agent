@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -242,16 +243,36 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        output = bazel(
-            "run",
-            "//internal/tools/modparser",
-            "--",
-            "-path",
-            os.path.abspath(self.path),
-            "-prefix",
-            AGENT_MODULE_PATH_PREFIX,
-            capture_output=True,
-        )
+        # Branches that predate the Bazel migration (e.g. Agent 6) have no MODULE.bazel,
+        # so `bazel run` cannot find a workspace. Fall back to `go run` on the modparser
+        # source, which those branches shipped and still works.
+        if os.path.exists("MODULE.bazel"):
+            output = bazel(
+                "run",
+                "//internal/tools/modparser",
+                "--",
+                "-path",
+                os.path.abspath(self.path),
+                "-prefix",
+                AGENT_MODULE_PATH_PREFIX,
+                capture_output=True,
+            )
+        else:
+            modparser_path = os.path.join(os.getcwd(), "internal", "tools", "modparser")
+            if not os.path.isdir(modparser_path):
+                raise Exception(f"Cannot find go.mod parser in {modparser_path}")
+            output = subprocess.check_output(
+                [
+                    "go",
+                    "run",
+                    ".",
+                    "-path",
+                    os.path.abspath(self.path),
+                    "-prefix",
+                    AGENT_MODULE_PATH_PREFIX,
+                ],
+                cwd=modparser_path,
+            ).decode("utf-8")
 
         # Remove github.com/DataDog/datadog-agent/ from each line
         return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
