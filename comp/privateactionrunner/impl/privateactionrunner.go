@@ -360,6 +360,16 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
 
+	// The executor has its own span buffer; start its sender only after setup succeeds.
+	if cfg != nil {
+		p.telemetry = telemetry.NewTelemetry(
+			&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+			configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+			cfg.DatadogSite,
+			observability.ParService,
+		)
+	}
+
 	go func() {
 		defer close(p.executorDone)
 		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
@@ -454,6 +464,11 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		case <-ctx.Done():
 			p.logger.Warn("Private action runner executor did not stop in time")
 		}
+	}
+
+	// Flush spans after draining actions, including exits before the periodic flush.
+	if p.telemetry != nil {
+		p.telemetry.Stop()
 	}
 
 	var stopErr error
