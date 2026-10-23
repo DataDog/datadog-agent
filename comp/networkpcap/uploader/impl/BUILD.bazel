@@ -3,17 +3,13 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = [
-        "fileupload.go",
-        "tracks.go",
-        "tracks_networkpcap.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/impl",
+    srcs = ["uploader.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/forwarder/fileupload/def",
         "//comp/logs/agent/config",
+        "//comp/networkpcap/uploader/def",
         "//pkg/config/model",
         "//pkg/util/hostport",
         "//pkg/util/http",
@@ -25,12 +21,12 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
-        "fileupload_real_test.go",
-        "fileupload_test.go",
+        "uploader_real_test.go",
+        "uploader_test.go",
     ],
     embed = [":impl"],
     deps = [
-        "//comp/forwarder/fileupload/def",
+        "//comp/networkpcap/uploader/def",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/zstd",

@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "mock",
     srcs = ["mock.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/mock",
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/fileupload/def",
+        "//comp/networkpcap/uploader/def",
         "//pkg/util/fxutil",
     ],
 )

@@ -17,8 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
-	fileuploadmock "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/mock"
+	pcapuploadermock "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -34,7 +33,7 @@ func (n *noopCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (cap
 // bypassing the platform-specific captureTrigger (which requires a live
 // system-probe socket on unix).
 func newTestHandler() *RunCaptureHandler {
-	handler := NewRunCaptureHandler(fileuploadmock.New())
+	handler := NewRunCaptureHandler(pcapuploadermock.New())
 	handler.capture = &noopCaptureTrigger{}
 	return handler
 }
@@ -69,7 +68,7 @@ func (r *recordingCaptureTrigger) Capture(_ context.Context, in RunCaptureInputs
 }
 
 func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
-	handler := NewRunCaptureHandler(fileuploadmock.New())
+	handler := NewRunCaptureHandler(pcapuploadermock.New())
 	rec := &recordingCaptureTrigger{}
 	handler.capture = rec
 	return handler, rec
@@ -260,13 +259,13 @@ func TestRunCaptureDefaults(t *testing.T) {
 }
 
 func TestGetAction_RunCapture(t *testing.T) {
-	bundle := NewPcap(fileuploadmock.New())
+	bundle := NewPcap(pcapuploadermock.New())
 	action := bundle.GetAction("runCapture")
 	assert.NotNil(t, action, "GetAction('runCapture') should return a non-nil Action")
 }
 
 func TestGetAction_Unknown(t *testing.T) {
-	bundle := NewPcap(fileuploadmock.New())
+	bundle := NewPcap(pcapuploadermock.New())
 	action := bundle.GetAction("nonexistent")
 	assert.Nil(t, action, "GetAction('nonexistent') should return nil")
 }
@@ -282,7 +281,7 @@ func writeCapture(t *testing.T, data []byte) string {
 // A finished capture is uploaded to the networkpcap track as one pcap
 // attachment, with the capture ID in the event, and then removed.
 func TestRunCapture_UploadsCapture(t *testing.T) {
-	uploader := fileuploadmock.New()
+	uploader := pcapuploadermock.New()
 	handler := NewRunCaptureHandler(uploader)
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
@@ -296,7 +295,6 @@ func TestRunCapture_UploadsCapture(t *testing.T) {
 	uploads := uploader.Uploads()
 	require.Len(t, uploads, 1)
 	upload := uploads[0]
-	assert.Equal(t, fileupload.TrackNetworkPcap, upload.Track)
 
 	var event networkPcapEvent
 	require.NoError(t, json.Unmarshal(upload.Event, &event))
@@ -315,7 +313,7 @@ func TestRunCapture_UploadsCapture(t *testing.T) {
 // A failed upload fails the action: the capture cannot be re-taken, so the
 // caller must know it was lost. The file is still removed.
 func TestRunCapture_UploadFailureFailsTheAction(t *testing.T) {
-	uploader := fileuploadmock.New()
+	uploader := pcapuploadermock.New()
 	uploader.SetError(errors.New("intake unavailable"))
 	handler := NewRunCaptureHandler(uploader)
 	pcapPath := writeCapture(t, []byte("pcap bytes"))

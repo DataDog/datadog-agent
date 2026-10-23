@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package fileuploadimpl implements the file upload forwarder component.
-package fileuploadimpl
+// Package uploaderimpl implements the network packet capture uploader component.
+package uploaderimpl
 
 import (
 	"context"
@@ -20,8 +20,8 @@ import (
 	"time"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -30,6 +30,16 @@ import (
 )
 
 const (
+	// trackType is the networkpcap intake track; uploads go to
+	// /api/v2/networkpcap.
+	trackType = "networkpcap"
+	// hostnameEndpointPrefix is prepended to the site to build the default
+	// intake host, e.g. "cnm-intake.datadoghq.com".
+	hostnameEndpointPrefix = "cnm-intake."
+	// endpointsConfigPrefix is the prefix of the logs-style endpoint settings
+	// (logs_dd_url, dd_url, additional_endpoints, ...).
+	endpointsConfigPrefix = "network_pcap.forwarder."
+
 	defaultMaxAttempts  = 4
 	defaultRetryBackoff = 2 * time.Second
 	// defaultAttemptTimeout bounds a single request, body included.
@@ -43,33 +53,27 @@ type Requires struct {
 
 // Provides defines the component's output.
 type Provides struct {
-	Comp fileupload.Component
+	Comp uploader.Component
 }
 
-// NewComponent creates a new file upload forwarder component.
+// NewComponent creates a new network packet capture uploader component.
 func NewComponent(reqs Requires) Provides {
-	return Provides{Comp: newUploader(reqs.Config, getTracks())}
+	return Provides{Comp: newUploader(reqs.Config)}
 }
 
-type uploader struct {
+type pcapUploader struct {
 	cfg          model.Reader
-	tracks       map[fileupload.TrackType]trackDesc
 	httpClient   *http.Client
 	maxAttempts  int
 	retryBackoff time.Duration
 
 	mu        sync.Mutex
-	endpoints map[fileupload.TrackType]*logsconfig.Endpoints
+	endpoints *logsconfig.Endpoints
 }
 
-func newUploader(cfg model.Reader, descs []trackDesc) *uploader {
-	tracks := make(map[fileupload.TrackType]trackDesc, len(descs))
-	for _, desc := range descs {
-		tracks[desc.trackType] = desc
-	}
-	return &uploader{
-		cfg:    cfg,
-		tracks: tracks,
+func newUploader(cfg model.Reader) *pcapUploader {
+	return &pcapUploader{
+		cfg: cfg,
 		// The Agent transport applies the proxy and TLS settings.
 		httpClient: &http.Client{
 			Timeout:   defaultAttemptTimeout,
@@ -77,45 +81,40 @@ func newUploader(cfg model.Reader, descs []trackDesc) *uploader {
 		},
 		maxAttempts:  defaultMaxAttempts,
 		retryBackoff: defaultRetryBackoff,
-		endpoints:    make(map[fileupload.TrackType]*logsconfig.Endpoints),
 	}
 }
 
-// getEndpoints resolves the endpoints of a track once, the same way the event
+// getEndpoints resolves the networkpcap endpoints once, the same way the event
 // platform forwarder does: <prefix>logs_dd_url / dd_url override the main
 // endpoint, <prefix>additional_endpoints adds more, and the MRF endpoint is
 // added when multi_region_failover is enabled. Each endpoint carries its own
 // API key, which follows runtime config updates.
-func (u *uploader) getEndpoints(track fileupload.TrackType) (*logsconfig.Endpoints, error) {
+func (u *pcapUploader) getEndpoints() (*logsconfig.Endpoints, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	if endpoints, ok := u.endpoints[track]; ok {
-		return endpoints, nil
+	if u.endpoints != nil {
+		return u.endpoints, nil
 	}
-	desc, ok := u.tracks[track]
-	if !ok {
-		return nil, fmt.Errorf("unknown file upload track %q", track)
-	}
-	configKeys := logsconfig.NewLogsConfigKeys(desc.endpointsConfigPrefix, u.cfg)
+	configKeys := logsconfig.NewLogsConfigKeys(endpointsConfigPrefix, u.cfg)
 	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(
 		u.cfg,
 		configKeys,
-		desc.hostnameEndpointPrefix,
-		logsconfig.IntakeTrackType(desc.trackType),
+		hostnameEndpointPrefix,
+		logsconfig.IntakeTrackType(trackType),
 		logsconfig.DefaultIntakeProtocol,
 		logsconfig.DefaultIntakeOrigin,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("building endpoints for track %s: %w", track, err)
+		return nil, fmt.Errorf("building endpoints for track %s: %w", trackType, err)
 	}
-	u.endpoints[track] = endpoints
+	u.endpoints = endpoints
 	return endpoints, nil
 }
 
-// Upload sends req to every endpoint of its track concurrently. Failures on
+// Upload sends req to every networkpcap endpoint concurrently. Failures on
 // reliable endpoints are returned; failures on unreliable ones are logged.
-func (u *uploader) Upload(ctx context.Context, req fileupload.UploadRequest) error {
-	endpoints, err := u.getEndpoints(req.Track)
+func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) error {
+	endpoints, err := u.getEndpoints()
 	if err != nil {
 		return err
 	}
@@ -137,10 +136,10 @@ func (u *uploader) Upload(ctx context.Context, req fileupload.UploadRequest) err
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			endpointURL := buildURL(endpoint, req.Track)
+			endpointURL := buildURL(endpoint)
 			if err := u.sendWithRetries(ctx, endpoint, endpointURL, req); err != nil {
 				if !endpoint.IsReliable() {
-					log.Warnf("file upload to unreliable endpoint %s failed: %v", endpointURL, err)
+					log.Warnf("packet capture upload to unreliable endpoint %s failed: %v", endpointURL, err)
 					return
 				}
 				mu.Lock()
@@ -155,7 +154,7 @@ func (u *uploader) Upload(ctx context.Context, req fileupload.UploadRequest) err
 
 // sendWithRetries retries transport errors, 408, 429 and 5xx. 413 is not
 // retried: resending the same bytes cannot succeed.
-func (u *uploader) sendWithRetries(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req fileupload.UploadRequest) error {
+func (u *pcapUploader) sendWithRetries(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest) error {
 	var lastErr error
 	for attempt := 0; attempt < u.maxAttempts; attempt++ {
 		if attempt > 0 {
@@ -178,7 +177,7 @@ func (u *uploader) sendWithRetries(ctx context.Context, endpoint *logsconfig.End
 }
 
 // send makes one attempt. It reports whether a failure is worth retrying.
-func (u *uploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req fileupload.UploadRequest) (bool, error) {
+func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, endpointURL string, req uploader.UploadRequest) (bool, error) {
 	apiKey, ready := endpoint.GetAPIKeyIfReady()
 	if !ready || apiKey == "" {
 		return false, errors.New("no API key available for this endpoint")
@@ -229,7 +228,7 @@ func (u *uploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, endp
 // newMultipartBody opens the attachments and returns a reader that streams
 // the zstd-compressed multipart body: the event part, then each attachment.
 // Opening up front surfaces unreadable attachments before anything is sent.
-func newMultipartBody(boundary string, req fileupload.UploadRequest) (io.ReadCloser, error) {
+func newMultipartBody(boundary string, req uploader.UploadRequest) (io.ReadCloser, error) {
 	readers := make([]io.ReadCloser, 0, len(req.Attachments))
 	closeAll := func() {
 		for _, r := range readers {
@@ -270,7 +269,7 @@ func newMultipartBody(boundary string, req fileupload.UploadRequest) (io.ReadClo
 	return pr, nil
 }
 
-func writeMultipart(w io.Writer, boundary string, req fileupload.UploadRequest, readers []io.ReadCloser) error {
+func writeMultipart(w io.Writer, boundary string, req uploader.UploadRequest, readers []io.ReadCloser) error {
 	mw := multipart.NewWriter(w)
 	if err := mw.SetBoundary(boundary); err != nil {
 		return err
@@ -309,9 +308,9 @@ func writeMultipart(w io.Writer, boundary string, req fileupload.UploadRequest, 
 	return mw.Close()
 }
 
-// buildURL returns the upload URL of a track on an endpoint. Uploads always
+// buildURL returns the networkpcap upload URL on an endpoint. Uploads always
 // use the v2 intake API, whatever <prefix>use_v2_api says.
-func buildURL(endpoint *logsconfig.Endpoint, track fileupload.TrackType) string {
+func buildURL(endpoint *logsconfig.Endpoint) string {
 	scheme := "http"
 	if endpoint.UseSSL() {
 		scheme = "https"
@@ -323,7 +322,7 @@ func buildURL(endpoint *logsconfig.Endpoint, track fileupload.TrackType) string 
 	u := url.URL{
 		Scheme: scheme,
 		Host:   host,
-		Path:   endpoint.PathPrefix + "/api/v2/" + string(track),
+		Path:   endpoint.PathPrefix + "/api/v2/" + trackType,
 	}
 	return u.String()
 }

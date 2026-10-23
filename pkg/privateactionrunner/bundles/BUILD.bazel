@@ -12,10 +12,10 @@ go_library(
     deps = [
         "//comp/core/ipc/def",
         "//comp/forwarder/eventplatform/def",
-        "//comp/forwarder/fileupload/def",
         "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
+        "//comp/networkpcap/uploader/def",
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/rcclient",

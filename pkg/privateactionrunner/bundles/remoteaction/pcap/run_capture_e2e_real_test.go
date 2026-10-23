@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
-	fileuploadimpl "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/impl"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
+	pcapuploaderimpl "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 // TestRunCapture_RealEndToEnd runs a real capture against a live system-probe
-// and uploads it with the real file upload forwarder to a real intake. It proves the intake
+// and uploads it with the real packet capture uploader to a real intake. It proves the intake
 // accepts the upload (202), not that the attachment reaches storage.
 //
 // Enable with:
@@ -162,14 +162,14 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 		res.PacketCount, res.FileSizeBytes, res.DurationSecs, res.CaptureID, intakeHost)
 }
 
-// newRealUploader returns the real file upload forwarder, sending to
+// newRealUploader returns the real packet capture uploader, sending to
 // intakeHost with apiKey.
-func newRealUploader(t *testing.T, apiKey, site, intakeHost string) fileupload.Component {
+func newRealUploader(t *testing.T, apiKey, site, intakeHost string) pcapuploader.Component {
 	t.Helper()
 	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
 		"api_key":                            apiKey,
 		"site":                               site,
 		"network_pcap.forwarder.logs_dd_url": intakeHost,
 	})
-	return fileuploadimpl.NewComponent(fileuploadimpl.Requires{Config: cfg}).Comp
+	return pcapuploaderimpl.NewComponent(pcapuploaderimpl.Requires{Config: cfg}).Comp
 }

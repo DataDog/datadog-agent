@@ -12,10 +12,10 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
@@ -77,7 +77,7 @@ type Registry struct {
 // ka is accepted for signature parity with the kubeapiserver build; the
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
-func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, fileUpload fileupload.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
+func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, pcapUploader pcapuploader.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
 	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient, configuration.AgentHTTPClient)
 	if err != nil {
 		return nil, fmt.Errorf("could not create authored-script bundle: %w", err)
@@ -124,7 +124,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
 			"com.datadoghq.remoteaction.networkdevices":          com_datadoghq_remoteaction_networkdevices.NewNetworkDevices(encryptionStore, ipcClient),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
-			"com.datadoghq.remoteaction.pcap":                    com_datadoghq_remoteaction_pcap.NewPcap(fileUpload),
+			"com.datadoghq.remoteaction.pcap":                    com_datadoghq_remoteaction_pcap.NewPcap(pcapUploader),
 			"com.datadoghq.remoteaction.rshell":                  com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),

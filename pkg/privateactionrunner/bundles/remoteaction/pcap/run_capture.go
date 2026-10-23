@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,12 +56,12 @@ type captureOutcome struct {
 
 // RunCaptureHandler handles the runCapture action.
 type RunCaptureHandler struct {
-	uploader fileupload.Component
+	uploader pcapuploader.Component
 	capture  captureTrigger
 }
 
 // NewRunCaptureHandler constructs a RunCaptureHandler.
-func NewRunCaptureHandler(uploader fileupload.Component) *RunCaptureHandler {
+func NewRunCaptureHandler(uploader pcapuploader.Component) *RunCaptureHandler {
 	return &RunCaptureHandler{
 		uploader: uploader,
 		capture:  newCaptureTrigger(),

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package fileuploadimpl
+package uploaderimpl
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
+	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/zstd"
@@ -133,16 +133,16 @@ func newTestConfig(t *testing.T, in *intake) model.ReaderWriter {
 	return cfg
 }
 
-func newTestUploader(cfg model.Reader) *uploader {
-	u := newUploader(cfg, getTracks())
+func newTestUploader(cfg model.Reader) *pcapUploader {
+	u := newUploader(cfg)
 	u.retryBackoff = time.Millisecond
 	return u
 }
 
 // countingSource returns an attachment that counts how often it is opened.
-func countingSource(content []byte) (fileupload.Attachment, *atomic.Int32) {
+func countingSource(content []byte) (uploader.Attachment, *atomic.Int32) {
 	var opens atomic.Int32
-	return fileupload.Attachment{
+	return uploader.Attachment{
 		Name:        "pcap",
 		Filename:    "capture.pcap",
 		ContentType: "application/octet-stream",
@@ -153,12 +153,11 @@ func countingSource(content []byte) (fileupload.Attachment, *atomic.Int32) {
 	}, &opens
 }
 
-func pcapRequest(content []byte) (fileupload.UploadRequest, *atomic.Int32) {
+func pcapRequest(content []byte) (uploader.UploadRequest, *atomic.Int32) {
 	attachment, opens := countingSource(content)
-	return fileupload.UploadRequest{
-		Track:       fileupload.TrackNetworkPcap,
+	return uploader.UploadRequest{
 		Event:       []byte(`{"capture_id":"cap-1"}`),
-		Attachments: []fileupload.Attachment{attachment},
+		Attachments: []uploader.Attachment{attachment},
 	}, opens
 }
 
@@ -293,10 +292,9 @@ func TestUploadStopsRetryingWhenContextIsDone(t *testing.T) {
 func TestUploadOpenFailureSendsNothing(t *testing.T) {
 	in := newIntake(t)
 	u := newTestUploader(newTestConfig(t, in))
-	req := fileupload.UploadRequest{
-		Track: fileupload.TrackNetworkPcap,
+	req := uploader.UploadRequest{
 		Event: []byte(`{}`),
-		Attachments: []fileupload.Attachment{{
+		Attachments: []uploader.Attachment{{
 			Name: "pcap",
 			Open: func() (io.ReadCloser, error) { return nil, errors.New("no such file") },
 		}},
@@ -305,15 +303,6 @@ func TestUploadOpenFailureSendsNothing(t *testing.T) {
 	err := u.Upload(context.Background(), req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no such file")
-	assert.EqualValues(t, 0, in.calls.Load())
-}
-
-func TestUploadUnknownTrack(t *testing.T) {
-	in := newIntake(t)
-	u := newTestUploader(newTestConfig(t, in))
-
-	err := u.Upload(context.Background(), fileupload.UploadRequest{Track: "nope"})
-	require.Error(t, err)
 	assert.EqualValues(t, 0, in.calls.Load())
 }
 
@@ -396,18 +385,18 @@ func TestUploadMRFEndpointFollowsFailover(t *testing.T) {
 	assert.Equal(t, "mrf-api-key", got[0].apiKey)
 }
 
-func TestDefaultEndpointUsesTrackHostPrefix(t *testing.T) {
+func TestDefaultEndpointUsesNetworkPcapHostPrefix(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "main-api-key")
 	cfg.SetInTest("site", "datadoghq.eu")
 	u := newTestUploader(cfg)
 
-	endpoints, err := u.getEndpoints(fileupload.TrackNetworkPcap)
+	endpoints, err := u.getEndpoints()
 	require.NoError(t, err)
 	require.Len(t, endpoints.Endpoints, 1)
 	// The default host is fully qualified (trailing dot), as for every other
 	// event platform sender, so it skips the DNS search list.
-	assert.Equal(t, "https://cnm-intake.datadoghq.eu./api/v2/networkpcap", buildURL(&endpoints.Endpoints[0], fileupload.TrackNetworkPcap))
+	assert.Equal(t, "https://cnm-intake.datadoghq.eu./api/v2/networkpcap", buildURL(&endpoints.Endpoints[0]))
 }
 
 func TestEndpointOverrideKeepsPortAndPath(t *testing.T) {
@@ -416,9 +405,9 @@ func TestEndpointOverrideKeepsPortAndPath(t *testing.T) {
 	cfg.SetInTest(testPrefix+"logs_dd_url", "intake.example.com:8443")
 	u := newTestUploader(cfg)
 
-	endpoints, err := u.getEndpoints(fileupload.TrackNetworkPcap)
+	endpoints, err := u.getEndpoints()
 	require.NoError(t, err)
-	assert.Equal(t, "https://intake.example.com:8443/api/v2/networkpcap", buildURL(&endpoints.Main, fileupload.TrackNetworkPcap))
+	assert.Equal(t, "https://intake.example.com:8443/api/v2/networkpcap", buildURL(&endpoints.Main))
 }
 
 func hostOf(t *testing.T, in *intake) string {

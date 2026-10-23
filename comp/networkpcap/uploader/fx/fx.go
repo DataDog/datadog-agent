@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package fx provides the fx module for the file upload forwarder component.
+// Package fx provides the fx module for the network packet capture uploader component.
 package fx
 
 import (
-	fileuploadimpl "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/impl"
+	uploaderimpl "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -17,7 +17,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			fileuploadimpl.NewComponent,
+			uploaderimpl.NewComponent,
 		),
 	)
 }

@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package mock provides a mock file upload forwarder component.
+// Package mock provides a mock network packet capture uploader component.
 package mock
 
 import (
@@ -14,13 +14,12 @@ import (
 	"io"
 	"sync"
 
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
+	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Upload is an upload recorded by Mock, with the attachment contents read.
 type Upload struct {
-	Track       fileupload.TrackType
 	Event       []byte
 	Attachments []Attachment
 }
@@ -48,7 +47,7 @@ func New() *Mock {
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(func() fileupload.Component { return New() }),
+		fxutil.ProvideComponentConstructor(func() uploader.Component { return New() }),
 	)
 }
 
@@ -67,8 +66,8 @@ func (m *Mock) Uploads() []Upload {
 }
 
 // Upload records req, reading each attachment once.
-func (m *Mock) Upload(_ context.Context, req fileupload.UploadRequest) error {
-	upload := Upload{Track: req.Track, Event: append([]byte(nil), req.Event...)}
+func (m *Mock) Upload(_ context.Context, req uploader.UploadRequest) error {
+	upload := Upload{Event: append([]byte(nil), req.Event...)}
 	for _, a := range req.Attachments {
 		content, err := readAttachment(a)
 		if err != nil {
@@ -87,7 +86,7 @@ func (m *Mock) Upload(_ context.Context, req fileupload.UploadRequest) error {
 	return m.err
 }
 
-func readAttachment(a fileupload.Attachment) ([]byte, error) {
+func readAttachment(a uploader.Attachment) ([]byte, error) {
 	if a.Open == nil {
 		return nil, fmt.Errorf("attachment %q has no content", a.Name)
 	}

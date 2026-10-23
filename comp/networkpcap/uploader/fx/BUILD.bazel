@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "fx",
     srcs = ["fx.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/fx",
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/forwarder/fileupload/impl",
+        "//comp/networkpcap/uploader/impl",
         "//pkg/util/fxutil",
     ],
 )

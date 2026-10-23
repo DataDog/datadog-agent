@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	fileupload "github.com/DataDog/datadog-agent/comp/forwarder/fileupload/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,12 +28,12 @@ type networkPcapEvent struct {
 	Hostname  string `json:"hostname"`
 }
 
-// uploadCapture sends the pcap file at pcapPath to the networkpcap track. The
-// forwarder reopens the file on each attempt, so it is never held in memory.
+// uploadCapture sends the pcap file at pcapPath to the networkpcap intake. The
+// uploader reopens the file on each attempt, so it is never held in memory.
 // A capture cannot be re-taken, so failures are returned rather than dropped.
-func uploadCapture(ctx context.Context, uploader fileupload.Component, pcapPath string, captureID string) error {
+func uploadCapture(ctx context.Context, uploader pcapuploader.Component, pcapPath string, captureID string) error {
 	if uploader == nil {
-		return errors.New("file upload forwarder is not available")
+		return errors.New("packet capture uploader is not available")
 	}
 
 	// The capture ran on this host. A hostname lookup failure is not fatal:
@@ -53,10 +53,9 @@ func uploadCapture(ctx context.Context, uploader fileupload.Component, pcapPath 
 		return fmt.Errorf("marshaling event metadata: %w", err)
 	}
 
-	return uploader.Upload(ctx, fileupload.UploadRequest{
-		Track: fileupload.TrackNetworkPcap,
+	return uploader.Upload(ctx, pcapuploader.UploadRequest{
 		Event: event,
-		Attachments: []fileupload.Attachment{{
+		Attachments: []pcapuploader.Attachment{{
 			Name:        "pcap",
 			Filename:    "capture.pcap",
 			ContentType: "application/octet-stream",
