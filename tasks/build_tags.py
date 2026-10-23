@@ -104,14 +104,17 @@ build_tags = {
         # Test setups
         "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
+        .union(OTEL_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDED_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
+        .union(OTEL_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
+        .union(OTEL_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDED_TAGS),
     },
