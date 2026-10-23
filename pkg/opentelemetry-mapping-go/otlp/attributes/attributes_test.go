@@ -350,6 +350,26 @@ func TestContainerTagFromAttributesEmpty(t *testing.T) {
 	assert.Empty(t, ContainerTagFromAttributes(map[string]string{}))
 }
 
+func TestInferenceContainerTagsFromResource(t *testing.T) {
+	res := pcommon.NewResource()
+	res.Attributes().PutStr("inference_workload", "model")
+	res.Attributes().PutStr("inference_workload_component", "decode")
+	res.Attributes().PutStr("k8s.pod.name", "model-decode-abc")
+	res.Attributes().PutStr("unrelated", "keep")
+	tags, remaining := ConsumeContainerTagsFromResource(res)
+	assert.Equal(t, map[string]string{
+		"inference_workload":           "model",
+		"inference_workload_component": "decode",
+		"pod_name":                     "model-decode-abc",
+	}, tags)
+	// OTel conventions remain available to other processors; pre-mapped
+	// Datadog tags are consumed into the container-tag payload.
+	assert.Equal(t, 2, remaining.Attributes().Len())
+	value, exists := remaining.Attributes().Get("unrelated")
+	assert.True(t, exists)
+	assert.Equal(t, "keep", value.Str())
+}
+
 func TestOriginIDFromAttributes(t *testing.T) {
 	tests := []struct {
 		name     string
