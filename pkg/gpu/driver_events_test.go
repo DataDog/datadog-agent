@@ -64,8 +64,8 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message:     "NVRM: Xid (PCI:0000:35:00): 31, pid=3634001, name=vectorAdd, channel 0x01000020, intr 00000000. MMU Fault: ENGINE CE2 HUBCLIENT_CE0 faulted @ 0x792c_58000000. Fault is of type FAULT_PDE ACCESS_TYPE_VIRT_WRITE",
 				ProcessID:   uint64Pointer(3634001),
 				ProcessName: "vectorAdd",
+				Channel:     "0x01000020",
 				MMUFault: &model.NvidiaXidMMUFault{
-					Channel:      "0x01000020",
 					Interrupt:    "0x00000000",
 					Engine:       "CE2",
 					EngineClient: "HUBCLIENT_CE0",
@@ -83,14 +83,26 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message:     "NVRM: Xid (PCI:0000:00:1e): 31, pid=8, name=<unknown>, channel 0x00000004. MMU Fault: ENGINE CE0 HUBCLIENT_HOST faulted @ 0x0000000000001000. FAULT_PTE ACCESS_TYPE_ATOMIC",
 				ProcessID:   uint64Pointer(8),
 				ProcessName: "<unknown>",
+				Channel:     "0x00000004",
 				MMUFault: &model.NvidiaXidMMUFault{
-					Channel:      "0x00000004",
 					Engine:       "CE0",
 					EngineClient: "HUBCLIENT_HOST",
 					FaultAddress: "0x0000000000001000",
 					FaultType:    "FAULT_PTE",
 					AccessType:   "ACCESS_TYPE_ATOMIC",
 				},
+			},
+		},
+		{
+			// Xid 43 has no detail parser, so the channel has to come from the preamble.
+			name:    "channel is captured for a code with no detail parser",
+			message: "NVRM: Xid (PCI:0000:00:1b): 43, pid=3885519, name=gpu-burner, channel 0x00000010",
+			expected: model.NvidiaXid{
+				XidCode:     43,
+				Message:     "NVRM: Xid (PCI:0000:00:1b): 43, pid=3885519, name=gpu-burner, channel 0x00000010",
+				ProcessID:   uint64Pointer(3885519),
+				ProcessName: "gpu-burner",
+				Channel:     "0x00000010",
 			},
 		},
 		{
@@ -103,11 +115,12 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				ProcessName: "<unknown>",
 				NVLinkFault: &model.NvidiaXidNVLinkFault{
 					Subcode:          "RLW_SRC_TRACK",
-					Fatality:         "fatal",
-					CrossContainment: "XC0",
-					Instance:         "i1",
+					Fatal:            true,
+					CrossContainment: false,
+					Injected:         true,
 					LinkID:           uint64Pointer(0),
-					StatusWords:      []string{"0x00000001", "0x00000002"},
+					IntrInfo:         "0x00000001",
+					ErrorStatus:      "0x00000002",
 				},
 			},
 		},
@@ -119,11 +132,11 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message: "NVRM: Xid (PCI:0000:00:1e): 149, NETIR_LINK_DOWN Nonfatal XC1 i2 Link 17 (0xdeadbeef)",
 				NVLinkFault: &model.NvidiaXidNVLinkFault{
 					Subcode:          "NETIR_LINK_DOWN",
-					Fatality:         "nonfatal",
-					CrossContainment: "XC1",
-					Instance:         "i2",
+					Fatal:            false,
+					CrossContainment: true,
+					Injected:         true,
 					LinkID:           uint64Pointer(17),
-					StatusWords:      []string{"0xdeadbeef"},
+					IntrInfo:         "0xdeadbeef",
 				},
 			},
 		},
@@ -135,25 +148,135 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				Message: "NVRM: Xid (PCI:0000:00:1e): 149, NETIR_LINK_EVT Fatal XC 1 i 2 Link 01 [0x0000000a]",
 				NVLinkFault: &model.NvidiaXidNVLinkFault{
 					Subcode:          "NETIR_LINK_EVT",
-					Fatality:         "fatal",
-					CrossContainment: "XC1",
-					Instance:         "i2",
+					Fatal:            true,
+					CrossContainment: true,
+					Injected:         true,
 					LinkID:           uint64Pointer(1),
-					StatusWords:      []string{"0x0000000a"},
+					IntrInfo:         "0x0000000a",
 				},
 			},
 		},
 		{
-			name:    "memory ECC and repair chain",
-			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
+			name:    "NVLink observed nonfatal fault keeps decode words in printed order",
+			message: "NVRM: Xid (PCI:0000:00:1e): 146, TLW_RX_PIPE1 Nonfatal XC0 i0 Link 03 (0x00000010 0x00000020 0x00000030 0x00000040)",
+			expected: model.NvidiaXid{
+				XidCode: 146,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 146, TLW_RX_PIPE1 Nonfatal XC0 i0 Link 03 (0x00000010 0x00000020 0x00000030 0x00000040)",
+				NVLinkFault: &model.NvidiaXidNVLinkFault{
+					Subcode:          "TLW_RX_PIPE1",
+					Fatal:            false,
+					CrossContainment: false,
+					Injected:         false,
+					LinkID:           uint64Pointer(3),
+					IntrInfo:         "0x00000010",
+					ErrorStatus:      "0x00000020",
+					ErrorDebugData:   []string{"0x00000030", "0x00000040"},
+				},
+			},
+		},
+		{
+			name:    "NVLink zero-padded flags are read numerically",
+			message: "NVRM: Xid (PCI:0000:00:1e): 147, TREX_ERR Nonfatal XC 00 i 00 Link 02 (0x00000005)",
+			expected: model.NvidiaXid{
+				XidCode: 147,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 147, TREX_ERR Nonfatal XC 00 i 00 Link 02 (0x00000005)",
+				NVLinkFault: &model.NvidiaXidNVLinkFault{
+					Subcode:          "TREX_ERR",
+					Fatal:            false,
+					CrossContainment: false,
+					Injected:         false,
+					LinkID:           uint64Pointer(2),
+					IntrInfo:         "0x00000005",
+				},
+			},
+		},
+		{
+			name:    "NVLink fault without a decode group",
+			message: "NVRM: Xid (PCI:0000:00:1e): 148, NVLPW_CTRL Fatal XC0 i0 Link 05",
+			expected: model.NvidiaXid{
+				XidCode: 148,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 148, NVLPW_CTRL Fatal XC0 i0 Link 05",
+				NVLinkFault: &model.NvidiaXidNVLinkFault{
+					Subcode: "NVLPW_CTRL",
+					Fatal:   true,
+					LinkID:  uint64Pointer(5),
+				},
+			},
+		},
+		{
+			// Driver format: ECC_CHANNEL_REPAIR_PENDING_XID_MESSAGE_FMT.
+			name:    "channel repair names its FBPA and activation",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 along with its pair for repair. Perform node reboot to activate repair.",
 			expected: model.NvidiaXid{
 				XidCode: 160,
-				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 for repair; Node Reboot Required",
-				MemoryFault: &model.NvidiaXidMemoryFault{
-					RepairedTarget:      "channel",
-					RepairedTargetIndex: uint64Pointer(3),
-					FBPA:                uint64Pointer(2),
-					NodeRebootRequired:  true,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 3 in FBPA 2 along with its pair for repair. Perform node reboot to activate repair.",
+				Repair: &model.NvidiaXidRepair{
+					Target:             "channel",
+					TargetIndex:        uint64Pointer(3),
+					Container:          "FBPA",
+					ContainerIndex:     uint64Pointer(2),
+					Activation:         "node_reboot",
+					NodeRebootRequired: true,
+				},
+			},
+		},
+		{
+			// Driver format: ECC_LTS_REPAIR_PENDING_XID_MESSAGE_FMT. This form says LTS and
+			// FPB, not "L2 slice" and FBPA, so the old pattern could never match it.
+			name:    "LTS repair names its FPB",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking LTS 5 in FPB 1 along with its pair for repair. Perform node reboot to activate repair.",
+			expected: model.NvidiaXid{
+				XidCode: 160,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking LTS 5 in FPB 1 along with its pair for repair. Perform node reboot to activate repair.",
+				Repair: &model.NvidiaXidRepair{
+					Target:             "lts",
+					TargetIndex:        uint64Pointer(5),
+					Container:          "FPB",
+					ContainerIndex:     uint64Pointer(1),
+					Activation:         "node_reboot",
+					NodeRebootRequired: true,
+				},
+			},
+		},
+		{
+			// The activation verb is a format argument, so it is not always a node reboot.
+			name:    "repair activated by a GPU reset is not a node reboot",
+			message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 0 in FBPA 12 along with its pair for repair. Perform GPU reset to activate repair.",
+			expected: model.NvidiaXid{
+				XidCode: 160,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 160, Marking Channel 0 in FBPA 12 along with its pair for repair. Perform GPU reset to activate repair.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "channel",
+					TargetIndex:    uint64Pointer(0),
+					Container:      "FBPA",
+					ContainerIndex: uint64Pointer(12),
+					Activation:     "gpu_reset",
+				},
+			},
+		},
+		{
+			name:    "channel repair failure",
+			message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing Channel failed as there are no more spare channels.",
+			expected: model.NvidiaXid{
+				XidCode: 161,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing Channel failed as there are no more spare channels.",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "channel",
+					Failed:        true,
+					FailureReason: "no_spare_channels",
+				},
+			},
+		},
+		{
+			name:    "LTS repair failure",
+			message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing LTS failed as there are no more spare L2 slices.",
+			expected: model.NvidiaXid{
+				XidCode: 161,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 161, Repairing LTS failed as there are no more spare L2 slices.",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "lts",
+					Failed:        true,
+					FailureReason: "no_spare_l2_slices",
 				},
 			},
 		},
@@ -168,6 +291,135 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 					Partition:       uint64Pointer(1),
 					Subpartition:    uint64Pointer(2),
 				},
+			},
+		},
+		{
+			// Driver format: ECC_ROW_REMAP_PENDING_INTR_XID_MESSAGE_FMT. The address is
+			// parenthesised, which the bare "row 0x…" pattern never matched.
+			name:    "row remap pending names the new row",
+			message: "NVRM: Xid (PCI:0000:00:1e): 63, Row Remapper: New row (0x0000000000abcdef) marked for remapping, reset gpu to activate.",
+			expected: model.NvidiaXid{
+				XidCode: 63,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 63, Row Remapper: New row (0x0000000000abcdef) marked for remapping, reset gpu to activate.",
+				Repair: &model.NvidiaXidRepair{
+					Target:  "row",
+					Address: "0x0000000000abcdef",
+				},
+			},
+		},
+		{
+			name:    "row remap failure names its cause",
+			message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper Error: (0x0000000000abcdef) - Row Remapping table is full",
+			expected: model.NvidiaXid{
+				XidCode: 64,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper Error: (0x0000000000abcdef) - Row Remapping table is full",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "row",
+					Address:       "0x0000000000abcdef",
+					Failed:        true,
+					FailureReason: "row_remapping_table_is_full",
+				},
+			},
+		},
+		{
+			// The condition the brief called out: a remap attempted on a row already pending.
+			name:    "row remap failure on an already pending row",
+			message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper: (0x0000000000abcdef) - Attempting to remap a row that is already pending remapping. Remapping will occur when the GPU is reset",
+			expected: model.NvidiaXid{
+				XidCode: 64,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 64, Row Remapper: (0x0000000000abcdef) - Attempting to remap a row that is already pending remapping. Remapping will occur when the GPU is reset",
+				Repair: &model.NvidiaXidRepair{
+					Target:        "row",
+					Address:       "0x0000000000abcdef",
+					Failed:        true,
+					FailureReason: "attempting_to_remap_a_row_that_is_already_pending_remapping",
+				},
+			},
+		},
+		{
+			name:    "DRAM retirement failure names its cause and address",
+			message: "NVRM: Xid (PCI:0000:00:1e): 64, DRAM Retirement failed due to no spare for retirement at 0x0000000000001234",
+			expected: model.NvidiaXid{
+				XidCode: 64,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 64, DRAM Retirement failed due to no spare for retirement at 0x0000000000001234",
+				Repair: &model.NvidiaXidRepair{
+					Failed:        true,
+					FailureReason: "no_spare_for_retirement",
+					Address:       "0x0000000000001234",
+				},
+			},
+		},
+		{
+			name:    "TPC retired with a spare from the same GPC",
+			message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a spare from the same GPC.",
+			expected: model.NvidiaXid{
+				XidCode: 156,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a spare from the same GPC.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(4),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(2),
+					SpareSource:    "same_gpc",
+				},
+			},
+		},
+		{
+			name:    "TPC retired with a spare from a different GPC",
+			message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a TPC from a different GPC.",
+			expected: model.NvidiaXid{
+				XidCode: 156,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 156, Retiring TPC 4 from GPC 2 with a TPC from a different GPC.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(4),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(2),
+					SpareSource:    "different_gpc",
+				},
+			},
+		},
+		{
+			name:    "TPC retirement failure",
+			message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 as there are no spare TPCs available.",
+			expected: model.NvidiaXid{
+				XidCode: 157,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 as there are no spare TPCs available.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(7),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(3),
+					Failed:         true,
+					FailureReason:  "no_spare_tpc",
+				},
+			},
+		},
+		{
+			// MIG confines the spare search to the same GPC, which is why this variant exists.
+			name:    "TPC retirement failure under MIG",
+			message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 in MIG mode as there are no spare TPCs in the same GPC.",
+			expected: model.NvidiaXid{
+				XidCode: 157,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 157, Unable to retire TPC 7 from GPC 3 in MIG mode as there are no spare TPCs in the same GPC.",
+				Repair: &model.NvidiaXidRepair{
+					Target:         "tpc",
+					TargetIndex:    uint64Pointer(7),
+					Container:      "GPC",
+					ContainerIndex: uint64Pointer(3),
+					Failed:         true,
+					MIGMode:        true,
+					FailureReason:  "no_spare_tpc",
+				},
+			},
+		},
+		{
+			name:    "bank remap pending",
+			message: "NVRM: Xid (PCI:0000:00:1e): 177, Bank Remapper: New bank marked for remapping, reset gpu to activate.",
+			expected: model.NvidiaXid{
+				XidCode: 177,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 177, Bank Remapper: New bank marked for remapping, reset gpu to activate.",
+				Repair:  &model.NvidiaXidRepair{Target: "bank"},
 			},
 		},
 		{
@@ -213,6 +465,70 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				MemoryFault: &model.NvidiaXidMemoryFault{
 					FBPA:         uint64Pointer(4),
 					Subpartition: uint64Pointer(1),
+					Location:     "DRAM",
+				},
+			},
+		},
+		{
+			name:    "SRAM annotation carries location without a parsable field",
+			message: "NVRM: Xid (PCI:0000:00:1e): 172, Uncorrectable SRAM error",
+			expected: model.NvidiaXid{
+				XidCode:     172,
+				Message:     "NVRM: Xid (PCI:0000:00:1e): 172, Uncorrectable SRAM error",
+				MemoryFault: &model.NvidiaXidMemoryFault{Location: "SRAM"},
+			},
+		},
+		{
+			name:    "DRAM single-bit error storm names its partition",
+			message: "NVRM: Xid (PCI:0000:00:1e): 92, Disabling ECC single-bit error interrupts in framebuffer at logical partition 3, due to high error rate",
+			expected: model.NvidiaXid{
+				XidCode: 92,
+				Message: "NVRM: Xid (PCI:0000:00:1e): 92, Disabling ECC single-bit error interrupts in framebuffer at logical partition 3, due to high error rate",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					Partition:            uint64Pointer(3),
+					InterruptStormSource: "dram",
+				},
+			},
+		},
+		{
+			// The SM variant has no partition, and SRAM has no row remapping to absorb the
+			// errors, so the two storms are not interchangeable.
+			name:    "SM single-bit error storm has no partition",
+			message: "NVRM: Xid (PCI:0000:00:1e): 92, SM SBE interrupt storm detected",
+			expected: model.NvidiaXid{
+				XidCode:     92,
+				Message:     "NVRM: Xid (PCI:0000:00:1e): 92, SM SBE interrupt storm detected",
+				MemoryFault: &model.NvidiaXidMemoryFault{InterruptStormSource: "sm"},
+			},
+		},
+		{
+			name:    "residual uncorrectable error counts per unit",
+			message: "NVRM: Xid (PCI:0003:00:05): 140, pid='<unknown>', name=<unknown>, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:2, LTC:0, MMU:0, PCIE:0",
+			expected: model.NvidiaXid{
+				XidCode:     140,
+				Message:     "NVRM: Xid (PCI:0003:00:05): 140, pid='<unknown>', name=<unknown>, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:2, LTC:0, MMU:0, PCIE:0",
+				ProcessName: "<unknown>",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					ResidualDRAM: int64Pointer(2),
+					ResidualLTC:  int64Pointer(0),
+					ResidualMMU:  int64Pointer(0),
+					ResidualPCIE: int64Pointer(0),
+				},
+			},
+		},
+		{
+			// The driver prints these with %d and a large negative DRAM value is a known
+			// counter-reporting artifact, so they must not be parsed as unsigned.
+			name:    "residual counts survive the negative-counter artifact",
+			message: "NVRM: Xid (PCI:0003:00:05): 140, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:-2147483648, LTC:0, MMU:0, PCIE:0",
+			expected: model.NvidiaXid{
+				XidCode: 140,
+				Message: "NVRM: Xid (PCI:0003:00:05): 140, An uncorrectable ECC error detected (possible firmware handling failure) DRAM:-2147483648, LTC:0, MMU:0, PCIE:0",
+				MemoryFault: &model.NvidiaXidMemoryFault{
+					ResidualDRAM: int64Pointer(-2147483648),
+					ResidualLTC:  int64Pointer(0),
+					ResidualMMU:  int64Pointer(0),
+					ResidualPCIE: int64Pointer(0),
 				},
 			},
 		},
@@ -287,12 +603,36 @@ func uint64Pointer(value uint64) *uint64 {
 	return &value
 }
 
-func TestCreateDriverEventReportsResolutionError(t *testing.T) {
+func int64Pointer(value int64) *int64 {
+	return &value
+}
+
+func TestCreateDriverEventKeepsEventWhenDeviceIsUnresolved(t *testing.T) {
+	subscriber, telemetryMock := newTestDriverEventSubscriber(t)
+
+	// A GPU that has fallen off the PCIe bus cannot be resolved through NVML, so the event
+	// must survive with the PCI bus ID as its only device identifier.
+	event, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:97:00): 79, GPU has fallen off the bus"})
+
+	require.NoError(t, err)
+	require.Empty(t, event.DeviceUUID)
+	require.Equal(t, "0000:97:00.0", event.PCIBusID)
+	require.Equal(t, uint64(79), event.NvidiaXid.XidCode)
+
+	unresolvedMetrics, err := telemetryMock.GetCountMetric("gpu__driver_events", "unresolved_pci")
+	require.NoError(t, err)
+	require.Len(t, unresolvedMetrics, 1)
+	require.Equal(t, float64(1), unresolvedMetrics[0].Value())
+}
+
+func TestCreateDriverEventRecordsPCIBusIDOnResolvedDevices(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
 
-	_, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:97:00): 31"})
+	event, err := subscriber.createDriverEvent(kernel.KmsgRecord{Message: "NVRM: Xid (PCI:0000:00:1e): 31"})
 
-	require.ErrorContains(t, err, "resolve device UUID for PCI bus ID 0000:97:00.0")
+	require.NoError(t, err)
+	require.Equal(t, gputestutil.DefaultGpuUUID, event.DeviceUUID)
+	require.Equal(t, "0000:00:1e.0", event.PCIBusID)
 }
 
 func TestCreateDriverEventRejectsMalformedMessages(t *testing.T) {
