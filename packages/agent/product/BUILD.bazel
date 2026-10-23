@@ -232,9 +232,19 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
+rewrite_rpath(
+    name = "secret_generic_connector_binary_rpath",
+    destination = select({
+        "@platforms//os:windows": "{install_dir}/bin/agent",
+        "//conditions:default": "{install_dir}/embedded/bin",
+    }),
+    inputs = ["//cmd/secret-generic-connector"],
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
 pkg_files(
     name = "secret_generic_connector_binary",
-    srcs = ["//cmd/secret-generic-connector"],
+    srcs = [":secret_generic_connector_binary_rpath"],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
