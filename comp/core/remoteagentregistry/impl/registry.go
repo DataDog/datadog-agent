@@ -202,6 +202,7 @@ type remoteAgentRegistry struct {
 	shutdownChan      chan struct{}
 	telemetry         telemetry.Component
 	telemetryStore    *telemetryStore
+	expvarCache       remoteAgentExpvarCache
 
 	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
 	// set once at construction and is immutable afterwards, so it needs no lock.
@@ -304,6 +305,7 @@ func (ra *remoteAgentRegistry) dispatchEvents(subscriber *remoteagentregistry.Ev
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent.registry.idle_timeout")
 	ra.registerCollector()
+	ra.registerExpvars()
 
 	go func() {
 		log.Info("Remote Agent registry started.")
