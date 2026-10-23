@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -172,12 +173,59 @@ func discardStaleScratch(parent string) {
 	}
 }
 
+// maxDeploymentIDSize bounds how much of the deployment ID file is read. IDs are short
+// identifiers; anything larger was not written by writeDeploymentID.
+const maxDeploymentIDSize = 1024
+
+// readDeploymentID reads the deployment ID recorded in a configuration directory, or "" when
+// there is none.
+//
+// The installer runs as root while the configuration tree belongs to the Agent's account, and the
+// ID ends up in the state the daemon reports, which that account can read back. So the file is
+// opened without following a link, inside the directory, and must be a regular file with a single
+// link -- so it cannot be another file hard-linked into the tree -- holding a short, printable ID.
+// Anything else is refused rather than read.
 func readDeploymentID(dir string) (string, error) {
-	id, err := os.ReadFile(filepath.Join(dir, deploymentIDFile))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
 		return "", err
 	}
-	return string(id), nil
+	defer root.Close()
+	f, err := root.OpenFile(deploymentIDFile, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("could not open the deployment ID in %s: %w", dir, err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("could not stat the deployment ID in %s: %w", dir, err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("refusing the deployment ID in %s: not a regular file", dir)
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Nlink != 1 {
+		return "", fmt.Errorf("refusing the deployment ID in %s: not a file of its own", dir)
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxDeploymentIDSize+1))
+	if err != nil {
+		return "", fmt.Errorf("could not read the deployment ID in %s: %w", dir, err)
+	}
+	if len(raw) > maxDeploymentIDSize {
+		return "", fmt.Errorf("refusing the deployment ID in %s: larger than %d bytes", dir, maxDeploymentIDSize)
+	}
+	for _, c := range raw {
+		// Printable ASCII, no whitespace: what a deployment ID is made of.
+		if c < 0x21 || c > 0x7e {
+			return "", fmt.Errorf("refusing the deployment ID in %s: unexpected character %q", dir, c)
+		}
+	}
+	return string(raw), nil
 }
 
 // setFileOwnershipAndPermissions sets the ownership and permissions for a file, through a handle

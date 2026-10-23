@@ -575,3 +575,53 @@ func TestAgentAccountIsTheMacOSOne(t *testing.T) {
 	assert.Equal(t, "_dd-agent", agentConfigUser)
 	assert.Equal(t, "admin", agentConfigGroup)
 }
+
+// TestReadDeploymentIDRefusesWhatItShouldNotRead pins the checks readDeploymentID makes before the
+// installer, running as root, reports a file from the Agent-writable configuration tree back
+// through the daemon's state.
+func TestReadDeploymentIDRefusesWhatItShouldNotRead(t *testing.T) {
+	secret := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(secret, []byte("hunter2"), 0600))
+
+	for name, plant := range map[string]func(t *testing.T, path string){
+		"a symlink": func(t *testing.T, path string) {
+			require.NoError(t, os.Symlink(secret, path))
+		},
+		"a hard link": func(t *testing.T, path string) {
+			require.NoError(t, os.Link(secret, path))
+		},
+		"a directory": func(t *testing.T, path string) {
+			require.NoError(t, os.Mkdir(path, 0755))
+		},
+		"an oversized file": func(t *testing.T, path string) {
+			require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", maxDeploymentIDSize+1)), 0640))
+		},
+		"a multi-line file": func(t *testing.T, path string) {
+			require.NoError(t, os.WriteFile(path, []byte("id\nmore"), 0640))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			plant(t, filepath.Join(dir, deploymentIDFile))
+			id, err := readDeploymentID(dir)
+			assert.Error(t, err)
+			assert.Empty(t, id)
+		})
+	}
+}
+
+func TestReadDeploymentIDReadsAnID(t *testing.T) {
+	dir := t.TempDir()
+	id, err := readDeploymentID(dir)
+	require.NoError(t, err)
+	assert.Empty(t, id, "a directory with no deployment ID reports none")
+
+	require.NoError(t, writeDeploymentID(dir, "jq-replace-tag:123-0"))
+	id, err = readDeploymentID(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "jq-replace-tag:123-0", id)
+
+	id, err = readDeploymentID(filepath.Join(dir, "missing"))
+	require.NoError(t, err)
+	assert.Empty(t, id, "a missing directory reports no deployment ID")
+}
