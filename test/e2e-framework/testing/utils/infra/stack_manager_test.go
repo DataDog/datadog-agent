@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -370,4 +371,43 @@ func TestRecordStackName(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(outputDir, StacksFileName))
 	require.NoError(t, err)
 	assert.Equal(t, "ci-init-1-14-stack-a\nci-init-1-14-stack-b\n", string(content))
+}
+
+func TestPulumiPlugins(t *testing.T) {
+	t.Run("outside of runfiles", func(t *testing.T) {
+		t.Setenv("TEST_SRCDIR", "")
+		plugins, err := pulumiPlugins()
+		require.NoError(t, err)
+		assert.Nil(t, plugins)
+	})
+
+	t.Run("without plugin in runfiles", func(t *testing.T) {
+		runfiles := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(runfiles, "_main", "test"), 0o755))
+		t.Setenv("TEST_SRCDIR", runfiles)
+		plugins, err := pulumiPlugins()
+		require.NoError(t, err)
+		assert.Nil(t, plugins)
+	})
+
+	t.Run("from runfiles", func(t *testing.T) {
+		runfiles := t.TempDir()
+		paths := []string{
+			"+pulumi_plugins+resource-aws-v7.52.1/resource-aws-v7.52.1/pulumi-resource-aws",
+			"+pulumi_plugins+resource-docker-v4.11.0/resource-docker-v4.11.0/pulumi-resource-docker",
+			"_main/test/e2e-framework/testing/utils/infra/infra_test",
+		}
+		for _, path := range paths {
+			require.NoError(t, os.MkdirAll(filepath.Join(runfiles, filepath.Dir(path)), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(runfiles, path), nil, 0o755))
+		}
+		require.NoError(t, os.WriteFile(filepath.Join(runfiles, "_repo_mapping"), nil, 0o644))
+		t.Setenv("TEST_SRCDIR", runfiles)
+		plugins, err := pulumiPlugins()
+		require.NoError(t, err)
+		assert.Equal(t, []workspace.PluginOptions{
+			{Name: "aws", Version: "7.52.1", Path: filepath.Join(runfiles, filepath.Dir(paths[0]))},
+			{Name: "docker", Version: "4.11.0", Path: filepath.Join(runfiles, filepath.Dir(paths[1]))},
+		}, plugins.Providers)
+	})
 }
