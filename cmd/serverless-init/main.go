@@ -583,8 +583,11 @@ type tagConfiguration struct {
 	// for use on dogstatsd metrics, legacy enhanced metrics, logs, and traces.
 	Tags                    map[string]string
 	EnhancedMetricTags      map[string]string // subset of tags derived from cloud service for enhanced metrics.
-	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag.
+	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag, plus env, service, and version.
 }
+
+// unifiedServiceTagKeys are the Unified Service Tagging keys copied onto the enhanced usage metric.
+var unifiedServiceTagKeys = []string{"env", "service", "version"}
 
 func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
@@ -603,14 +606,25 @@ func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 
-	serverlessInitTag.SetVersionMode(enhancedMetricTagSets.Usage, modeConf.TagVersionModeEnhancedMetrics)
-	serverlessInitTag.SetSidecarModeTag(enhancedMetricTagSets.Usage, modeConf.SidecarMode)
+	// The usage metric keeps a small tag set, but env, service, and version let users
+	// group and route alerts on it. Take them from the same sources, with the same
+	// precedence, as the other enhanced metrics so the values match.
+	unifiedServiceTags := make(map[string]string, len(unifiedServiceTagKeys))
+	for _, key := range unifiedServiceTagKeys {
+		if value, ok := enhancedMetricTags[key]; ok {
+			unifiedServiceTags[key] = value
+		}
+	}
+	enhancedUsageMetricTags := serverlessTag.MergeWithOverwrite(unifiedServiceTags, enhancedMetricTagSets.Usage)
+
+	serverlessInitTag.SetVersionMode(enhancedUsageMetricTags, modeConf.TagVersionModeEnhancedMetrics)
+	serverlessInitTag.SetSidecarModeTag(enhancedUsageMetricTags, modeConf.SidecarMode)
 
 	return tagConfiguration{
 		ConfiguredTags:          configuredTags,
 		Tags:                    tags,
 		EnhancedMetricTags:      enhancedMetricTags,
-		EnhancedUsageMetricTags: enhancedMetricTagSets.Usage,
+		EnhancedUsageMetricTags: enhancedUsageMetricTags,
 	}
 }
 

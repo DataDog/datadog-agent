@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    serverless-init now adds the ``env``, ``service``, and ``version`` tags to
+    the enhanced instance and replica metrics, such as
+    ``gcp.run.container.enhanced.instance``. You can now group dashboards and
+    route alerts on these metrics by service, the same as other enhanced metrics.
