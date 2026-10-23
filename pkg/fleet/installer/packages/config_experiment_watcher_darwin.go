@@ -9,6 +9,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -22,8 +23,19 @@ import (
 )
 
 // deadlineTickInterval is how often watchExperiment polls the deadline file while waiting on
-// the exit observer, per the RFC's deadline-tick design.
-const deadlineTickInterval = 30 * time.Second
+// the exit observer. A var so tests can shorten it.
+var deadlineTickInterval = 30 * time.Second
+
+// watcherDeadlineReadFailures is how many consecutive ticks may fail to read the deadline before
+// the watcher stops trusting it can supervise the experiment, and reverts it.
+const watcherDeadlineReadFailures = 3
+
+// watcherFailSafeAttempts bounds how many times a watcher that can no longer supervise its
+// experiment tries to revert it (failSafeRevert), and watcherFailSafeBackoff is the delay before
+// the second attempt, doubling before each further one. A var so tests can shorten it.
+const watcherFailSafeAttempts = 3
+
+var watcherFailSafeBackoff = 5 * time.Second
 
 // startupPollInterval and startupPollTimeout bound how long watchExperiment waits for a job that
 // Kickstart was already told to start, but that launchd has not yet reported a pid for, before
@@ -61,19 +73,33 @@ var installerLockPoll = time.Minute
 // Before supervising anything, it hands the installer daemon over to the experiment
 // (handOverInstaller): the hook that launched this process could not, running inside the daemon's
 // own job. This process runs in a session of its own, so it survives the daemon being stopped.
+//
+// It fails safe: once the experiment is known to be running, any failure that keeps this process
+// from supervising it -- launchctl, the exit observer, the installer lock, the deadline file --
+// reverts the experiment rather than leaving it running with nothing watching (failSafeRevert).
 func watchExperiment(ctx context.Context) error {
 	deadline := experimentDeadline()
-	jobs := configExperimentJobSet()
 
 	token, err := deadline.Read()
 	if err != nil {
-		return fmt.Errorf("watcher: could not read experiment deadline: %w", err)
+		// The experiment the hook just started would otherwise run with nothing watching it.
+		return failSafeRevert(ctx, deadline, "", fmt.Errorf("watcher: could not read experiment deadline: %w", err))
 	}
 	if !experimentPending(token) {
 		// Stopped or promoted before this process got to run: nothing left to supervise.
 		return nil
 	}
+	if err := superviseExperiment(ctx, deadline, token); err != nil {
+		return failSafeRevert(ctx, deadline, token, err)
+	}
+	return nil
+}
 
+// superviseExperiment is watchExperiment's work once the experiment is known to be running: hand
+// the installer daemon over, then watch the experiment jobs and the deadline until one of them
+// ends the experiment. An error means it could not keep supervising.
+func superviseExperiment(ctx context.Context, deadline launchd.Deadline, token string) error {
+	jobs := configExperimentJobSet()
 	handedOver, err := handOverInstaller(ctx, deadline, token)
 	if err != nil || !handedOver {
 		return err
@@ -117,17 +143,25 @@ func watchExperiment(ctx context.Context) error {
 	ticker := time.NewTicker(deadlineTickInterval)
 	defer ticker.Stop()
 
+	delivered := 0
+	readFailures := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case ev, ok := <-exitCh:
 			if !ok {
+				if delivered < len(pids) {
+					// The observer gave up before every pid exited: a crash from here on would
+					// go unnoticed until the deadline.
+					return errors.New("watcher: the exit observer stopped before every experiment job exited")
+				}
 				// Every armed pid has delivered its one-shot event; nothing left to
 				// receive from this channel, but the deadline tick still runs.
 				exitCh = nil
 				continue
 			}
+			delivered++
 			label := jobPIDs[ev.Pid]
 			if !exitFailsExperiment(label, exitedCleanly(ev.Status)) {
 				continue
@@ -144,15 +178,24 @@ func watchExperiment(ctx context.Context) error {
 		case <-ticker.C:
 			current, err := deadline.Read()
 			if err != nil {
+				readFailures++
+				if readFailures >= watcherDeadlineReadFailures {
+					return fmt.Errorf("watcher: could not read experiment deadline %d times in a row: %w", readFailures, err)
+				}
 				log.Errorf("watcher: could not read experiment deadline: %v", err)
 				continue
 			}
+			readFailures = 0
 			if current != token {
 				// Stopped, promoted, or replaced by a newer experiment with its own watcher.
 				return nil
 			}
 			expired, err := deadline.Expired(configExperimentDeadlineWindow)
 			if err != nil {
+				readFailures++
+				if readFailures >= watcherDeadlineReadFailures {
+					return fmt.Errorf("watcher: could not check experiment deadline %d times in a row: %w", readFailures, err)
+				}
 				log.Errorf("watcher: could not check experiment deadline: %v", err)
 				continue
 			}
@@ -165,6 +208,85 @@ func watchExperiment(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+// failSafeRevert reverts the experiment the watcher can no longer supervise, cause saying why, and
+// retries a few times, with a doubling backoff, before giving up. token is the deadline the
+// watcher read on start, or "" when it could not read one.
+//
+// It reverts under the installer lock, like revertFromWatcher, and skips the revert when the
+// experiment is over by then -- the deadline cleared or holding another experiment's token. A
+// deadline it cannot read does not stop it: an experiment nobody can tell the state of is reverted.
+// When the lock itself cannot be taken, for any reason other than a running command, no installer
+// command can run either, so the last attempt reverts without it.
+//
+// A watcher stopped on purpose (ctx cancelled: the resume step replacing it) reverts nothing.
+// Whatever this cannot revert is left to the next daemon start (resumeConfigExperimentDatadogAgent).
+func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string, cause error) error {
+	log.Errorf("watcher: cannot keep supervising the configuration experiment, reverting it: %v", cause)
+	stillOurs := func() (bool, error) {
+		current, err := deadline.Read()
+		if err != nil {
+			log.Warnf("watcher: could not read experiment deadline, reverting regardless: %v", err)
+			return true, nil
+		}
+		if token == "" {
+			return experimentPending(current), nil
+		}
+		return current == token, nil
+	}
+	revert := func() (bool, error) {
+		if ours, _ := stillOurs(); !ours {
+			return false, nil
+		}
+		log.Warnf("watcher: reverting configuration experiment: %v", cause)
+		return true, revertExperiment(ctx, configExperimentJobSet())
+	}
+
+	var err error
+	backoff := watcherFailSafeBackoff
+	for attempt := 0; attempt < watcherFailSafeAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return cause
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+		}
+		if ctx.Err() != nil {
+			return cause
+		}
+		var lock *db.PackagesDB
+		lock, err = waitForInstallerLock(ctx, stillOurs)
+		if err != nil {
+			log.Warnf("watcher: fail-safe revert attempt %d: %v", attempt+1, err)
+			continue
+		}
+		if lock == nil {
+			// The experiment ended while waiting for a running installer command.
+			return nil
+		}
+		var reverted bool
+		reverted, err = revert()
+		if closeErr := lock.Close(); closeErr != nil {
+			log.Warnf("watcher: could not release the installer lock: %v", closeErr)
+		}
+		if err == nil {
+			if !reverted {
+				return nil
+			}
+			return fmt.Errorf("watcher stopped supervising, experiment reverted: %w", cause)
+		}
+		log.Warnf("watcher: fail-safe revert attempt %d: %v", attempt+1, err)
+	}
+	if errors.Is(err, errInstallerLock) {
+		log.Warnf("watcher: the installer lock is unusable, reverting without it")
+		if _, err = revert(); err == nil {
+			return fmt.Errorf("watcher stopped supervising, experiment reverted: %w", cause)
+		}
+	}
+	return fmt.Errorf("watcher stopped supervising (%w) and could not revert the experiment: %w", cause, err)
 }
 
 // handOverInstaller hands the installer daemon over from its stable job to its experiment one, and

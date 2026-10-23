@@ -191,7 +191,9 @@ func (e configExperiment) Promote(ctx context.Context) error {
 func (e configExperiment) restoreStable(ctx context.Context) error {
 	deadline := experimentDeadline()
 	if err := deadline.MarkReverting(); err != nil {
-		return err
+		// The marker only backs up a restore that fails. Not being able to write it must not keep
+		// the stable set from coming back: that is the one thing a rollback has to do.
+		log.Warnf("could not mark the configuration experiment as reverting, restoring the stable set anyway: %v", err)
 	}
 	// Unloading the whole experiment set first keeps the reverse teardown order. It is best
 	// effort: restoreStableJobs unloads each experiment job again before starting its stable twin,
@@ -248,6 +250,9 @@ func handBackInstaller(ctx context.Context) (err error) {
 	return nil
 }
 
+// errInstallerLock wraps every failure to take the installer's lock other than a timeout.
+var errInstallerLock = errors.New("could not take the installer lock")
+
 // waitForInstallerLock takes the installer's lock, waiting for any installer command that holds
 // it. Between waits it asks stillWanted, and gives up without the lock, returning a nil lock and
 // no error, once that reports false.
@@ -258,7 +263,7 @@ func waitForInstallerLock(ctx context.Context, stillWanted func() (bool, error))
 			return lock, nil
 		}
 		if !errors.Is(err, bberrors.ErrTimeout) {
-			return nil, fmt.Errorf("could not take the installer lock: %w", err)
+			return nil, fmt.Errorf("%w: %w", errInstallerLock, err)
 		}
 		wanted, err := stillWanted()
 		if err != nil || !wanted {

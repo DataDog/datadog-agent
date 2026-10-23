@@ -268,20 +268,22 @@ func ArmExitObserver(pids []int) (*ExitObserver, <-chan ExitEvent, error) {
 	}
 
 	o := &ExitObserver{kq: kq}
-	go o.watch(events, len(pids)-len(immediate))
+	// The goroutine gets its own copy of the descriptor: Disarm resets the field from another
+	// goroutine.
+	go watchExits(kq, events, len(pids)-len(immediate))
 	return o, events, nil
 }
 
-// watch blocks in kevent(2) until every armed, non-immediate pid has delivered its one-shot
+// watchExits blocks in kevent(2) until every armed, non-immediate pid has delivered its one-shot
 // event, then closes the channel. remaining is 0 when every pid was already dead at arm time.
-func (o *ExitObserver) watch(out chan ExitEvent, remaining int) {
+func watchExits(kq int, out chan ExitEvent, remaining int) {
 	defer close(out)
 	if remaining <= 0 {
 		return
 	}
 	buf := make([]unix.Kevent_t, remaining)
 	for remaining > 0 {
-		n, err := unix.Kevent(o.kq, nil, buf, nil)
+		n, err := unix.Kevent(kq, nil, buf, nil)
 		if err != nil {
 			if errors.Is(err, unix.EINTR) {
 				continue
