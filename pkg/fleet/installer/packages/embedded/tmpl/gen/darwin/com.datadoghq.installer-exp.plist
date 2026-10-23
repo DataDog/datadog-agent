@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.installer-exp</string>
+        <!-- RunAtLoad starts the daemon at boot, with no login session. Only the stable set has
+             it: a reboot mid-experiment must bring back only the stable daemon, which resumes
+             the experiment. -->
+        <key>RunAtLoad</key>
+        <false/>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+            <!-- Tells the daemon, and the installer commands and hooks it runs, that it is the
+                 experiment's daemon rather than the stable one. -->
+            <key>DD_INSTALLER_EXPERIMENT_DAEMON</key>
+            <string>true</string>
+        </dict>
+        <!-- The program is the façade, never the pool: this definition is written by both
+             install paths and must be correct for every version, forever. -->
+        <key>ProgramArguments</key>
+        <array>
+            <string>/opt/datadog-agent/embedded/bin/installer</string>
+            <string>run</string>
+            <string>-c</string>
+            <string>/opt/datadog-agent/etc-exp</string>
+            <string>-p</string>
+            <string>/opt/datadog-agent/run/installer.pid</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>/opt/datadog-agent/logs/launchd_installer-exp.log</string>
+        <key>StandardErrorPath</key>
+        <string>/opt/datadog-agent/logs/launchd_installer-exp.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>root</string>
+        <key>GroupName</key>
+        <string>admin</string>
+    </dict>
+</plist>

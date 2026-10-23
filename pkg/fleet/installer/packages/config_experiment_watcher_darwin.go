@@ -9,11 +9,11 @@ package packages
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
-	bberrors "go.etcd.io/bbolt/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
@@ -35,16 +35,16 @@ const (
 	startupPollTimeout  = 5 * time.Second
 )
 
-// watcherLockPoll bounds each wait for the installer's lock, so a watcher whose experiment was
+// installerLockPoll bounds each wait for the installer's lock, so a watcher whose experiment was
 // stopped, promoted or replaced meanwhile notices and exits instead of waiting out a long operation.
 // A var so tests can shorten it.
-var watcherLockPoll = time.Minute
+var installerLockPoll = time.Minute
 
 // watchExperiment runs in a detached process, launched by postStartConfigExperimentDatadogAgent
 // after a configuration experiment has started successfully. It supervises the experiment job
 // set for as long as the deadline file (configExperimentDeadlinePath) still holds the deadline it
-// read on start, reverting to the stable set if an experiment job exits abnormally or if the
-// deadline expires.
+// read on start, reverting to the stable set if an experiment job exits in a way that fails the
+// experiment (exitFailsExperiment) or if the deadline expires.
 //
 // A deliberate stop or promote (configExperiment.restoreStable) clears the deadline file before
 // touching any job, which is this design's only signal between the two processes: there is no
@@ -57,9 +57,13 @@ var watcherLockPoll = time.Minute
 // Re-checking the file is not enough on its own: a stop or promote can start between the check and
 // the revert. So every revert first takes the lock every installer command holds for its whole run
 // (revertFromWatcher), and re-checks the file under it.
+//
+// Before supervising anything, it hands the installer daemon over to the experiment
+// (handOverInstaller): the hook that launched this process could not, running inside the daemon's
+// own job. This process runs in a session of its own, so it survives the daemon being stopped.
 func watchExperiment(ctx context.Context) error {
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
-	jobs := agentJobSet()
+	jobs := configExperimentJobSet()
 
 	token, err := deadline.Read()
 	if err != nil {
@@ -70,7 +74,12 @@ func watchExperiment(ctx context.Context) error {
 		return nil
 	}
 
-	pids, exited, err := resolveExperimentPids(ctx, jobs)
+	handedOver, err := handOverInstaller(ctx, deadline, token)
+	if err != nil || !handedOver {
+		return err
+	}
+
+	jobPIDs, exited, err := resolveExperimentPids(ctx, jobs)
 	if err != nil {
 		return fmt.Errorf("watcher: could not resolve experiment pids: %w", err)
 	}
@@ -83,7 +92,7 @@ func watchExperiment(ctx context.Context) error {
 		_, err := revertFromWatcher(ctx, deadline, token, reason)
 		return err
 	}
-	if len(pids) == 0 {
+	if len(jobPIDs) == 0 {
 		// Every job in the set failed to come up at all within the startup grace period,
 		// and none of them recorded an exit either -- Kickstart was accepted but nothing
 		// ever ran. Treat that as a failed launch, same as a crash.
@@ -91,6 +100,10 @@ func watchExperiment(ctx context.Context) error {
 		return err
 	}
 
+	pids := make([]int, 0, len(jobPIDs))
+	for pid := range jobPIDs {
+		pids = append(pids, pid)
+	}
 	observer, exitCh, err := launchd.ArmExitObserver(pids)
 	if err != nil {
 		return fmt.Errorf("watcher: could not arm exit observer: %w", err)
@@ -115,15 +128,11 @@ func watchExperiment(ctx context.Context) error {
 				exitCh = nil
 				continue
 			}
-			if exitedCleanly(ev.Status) {
-				// A job whose feature is disabled (e.g. system-probe with no module
-				// enabled) exits on its own moments after being kickstarted, by
-				// design -- the stable job set does exactly the same and nothing
-				// watches it for that. Only an abnormal exit of a sibling job should
-				// pull the rest of the set down with it.
+			label := jobPIDs[ev.Pid]
+			if !exitFailsExperiment(label, exitedCleanly(ev.Status)) {
 				continue
 			}
-			reason := fmt.Sprintf("experiment pid %d exited (status %d)", ev.Pid, ev.Status)
+			reason := fmt.Sprintf("experiment job %s (pid %d) exited (status %d)", label, ev.Pid, ev.Status)
 			_, err := revertFromWatcher(ctx, deadline, token, reason)
 			if err != nil {
 				return err
@@ -158,37 +167,101 @@ func watchExperiment(ctx context.Context) error {
 	}
 }
 
+// handOverInstaller hands the installer daemon over from its stable job to its experiment one, and
+// reports whether it did. It does not when the experiment is over by the time it gets to, or when
+// the hand-over failed and the experiment was reverted instead.
+//
+// It first waits for the installer command that ran the start or resume hook to exit
+// (waitForInstallerCommand): its process is in the daemon's job, so swapping the daemon earlier
+// would kill it halfway. The lock is released again before the swap. The daemon still has to
+// finish the request that command was part of once it exits -- read the package states, through
+// an installer command that takes the same lock, and record the task as done -- and a swap made
+// under the lock would stop it with that request stuck, reported as running forever. The swap
+// stops the stable daemon once the request is done, the experiment daemon picks up from there, and
+// reports the experiment.
+//
+// With the lock released, a stop or promote can come in before the swap. The deadline is read
+// again once the experiment daemon is up, and if the experiment is over, the daemon is handed
+// straight back.
+//
+// A failed swap may have left the host with no daemon at all, so it reverts every job, the daemon
+// included.
+func handOverInstaller(ctx context.Context, deadline launchd.Deadline, token string) (bool, error) {
+	pending, err := waitForInstallerCommand(ctx, deadline, token)
+	if err != nil || !pending {
+		return false, err
+	}
+	swapErr := installerJobSet().Swap(context.WithoutCancel(ctx), installerJob, launchd.Stable, launchd.Experiment)
+	if swapErr != nil {
+		reason := fmt.Sprintf("could not hand the installer daemon over to the experiment: %v", swapErr)
+		if _, err := revertFromWatcher(ctx, deadline, token, reason); err != nil {
+			return false, fmt.Errorf("%s, and %w", reason, err)
+		}
+		return false, nil
+	}
+	current, err := deadline.Read()
+	if err != nil {
+		return false, fmt.Errorf("watcher: could not read experiment deadline: %w", err)
+	}
+	if current != token {
+		log.Infof("watcher: the experiment ended while the installer daemon was handed over, handing it back")
+		return false, handBackInstaller(ctx)
+	}
+	return true, nil
+}
+
+// waitForInstallerCommand waits for any installer command holding the installer's lock to exit,
+// and reports whether the deadline still holds token once it has. The lock is released before it
+// returns: it is only taken to know that no command is running.
+func waitForInstallerCommand(ctx context.Context, deadline launchd.Deadline, token string) (bool, error) {
+	lock, ok, err := waitForInstaller(ctx, deadline, token)
+	if err != nil || !ok {
+		return false, err
+	}
+	current, readErr := deadline.Read()
+	if err := lock.Close(); err != nil {
+		log.Warnf("watcher: could not release the installer lock: %v", err)
+	}
+	if readErr != nil {
+		return false, fmt.Errorf("watcher: could not read experiment deadline: %w", readErr)
+	}
+	return current == token, nil
+}
+
 // resolveExperimentPids waits for every job in the set to either report a running pid or a
 // recorded exit, bounded by startupPollTimeout. Kickstart was already issued for every job
 // before this process was even spawned -- this runs detached, launched only after Start() has
 // returned -- so a healthy job should acquire a pid almost immediately; the bound only covers
 // the gap between that request and this process actually getting to check.
 //
-// A job that launchd itself recorded as an abnormal exit stops the wait immediately and is
-// returned in exited, regardless of its siblings' state: that is a durable fact recorded by
-// launchd, not something more waiting would resolve. A job recorded as having exited cleanly
-// (LastExitStatus zero) is not: agentJobSet swaps its three jobs as one unit, and a job whose
-// feature is off exits that way the instant it is kickstarted, same as the stable set -- exactly
-// the case exitedCleanly exists to tolerate later in watchExperiment, and this pre-check must
-// tolerate it too, or every experiment with one disabled feature reverts itself on startup before
-// the caller ever gets a chance to observe it running. Unlike exitedCleanly's wait(2) status word,
-// LastExitStatus is launchd's own simple signed code, so a direct zero check is what it takes to
-// tell the two apart here.
-func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (pids []int, exited *launchd.JobStatus, err error) {
+// It returns the running jobs' pids, each mapped to its label without the variant suffix, which is
+// what exitFailsExperiment is keyed on.
+//
+// A job that launchd itself recorded as having exited in a way that fails the experiment
+// (exitFailsExperiment) stops the wait immediately and is returned in exited, regardless of its
+// siblings' state: that is a durable fact recorded by launchd, not something more waiting would
+// resolve. Any other job recorded as having exited cleanly (LastExitStatus zero) is not: a job
+// whose feature is off exits that way the instant it is kickstarted, same as the stable set, and
+// this pre-check must tolerate it, or every experiment with one disabled feature reverts itself on
+// startup before the caller ever gets a chance to observe it running. Unlike exitedCleanly's
+// wait(2) status word, LastExitStatus is launchd's own simple signed code, so a direct zero check
+// is what it takes to tell a clean exit apart here.
+func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (jobPIDs map[int]string, exited *launchd.JobStatus, err error) {
 	giveUp := time.Now().Add(startupPollTimeout)
 	for {
 		statuses, err := jobs.Statuses(ctx, launchd.Experiment)
 		if err != nil {
 			return nil, nil, err
 		}
-		pids = pids[:0]
+		jobPIDs = make(map[int]string, len(statuses))
 		pending := false
 		for i, status := range statuses {
+			label := strings.TrimSuffix(status.Label, string(launchd.Experiment))
 			if status.PID != 0 {
-				pids = append(pids, status.PID)
+				jobPIDs[status.PID] = label
 				continue
 			}
-			if status.HasExited && status.LastExitStatus != 0 {
+			if status.HasExited && exitFailsExperiment(label, status.LastExitStatus == 0) {
 				return nil, &statuses[i], nil
 			}
 			if status.HasExited {
@@ -197,25 +270,39 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (pids []int
 			pending = true
 		}
 		if !pending || time.Now().After(giveUp) {
-			return pids, nil, nil
+			return jobPIDs, nil, nil
 		}
 		select {
 		case <-ctx.Done():
-			return pids, nil, nil
+			return jobPIDs, nil, nil
 		case <-time.After(startupPollInterval):
 		}
 	}
 }
 
+// essentialJobs are the jobs that must keep running for as long as an experiment does: the Agent,
+// and the installer daemon, the only process that can stop or promote the experiment. Either one
+// exiting fails the experiment, even cleanly: an experiment left with no Agent would otherwise run
+// on, and could be promoted, until its deadline, and one left with no daemon could not be ended
+// before it. The other jobs exit cleanly by design when their feature is off.
+var essentialJobs = []string{agentJob, installerJob}
+
+// exitFailsExperiment reports whether an experiment job exiting, cleanly or not, fails the
+// experiment. label is the job's label without its variant suffix.
+func exitFailsExperiment(label string, clean bool) bool {
+	return !clean || slices.Contains(essentialJobs, label)
+}
+
 // exitedCleanly reports whether a wait(2) status word (as delivered by NOTE_EXITSTATUS) describes
-// a normal, voluntary exit(0). agentJobSet swaps agent, sysprobe and data-plane as one unit, and a
-// job whose feature is off exits this way the instant it is kickstarted -- that is expected
-// lifecycle, not a crash, and must not cost the rest of the set an otherwise-healthy experiment.
+// a normal, voluntary exit(0). For a job outside essentialJobs, whose feature may be off, that is
+// expected lifecycle, not a crash, and must not cost the rest of the set an otherwise-healthy
+// experiment.
 //
 // A pid that had already exited before ArmExitObserver could arm it also reports status 0 (its
 // real exit status is unrecoverable by then, see ArmExitObserver's doc comment on that residual
 // race): this treats that case the same as a clean exit rather than a crash, narrowing an already
-// zero-width, documented race rather than introducing a new one.
+// zero-width, documented race rather than introducing a new one. For an essential job either way
+// is a failure.
 func exitedCleanly(status int) bool {
 	ws := unix.WaitStatus(status)
 	return ws.Exited() && ws.ExitStatus() == 0
@@ -236,33 +323,27 @@ func revertFromWatcher(ctx context.Context, deadline launchd.Deadline, token str
 			log.Warnf("watcher: could not release the installer lock: %v", err)
 		}
 	}()
-	return revertExperimentIfStillPending(ctx, deadline, token, reason)
+	return revertExperimentIfStillPending(ctx, configExperimentJobSet(), deadline, token, reason)
 }
 
 // waitForInstaller takes the installer's lock, waiting for any installer command that holds it. It
 // gives up without the lock, and reports false, once the deadline no longer holds token: whatever
 // held the lock stopped, promoted or replaced the experiment, so there is nothing left to revert.
 func waitForInstaller(ctx context.Context, deadline launchd.Deadline, token string) (*db.PackagesDB, bool, error) {
-	for {
-		lock, err := db.New(ctx, configExperimentLockPath, db.WithTimeout(watcherLockPoll))
-		if err == nil {
-			return lock, true, nil
+	lock, err := waitForInstallerLock(ctx, func() (bool, error) {
+		current, err := deadline.Read()
+		if err != nil {
+			return false, fmt.Errorf("could not read experiment deadline: %w", err)
 		}
-		if !errors.Is(err, bberrors.ErrTimeout) {
-			return nil, false, fmt.Errorf("watcher: could not take the installer lock: %w", err)
-		}
-		current, readErr := deadline.Read()
-		if readErr != nil {
-			return nil, false, fmt.Errorf("watcher: could not read experiment deadline: %w", readErr)
-		}
-		if current != token {
-			return nil, false, nil
-		}
-		log.Infof("watcher: still waiting for a running installer command before reverting")
+		return current == token, nil
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("watcher: %w", err)
 	}
+	return lock, lock != nil, nil
 }
 
-// revertExperimentIfStillPending reverts to the stable job set unless the deadline file no longer
+// revertExperimentIfStillPending reverts jobs to the stable job set unless the deadline file no longer
 // holds token: cleared by a deliberate stop or promote, in which case that path owns the outcome,
 // or rewritten by a newer experiment that is not this caller's to revert. Either way this call is
 // a no-op. Reports whether it reverted.
@@ -273,7 +354,7 @@ func waitForInstaller(ctx context.Context, deadline launchd.Deadline, token stri
 // to its installer/db state, but the directory swap it still owes is a plain filesystem
 // operation -- restoring the experiment link to resting -- so revertExperiment does it directly
 // (see discardExperimentConfig).
-func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
+func revertExperimentIfStillPending(ctx context.Context, jobs launchd.JobSet, deadline launchd.Deadline, token string, reason string) (bool, error) {
 	current, err := deadline.Read()
 	if err != nil {
 		return false, fmt.Errorf("watcher: could not read experiment deadline: %w", err)
@@ -282,16 +363,19 @@ func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadli
 		return false, nil
 	}
 	log.Warnf("watcher: reverting configuration experiment: %s", reason)
-	if err := revertExperiment(ctx); err != nil {
+	if err := revertExperiment(ctx, jobs); err != nil {
 		return false, fmt.Errorf("watcher: %w", err)
 	}
 	return true, nil
 }
 
-// revertExperiment hands the Agent back to the stable job set and discards the experiment
-// configuration directory, leaving the host as if no experiment had ever been started.
-func revertExperiment(ctx context.Context) error {
-	if err := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); err != nil {
+// revertExperiment hands jobs back to the stable job set and discards the experiment configuration
+// directory, leaving the host as if no experiment had ever been started.
+//
+// The watcher reverts every job (configExperimentJobSet). The resume hook, run by the stable
+// daemon, reverts the agent jobs only (see resumeConfigExperimentDatadogAgent).
+func revertExperiment(ctx context.Context, jobs launchd.JobSet) error {
+	if err := (configExperiment{jobs: jobs}).Stop(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("could not revert experiment: %w", err)
 	}
 	return discardExperimentConfig(ctx)

@@ -195,14 +195,16 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
 
-    # The installer daemon and the experiment variants of the jobs above. The -exp jobs only
+    # The installer daemon and the experiment variants of all of the jobs. The -exp jobs only
     # exist while a configuration experiment is running; booting them out here is what keeps an
     # upgrade from leaving an Agent behind that reads etc-exp after the collapse below.
     launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
     launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
     launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
     launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
     rm -vf /Library/LaunchDaemons/com.datadoghq.installer.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.installer-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
     rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 
@@ -146,8 +147,11 @@ func TestGetLaunchdJobEmbedsBothVariants(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, experiment)
 
-	// The installer daemon supervises an experiment, so it is never part of one.
-	assert.NotContains(t, experiment, "com.datadoghq.installer")
+	// The installer daemon is part of a configuration experiment, like the Agent.
+	assert.Contains(t, experiment, "com.datadoghq.installer")
+	// Every job has both variants but the procmgr daemon, which an experiment leaves running.
+	assert.NotContains(t, experiment, "com.datadoghq.procmgr")
+	assert.ElementsMatch(t, slices.DeleteFunc(slices.Clone(stable), func(label string) bool { return label == "com.datadoghq.procmgr" }), experiment)
 
 	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
 		labels, err := LaunchdJobs(variant)
@@ -218,6 +222,34 @@ func TestLaunchdVariantsDifferOnlyAsSpecified(t *testing.T) {
 	for _, content := range [][]byte{stable, experiment} {
 		assert.Contains(t, string(content), "<string>/opt/datadog-agent/bin/agent/agent</string>")
 		assert.Contains(t, string(content), "<string>/opt/datadog-agent/run/agent.pid</string>")
+	}
+}
+
+// TestLaunchdInstallerExperimentVariant asserts what the experiment daemon's definition must carry
+// on top of the differences every -exp job has: no RunAtLoad, so a reboot brings back only the
+// stable daemon, and the marker its hooks read to tell which daemon runs them.
+func TestLaunchdInstallerExperimentVariant(t *testing.T) {
+	stable, err := GetLaunchdJob("com.datadoghq.installer", LaunchdStable)
+	require.NoError(t, err)
+	experiment, err := GetLaunchdJob("com.datadoghq.installer", LaunchdExperiment)
+	require.NoError(t, err)
+
+	assert.Regexp(t, `<key>RunAtLoad</key>\s*<true/>`, string(stable))
+	assert.Regexp(t, `<key>RunAtLoad</key>\s*<false/>`, string(experiment))
+
+	assert.NotContains(t, string(stable), "DD_INSTALLER_EXPERIMENT_DAEMON")
+	assert.Regexp(t, `<key>DD_INSTALLER_EXPERIMENT_DAEMON</key>\s*<string>true</string>`, string(experiment))
+
+	for variant, content := range map[LaunchdVariant][]byte{LaunchdStable: stable, LaunchdExperiment: experiment} {
+		var plist struct {
+			Args []string `xml:"dict>array>string"`
+		}
+		require.NoError(t, xml.Unmarshal(content, &plist))
+		assert.Equal(t, []string{
+			"/opt/datadog-agent/embedded/bin/installer", "run",
+			"-c", "/opt/datadog-agent/etc" + string(variant),
+			"-p", "/opt/datadog-agent/run/installer.pid",
+		}, plist.Args)
 	}
 }
 

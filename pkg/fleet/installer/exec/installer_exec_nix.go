@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -33,6 +34,13 @@ func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 	}
 
 	return cmd
+}
+
+// detachCmdPlatform starts a detached process in a session of its own. A service manager that
+// stops the parent's job kills every process left in its process group (launchd does unless the
+// job sets AbandonProcessGroup), and a detached process is meant to outlive its parent.
+func detachCmdPlatform(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 }
 
 // getStates retrieves the state of all packages & their configuration from disk.
