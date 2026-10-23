@@ -6,7 +6,9 @@
 package remoteagentregistryimpl
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"expvar"
 	"math"
 	"sort"
@@ -147,14 +149,6 @@ var expvarMappings = []expvarMapping{
 		),
 		metricType: dto.MetricType_COUNTER,
 	},
-	// ADP exposes a broader dropped count; keep the legacy expvar path but document the semantic difference.
-	{
-		id:              "forwarder_dropped_on_input",
-		metricName:      "transactions__dropped",
-		expvarPath:      []string{"forwarder", "Transactions", "DroppedOnInput"},
-		metricType:      dto.MetricType_COUNTER,
-		createIfMissing: true,
-	},
 	{
 		id:         "forwarder_retry_queue_size",
 		metricName: "transactions__retry_queue_size",
@@ -214,6 +208,109 @@ var expvarMappings = []expvarMapping{
 		expvarPath: []string{"forwarder", "Transactions", "HTTPErrors"},
 		metricType: dto.MetricType_COUNTER,
 	},
+	{
+		id:         "aggregator_dogstatsd_contexts",
+		metricName: "aggregator__dogstatsd_contexts",
+		expvarPath: []string{"aggregator", "DogstatsdContexts"},
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_dogstatsd_metric_sample",
+		metricName: "aggregator__processed",
+		expvarPath: []string{"aggregator", "DogstatsdMetricSample"},
+		selectors:  selectors(labelSelectorValues("data_type", "dogstatsd_metrics")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_series_flushed",
+		metricName: "aggregator__flush",
+		expvarPath: []string{"aggregator", "SeriesFlushed"},
+		selectors:  selectors(labelSelectorValues("data_type", "series")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_event",
+		metricName: "aggregator__processed",
+		expvarPath: []string{"aggregator", "Event"},
+		selectors:  selectors(labelSelectorValues("data_type", "events")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_service_check",
+		metricName: "aggregator__processed",
+		expvarPath: []string{"aggregator", "ServiceCheck"},
+		selectors:  selectors(labelSelectorValues("data_type", "service_checks")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_events_flushed",
+		metricName: "aggregator__flush",
+		expvarPath: []string{"aggregator", "EventsFlushed"},
+		selectors:  selectors(labelSelectorValues("data_type", "events")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_service_check_flushed",
+		metricName: "aggregator__flush",
+		expvarPath: []string{"aggregator", "ServiceCheckFlushed"},
+		selectors:  selectors(labelSelectorValues("data_type", "service_checks")),
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_number_of_flush",
+		metricName: "aggregator__number_of_flush",
+		expvarPath: []string{"aggregator", "NumberOfFlush"},
+		metricType: dto.MetricType_COUNTER,
+	},
+	{
+		id:         "aggregator_flush_count_series",
+		metricName: "aggregator__flush_count",
+		expvarPath: []string{"aggregator", "FlushCount", "Series", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "series")),
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_flush_count_sketches",
+		metricName: "aggregator__flush_count",
+		expvarPath: []string{"aggregator", "FlushCount", "Sketches", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "sketches")),
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_flush_count_events",
+		metricName: "aggregator__flush_count",
+		expvarPath: []string{"aggregator", "FlushCount", "Events", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "events")),
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_flush_count_service_checks",
+		metricName: "aggregator__flush_count",
+		expvarPath: []string{"aggregator", "FlushCount", "ServiceChecks", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "service_checks")),
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_main_flush_time",
+		metricName: "aggregator__flush_time",
+		expvarPath: []string{"aggregator", "Flush", "MainFlushTime", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "main")),
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_event_flush_time",
+		metricName: "aggregator__flush_time",
+		expvarPath: []string{"aggregator", "Flush", "EventFlushTime", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "event")),
+		metricType: dto.MetricType_GAUGE,
+	},
+	{
+		id:         "aggregator_service_check_flush_time",
+		metricName: "aggregator__flush_time",
+		expvarPath: []string{"aggregator", "Flush", "ServiceCheckFlushTime", "LastFlush"},
+		selectors:  selectors(labelSelectorValues("flush_type", "service_check")),
+		metricType: dto.MetricType_GAUGE,
+	},
 }
 
 func labelSelectorValues(name string, values ...string) labelSelector {
@@ -233,7 +330,96 @@ var (
 	publishRemoteExpvars sync.Once
 	wrappedExpvarsMu     sync.Mutex
 	wrappedExpvars       = make(map[string]struct{})
+	wrappedExpvarFuncsMu sync.Mutex
+	wrappedExpvarFuncs   = make(map[string]*dynamicExpvarWrapper)
 )
+
+// Aggregator expvar subtrees such as FlushCount and Flush are snapshots exposed as expvar.Func,
+// not mutable expvar.Maps. Wrap each snapshot once and overlay remote values at mapped leaves.
+type dynamicExpvarMapping struct {
+	id   string
+	path []string
+}
+
+type dynamicExpvarWrapper struct {
+	original expvar.Func
+	mu       sync.RWMutex
+	mappings []dynamicExpvarMapping
+}
+
+func (wrapper *dynamicExpvarWrapper) addMapping(mapping dynamicExpvarMapping) {
+	wrapper.mu.Lock()
+	defer wrapper.mu.Unlock()
+	mapping.path = append([]string(nil), mapping.path...)
+	wrapper.mappings = append(wrapper.mappings, mapping)
+}
+
+func (wrapper *dynamicExpvarWrapper) value() any {
+	local := wrapper.original()
+	wrapper.mu.RLock()
+	mappings := append([]dynamicExpvarMapping(nil), wrapper.mappings...)
+	wrapper.mu.RUnlock()
+
+	registry := remoteExpvarRegistry.Load()
+	if registry == nil {
+		return local
+	}
+	return mergeDynamicExpvarValues(local, mappings, registry.getRemoteExpvarValues())
+}
+
+func mergeDynamicExpvarValues(local any, mappings []dynamicExpvarMapping, remoteValues map[string]map[string]int64) any {
+	if len(remoteValues) == 0 || len(mappings) == 0 {
+		return local
+	}
+	encoded, err := json.Marshal(local)
+	if err != nil {
+		return local
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return local
+	}
+
+	for _, mapping := range mappings {
+		if len(mapping.path) == 0 {
+			continue
+		}
+		var remote int64
+		for _, agentValues := range remoteValues {
+			remote = saturatingAdd(remote, agentValues[mapping.id])
+		}
+		if remote == 0 {
+			continue
+		}
+
+		parent, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, key := range mapping.path[:len(mapping.path)-1] {
+			parent, ok = parent[key].(map[string]any)
+			if !ok {
+				break
+			}
+		}
+		if !ok {
+			continue
+		}
+		leaf := mapping.path[len(mapping.path)-1]
+		localNumber, ok := parent[leaf].(json.Number)
+		if !ok {
+			continue
+		}
+		localValue, err := localNumber.Int64()
+		if err != nil {
+			continue
+		}
+		parent[leaf] = saturatingAdd(localValue, remote)
+	}
+	return value
+}
 
 type remoteExpvarCache struct {
 	mu        sync.Mutex
@@ -293,6 +479,9 @@ func (ra *remoteAgentRegistry) registerExpvars() {
 
 // Increment ExpVar quantity
 func wrapExpvar(mapping expvarMapping) bool {
+	if wrapDynamicExpvar(mapping) {
+		return true
+	}
 	if len(mapping.expvarPath) < 2 {
 		return false
 	}
@@ -345,6 +534,46 @@ func wrapExpvar(mapping expvarMapping) bool {
 		return total
 	}))
 	return true
+}
+
+func wrapDynamicExpvar(mapping expvarMapping) bool {
+	if len(mapping.expvarPath) < 3 {
+		return false
+	}
+
+	root, ok := expvar.Get(mapping.expvarPath[0]).(*expvar.Map)
+	if !ok {
+		return false
+	}
+	parent := root
+	for index := 1; index < len(mapping.expvarPath)-1; index++ {
+		key := mapping.expvarPath[index]
+		child := parent.Get(key)
+		function, isFunction := child.(expvar.Func)
+		if isFunction {
+			prefix := strings.Join(mapping.expvarPath[:index+1], "/")
+			wrappedExpvarFuncsMu.Lock()
+			wrapper := wrappedExpvarFuncs[prefix]
+			if wrapper == nil {
+				wrapper = &dynamicExpvarWrapper{original: function}
+				wrappedExpvarFuncs[prefix] = wrapper
+				parent.Set(key, expvar.Func(wrapper.value))
+			}
+			wrapper.addMapping(dynamicExpvarMapping{
+				id:   mapping.id,
+				path: mapping.expvarPath[index+1:],
+			})
+			wrappedExpvarFuncsMu.Unlock()
+			return true
+		}
+
+		childMap, isMap := child.(*expvar.Map)
+		if !isMap {
+			return false
+		}
+		parent = childMap
+	}
+	return false
 }
 
 // getRemoteAgentExpvars formats remote compatibility values as nested expvar data grouped by remote-agent name.
