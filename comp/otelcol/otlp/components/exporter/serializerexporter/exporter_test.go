@@ -531,6 +531,54 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 	}
 }
 
+func TestGaugeIntervalOptionFromFeatureGate(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		for _, lossless := range []bool{false, true} {
+			t.Run(fmt.Sprintf("enabled=%t/lossless=%t", enabled, lossless), func(t *testing.T) {
+				previous := gaugeIntervalGate.IsEnabled()
+				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), enabled))
+				t.Cleanup(func() {
+					require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), previous))
+				})
+
+				cfg := newDefaultConfig().(*ExporterConfig)
+				set := componenttest.NewNopTelemetrySettings()
+				attributesTranslator, err := attributes.NewTranslator(set)
+				require.NoError(t, err)
+				hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-host", nil })
+				buildTranslator := translatorFromConfig
+				if lossless {
+					buildTranslator = minimalTranslatorFromConfig
+				}
+				tr, err := buildTranslator(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+				require.NoError(t, err)
+
+				// The gate is read at construction, not on each translated point.
+				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), !enabled))
+				md := pmetric.NewMetrics()
+				m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+				m.SetName("test.gauge_interval")
+				dp := m.SetEmptyGauge().DataPoints().AppendEmpty()
+				dp.SetDoubleValue(42)
+				dp.SetTimestamp(pcommon.Timestamp(121e9))
+				dp.Attributes().PutInt("datadog.gauge.interval", 15)
+				consumer := &serializerConsumer{hosts: make(map[string]struct{})}
+				_, err = tr.MapMetrics(t.Context(), md, consumer, nil)
+				require.NoError(t, err)
+				require.Len(t, consumer.series, 1)
+				wantInterval := int64(0)
+				if enabled {
+					wantInterval = 15
+				}
+				assert.Equal(t, wantInterval, consumer.series[0].Interval)
+				assert.Equal(t, metrics.APIGaugeType, consumer.series[0].MType)
+				require.Len(t, consumer.series[0].Points, 1)
+				assert.Equal(t, float64(42), consumer.series[0].Points[0].Value)
+			})
+		}
+	}
+}
+
 func TestMetricPrefix(t *testing.T) {
 	testMetricPrefixWithFeatureGates(t, false, "datadog_trace_agent_retries", "otelcol_datadog_trace_agent_retries")
 	testMetricPrefixWithFeatureGates(t, false, "system.memory.usage", "otel.system.memory.usage")

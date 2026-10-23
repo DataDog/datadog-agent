@@ -244,6 +244,9 @@ func translatorOptionsFromConfig(
 		metrics.WithDeltaTTL(cfg.DeltaTTL),
 	}
 	options = append(options, extraOptions...)
+	if gaugeIntervalGate.IsEnabled() {
+		options = append(options, metrics.WithGaugeInterval())
+	}
 
 	if statsIn != nil {
 		options = append(options, metrics.WithStatsOut(statsIn))
