@@ -20,7 +20,7 @@ func TestDuration(t *testing.T) {
 	t.Run("json marshaling", func(t *testing.T) {
 		setDef := SetDefinition{
 			Name:  "set_name",
-			Value: float64(123),
+			Value: 123,
 			Scope: "container",
 			TTL: &HumanReadableDuration{
 				Duration: 1 * time.Second,
@@ -38,7 +38,7 @@ func TestDuration(t *testing.T) {
 	t.Run("json marshaling with 0 duration", func(t *testing.T) {
 		setDef := SetDefinition{
 			Name:  "set_name",
-			Value: float64(123),
+			Value: 123,
 			Scope: "container",
 			TTL: &HumanReadableDuration{
 				Duration: 0,
@@ -56,7 +56,7 @@ func TestDuration(t *testing.T) {
 	t.Run("json unmarshalling", func(t *testing.T) {
 		setDef := SetDefinition{
 			Name:  "set_name",
-			Value: float64(123),
+			Value: 123,
 			Scope: "container",
 			TTL: &HumanReadableDuration{
 				Duration: 1 * time.Second,
@@ -74,7 +74,7 @@ func TestDuration(t *testing.T) {
 	t.Run("json unmarshalling 0 duration", func(t *testing.T) {
 		setDef := SetDefinition{
 			Name:  "set_name",
-			Value: float64(123),
+			Value: 123,
 			Scope: "container",
 			TTL: &HumanReadableDuration{
 				Duration: 0 * time.Second,
@@ -141,9 +141,15 @@ func TestSetDefinitionJSONNumbers(t *testing.T) {
 			expectedDefaultValue: -1,
 		},
 		{
+			// float64 can't hold this integer, it would be rounded to 9007199254740992
+			name:          "integer above 2^53",
+			json:          `{"name":"var","value":9007199254740993}`,
+			expectedValue: 9007199254740993,
+		},
+		{
 			name:                 "arrays",
-			json:                 `{"name":"var","value":[1,2],"default_value":[0]}`,
-			expectedValue:        []interface{}{1, 2},
+			json:                 `{"name":"var","value":[1,9007199254740993],"default_value":[0]}`,
+			expectedValue:        []interface{}{1, 9007199254740993},
 			expectedDefaultValue: []interface{}{0},
 		},
 		{
@@ -152,9 +158,14 @@ func TestSetDefinitionJSONNumbers(t *testing.T) {
 			expectedValue: 1.5,
 		},
 		{
-			name:          "out of the int range",
-			json:          `{"name":"var","value":1e20}`,
-			expectedValue: 1e20,
+			name:          "integer written as a float",
+			json:          `{"name":"var","value":1.0}`,
+			expectedValue: 1.0,
+		},
+		{
+			name:          "integer out of the int range",
+			json:          `{"name":"var","value":9223372036854775808}`,
+			expectedValue: 9223372036854775808.0,
 		},
 		{
 			name:          "string",
@@ -167,11 +178,15 @@ func TestSetDefinitionJSONNumbers(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var setDef SetDefinition
 			require.NoError(t, json.Unmarshal([]byte(test.json), &setDef))
-			require.NoError(t, setDef.PreCheck(PolicyLoaderOpts{}))
 			assert.Equal(t, test.expectedValue, setDef.Value)
 			assert.Equal(t, test.expectedDefaultValue, setDef.DefaultValue)
 		})
 	}
+
+	t.Run("number out of the float64 range", func(t *testing.T) {
+		var setDef SetDefinition
+		assert.Error(t, json.Unmarshal([]byte(`{"name":"var","value":1e400}`), &setDef))
+	})
 }
 
 func TestSetDefinitionCapture(t *testing.T) {

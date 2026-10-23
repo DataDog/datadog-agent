@@ -1829,6 +1829,7 @@ func TestActionSetVariableJSONNumbers(t *testing.T) {
 				"expression": "open.file.path == \"/tmp/test\"",
 				"actions": [
 					{"set": {"name": "var_int", "value": 123}},
+					{"set": {"name": "var_big_int", "value": 9007199254740993}},
 					{"set": {"name": "var_ints", "value": [1, 2], "append": true}},
 					{"set": {"name": "var_scoped", "scope": "process", "default_value": -1, "value": 456}},
 					{"set": {"name": "var_pid", "scope": "process", "default_value": -1, "expression": "process.pid"}}
@@ -1855,6 +1856,13 @@ func TestActionSetVariableJSONNumbers(t *testing.T) {
 		value, set := intVar.GetValue()
 		assert.True(t, set)
 		assert.Equal(t, 123, value)
+
+		// above 2^53, a float64 would have rounded the value to 9007199254740992
+		bigIntVar, ok := rs.evalOpts.VariableStore.Get("var_big_int").(eval.Variable)
+		require.True(t, ok)
+		value, set = bigIntVar.GetValue()
+		assert.True(t, set)
+		assert.Equal(t, 9007199254740993, value)
 
 		intArrayVar, ok := rs.evalOpts.VariableStore.Get("var_ints").(eval.Variable)
 		require.True(t, ok)

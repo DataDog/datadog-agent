@@ -7,12 +7,13 @@
 package rules
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"reflect"
+	"strconv"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -253,11 +254,6 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return errors.New("variable name is empty")
 	}
 
-	// encoding/json unmarshals numbers as float64 where YAML integers are unmarshaled as int,
-	// convert them so that definitions unmarshaled from JSON are handled as the YAML ones
-	s.Value = jsonNumbersToInt(s.Value)
-	s.DefaultValue = jsonNumbersToInt(s.DefaultValue)
-
 	if s.DefaultValue != nil {
 		if defaultValueType, valueType := reflect.TypeOf(s.DefaultValue), reflect.TypeOf(s.Value); valueType != nil && defaultValueType != valueType {
 			return fmt.Errorf("'default_value' and 'value' must be of the same type (%s != %s)", defaultValueType, valueType)
@@ -293,28 +289,65 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	return nil
 }
 
-// jsonNumbersToInt applies jsonNumberToInt to a value, or to each item of an array value
-func jsonNumbersToInt(value interface{}) interface{} {
-	values, isArray := value.([]interface{})
-	if !isArray {
-		return jsonNumberToInt(value)
+// UnmarshalJSON unmarshals a set definition from JSON. The integers of 'value' and 'default_value'
+// are decoded as int, as YAML does, instead of the float64 that encoding/json uses for all numbers,
+// which is not a type of SECL variables and can't hold every integer exactly
+func (s *SetDefinition) UnmarshalJSON(data []byte) error {
+	// setDefinition has the fields of SetDefinition but not its methods, decoding it doesn't recurse
+	type setDefinition SetDefinition
+	def := setDefinition(*s)
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&def); err != nil {
+		return err
 	}
 
-	converted := make([]interface{}, len(values))
-	for i, item := range values {
-		converted[i] = jsonNumberToInt(item)
+	var err error
+	if def.Value, err = decodeJSONNumbers(def.Value); err != nil {
+		return err
 	}
-	return converted
+	if def.DefaultValue, err = decodeJSONNumbers(def.DefaultValue); err != nil {
+		return err
+	}
+
+	*s = SetDefinition(def)
+	return nil
 }
 
-// jsonNumberToInt converts a float64 holding an integer, as encoding/json unmarshals JSON numbers,
-// to an int. Any other value, including a number that isn't an integer or doesn't fit in an int,
-// is returned as is
-func jsonNumberToInt(value interface{}) interface{} {
-	if number, ok := value.(float64); ok && number == math.Trunc(number) && number >= math.MinInt && number < math.MaxInt+1 {
-		return int(number)
+var _ json.Unmarshaler = (*SetDefinition)(nil)
+
+// decodeJSONNumbers replaces the json.Number values found in a value, decoded with UseNumber, by an
+// int when they are integers that fit in an int, and by a float64 otherwise
+func decodeJSONNumbers(value interface{}) (interface{}, error) {
+	switch value := value.(type) {
+	case json.Number:
+		if i, err := strconv.ParseInt(value.String(), 10, 0); err == nil {
+			return int(i), nil
+		}
+		f, err := value.Float64()
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	case []interface{}:
+		for i, item := range value {
+			decoded, err := decodeJSONNumbers(item)
+			if err != nil {
+				return nil, err
+			}
+			value[i] = decoded
+		}
+	case map[string]interface{}:
+		for key, item := range value {
+			decoded, err := decodeJSONNumbers(item)
+			if err != nil {
+				return nil, err
+			}
+			value[key] = decoded
+		}
 	}
-	return value
+	return value, nil
 }
 
 // KillDefinition describes the 'kill' section of a rule action
