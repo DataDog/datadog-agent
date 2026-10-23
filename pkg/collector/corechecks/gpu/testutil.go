@@ -154,7 +154,7 @@ func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTa
 	}
 	for _, gpu := range wmetaGpus {
 		tags := taglist.NewTagList()
-		taggercollectors.ExtractGPUEntityTags(gpu, tags)
+		taggercollectors.ExtractGPUTags(gpu, tags)
 		low, orch, high, standard := tags.Compute()
 		low = append(low, "gpu_host:true") // this is usually added by the host tags, here we add it manually to ensure it's present when running tests
 		fakeTagger.SetTags(

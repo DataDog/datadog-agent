@@ -5459,8 +5459,7 @@ func TestHandleProcess(t *testing.T) {
 		DriverVersion:      gpuDriverVersion,
 		VirtualizationMode: gpuVirtMode,
 		PCIBusID:           "0000:00:1e.0",
-		// Processes do not get gpu_sharing_mode, which changes at runtime.
-		SharingMode: workloadmeta.GPUSharingModeKAIFraction,
+		SharingMode:        workloadmeta.GPUSharingModeKAIFraction,
 	})
 
 	cfg := configmock.New(t)
@@ -5795,6 +5794,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_sharing_mode:kai_fraction",
 					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
@@ -5840,6 +5840,7 @@ func TestHandleProcess(t *testing.T) {
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_sharing_mode:kai_fraction",
 					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},

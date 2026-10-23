@@ -982,7 +982,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
 	tagList := taglist.NewTagList()
-	ExtractGPUEntityTags(gpu, tagList)
+	ExtractGPUTags(gpu, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -1015,6 +1015,7 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
@@ -1032,6 +1033,17 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+// sharingModeTagValue returns the gpu_sharing_mode tag value of a GPU. Like
+// gpu_slicing_mode, it is set on every device, to "none" when no sharing
+// mechanism was detected, so that grouping by it never yields an untagged
+// bucket.
+func sharingModeTagValue(gpu *workloadmeta.GPU) string {
+	if gpu.SharingMode == "" {
+		return string(workloadmeta.GPUSharingModeNone)
+	}
+	return string(gpu.SharingMode)
 }
 
 // migProfileTagValue returns the gpu_mig_profile value for a GPU. Like every
@@ -1055,25 +1067,6 @@ func migProfileTagValue(gpu *workloadmeta.GPU) string {
 		return "unknown"
 	}
 	return strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), "+", "_")
-}
-
-// ExtractGPUEntityTags extracts the tags of a GPU entity itself and adds them to
-// the provided tagList: its GPU tags (ExtractGPUTags) and gpu_sharing_mode.
-//
-// gpu_sharing_mode is left out of the tags that the processes using the GPU get
-// from ExtractGPUTags: it follows how the GPU is currently shared, so it changes
-// while the processes keep running, and process tags are only rebuilt when the
-// process entity changes. Like gpu_slicing_mode, it is set on every device, to
-// "none" when no sharing mechanism was detected, so that grouping by it never
-// yields an untagged bucket.
-func ExtractGPUEntityTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
-	ExtractGPUTags(gpu, tagList)
-
-	sharingMode := gpu.SharingMode
-	if sharingMode == "" {
-		sharingMode = workloadmeta.GPUSharingModeNone
-	}
-	tagList.AddLow(tags.GPUSharingMode, string(sharingMode))
 }
 
 func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
