@@ -1,0 +1,103 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+//go:build genfixture
+
+package __PKG__
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+// Temporary generator, never committed. scripts/gen_catalog_fixture.sh copies
+// it into the package, runs it with -tags genfixture, and removes it.
+//
+//	FIXTURE_CASES  JSON file: [{"label": "default", "context": {"k": "v"}}]
+//	FIXTURE_OUT    output directory for <issue_type>[.<label>].md
+//
+// It runs the real BuildIssue so the catalog fixture (expected half) always
+// comes from the reporter, never from a hand transcription of the template.
+func TestGenCatalogFixtures(t *testing.T) {
+	casesPath, outDir := os.Getenv("FIXTURE_CASES"), os.Getenv("FIXTURE_OUT")
+	if casesPath == "" || outDir == "" {
+		t.Skip("FIXTURE_CASES and FIXTURE_OUT not set")
+	}
+	raw, err := os.ReadFile(casesPath)
+	require.NoError(t, err)
+	var cases []struct {
+		Label   string            `json:"label"`
+		Context map[string]string `json:"context"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &cases))
+	require.NoError(t, os.MkdirAll(outDir, 0o755))
+
+	for _, c := range cases {
+		issue, err := __TYPE_STRUCT__{}.BuildIssue(c.Context)
+		require.NoError(t, err)
+
+		var b strings.Builder
+		b.WriteString("---\nmetadata:\n")
+		extra := issue.Extra.AsMap()
+		keys := make([]string, 0, len(extra))
+		for k := range extra {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			b.WriteString(fmt.Sprintf("  %s: %s\n", k, yamlScalar(extra[k])))
+		}
+		b.WriteString("---\n\n")
+		section(&b, "title", issue.Title)
+		section(&b, "description", issue.Description)
+		section(&b, "remediation.summary", issue.GetRemediation().GetSummary())
+		var steps []string
+		for i, s := range issue.GetRemediation().GetSteps() {
+			steps = append(steps, fmt.Sprintf("%d. %s", i+1, s.Text))
+		}
+		section(&b, "remediation.steps", strings.Join(steps, "\n"))
+		if sc := issue.GetRemediation().GetScript(); sc != nil && sc.Content != "" {
+			section(&b, "remediation.script", fmt.Sprintf("filename: %s\nlanguage: %s\nrequires_root: %t\n\n```%s\n%s\n```",
+				sc.Filename, sc.Language, sc.RequiresRoot, sc.Language, strings.TrimRight(sc.Content, "\n")))
+		}
+
+		name := IssueType
+		if c.Label != "" {
+			name += "." + c.Label
+		}
+		require.NoError(t, os.WriteFile(filepath.Join(outDir, name+".md"), []byte(strings.TrimRight(b.String(), "\n")+"\n"), 0o644))
+	}
+}
+
+func section(b *strings.Builder, heading, body string) {
+	if strings.TrimSpace(body) == "" {
+		body = "(none - the reporter leaves this field unset)"
+	}
+	b.WriteString("## " + heading + "\n\n" + body + "\n\n")
+}
+
+// yamlScalar renders numbers and booleans bare and everything else as a quoted
+// string, matching how the fixture loader parses values (JSON when it can).
+func yamlScalar(v any) string {
+	switch x := v.(type) {
+	case float64:
+		return strconv.FormatFloat(x, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(x)
+	case string:
+		return strconv.Quote(x)
+	default:
+		j, _ := json.Marshal(x)
+		return string(j)
+	}
+}
