@@ -42,7 +42,8 @@ import (
 type ServerlessTraceAgent interface {
 	Stop()
 	Flush()
-	Process(p *api.Payload)
+	// Process submits a v1 payload to the trace agent for processing.
+	Process(p *api.PayloadV1)
 	SetTags(map[string]string)
 	UpdateRuntimeTags(map[string]string)
 	SetTargetTPS(float64)
@@ -194,9 +195,9 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
-// Process processes a payload in the trace agent.
-func (t *serverlessTraceAgent) Process(p *api.Payload) {
-	t.ta.Process(p)
+// Process processes a v1 payload in the trace agent.
+func (t *serverlessTraceAgent) Process(p *api.PayloadV1) {
+	t.ta.ProcessV1(p)
 }
 
 type taggable interface {
@@ -361,7 +362,7 @@ type noopTraceAgent struct{}
 
 func (t noopTraceAgent) Stop()                                    {}
 func (t noopTraceAgent) Flush()                                   {}
-func (t noopTraceAgent) Process(*api.Payload)                     {}
+func (t noopTraceAgent) Process(*api.PayloadV1)                   {}
 func (t noopTraceAgent) SetTags(map[string]string)                {}
 func (t noopTraceAgent) UpdateRuntimeTags(map[string]string)      {}
 func (t noopTraceAgent) SetTargetTPS(float64)                     {}

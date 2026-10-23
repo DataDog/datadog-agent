@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,15 +21,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	noopimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	traceagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -328,6 +334,118 @@ func TestServerlessTraceAgentDisableTraceStats(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mockTraceWriterV1 is a mock implementation of the agent.TraceWriterV1
+// interface for testing
+type mockTraceWriterV1 struct {
+	mu       sync.Mutex
+	payloads []*writer.SampledChunksV1
+	flushes  int
+}
+
+func (m *mockTraceWriterV1) Stop() {}
+func (m *mockTraceWriterV1) FlushSync() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.flushes++
+	return nil
+}
+func (m *mockTraceWriterV1) UpdateAPIKey(_, _ string) {}
+
+func (m *mockTraceWriterV1) WriteChunksV1(pkg *writer.SampledChunksV1) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.payloads = append(m.payloads, pkg)
+}
+
+// TestServerlessTraceAgentProcessRoutesThroughV1 verifies that
+// ServerlessTraceAgent.Process submits payloads to the agent's v1 processing
+// path (ProcessV1 / TraceWriterV1) rather than the legacy path, matching the
+// default convert-traces behavior used for receiver-ingested traces.
+func TestServerlessTraceAgentProcessRoutesThroughV1(t *testing.T) {
+	sta, _ := newTestServerlessTraceAgent(t)
+	mockWriter := &mockTraceWriterV1{}
+	sta.ta.TraceWriterV1 = mockWriter
+
+	// Build a payload the same way SubmitSpan does for inferred spans: a pb
+	// tracer payload with a single kept chunk, converted to the v1 format.
+	tc := testutil.RandomTraceChunk(2, 1)
+	tc.Priority = int32(sampler.PriorityUserKeep)
+	tp := testutil.TracerPayloadWithChunk(tc)
+
+	sta.Process(&api.PayloadV1{
+		Source:        sta.ta.Receiver.Stats.GetTagStats(info.Tags{}),
+		TracerPayload: api.ConvertToIdx(tp, ""),
+	})
+
+	require.NotEmpty(t, mockWriter.payloads, "no payloads were written through the v1 writer")
+	got := mockWriter.payloads[0].TracerPayload
+	require.NotNil(t, got)
+	require.NotEmpty(t, got.Chunks)
+	require.NotEmpty(t, got.Chunks[0].Spans)
+	// The submitted spans must be the converted v1 spans of the original chunk.
+	assert.Equal(t, tc.Spans[0].SpanID, got.Chunks[0].Spans[0].SpanID())
+	assert.Equal(t, len(tc.Spans), len(got.Chunks[0].Spans))
+}
+
+// TestServerlessTraceAgentProcessAndFlushThroughV1 is an integration-style
+// companion to TestServerlessTraceAgentProcessRoutesThroughV1: it starts a
+// real serverless trace agent (synchronous flushing mode), replaces only its
+// v1 trace writer with a mock, submits a converted payload via Process (the
+// path SubmitSpan uses for inferred spans), and verifies that a serverless
+// Flush drains the v1 writer synchronously.
+func TestServerlessTraceAgentProcessAndFlushThroughV1(t *testing.T) {
+	setupTraceAgentTest(t)
+
+	traceAgent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+		Enabled: true,
+		// The noop tagger keeps the ContainerTags closure (wired by the config
+		// loader) from dereferencing a nil component when ProcessV1 resolves
+		// container tags for the payload.
+		LoadConfig: &LoadConfig{Path: "./testdata/valid.yml", Tagger: noopimpl.NewComponent()},
+		// Wait for the agent to fully stop before the test returns, so its
+		// goroutines never leak into and race with other tests.
+		StopTimeout: 30 * time.Second,
+	})
+	defer traceAgent.Stop()
+	require.IsType(t, &serverlessTraceAgent{}, traceAgent)
+	sta := traceAgent.(*serverlessTraceAgent)
+
+	// The agent is running in synchronous-flushing mode (set by
+	// StartServerlessTraceAgent), so the v1 writer only sends on FlushSync;
+	// the mock swap below makes that observable without network access.
+	mockWriter := &mockTraceWriterV1{}
+	// StartServerlessTraceAgent already started the real v1 writer (its
+	// reporter and flush goroutines are running), so restore it before the
+	// deferred Stop() runs — otherwise the original writer and its goroutines
+	// are orphaned when Stop only stops the mock.
+	realWriter := sta.ta.TraceWriterV1
+	sta.ta.TraceWriterV1 = mockWriter
+	defer func() { sta.ta.TraceWriterV1 = realWriter }()
+
+	// Build a payload the same way SubmitSpan does for inferred spans.
+	tc := testutil.RandomTraceChunk(2, 1)
+	tc.Priority = int32(sampler.PriorityUserKeep)
+	tp := testutil.TracerPayloadWithChunk(tc)
+
+	sta.Process(&api.PayloadV1{
+		Source:        sta.ta.Receiver.Stats.GetTagStats(info.Tags{}),
+		TracerPayload: api.ConvertToIdx(tp, ""),
+	})
+
+	require.NotEmpty(t, mockWriter.payloads, "no payloads were written through the v1 writer")
+	got := mockWriter.payloads[0].TracerPayload
+	require.NotEmpty(t, got.Chunks)
+	require.NotEmpty(t, got.Chunks[0].Spans)
+	assert.Equal(t, tc.Spans[0].SpanID, got.Chunks[0].Spans[0].SpanID())
+	assert.Equal(t, len(tc.Spans), len(got.Chunks[0].Spans))
+
+	// The serverless Flush (invoked on invocation end / Stop by the
+	// extension) must reach the v1 writer's synchronous flush.
+	require.Equal(t, 0, mockWriter.flushes)
+	sta.Flush()
+	assert.Equal(t, 1, mockWriter.flushes, "serverless Flush must drain TraceWriterV1 via FlushSync")
 }
 
 // TestServerlessTraceAgentSetTagsUpdatesGlobalTagsAndSpanModifier verifies
