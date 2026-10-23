@@ -79,7 +79,7 @@ def _get_debug_symbols_impl(ctx):
         if _CollectedPackagingInfo in src
     ]).to_list()
 
-    originals_to_include = {strip_info.stripped_file: strip_info for strip_info in all_strip_info}
+    originals_to_include = {strip_info.packaged_file: strip_info for strip_info in all_strip_info}
 
     # Go through the dest/source map and spot the originals we want.
     # Note that we can not have a single binary appear twice and map to corresponding distinct
@@ -97,11 +97,12 @@ def _get_debug_symbols_impl(ctx):
     dest_src_map = {}
     for strip_info in all_strip_info:
         debug_file = strip_info.debug_file
-        if strip_info.stripped_file in original_src_to_dest:
-            original_dest = original_src_to_dest[strip_info.stripped_file]
+        if strip_info.packaged_file in original_src_to_dest:
+            original_dest = original_src_to_dest[strip_info.packaged_file]
 
             # TODO: We might need to add extension for windows.
-            suffix = debug_file.basename[len(strip_info.stripped_file.basename):]
+            suffix = debug_file.basename[len(strip_info.packaged_file.basename):]
+
             # Note: the lstrip guarantees the path is relative to avoid accidental path resets
             path = paths.join(prefix, original_dest.lstrip("/") + suffix)
         else:
