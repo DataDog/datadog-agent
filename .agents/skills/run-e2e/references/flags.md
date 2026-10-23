@@ -53,6 +53,7 @@ redirecting the key paths at the container's copies. The full mapping is
 | `E2E_EXTRA_RESOURCES_TAGS` | Extra tags on provisioned resources |
 | `E2E_OUTPUT_DIR` | Where test output and diagnostics are written |
 | `E2E_FAKEINTAKE_IMAGE_OVERRIDE` | The fakeintake image, instead of the pinned tag |
+| `E2E_TEARDOWN_BUDGET` | Time reserved before the go test deadline for suite teardown (default `5m`); in CI with remote stack cleaning it arms the framework's deadline watchdog |
 
 Note `DD_API_KEY` is not part of this — the E2E path uses `E2E_API_KEY` and the `configParams.agent`
 values, which are length-checked (32 and 40 characters).

@@ -11,7 +11,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/stretchr/testify/mock"
@@ -196,9 +201,9 @@ func makeTestEnvResources() provisioners.RawResources {
 	return resources
 }
 
-// TestTearDownSuiteIdempotent verifies the cleanupCalled guard:
+// TestTearDownSuiteIdempotent verifies the teardown guard:
 //   - testify's post-test defer runs TearDownSuite once, calling Destroy.
-//   - A second direct TearDownSuite call observes cleanupCalled and short-circuits
+//   - A second direct TearDownSuite call blocks on the sync.Once and returns
 //     without calling Destroy again.
 func TestTearDownSuiteIdempotent(t *testing.T) {
 	p := &testProvisioner{}
@@ -210,10 +215,52 @@ func TestTearDownSuiteIdempotent(t *testing.T) {
 	Run(t, s, WithProvisioner(p))
 
 	p.AssertNumberOfCalls(t, "Destroy", 1)
-	require.True(t, s.cleanupCalled, "cleanupCalled should be true after TearDownSuite ran")
+	require.True(t, s.teardownStarted.Load(), "teardownStarted should be true after TearDownSuite ran")
 
 	// Second TearDownSuite call must observe the guard and not call Destroy again.
 	s.TearDownSuite()
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// TestTearDownSuiteConcurrentCallsRunOnce verifies the concurrency contract of
+// the teardown guard: when two goroutines call TearDownSuite at the same time,
+// the teardown body runs exactly once (Destroy once) and the second caller
+// blocks until the first teardown finishes instead of returning early.
+func TestTearDownSuiteConcurrentCallsRunOnce(t *testing.T) {
+	destroyStarted := make(chan struct{})
+	destroyRelease := make(chan struct{})
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
+		Run(func(mock.Arguments) {
+			close(destroyStarted)
+			<-destroyRelease
+		})
+
+	s := &testNoOpSuite{}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+
+	done := make(chan struct{}, 2)
+	go func() { s.TearDownSuite(); done <- struct{}{} }()
+	<-destroyStarted // first teardown is now inside Destroy
+
+	go func() { s.TearDownSuite(); done <- struct{}{} }()
+	select {
+	case <-done:
+		t.Fatal("second TearDownSuite returned while the first teardown was still running")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(destroyRelease)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-done:
+		case <-time.After(30 * time.Second):
+			t.Fatal("TearDownSuite did not return")
+		}
+	}
 	p.AssertNumberOfCalls(t, "Destroy", 1)
 }
 
@@ -235,4 +282,426 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 	// The t.Cleanup hook fired after the sub-test completed. If it had erroneously
 	// re-run cleanup, Destroy would have been called twice.
 	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+func TestParseTeardownBudget(t *testing.T) {
+	for value, expected := range map[string]struct {
+		budget time.Duration
+		err    bool
+	}{
+		"":     {defaultTeardownBudget, false},
+		"5m":   {5 * time.Minute, false},
+		"nope": {defaultTeardownBudget, true},
+		"0":    {defaultTeardownBudget, true},
+		"0s":   {defaultTeardownBudget, true},
+		"-5m":  {defaultTeardownBudget, true},
+	} {
+		budget, err := parseTeardownBudget(value)
+		require.Equal(t, expected.budget, budget, "value %q", value)
+		if expected.err {
+			require.Error(t, err, "value %q", value)
+		} else {
+			require.NoError(t, err, "value %q", value)
+		}
+	}
+}
+
+type testDeadlineOverrideSuite struct {
+	BaseSuite[testEnv]
+
+	overrideRan chan struct{}
+	baseDone    chan struct{}
+}
+
+func (s *testDeadlineOverrideSuite) TearDownSuite() {
+	close(s.overrideRan)
+	s.BaseSuite.TearDownSuite()
+	close(s.baseDone)
+}
+
+type testDeadlineAbandonSuite struct {
+	BaseSuite[testEnv]
+
+	started     chan struct{}
+	reachedBase chan struct{}
+	abandon     func()
+}
+
+func (s *testDeadlineAbandonSuite) TearDownSuite() {
+	close(s.started)
+	s.abandon()
+	s.BaseSuite.TearDownSuite()
+	close(s.reachedBase)
+}
+
+// TestDeadlineTeardownRunsDestroyDespiteSkipDeleteOnFailure verifies deadline
+// semantics: on the deadline path the stack is deleted even when
+// skipDeleteOnFailure would otherwise keep it after a failure.
+func TestDeadlineTeardownRunsDestroyDespiteSkipDeleteOnFailure(t *testing.T) {
+	t.Setenv("REMOTE_STACK_CLEANING", "") // force the local destroy path
+
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+	s.params.skipDeleteOnFailure = true
+	firstFail := "TestSuite.TestSomething"
+	s.firstFailTest.Store(&firstFail)
+
+	s.runDeadlineTeardown(t)
+
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+func TestNormalTeardownAfterDeadlineDoesNotKeepFailedStack(t *testing.T) {
+	t.Setenv("REMOTE_STACK_CLEANING", "")
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+	s.suiteT = t
+	s.e2eDeadline = time.Now().Add(-time.Second)
+	s.params.skipDeleteOnFailure = true
+	firstFail := "Initial provisioning SetupSuite"
+	s.firstFailTest.Store(&firstFail)
+
+	// Provisioning cancellation can reach ordinary cleanup before the watchdog runs.
+	s.TearDownSuite()
+	s.runDeadlineTeardown(t)
+
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// TestDeadlineTeardownDispatchesThroughOverride verifies the deadline teardown
+// dispatches through the derived suite's TearDownSuite override, so overrides
+// that clean resources the stackcleaner can't see also run.
+func TestDeadlineTeardownDispatchesThroughOverride(t *testing.T) {
+	t.Setenv("REMOTE_STACK_CLEANING", "") // force the local destroy path
+
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testDeadlineOverrideSuite{overrideRan: make(chan struct{}), baseDone: make(chan struct{})}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+
+	s.runDeadlineTeardown(t)
+
+	select {
+	case <-s.overrideRan:
+	case <-time.After(30 * time.Second):
+		t.Fatal("deadline teardown did not dispatch through the TearDownSuite override")
+	}
+	select {
+	case <-s.baseDone:
+	case <-time.After(30 * time.Second):
+		t.Fatal("base TearDownSuite did not complete")
+	}
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// TestDeadlineTeardownFallsBackWhenOverrideNeverReachesBase verifies the
+// safety net: when a TearDownSuite override abandons the teardown goroutine
+// (require/FailNow Goexits it, or it panics), the deferred fallback still runs
+// the base teardown.
+func TestDeadlineTeardownFallsBackWhenOverrideNeverReachesBase(t *testing.T) {
+	for name, abandon := range map[string]func(){
+		// require/FailNow in an override Goexits the teardown goroutine; simulate
+		// the Goexit directly so the test's own T is not failed.
+		"override goexits": runtime.Goexit,
+		"override panics":  func() { panic("override failed") },
+	} {
+		t.Run(name, func(subT *testing.T) {
+			subT.Setenv("REMOTE_STACK_CLEANING", "") // force the local destroy path
+
+			p := &testProvisioner{}
+			p.On("ID").Return("test")
+			p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+			s := &testDeadlineAbandonSuite{started: make(chan struct{}), reachedBase: make(chan struct{}), abandon: abandon}
+			s.init([]SuiteOption{WithProvisioner(p)}, s)
+			s.SetT(subT)
+
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				s.runDeadlineTeardown(subT)
+			}()
+			<-s.started
+
+			select {
+			case <-done:
+			case <-time.After(30 * time.Second):
+				subT.Fatal("runDeadlineTeardown did not return")
+			}
+
+			select {
+			case <-s.reachedBase:
+				subT.Fatal("override reached the base teardown despite abandoning")
+			default:
+			}
+			p.AssertNumberOfCalls(subT, "Destroy", 1)
+		})
+	}
+}
+
+// TestDeadlineTeardownWaitsForInFlightProvisioning verifies the deadline
+// teardown joins an in-flight reconcileEnv (via the provisioning mutex) instead
+// of racing it: it must not start tearing down while provisioning holds the
+// mutex, and must proceed once provisioning completes.
+func TestDeadlineTeardownWaitsForInFlightProvisioning(t *testing.T) {
+	t.Setenv("REMOTE_STACK_CLEANING", "") // force the local destroy path
+
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	inProvision := make(chan struct{})
+	releaseProvision := make(chan struct{})
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil).
+		Run(func(mock.Arguments) { close(inProvision); <-releaseProvision })
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+
+	reconcileDone := make(chan struct{})
+	go func() {
+		defer close(reconcileDone)
+		if err := s.reconcileEnv(provisioners.ProvisionerMap{p.ID(): p}); err != nil {
+			t.Errorf("reconcileEnv: %v", err)
+		}
+	}()
+	<-inProvision // reconcileEnv now holds the provisioning mutex, inside Provision
+
+	teardownDone := make(chan struct{})
+	go func() {
+		defer close(teardownDone)
+		s.runDeadlineTeardown(t)
+	}()
+
+	select {
+	case <-teardownDone:
+		t.Fatal("deadline teardown finished while provisioning was still in flight")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(releaseProvision)
+	<-reconcileDone
+	select {
+	case <-teardownDone:
+	case <-time.After(30 * time.Second):
+		t.Fatal("deadline teardown did not finish after provisioning completed")
+	}
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// TestArmDeadlineWatchdog verifies the arming conditions: no watchdog locally,
+// and a timer set to the go test deadline minus the teardown budget when
+// armed. (The no-deadline case is covered by the "no-timeout" subprocess
+// scenario of TestDeadlineWatchdogProcess.)
+func TestArmDeadlineWatchdog(t *testing.T) {
+	t.Run("not armed locally", func(subT *testing.T) {
+		subT.Setenv("GITLAB_CI", "")
+		subT.Setenv("REMOTE_STACK_CLEANING", "")
+		s := &testNoOpSuite{}
+		s.init(nil, s)
+		s.armDeadlineWatchdog(subT, time.Minute)
+		require.Nil(subT, s.deadlineTimer)
+		require.True(subT, s.e2eDeadline.IsZero())
+	})
+
+	t.Run("armed", func(subT *testing.T) {
+		subT.Setenv("GITLAB_CI", "true")
+		subT.Setenv("REMOTE_STACK_CLEANING", "true")
+		s := &testNoOpSuite{}
+		s.init(nil, s)
+		deadline, ok := subT.Deadline()
+		require.True(subT, ok, "expected a go test deadline")
+		budget := time.Second
+		s.armDeadlineWatchdog(subT, budget)
+		require.NotNil(subT, s.deadlineTimer)
+		require.True(subT, s.deadlineTimer.Stop(), "watchdog timer should be armed and still running")
+		require.Equal(subT, deadline.Add(-budget), s.e2eDeadline)
+		require.Same(subT, subT, s.suiteT)
+	})
+}
+
+// Teardown must preserve the stackcleaner reserve even after provisioning consumes budget.
+func TestDeadlineTeardownCapsTeardownOperations(t *testing.T) {
+	t.Setenv("REMOTE_STACK_CLEANING", "") // force the local destroy path
+	t.Setenv("E2E_TEARDOWN_BUDGET", "2m")
+
+	for _, tc := range []struct {
+		name      string
+		elapsed   time.Duration
+		remaining time.Duration
+	}{
+		{"no time consumed", 0, time.Minute},
+		{"provisioning consumed time", 30 * time.Second, 30 * time.Second},
+		{"only the reserve remains", 90 * time.Second, -30 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &testProvisioner{}
+			p.On("ID").Return("test")
+			var destroyCtx context.Context
+			p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
+				Run(func(args mock.Arguments) { destroyCtx = args.Get(0).(context.Context) })
+
+			s := &testNoOpSuite{}
+			s.init([]SuiteOption{WithProvisioner(p)}, s)
+			s.SetT(t)
+			now := time.Now()
+			s.e2eDeadline = now.Add(-tc.elapsed)
+
+			s.runDeadlineTeardown(t)
+
+			require.NotNil(t, destroyCtx)
+			deadline, ok := destroyCtx.Deadline()
+			require.True(t, ok, "Destroy should run with a deadline-capped context")
+			require.Equal(t, now.Add(tc.remaining), deadline)
+		})
+	}
+}
+
+// testDeadlineChildSuite is run by TestDeadlineWatchdogProcess inside a child
+// process. Its provisioner and teardown write marker files asserted by the
+// parent test.
+type testDeadlineChildSuite struct {
+	BaseSuite[testEnv]
+
+	dir string
+}
+
+func (s *testDeadlineChildSuite) marker(name string) {
+	_ = os.WriteFile(filepath.Join(s.dir, name), []byte("done"), 0o644)
+}
+
+func (s *testDeadlineChildSuite) TearDownSuite() {
+	s.marker("override")
+	s.BaseSuite.TearDownSuite()
+	s.marker("teardown-done")
+}
+
+func (s *testDeadlineChildSuite) TestNoOp() {}
+
+type testDeadlineGuardSuite struct {
+	testDeadlineChildSuite
+}
+
+func (s *testDeadlineGuardSuite) TearDownSuite() {
+	// Arm through the CI gate, then use the fake provisioner to observe retained-stack cleanup.
+	s.T().Setenv("REMOTE_STACK_CLEANING", "")
+	s.testDeadlineChildSuite.TearDownSuite()
+}
+
+type testDeadlineSleepSuite struct {
+	testDeadlineChildSuite
+}
+
+func (s *testDeadlineSleepSuite) TestSleep() {
+	time.Sleep(30 * time.Second)
+}
+
+// TestDeadlineWatchdogProcess exercises the deadline watchdog end to end in
+// subprocesses (a watchdog goroutine failing a live T poisons the in-process
+// test): the guard refusing to provision when the budget does not fit before
+// the go test deadline, the watchdog tearing a running suite down at the e2e
+// deadline, and the teardown-only run being exempt from both.
+func TestDeadlineWatchdogProcess(t *testing.T) {
+	if os.Getenv("E2E_DEADLINE_TEST_SCENARIO") != "" {
+		deadlineWatchdogScenario(t)
+		return
+	}
+
+	scenarios := []struct {
+		name        string
+		budget      string
+		goTestFlags []string
+		extraEnv    []string
+	}{
+		// 1000h never fits before any deadline, so the guard always fires.
+		{name: "guard", budget: "1000h", goTestFlags: []string{"-test.timeout=10m"}, extraEnv: []string{"E2E_SKIP_DELETE_ON_FAILURE=true"}},
+		{name: "watchdog", budget: "5s", goTestFlags: []string{"-test.timeout=10s"}},
+		{name: "teardown-only", budget: "1000h", goTestFlags: []string{"-test.timeout=10m"}, extraEnv: []string{"E2E_TEARDOWN_ONLY=true"}},
+		// -test.timeout=0 means no go test deadline: the watchdog must not arm
+		// (even though the 1000h budget would never fit), so the suite runs and
+		// passes normally.
+		{name: "no-timeout", budget: "1000h", goTestFlags: []string{"-test.timeout=0"}},
+	}
+
+	for _, sc := range scenarios {
+		t.Run(sc.name, func(subT *testing.T) {
+			dir := subT.TempDir()
+			args := append([]string{
+				"-test.run=^TestDeadlineWatchdogProcess$",
+				"-test.v=true",
+			}, sc.goTestFlags...)
+			cmd := exec.Command(os.Args[0], args...)
+			cmd.Env = append(os.Environ(),
+				"E2E_DEADLINE_TEST_SCENARIO="+sc.name,
+				"E2E_DEADLINE_TEST_DIR="+dir,
+				"E2E_TEARDOWN_BUDGET="+sc.budget,
+				"E2E_API_KEY=dummy",
+				"E2E_APP_KEY=dummy",
+				"GITLAB_CI=true",
+				"REMOTE_STACK_CLEANING=true",
+			)
+			cmd.Env = append(cmd.Env, sc.extraEnv...)
+			out, err := cmd.CombinedOutput()
+			marker := func(name string) string { return filepath.Join(dir, name) }
+
+			switch sc.name {
+			case "guard":
+				require.Error(subT, err, "child should fail: %s", out)
+				require.Contains(subT, string(out), "not enough time left before the go test deadline")
+				require.NoFileExists(subT, marker("provisioned"), "the guard must fail before provisioning")
+				require.FileExists(subT, marker("destroyed"), "the guard must clean up retained stacks")
+				require.FileExists(subT, marker("teardown-done"), "guard cleanup must finish before exit")
+			case "watchdog":
+				require.Error(subT, err, "child should fail: %s", out)
+				require.Contains(subT, string(out), "e2e deadline reached while running")
+				require.FileExists(subT, marker("provisioned"), "suite should have provisioned before the deadline")
+				require.FileExists(subT, marker("override"), "deadline teardown should dispatch through the override")
+				require.FileExists(subT, marker("teardown-done"), "base teardown should have completed")
+			case "teardown-only":
+				require.NoError(subT, err, "child should pass: %s", out)
+				require.NotContains(subT, string(out), "not enough time left")
+				require.NoFileExists(subT, marker("provisioned"), "teardown-only must not provision")
+			case "no-timeout":
+				require.NoError(subT, err, "child should pass: %s", out)
+				require.NotContains(subT, string(out), "not enough time left")
+				require.FileExists(subT, marker("provisioned"), "suite should run normally without a deadline")
+			}
+		})
+	}
+}
+
+func deadlineWatchdogScenario(t *testing.T) {
+	dir := os.Getenv("E2E_DEADLINE_TEST_DIR")
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil).
+		Run(func(mock.Arguments) { _ = os.WriteFile(filepath.Join(dir, "provisioned"), []byte("done"), 0o644) })
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
+		Run(func(mock.Arguments) { _ = os.WriteFile(filepath.Join(dir, "destroyed"), []byte("done"), 0o644) })
+
+	if os.Getenv("E2E_DEADLINE_TEST_SCENARIO") == "guard" {
+		s := &testDeadlineGuardSuite{testDeadlineChildSuite{dir: dir}}
+		firstFail := "Initial provisioning SetupSuite"
+		s.firstFailTest.Store(&firstFail)
+		Run(t, s, WithProvisioner(p))
+		return
+	}
+	if os.Getenv("E2E_DEADLINE_TEST_SCENARIO") == "watchdog" {
+		Run(t, &testDeadlineSleepSuite{testDeadlineChildSuite{dir: dir}}, WithProvisioner(p))
+		return
+	}
+	Run(t, &testDeadlineChildSuite{dir: dir}, WithProvisioner(p))
 }
