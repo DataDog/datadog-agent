@@ -274,7 +274,7 @@ func (a *logAgent) startPipeline() {
 
 	// setup the status
 	pipelineMonitor := a.pipelineProvider.GetPipelineMonitor()
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, pipelineMonitor)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, pipelineMonitor, a.config)
 	// The health platform check reads the same snapshots but takes no arguments.
 	metrics.RegisterPipelineMonitor(pipelineMonitor)
 

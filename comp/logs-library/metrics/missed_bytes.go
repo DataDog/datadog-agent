@@ -226,6 +226,10 @@ var logsAgentRunning atomic.Bool
 
 // RecordMissedBytes records rotation loss, blaming a stage saturated in the tailer's pipeline ("" if unknown).
 func RecordMissedBytes(source, service, pipeline string, bytes int64, lossWindowStartedAt time.Time) {
+	if bytes <= 0 {
+		return
+	}
+	MonitoredPipelineBytesMissed.Add(bytes)
 	missedBytes.record(source, service, bytes, currentBottleneckComponent(pipeline, lossWindowStartedAt))
 }
 

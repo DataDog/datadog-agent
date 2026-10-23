@@ -64,6 +64,9 @@ var (
 		[]string{"emitter", "source", "compression_kind"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
+	// MonitoredPipelineBytesMissed is the subset of BytesMissed recorded by tailers attached to the Logs Agent pipeline.
+	// It excludes auxiliary tailers, such as anomaly detection, whose loss cannot be correlated with the registered monitor.
+	MonitoredPipelineBytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
 	TlmBytesMissed = telemetryimpl.GetCompatComponent().NewCounter("logs", "bytes_missed",
 		nil, "Total number of bytes lost before they could be consumed by the agent, such as after log rotation")
@@ -210,6 +213,7 @@ func init() {
 	LogsExpvars.Set("RetryTimeSpent", &RetryTimeSpent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
 	LogsExpvars.Set("BytesMissed", &BytesMissed)
+	LogsExpvars.Set("MonitoredPipelineBytesMissed", &MonitoredPipelineBytesMissed)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
