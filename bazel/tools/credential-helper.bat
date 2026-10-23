@@ -23,6 +23,8 @@ if defined token (
   call :write_auth_headers "%token%"
   exit /b 0
 )
+:: Don't log in when unreachable
+>&2 vault status -address="%VAULT_ADDR%" >nul || exit /b 1
 >&2 vault login -address="%VAULT_ADDR%" -method=oidc || exit /b 1
 call :fetch_token
 if defined token (
