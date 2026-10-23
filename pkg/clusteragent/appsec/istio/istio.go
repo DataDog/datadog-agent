@@ -34,6 +34,9 @@ const (
 	gatewayGatewayNetworkingIstioIOCRD = "gateways.networking.istio.io"
 
 	istioGatewayControllerName = "istio.io/gateway-controller"
+
+	// optOutLabelSelector excludes resources opted out of appsec injection, like the injector informer.
+	optOutLabelSelector = "appsec.datadoghq.com/enabled!=false"
 )
 
 var (
@@ -209,7 +212,7 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 // anyIstioNativeGatewayExists checks if any networking.istio.io/v1 Gateway exists across all namespaces
 func anyIstioNativeGatewayExists(ctx context.Context, client dynamic.Interface) (bool, error) {
-	list, err := client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1})
+	list, err := client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1, LabelSelector: optOutLabelSelector})
 	if k8serrors.IsNotFound(err) {
 		return false, nil
 	}
@@ -222,7 +225,7 @@ func anyIstioNativeGatewayExists(ctx context.Context, client dynamic.Interface) 
 // anyIstioGatewayClassExists checks if any K8s GatewayClass with the istio controller exists,
 // optionally excluding one by name (used when a GatewayClass is being deleted).
 func anyIstioGatewayClassExists(ctx context.Context, client dynamic.Interface, excludeName string) (bool, error) {
-	list, err := client.Resource(gatewayClassGVR).List(ctx, metav1.ListOptions{})
+	list, err := client.Resource(gatewayClassGVR).List(ctx, metav1.ListOptions{LabelSelector: optOutLabelSelector})
 	if k8serrors.IsNotFound(err) {
 		return false, nil
 	}
@@ -236,6 +239,17 @@ func anyIstioGatewayClassExists(ctx context.Context, client dynamic.Interface, e
 		if ok, err := isGatewayClassFromIstio(&item); ok && err == nil {
 			return true, nil
 		}
+	}
+	return false, nil
+}
+
+// FilterNeeded reports whether resources watched by proxy type typ still need the shared EnvoyFilter.
+func FilterNeeded(ctx context.Context, client dynamic.Interface, typ appsecconfig.ProxyType) (bool, error) {
+	switch typ {
+	case appsecconfig.ProxyTypeIstio:
+		return anyIstioGatewayClassExists(ctx, client, "")
+	case appsecconfig.ProxyTypeIstioGateway:
+		return anyIstioNativeGatewayExists(ctx, client)
 	}
 	return false, nil
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,8 +68,12 @@ func Start(ctx context.Context, logger logComp.Component, datadogConfig config.C
 		for typ, pattern := range injector.patterns {
 			if _, enabled := config.Proxies[typ]; enabled {
 				go injector.run(ctx, typ, pattern)
-			} else if cleanupAllowed(typ, config.Proxies) {
-				go cleanupPattern(ctx, logger, injector.k8sClient, pattern)
+			} else {
+				go func() {
+					if cleanupAllowed(ctx, logger, injector.k8sClient, typ, config.Proxies) {
+						cleanupPattern(ctx, logger, injector.k8sClient, pattern)
+					}
+				}()
 			}
 		}
 	})
@@ -77,14 +82,22 @@ func Start(ctx context.Context, logger logComp.Component, datadogConfig config.C
 }
 
 // cleanupAllowed reports whether a disabled proxy type can be cleaned up at startup. istio and
-// istio-gateway share one EnvoyFilter, so neither removes it while the other is enabled.
-func cleanupAllowed(typ appsecconfig.ProxyType, proxies map[appsecconfig.ProxyType]struct{}) bool {
+// istio-gateway share one EnvoyFilter, so neither removes it while the other is enabled and has
+// resources that still need it.
+func cleanupAllowed(ctx context.Context, logger logComp.Component, client dynamic.Interface, typ appsecconfig.ProxyType, proxies map[appsecconfig.ProxyType]struct{}) bool {
 	sibling := map[appsecconfig.ProxyType]appsecconfig.ProxyType{
 		appsecconfig.ProxyTypeIstio:        appsecconfig.ProxyTypeIstioGateway,
 		appsecconfig.ProxyTypeIstioGateway: appsecconfig.ProxyTypeIstio,
 	}[typ]
-	_, siblingEnabled := proxies[sibling]
-	return !siblingEnabled
+	if _, siblingEnabled := proxies[sibling]; !siblingEnabled {
+		return true
+	}
+	needed, err := istio.FilterNeeded(ctx, client, sibling)
+	if err != nil {
+		logger.Warnf("Skipping cleanup of proxy type %q: could not check whether %q still needs its resources: %v", typ, sibling, err)
+		return false
+	}
+	return !needed
 }
 
 func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger logComp.Component) (map[appsecconfig.ProxyType]struct{}, error) {

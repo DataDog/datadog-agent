@@ -17,7 +17,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -489,28 +488,13 @@ func TestGateway_Deleted_OptOut(t *testing.T) {
 
 			gwA := newTestIstioGateway("gateway-a", "team-a", map[string]any{"istio": "ingressgateway"})
 			gwA.SetLabels(optedOut)
-			gateways := []unstructured.Unstructured{*gwA}
+			// gateway-a stays in the cluster, as after an opt-out
+			require.NoError(t, client.Tracker().Create(istioGatewayGVR, gwA, gwA.GetNamespace()))
 			if tc.withOther {
 				gwB := newTestIstioGateway("gateway-b", "team-b", map[string]any{"istio": "ingressgateway"})
 				gwB.SetLabels(tc.otherLabels)
-				gateways = append(gateways, *gwB)
+				require.NoError(t, client.Tracker().Create(istioGatewayGVR, gwB, gwB.GetNamespace()))
 			}
-
-			// gateway-a is still in the cluster. The Get stub reproduces what a live lookup of it
-			// returns, so the test also covers code that infers cleanup mode from it.
-			client.PrependReactor("get", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-				return true, gwA, nil
-			})
-			client.PrependReactor("list", "gateways", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-				selector := action.(k8stesting.ListAction).GetListRestrictions().Labels
-				list := &unstructured.UnstructuredList{}
-				for _, gw := range gateways {
-					if selector.Matches(labels.Set(gw.GetLabels())) {
-						list.Items = append(list.Items, gw)
-					}
-				}
-				return true, list, nil
-			})
 
 			config := appsecconfig.Config{
 				Injection: appsecconfig.Injection{
