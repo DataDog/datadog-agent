@@ -22,6 +22,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -301,6 +302,74 @@ func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
 		assert.NotNil(t, cfg.KubernetesAllowedCustomResources)
 		assert.Empty(t, cfg.KubernetesAllowedCustomResources)
 	})
+}
+
+func TestScriptCredentialFileAllowedRootsFromEnv(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  []string
+	}{
+		{name: "comma separated", value: "/opt/datadog/scripts,/run/datadog/scripts", want: []string{"/opt/datadog/scripts", "/run/datadog/scripts"}},
+		{name: "deny all", value: "[]", want: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_SCRIPT_CREDENTIAL_FILE_ALLOWED_ROOTS", tt.value)
+			cfg := configmock.New(t)
+			assert.True(t, cfg.IsConfigured(par.ScriptCredentialFileAllowedRoots))
+			assert.Equal(t, tt.want, cfg.GetStringSlice(par.ScriptCredentialFileAllowedRoots))
+		})
+	}
+}
+
+func TestFromDDConfigScriptCredentialFileAllowedRoots(t *testing.T) {
+	t.Run("unset uses the packaged private action runner directory", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+
+		cfg, err := FromDDConfig(mockConfig, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{filepath.Join(defaultpaths.GetDefaultConfPath(), "private-action-runner")}, cfg.ScriptCredentialFileAllowedRoots)
+	})
+
+	t.Run("explicit empty list denies all script credential files", func(t *testing.T) {
+		mockConfig := configmock.NewFromYAML(t, `
+private_action_runner:
+  script:
+    credential_file_allowed_roots: []
+`)
+		assert.True(t, mockConfig.IsConfigured(par.ScriptCredentialFileAllowedRoots))
+
+		cfg, err := FromDDConfig(mockConfig, nil)
+
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.ScriptCredentialFileAllowedRoots)
+		assert.Empty(t, cfg.ScriptCredentialFileAllowedRoots)
+	})
+
+	t.Run("configured roots replace the default", func(t *testing.T) {
+		roots := []string{t.TempDir(), t.TempDir() + string(filepath.Separator)}
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ScriptCredentialFileAllowedRoots, roots)
+
+		cfg, err := FromDDConfig(mockConfig, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, roots, cfg.ScriptCredentialFileAllowedRoots)
+	})
+}
+
+// Root validation is owned by the credential resolver, which skips invalid roots.
+func TestFromDDConfigDoesNotFailOnInvalidScriptCredentialFileAllowedRoots(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.ScriptCredentialFileAllowedRoots, []string{"private-action-runner", missing})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"private-action-runner", missing}, cfg.ScriptCredentialFileAllowedRoots)
 }
 
 func TestFromDDConfigMetricsClient(t *testing.T) {
