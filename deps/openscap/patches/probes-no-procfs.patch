@@ -1,39 +1,209 @@
 --- a/src/OVAL/probes/independent/environmentvariable58_probe.c
 +++ b/src/OVAL/probes/independent/environmentvariable58_probe.c
-@@ -266,7 +266,7 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
+@@ -262,7 +262,7 @@ static int collect_variable(char *buffer, size_t env_name_size, int pid, SEXP_t
+ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
+ {
+ 	int err = 1, pid, fd;
+-	bool empty;
++	bool empty, listed = false;
  	SEXP_t *item, *pid_sexp;
  	DIR *d;
  	struct dirent *d_entry;
--	char *buffer, *null_char, path[PATH_MAX] = {0};
-+	char *buffer, *null_char, path[PATH_MAX] = {0}, initpath[PATH_MAX] = {0};
- 	ssize_t buffer_used;
- 	size_t buffer_size;
- 
-@@ -291,6 +291,13 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
- 	}
- 
- 	const char *prefix = getenv("OSCAP_PROBE_ROOT");
-+
-+	snprintf(initpath, PATH_MAX, "%s/proc/1", prefix ? prefix : "");
-+	if (access(initpath, F_OK) < 0) {
-+		probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
-+		return 0;
-+	}
-+
+@@ -294,6 +294,10 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
  	snprintf(path, PATH_MAX, "%s/proc", prefix ? prefix : "");
  	d = opendir(path);
  	if (d == NULL) {
---- a/src/OVAL/probes/unix/linux/partition_probe.c
-+++ b/src/OVAL/probes/unix/linux/partition_probe.c
-@@ -274,6 +274,11 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
-         const char *prefix = getenv("OSCAP_PROBE_ROOT");
-         snprintf(mnt_path, PATH_MAX, "%s"MTAB_PATH, prefix ? prefix : "");
++		if (errno == ENOENT) {
++			probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
++			return 0;
++		}
+ 		dE("Can't read %s/proc: errno=%d, %s.", prefix ? prefix : "", errno, strerror(errno));
+ 		return PROBE_EACCESS;
+ 	}
+@@ -308,6 +312,7 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
+ 	while ((d_entry = readdir(d))) {
+ 		if (strspn(d_entry->d_name, "0123456789") != strlen(d_entry->d_name))
+ 			continue;
++		listed = true;
  
-+	if (access(mnt_path, F_OK) < 0) {
+ 		pid = atoi(d_entry->d_name);
+ 		pid_sexp = SEXP_number_newi_32(pid);
+@@ -388,6 +393,14 @@ static int read_environment(SEXP_t *pid_ent, SEXP_t *name_ent, probe_ctx *ctx)
+ 	}
+ 	closedir(d);
+ 	free(buffer);
++	/*
++	 * A root without /proc, or with an empty one, as the mount point of a
++	 * disk image, has no process to read.
++	 */
++	if (!listed) {
 +		probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
 +		return 0;
 +	}
+ 	if (err) {
+ 		SEXP_t *msg = probe_msg_creatf(OVAL_MESSAGE_LEVEL_ERROR,
+ 				"Can't find process with requested PID.");
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -281,6 +281,11 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+         mnt_fd = open(mnt_path, O_RDONLY);
+ 
+         if (mnt_fd < 0) {
++                if (errno == ENOENT) {
++                        /* a root without a mount table, as a disk image */
++                        probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
++                        return 0;
++                }
+                 if (!prefix)
+                         dE("Can't open %s: errno=%d, %s.", mnt_path, errno, strerror(errno));
+                 return (prefix ? PROBE_ESUCCESS : PROBE_ESYSTEM);
+@@ -306,6 +311,10 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+         mnt_fp = fopen(mnt_path, "r");
+ 
+         if (mnt_fp == NULL) {
++                if (errno == ENOENT) {
++                        probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
++                        return 0;
++                }
+                 if (!prefix)
+                         dE("Can't open %s: errno=%d, %s.", mnt_path, errno, strerror(errno));
+                 return (prefix ? PROBE_ESUCCESS : PROBE_ESYSTEM);
+--- a/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode.sh
++++ b/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode.sh
+@@ -41,4 +41,70 @@
+     return $ret_val
+ }
+ 
++function test_probes_environmentvariable58_offline_mode_no_procfs {
++    probecheck "environmentvariable58" || return 255
 +
- #if defined(OS_LINUX)
-         int   mnt_fd;
-         struct statfs stfs;
++    local ret_val=0;
++    local definition="${srcdir}/test_probes_environmentvariable58_offline_mode.sh.xml"
++    local result="test_probes_environmentvariable58_offline_mode_no_procfs.sh.results.xml"
++    echo "result file: $result"
++    local stderr
++    stderr=$(mktemp no_procfs.err.XXXXXX)
++    echo "stderr file: $stderr"
++
++    [[ -f "$result" ]] && rm -f "$result"
++
++    # The /proc of this root is empty, as in a disk image.
++    tmpdir=$(mktemp -t -d "test_offline_mode_environmentvariable58.XXXXXX")
++    mkdir "$tmpdir/proc"
++
++    set_chroot_offline_test_mode "$tmpdir"
++
++    $OSCAP oval eval --results "$result" "$definition" 2> "$stderr"
++
++    unset_chroot_offline_test_mode
++
++    [[ -f "$result" ]]
++
++    assert_exists 1 '/oval_results/results/system/tests/test[@result="not applicable"][@test_id="oval:1:tst:1"]'
++
++    grep -Ei "(W: |E: )" "$stderr" && ret_val=1 && echo "There is an error and/or a warning in the output!" >&2
++
++    rm "$stderr"
++
++    rm -rf "${tmpdir}"
++
++    return $ret_val
++}
++
++function test_probes_environmentvariable58_offline_mode_process {
++    probecheck "environmentvariable58" || return 255
++
++    local definition="${srcdir}/test_probes_environmentvariable58_offline_mode_process.xml"
++    local result="test_probes_environmentvariable58_offline_mode_process.results.xml"
++    [[ -f "$result" ]] && rm -f "$result"
++
++    # The /proc of this root lists process 42 and no process 1.
++    local tmpdir
++    tmpdir=$(mktemp -t -d "test_offline_mode_environmentvariable58.XXXXXX")
++    mkdir -p "$tmpdir/proc/42"
++    printf 'FAKE_VARIABLE=fake value\0' > "$tmpdir/proc/42/environ"
++
++    set_chroot_offline_test_mode "$tmpdir"
++
++    $OSCAP oval eval --results "$result" "$definition"
++
++    unset_chroot_offline_test_mode
++
++    rm -rf "$tmpdir"
++
++    [[ -f "$result" ]]
++
++    assert_exists 1 '/oval_results/results/system/tests/test[@result="true"][@test_id="oval:1:tst:1"]'
++
++    return 0
++}
++
+ test_run "test_probes_environmentvariable58_offline_mode" test_probes_environmentvariable58_offline_mode
++test_run "test_probes_environmentvariable58_offline_mode (no procfs)" test_probes_environmentvariable58_offline_mode_no_procfs
++test_run "test_probes_environmentvariable58_offline_mode (process)" test_probes_environmentvariable58_offline_mode_process
+diff --git a/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode_process.xml b/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode_process.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/environmentvariable58/test_probes_environmentvariable58_offline_mode_process.xml
+@@ -0,0 +1,49 @@
++<?xml version="1.0"?>
++<oval_definitions xmlns:oval-def="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ind-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent" xmlns:unix-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#unix" xmlns:lin-def="http://oval.mitre.org/XMLSchema/oval-definitions-5#linux" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-definitions-5#unix unix-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5#independent independent-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5#linux linux-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-common-5 oval-common-schema.xsd">
++
++  <generator>
++    <oval:product_name>environmentvariable58</oval:product_name>
++    <oval:product_version>1.0</oval:product_version>
++    <oval:schema_version>5.9</oval:schema_version>
++    <oval:timestamp>2011-07-13T00:00:00-00:00</oval:timestamp>
++  </generator>
++
++  <definitions>
++
++    <definition class="compliance" version="1" id="oval:1:def:1"> <!-- comment="true" -->
++      <metadata>
++        <title></title>
++        <description></description>
++      </metadata>
++      <criteria>
++        <criteria operator="AND">
++          <criterion test_ref="oval:1:tst:1"/>
++        </criteria>
++      </criteria>
++    </definition>
++
++  </definitions>
++
++  <tests>
++    <environmentvariable58_test version="1" id="oval:1:tst:1" check="at least one" comment="true" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent">
++      <object object_ref="oval:1:obj:1"/>
++      <state state_ref="oval:1:ste:1"/>
++    </environmentvariable58_test>
++  </tests>
++
++  <objects>
++    <environmentvariable58_object version="1" id="oval:1:obj:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent">
++      <pid datatype="int">42</pid>
++      <name>FAKE_VARIABLE</name>
++    </environmentvariable58_object>
++  </objects>
++
++  <states>
++    <environmentvariable58_state version="1" id="oval:1:ste:1" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent">
++      <pid datatype="int">42</pid>
++      <name>FAKE_VARIABLE</name>
++      <value>fake value</value>
++    </environmentvariable58_state>
++  </states>
++
++</oval_definitions>
+--- a/tests/probes/partition/test_probes_partition_offline_mode.sh
++++ b/tests/probes/partition/test_probes_partition_offline_mode.sh
+@@ -38,7 +38,8 @@
+         assert_exists 1 '/oval_results/results/system/tests/test[@result="true"][@test_id="oval:1:tst:1"]'
+         verify_results "def" $DF $RF 1 && verify_results "tst" $DF $RF 1
+     else
+-        assert_exists 1 '/oval_results/results/system/tests/test[@result="false"][@test_id="oval:1:tst:1"]'
++        # A root without a mount table, such as a disk image, is not applicable.
++        assert_exists 1 '/oval_results/results/system/tests/test[@result="not applicable"][@test_id="oval:1:tst:1"]'
+     fi
+ 
+     grep -Ei "(W: |E: )" $stderr && ret_val=1 && echo "There is an error and/or a warning in the output!"
