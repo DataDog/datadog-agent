@@ -28,8 +28,9 @@ func newLifecycleGuardTest() *lifecycleGuardTest {
 		root:  processIdentity{tgid: 10, startTime: 100},
 		child: processIdentity{tgid: 20, startTime: 200},
 	}
-	h.guard = newProcessLifecycleGuard([]processIdentity{h.root}, func(data []byte) {
+	h.guard = newProcessLifecycleGuard([]processIdentity{h.root}, func(data []byte) bool {
 		h.sent = append(h.sent, string(data))
+		return true
 	})
 	return h
 }
@@ -70,6 +71,35 @@ func TestProcessLifecycleGuardDoesNotBufferTelemetry(t *testing.T) {
 	assert.Equal(t, []string{"child exec", "parent open", "child open"}, h.sent)
 	h.fork(h.root, h.child, "late fork")
 	assert.Equal(t, []string{"child exec", "parent open", "child open"}, h.sent)
+	assert.EqualValues(t, 1, h.guard.suppressedLateForks)
+}
+
+func TestProcessLifecycleGuardContextWithoutExec(t *testing.T) {
+	for _, initialized := range []bool{false, true} {
+		h := newLifecycleGuardTest()
+		h.guard.filterAndEnqueue(serializedSyscall{
+			owner: h.child, kind: ebpfless.SyscallTypeOpen, hasContext: initialized, payload: []byte("open"),
+		})
+		require.NotNil(t, h.guard.states[h.child])
+		assert.Equal(t, initialized, h.guard.states[h.child].contextAnnounced)
+		h.fork(h.root, h.child, "late fork")
+		assert.Equal(t, []string{"open"}, h.sent)
+		assert.EqualValues(t, 1, h.guard.suppressedLateForks)
+	}
+}
+
+func TestProcessLifecycleGuardDroppedExecStillForbidsLateFork(t *testing.T) {
+	h := newLifecycleGuardTest()
+	h.guard.enqueue = func([]byte) bool { return false }
+	h.event(h.child, ebpfless.SyscallTypeExec, "dropped exec")
+	require.NotNil(t, h.guard.states[h.child])
+	require.False(t, h.guard.states[h.child].contextAnnounced)
+	h.guard.enqueue = func(data []byte) bool {
+		h.sent = append(h.sent, string(data))
+		return true
+	}
+	h.fork(h.root, h.child, "late fork")
+	assert.Empty(t, h.sent)
 	assert.EqualValues(t, 1, h.guard.suppressedLateForks)
 }
 

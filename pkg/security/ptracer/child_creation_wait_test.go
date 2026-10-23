@@ -51,17 +51,21 @@ func newChildCreationWaitTest(t *testing.T) *childCreationWaitTest {
 	child := NewProcess(os.Getpid())
 	child.containerContextResolved = true
 	h := &childCreationWaitTest{
-		ctx:    &CWSPtracerCtx{opts: &Opts{}, processCache: NewProcessCache()},
+		ctx:    &CWSPtracerCtx{opts: &Opts{StatsDisabled: true}, processCache: NewProcessCache()},
 		parent: parent,
 		child:  child,
 	}
 	h.ctx.processCache.Add(parent.Pid, parent)
 	h.ctx.processCache.Add(child.Pid, child)
-	h.ctx.lifecycleGuard = newProcessLifecycleGuard([]processIdentity{parent.identity()}, func(data []byte) {
+	h.ctx.processContextReader = func(identity processIdentity) (*ebpfless.SyscallMsg, error) {
+		return testProcessContext(identity.tgid, uint32(parent.Tgid), 200), nil
+	}
+	h.ctx.lifecycleGuard = newProcessLifecycleGuard([]processIdentity{parent.identity()}, func(data []byte) bool {
 		var message ebpfless.Message
 		require.NoError(t, msgpack.Unmarshal(data, &message))
 		h.messages = append(h.messages, message.Syscall)
 		h.steps = append(h.steps, "message")
+		return true
 	})
 	h.children = newChildCreationWaiter(func(pid int) error {
 		h.resumed = append(h.resumed, pid)
@@ -107,9 +111,14 @@ func TestChildCreationWaitOrdering(t *testing.T) {
 					arg = uint64(uintptr(unsafe.Pointer(flags)))
 				}
 				if childFirst {
-					require.True(t, h.ctx.holdChildAtInitialStop(h.child.Pid, initialChildStop(), h.children))
+					held := h.ctx.holdChildAtInitialStop(h.child.Pid, initialChildStop(), h.children)
+					require.Equal(t, !thread, held)
 					require.Empty(t, h.resumed)
 					require.Empty(t, h.messages)
+					if !held {
+						// The tracing loop resumes threads without waiting for clone.
+						require.NoError(t, h.children.resume(h.child.Pid))
+					}
 				}
 
 				h.ctx.handleChildCreationEvent(tc.nr, h.parent.Pid, h.child.Pid, syscallTestRegs(tc.nr, arg), h.children)
@@ -155,6 +164,42 @@ func TestChildCreationWaitInitialTraceeAndOtherSignals(t *testing.T) {
 	trap := syscall.WaitStatus(uint32(syscall.SIGTRAP)<<8 | 0x7f)
 	assert.False(t, h.ctx.holdChildAtInitialStop(h.child.Pid, trap, h.children))
 	assert.Empty(t, h.children.heldByTID)
+}
+
+func TestChildCreationWaitThreadDoesNotWaitForCreation(t *testing.T) {
+	h := newChildCreationWaitTest(t)
+	h.child.Tgid = h.parent.Tgid
+	h.child.startTime = h.parent.startTime
+
+	synctest.Test(t, func(t *testing.T) {
+		require.False(t, h.ctx.holdChildAtInitialStop(h.child.Pid, initialChildStop(), h.children))
+		require.NoError(t, h.children.resume(h.child.Pid))
+		require.False(t, h.child.creationHandled)
+		assert.Empty(t, h.children.heldByTID)
+
+		// A delayed clone event must neither time out the thread nor skip its
+		// resource initialization, even after a process's wait would expire.
+		time.Sleep(2 * childCreationTimeout)
+		h.children.resumeExpiredChildren()
+		require.False(t, h.child.creationWaitTimedOut)
+		assert.Zero(t, h.children.timedOutChildren)
+
+		flags := uint64(unix.CLONE_THREAD | unix.CLONE_FILES | unix.CLONE_FS)
+		h.ctx.handleChildCreationEvent(CloneNr, h.parent.Pid, h.child.Pid, syscallTestRegs(CloneNr, flags), h.children)
+		require.True(t, h.child.creationHandled)
+		require.Same(t, h.parent.FdRes, h.child.FdRes)
+		require.Same(t, h.parent.FsRes, h.child.FsRes)
+		assert.Equal(t, []int{h.child.Pid}, h.resumed) // no second restart at clone
+		assert.Empty(t, h.messages)                    // no process-level fork for a thread
+
+		// Later operations in the thread must update its siblings' caches.
+		h.child.FsRes.Cwd = "/thread/new-cwd"
+		path, err := getFullPathFromFilename(h.parent, "relative-file")
+		require.NoError(t, err)
+		assert.Equal(t, "/thread/new-cwd/relative-file", path)
+		require.NoError(t, handleClose(&h.ctx.Tracer, h.child, nil, syscallTestRegs(CloseNr, 7), false))
+		assert.NotContains(t, h.parent.FdRes.Fd, int32(7))
+	})
 }
 
 func TestChildCreationWaitUnknownChild(t *testing.T) {
@@ -289,6 +334,45 @@ func TestChildCreationWaitDeathAndPIDReuse(t *testing.T) {
 		w.resumeExpiredChildren()
 		assert.Equal(t, []int{20}, resumed)
 		assert.True(t, reused.creationWaitTimedOut)
+	})
+}
+
+func TestChildCreationWaitTimeoutInitializesContextWithoutExec(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newChildCreationWaitTest(t)
+		lookups := 0
+		h.ctx.processContextReader = func(identity processIdentity) (*ebpfless.SyscallMsg, error) {
+			lookups++
+			require.Equal(t, h.child.identity(), identity)
+			return testProcessContext(identity.tgid, uint32(h.parent.Tgid), 200), nil
+		}
+		require.True(t, h.ctx.holdChildAtInitialStop(h.child.Pid, initialChildStop(), h.children))
+		time.Sleep(childCreationTimeout)
+		h.children.resumeExpiredChildren()
+		require.Equal(t, []int{h.child.Pid}, h.resumed)
+		require.True(t, h.child.creationWaitTimedOut)
+
+		h.ctx.sendSyscallMsg(h.child, &ebpfless.SyscallMsg{
+			Type: ebpfless.SyscallTypeOpen,
+			Open: &ebpfless.OpenSyscallMsg{FileSyscallMsg: ebpfless.FileSyscallMsg{Filename: "/first-file"}},
+		})
+		require.Len(t, h.messages, 1)
+		require.NotNil(t, h.messages[0].Exec)
+		require.NotNil(t, h.messages[0].Exec.Credentials)
+		assert.True(t, h.messages[0].Exec.FromProcFS)
+		assert.EqualValues(t, h.parent.Tgid, h.messages[0].Exec.PPID)
+		assert.Equal(t, "/worker", h.messages[0].Exec.File.Filename)
+		assert.EqualValues(t, 33, h.messages[0].Exec.Credentials.UID)
+		assert.Equal(t, ebpfless.SyscallTypeOpen, h.messages[0].Type)
+		assert.Equal(t, []string{"resume", "message"}, h.steps)
+
+		// This worker never execs. The late fork must not replace the context
+		// already delivered with its first open, nor restart the child again.
+		h.ctx.handleChildCreationEvent(ForkNr, h.parent.Pid, h.child.Pid, syscallTestRegs(ForkNr, 0), h.children)
+		assert.Len(t, h.messages, 1)
+		assert.Equal(t, []int{h.child.Pid}, h.resumed)
+		assert.EqualValues(t, 1, h.ctx.lifecycleGuard.suppressedLateForks)
+		assert.Equal(t, 1, lookups)
 	})
 }
 

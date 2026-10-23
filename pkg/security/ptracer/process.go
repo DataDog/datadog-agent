@@ -103,16 +103,6 @@ func (p *Process) identity() processIdentity {
 	return processIdentity{tgid: uint32(p.Tgid), startTime: p.startTime}
 }
 
-func (p *Process) execPPID() uint32 {
-	if p.forkPPID != 0 {
-		return p.forkPPID
-	}
-	// Creation may have timed out, or this may be an initial tracee.
-	// Resolve at the exec stop, not at network delivery: queuing delays must
-	// not change the observed parent. This preserves lineage without a fork.
-	return getPidPPID(p.Pid)
-}
-
 var errPipeFd = errors.New("pipe fd")
 var errNegativeFd = errors.New("negative fd")
 
@@ -192,9 +182,9 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 		// A thread belongs to the same process, with the same known parent.
 		process.forkPPID = parent.forkPPID
 	case cloneFlags&unix.CLONE_PARENT != 0:
-		// The creator is not the child's parent, and may have been reparented.
-		// Its original fork PPID is insufficient: keep the procfs fallback.
-		process.forkPPID = 0
+		// The creator is not the child's parent. Observe the actual parent
+		// once at creation instead of resolving it anew on every exec.
+		process.forkPPID = getPidPPID(process.Pid)
 	default:
 		process.forkPPID = uint32(parent.Tgid)
 	}
