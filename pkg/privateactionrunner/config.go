@@ -22,14 +22,15 @@ const (
 	SkipConnectionCreation = "private_action_runner.skip_connection_creation"
 
 	// General config
-	TaskConcurrency       = "private_action_runner.task_concurrency"
-	TaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
-	IdleTimeoutSeconds    = "private_action_runner.idle_timeout_seconds"
-	ActionsAllowlist      = "private_action_runner.actions_allowlist"
-	DefaultActionsEnabled = "private_action_runner.default_actions_enabled"
-	ExecutorSocketPath    = "private_action_runner.executor.socket_path"
-	SplitEnabled          = "private_action_runner.split_enabled"
-	CredentialsValues     = "private_action_runner.credentials.values"
+	TaskConcurrency             = "private_action_runner.task_concurrency"
+	TaskTimeoutSeconds          = "private_action_runner.task_timeout_seconds"
+	IdleTimeoutSeconds          = "private_action_runner.idle_timeout_seconds"
+	ActionsAllowlist            = "private_action_runner.actions_allowlist"
+	DefaultActionsEnabled       = "private_action_runner.default_actions_enabled"
+	ExecutorSocketPath          = "private_action_runner.executor.socket_path"
+	SplitEnabled                = "private_action_runner.split_enabled"
+	CredentialsAllowIntegration = "private_action_runner.credentials.allow_integration_credentials"
+	CredentialsValues           = "private_action_runner.credentials.values"
 
 	// HTTP Action related
 	HTTPTimeoutSeconds    = "private_action_runner.http_timeout_seconds"

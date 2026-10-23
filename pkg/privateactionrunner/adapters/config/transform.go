@@ -120,6 +120,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RunnerId:                           runnerID,
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
+		AllowIntegrationCredentials:        config.GetBool(par.CredentialsAllowIntegration),
 	}, nil
 }
 

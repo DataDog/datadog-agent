@@ -68,6 +68,8 @@ type Config struct {
 	EnableProfiling            bool
 	DisableCredentialTemplates bool
 
+	AllowIntegrationCredentials bool
+
 	Version string
 
 	OpmsExtraHeaders map[string]string

@@ -89,6 +89,7 @@ message ConnectionTokenV2 {
   oneof source {
     PlainText plain_text = 2;
     RunnerCredential runner_credential = 5;
+    IntegrationCredential integration_credential = 6;
   }
 
   message PlainText {
@@ -98,6 +99,11 @@ message ConnectionTokenV2 {
   message RunnerCredential {
     // Identifier in the runner credential catalog.
     string key = 1;
+  }
+
+  message IntegrationCredential {
+    string integration = 1;
+    map<string, string> selectors = 2;
   }
 }
 
