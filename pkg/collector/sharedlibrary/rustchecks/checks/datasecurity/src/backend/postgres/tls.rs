@@ -102,11 +102,147 @@ fn load_private_key(
 mod tests {
     use super::*;
 
+    fn testdata(name: &str) -> String {
+        let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        format!("{dir}/testdata/{name}")
+    }
+
     fn conn(ssl: SslMode, ssl_root_cert: Option<&str>) -> Connection {
         Connection {
             ssl,
             ssl_root_cert: ssl_root_cert.map(str::to_string),
             ..Default::default()
+        }
+    }
+
+    /// What `~/.postgresql/root.crt` is.
+    #[derive(Debug, Clone, Copy)]
+    enum Home {
+        /// No home directory.
+        Unknown,
+        WithRoot,
+        WithoutRoot,
+    }
+
+    /// The `ssl_root_cert` setting.
+    #[derive(Debug, Clone, Copy)]
+    enum Cert {
+        Unset,
+        Empty,
+        System,
+        /// `./system` is a file, not the system store.
+        RelativeSystem,
+        Valid,
+        Missing,
+    }
+
+    impl Cert {
+        fn value(self) -> Option<String> {
+            match self {
+                Cert::Unset => None,
+                Cert::Empty => Some(String::new()),
+                Cert::System => Some("system".to_string()),
+                Cert::RelativeSystem => Some("./system".to_string()),
+                Cert::Valid => Some(testdata("root.crt")),
+                Cert::Missing => Some("/nonexistent/root.crt".to_string()),
+            }
+        }
+    }
+
+    /// The expected root certificate.
+    #[derive(Debug)]
+    enum Want {
+        Unverified,
+        SystemStore,
+        /// The file the setting points to.
+        File(Cert),
+    }
+
+    /// The selected root certificate.
+    #[derive(Debug)]
+    enum Got {
+        Unverified,
+        SystemStore,
+        File(String),
+    }
+
+    impl Want {
+        fn matches(&self, got: &Got) -> bool {
+            match (self, got) {
+                (Want::Unverified, Got::Unverified) | (Want::SystemStore, Got::SystemStore) => true,
+                (Want::File(cert), Got::File(path)) => cert.value().as_deref() == Some(path),
+                _ => false,
+            }
+        }
+    }
+
+    fn select(ssl: SslMode, cert: Cert, _home: Home) -> Got {
+        match verification_root_cert(&conn(ssl, cert.value().as_deref())) {
+            None => Got::Unverified,
+            Some(RootCert::System) => Got::SystemStore,
+            Some(RootCert::File(path)) => Got::File(path.to_string()),
+        }
+    }
+
+    #[test]
+    fn root_cert_selection_matrix() {
+        use Cert::*;
+        use Home::*;
+        use SslMode::*;
+        use Want::*;
+
+        #[rustfmt::skip]
+        let cases = [
+            // ssl         ssl_root_cert   ~/.postgresql/root.crt   selected
+            // Non-verifying modes ignore the root certificate.
+            (Disable,      Unset,          WithRoot,                Unverified),
+            (Disable,      Valid,          WithRoot,                Unverified),
+            (Disable,      Missing,        WithRoot,                Unverified),
+            (Disable,      System,         Unknown,                 Unverified),
+            (Allow,        Unset,          WithRoot,                Unverified),
+            (Allow,        Valid,          WithRoot,                Unverified),
+            (Allow,        Missing,        WithRoot,                Unverified),
+            (Allow,        System,         Unknown,                 Unverified),
+            (Prefer,       Unset,          WithRoot,                Unverified),
+            (Prefer,       Valid,          WithRoot,                Unverified),
+            (Prefer,       Missing,        WithRoot,                Unverified),
+            (Prefer,       System,         Unknown,                 Unverified),
+
+            (Require,      Unset,          Unknown,                 Unverified),
+            (Require,      Unset,          WithoutRoot,             Unverified),
+            (Require,      Unset,          WithRoot,                Unverified),
+            (Require,      Empty,          WithRoot,                File(Empty)),
+            (Require,      Valid,          WithoutRoot,             File(Valid)),
+            (Require,      Missing,        WithRoot,                File(Missing)),
+            (Require,      RelativeSystem, WithRoot,                File(RelativeSystem)),
+            (Require,      System,         WithRoot,                File(System)),
+
+            (VerifyCa,     Unset,          Unknown,                 SystemStore),
+            (VerifyCa,     Unset,          WithoutRoot,             SystemStore),
+            (VerifyCa,     Unset,          WithRoot,                SystemStore),
+            (VerifyCa,     Empty,          WithRoot,                File(Empty)),
+            (VerifyCa,     Valid,          WithoutRoot,             File(Valid)),
+            (VerifyCa,     Missing,        WithRoot,                File(Missing)),
+            (VerifyCa,     RelativeSystem, WithRoot,                File(RelativeSystem)),
+            (VerifyCa,     System,         WithRoot,                File(System)),
+
+            (VerifyFull,   Unset,          Unknown,                 SystemStore),
+            (VerifyFull,   Unset,          WithoutRoot,             SystemStore),
+            (VerifyFull,   Unset,          WithRoot,                SystemStore),
+            (VerifyFull,   Empty,          WithRoot,                File(Empty)),
+            (VerifyFull,   Valid,          WithoutRoot,             File(Valid)),
+            (VerifyFull,   Missing,        WithRoot,                File(Missing)),
+            (VerifyFull,   RelativeSystem, WithRoot,                File(RelativeSystem)),
+            (VerifyFull,   System,         Unknown,                 File(System)),
+            (VerifyFull,   System,         WithRoot,                File(System)),
+        ];
+
+        for (ssl, cert, home, want) in cases {
+            let got = select(ssl, cert, home);
+            assert!(
+                want.matches(&got),
+                "{ssl:?} {cert:?} {home:?}: want {want:?}, got {got:?}"
+            );
         }
     }
 
@@ -116,54 +252,27 @@ mod tests {
     }
 
     #[test]
-    fn require_without_root_cert_does_not_verify() {
-        assert!(connector(&conn(SslMode::Require, None)).unwrap().is_some());
-    }
-
-    #[test]
-    fn require_with_root_cert_verifies_like_libpq() {
-        // The root certificate is loaded, so a missing file is an error.
-        let err = connector(&conn(SslMode::Require, Some("/nonexistent/root.crt")))
-            .err()
-            .unwrap();
-        assert!(format!("{err:#}").contains("ssl_root_cert"));
-    }
-
-    #[test]
-    fn non_verifying_modes_do_not_verify_even_with_a_root_cert() {
-        for mode in [SslMode::Disable, SslMode::Allow, SslMode::Prefer] {
-            assert_eq!(verification_root_cert(&conn(mode, None)), None);
-            assert_eq!(verification_root_cert(&conn(mode, Some("/ca.crt"))), None);
+    fn connector_loads_the_root_certificate() {
+        let root_cert = testdata("root.crt");
+        for ssl in [SslMode::Require, SslMode::VerifyCa, SslMode::VerifyFull] {
+            assert!(connector(&conn(ssl, Some(&root_cert))).unwrap().is_some());
         }
     }
 
     #[test]
-    fn require_verifies_only_with_a_root_cert() {
-        assert_eq!(verification_root_cert(&conn(SslMode::Require, None)), None);
-        assert_eq!(
-            verification_root_cert(&conn(SslMode::Require, Some("/ca.crt"))),
-            Some(RootCert::File("/ca.crt"))
-        );
-    }
-
-    #[test]
-    fn verify_modes_use_the_root_cert_file() {
-        for mode in [SslMode::VerifyCa, SslMode::VerifyFull] {
-            assert_eq!(
-                verification_root_cert(&conn(mode, Some("/ca.crt"))),
-                Some(RootCert::File("/ca.crt"))
-            );
+    fn connector_fails_on_an_invalid_root_certificate() {
+        let invalid = testdata("invalid.crt");
+        for ssl in [SslMode::Require, SslMode::VerifyCa, SslMode::VerifyFull] {
+            let err = connector(&conn(ssl, Some(&invalid))).err().unwrap();
+            assert!(format!("{err:#}").contains("reading ssl_root_cert"));
         }
     }
 
     #[test]
-    fn verify_modes_without_root_cert_use_the_system_store() {
-        for mode in [SslMode::VerifyCa, SslMode::VerifyFull] {
-            assert_eq!(
-                verification_root_cert(&conn(mode, None)),
-                Some(RootCert::System)
-            );
-            assert!(connector(&conn(mode, None)).unwrap().is_some());
+    fn connector_fails_on_a_missing_root_certificate() {
+        let missing = Some("/nonexistent/root.crt");
+        for ssl in [SslMode::Require, SslMode::VerifyCa, SslMode::VerifyFull] {
+            assert!(connector(&conn(ssl, missing)).is_err());
         }
     }
 }
