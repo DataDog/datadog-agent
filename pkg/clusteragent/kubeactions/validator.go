@@ -195,11 +195,32 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 	return nil
 }
 
-// protectedNamespaces are Kubernetes system namespaces where actions must not be executed
+// protectedNamespaces are Kubernetes system and other sensitive namespaces where actions must not be executed
 var protectedNamespaces = map[string]struct{}{
 	"kube-system":     {},
 	"kube-public":     {},
 	"kube-node-lease": {},
+	// Fabric / cluster control-plane namespaces (SECENG sensitive-envs).
+	"service-discovery":             {},
+	"cluster-dns":                   {},
+	"cluster-dns-node-local":        {},
+	"ingress-haproxy":               {},
+	"terrapin-credentials-injector": {},
+	"fabric-gateway":                {},
+	"fabric-gateway-terrapin":       {},
+	"fabric-nat":                    {},
+	"fabric-agent":                  {},
+	"rapid-fabric":                  {},
+	// Deployment-system namespaces (SECENG, team:release); Deployment Systems to confirm final list.
+	"cnab-exec-prod":    {},
+	"cnab-exec-staging": {},
+	"delivery-platform": {},
+	"temporal":          {},
+	// Remote-config namespaces (SECENG).
+	"orgstore-remote-config": {},
+	"rapid-remote-config":    {},
+	"postgres-rc":            {},
+	"atlas-remoteconfig":     {},
 }
 
 // isProtectedNamespace returns true if the namespace is a protected system namespace
