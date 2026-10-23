@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On Windows, fix Network Performance Monitoring not reporting any
+    connections with the bundled ddnpm 2.12.0 driver. System-probe now
+    uses the filter definition and flow data layouts of that driver.

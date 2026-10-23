@@ -40,9 +40,10 @@ type FilterDefinition struct {
 	Protocol       uint64
 	Direction      uint64
 	InterfaceIndex uint64
+	Discard        uint64
 }
 
-const FilterDefinitionSize = 0x98
+const FilterDefinitionSize = 0xa0
 
 type FilterPacketHeader struct {
 	FilterVersion    uint64
@@ -135,6 +136,7 @@ type PerFlowData struct {
 	Tls_alpn_requested       uint64
 	Tls_alpn_chosen          uint64
 	Protocol_u               [36]byte
+	Tls_cipher_suite         uint16
 }
 type TCPFlowData struct {
 	IRTT             uint64
@@ -147,7 +149,7 @@ type UDPFlowData struct {
 	Reserved uint64
 }
 
-const PerFlowDataSize = 0xbc
+const PerFlowDataSize = 0xbe
 
 const (
 	FlowDirectionMask     = 0x300
