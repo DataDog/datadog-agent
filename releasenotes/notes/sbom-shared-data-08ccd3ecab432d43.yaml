@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe keeps the package index of an image for
+    as long as a container of the image runs, so that its containers share one
+    index. Once ``workloads_cache_size`` other images had been scanned, a new
+    container of a running image got an index of its own, and the runtime usage
+    of its packages started over. The ``sbom_resolver.sbom_cache.len`` gauge
+    carries a ``state`` tag, ``used`` or ``unused``.

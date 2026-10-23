@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
@@ -255,14 +256,19 @@ type engine struct {
 
 	// baseline is accessed only from the engine run goroutine.
 	baseline *baselineController
+
+	// metricFilter provides package-wide metric-type filtering for both external
+	// and log-derived metrics.
+	metricFilter *metricsFilterRules
 }
 
 // engineConfig holds the parameters for constructing an engine.
 type engineConfig struct {
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
+	storage      *timeSeriesStorage
+	extractors   []observerdef.LogMetricsExtractor
+	detectors    []observerdef.Detector
+	correlators  []observerdef.Correlator
+	metricFilter *metricsFilterRules
 	// scorer is the optional unified anomaly scorer. When non-nil, it is also
 	// appended to correlators so it participates in the normal correlator loop.
 	scorer *anomalyScorer
@@ -304,6 +310,7 @@ func newEngine(cfg engineConfig) *engine {
 		logKeyGenerator: NewSliceKeyGenerator(),
 		scorer:          cfg.scorer,
 		scheduler:       sched,
+		metricFilter:    cfg.metricFilter,
 
 		anomalyDeduper:             newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
 		trackAnomalyHistory:        cfg.trackAnomalyHistory,
@@ -424,11 +431,20 @@ func (e *engine) sourceTagForIngest(source string) cachedSourceTag {
 	return tag
 }
 
+// isMetricTypeAllowed reports whether mt is permitted by the configured metric-type filter.
+func (e *engine) isMetricTypeAllowed(mt metrics.MetricType) bool {
+	return e.metricFilter.isMetricTypeAllowed(mt)
+}
+
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.AddWithKeyAndHostComposite(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey)
+	if !e.isMetricTypeAllowed(m.metricType) {
+		return nil
+	}
+	addResult := e.storage.AddWithKeyAndHostComposite(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey, m.metricType)
+	e.handleCapacityEvictions(addResult.CapacityEvictedRefs)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -447,11 +463,13 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // detectors should advance. Returns advance requests that the caller should execute.
 func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	sourceTag := e.sourceTagForIngest(source)
-	view := &logView{obs: l}
 	for _, extractor := range e.extractors {
-		out := extractor.ProcessLog(view)
+		out := extractor.ProcessLog(l)
 		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
 		for _, m := range out.Metrics {
+			if !e.isMetricTypeAllowed(m.MetricType) {
+				continue
+			}
 			tags := m.Tags
 			if !tags.Find(func(tag string) bool { return tag == sourceTag.value }) {
 				sourceTags, _ := sourceTag.tags.UnsafeGet()
@@ -468,7 +486,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 			}
 			timestamp := l.timestampMs / 1000
-			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
+			if e.logCounts != nil && e.logCounts.handlesMetric(m) {
 				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
@@ -478,14 +496,15 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
+			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey, m.MetricType)
+			e.handleCapacityEvictions(res.CapacityEvictedRefs)
 			if m.HasContext && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
 	}
 	for _, lo := range e.logObservers {
-		lo.ProcessLog(view)
+		lo.ProcessLog(l)
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.trackLatestDataTime(dataTimeSec)
@@ -513,6 +532,25 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 		e.onStorageSeriesEvicted("extractor", len(freedAll))
 	}
 	e.fanOutSeriesRemoval(freedAll)
+}
+
+// handleCapacityEvictions synchronizes every state holder after storage makes
+// room for a newly admitted series or the post-advance safety check finds an
+// over-capacity catalog.
+func (e *engine) handleCapacityEvictions(freed []observerdef.SeriesRef) {
+	if len(freed) == 0 {
+		return
+	}
+	if e.logCounts != nil {
+		e.logCounts.removeSeriesByRefs(freed)
+	}
+	if e.onStorageCapacityHit != nil {
+		e.onStorageCapacityHit()
+	}
+	if e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("capacity", len(freed))
+	}
+	e.fanOutSeriesRemoval(freed)
 }
 
 // fanOutSeriesRemoval notifies every detector that implements the optional
@@ -639,7 +677,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		e.completeDueBaselines(upToSec)
 	}
 	if e.logCounts != nil {
-		e.logCounts.flush(e.storage, upToSec)
+		e.handleCapacityEvictions(e.logCounts.flush(e.storage, upToSec))
 	}
 	// Inactivity eviction happens after materialized log-count buckets have
 	// restored their real last-observation activity time, and before detectors
@@ -649,19 +687,9 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
-	// Evict series beyond the storage cap and fan freed refs to detectors.
-	if freed := e.storage.EvictDefault(); len(freed) > 0 {
-		if e.logCounts != nil {
-			e.logCounts.removeSeriesByRefs(freed)
-		}
-		if e.onStorageCapacityHit != nil {
-			e.onStorageCapacityHit()
-		}
-		if e.onStorageSeriesEvicted != nil {
-			e.onStorageSeriesEvicted("capacity", len(freed))
-		}
-		e.fanOutSeriesRemoval(freed)
-	}
+	// Admission normally keeps storage within its cap. Retain this post-advance
+	// check as a safety net for direct storage writes and configuration changes.
+	e.handleCapacityEvictions(e.storage.EvictDefault())
 
 	e.emit(engineEvent{
 		kind:      eventAdvanceCompleted,

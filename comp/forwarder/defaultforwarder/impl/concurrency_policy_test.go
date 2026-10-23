@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -20,21 +21,26 @@ func TestConcurrencyPolicyFromConfig(t *testing.T) {
 	mockConfig.SetInTest("forwarder_max_concurrent_requests", 5)
 
 	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+	require.IsType(t, staticConcurrencyPolicy{}, p)
 	assert.Equal(t, 3, p.numWorkers())
 	assert.Equal(t, 3, p.maxConns())
-	assert.Equal(t, int64(5), p.requests)
-	assert.NotSame(t, p.newRequestSemaphore(), p.newRequestSemaphore())
+	assert.Equal(t, int64(5), p.(staticConcurrencyPolicy).requests)
+
+	d := p.newDomain("remote")
+	assert.Equal(t, 3, d.numWorkers())
+	assert.Equal(t, 3, d.maxConns())
+	assert.NotSame(t, d.newRequestSemaphore(), d.newRequestSemaphore())
 }
 
-func TestLocalConcurrencyPolicyFromConfig(t *testing.T) {
+func TestNewLocalConcurrencyDomainFromConfig(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("forwarder_num_workers", 3)
 	mockConfig.SetInTest("forwarder_max_concurrent_requests", 5)
 
-	p := localConcurrencyPolicyFromConfig(mockConfig, logmock.New(t))
-	assert.Equal(t, 1, p.numWorkers())
-	assert.Equal(t, 1, p.maxConns())
-	assert.Equal(t, int64(5), p.requests)
+	d := newLocalConcurrencyDomainFromConfig(mockConfig, logmock.New(t))
+	assert.Equal(t, 1, d.numWorkers())
+	assert.Equal(t, 1, d.maxConns())
+	assert.Equal(t, int64(5), d.(staticConcurrencyPolicy).requests)
 }
 
 func TestConcurrencyPolicyFromConfigInvalidRequests(t *testing.T) {
@@ -42,13 +48,13 @@ func TestConcurrencyPolicyFromConfigInvalidRequests(t *testing.T) {
 	mockConfig.SetInTest("forwarder_max_concurrent_requests", 0)
 
 	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
-	assert.Equal(t, int64(1), p.requests)
+	assert.Equal(t, int64(1), p.(staticConcurrencyPolicy).requests)
 }
 
-func newTestConcurrencyPolicy(workers int, requests int64) staticConcurrencyPolicy {
+func newTestConcurrencyDomain(workers int, requests int64) concurrencyDomain {
 	return staticConcurrencyPolicy{
 		workers:     workers,
 		connections: workers,
 		requests:    requests,
-	}
+	}.newDomain("test")
 }

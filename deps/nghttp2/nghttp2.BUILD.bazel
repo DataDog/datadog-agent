@@ -119,9 +119,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "nghttp2_pkg",
+    data = [":header_files"],
     dest_dir = "embedded/lib",
     input = ":nghttp2",
-    installed_files = [":header_files"],
     version = SO_VERSION,
     visibility = ["//visibility:public"],
 )

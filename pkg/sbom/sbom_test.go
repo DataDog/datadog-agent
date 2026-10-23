@@ -6,11 +6,20 @@
 package sbom
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func component(name string, properties ...*cyclonedx_v1_4.Property) *cyclonedx_v1_4.Component {
@@ -54,6 +63,16 @@ func TestIsEnriched(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "observation start alone",
+			bom: &cyclonedx_v1_4.Bom{
+				Metadata: &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{
+					property(UsageObservedSinceProperty, "1700000000"),
+				}},
+				Components: []*cyclonedx_v1_4.Component{component("bash")},
+			},
+			want: true,
+		},
+		{
 			name: "enriched, nil component first",
 			bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
 				nil,
@@ -91,5 +110,128 @@ func TestSetHostUsageKeepsLatest(t *testing.T) {
 	case got := <-HostUsage():
 		t.Errorf("host report %v left behind", got)
 	default:
+	}
+}
+
+func TestUsageEnrichmentEnabled(t *testing.T) {
+	for _, usage := range []bool{false, true} {
+		agentConfig := configmock.New(t)
+		agentConfig.SetInTest("sbom.enrichment.usage.enabled", usage)
+
+		// system-probe reports usage on Linux alone.
+		want := usage && runtime.GOOS == "linux"
+		assert.Equal(t, want, UsageEnrichmentEnabled(agentConfig), "sbom.enrichment.usage.enabled: %t", usage)
+	}
+}
+
+func TestConvertScanResultToSBOMErrorLogging(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantErrLog bool
+	}{
+		{name: "unsupported", err: ErrScanNotSupported},
+		{
+			// Mirrors the layer count mismatch chain in pkg/util/trivy.
+			name: "unsupported wrapped twice",
+			err:  fmt.Errorf("unable to pair layer paths: %w", fmt.Errorf("%w: layer count mismatch", ErrScanNotSupported)),
+		},
+		{name: "other failure", err: errors.New("unable to get mounts"), wantErrLog: true},
+		{
+			// Only the sentinel itself silences the log, not its text.
+			name:       "unsupported text without wrapping",
+			err:        fmt.Errorf("scan failed: %v", ErrScanNotSupported),
+			wantErrLog: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logs, log.DebugLvl)
+			require.NoError(t, err)
+			log.SetupLogger(logger, "debug")
+			t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+
+			result := &ScanResult{Error: tt.err}
+			sbom := result.ConvertScanResultToSBOM()
+			log.Flush()
+
+			assert.Equal(t, workloadmeta.Failed, sbom.Status)
+			assert.Equal(t, tt.err.Error(), sbom.Error)
+			assert.Equal(t, tt.wantErrLog, bytes.Contains(logs.Bytes(), []byte("[ERROR]")), "logs: %s", logs.String())
+		})
+	}
+}
+
+func TestScanOptionsOSOnly(t *testing.T) {
+	tests := []struct {
+		name      string
+		analyzers []string
+		want      bool
+	}{
+		{name: "nil", want: false},
+		{name: "empty", analyzers: []string{}, want: false},
+		{name: "os", analyzers: []string{"os"}, want: true},
+		{name: "os twice", analyzers: []string{"os", "os"}, want: false},
+		{name: "languages", analyzers: []string{"languages"}, want: false},
+		{name: "os and languages", analyzers: []string{"os", "languages"}, want: false},
+		{name: "upper case", analyzers: []string{"OS"}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ScanOptions{Analyzers: tt.analyzers}.OSOnly())
+		})
+	}
+}
+
+// testReport is a Report with an empty BOM.
+type testReport struct{}
+
+func (testReport) ToCycloneDX() *cyclonedx_v1_4.Bom { return &cyclonedx_v1_4.Bom{} }
+
+func (testReport) ID() string { return "report" }
+
+// fallbackReport is a Report that tells whether it lists the OS packages
+// alone.
+type fallbackReport struct {
+	testReport
+	osFallback bool
+}
+
+func (r fallbackReport) OSFallback() bool { return r.osFallback }
+
+func TestIsOSFallback(t *testing.T) {
+	tests := []struct {
+		name   string
+		report Report
+		want   bool
+	}{
+		{name: "nil report"},
+		{name: "report without the method", report: testReport{}},
+		{name: "full report", report: fallbackReport{}},
+		{name: "OS packages alone", report: fallbackReport{osFallback: true}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsOSFallback(tt.report))
+		})
+	}
+}
+
+func TestConvertScanResultToSBOMOSFallback(t *testing.T) {
+	tests := []struct {
+		name   string
+		result ScanResult
+		want   bool
+	}{
+		{name: "OS packages alone", result: ScanResult{Report: fallbackReport{osFallback: true}}, want: true},
+		{name: "full report", result: ScanResult{Report: fallbackReport{}}},
+		{name: "report without the method", result: ScanResult{Report: testReport{}}},
+		{name: "failure", result: ScanResult{Error: errors.New("scan failed"), Report: fallbackReport{osFallback: true}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.result.ConvertScanResultToSBOM().OSFallback)
+		})
 	}
 }

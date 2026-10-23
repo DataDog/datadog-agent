@@ -1114,6 +1114,15 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 	if component == "" {
 		component = pod.Labels[kubernetes.DynamoComponentTypeLabelKey]
 	}
+	// Match the backend's KServe LLMInferenceService workload detection.
+	if pod.Labels[kubernetes.KubeAppPartOfLabelKey] == "llminferenceservice" {
+		if pod.Labels[kubernetes.DynamoGraphDeploymentNameLabelKey] == "" {
+			tagList.AddLow(tags.InferenceWorkload, pod.Labels[kubernetes.KubeAppNameLabelKey])
+		}
+		if component == "" {
+			component = pod.Labels[kubernetes.KubeAppComponentLabelKey]
+		}
+	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
 
 	for name, value := range pod.Labels {

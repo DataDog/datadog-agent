@@ -64,10 +64,12 @@ network_devices:
 		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
+	agentHostname := v.Env().Agent.Client.Hostname()
+
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -99,10 +101,12 @@ network_devices:
 		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
+	agentHostname := v.Env().Agent.Client.Hostname()
+
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -135,10 +139,12 @@ network_devices:
 		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
+	agentHostname := v.Env().Agent.Client.Hostname()
+
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 2*time.Minute, 10*time.Second)
 
 	cacheContent, err := vm.Execute("sudo cat /opt/datadog-agent/run/snmp/71beef32f1b72708")

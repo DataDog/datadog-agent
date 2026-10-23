@@ -43,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
@@ -108,17 +107,10 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	// Create version resolver function that uses SBOM resolver if available
+	// A systemd service takes the version of the package of its unit file.
 	var versionResolver func(servicePath string) string
-	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
-		versionResolver = func(servicePath string) string {
-			if pkg := sbomResolver.ResolvePackage(&model.ProcessContext{
-				Process: model.Process{Credentials: model.Credentials{UID: 0xffff}},
-			}, &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
-				return pkg.Version
-			}
-			return ""
-		}
+	if sbomResolver != nil {
+		versionResolver = sbomResolver.HostPackageVersion
 	}
 
 	tagsResolver := tags.NewResolver(config.RuntimeSecurity.TagsResolverQueueSize, opts.Tagger, cgroupsResolver, versionResolver)

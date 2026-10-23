@@ -87,6 +87,9 @@ const (
 	// SourceNVML represents entities detected by the NVML GPU collector.
 	SourceNVML Source = "nvml"
 
+	// SourceAMDGPU represents entities detected by the AMD GPU (amdgpu sysfs) collector.
+	SourceAMDGPU Source = "amdgpu"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
@@ -675,8 +678,12 @@ type Container struct {
 	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
 	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
 	// populated node-locally by resolving the container's CDI device
-	// allocations to NVML UUIDs (physical GPUs and MIG instances).
-	GPUDeviceIDs []string `proto:"ignore"`
+	// allocations to NVML UUIDs (physical GPUs and MIG instances). With KAI
+	// Scheduler (gpu.kai_scheduler.enabled), it also holds the GPUs of
+	// fractional pods, read from their reservation pods. It is sent to remote
+	// workloadmeta clients, as system-probe needs it to attribute GPU process
+	// metrics to the right device.
+	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -1818,6 +1825,7 @@ type SBOM struct {
 	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
 }
 
 // CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
@@ -1828,6 +1836,7 @@ type CompressedSBOM struct {
 	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
+	OSFallback         bool `proto:"ignore"` // read in the core Agent alone
 }
 
 // GetID implements Entity#GetID.
@@ -1903,6 +1912,9 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 			switch i.SBOM.Status {
 			case Success:
 				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+				if i.SBOM.OSFallback {
+					_, _ = fmt.Fprintln(&sb, "OS packages alone: the scan with application analyzers ran out of time")
+				}
 			case Failed:
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:

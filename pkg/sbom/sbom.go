@@ -8,11 +8,13 @@ package sbom
 
 import (
 	"errors"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,13 +36,26 @@ const (
 	RunningAsRootProperty = "RunningAsRoot"   // RunningAsRootProperty reports whether the package was seen running as root
 )
 
+// UsageObservedSinceProperty names the CycloneDX metadata property of a runtime
+// usage report, and of the SBOMs it enriches, holding when the usage started
+// being recorded, as a unix timestamp. A package seen running since then
+// carries the time it was last seen.
+const UsageObservedSinceProperty = "UsageObservedSince"
+
 // IsEnriched reports whether bom went through runtime enrichment, i.e. whether
-// any of its components carries the runtime properties above. An enriched BOM
-// carries them on its very first component, so the scan only runs to completion
-// for a BOM that was never enriched.
+// it holds the start of usage observation or any of its components carries the
+// runtime properties above. An enriched BOM carries them on its very first
+// component, so the scan only runs to completion for a BOM that was never
+// enriched.
 func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	if bom == nil {
 		return false
+	}
+
+	for _, property := range bom.GetMetadata().GetProperties() {
+		if property.GetName() == UsageObservedSinceProperty {
+			return true
+		}
 	}
 
 	for _, component := range bom.Components {
@@ -56,6 +71,13 @@ func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	}
 
 	return false
+}
+
+// UsageEnrichmentEnabled reports whether the runtime usage of packages reaches
+// the SBOMs. system-probe reports it on sbom.enrichment.usage.enabled, and on
+// Linux alone.
+func UsageEnrichmentEnabled(agentConfig model.Reader) bool {
+	return runtime.GOOS == "linux" && agentConfig.GetBool("sbom.enrichment.usage.enabled")
 }
 
 // HostKind is the kind of the runtime usage report that system-probe forwards
@@ -100,6 +122,28 @@ type Report interface {
 	ID() string
 }
 
+// OSFallbackTimeout is the time a scan with application analyzers holds in
+// reserve past its Timeout. When the application scan runs out of time, the
+// reserve goes to a scan of the OS packages alone, so the target still gets
+// its OS packages. A scan with this much time left or less, as in a flare,
+// gives half of it to each.
+const OSFallbackTimeout = 2 * time.Minute
+
+// OSFallbackProperty names the CycloneDX metadata property, set to "true", of
+// an SBOM that lists the OS packages alone because its scan with application
+// analyzers ran out of time. It tells readers of the SBOM outside the Agent
+// that the SBOM is partial: application packages missing from it may still be
+// installed.
+const OSFallbackProperty = "datadog:scan:OSFallback"
+
+// IsOSFallback reports whether report lists the OS packages alone because its
+// scan with application analyzers ran out of time, which a report tells with
+// an OSFallback method.
+func IsOSFallback(report Report) bool {
+	r, ok := report.(interface{ OSFallback() bool })
+	return ok && r.OSFallback()
+}
+
 // ScanOptionsFromConfigForContainers loads the scanning options from the configuration
 func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 	return ScanOptions{
@@ -117,6 +161,7 @@ func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 // ScanOptionsFromConfigForHosts loads the scanning options from the configuration
 func ScanOptionsFromConfigForHosts(cfg config.Component) ScanOptions {
 	return ScanOptions{
+		Timeout:        time.Duration(cfg.GetInt("sbom.host.scan_timeout")) * time.Second,
 		Analyzers:      cfg.GetStringSlice("sbom.host.analyzers"),
 		AdditionalDirs: cfg.GetStringSlice("sbom.host.additional_directories"),
 	}
@@ -146,7 +191,11 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 	var report *cyclonedx_v1_4.Bom
 
 	if result.Error != nil {
-		log.Errorf("SBOM generation failed for image: %v", result.Error)
+		// Unsupported images (e.g. nydus) are expected; the scanner already
+		// reports them when dropping the request.
+		if !errors.Is(result.Error, ErrScanNotSupported) {
+			log.Errorf("SBOM generation failed for image: %v", result.Error)
+		}
 		status = workloadmeta.Failed
 		reportedError = result.Error.Error()
 	} else {
@@ -160,6 +209,7 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 		GenerationMethod:   result.GenerationMethod,
 		Status:             status,
 		Error:              reportedError,
+		OSFallback:         result.Error == nil && IsOSFallback(result.Report),
 	}
 
 	return sbom

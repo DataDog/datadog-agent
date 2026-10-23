@@ -440,6 +440,10 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 			} else {
 				aggs = []observerdef.Aggregate{observerdef.AggregateAverage, observerdef.AggregateCount}
 			}
+			metricTypeName := m.MetricType.String()
+			if metricTypeName == "" {
+				metricTypeName = "Unknown"
+			}
 			var metricKind string
 			if m.Namespace == "telemetry" {
 				metricKind = "gauge"
@@ -466,7 +470,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 					PointCount:  pointCount,
 					Virtual:     virtual,
 					MetricKind:  metricKind,
-					MetricTypes: api.tb.metricTypeNames(m.Namespace, m.Name, m.Host, m.Tags.UnsafeToReadOnlySliceString()),
+					MetricTypes: []string{metricTypeName},
 				})
 			}
 		}
