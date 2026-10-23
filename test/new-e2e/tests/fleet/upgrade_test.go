@@ -256,6 +256,11 @@ func (s *upgradeSuite) TestLogsRegistryPreservedOnUpgrade() {
 	experimentRegistry, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/datadog-agent/experiment/run/registry.json")
 	s.Require().NoError(err)
 	s.Require().JSONEq(registry, experimentRegistry)
+	experimentRegistryPerms, err := s.Host.GetFilePermissions("/opt/datadog-packages/datadog-agent/experiment/run/registry.json")
+	s.Require().NoError(err)
+	s.Require().Equal("dd-agent", experimentRegistryPerms.Owner)
+	s.Require().Equal("dd-agent", experimentRegistryPerms.Group)
+	s.Require().Equal("644", experimentRegistryPerms.Mode)
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)

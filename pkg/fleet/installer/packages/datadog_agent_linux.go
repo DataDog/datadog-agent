@@ -124,6 +124,11 @@ var (
 		Recursive: true,
 	}
 
+	logsRegistryPermissions = file.Permissions{
+		{Path: "run", Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "run/registry.json", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+	}
+
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"processes.d",
@@ -391,7 +396,7 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
-	if err := restoreLogsRegistry(ctx.PackagePath); err != nil {
+	if err := restoreLogsRegistry(ctx); err != nil {
 		log.Warnf("failed to restore logs registry: %s", err)
 	}
 	agentVersion := getCurrentAgentVersion()
@@ -523,7 +528,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
-	if err := restoreLogsRegistry(ctx.PackagePath); err != nil {
+	if err := restoreLogsRegistry(ctx); err != nil {
 		log.Warnf("failed to restore logs registry: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
@@ -1246,9 +1251,9 @@ func saveLogsRegistry(packagePath string) error {
 	return nil
 }
 
-func restoreLogsRegistry(packagePath string) error {
+func restoreLogsRegistry(ctx HookContext) error {
 	src := filepath.Join(paths.RootTmpDir, "registry.json")
-	dstDir := filepath.Join(packagePath, "run")
+	dstDir := filepath.Join(ctx.PackagePath, "run")
 	dst := filepath.Join(dstDir, "registry.json")
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -1262,6 +1267,9 @@ func restoreLogsRegistry(packagePath string) error {
 	}
 	if err := os.WriteFile(dst, data, 0644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", dst, err)
+	}
+	if err := logsRegistryPermissions.Ensure(ctx, ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", dst, err)
 	}
 	_ = os.Remove(src)
 	return nil
