@@ -42,7 +42,7 @@ properties:
     description: |-
       The port that the trace receiver should listen on.
       Set to 0 to disable the HTTP receiver.
-    minimum: 1
+    minimum: 0
     maximum: 65535
   receiver_socket:
     node_type: setting

@@ -3019,15 +3019,6 @@ properties:
       Note: When using the 'off' log level, quotes are mandatory.
     tags:
     - template_section:Logging
-    enum:
-    - 'off'
-    - critical
-    - error
-    - warn
-    - info
-    - debug
-    - trace
-    - null
   log_file:
     node_type: setting
     type: string
