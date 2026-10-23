@@ -200,6 +200,10 @@ func rshellElevatableCommands(config config.Component) []string {
 		return nil
 	}
 	commands := config.GetStringSlice(par.RestrictedShellPrivilegedElevatableCommands)
+	// YAML [] decodes to nil, but a configured empty list must deny all elevation.
+	if commands == nil {
+		return []string{}
+	}
 	warnUnnamespacedCommands(par.RestrictedShellPrivilegedElevatableCommands, commands)
 	return commands
 }
