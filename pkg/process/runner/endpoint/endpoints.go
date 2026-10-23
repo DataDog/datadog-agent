@@ -30,7 +30,7 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 	}
 	mainAPIKey := utils.SanitizeAPIKey(config.GetString("api_key"))
 	if utils.IsDelaDirective(config.GetString("api_key")) {
-		log.Warnf("api_key holds a delegated-auth directive; only settings enrolled for delegated auth " +
+		log.Warnf("api_key holds a delegated-auth directive; only settings enrolled for delegated auth "+
 			"(such as %s) are resolved, the directive will be sent as-is to %s", additionalEpsKey, mainEndpointURL)
 	}
 	eps = append(eps, apicfg.Endpoint{
@@ -53,6 +53,7 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 				APIKey:            utils.SanitizeAPIKey(k),
 				Endpoint:          u,
 				ConfigSettingPath: additionalEpsKey,
+				ConfigKey:         endpointURL,
 			})
 		}
 		if hasPending {
@@ -60,6 +61,7 @@ func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey,
 				Endpoint:                u,
 				ConfigSettingPath:       additionalEpsKey,
 				HasPendingDelegatedAuth: true,
+				ConfigKey:               endpointURL,
 			})
 		}
 	}

@@ -90,16 +90,24 @@ func TestGetAPIEndpointsHoldsPendingDelegatedAuthDirectives(t *testing.T) {
 
 	// The pending flag must survive into the resolver input so the domain stays
 	// alive until delegated auth writes the resolved key back.
-	kpd := apicfg.KeysPerDomains(eps)
-	assert.True(t, anyPendingDelegatedAuth(kpd["https://second-org.datadoghq.com"]))
-	assert.True(t, anyPendingDelegatedAuth(kpd["https://third-org.datadoghq.com"]))
+	eds := apicfg.EndpointDescriptors(eps)
+	assert.True(t, eds["https://second-org.datadoghq.com"].HasPendingDelegatedAuth)
+	assert.True(t, eds["https://third-org.datadoghq.com"].HasPendingDelegatedAuth)
 }
 
-func anyPendingDelegatedAuth(keys []utils.APIKeys) bool {
-	for _, k := range keys {
-		if k.HasPendingDelegatedAuth {
-			return true
-		}
-	}
-	return false
+func TestGetAPIEndpointsPendingMarkerKeepsConfigKey(t *testing.T) {
+	cfg := pkgconfigmock.New(t)
+	cfg.SetInTest("api_key", "main-key")
+	// A trailing slash: the domain is https://second-org.datadoghq.com, but the write-back
+	// lands under the key as written.
+	cfg.SetInTest("process_config.additional_endpoints", map[string][]string{
+		"https://second-org.datadoghq.com/": {"DELA[org-uuid-1, aws]"},
+	})
+
+	eps, err := GetAPIEndpoints(cfg)
+	require.NoError(t, err)
+
+	ed := apicfg.EndpointDescriptors(eps)["https://second-org.datadoghq.com"]
+	assert.True(t, ed.HasPendingDelegatedAuth)
+	assert.Equal(t, "https://second-org.datadoghq.com/", ed.ConfigName)
 }
