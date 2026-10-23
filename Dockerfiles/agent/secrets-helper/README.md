@@ -11,6 +11,8 @@ to be used with [the agent's external secret feature](https://github.com/DataDog
 
 - The script requires a folder passed as argument. Secret handles will be interpreted as file names, relative to this folder. The script will refuse to access any file out of this root folder (including symbolic link targets), in order to avoid leaking sensitive information.
 
+- `/readsecret_multiple_providers.sh` also requires this folder as `DD_SECRET_BACKEND_ARGUMENTS` when using file secrets. `file@` handles can name relative or absolute files within the folder. Kubernetes secret handles (`k8s_secret@`) do not require a folder.
+
 - For now, this script is incompatible with [OpenShift restricted SCC operations](https://github.com/DataDog/datadog-agent/blob/6.4.x/Dockerfiles/agent/OPENSHIFT.md#restricted-scc-operations) and requires that the Agent runs as the `root` user.
 
 - Starting with version 6.10.0, `ENC[]` tokens in config values passed as environment variables are supported. Previous versions only support `ENC[]` tokens found in `datadog.yaml` and in Autodiscovery templates.

@@ -26,8 +26,8 @@ import (
 // setupReadSecretsTree materialises the read-secrets layout in a temp dir.
 // We build it from code instead of reading checked-in testdata so the test
 // behaves identically under `go test` and `bazel test` (Bazel stages files
-// from `data` via runfiles symlinks, which the file provider's symlink-safety
-// check rejects — see also cmd/secrethelper/providers/file_test.go).
+// from `data` via runfiles symlinks outside the allowed directory — see also
+// cmd/secrethelper/providers/file_test.go).
 func setupReadSecretsTree(t *testing.T) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "read-secrets")
@@ -204,6 +204,40 @@ func TestReadSecrets(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadSecretsCannotEscapeDirectory(t *testing.T) {
+	root := t.TempDir()
+	allowed := filepath.Join(root, "allowed")
+	require.NoError(t, os.Mkdir(allowed, 0o700))
+	outside := filepath.Join(root, "outside")
+	require.NoError(t, os.WriteFile(outside, []byte("outside-value"), 0o600))
+
+	for _, test := range []struct {
+		name        string
+		secretID    string
+		usePrefixes bool
+	}{
+		{name: "relative traversal", secretID: "../outside"},
+		{name: "absolute path", secretID: outside},
+		{name: "prefix relative traversal", secretID: "../outside", usePrefixes: true},
+		{name: "prefix absolute path", secretID: "file@" + outside, usePrefixes: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input := fmt.Sprintf(`{"version":"1.0","secrets":[%q]}`, test.secretID)
+			var output bytes.Buffer
+			require.NoError(t, readSecrets(strings.NewReader(input), &output, allowed, test.usePrefixes, nil))
+			assert.NotContains(t, output.String(), "outside-value")
+			assert.Contains(t, output.String(), `"error"`)
+		})
+	}
+}
+
+func TestFileProviderRequiresDirectory(t *testing.T) {
+	var output bytes.Buffer
+	input := `{"version":"1.0","secrets":["file@/outside"]}`
+	require.NoError(t, readSecrets(strings.NewReader(input), &output, "", true, nil))
+	assert.JSONEq(t, `{"file@/outside":{"error":"secret directory is required"}}`, output.String())
 }
 
 func TestReadCmdCommand(t *testing.T) {

@@ -6,7 +6,6 @@
 package providers
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -27,7 +26,7 @@ var fileThatIsASymlinkToOtherDir = "secret5"
 // setupReadSecretFileTree materialises the read-secrets layout in a temp dir.
 // We build it from code instead of reading checked-in testdata so the test
 // behaves identically under `go test` and `bazel test` (Bazel stages testdata
-// via symlinks, which trips the symlink-safety check in ReadSecretFile).
+// via symlinks outside the allowed directory).
 func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath string) {
 	t.Helper()
 
@@ -56,13 +55,14 @@ func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath 
 }
 
 func TestReadSecretFile(t *testing.T) {
-	testDataAbsPath, testSecretsAbsPath := setupReadSecretFileTree(t)
+	_, testSecretsAbsPath := setupReadSecretFileTree(t)
 
 	tests := []struct {
 		name                string
 		inputFile           string
 		expectedSecretValue string
 		expectedError       string
+		expectAnyError      bool
 		skipWindows         bool
 	}{
 		{
@@ -87,14 +87,10 @@ func TestReadSecretFile(t *testing.T) {
 			skipWindows:         true,
 		},
 		{
-			name:      "file is a symlink to other dir",
-			inputFile: fileThatIsASymlinkToOtherDir,
-			expectedError: fmt.Sprintf(
-				"not following symlink \"%s\" outside of \"%s\"",
-				testDataAbsPath+"/read-secrets-secret5-target",
-				testSecretsAbsPath,
-			),
-			skipWindows: true,
+			name:           "file is a symlink to other dir",
+			inputFile:      fileThatIsASymlinkToOtherDir,
+			expectAnyError: true,
+			skipWindows:    true,
 		},
 	}
 
@@ -104,9 +100,12 @@ func TestReadSecretFile(t *testing.T) {
 				t.Skip("skipped on windows")
 			}
 
-			secret := ReadSecretFile(filepath.Join(testSecretsAbsPath, test.inputFile))
+			secret := ReadSecretFile(testSecretsAbsPath, test.inputFile)
 
-			if test.expectedError != "" {
+			if test.expectAnyError {
+				assert.NotEmpty(t, secret.ErrorMsg)
+				assert.Empty(t, secret.Value)
+			} else if test.expectedError != "" {
 				assert.Equal(t, test.expectedError, secret.ErrorMsg)
 			} else {
 				assert.Equal(t, test.expectedSecretValue, secret.Value)

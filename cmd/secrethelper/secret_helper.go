@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -150,7 +149,7 @@ func readSecretsFromFile(secretsList []string, dir string) map[string]secrets.Se
 	res := make(map[string]secrets.SecretVal)
 
 	for _, secretID := range secretsList {
-		res[secretID] = providers.ReadSecretFile(filepath.Join(dir, secretID))
+		res[secretID] = providers.ReadSecretFile(dir, secretID)
 	}
 
 	return res
@@ -160,7 +159,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 	res := make(map[string]secrets.SecretVal)
 
 	for _, secretID := range secretsList {
-		prefix, id, err := parseSecretWithPrefix(secretID, rootPath)
+		prefix, id, err := parseSecretWithPrefix(secretID)
 		if err != nil {
 			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
 			continue
@@ -168,7 +167,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 
 		switch prefix {
 		case filePrefix:
-			res[secretID] = providers.ReadSecretFile(id)
+			res[secretID] = providers.ReadSecretFile(rootPath, id)
 		case k8sSecretPrefix:
 			res[secretID] = providers.ReadKubernetesSecret(kubeSecretGetter, id)
 		default:
@@ -179,7 +178,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 	return res
 }
 
-func parseSecretWithPrefix(secretID string, rootPath string) (prefix string, id string, err error) {
+func parseSecretWithPrefix(secretID string) (prefix string, id string, err error) {
 	split := strings.SplitN(secretID, providerPrefixSeparator, 2)
 
 	// This is to make the migration from "readsecret.sh" (without
@@ -190,11 +189,10 @@ func parseSecretWithPrefix(secretID string, rootPath string) (prefix string, id 
 	// handle them when the "--with-provider-prefixes" is disabled. That is,
 	// they should be fetched from the file system, and they specify a path
 	// that's relative to the one specified in the first arg when calling the
-	// program (rootPath arg of this func).
+	// program (the directory argument of the read command).
 	if len(split) < 2 {
 		prefix = filePrefix
-		id, err = filepath.Abs(filepath.Join(rootPath, secretID))
-		return prefix, id, err
+		return prefix, secretID, nil
 	}
 
 	prefix, id = split[0], split[1]
