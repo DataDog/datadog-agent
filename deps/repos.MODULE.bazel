@@ -142,6 +142,26 @@ http_archive(
 )
 
 http_archive(
+    name = "checkpolicy",
+    build_file = "//deps:checkpolicy.BUILD.bazel",
+    sha256 = "7aa48ab2222a0b9881111d6d7f70c3014d3d9338827d9e02df105a68c0df5dbc",
+    strip_prefix = "checkpolicy-3.5",
+    urls = [
+        "https://github.com/SELinuxProject/selinux/releases/download/3.5/checkpolicy-3.5.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "semodule_utils",
+    build_file = "//deps:semodule_utils.BUILD.bazel",
+    sha256 = "c9a550a737051ebaf2c102f665c7ec2f85e7232870980aa0067998459b414283",
+    strip_prefix = "semodule-utils-3.5",
+    urls = [
+        "https://github.com/SELinuxProject/selinux/releases/download/3.5/semodule-utils-3.5.tar.gz",
+    ],
+)
+
+http_archive(
     name = "libselinux",
     build_file = "//deps:libselinux.BUILD.bazel",
     sha256 = "9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19",

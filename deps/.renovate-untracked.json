@@ -21,6 +21,8 @@
     "systemd": "Pending tracking in Phase 2b (tricky-tag batch — single-integer versioning, loose).",
     "libsepol": "Pending tracking in Phase 2b (SELinux monorepo).",
     "libselinux": "Pending tracking in Phase 2b (SELinux monorepo).",
+    "checkpolicy": "Pending tracking in Phase 2b (SELinux monorepo).",
+    "semodule_utils": "Pending tracking in Phase 2b (SELinux monorepo).",
     "openssl_fips": "Pending tracking in Phase 2b. Will be added with `enabled: false` — pinned to 3.0.9 for FIPS 140-2 validation, must NOT auto-update.",
     "libxml2": "Pending tracking in Phase 2c (GitLab-tags batch).",
     "libxslt": "Pending tracking in Phase 2c (GitLab-tags batch).",

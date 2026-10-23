@@ -1,0 +1,20 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_license//rules:license.bzl", "license")
+
+package(default_package_metadata = [":license"])
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "semodule_package",
+    srcs = ["semodule_package/semodule_package.c"],
+    copts = ["-O2"],
+    local_defines = ["_GNU_SOURCE"],
+    visibility = ["//visibility:public"],
+    deps = ["@libsepol"],
+)
