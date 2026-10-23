@@ -23,6 +23,7 @@ go_library(
         "//pkg/trace/filters",
         "//pkg/trace/otel/stats",
         "//pkg/trace/stats",
+        "//pkg/trace/traceutil",
         "//pkg/trace/transform",
         "//pkg/util/option",
         "@com_github_datadog_datadog_go_v5//statsd",
