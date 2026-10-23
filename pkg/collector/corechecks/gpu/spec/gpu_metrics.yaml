@@ -365,6 +365,33 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  # device.sharing_fraction is only reported for containers assigned a share of
+  # a GPU, so it is optional: other workloads never produce it.
+  device.sharing_fraction:
+    metadata:
+      metric_type: gauge
+      unit: fraction
+      description: >-
+        Fraction of the GPU assigned to the container, when the GPU is shared
+        between containers that are each assigned a fraction of it, as described
+        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        GPU fractions). Not reported for containers without an assigned fraction.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 0
+        max: 1
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   device.total:
     metadata:
       metric_type: gauge

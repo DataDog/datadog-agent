@@ -20,6 +20,12 @@ tags:
     regex: "^[a-z0-9_-]+$"
   gpu_slicing_mode:
     regex: "^(none|mig|mig-parent)$"
+  gpu_sharing_mode:
+    # How the GPU is currently shared between workloads: kai_fraction while KAI
+    # Scheduler holds it for fractional workloads, none when no sharing mechanism
+    # was detected (mechanisms the Agent does not detect, such as time-slicing or
+    # MPS, also report none).
+    regex: "^(none|kai_fraction)$"
   gpu_mig_profile:
     regex: "^(none|unknown|[0-9]+g\\.[0-9]+gb([_-][a-z]+(\\.[a-z]+)*)?)$"
   gpu_type:
@@ -85,6 +91,7 @@ tagsets:
       - gpu_virtualization_mode
       - gpu_architecture
       - gpu_slicing_mode
+      - gpu_sharing_mode
       - gpu_mig_profile
       - gpu_type
       - gpu_parent_uuid
