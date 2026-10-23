@@ -39,7 +39,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/uuid v1.6.0
-	github.com/hairyhenderson/go-codeowners v0.7.1
+	github.com/hairyhenderson/go-codeowners v0.7.2
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.51.0
