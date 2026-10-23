@@ -35,9 +35,12 @@ func (c columnFetchStrategy) String() string {
 	}
 }
 
-// Fetch oid values from device
+// Fetch oid values from device.
+// When useGetNextOnly is true, column/table OIDs are walked with GETNEXT
+// instead of GETBULK. This is useful for devices that become unresponsive
+// when receiving GETBULK PDUs.
 func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptimizers *OidBatchSizeOptimizers,
-	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+	bulkMaxRepetitions uint32, useGetNextOnly bool) (*valuestore.ResultValueStore, error) {
 	now := time.Now()
 
 	batchSizeOptimizers.refreshIfOutdated(now)
@@ -48,15 +51,25 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
-		bulkMaxRepetitions, useGetBulk)
-	if err != nil {
-		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
-
+	var columnResults valuestore.ColumnResultValuesType
+	if useGetNextOnly {
+		log.Debugf("use_snmp_getnext is enabled, using GetNext for column OIDs")
 		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
 			bulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
+		}
+	} else {
+		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
+			bulkMaxRepetitions, useGetBulk)
+		if err != nil {
+			log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
+
+			columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
+				bulkMaxRepetitions, useGetNext)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
+			}
 		}
 	}
 
