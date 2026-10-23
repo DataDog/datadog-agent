@@ -49,6 +49,8 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "executor_config_test.go",
+        "executor_telemetry_test.go",
+        "executor_telemetry_unix_test.go",
         "privateactionrunner_test.go",
     ],
     embed = [":impl"],
@@ -56,13 +58,34 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/opms/testing",
+        "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
+        "//pkg/remoteconfig/state",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/ipc/mock",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/ipc/mock",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/ipc/mock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/ipc/mock",
+        ],
+        "//conditions:default": [],
+    }),
 )
