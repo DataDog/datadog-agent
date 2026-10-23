@@ -69,7 +69,7 @@ func getBuildID(gnuBuildID, goBuildID string, fileID libpf.FileID) string {
 }
 
 func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier SymbolQuerier, ind int,
-	buildIDToResult map[string][]*ElfWithBackendSources) {
+	reporter *uploadReporter, buildIDToResult map[string][]*ElfWithBackendSources) {
 	elfCount := 0
 	for _, results := range buildIDToResult {
 		elfCount += len(results)
@@ -95,11 +95,11 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 				result.BackendSymbolSources[ind].Err = queryErr
 			}
 		}
-		reportError(reason, elfCount, paths...)
+		reporter.Error(reason, elfCount, paths...)
 		return
 	}
 
-	reportInfo(reasonQueried, elfCount)
+	reporter.Info(reasonQueried, elfCount)
 
 	// Note that the same buildID can appear multiple times in the symbolFiles with different buildIDTypes
 	// because there is no constraint in sourcemap DB that prevents having identical goBuildID, gnuBuildID
@@ -117,7 +117,7 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 			src, err := symbol.NewSource(symbolFile.SymbolSource)
 			if err != nil {
 				result.BackendSymbolSources[ind].Err = fmt.Errorf("failed to parse symbol source: %w", err)
-				reportError(reasonSourceParseError, 1, result.Path())
+				reporter.Error(reasonSourceParseError, 1, result.Path())
 			} else {
 				result.BackendSymbolSources[ind].SymbolSource = src
 			}
@@ -131,7 +131,8 @@ func (e *ElfWithBackendSources) fillWithError(err error) {
 	}
 }
 
-func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, queriers []SymbolQuerier) []ElfWithBackendSources {
+func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, queriers []SymbolQuerier,
+	reporter *uploadReporter) []ElfWithBackendSources {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -164,7 +165,7 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 		}
 		buildIDToResult[buildID] = append(buildIDToResult[buildID], result)
 	}
-	reportError(reasonInvalidBuildID, invalidBuildIDs)
+	reporter.Error(reasonInvalidBuildID, invalidBuildIDs)
 
 	buildIDs := make([]string, 0, len(buildIDToResult))
 	for buildID := range buildIDToResult {
@@ -172,14 +173,14 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 	}
 
 	if len(queriers) == 1 {
-		invokeQuerier(ctx, buildIDs, arch, queriers[0], 0, buildIDToResult)
+		invokeQuerier(ctx, buildIDs, arch, queriers[0], 0, reporter, buildIDToResult)
 	} else {
 		var wg sync.WaitGroup
 		for i, querier := range queriers {
 			wg.Add(1)
 			go func(i int, querier SymbolQuerier) {
 				defer wg.Done()
-				invokeQuerier(ctx, buildIDs, arch, querier, i, buildIDToResult)
+				invokeQuerier(ctx, buildIDs, arch, querier, i, reporter, buildIDToResult)
 			}(i, querier)
 		}
 		wg.Wait()

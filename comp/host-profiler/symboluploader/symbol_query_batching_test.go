@@ -19,6 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 )
 
+// newTestReporter returns a reporter whose output goes to slog.Default.
+func newTestReporter() *uploadReporter {
+	return newUploadReporter()
+}
+
 type key struct {
 	buildID string
 	arch    string
@@ -105,7 +110,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 	defer cancel()
 
 	t.Run("Empty batch", func(t *testing.T) {
-		results := ExecuteSymbolQueryBatch(ctx, nil, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, nil, queriers, newTestReporter())
 		require.Empty(t, results)
 	})
 
@@ -118,7 +123,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 			symbol.NewElfForTest("/usr/bin/foo-3", "arch1", "", "", fileID),                 // empty buildID
 			symbol.NewElfForTest("/usr/bin/foo-4", "arch1", "buildid2", "", fileID),         // multiple matching buildIDs, first one should be used
 		}
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers, newTestReporter())
 		require.ElementsMatch(t, []ElfWithBackendSources{
 			{
 				Elf: elfs[0],
@@ -183,7 +188,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 			symbol.NewElfForTest("/usr/bin/foo", "arch0", "buildid1", "", libpf.FileID{}),
 		}
 
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers, newTestReporter())
 		require.Error(t, results[0].BackendSymbolSources[0].Err)
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 	})
@@ -193,7 +198,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 			symbol.NewElfForTest("/usr/bin/foo", "arch2", "buildid1", "", libpf.FileID{}),
 		}
 
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers, newTestReporter())
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 		require.NoError(t, results[0].BackendSymbolSources[0].Err)
 		require.Equal(t, symbol.SourceDebugInfo, results[0].BackendSymbolSources[0].SymbolSource)

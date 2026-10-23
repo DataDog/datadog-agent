@@ -24,17 +24,16 @@ import (
 	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/ebpf-profiler/libpf"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 )
 
-func setupReportFixture(t *testing.T) *bytes.Buffer {
+func setupReportFixture(t *testing.T) (*uploadReporter, *bytes.Buffer) {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
-	infoReporter = newSymbolReporter(slog.LevelInfo)
-	errorReporter = newSymbolReporter(slog.LevelError)
-	return buf
+	return newUploadReporter(), buf
 }
 
 // decodeReports returns the symbol upload reports logged to buf.
@@ -129,15 +128,14 @@ func TestQuerySymbolsRateLimited(t *testing.T) {
 
 func TestSymbolReportSamePathAcrossReasonsLevelsAndPeriods(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		buf := setupReportFixture(t)
+		reporter, buf := setupReportFixture(t)
 		ref := time.Now()
 
-		reportError(reasonRateLimited, 2, "/usr/bin/baz")
-		reportError(reasonRequestError, 1, "/usr/bin/baz")
+		reporter.Error(reasonRateLimited, 2, "/usr/bin/baz")
+		reporter.Error(reasonRequestError, 1, "/usr/bin/baz")
 		time.Sleep(time.Minute + time.Nanosecond)
 		end1 := time.Now()
-		infoReporter.flush()
-		errorReporter.flush()
+		reporter.flush()
 
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 1)
@@ -147,11 +145,10 @@ func TestSymbolReportSamePathAcrossReasonsLevelsAndPeriods(t *testing.T) {
 		require.Equal(t, 1, reasonCount(t, reports[0], reasonRequestError))
 		require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, reports[0], reasonRequestError))
 
-		reportInfo(reasonUploaded, 1, "/usr/bin/cross")
-		reportError(reasonRateLimited, 1, "/usr/bin/cross")
+		reporter.Info(reasonUploaded, 1, "/usr/bin/cross")
+		reporter.Error(reasonRateLimited, 1, "/usr/bin/cross")
 		time.Sleep(2 * time.Minute)
-		infoReporter.flush()
-		errorReporter.flush()
+		reporter.flush()
 
 		reports = decodeReports(t, buf)
 		require.Len(t, reports, 3)
@@ -167,20 +164,19 @@ func TestSymbolReportSamePathAcrossReasonsLevelsAndPeriods(t *testing.T) {
 
 func TestSymbolReportPeriodAggregatesByLevel(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		buf := setupReportFixture(t)
+		reporter, buf := setupReportFixture(t)
 		ref := time.Now()
 
-		reportInfo(reasonAlreadyUploaded, 420)
-		reportInfo(reasonQueried, 42)
-		reportInfo(reasonNoDebugSymbols, 33, "/usr/bin/stripped")
-		reportInfo(reasonExistingSymbols, 35, "/usr/bin/baz")
-		reportInfo(reasonUploaded, 6, "/usr/bin/foo", "/usr/bin/bar")
-		reportError(reasonRateLimited, 5, "/usr/bin/baz", "/usr/bin/foo")
-		reportError(reasonQueueFull, 1, "/usr/lib/ld.so")
-		reportError(reasonInvalidBuildID, 2)
+		reporter.Info(reasonAlreadyUploaded, 420)
+		reporter.Info(reasonQueried, 42)
+		reporter.Info(reasonNoDebugSymbols, 33, "/usr/bin/stripped")
+		reporter.Info(reasonExistingSymbols, 35, "/usr/bin/baz")
+		reporter.Info(reasonUploaded, 6, "/usr/bin/foo", "/usr/bin/bar")
+		reporter.Error(reasonRateLimited, 5, "/usr/bin/baz", "/usr/bin/foo")
+		reporter.Error(reasonQueueFull, 1, "/usr/lib/ld.so")
+		reporter.Error(reasonInvalidBuildID, 2)
 		time.Sleep(time.Minute)
-		infoReporter.flush()
-		errorReporter.flush()
+		reporter.flush()
 
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 2)
@@ -209,22 +205,21 @@ func TestSymbolReportPeriodAggregatesByLevel(t *testing.T) {
 		require.NotContains(t, failure, reasonPrefix(reasonInvalidBuildID)+".paths")
 
 		time.Sleep(2 * reportInterval)
-		infoReporter.flush()
-		errorReporter.flush()
+		reporter.flush()
 		require.Len(t, decodeReports(t, buf), 2)
 	})
 }
 
 func TestSymbolReportPartialOnCap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		buf := setupReportFixture(t)
+		reporter, buf := setupReportFixture(t)
 		ref := time.Now()
 
 		paths := make([]string, 0, maxReportPaths)
 		for i := range maxReportPaths {
 			paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
 		}
-		reportError(reasonRateLimited, maxReportPaths, paths...)
+		reporter.Error(reasonRateLimited, maxReportPaths, paths...)
 		require.Zero(t, buf.Len())
 
 		time.Sleep(time.Minute)
@@ -232,7 +227,7 @@ func TestSymbolReportPartialOnCap(t *testing.T) {
 		for i := range 150 {
 			burst = append(burst, fmt.Sprintf("/usr/bin/ovf-%03d", i))
 		}
-		reportError(reasonRateLimited, 150, burst...)
+		reporter.Error(reasonRateLimited, 150, burst...)
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 2)
 		require.Equal(t, maxReportPaths, reasonCount(t, reports[0], reasonRateLimited))
@@ -241,7 +236,7 @@ func TestSymbolReportPartialOnCap(t *testing.T) {
 		require.Len(t, reasonPaths(t, reports[1], reasonRateLimited), maxReportPaths)
 
 		time.Sleep(time.Minute)
-		errorReporter.flush()
+		reporter.errRep.flush()
 		reports = decodeReports(t, buf)
 		require.Len(t, reports, 3)
 		require.Equal(t, 50, reasonCount(t, reports[2], reasonRateLimited))
@@ -254,13 +249,13 @@ func TestSymbolReportPartialOnCap(t *testing.T) {
 }
 
 func TestSymbolReportCapTriggeredByAnotherReason(t *testing.T) {
-	buf := setupReportFixture(t)
+	reporter, buf := setupReportFixture(t)
 	paths := make([]string, 0, maxReportPaths)
 	for i := range maxReportPaths {
 		paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
 	}
-	reportError(reasonRateLimited, maxReportPaths, paths...)
-	reportError(reasonQueueFull, 1, "/usr/lib/ld.so")
+	reporter.Error(reasonRateLimited, maxReportPaths, paths...)
+	reporter.Error(reasonQueueFull, 1, "/usr/lib/ld.so")
 
 	reports := decodeReports(t, buf)
 	require.Len(t, reports, 1)
@@ -269,14 +264,14 @@ func TestSymbolReportCapTriggeredByAnotherReason(t *testing.T) {
 
 func TestFlushReportsEmitsPending(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		buf := setupReportFixture(t)
+		reporter, buf := setupReportFixture(t)
 		ref := time.Now()
 
-		reportError(reasonRequestError, 3, "/usr/bin/baz")
+		reporter.Error(reasonRequestError, 3, "/usr/bin/baz")
 		require.Zero(t, buf.Len())
 
 		time.Sleep(time.Minute)
-		flushReports()
+		reporter.flush()
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 1)
 		require.Equal(t, 3, reasonCount(t, reports[0], reasonRequestError))
@@ -285,11 +280,11 @@ func TestFlushReportsEmitsPending(t *testing.T) {
 }
 
 func TestSymbolReportRepeatedPathOccurrences(t *testing.T) {
-	buf := setupReportFixture(t)
+	reporter, buf := setupReportFixture(t)
 
-	reportError(reasonRateLimited, 1, "/usr/bin/baz")
-	reportError(reasonRateLimited, 1, "/usr/bin/baz")
-	errorReporter.flush()
+	reporter.Error(reasonRateLimited, 1, "/usr/bin/baz")
+	reporter.Error(reasonRateLimited, 1, "/usr/bin/baz")
+	reporter.errRep.flush()
 
 	reports := decodeReports(t, buf)
 	require.Len(t, reports, 1)
@@ -299,16 +294,16 @@ func TestSymbolReportRepeatedPathOccurrences(t *testing.T) {
 
 func TestSymbolReportTickerFlushesPeriods(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		buf := setupReportFixture(t)
+		reporter, buf := setupReportFixture(t)
 		ref := time.Now()
 
-		reportInfo(reasonQueried, 1)
-		reportError(reasonRateLimited, 1)
+		reporter.Info(reasonQueried, 1)
+		reporter.Error(reasonRateLimited, 1)
 		// Nothing is emitted until the ticker flushes.
 		require.Zero(t, buf.Len())
 
-		stop := startReportFlushTicker()
-		t.Cleanup(stop)
+		reporter.StartFlushTicker()
+		t.Cleanup(reporter.Stop)
 		time.Sleep(reportInterval)
 		synctest.Wait()
 		reports := decodeReports(t, buf)
@@ -318,8 +313,8 @@ func TestSymbolReportTickerFlushesPeriods(t *testing.T) {
 		requireWindow(t, reports[0], ref, ref.Add(reportInterval))
 		requireWindow(t, reports[1], ref, ref.Add(reportInterval))
 
-		stop()
-		reportInfo(reasonQueried, 1)
+		reporter.Stop()
+		reporter.Info(reasonQueried, 1)
 		time.Sleep(reportInterval)
 		require.Len(t, decodeReports(t, buf), 2)
 	})
@@ -334,12 +329,8 @@ func (f *failingQuerier) QuerySymbols(_ context.Context, _ []string, _ string) (
 }
 
 func TestExecuteSymbolQueryBatchReportsQueryError(t *testing.T) {
-	elf1, err := symbol.NewElfFromDisk("/bin/sh")
-	require.NoError(t, err)
-	t.Cleanup(elf1.Close)
-	elf2, err := symbol.NewElfFromDisk("/bin/ls")
-	require.NoError(t, err)
-	t.Cleanup(elf2.Close)
+	elf1 := symbol.NewElfForTest("/usr/bin/elf1", "arch1", "gnu-build-id-1", "", libpf.FileID{})
+	elf2 := symbol.NewElfForTest("/usr/bin/elf2", "arch1", "gnu-build-id-2", "", libpf.FileID{})
 	elfs := []*symbol.Elf{elf1, elf2}
 
 	rateLimited := &ddhttp.StatusCodeError{StatusCode: http.StatusTooManyRequests}
@@ -355,10 +346,10 @@ func TestExecuteSymbolQueryBatchReportsQueryError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buf := setupReportFixture(t)
+			reporter, buf := setupReportFixture(t)
 
-			ExecuteSymbolQueryBatch(t.Context(), elfs, []SymbolQuerier{&failingQuerier{err: tt.err}})
-			flushReports()
+			ExecuteSymbolQueryBatch(t.Context(), elfs, []SymbolQuerier{&failingQuerier{err: tt.err}}, reporter)
+			reporter.flush()
 
 			reports := decodeReports(t, buf)
 			require.Len(t, reports, 1)

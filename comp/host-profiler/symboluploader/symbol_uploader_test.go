@@ -435,17 +435,17 @@ func registerResponders(t *testing.T, buildID string) []chan *http.Request {
 	return channels
 }
 
+// captureUploadReports routes slog.Default to a JSON buffer, so tests can
+// assert on symbol upload reports.
 func captureUploadReports(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	buf := &bytes.Buffer{}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Logf("logs:\n%s", buf.String())
 		}
 	})
-	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
-	infoReporter = newSymbolReporter(slog.LevelInfo)
-	errorReporter = newSymbolReporter(slog.LevelError)
 	return buf
 }
 
@@ -473,7 +473,9 @@ func uploadReportCounts(t *testing.T, buf *bytes.Buffer) map[string]int {
 	return counts
 }
 
+//nolint:tparallel
 func TestSymbolUpload(t *testing.T) {
+	t.Parallel()
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -539,7 +541,7 @@ func TestSymbolUpload(t *testing.T) {
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 
 		uploader.UploadSymbols(execMeta)
-		flushReports()
+		uploader.reporter.flush()
 		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1, reasonAlreadyUploaded: 1},
 			uploadReportCounts(t, reports))
 	})
@@ -643,9 +645,6 @@ func TestSymbolUpload(t *testing.T) {
 	})
 
 	t.Run("Report skipped upload when no endpoint needs symbols", func(t *testing.T) {
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
-		require.NoError(t, err)
-
 		tests := []struct {
 			name       string
 			backend    SymbolQueryResult
@@ -657,11 +656,13 @@ func TestSymbolUpload(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				reports := captureUploadReports(t)
+				uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+				require.NoError(t, err)
 				e, err := symbol.NewElfFromDisk(goExeSymtab)
 				require.NoError(t, err)
 
 				uploader.uploadWorker(t.Context(), ElfWithBackendSources{Elf: e, BackendSymbolSources: []SymbolQueryResult{tt.backend}})
-				flushReports()
+				uploader.reporter.flush()
 
 				require.Equal(t, tt.wantCounts, uploadReportCounts(t, reports))
 			})

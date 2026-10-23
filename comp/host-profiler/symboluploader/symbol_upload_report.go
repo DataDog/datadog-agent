@@ -147,31 +147,41 @@ func (r *symbolReporter) flush() {
 	}
 }
 
-var (
-	infoReporter  = newSymbolReporter(slog.LevelInfo)
-	errorReporter = newSymbolReporter(slog.LevelError)
-)
-
-// reportInfo batches n occurrences of reason into the info level report.
-func reportInfo(reason string, n int, paths ...string) {
-	infoReporter.record(reason, n, paths...)
+// uploadReporter batches report occurrences per log level.
+type uploadReporter struct {
+	infoRep    *symbolReporter
+	errRep     *symbolReporter
+	stopTicker func()
 }
 
-// reportError batches n occurrences of reason into the error level report.
-func reportError(reason string, n int, paths ...string) {
-	errorReporter.record(reason, n, paths...)
+func newUploadReporter() *uploadReporter {
+	return &uploadReporter{
+		infoRep: newSymbolReporter(slog.LevelInfo),
+		errRep:  newSymbolReporter(slog.LevelError),
+	}
 }
 
-// flushReports emits the pending info and error reports and starts a new period.
-func flushReports() {
-	infoReporter.flush()
-	errorReporter.flush()
+// Info batches n occurrences of reason into the info level report.
+func (r *uploadReporter) Info(reason string, n int, paths ...string) {
+	r.infoRep.record(reason, n, paths...)
 }
 
-// startReportFlushTicker flushes the pending reports of the package-level
-// reporters every reportInterval, until the returned stop function
-// is called.
-func startReportFlushTicker() (stop func()) {
+// Error batches n occurrences of reason into the error level report.
+func (r *uploadReporter) Error(reason string, n int, paths ...string) {
+	r.errRep.record(reason, n, paths...)
+}
+
+// flush emits the pending info and error reports and starts a new period.
+func (r *uploadReporter) flush() {
+	r.infoRep.flush()
+	r.errRep.flush()
+}
+
+// StartFlushTicker starts flushing the pending reports every reportInterval.
+func (r *uploadReporter) StartFlushTicker() {
+	if r.stopTicker != nil {
+		r.stopTicker()
+	}
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -182,12 +192,20 @@ func startReportFlushTicker() (stop func()) {
 			case <-done:
 				return
 			case <-ticker.C:
-				flushReports()
+				r.flush()
 			}
 		}
 	})
-	return sync.OnceFunc(func() {
+	r.stopTicker = sync.OnceFunc(func() {
 		close(done)
 		wg.Wait()
 	})
+}
+
+// Stop stops the background flush ticker and emits the pending reports.
+func (r *uploadReporter) Stop() {
+	if r.stopTicker != nil {
+		r.stopTicker()
+	}
+	r.flush()
 }
