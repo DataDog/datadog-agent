@@ -228,9 +228,7 @@ class TestGenerateConst(unittest.TestCase):
         obj = {
             'node_type': 'setting',
             'type': 'array',
-            'items': {
-                'type': 'string'
-            },
+            'items': {'type': 'string'},
             'visibility': 'public',
             'description': 'Test',
         }
@@ -286,7 +284,9 @@ class TestGenerateConst(unittest.TestCase):
         res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'string'}})
         self.assertEqual(res, 'map[string]string')
 
-        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'object', 'additionalProperties': {'type': 'integer'}}})
+        res = codegen.dict_to_gotype(
+            {'type': 'object', 'additionalProperties': {'type': 'object', 'additionalProperties': {'type': 'integer'}}}
+        )
         self.assertEqual(res, 'map[string]map[string]int')
 
 
