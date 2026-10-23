@@ -123,6 +123,27 @@ func TestUpdateManifestIdempotent(t *testing.T) {
 	}
 }
 
+// TestUpdateManifestQuotedScalars checks that version values wrapped in YAML
+// quotes (e.g. version: "0.100.0") are updated correctly. This was the bug
+// reported in the PR review: the old regex could not match the quote between
+// the whitespace and the version digit.
+func TestUpdateManifestQuotedScalars(t *testing.T) {
+	quotedManifest := `dist:
+  name: otelcol-contrib
+  version: "0.100.0"
+exporters:
+- gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.100.0
+`
+	out, _, err := updateManifest([]byte(quotedManifest), testVersion)
+	if err != nil {
+		t.Fatalf("updateManifest: %v", err)
+	}
+	got := gomods(t, out)
+	if got["dist.version"] != "0.158.0" {
+		t.Errorf("dist.version: got %q, want %q", got["dist.version"], "0.158.0")
+	}
+}
+
 func TestLookupVersionUnknown(t *testing.T) {
 	if _, err := lookupVersion("0.0.0"); err == nil {
 		t.Error("expected error for unknown agent version, got nil")

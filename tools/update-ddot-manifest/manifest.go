@@ -5,8 +5,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"regexp"
+	"sort"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -40,6 +41,8 @@ type change struct {
 	module string
 	oldV   string
 	newV   string
+	line   int // yaml.Node.Line (1-indexed)
+	column int // yaml.Node.Column (0-indexed)
 }
 
 // updateResult summarizes what updateManifest did.
@@ -75,7 +78,13 @@ func updateManifest(data []byte, v ddotVersion) ([]byte, *updateResult, error) {
 	if dist := mappingValue(root, "dist"); dist != nil {
 		if ver := mappingValue(dist, "version"); ver != nil && ver.Kind == yaml.ScalarNode {
 			if ver.Value != v.OCBVersion {
-				res.changed = append(res.changed, change{module: distVersionKey, oldV: ver.Value, newV: v.OCBVersion})
+				res.changed = append(res.changed, change{
+					module: distVersionKey,
+					oldV:   ver.Value,
+					newV:   v.OCBVersion,
+					line:   ver.Line,
+					column: ver.Column,
+				})
 			}
 		}
 	}
@@ -106,31 +115,65 @@ func updateManifest(data []byte, v ddotVersion) ([]byte, *updateResult, error) {
 				continue
 			}
 			if newVer != curVer {
-				res.changed = append(res.changed, change{module: module, oldV: curVer, newV: newVer})
+				res.changed = append(res.changed, change{
+					module: module,
+					oldV:   curVer,
+					newV:   newVer,
+					line:   gomod.Line,
+					column: gomod.Column,
+				})
 			}
 		}
 	}
 
-	return applyChanges(data, res.changed), res, nil
+	out, err := applyChanges(data, res.changed)
+	if err != nil {
+		return nil, nil, err
+	}
+	return out, res, nil
 }
 
-// applyChanges rewrites each version token in the raw manifest bytes. Each edit
-// is anchored on the (unique) module path — or the "version:" key for
-// dist.version — so only the intended token changes and all whitespace,
-// line-folding and comments are left intact.
-func applyChanges(data []byte, changes []change) []byte {
-	out := data
-	for _, c := range changes {
-		var anchor string
-		if c.module == distVersionKey {
-			anchor = `(version:\s+)`
-		} else {
-			anchor = `(` + regexp.QuoteMeta(c.module) + `\s+)`
-		}
-		re := regexp.MustCompile(anchor + regexp.QuoteMeta(c.oldV) + `\b`)
-		out = re.ReplaceAll(out, []byte("${1}"+c.newV))
+// applyChanges rewrites each version token in the raw manifest bytes using the
+// exact byte positions recorded by the YAML parser. For each change it jumps to
+// the node's offset, then searches forward for oldV from that position — which
+// naturally handles quoted scalars (e.g. version: "0.159.0") without any special
+// casing. Replacements are applied back-to-front so that earlier offsets are
+// never invalidated by a preceding edit.
+func applyChanges(data []byte, changes []change) ([]byte, error) {
+	type replacement struct {
+		start, end int
+		newV       string
+		module     string
 	}
-	return out
+
+	reps := make([]replacement, 0, len(changes))
+	for _, c := range changes {
+		offset, err := lineColToOffset(data, c.line, c.column)
+		if err != nil {
+			return nil, fmt.Errorf("module %q: %w", c.module, err)
+		}
+		idx := bytes.Index(data[offset:], []byte(c.oldV))
+		if idx == -1 {
+			return nil, fmt.Errorf("module %q: could not find %q at line %d", c.module, c.oldV, c.line)
+		}
+		start := offset + idx
+		reps = append(reps, replacement{
+			start:  start,
+			end:    start + len(c.oldV),
+			newV:   c.newV,
+			module: c.module,
+		})
+	}
+
+	// Apply back-to-front so earlier offsets stay valid.
+	sort.Slice(reps, func(i, j int) bool { return reps[i].start > reps[j].start })
+
+	out := make([]byte, len(data))
+	copy(out, data)
+	for _, r := range reps {
+		out = append(out[:r.start], append([]byte(r.newV), out[r.end:]...)...)
+	}
+	return out, nil
 }
 
 // newVersionFor returns the target version for a component and whether it is a
@@ -148,6 +191,26 @@ func newVersionFor(module, curVer string, v ddotVersion) (string, bool) {
 		return v.CoreStableVersion, true
 	}
 	return v.ContribVersion, true
+}
+
+// lineColToOffset converts a 1-indexed (line, col) position from a yaml.Node
+// into a 0-indexed byte offset into data.
+func lineColToOffset(data []byte, line, col int) (int, error) {
+	cur := 1
+	lineStart := 0
+	for i, b := range data {
+		if cur == line {
+			return lineStart + col - 1, nil
+		}
+		if b == '\n' {
+			cur++
+			lineStart = i + 1
+		}
+	}
+	if cur == line {
+		return lineStart + col - 1, nil
+	}
+	return 0, fmt.Errorf("line %d out of range (file has %d lines)", line, cur)
 }
 
 // mappingValue returns the value node for key in a mapping node, or nil.
