@@ -19,9 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	processcontextpb "go.opentelemetry.io/proto/slim/otlp/processcontext/v1development"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -172,10 +169,5 @@ func readOnce(mem Memory, headerAddr uint64) (ProcessContext, error) {
 		return nil, ErrTorn
 	}
 
-	var pb processcontextpb.ProcessContext
-	if err := proto.Unmarshal(payload, &pb); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrMalformed, err)
-	}
-
-	return &pb, nil
+	return decodeProcessContext(payload)
 }
