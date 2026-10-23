@@ -15,7 +15,7 @@ First, you'll want to set up the [development requirements](setup/required.md).
 
 ## Agent development guidelines
 
-Read about the Agent's [component framework](architecture/components/index.md) and [configuration schema](architecture/agent-schema/index.md) in Architecture, with links to their tutorials, how-to guides, guidelines, and references.
+Read about the Agent's [component framework](architecture/components/index.md) in Architecture, with links to its tutorials, how-to guides, guidelines, and references. See the [configuration schema](reference/agent-schema/index.md) reference to define, document, and generate configuration settings.
 
 ## Navigation
 

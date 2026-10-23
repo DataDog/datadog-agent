@@ -1,6 +1,6 @@
 # Annotated schema examples
 
-This page walks through three annotated examples taken from or inspired by the real schema files. Each example builds on the concepts introduced in the [Keyword Reference](../../reference/agent-schema/keywords.md).
+This page walks through three annotated examples taken from or inspired by the real schema files. Each example builds on the concepts introduced in the [Keyword Reference](keywords.md).
 
 ---
 
