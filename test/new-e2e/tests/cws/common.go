@@ -185,10 +185,10 @@ func (a *agentSuite) Test03OpenSignal() {
 			return
 		}
 		assert.Contains(c, signal.Tags, "rule_id:"+strings.ToLower(agentRuleName), "unable to find rule_id tag")
-		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
+		attributes := signal.GetAttributes()
+		if !assert.NotEmpty(c, attributes, "unable to find 'attributes' field in signal") {
 			return
 		}
-		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
 		if !assert.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
 			return
 		}
