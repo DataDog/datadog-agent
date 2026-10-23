@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
+	gpucontainers "github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,6 +53,27 @@ const (
 	podPhaseSucceeded = "Succeeded"
 	podPhaseFailed    = "Failed"
 )
+
+// podPhaseRunning mirrors corev1.PodRunning.
+const podPhaseRunning = "Running"
+
+const kaiTelemetrySubsystem = consts.GpuTelemetryModule + "__kai"
+
+// Values of the reason tag of the assignment_failed counter.
+const (
+	kaiReasonReservationWithoutGroup    = "reservation_without_group"
+	kaiReasonReservationNotFound        = "reservation_not_found"
+	kaiReasonMultipleFractionContainers = "multiple_fraction_containers"
+	kaiReasonNamedContainerNotFound     = "named_container_not_found"
+	kaiReasonUnidentifiedContainer      = "unidentified_container"
+)
+
+// newKAIAssignmentFailedCounter registers the gpu__kai__assignment_failed
+// counter. A failure is counted on every pull for as long as its cause persists.
+func newKAIAssignmentFailedCounter(tm telemetry.Component) telemetry.Counter {
+	return tm.NewCounter(kaiTelemetrySubsystem, "assignment_failed", []string{"reason"},
+		"Number of KAI fractional GPU assignment failures, by reason")
+}
 
 // kaiWarnLimiter is separate from the collector-wide logLimiter so that a pod
 // warned about on every pull cannot starve the driver, device and MIG warnings
@@ -117,7 +141,7 @@ type reservationCandidate struct {
 // this is inert.
 func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractions {
 	pods := c.store.ListKubernetesPods()
-	reservations := kaiGPUGroupReservations(pods, deviceCache)
+	reservations := c.kaiGPUGroupReservations(pods, deviceCache)
 
 	fractions := kaiFractions{
 		uuidsByContainer: make(map[string][]string),
@@ -129,8 +153,9 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 		// placeholder rather than a workload: it holds the whole GPU from
 		// Kubernetes' point of view and never touches it. Attributing the
 		// device to it is the behaviour this collector exists to correct, so it
-		// must not be treated as a fractional workload here.
-		if pod.Annotations[kaiReservationGPUAnnotation] != "" {
+		// must not be treated as a fractional workload here, not even before it
+		// has written its GPU annotation.
+		if gpucontainers.IsKAIReservationPod(pod) {
 			continue
 		}
 		// A finished workload no longer uses its fraction -- KAI only counts
@@ -147,7 +172,7 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 			continue
 		}
 
-		containerID := kaiFractionContainerID(pod)
+		containerID := c.kaiFractionContainerID(pod)
 		if containerID == "" {
 			// The container that gets the GPU is not in the store yet, or the
 			// pod does not say which one it is, or names several. Nothing to
@@ -181,6 +206,12 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 		}
 		if accountedFor < len(groups) {
 			fractions.partial[containerID] = struct{}{}
+			// A settled pod is already bound, so its reservation pod should
+			// exist by now.
+			if kaiPodSettled(pod) {
+				log.Debugf("KAI: running pod %s/%s has no live reservation pod for one of its GPU groups on this node", pod.Namespace, pod.Name)
+				c.kaiAssignmentFailed.Inc(kaiReasonReservationNotFound)
+			}
 		}
 		// Claim while something resolved, or while a group is still pending.
 		//
@@ -208,7 +239,7 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 // this node is present with an empty UUID: the distinction between "not seen"
 // and "seen but not attributable" is what keeps a permanently missing device
 // from pinning a workload's mapping forever.
-func kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddnvml.DeviceCache) map[string]kaiReservation {
+func (c *collector) kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddnvml.DeviceCache) map[string]kaiReservation {
 	// Collect first and validate against NVML afterwards: the device list is
 	// only worth building once a reservation pod is actually present, so a node
 	// without KAI pays nothing for this.
@@ -231,6 +262,7 @@ func kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddn
 		group := pod.Labels[kaiGPUGroupLabel]
 		if group == "" {
 			log.Debugf("KAI: reservation pod %s/%s reserves GPU %s but carries no %s label, so no workload can be matched to it", pod.Namespace, pod.Name, uuid, kaiGPUGroupLabel)
+			c.kaiAssignmentFailed.Inc(kaiReasonReservationWithoutGroup)
 			continue
 		}
 		candidates = append(candidates, reservationCandidate{
@@ -333,7 +365,7 @@ func kaiGPUGroups(pod *workloadmeta.KubernetesPod) []string {
 // Returns "" when a named container is not in the store yet, when a pod with
 // several containers says nothing about which of them uses the GPU, and when
 // the per-container annotations name more than one container.
-func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
+func (c *collector) kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 	containers := slices.Concat(pod.Containers, pod.InitContainers)
 
 	names := kaiAnnotatedContainerNames(pod.Annotations)
@@ -348,6 +380,7 @@ func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 		if kaiWarnLimiter.ShouldLog() {
 			log.Warnf("KAI: pod %s/%s has fractional GPU annotations for several containers %v, which KAI does not support, so its GPU cannot be attributed", pod.Namespace, pod.Name, names)
 		}
+		c.kaiAssignmentFailed.Inc(kaiReasonMultipleFractionContainers)
 		return ""
 	}
 	if len(names) == 0 {
@@ -370,6 +403,13 @@ func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 		// Waiting for it is right -- falling through to another container would
 		// attribute the GPU to a sidecar, publish that, and retract it a pull
 		// later.
+		//
+		// A container that is not created yet still has a status, so a settled
+		// pod with no status for that name names a container it does not have.
+		if kaiPodSettled(pod) && !kaiHasContainerStatus(pod, names[0]) {
+			log.Debugf("KAI: running pod %s/%s names %s as its GPU container, but has no such container", pod.Namespace, pod.Name, names[0])
+			c.kaiAssignmentFailed.Inc(kaiReasonNamedContainerNotFound)
+		}
 		return ""
 	}
 
@@ -389,6 +429,7 @@ func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 		if kaiWarnLimiter.ShouldLog() {
 			log.Warnf("KAI: pod %s/%s shares a GPU but no annotation says which of its %d containers uses it, so its GPU cannot be attributed; set the %s annotation to the name of that container in the pod spec, before the pod is scheduled", pod.Namespace, pod.Name, len(pod.Containers), kaiFractionContainerNameAnnotation)
 		}
+		c.kaiAssignmentFailed.Inc(kaiReasonUnidentifiedContainer)
 	}
 	return ""
 }
@@ -416,6 +457,20 @@ func kaiAnnotatedContainerNames(annotations map[string]string) []string {
 
 	slices.Sort(names)
 	return names
+}
+
+// kaiPodSettled reports whether the pod is Running and not terminating, so
+// that KAI has finished binding it and nothing it is missing will still appear.
+func kaiPodSettled(pod *workloadmeta.KubernetesPod) bool {
+	return pod.Phase == podPhaseRunning && pod.DeletionTimestamp == nil
+}
+
+// kaiHasContainerStatus reports whether the pod has a status for the named
+// container, created or not.
+func kaiHasContainerStatus(pod *workloadmeta.KubernetesPod, name string) bool {
+	return slices.ContainsFunc(slices.Concat(pod.ContainerStatuses, pod.InitContainerStatuses), func(status workloadmeta.KubernetesContainerStatus) bool {
+		return status.Name == name
+	})
 }
 
 // kaiContainerIDByName returns the ID of the named container, or "" if the pod

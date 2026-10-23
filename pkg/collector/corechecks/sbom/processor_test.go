@@ -1471,6 +1471,23 @@ func TestImageSBOMWaitsForUsage(t *testing.T) {
 		assertNoSBOM(t, sent)
 	})
 
+	t.Run("an SBOM of the OS packages alone goes out at once", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		fallback := graceImage(t, workloadmeta.Success, debPackage())
+		fallback.SBOM.OSFallback = true
+		notify(p, store, set(fallback))
+		assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()))
+
+		// The full SBOM that replaces it waits for its usage.
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assertNoSBOM(t, sent)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+		assert.True(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "the full SBOM goes out with its usage")
+	})
+
 	t.Run("the wait ends without usage", func(t *testing.T) {
 		p, store, sent := newImageGraceProcessor(t)
 		runGraceImage(store)

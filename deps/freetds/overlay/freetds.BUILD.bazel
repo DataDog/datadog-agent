@@ -235,7 +235,7 @@ dd_cc_packaged(
     name = "tdsodbc_pkg",
     input = ":tdsodbc",
     dest_dir = "embedded/lib",
-    installed_files = [
+    data = [
         ":so_links",
     ],
     visibility = ["//visibility:public"],

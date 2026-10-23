@@ -61,14 +61,13 @@ const (
 	// rootReadInterval spaces out the reads of the root mount of a container
 	// while it is unknown, as for a container that still runs on the host root.
 	rootReadInterval = 10 * time.Second
-	// maxForwardWait bounds how long forwarding keeps retrying while the image's
-	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
-	// re-arming when no image SBOM will ever be produced (for example when
-	// container image SBOM collection is disabled and the image stays pending).
-	maxForwardWait = 30 * time.Minute
 	// maxForwardedAge bounds the age of the usage the core agent holds for a
 	// package in steady use, at the period of the SBOM check.
 	maxForwardedAge = time.Hour
+	// failedScanRetryDelay delays the next scan of a workload whose scan failed,
+	// doubling at each failure in a row up to maxFailedScanRetryDelay.
+	failedScanRetryDelay    = time.Minute
+	maxFailedScanRetryDelay = time.Hour
 	// hostRescanInterval is the longest time between two scans of the host
 	// packages, the default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
@@ -125,7 +124,10 @@ type pendingFileKey struct {
 	mountID uint32
 }
 
-var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+var (
+	errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+	errNoContainerRoot         = errors.New("found no running process on the root of the container")
+)
 
 // Event defines the SBOM event type
 type Event int
@@ -279,14 +281,13 @@ type SBOM struct {
 	fingerprint string // fingerprint of the package databases data was scanned from
 
 	workloadKey workloadKey
-	status      workloadmeta.SBOMStatus
 
-	cgroup *cgroupModel.CacheEntry
-	state  *atomic.Int64
+	cgroup      *cgroupModel.CacheEntry
+	state       *atomic.Int64
+	failedScans int // scans failed in a row, which space out the retries
 
-	refresher         *debouncer.Debouncer
-	forwarder         *debouncer.Debouncer // Debouncer for forwarding SBOM updates
-	forwardRetryCount int
+	refresher *debouncer.Debouncer
+	forwarder *debouncer.Debouncer // Debouncer for forwarding SBOM updates
 
 	usrMerged bool
 
@@ -533,18 +534,56 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case sbom := <-r.scanChan:
 				if _, err := backoff.Retry(ctx, func() (struct{}, error) {
 					return struct{}{}, r.analyzeWorkload(sbom)
-				}, backoff.WithMaxTries(maxSBOMGenerationRetries), backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil {
-					if errors.Is(err, errNoProcessForContainerID) {
-						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
-					} else {
-						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
-					}
+				}, backoff.WithMaxTries(maxSBOMGenerationRetries), backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil && ctx.Err() == nil {
+					r.scanFailed(sbom, err)
 				}
 			}
 		}
 	}()
 
 	return nil
+}
+
+// scanFailed releases the scan slot of sbom and, when processes of it remain on
+// its own root, queues it again after a delay that doubles at each failure.
+func (r *Resolver) scanFailed(sbom *SBOM, err error) {
+	r.removePendingScan(sbom.ContainerID)
+
+	if errors.Is(err, errNoProcessForContainerID) || errors.Is(err, errNoContainerRoot) {
+		seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
+		return
+	}
+	sbom.Lock()
+	delay := min(failedScanRetryDelay<<min(sbom.failedScans, 6), maxFailedScanRetryDelay)
+	sbom.failedScans++
+	sbom.Unlock()
+	seclog.Warnf("Failed to generate SBOM for '%s', next try in %s: %v", sbom.ContainerID, delay, err)
+	time.AfterFunc(delay, func() { r.retryScan(sbom) })
+}
+
+// retryScan queues sbom for a scan again, if it is still waiting for one and
+// the queue does not hold it already.
+func (r *Resolver) retryScan(sbom *SBOM) {
+	r.sbomsLock.Lock()
+	defer r.sbomsLock.Unlock()
+
+	if current, ok := r.sboms.Peek(sbom.ContainerID); !ok || current != sbom {
+		return
+	}
+	// a queued workload may be scanning, holding its lock for long
+	r.pendingScanLock.Lock()
+	queued := slices.Contains(r.pendingScan, sbom.ContainerID)
+	r.pendingScanLock.Unlock()
+	if queued {
+		return
+	}
+
+	sbom.Lock()
+	defer sbom.Unlock()
+
+	if sbom.state.Load() == pendingState {
+		r.triggerScan(sbom)
+	}
 }
 
 // RefreshSBOM regenerates the SBOM of a container, or the SBOM of the host for
@@ -897,67 +936,18 @@ func (r *Resolver) SetProcessWalker(walk func(func(*model.ProcessCacheEntry))) {
 	r.walkProcesses = walk
 }
 
-// getContainerSBOM returns the SBOM workloadmeta holds for the image of the
-// container containerID. The functional tests run without workloadmeta.
-func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
-	if r.wmeta == nil {
-		return nil, fmt.Errorf("No workloadmeta to get the image of container '%s' from", containerID)
-	}
-	container, err := r.wmeta.GetContainer(string(containerID))
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
-	}
-
-	imageID := container.Image.ID
-	if imageID == "" {
-		return nil, fmt.Errorf("Container '%s' has no image ID, cannot forward SBOM", containerID)
-	}
-
-	existingImage, err := r.wmeta.GetImage(imageID)
-	if err != nil || existingImage == nil {
-		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
-		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
-		for _, img := range r.wmeta.ListImages() {
-			for _, digest := range img.RepoDigests {
-				if digest == imageID {
-					existingImage = img
-					break
-				}
-			}
-			if existingImage != nil {
-				break
-			}
-		}
-	}
-
-	if existingImage == nil {
-		return nil, fmt.Errorf("Image metadata for '%s' not found in workloadmeta, cannot forward SBOM for container '%s'", imageID, containerID)
-	}
-
-	if existingImage.SBOM == nil {
-		return nil, fmt.Errorf("Image '%s' has no SBOM, cannot forward SBOM for container '%s'", imageID, containerID)
-	}
-
-	return existingImage.SBOM, nil
-}
-
 // triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
 // This function assumes sbom is already locked by the caller
 func (r *Resolver) triggerForwarding(sbom *SBOM) {
-	// Create forwarder debouncer on demand. Its callback re-arms the debouncer
-	// it holds, as stop clears sbom.forwarder while the callback may still run.
+	// Create forwarder debouncer on demand
 	if sbom.forwarder == nil {
-		var forwarder *debouncer.Debouncer
-		forwarder = debouncer.New(
+		sbom.forwarder = debouncer.New(
 			r.cfg.SBOMResolverForwardInterval, func() {
-				if r.forward(sbom) {
-					forwarder.Call()
-				}
+				r.forward(sbom)
 				r.refreshChanged(sbom, func() string { return r.rootFingerprint(sbom) })
 			},
 		)
-		forwarder.Start()
-		sbom.forwarder = forwarder
+		sbom.forwarder.Start()
 	}
 
 	// forward on the next tick of the debouncer
@@ -965,45 +955,18 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 }
 
 // forward hands the current SBOM data with LastAccess to the listeners, which
-// send it to the remote collector, and reports whether to forward it again
-// later, as it does while the Trivy SBOM of the image is pending. It returns at
-// once for a stopped SBOM.
-func (r *Resolver) forward(sbom *SBOM) bool {
+// send it to the remote collector. The core agent keeps the report until the
+// SBOM it enriches is ready. It returns at once for a stopped SBOM.
+func (r *Resolver) forward(sbom *SBOM) {
 	sbom.Lock()
 	defer sbom.Unlock()
 
 	if sbom.state.Load() == stoppedState {
-		return false
+		return
 	}
-
-	// The report of a container waits for the Trivy SBOM of its image. The
-	// core agent keeps the report of the host for its next host scan.
-	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
-		imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
-		if err != nil || imageSBOM == nil {
-			seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
-		} else {
-			sbom.status = imageSBOM.Status
-		}
-	}
-
-	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
-		// Retry until the image's Trivy SBOM is ready: an idle workload may
-		// produce no further file accesses to re-trigger forwarding, and the
-		// overlayfs scan can take several minutes. Bound the total wait so a
-		// permanently-pending image (e.g. container image SBOM collection
-		// disabled) stops re-arming instead of looping forever.
-		sbom.forwardRetryCount++
-		if time.Duration(sbom.forwardRetryCount)*r.cfg.SBOMResolverForwardInterval > maxForwardWait {
-			seclog.Warnf("Giving up forwarding SBOM for container '%s': image SBOM still pending after %s", sbom.ContainerID, maxForwardWait)
-			return false
-		}
-		return true
-	}
-	sbom.forwardRetryCount = 0
 
 	if sbom.data == nil || len(sbom.data.packages) == 0 {
-		return false
+		return
 	}
 
 	seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
@@ -1029,8 +992,6 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 		RequestID:        string(sbom.ContainerID),
 	}
 	r.Notifier.NotifyListeners(SBOMComputed, scanResult)
-
-	return false
 }
 
 // generateSBOM calls the collector to generate the SBOM of a sbom
@@ -1256,6 +1217,7 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 
 	cfs := utils.DefaultCGroupFS()
 
+	onHostRoot := false
 	for _, rootCandidatePID := range sortedPIDs(sbom.cgroup) {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for
 		// the flush to remove a pid, there might be a significant delay before a PID is removed from this list. Checking
@@ -1277,28 +1239,34 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 				}
 				return nil, fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
 			}
-			if stat.Dev == r.hostRootDevice {
-				return nil, fmt.Errorf("couldn't generate sbom: filesystem of container '%s' matches the host root filesystem", sbom.ContainerID)
+			// a process of the container may have entered the mount namespace of
+			// the host, as nsenter does
+			if stat.Dev == r.hostRootDevice && stat.Ino == r.hostRootInode {
+				onHostRoot = true
+				continue
 			}
 		}
 
-		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
+		rootReport, err := r.generateSBOM(containerProcRootPath)
+		if err == nil {
+			report = rootReport
 			sbom.usrMerged = isUsrMerged(containerProcRootPath)
 			scanned = true
 			break
 		}
-
-		if isProcRootGone(lastErr) {
-			lastErr = nil
-			continue
+		// a process gone meanwhile leaves the error of an earlier one standing
+		if !isProcRootGone(err) {
+			seclog.Errorf("couldn't generate SBOM: %v", err)
+			lastErr = err
 		}
-
-		seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 	}
-	if lastErr != nil {
+	switch {
+	case scanned:
+	case lastErr != nil:
 		return nil, lastErr
-	}
-	if !scanned {
+	case onHostRoot:
+		return nil, errNoContainerRoot
+	default:
 		return nil, errNoProcessForContainerID
 	}
 	return report, nil
@@ -1358,6 +1326,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	fingerprint := r.rootFingerprint(sb)
 	if r.acquireData(sb, fingerprint) {
 		sb.state.Store(computedState)
+		sb.failedScans = 0
 
 		r.sbomsCacheHit.Inc()
 
@@ -1379,6 +1348,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	// mark the SBOM as successful
 	sb.state.Store(computedState)
+	sb.failedScans = 0
 
 	r.removePendingScan(sb.ContainerID)
 
@@ -1389,9 +1359,6 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	if len(report) > 0 {
 		r.triggerForwarding(sb)
 	}
-
-	// NOTE: Don't forward SBOM to remote collector immediately, since LastAccess is not yet populated.
-	// The SBOM will be forwarded later when packages are accessed at runtime (via the forwarder debouncer).
 
 	// Notify policy generator if callback is set
 	r.policyGenLock.RLock()
@@ -1821,12 +1788,13 @@ func (r *Resolver) triggerScan(sbom *SBOM) {
 		return
 	}
 
-	// push sbom to the scanner chan
+	// push sbom to the scanner chan. The chan also holds stopped SBOMs until the
+	// scan loop skips them, so a full chan queues the workload again later.
 	select {
 	case r.scanChan <- sbom:
 	default:
 		r.removePendingScan(sbom.ContainerID)
-		r.deleteSBOM(sbom)
+		time.AfterFunc(failedScanRetryDelay, func() { r.retryScan(sbom) })
 	}
 }
 
@@ -1848,9 +1816,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	_, ok := r.sboms.Get(id)
 	if !ok {
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, r.workloadKeyOf(id, workload))
-		if imageSBOM, err := r.getContainerSBOM(id); err == nil && imageSBOM != nil {
-			sbom.status = imageSBOM.Status
-		}
 		r.queueWorkload(sbom)
 	}
 }

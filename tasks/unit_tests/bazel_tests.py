@@ -6,6 +6,7 @@ from pathlib import Path
 
 from tasks.bazel import (
     _IMPORT_PREFIX,
+    _BepContext,
     _is_gotestsum_shaped,
     _label_to_import_path,
     _parse_bep,
@@ -253,6 +254,32 @@ class TestParseBep(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "did not include .*test.log"):
                 _parse_bep(bep_path)
+
+
+class TestBepContextBazelBin(unittest.TestCase):
+    def test_selects_target_configuration_over_exec_configuration(self):
+        ctx = _BepContext()
+        events = [
+            {"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": "/exec/root"}},
+            {
+                "id": {"configuration": {"id": "exec_cfg"}},
+                "configuration": {"makeVariable": {"BINDIR": "bazel-out/k8-opt-exec-ST-abc/bin"}},
+            },
+            {
+                "id": {"configuration": {"id": "target_cfg"}},
+                "configuration": {"makeVariable": {"BINDIR": "bazel-out/k8-fastbuild/bin"}},
+            },
+            {"id": {"targetCompleted": {"label": "//pkg/ebpf:targets", "configuration": {"id": "target_cfg"}}}},
+        ]
+        for event in events:
+            ctx.observe(event["id"], event)
+
+        self.assertEqual(ctx.bazel_bin(), Path("/exec/root/bazel-out/k8-fastbuild/bin"))
+
+    def test_returns_none_when_incomplete(self):
+        ctx = _BepContext()
+        ctx.observe({"workspace": {}}, {"workspaceInfo": {"localExecRoot": "/exec/root"}})
+        self.assertIsNone(ctx.bazel_bin())
 
 
 if __name__ == "__main__":

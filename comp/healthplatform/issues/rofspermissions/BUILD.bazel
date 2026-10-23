@@ -30,7 +30,11 @@ dd_agent_go_test(
     name = "rofspermissions_test",
     srcs = ["module_test.go"],
     embed = [":rofspermissions"],
-    gotags_sets = [["docker"]],
+    gotags_sets = [[
+        "cel",
+        "docker",
+        "kubelet",
+    ]],
     include_default = False,
     deps = [
         "//comp/core/config",
