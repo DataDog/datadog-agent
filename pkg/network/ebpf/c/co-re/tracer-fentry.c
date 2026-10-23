@@ -23,6 +23,8 @@
 #include "protocols/classification/protocol-classification.h"
 #include "protocols/tls/tls-certs.h"
 
+#define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
+
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
@@ -436,13 +438,12 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
         return 0;
     }
 
-    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    if (retrans_out < 0) {
+    struct tcp_sock *tp = tcp_sk(sk);
+    if (tp->retrans_out < 0) {
         return 0;
     }
 
-    struct tcp_skb_cb *tcp_skb = (struct tcp_skb_cb *)BPF_CORE_READ(skb, cb);
-    u16 skb_pcount = BPF_CORE_READ(tcp_skb, tcp_gso_segs);
+    u16 skb_pcount = TCP_SKB_CB(skb)->tcp_gso_segs;
     return handle_retransmit(sk, skb_pcount);
 }
 
