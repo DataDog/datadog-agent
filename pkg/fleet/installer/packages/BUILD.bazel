@@ -48,7 +48,6 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/installinfo",
@@ -64,7 +63,6 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",

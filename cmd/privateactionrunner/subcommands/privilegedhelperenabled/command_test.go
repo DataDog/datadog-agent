@@ -12,10 +12,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+func TestCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"privileged-helper-enabled"},
+		run,
+		func() {})
+}
 
 func TestRun(t *testing.T) {
 	cfg := configmock.NewMock(t)

@@ -47,8 +47,8 @@ func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T
 	assert.Contains(t, experimentSocket, "After=datadog-agent-rshell-privileged.socket\n")
 
 	for name, want := range map[string]struct{ agent, check string }{
-		"datadog-agent-rshell-privileged.service":     {"datadog-agent.service", "datadog-agent-rshell-privileged-check.service"},
-		"datadog-agent-rshell-privileged-exp.service": {"datadog-agent-exp.service", "datadog-agent-rshell-privileged-check-exp.service"},
+		"datadog-agent-rshell-privileged.service":     {"datadog-agent.service", "datadog-agent-rshell-enabled.service"},
+		"datadog-agent-rshell-privileged-exp.service": {"datadog-agent-exp.service", "datadog-agent-rshell-enabled-exp.service"},
 	} {
 		unit := string(units[name])
 		check := want.check
@@ -60,8 +60,8 @@ func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T
 	}
 
 	for name, etcDir := range map[string]string{
-		"datadog-agent-rshell-privileged-check.service":     "/etc/datadog-agent",
-		"datadog-agent-rshell-privileged-check-exp.service": "/etc/datadog-agent-exp",
+		"datadog-agent-rshell-enabled.service":     "/etc/datadog-agent",
+		"datadog-agent-rshell-enabled-exp.service": "/etc/datadog-agent-exp",
 	} {
 		unit := string(units[name])
 		assert.Contains(t, unit, "Type=oneshot\n", name)
