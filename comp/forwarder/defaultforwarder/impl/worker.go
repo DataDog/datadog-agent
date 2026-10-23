@@ -130,10 +130,12 @@ func (w *Worker) stopWithoutWaitingForInflight(purgeHighPrio bool) {
 //
 // The process is expected to exit shortly after Stop returns, so any in-flight
 // goroutines are reaped on exit. This path is only appropriate for that "Stop
-// is the last thing before process exit" shape — there is no codepath today
-// that calls forwarder.Stop and keeps running, but a future caller that does
-// would observe shutdown returning before HTTP requests complete rather than
-// cancelling them mid-flight.
+// is the last thing before process exit" shape. A caller that stops a
+// forwarder and keeps running would see Stop return before HTTP requests
+// complete instead of cancelling them. The OTel serializer exporter
+// (comp/otelcol/otlp/components/exporter/serializerexporter) is such a caller:
+// it stops its forwarder on every exporter shutdown, including a collector
+// config reload, so it sets forwarder_stop_wait_for_inflight to false.
 func (w *Worker) stopWaitingForInflight(purgeHighPrio bool) {
 	close(w.stopChan)
 

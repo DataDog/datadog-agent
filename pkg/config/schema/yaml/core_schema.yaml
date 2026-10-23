@@ -7139,7 +7139,7 @@ properties:
   dogstatsd_flush_incomplete_buckets:
     node_type: setting
     type: boolean
-    default: false
+    default: true
   dogstatsd_host_socket_path:
     node_type: setting
     type: string
@@ -7704,11 +7704,11 @@ properties:
   forwarder_stop_wait_for_inflight:
     node_type: setting
     type: boolean
-    default: false
+    default: true
     comment: |-
       forwarder_stop_wait_for_inflight controls whether Worker.Stop waits for
-      in-flight HTTP transactions to finish before returning (true) or cancels
-      them immediately (false).
+      in-flight HTTP transactions to finish before returning (true, the default)
+      or cancels them immediately (false).
   forwarder_storage_path:
     node_type: setting
     type: string
