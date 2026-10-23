@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -159,7 +160,9 @@ func (e configExperiment) abortStart(ctx context.Context, startErr error) error 
 
 // Stop hands the Agent back to the stable job set, abandoning the experiment.
 func (e configExperiment) Stop(ctx context.Context) error {
-	return e.restoreStable(ctx)
+	err := e.restoreStable(ctx)
+	ensureProcmgr(ctx, false)
+	return err
 }
 
 // Promote hands the Agent back to the stable job set, which now reads the promoted configuration.
@@ -168,8 +171,54 @@ func (e configExperiment) Stop(ctx context.Context) error {
 // the configuration directories before the hook ran. The two are kept apart because they are
 // distinct outcomes to a reader of the code and of the traces, and because anything that later
 // times an experiment out has to distinguish them.
+//
+// The process manager is restarted as well: it has no experiment variant, so it kept running on
+// the stable configuration throughout the experiment, and it only reads that configuration when
+// it starts.
 func (e configExperiment) Promote(ctx context.Context) error {
-	return e.restoreStable(ctx)
+	err := e.restoreStable(ctx)
+	ensureProcmgr(ctx, true)
+	return err
+}
+
+// ensureProcmgr makes sure the process manager is running on its stable job once an experiment
+// ends, loading it if anything left it unloaded, and restarting it when restart is set so it picks
+// up a promoted configuration.
+//
+// A configuration experiment never swaps the process manager (see procmgrJob), so nothing in the
+// experiment should have stopped it. This is the backstop that keeps it from staying stopped if
+// something did. Failures are logged rather than returned: the process manager is not part of the
+// experiment, and failing a stop or a promote over it would misreport the experiment's outcome.
+func ensureProcmgr(ctx context.Context, restart bool) {
+	ctx = context.WithoutCancel(ctx)
+	client := launchdClient()
+	loaded, err := client.Loaded(ctx, procmgrJob)
+	if err != nil {
+		log.Warnf("could not tell whether %s is loaded: %v", procmgrJob, err)
+		return
+	}
+	if !loaded {
+		log.Warnf("%s is not loaded after the configuration experiment, loading it", procmgrJob)
+		definition, err := embedded.GetLaunchdJob(procmgrJob, launchd.Stable)
+		if err != nil {
+			log.Warnf("could not read the job definition for %s: %v", procmgrJob, err)
+			return
+		}
+		set := launchd.JobSet{Labels: []string{procmgrJob}, Dir: launchdJobDir, Client: client}
+		if _, err := set.Job(procmgrJob, launchd.Stable).WriteIfChanged(definition); err != nil {
+			log.Warnf("could not write the job definition for %s: %v", procmgrJob, err)
+			return
+		}
+		if err := set.Start(ctx, launchd.Stable); err != nil {
+			log.Warnf("could not load %s: %v", procmgrJob, err)
+		}
+		return
+	}
+	if restart {
+		if err := client.Kickstart(ctx, procmgrJob, true); err != nil {
+			log.Warnf("could not restart %s on the promoted configuration: %v", procmgrJob, err)
+		}
+	}
 }
 
 // restoreStable unloads the experiment set, removes its definitions and loads the stable set.

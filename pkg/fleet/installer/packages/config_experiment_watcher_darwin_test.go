@@ -260,3 +260,66 @@ func TestWatcherFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
 	}
 	assertReverted(t, l, experimentPath)
 }
+
+// kickstarts returns the recorded kickstart calls for target, with their flags.
+func (l *liveLaunchd) kickstarts(target string) [][]string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var found [][]string
+	for _, args := range l.calls {
+		if args[0] == "kickstart" && args[len(args)-1] == target {
+			found = append(found, args)
+		}
+	}
+	return found
+}
+
+// TestPromoteRestartsTheProcessManager pins that a promote restarts the process manager: it has no
+// experiment variant, kept running on the stable configuration, and only reads it when it starts.
+func TestPromoteRestartsTheProcessManager(t *testing.T) {
+	running := []string{procmgrJob}
+	for _, label := range agentJobs {
+		running = append(running, label+"-exp")
+	}
+	l := stubLiveLaunchd(t, running...)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Promote(testHookContext(t)))
+
+	assert.Equal(t, [][]string{{"kickstart", "-k", "system/" + procmgrJob}}, l.kickstarts("system/"+procmgrJob))
+}
+
+// TestStopLeavesARunningProcessManagerAlone pins that a rollback does not bounce the process
+// manager: it never saw the experiment configuration.
+func TestStopLeavesARunningProcessManagerAlone(t *testing.T) {
+	running := []string{procmgrJob}
+	for _, label := range agentJobs {
+		running = append(running, label+"-exp")
+	}
+	l := stubLiveLaunchd(t, running...)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
+
+	assert.Empty(t, l.kickstarts("system/"+procmgrJob))
+	assert.True(t, l.isLoaded(procmgrJob))
+}
+
+// TestStopLoadsAStoppedProcessManager pins the backstop: the process manager is never left stopped
+// once an experiment ends, whatever stopped it.
+func TestStopLoadsAStoppedProcessManager(t *testing.T) {
+	var running []string
+	for _, label := range agentJobs {
+		running = append(running, label+"-exp")
+	}
+	l := stubLiveLaunchd(t, running...)
+	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
+
+	assert.True(t, l.isLoaded(procmgrJob))
+	assert.FileExists(t, filepath.Join(dir, procmgrJob+".plist"))
+}

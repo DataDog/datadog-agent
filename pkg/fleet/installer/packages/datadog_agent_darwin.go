@@ -123,7 +123,9 @@ const installerJob = "com.datadoghq.installer"
 var configExperimentJobs = append(append([]string{}, agentJobs...), installerJob)
 
 // procmgrJob is the process manager daemon. It has no experiment variant: a configuration
-// experiment leaves it running on its stable job.
+// experiment leaves it running on its stable job, reading the stable configuration. When the
+// experiment ends it is loaded again if anything stopped it, and restarted on a promote so it reads
+// the promoted configuration (ensureProcmgr).
 const procmgrJob = "com.datadoghq.procmgr"
 
 // stableJobs are the launchd jobs that run normally, in the order they are loaded.

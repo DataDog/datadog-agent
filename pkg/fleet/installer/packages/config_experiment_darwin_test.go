@@ -373,7 +373,7 @@ func TestRestoreStableRetriesBeforeGivingUp(t *testing.T) {
 			if len(args) > 0 && args[0] == "print" {
 				return []byte(notLoadedOutput), exitError(113)
 			}
-			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") {
+			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") && !namesProcmgr(args) {
 				attempts++
 			}
 			return nil, nil
@@ -405,7 +405,7 @@ func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
 			if len(args) > 0 && args[0] == "print" {
 				return []byte(notLoadedOutput), exitError(113)
 			}
-			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") {
+			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") && !namesProcmgr(args) {
 				bootstrapAttempts++
 				return nil, errors.New("injected failure")
 			}
@@ -467,11 +467,17 @@ func TestResumeRetriesAFailedRestore(t *testing.T) {
 	assert.Empty(t, token)
 }
 
-// stableOnly keeps the recorded launchctl calls that do not name an experiment job.
+// namesProcmgr reports whether a recorded launchctl call is about the process manager, which the
+// end of every experiment makes sure is loaded (ensureProcmgr): the stubs report it unloaded.
+func namesProcmgr(args []string) bool {
+	return strings.Contains(strings.Join(args, " "), procmgrJob)
+}
+
+// stableOnly keeps the recorded launchctl calls that name a stable job the experiment swaps.
 func stableOnly(calls [][]string) [][]string {
 	var kept [][]string
 	for _, args := range calls {
-		if !strings.Contains(strings.Join(args, " "), "-exp") {
+		if !strings.Contains(strings.Join(args, " "), "-exp") && !namesProcmgr(args) {
 			kept = append(kept, args)
 		}
 	}
@@ -552,7 +558,7 @@ func stubLaunchdScript(t *testing.T, respond func(args []string) ([]byte, error,
 func stableBootstraps(calls [][]string) map[string]int {
 	counts := map[string]int{}
 	for _, args := range calls {
-		if args[0] == "bootstrap" && !strings.Contains(args[len(args)-1], "-exp") {
+		if args[0] == "bootstrap" && !strings.Contains(args[len(args)-1], "-exp") && !namesProcmgr(args) {
 			counts[strings.TrimSuffix(filepath.Base(args[len(args)-1]), ".plist")]++
 		}
 	}
