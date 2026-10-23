@@ -180,3 +180,45 @@ class TestPackages(unittest.TestCase):
         os.remove(req_file)
         os.rmdir(install_dir)
         os.rmdir(storage_dir)
+
+    @unittest.skipIf(os.name == 'nt', "Skip on Windows")
+    def test_install_diff_packages_file_routes_allowlisted_datadog_package_to_pip(self):
+        """A name on DEPS_STARTING_WITH_DATADOG restores from PyPI, not the integration repo.
+
+        The integration repo only carries integrations Datadog publishes, so a
+        package that merely happens to carry the `datadog-` prefix must be routed
+        to pip; sending it to the repo raises NoSuchDatadogPackage and fails the
+        whole upgrade.
+        """
+        install_dir = tempfile.mkdtemp()
+        storage_dir = tempfile.mkdtemp()
+        diff_file = os.path.join(storage_dir, '.diff_python_installed_packages.txt')
+        req_file = os.path.join(install_dir, 'requirements-agent-release.txt')
+
+        # Any member of the allowlist exercises the same branch; take the first
+        # so the test does not pin a specific entry.
+        allowlisted = packages.DEPS_STARTING_WITH_DATADOG[0]
+
+        with open(diff_file, 'w') as f:
+            f.write("# DO NOT REMOVE/MODIFY\n")
+            f.write(f"{allowlisted}==1.0.0\n")
+            f.write("datadog-snmp==1.0.0\n")
+
+        with open(req_file, 'w') as f:
+            f.write('')
+
+        with patch('packages.install_datadog_package') as mock_integration:
+            with patch('packages.install_dependency_package') as mock_pip:
+                install_diff_packages_file(install_dir, diff_file, req_file)
+
+        # The non-allowlisted name still goes to the integration repo...
+        mock_integration.assert_called_once_with('datadog-snmp==1.0.0', install_dir)
+        # ...and the allowlisted one goes to pip instead.
+        self.assertEqual(mock_pip.call_count, 1)
+        self.assertEqual(mock_pip.call_args[0][1], f'{allowlisted}==1.0.0')
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        os.rmdir(install_dir)
+        os.rmdir(storage_dir)
