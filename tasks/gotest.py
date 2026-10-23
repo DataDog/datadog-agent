@@ -979,9 +979,10 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         build_tags = []
 
     modules_to_test = {}
-    go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
+        # go.mod/go.sum changes are ignored: dependency bumps touch many of them and
+        # running tests for the whole module would be too costly.
         if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
             continue
 
@@ -1006,10 +1007,6 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
                 targeted = True
                 break
         if not targeted:
-            continue
-
-        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
-        if best_module_path in go_mod_modified_modules:
             continue
 
         # If the package has been deleted we do not try to run tests

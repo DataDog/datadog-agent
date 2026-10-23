@@ -100,7 +100,7 @@ BPF_LRU_MAP(syscall_monitor, struct syscall_monitor_key_t, struct syscall_monito
 BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
 BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
-BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
+BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256) // will be changed to BPF_TASK_STORAGE_MAP if USE_SYSCALL_TASK_STORAGE is set to 1 at runtime
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
 BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
 BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_userspace_lru_entry_t, 1024)
@@ -111,7 +111,7 @@ BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime. Will be changed to BPF_TASK_STORAGE_MAP if USE_SYSCALL_TASK_STORAGE is set to 1 at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime. Will be changed to BPF_TASK_STORAGE_MAP if USE_SYSCALL_TASK_STORAGE is set to 1 at runtime
 BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime

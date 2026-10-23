@@ -782,6 +782,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
+	// Resolve the event time before firstSeen reads it: Timestamp stays zero until resolved
+	event.ResolveEventTime()
+
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
@@ -794,7 +797,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -1389,10 +1391,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
-	eventTime := event.Timestamp
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
+	eventTime := event.ResolveEventTime()
 
 	// Initialize metadata
 	secprof.Metadata = mtdt.Metadata{

@@ -3,8 +3,23 @@ go_sdk.from_file(
     name = "go_work_sdk",
     go_work = "//:go.work",
 )
-use_repo(go_sdk, "go_work_sdk")
+use_repo(go_sdk, "go_toolchains", "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
+
+msgo = use_extension("//bazel/rules/msgo:extension.bzl", "msgo")
+msgo.from_file(
+    go_work = "//:go.work",
+    msgo_revision = 1,
+)
+use_repo(msgo, "msgo", "msgo_toolchains")
+
+inject_repo(
+    msgo,
+    io_bazel_rules_go = "rules_go",
+)
+
+# Control registration order so the first toolchain takes precedence when @rules_go//go/toolchain:sdk_name is not set
+register_toolchains("@go_toolchains//:all", "@msgo_toolchains//:all")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
@@ -517,6 +532,14 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//bazel/rules/go_msgp:use-go-format.patch"],
     path = "github.com/tinylib/msgp",
+)
+
+# datadogV2 (~1.4M generated lines) peaks at 6.4 GiB per compile, way above GoCompilePkg's 250MB default, and gets
+# compiled in a dozen configurations by `bazel test //...`: book memory accordingly to keep containers from OOMing.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:datadog-api-client-go-datadogV2-memory.patch"],
+    path = "github.com/DataDog/datadog-api-client-go/v2",
 )
 
 # zstd's vendored C (divsufsort.c) compiles assert() calls whose __FILE__ expands to

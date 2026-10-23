@@ -80,6 +80,7 @@ Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve 
 Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
 so a test never installs them at runtime. They are already the Linux defaults
 (`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+There is no generic runtime install: `PackageManager.RuntimeInstallDocker` (Docker and docker-compose) is the only one, for GCP, Azure and local VMs, and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
@@ -155,6 +156,14 @@ and the standalone driver — keep them in sync.
 
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
+
+## GCP authentication
+
+GCP provisioning uses ADC, while generated GKE kubeconfigs use the active gcloud
+CLI account through `gke-gcloud-auth-plugin`. Local GKE creation checks CLI credentials
+before provisioning because they can expire independently of ADC. When
+`GOOGLE_APPLICATION_CREDENTIALS` is supplied, preserve the existing service account
+activation path and skip the local CLI check.
 
 ## Agent installers outside Pulumi
 

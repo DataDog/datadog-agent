@@ -176,6 +176,7 @@ struct cgroup_write_event_t {
     struct cgroup_context_t cgroup;
     struct path_key_t path_key;
     u32 pid; // pid of the process added to the cgroup
+    s32 retval; // return value of the cgroup write
 };
 
 struct utimes_event_t {

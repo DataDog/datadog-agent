@@ -20,6 +20,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -52,8 +53,9 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          Component
-	FlareProvider flaretypes.Provider
+	Comp           Component
+	FlareProvider  flaretypes.Provider
+	StatusProvider status.InformationProvider
 }
 
 // NewServerlessConfig initializes a config component from the given config file
@@ -77,8 +79,9 @@ func NewServerlessConfig(path string) (Component, error) {
 func newComponent(deps dependencies) (provides, error) {
 	c, err := newConfig(deps)
 	return provides{
-		Comp:          c,
-		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+		Comp:           c,
+		FlareProvider:  flaretypes.NewProvider(c.fillFlare),
+		StatusProvider: status.NewInformationProvider(statusProvider{config: c}),
 	}, err
 }
 

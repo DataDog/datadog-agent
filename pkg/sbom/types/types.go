@@ -28,6 +28,13 @@ type ScanOptions struct {
 	AdditionalDirs   []string
 }
 
+// OSOnly reports whether the scan runs the OS package analyzers alone, that is
+// whether Analyzers is exactly ["os"]. Any other list, empty included, selects
+// the application analyzers too.
+func (o ScanOptions) OSOnly() bool {
+	return len(o.Analyzers) == 1 && o.Analyzers[0] == "os"
+}
+
 const (
 	ScanFilesystemType = "filesystem" // ScanFilesystemType defines the type for file-system scan
 	ScanDaemonType     = "daemon"     // ScanDaemonType defines the type for daemon scan

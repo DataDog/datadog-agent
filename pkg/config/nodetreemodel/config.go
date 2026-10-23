@@ -119,6 +119,7 @@ type ntmConfig struct {
 	configName string
 	configFile string
 	configType string
+
 	// configPaths is the set of path to look for the configuration file
 	configPaths []string
 
@@ -161,6 +162,8 @@ type ntmConfig struct {
 	deprecatedNames map[string]string
 
 	startTime time.Time
+
+	schemaID model.SchemaID
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -1068,6 +1071,7 @@ func (c *ntmConfig) bindEnv(key string, envvars []string) {
 		envvars = []string{c.mergeWithEnvPrefix(key)}
 	}
 	c.configEnvVars[key] = append(c.configEnvVars[key], envvars...)
+	registerKnownEnvVars(envvars...)
 }
 
 // MergeConfig merges in another config
@@ -1377,8 +1381,8 @@ func (c *ntmConfig) Object() model.Reader {
 }
 
 // NewNodeTreeConfig returns a new Config object.
-func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model.BuildableConfig {
-	config := ntmConfig{
+func NewNodeTreeConfig(name string, schemaType model.SchemaID) model.BuildableConfig {
+	return &ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
 		sequenceID:         0,
@@ -1402,14 +1406,11 @@ func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model
 		deprecations:       map[string]deprecation{},
 		deprecatedNames:    map[string]string{},
 		envTransform:       make(map[string]func(string) interface{}),
-		configName:         "datadog",
+		envPrefix:          "DD",
+		configName:         name,
 		startTime:          time.Now(),
+		schemaID:           schemaType,
 	}
-
-	config.SetConfigName(name)
-	config.SetEnvPrefix(envPrefix)
-
-	return &config
 }
 
 // ExtraConfigFilesUsed returns the additional config files used

@@ -165,6 +165,7 @@ deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
 deploy_mutable_secret_generic_connector_tags*  @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery
 deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
+deploy_mutable_host_profiler_tags*     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
