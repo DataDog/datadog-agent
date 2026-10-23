@@ -27,6 +27,7 @@ def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, ho
 
     pkg_deb_impl(
         name = name,
+        architecture = "{arch_deb}",
         conflicts = conflicts,
         data = data,
         depends = depends,
