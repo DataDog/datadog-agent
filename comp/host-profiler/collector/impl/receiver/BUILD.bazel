@@ -24,7 +24,6 @@ go_library(
             "@io_opentelemetry_go_ebpf_profiler//interpreter/interpreterconfig",
             "@io_opentelemetry_go_ebpf_profiler//reporter",
             "@org_uber_go_zap//:zap",
-            "@org_uber_go_zap_exp//zapslog",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/symboluploader",
@@ -39,7 +38,6 @@ go_library(
             "@io_opentelemetry_go_ebpf_profiler//interpreter/interpreterconfig",
             "@io_opentelemetry_go_ebpf_profiler//reporter",
             "@org_uber_go_zap//:zap",
-            "@org_uber_go_zap_exp//zapslog",
         ],
         "//conditions:default": [],
     }),
