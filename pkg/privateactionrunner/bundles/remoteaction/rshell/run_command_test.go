@@ -698,6 +698,165 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 }
 
+func TestRunCommandConfiguredElevationHelp(t *testing.T) {
+	for _, action := range []struct {
+		name       string
+		newHandler func(RunCommandHandlerConfig) *RunCommandHandler
+		readOnly   bool
+	}{
+		{name: "read-only", newHandler: NewRunCommandHandler, readOnly: true},
+		{name: "remediation", newHandler: NewRunRemediationCommandHandler},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			unavailable := "elevation not enabled for this command in this runner"
+			truncateStatus := unavailable
+			if action.readOnly {
+				truncateStatus = "requires remediation mode; " + unavailable
+			}
+			for _, policy := range []struct {
+				name     string
+				operator []string
+				want     string
+			}{
+				{
+					name: "unset operator leaves grants unrestricted",
+					want: "  cat (disabled by command policy)\n  echo (" + unavailable + ")\n  truncate (" + truncateStatus + ")",
+				},
+				{
+					name: "empty operator denies all", operator: []string{},
+					want: "  (no configured elevatable commands)",
+				},
+				{
+					name: "exact intersection independent of command policy", operator: []string{"rshell:truncate", "rshell:cat", "rshell:ls"},
+					want: "  cat (disabled by command policy)\n  truncate (" + truncateStatus + ")",
+				},
+				{
+					name: "operator wildcard is not an elevation grant", operator: []string{"rshell:*"},
+					want: "  (no configured elevatable commands)",
+				},
+				{
+					name: "operator bare command does not match", operator: []string{"echo"},
+					want: "  (no configured elevatable commands)",
+				},
+			} {
+				t.Run(policy.name, func(t *testing.T) {
+					for _, help := range []string{"help", "help --all"} {
+						t.Run(help, func(t *testing.T) {
+							root := filepath.ToSlash(t.TempDir())
+							cfg := defaultRunCommandHandlerConfig()
+							cfg.OperatorElevatableCommands = policy.operator
+							cfg.OperatorAllowedSystemServices = map[string][]string{"worker.service": {"read", "restart"}}
+							handler := action.newHandler(cfg)
+							task := makeTaskWithPaths(help+"; sudo echo unexpected",
+								[]string{"rshell:help", "rshell:echo", "rshell:truncate"}, []string{root + ":rw"})
+							task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+							task.Data.Attributes.Inputs["elevatableCommands"] = []string{
+								"rshell:truncate", "rshell:echo", "rshell:cat", "rshell:echo", "bash:echo", "rshell:*", "rshell:",
+							}
+							task.Data.Attributes.SystemInputs.GetRemoteAction().SystemServices = map[string]*structpb.ListValue{
+								"worker.service": systemServiceActions("read", "restart", "stop"),
+							}
+
+							out, err := handler.Run(context.Background(), task, nil)
+
+							require.NoError(t, err)
+							result := out.(*RunCommandOutputs)
+							assert.Equal(t, 126, result.ExitCode)
+							assert.Contains(t, result.Stderr, "sudo: echo: elevation not allowed")
+							assert.Contains(t, result.Stdout, "Configured elevation policy:\n"+policy.want+"\n\n")
+							assert.Contains(t, result.Stdout, "Elevatable commands:\n  (no effective elevatable commands — sudo is unavailable)")
+							assert.Contains(t, result.Stdout, "  Read-write:\n    "+root+"\n")
+							assert.Contains(t, result.Stdout, "  worker.service:read+restart\n")
+							if action.readOnly {
+								assert.Contains(t, result.Stdout, "write access requires remediation mode")
+								assert.Contains(t, result.Stdout, "non-read actions are inactive in read-only mode")
+							} else {
+								assert.NotContains(t, result.Stdout, "write access requires remediation mode")
+								assert.NotContains(t, result.Stdout, "non-read actions are inactive in read-only mode")
+							}
+							assert.NotContains(t, result.Stdout, "helper disabled")
+							assert.NotContains(t, result.Stdout, "unexpected")
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestRunCommandConfiguredElevationAuthorityAndValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		permissions string
+		grants      any
+		want        string
+		wantErr     string
+	}{
+		{name: "missing permission and grants are unknown", want: "elevation policy metadata not supplied"},
+		{name: "grants without permission are not authoritative", grants: []string{"rshell:echo"}, want: "elevation policy metadata not supplied"},
+		{name: "malformed names without permission are ignored", grants: []string{"rshell:echo:bad"}, want: "elevation policy metadata not supplied"},
+		{name: "missing grants with permission are empty", permissions: privilegedhelper.EscalationAllowed, want: "no configured elevatable commands"},
+		{name: "nil grants with permission are empty", permissions: privilegedhelper.EscalationAllowed, grants: []string(nil), want: "no configured elevatable commands"},
+		{name: "empty grants with permission are empty", permissions: privilegedhelper.EscalationAllowed, grants: []string{}, want: "no configured elevatable commands"},
+		{name: "invalid namespace entries are filtered", permissions: privilegedhelper.EscalationAllowed, grants: []string{"echo", "bash:echo", "", "rshell:", "rshell:*"}, want: "no configured elevatable commands"},
+		{name: "malformed rshell name fails validation", permissions: privilegedhelper.EscalationAllowed, grants: []string{"rshell:echo:bad"}, wantErr: "ConfiguredElevatableCommands: AllowedCommands:"},
+		{name: "non-list grants fail extraction", permissions: privilegedhelper.EscalationAllowed, grants: "rshell:echo", wantErr: "error unmarshaling inputs"},
+		{name: "non-string grant fails extraction", permissions: privilegedhelper.EscalationAllowed, grants: []any{42}, wantErr: "error unmarshaling inputs"},
+		{name: "unsupported permissions fail closed", permissions: "Unknown", grants: []string{"rshell:echo"}, wantErr: "unsupported effective permissions"},
+		{name: "root remains unsupported", permissions: "Root", grants: []string{"rshell:echo"}, wantErr: "whole-script root execution is not supported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, handler := range []*RunCommandHandler{newDefaultRunCommandHandler(), newDefaultRunRemediationCommandHandler()} {
+				task := makeTask("help", []string{"rshell:help", "rshell:echo"})
+				if tc.permissions != "" {
+					task.Data.Attributes.Inputs["effectivePermissions"] = tc.permissions
+				}
+				if tc.grants != nil {
+					task.Data.Attributes.Inputs["elevatableCommands"] = tc.grants
+				}
+
+				out, err := handler.Run(context.Background(), task, nil)
+
+				if tc.wantErr != "" {
+					require.ErrorContains(t, err, tc.wantErr)
+					assert.Nil(t, out)
+					continue
+				}
+				require.NoError(t, err)
+				result := out.(*RunCommandOutputs)
+				assert.Zero(t, result.ExitCode)
+				assert.Empty(t, result.Stderr)
+				assert.Contains(t, result.Stdout, "Configured elevation policy:\n  ("+tc.want+")")
+			}
+		})
+	}
+}
+
+func TestRunCommandConfiguredElevationKeepsSignedHelperRequirements(t *testing.T) {
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.PrivilegedEnabled = true
+	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "helper.sock")
+	for _, handler := range []*RunCommandHandler{NewRunCommandHandler(cfg), NewRunRemediationCommandHandler(cfg)} {
+		task := makeTask("help", []string{"rshell:help"})
+		task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+		task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+		out, err := handler.Run(context.Background(), task, nil)
+		require.ErrorContains(t, err, "verified signed envelope is required")
+		assert.Nil(t, out)
+
+		task.Data.Attributes.SignedEnvelope = &privateactionspb.RemoteConfigSignatureEnvelope{}
+		out, err = handler.Run(context.Background(), task, nil)
+		require.ErrorContains(t, err, "verified public key is required")
+		assert.Nil(t, out)
+
+		task.Data.Attributes.VerificationKey = &types.TaskVerificationKey{}
+		out, err = handler.Run(context.Background(), task, nil)
+		require.ErrorContains(t, err, "verified Director proof is required")
+		assert.Nil(t, out)
+	}
+}
+
 func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
 	cfg := defaultRunCommandHandlerConfig()
 	cfg.PrivilegedEnabled = true
