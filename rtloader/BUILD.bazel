@@ -191,10 +191,10 @@ cc_library(
             "@cpython//:lib_win",
         ],
         "@platforms//os:linux": [
-            "@cpython//:python_unix_shared",
+            "//deps/cpython:python_headers",
         ],
         "@platforms//os:macos": [
-            "@cpython//:python_unix_shared",
+            "//deps/cpython:python_headers",
         ],
     }),
 )
@@ -208,11 +208,11 @@ cc_shared_library(
         "@platforms//os:windows": [],
         "@platforms//os:linux": [
             ":rtloader_pkg",
-            "@cpython//:python_pkg",
+            "//deps/cpython:python_pkg",
         ],
         "@platforms//os:macos": [
             ":rtloader_pkg",
-            "@cpython//:python_pkg",
+            "//deps/cpython:python_pkg",
         ],
     }),
     shared_lib_name = select({

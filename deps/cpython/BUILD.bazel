@@ -1,9 +1,20 @@
 """Package delimiter."""
 
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink", "strip_prefix")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
+load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load(":filtered_files.bzl", "filtered_files")
 
-exports_files(["fix_sysconfigdata.py"])
+exports_files([
+    "0004-Skip-bytecode-compilation-during-install.patch",
+    "fix_sysconfigdata.py",
+])
 
 py_library(
     name = "fix_sysconfigdata_lib",
@@ -15,4 +26,240 @@ py_test(
     name = "fix_sysconfigdata_test",
     srcs = ["fix_sysconfigdata_test.py"],
     deps = [":fix_sysconfigdata_lib"],
+)
+
+PYTHON = "python{}".format(PYTHON_MAJOR_MINOR)
+
+LIBPYTHON = "lib{}.so".format(PYTHON)
+
+LIBPYTHON_LINUX = LIBPYTHON + ".1.0"
+
+LIBPYTHON_MACOS = "lib{}.dylib".format(PYTHON)
+
+UNIX_ONLY = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:macos": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+copy_file(
+    name = "python_bin",
+    src = "@python3_13//:shared_runtime/python",
+    out = PYTHON,
+    is_executable = True,
+    target_compatible_with = UNIX_ONLY,
+)
+
+# Mirrors what upstream's libinstall (Makefile.pre.in) leaves out, plus the
+# tzdata package hermetic-cpython adds. Re-check when bumping CPython.
+filtered_files(
+    name = "stdlib",
+    srcs = ["@python3_13//:stdlib"],
+    exclude_prefixes = [
+        "Lib/__phello__/ham/",
+        "Lib/idlelib/idle_test/",
+        "Lib/test/",
+        "Lib/tzdata/",
+        "Lib/venv/scripts/nt/",
+    ],
+    target_compatible_with = UNIX_ONLY,
+)
+
+pkg_files(
+    name = "stdlib_files",
+    srcs = [":stdlib"],
+    attributes = pkg_attributes("0755"),
+    prefix = "embedded/lib/" + PYTHON,
+    strip_prefix = strip_prefix.from_pkg("Lib"),
+    target_compatible_with = UNIX_ONLY,
+)
+
+pkg_files(
+    name = "sysconfig_file",
+    srcs = [
+        "@python3_13//:LICENSE",
+        "@python3_13//:shared_sysconfig_data",
+    ],
+    attributes = pkg_attributes("0755"),
+    prefix = "embedded/lib/" + PYTHON,
+    renames = {"@python3_13//:LICENSE": "LICENSE.txt"},
+    target_compatible_with = UNIX_ONLY,
+)
+
+pkg_files(
+    name = "header_files",
+    srcs = ["@python3_13//:include"],
+    prefix = "embedded/include/" + PYTHON,
+    strip_prefix = strip_prefix.from_pkg("Include"),
+    target_compatible_with = UNIX_ONLY,
+)
+
+pkg_files(
+    name = "pyconfig_file",
+    srcs = ["@python3_13//:shared_pyconfig_h"],
+    prefix = "embedded/include/" + PYTHON,
+    target_compatible_with = UNIX_ONLY,
+)
+
+pkg_mklink(
+    name = "libpython_symlink",
+    attributes = pkg_attributes("0644"),
+    link_name = "embedded/lib/" + LIBPYTHON,
+    target = LIBPYTHON_LINUX,
+)
+
+BIN_SYMLINKS = {
+    "embedded/bin/python3": PYTHON,
+    "embedded/bin/python": "python3",
+}
+
+[
+    pkg_mklink(
+        name = "python_bin_symlink_" + target,
+        attributes = pkg_attributes("0755"),
+        link_name = link,
+        target = target,
+    )
+    for link, target in BIN_SYMLINKS.items()
+]
+
+pkg_filegroup(
+    name = "python_files",
+    srcs = [
+        ":header_files",
+        ":pyconfig_file",
+        ":stdlib_files",
+        ":sysconfig_file",
+    ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()] + select({
+        "@platforms//os:linux": [":libpython_symlink"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = UNIX_ONLY,
+)
+
+# The shared modules link these, but are installed as files, which
+# dd_collect_dependencies does not walk.
+SHARED_MODULE_DEPENDENCIES = [
+    "@bzip2//:bz2_pkg",
+    "@openssl//:libcrypto_shared_pkg",
+    "@openssl//:libssl_shared_pkg",
+    "@sqlite3//:sqlite3_pkg",
+    "@xz//:lzma_pkg",
+    "@zlib//:z_pkg",
+]
+
+dd_cc_packaged(
+    name = "python_pkg_unix",
+    data = [":python_files"] + SHARED_MODULE_DEPENDENCIES,
+    dest_dir = "embedded/lib",
+    input = "@python3_13//:libpython",
+    installed_executables = {
+        ":python_bin": "embedded/bin",
+        "@python3_13//:shared_modules": "embedded/lib/{}/lib-dynload".format(PYTHON),
+    } | select({
+        "@platforms//os:linux": {"@python3_13//:libpython3": "embedded/lib"},
+        "//conditions:default": {},
+    }),
+)
+
+alias(
+    name = "python_pkg",
+    actual = select({
+        "@platforms//os:windows": "@cpython//:python_pkg",
+        "//conditions:default": ":python_pkg_unix",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "python_headers",
+    actual = select({
+        "@platforms//os:windows": "@cpython//:python_unix_shared",
+        "//conditions:default": "@python3_13//:headers",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# Python home for tests: the interpreter is two levels below it.
+copy_file(
+    name = "python_home_bin",
+    src = "@python3_13//:shared_runtime/python",
+    out = "python_home/bin/" + PYTHON,
+    is_executable = True,
+    target_compatible_with = UNIX_ONLY,
+)
+
+copy_file(
+    name = "python_home_libpython_linux",
+    src = "@python3_13//:libpython",
+    out = "python_home/lib/" + LIBPYTHON_LINUX,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+copy_file(
+    name = "python_home_libpython_macos",
+    src = "@python3_13//:libpython",
+    out = "python_home/lib/" + LIBPYTHON_MACOS,
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+copy_to_directory(
+    name = "python_home_stdlib",
+    srcs = [
+        ":stdlib",
+        "@python3_13//:shared_modules",
+        "@python3_13//:shared_sysconfig_data",
+    ],
+    out = "python_home/lib/" + PYTHON,
+    include_external_repositories = ["*"],
+    replace_prefixes = {
+        "Lib/": "",
+        "shared/Lib/": "",
+    },
+    target_compatible_with = UNIX_ONLY,
+)
+
+filegroup(
+    name = "python_home_unix",
+    srcs = [
+        ":python_home_bin",
+        ":python_home_stdlib",
+    ] + select({
+        "@platforms//os:linux": [":python_home_libpython_linux"],
+        "@platforms//os:macos": [":python_home_libpython_macos"],
+    }),
+    target_compatible_with = UNIX_ONLY,
+)
+
+alias(
+    name = "python_home",
+    actual = select({
+        "@platforms//os:windows": "@cpython//:python_unix",
+        "//conditions:default": ":python_home_unix",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "python3_bin",
+    actual = select({
+        "@platforms//os:windows": "@cpython//:python3_bin",
+        "//conditions:default": ":python_home_bin",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+dd_collect_dependencies(
+    name = "_runtime_deps_unix",
+    srcs = [":python_pkg_unix"],
+    target_compatible_with = UNIX_ONLY,
+    visibility = ["//visibility:private"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = select({
+        "@platforms//os:windows": ["@cpython//:all_files"],
+        "//conditions:default": [":_runtime_deps_unix"],
+    }),
 )

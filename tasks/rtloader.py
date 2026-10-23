@@ -121,7 +121,7 @@ def install_with_bazel(ctx):
 
         # Install rtloader and cpython where the Agent expects them at runtime
         bazel("run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
-        bazel("run", "@cpython//:install", "--", f"--destdir={bin_dir}")
+        bazel("run", "//deps/cpython:install", "--", f"--destdir={bin_dir}")
 
         return os.path.join(bin_dir, "embedded3")
 
