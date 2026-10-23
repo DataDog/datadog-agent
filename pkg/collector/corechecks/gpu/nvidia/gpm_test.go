@@ -95,6 +95,37 @@ func TestGPMCollectorAllMetricsDeniedIsNotUnsupported(t *testing.T) {
 	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
 }
 
+func TestGPMCollectorMixedPermissionAndUnsupportedMetricsIsNotUnsupported(t *testing.T) {
+	// GPM metrics are queried one by one, so the error of removeUnsupportedMetrics can be a join
+	// of per-metric failures. A permission error must not be hidden by an unsupported error that
+	// comes first in the joined error: permissions can be recovered, so the collector is retried.
+	oldAllGpmMetrics := allGpmMetrics
+	allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
+		1: {name: "metric1"},
+		2: {name: "metric2"},
+	}
+	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
+
+	// the first metric queried fails with unsupported, the second one with no permission
+	getCalls := 0
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+			getCalls++
+			if getCalls == 1 {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.ERROR_NO_PERMISSION
+		}),
+	)
+	collector, err := newGPMCollector(nvmltestutil.PhysicalDevice(t, mockLib, 0), &CollectorDependencies{})
+	require.Nil(t, collector)
+	require.ErrorContains(t, err, "failed to remove unsupported metrics")
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
+}
+
 func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
 	// Setup: all metrics will be marked as unsupported by GpmMetricsGet
 	oldAllGpmMetrics := allGpmMetrics

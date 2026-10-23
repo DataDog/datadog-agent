@@ -138,7 +138,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 
 	err = collector.removeUnsupportedMetrics()
 	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+		// The error is a join of per-metric errors, which can mix unsupported metrics with permission
+		// failures; errors.As stops at the first NVML error, so a permission error would be hidden and
+		// the collector marked as unsupported. Permissions can be recovered, so return them instead.
+		if !ddnvml.IsNoPermission(err) && ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			return nil, errUnsupportedDevice
 		}
 		return nil, fmt.Errorf("failed to remove unsupported metrics: %w", err)
