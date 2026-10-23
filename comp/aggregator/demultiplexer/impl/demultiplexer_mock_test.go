@@ -10,9 +10,12 @@ package demultiplexerimpl
 import (
 	"testing"
 
+	"go.uber.org/fx"
+
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -23,7 +26,7 @@ func TestSetDefaultSender(t *testing.T) {
 	mock := fxutil.Test[demultiplexerComp.Mock](t, MockModule(),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		defaultforwardermock.MockModule())
+		fx.Provide(func() defaultforwarder.Component { return defaultforwardermock.New(t) }))
 
 	sender := &mocksender.MockSender{}
 	mock.SetDefaultSender(sender)
