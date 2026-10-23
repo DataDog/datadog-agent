@@ -58,6 +58,9 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 			}
 		}
 	}
+	if ncmSender != nil {
+		ncmSender.SendConfigContentSize(len(result.Redacted), confType)
+	}
 	conf := ncmreport.ToNetworkDeviceConfig(deviceID, dc.device.IPAddress, confType, string(dc.profile.Name), result.Metadata, dc.GetTags(), result.Redacted, configID, configHash)
 	return &conf, stored, nil
 }
