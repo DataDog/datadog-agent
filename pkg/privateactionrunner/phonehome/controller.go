@@ -59,9 +59,13 @@ func Enabled(cfg model.Reader) bool {
 }
 
 // Run hands off at most once to the existing PAR startup path. It never retries enrollment or stops a child.
-func Run(ctx context.Context, cfg model.Reader, source Source) {
+func Run(ctx context.Context, cfg model.Reader, source Source, report func(State)) {
 	if !Enabled(cfg) {
 		return
+	}
+	emit := func(s State) {
+		publish(s)
+		report(s)
 	}
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
@@ -69,21 +73,21 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	buildFIPS, err := fips.Enabled()
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || buildFIPS || cfg.GetBool("fips.enabled") ||
 		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
-		publish(State{State: "blocked", Reason: "unsupported_poc_configuration"})
+		emit(State{State: "blocked", Reason: "unsupported_poc_configuration"})
 		return
 	}
 	socket := os.Getenv("DD_PM_SOCKET_PATH")
 	if !filepath.IsAbs(socket) {
-		publish(State{State: "blocked", Reason: "explicit_supervisor_socket_required"})
+		emit(State{State: "blocked", Reason: "explicit_supervisor_socket_required"})
 		return
 	}
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		publish(State{State: "blocked", Reason: "supervisor_connection_failed"})
+		emit(State{State: "blocked", Reason: "supervisor_connection_failed"})
 		return
 	}
 	defer conn.Close()
-	c := controller{cfg: cfg, source: source, pm: pb.NewProcessManagerClient(conn), emit: publish, now: time.Now}
+	c := controller{cfg: cfg, source: source, pm: pb.NewProcessManagerClient(conn), emit: emit, now: time.Now}
 	c.run(ctx)
 }
 
