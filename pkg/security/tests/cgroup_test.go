@@ -289,6 +289,85 @@ func validateSerializedPodUID(t *testing.T, test *testModule, event *model.Event
 	assert.Equal(t, podUID, payload.Process.Container.PodUID)
 }
 
+// TestCGroupContainerForkNoExec validates that, in ebpfless mode, a child forked
+// inside a container keeps the container ID before it execs. ebpfless process
+// cache entries only have a cgroup ID, no cgroup path key.
+func TestCGroupContainerForkNoExec(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless only")
+	}
+
+	const containerID = "e7a1c3b5d9f20486a1c3e5b7d9f0e2a4c6b8d0f1e3a5c7b9d2f4e6a8c0b1d3f5"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_container_fork_no_exec",
+			Expression: `open.file.path == "/dev/null" && process.file.name == "syscall_tester" && process.is_thread && process.container.id == "` + containerID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCGroup, err := newCGroup("docker-"+containerID+".scope", "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.remove(t)
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	test.WaitSignalFromRule(t, func() error {
+		_ = exec.Command(syscallTester, "fork").Run()
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_container_fork_no_exec")
+		assert.False(t, event.ProcessContext.IsExec, "process shouldn't be marked as being an exec")
+		assertFieldEqual(t, event, "process.container.id", containerID)
+
+		validateSerializedContainerID(t, test, event, containerID)
+	}, "test_cgroup_container_fork_no_exec")
+}
+
+func validateSerializedContainerID(t *testing.T, test *testModule, event *model.Event, containerID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		ID string `json:"id"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, containerID, payload.Container.ID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, containerID, payload.Process.Container.ID)
+}
+
 // TestCGroupPropagation validates cgroup propagation when a process is born into
 // a different cgroup via CLONE_INTO_CGROUP. The "open-event" subtest checks that
 // the child's open is correctly attributed to the new cgroup; the
@@ -741,7 +820,7 @@ func TestCGroupFailedWrite(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	// a cgroup with controllers enabled for its children can't contain processes, writing
+	// a cgroup with domain controllers enabled for its children can't contain processes, writing
 	// to its cgroup.procs file fails with EBUSY
 	parentCGroupPath := "/sys/fs/cgroup/cws-failed-write"
 	if err := os.Mkdir(parentCGroupPath, 0700); err != nil {
@@ -749,8 +828,8 @@ func TestCGroupFailedWrite(t *testing.T) {
 	}
 	defer os.Remove(parentCGroupPath)
 
-	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+pids"), 0700); err != nil {
-		t.Skipf("failed to enable the pids controller: %v", err)
+	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+memory"), 0700); err != nil {
+		t.Skipf("failed to enable the memory controller: %v", err)
 	}
 
 	childCGroupPath := parentCGroupPath + "/child"

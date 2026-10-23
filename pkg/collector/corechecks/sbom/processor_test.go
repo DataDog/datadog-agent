@@ -1232,6 +1232,28 @@ func TestProcessHostUsage(t *testing.T) {
 	})
 }
 
+// TestProcessProcfsScanGoesOutInFull checks that a container scan listing the
+// packages of the host SBOM sent last goes out in full, not as a heartbeat.
+func TestProcessProcfsScanGoesOutInFull(t *testing.T) {
+	scanned := time.Unix(1700000000, 0)
+	p := &processor{
+		queue:                 make(chan *model.SBOMEntity, 4),
+		hostname:              "host",
+		hostHeartbeatValidity: time.Hour,
+	}
+
+	p.processHostScanResult(newHostScan(scanned))
+	require.NotNil(t, (<-p.queue).GetCyclonedx())
+
+	scan := newHostScan(scanned.Add(time.Minute))
+	scan.RequestID = "container"
+	p.processProcfsScanResult(scan)
+	entity := <-p.queue
+	assert.Equal(t, "container", entity.GetId())
+	assert.False(t, entity.GetHeartbeat())
+	assert.NotNil(t, entity.GetCyclonedx())
+}
+
 // fakeScanner records the scan requests it receives.
 type fakeScanner struct {
 	requests []sbom.ScanRequest
@@ -1469,6 +1491,23 @@ func TestImageSBOMWaitsForUsage(t *testing.T) {
 		assert.True(t, entity.GetInUse())
 		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM goes out with its usage")
 		assertNoSBOM(t, sent)
+	})
+
+	t.Run("an SBOM of the OS packages alone goes out at once", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		fallback := graceImage(t, workloadmeta.Success, debPackage())
+		fallback.SBOM.OSFallback = true
+		notify(p, store, set(fallback))
+		assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()))
+
+		// The full SBOM that replaces it waits for its usage.
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assertNoSBOM(t, sent)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+		assert.True(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "the full SBOM goes out with its usage")
 	})
 
 	t.Run("the wait ends without usage", func(t *testing.T) {

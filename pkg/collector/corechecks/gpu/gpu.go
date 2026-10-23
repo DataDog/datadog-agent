@@ -61,6 +61,7 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 type Check struct {
 	core.CheckBase
 	collectors          []nvidia.Collector               // collectors for NVML metrics
+	collectorBuilder    *nvidia.CollectorBuilder         // collectorBuilder builds the collectors and retries the ones that failed to be created
 	excludedDeviceUUIDs map[string]struct{}              // excludedDeviceUUIDs contains normalized device UUIDs whose metrics should not be collected
 	tagger              tagger.Component                 // Tagger instance to add tags to outgoing metrics
 	telemetry           *checkTelemetry                  // Internal telemetry metrics for the check
@@ -120,6 +121,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		deviceTags:          make(map[string][]string),
 		excludedDeviceUUIDs: make(map[string]struct{}),
 		deviceCache:         ddnvml.NewDeviceCache(),
+		collectorBuilder:    nvidia.NewCollectorBuilder(),
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
@@ -252,12 +254,14 @@ func (c *Check) ensureInitCollectors() error {
 		return fmt.Errorf("failed to retrieve physical devices: %w", err)
 	}
 	curDevices := map[string]ddnvml.Device{}
+	var includedDevices []ddnvml.Device
 	for _, d := range devices {
 		deviceUUID := d.GetDeviceInfo().UUID
 		if c.isDeviceExcluded(deviceUUID) {
 			continue
 		}
 		curDevices[deviceUUID] = d
+		includedDevices = append(includedDevices, d)
 	}
 
 	// discard collectors of devices that are no more available
@@ -271,6 +275,15 @@ func (c *Check) ensureInitCollectors() error {
 		}
 	}
 
+	deps := &nvidia.CollectorDependencies{
+		DeviceEventsGatherer: c.deviceEvtGatherer,
+		SystemProbeCache:     c.spCache,
+		PRMCache:             c.prmCache,
+		Telemetry:            c.telemetry.collectorTelemetry,
+		Workloadmeta:         c.wmeta,
+		Config:               *c.gpuConfig,
+	}
+
 	// figure out which devices do not have a collector yet and build new ones accordingly
 	missingDevices := []ddnvml.Device{}
 	for uuid, d := range curDevices {
@@ -279,21 +292,10 @@ func (c *Check) ensureInitCollectors() error {
 		}
 	}
 	if len(missingDevices) > 0 {
-		newCollectors, err := nvidia.BuildCollectors(
-			missingDevices,
-			&nvidia.CollectorDependencies{
-				DeviceEventsGatherer: c.deviceEvtGatherer,
-				SystemProbeCache:     c.spCache,
-				PRMCache:             c.prmCache,
-				Telemetry:            c.telemetry.collectorTelemetry,
-				Workloadmeta:         c.wmeta,
-				Config:               *c.gpuConfig,
-			})
-		if err != nil {
-			return fmt.Errorf("failed to build NVML collectors: %w", err)
-		}
-		collectors = append(collectors, newCollectors...)
+		collectors = append(collectors, c.collectorBuilder.Build(missingDevices, deps)...)
 	}
+
+	collectors = append(collectors, c.collectorBuilder.RetryFailed(includedDevices, deps)...)
 
 	c.collectors = collectors
 	c.deviceTags = nvidia.GetDeviceTagsMapping(c.deviceCache, c.tagger)
@@ -455,11 +457,13 @@ func (c *Check) Run() error {
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
 			log.Warnf("error starting device events collection: %v", err)
+		} else {
+			// The (re)started gatherer has a fresh event set: reset the
+			// collectors' registration latch, or XID collection would silently
+			// stay off. Only on success: resetting also skips the collectors'
+			// registration backoff.
+			nvidia.ResetEventRegistrations(c.collectors)
 		}
-		// The (re)started gatherer has a fresh event set: reset the
-		// collectors' registration latch, or XID collection would silently
-		// stay off.
-		nvidia.ResetEventRegistrations(c.collectors)
 	}
 
 	// Attempt refreshing device events. Only the system-probe driver events
@@ -994,6 +998,7 @@ func (c *Check) releaseNVML() {
 	// dead state.
 	c.deviceCache.Invalidate()
 	c.collectors = nil
+	c.collectorBuilder.Reset()
 	c.releaseWindowStart = time.Now()
 }
 
