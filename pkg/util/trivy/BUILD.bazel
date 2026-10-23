@@ -75,6 +75,7 @@ go_library(
 dd_agent_go_test(
     name = "trivy_test",
     srcs = [
+        "image_test.go",
         "layers_containerd_test.go",
         "layers_crio_test.go",
         "layers_docker_test.go",
@@ -98,11 +99,16 @@ dd_agent_go_test(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/sbom",
+        "@com_github_aquasecurity_trivy//pkg/fanal/artifact",
         "@com_github_aquasecurity_trivy//pkg/fanal/types",
+        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
+        "@com_github_aquasecurity_trivy//pkg/types",
         "@com_github_containerd_containerd_v2//core/mount",
         "@com_github_containerd_containerd_v2//core/snapshots",
         "@com_github_containerd_errdefs//:errdefs",
+        "@com_github_datadog_ddtrivy//:ddtrivy",
         "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_google_go_containerregistry//pkg/v1/empty",
         "@com_github_moby_moby_api//types/image",
         "@com_github_moby_moby_api//types/storage",
         "@com_github_opencontainers_go_digest//:go-digest",

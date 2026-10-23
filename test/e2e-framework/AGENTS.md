@@ -157,6 +157,14 @@ and the standalone driver — keep them in sync.
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
 
+## GCP authentication
+
+GCP provisioning uses ADC, while generated GKE kubeconfigs use the active gcloud
+CLI account through `gke-gcloud-auth-plugin`. Local GKE creation checks CLI credentials
+before provisioning because they can expire independently of ADC. When
+`GOOGLE_APPLICATION_CREDENTIALS` is supplied, preserve the existing service account
+activation path and skip the local CLI check.
+
 ## Agent installers outside Pulumi
 
 `testing/installers` exposes agent installation independently of a Pulumi program.

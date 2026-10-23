@@ -7,7 +7,6 @@ package helper
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ import (
 )
 
 func constructNtmConfig(content string, setupFunc func(model.Setup)) model.BuildableConfig {
-	conf := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := nodetreemodel.NewNodeTreeConfig("datadog", model.CoreSchema) // nolint: forbidigo // legit use case
 
 	if setupFunc != nil {
 		setupFunc(conf)

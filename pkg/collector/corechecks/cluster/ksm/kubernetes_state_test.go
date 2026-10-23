@@ -1939,6 +1939,15 @@ func TestUsesCustomResourceMetrics(t *testing.T) {
 	}
 }
 
+func TestDefaultCollectors(t *testing.T) {
+	collectors := defaultCollectors()
+	assert.Contains(t, collectors, "endpoints")
+	assert.Contains(t, collectors, "horizontalpodautoscalers")
+	for _, c := range excludedDefaultCollectors {
+		assert.NotContains(t, collectors, c)
+	}
+}
+
 func TestAllowDeny(t *testing.T) {
 	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)

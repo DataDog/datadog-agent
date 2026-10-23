@@ -62,6 +62,7 @@ new-e2e-autoscaling:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
     - qa_dca
   rules:
     - !reference [.on_autoscaling_or_e2e_changes]
