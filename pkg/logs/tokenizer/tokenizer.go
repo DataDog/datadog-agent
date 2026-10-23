@@ -259,7 +259,12 @@ func (t *Tokenizer) collapseIPv4Tail() {
 // "abc 123". Consumers may hash this form, so changing it needs a
 // ProfileVersion bump.
 func TokensToString(tokens []Token) string {
+	n := 0
+	for _, t := range tokens {
+		n += len(tokenToString(t))
+	}
 	var builder strings.Builder
+	builder.Grow(n)
 	for _, t := range tokens {
 		builder.WriteString(tokenToString(t))
 	}
