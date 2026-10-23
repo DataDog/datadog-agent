@@ -78,6 +78,7 @@ type Check struct {
 	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
+	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the resource_id is resolved best-effort; only touched from the Run goroutine
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
@@ -352,7 +353,8 @@ func (c *Check) Run() error {
 	// error in the agent status.
 	if c.skipNVML {
 		if c.issueReporter != nil {
-			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
 		c.telemetry.metrics.deviceCount.Set(0)
 		return nil
@@ -499,7 +501,6 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		return
 	}
 
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	if !unavailable {
 		// Only mark the issue as resolved if we had a successful init of the
 		// NVML library. unavailable is only true after a certain amount of
@@ -508,7 +509,8 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		// (unavailable will be false at the start) even if the NVML library is
 		// not available still.
 		if nvmlInitSuccess {
-			c.issueReporter.ResolveIssue(issueID)
+			c.resolveNvmlIssues("")
+			c.nvmlIssueID = ""
 		}
 		return
 	}
@@ -521,10 +523,28 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		log.Warnf("failed to build GPU NVML health issue: %v", buildErr)
 		return
 	}
-	issue.Id = issueID
+	if c.nvmlIssueID == "" {
+		c.nvmlIssueID = c.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	}
+	issue.Id = c.nvmlIssueID
 
 	if err := c.issueReporter.ReportIssue(issue); err != nil {
 		log.Warnf("failed to report GPU NVML health issue: %v", err)
+		return
+	}
+	c.resolveNvmlIssues(c.nvmlIssueID)
+}
+
+// resolveNvmlIssues resolves every active NVML issue except keep. Active issues
+// are looked up by name rather than by recomputing the id, so that issues
+// persisted by a previous run (possibly with another discriminator, or the
+// legacy unscoped id) are resolved too.
+func (c *Check) resolveNvmlIssues(keep string) {
+	prefix := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	for _, issueID := range c.issueReporter.GetActiveIssueIDsByIssueName(gpuenvironment.IssueName) {
+		if issueID != keep && strings.HasPrefix(issueID, prefix) {
+			c.issueReporter.ResolveIssue(issueID)
+		}
 	}
 }
 
@@ -594,8 +614,10 @@ func (c *Check) resolveIssuesByName(issueName, keepID string) {
 	}
 }
 
-func gpuHealthIssueID(reason string) string {
-	return gpuenvironment.IssueID + ":" + reason
+// gpuHealthIssueID scopes the issue to the resource_id the outbound report
+// carries, so agents on different resources don't share the same id.
+func (c *Check) gpuHealthIssueID(reason string) string {
+	return gpuenvironment.IssueID + ":" + reason + ":" + c.issueReporter.ResourceID()
 }
 
 // PCI identifiers used to tell from the PCI inventory whether a host only has
