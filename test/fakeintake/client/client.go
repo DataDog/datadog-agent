@@ -581,7 +581,7 @@ type ComplianceFinding struct {
 	FrameworkID string `json:"agent_framework_id"`
 	RuleID      string `json:"agent_rule_id"`
 	Result      string `json:"result"`
-	HostCCRID   string `json:"host_ccrid"`
+	CCRID       string `json:"ccrid"`
 }
 
 // GetComplianceFindings returns the compliance findings received at the
