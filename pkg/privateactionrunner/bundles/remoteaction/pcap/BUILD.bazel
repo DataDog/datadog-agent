@@ -1,0 +1,188 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "pcap",
+    srcs = [
+        "entrypoint.go",
+        "run_capture.go",
+        "run_capture_socket.go",
+        "run_capture_stub.go",
+        "upload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/pcap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/fileupload/def",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "@com_github_google_uuid//:uuid",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+            "//pkg/util/funcs",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "pcap_test",
+    srcs = [
+        "run_capture_e2e_real_test.go",
+        "run_capture_socket_real_test.go",
+        "run_capture_socket_test.go",
+        "run_capture_test.go",
+    ],
+    embed = [":pcap"],
+    deps = [
+        "//comp/forwarder/fileupload/def",
+        "//comp/forwarder/fileupload/mock",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/core/config",
+            "//comp/forwarder/fileupload/impl",
+            "//pkg/config/mock",
+            "//pkg/system-probe/api/server",
+            "@com_github_google_uuid//:uuid",
+        ],
+        "//conditions:default": [],
+    }),
+)

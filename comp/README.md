@@ -342,6 +342,12 @@ Package eventplatform contains the logic for forwarding events to the event plat
 
 Package eventplatformreceiver implements the receiver for the event platform package
 
+### [comp/forwarder/fileupload](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/fileupload)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package fileupload sends files to event platform intake tracks as streamed multipart uploads
+
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
 *Datadog Team*: kubernetes-experiences

@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/ipc/def",
         "//comp/forwarder/eventplatform/def",
+        "//comp/forwarder/fileupload/def",
         "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
@@ -59,6 +60,7 @@ go_library(
         "//pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement",
         "//pkg/privateactionrunner/bundles/remoteaction/networkdevices",
         "//pkg/privateactionrunner/bundles/remoteaction/networks",
+        "//pkg/privateactionrunner/bundles/remoteaction/pcap",
         "//pkg/privateactionrunner/bundles/remoteaction/rshell",
         "//pkg/privateactionrunner/bundles/script",
         "//pkg/privateactionrunner/bundles/temporal",
