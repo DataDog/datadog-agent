@@ -584,3 +584,32 @@ func BenchmarkStringsMatcherPrefixRulesExceptions(b *testing.B) {
 		})
 	}
 }
+
+func TestMatcherKey(t *testing.T) {
+	first, _ := NewMatcherWithPrefixRules([]string{"critical.slo", "billing.latency", "critical.slo"}, false,
+		[]PrefixRule{{Prefix: "billing.latency"}, {Prefix: "billing."}})
+	second, _ := NewMatcherWithPrefixRules([]string{"critical.slo"}, false, []PrefixRule{{Prefix: "billing."}})
+	assert.Equal(t, first.Key(), second.Key())
+	assert.Equal(t, 2, first.Len())
+
+	// Empty and absent lists describe the same matcher.
+	assert.Equal(t, (Matcher{}).Key(), NewMatcher([]string{}, false).Key())
+	covered, _ := NewMatcherWithPrefixRules([]string{"billing.latency"}, false, []PrefixRule{{Prefix: "billing."}})
+	prefixOnly, _ := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: "billing."}})
+	assert.Equal(t, covered.Key(), prefixOnly.Key())
+
+	// Each field and entry must remain distinguishable in the key.
+	matchers := []Matcher{
+		{exact: []string{"a", "b"}},
+		{exact: []string{"a\x01b"}},
+		{prefixes: []string{"a", "b"}},
+		{rulePrefixes: []string{"a", "b"}},
+		{rulePrefixes: []string{"a", "b"}, exceptExact: []string{"a"}},
+		{rulePrefixes: []string{"a", "b"}, exceptPrefix: []string{"a"}},
+	}
+	keys := make(map[string]struct{}, len(matchers))
+	for _, matcher := range matchers {
+		keys[matcher.Key()] = struct{}{}
+	}
+	assert.Len(t, keys, len(matchers))
+}
