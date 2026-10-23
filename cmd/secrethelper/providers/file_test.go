@@ -22,6 +22,8 @@ var fileThatDoesNotExist = "secret2"
 var fileThatExceedsMaxSize = "secret3"
 var fileThatIsASymlinkToSameDir = "secret4" // Points to "secret1"
 var fileThatIsASymlinkToOtherDir = "secret5"
+var fileThatIsAnAbsoluteSymlinkToSameDir = "secret6"
+var fileThatIsAnAbsoluteSymlinkToOtherDir = "secret7"
 
 // setupReadSecretFileTree materialises the read-secrets layout in a temp dir.
 // We build it from code instead of reading checked-in testdata so the test
@@ -51,6 +53,10 @@ func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath 
 		filepath.Join(testSecretsAbsPath, fileThatIsASymlinkToSameDir)))
 	require.NoError(t, os.Symlink("../read-secrets-secret5-target",
 		filepath.Join(testSecretsAbsPath, fileThatIsASymlinkToOtherDir)))
+	require.NoError(t, os.Symlink(filepath.Join(testSecretsAbsPath, fileThatExists),
+		filepath.Join(testSecretsAbsPath, fileThatIsAnAbsoluteSymlinkToSameDir)))
+	require.NoError(t, os.Symlink(filepath.Join(testDataAbsPath, "read-secrets-secret5-target"),
+		filepath.Join(testSecretsAbsPath, fileThatIsAnAbsoluteSymlinkToOtherDir)))
 	return
 }
 
@@ -87,8 +93,20 @@ func TestReadSecretFile(t *testing.T) {
 			skipWindows:         true,
 		},
 		{
+			name:                "file is an absolute symlink pointing to the same dir",
+			inputFile:           fileThatIsAnAbsoluteSymlinkToSameDir,
+			expectedSecretValue: contentsOfFileThatExists,
+			skipWindows:         true,
+		},
+		{
 			name:           "file is a symlink to other dir",
 			inputFile:      fileThatIsASymlinkToOtherDir,
+			expectAnyError: true,
+			skipWindows:    true,
+		},
+		{
+			name:           "file is an absolute symlink to other dir",
+			inputFile:      fileThatIsAnAbsoluteSymlinkToOtherDir,
 			expectAnyError: true,
 			skipWindows:    true,
 		},

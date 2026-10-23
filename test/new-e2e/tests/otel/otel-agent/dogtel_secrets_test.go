@@ -80,6 +80,10 @@ func dogtelSecretsStandaloneProvisioner() provisioners.TypedProvisioner[environm
 					Name:  pulumi.String("DD_SECRET_BACKEND_COMMAND"),
 					Value: pulumi.String("/readsecret_multiple_providers.sh"),
 				},
+				&corev1.EnvVarArgs{
+					Name:  pulumi.String("DD_SECRET_BACKEND_ARGUMENTS"),
+					Value: pulumi.String("/etc/dogtel-secrets"),
+				},
 			),
 			// Mount the K8s secret into the container.
 			otelstandalone.WithExtraVolumes(

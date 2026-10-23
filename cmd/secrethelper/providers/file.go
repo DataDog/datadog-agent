@@ -30,14 +30,29 @@ func ReadSecretFile(rootPath, path string) secrets.SecretVal {
 	}
 	defer root.Close()
 
+	rootAbs, err := filepath.Abs(rootPath)
+	if err != nil {
+		return secrets.SecretVal{ErrorMsg: err.Error()}
+	}
 	if filepath.IsAbs(path) {
-		rootAbs, err := filepath.Abs(rootPath)
-		if err != nil {
-			return secrets.SecretVal{ErrorMsg: err.Error()}
-		}
 		path, err = filepath.Rel(rootAbs, path)
 		if err != nil {
 			return secrets.SecretVal{ErrorMsg: err.Error()}
+		}
+	}
+
+	// Root.Open rejects absolute symlinks even when they point inside the root.
+	linkInfo, err := root.Lstat(path)
+	if err == nil && linkInfo.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(filepath.Join(rootAbs, path))
+		if err != nil {
+			return secrets.SecretVal{ErrorMsg: err.Error()}
+		}
+		if filepath.IsAbs(target) {
+			path, err = filepath.Rel(rootAbs, target)
+			if err != nil {
+				return secrets.SecretVal{ErrorMsg: err.Error()}
+			}
 		}
 	}
 

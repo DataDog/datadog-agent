@@ -13,6 +13,8 @@ clusterAgent:
       value: "5"
     - name: DD_SECRET_BACKEND_COMMAND
       value: /readsecret_multiple_providers.sh
+    - name: DD_SECRET_BACKEND_ARGUMENTS
+      value: /etc/secret-volume
     - name: DD_API_KEY
       value: "ENC[file@/etc/secret-volume/apikey]"
     - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
