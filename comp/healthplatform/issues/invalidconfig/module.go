@@ -25,6 +25,7 @@ const (
 
 func init() {
 	issues.RegisterModuleFactory(NewModule)
+	issues.RegisterModuleFactory(newConversionModule)
 }
 
 type invalidConfigModule struct {
