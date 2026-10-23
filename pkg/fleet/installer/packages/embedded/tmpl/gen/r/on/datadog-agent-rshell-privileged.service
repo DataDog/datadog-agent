@@ -1,9 +1,9 @@
 [Unit]
 Description=Datadog rshell privileged helper
-After=datadog-agent.service datadog-agent-action.service
-BindsTo=datadog-agent.service datadog-agent-action.service
+PartOf=datadog-agent.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell
+ConditionPathExists=/etc/datadog-agent-rshell/enabled
 
 [Service]
 Type=simple

@@ -107,7 +107,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
 		RShellDisableDetailedTelemetry:     config.GetBool(par.RestrictedShellDisableDetailedTelemetry),
 		RShellPrivilegedEnabled:            config.GetBool(par.RestrictedShellPrivilegedEnabled),
-		RShellPrivilegedSocket:             config.GetString(par.RestrictedShellPrivilegedSocket),
+		RShellPrivilegedSocket:             rshellPrivilegedSocket(config),
 		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
 		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
 		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
@@ -193,6 +193,19 @@ func rshellAllowedSystemServices(config config.Component) map[string][]string {
 		return nil
 	}
 	return config.GetStringMapStringSlice(par.RestrictedShellAllowedSystemServices)
+}
+
+// rshellPrivilegedSocket returns the privileged helper socket path. The socket
+// moved out of /run/datadog, the core Agent's runtime directory, so a config
+// that still names the former default is pointed at the new one.
+func rshellPrivilegedSocket(config config.Component) string {
+	socket := config.GetString(par.RestrictedShellPrivilegedSocket)
+	if socket == par.RShellPrivilegedSocketLegacy {
+		log.Warnf("%s is set to the former default %s; using %s instead. Remove the setting to use the default.",
+			par.RestrictedShellPrivilegedSocket, par.RShellPrivilegedSocketLegacy, par.RShellPrivilegedSocketDefault)
+		return par.RShellPrivilegedSocketDefault
+	}
+	return socket
 }
 
 func rshellElevatableCommands(config config.Component) []string {

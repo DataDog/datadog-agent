@@ -43,7 +43,8 @@ const (
 	privilegedRshellBinary         = "/opt/datadog-agent/embedded/bin/rshell"
 	privilegedRshellPolicy         = "/etc/datadog-agent-rshell/policy.json"
 	privilegedRshellPolicyStage    = "/tmp/par-rshell-e2e-policy.json"
-	privilegedRshellSocket         = "/run/datadog/rshell-privileged.sock"
+	privilegedRshellSocket         = "/run/datadog-agent-rshell/privileged.sock"
+	privilegedRshellMarker         = "/etc/datadog-agent-rshell/enabled"
 	privilegedRshellSocketUnit     = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellServiceUnit    = "datadog-agent-rshell-privileged.service"
 	privilegedRshellFixtureDir     = "/root/par-rshell-e2e"
@@ -102,7 +103,8 @@ func stagePrivateActionRunnerConfig(configContent string) func(*aws.Environment,
 			return nil, err
 		}
 		return host.OS.Runner().Command("install-private-action-runner-config", &command.Args{
-			Create: pulumi.String("sudo install -d -o root -g root -m 0755 /etc/datadog-agent && sudo install -o root -g root -m 0640 " + privateActionRunnerConfigStage + " /etc/datadog-agent/datadog.yaml"),
+			// The root-owned marker opts the host in to the privileged helper.
+			Create: pulumi.String("sudo install -d -o root -g root -m 0755 /etc/datadog-agent /etc/datadog-agent-rshell && sudo install -o root -g root -m 0640 " + privateActionRunnerConfigStage + " /etc/datadog-agent/datadog.yaml && sudo install -o root -g root -m 0644 /dev/null " + privilegedRshellMarker),
 		}, utils.PulumiDependsOn(staged))
 	}
 }
@@ -119,8 +121,9 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().Equal("root:root 755", strings.TrimSpace(host.MustExecute(
 		"sudo stat -c '%U:%G %a' "+privilegedRshellBinary,
 	)))
-	s.Require().Equal("enabled", strings.TrimSpace(host.MustExecute(
-		"sudo systemctl is-enabled "+privilegedRshellSocketUnit,
+	// The socket is never enabled: datadog-agent.service pulls it in.
+	s.Require().Equal("static", strings.TrimSpace(host.MustExecute(
+		"sudo systemctl is-enabled "+privilegedRshellSocketUnit+" || true",
 	)))
 	s.Require().Equal("active", strings.TrimSpace(host.MustExecute(
 		"sudo systemctl is-active "+privilegedRshellSocketUnit,

@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    On Linux, the restricted shell privileged helper is now enabled by a
+    root-owned marker file instead of being installed only when
+    ``private_action_runner.restricted_shell.privileged.enabled`` was set at
+    install time. To use the helper, keep that setting enabled, run
+    ``sudo touch /etc/datadog-agent-rshell/enabled``, and restart the Agent;
+    remove the file and restart to turn it off. No reinstall is needed. The
+    helper socket moves to ``/run/datadog-agent-rshell/privileged.sock``; a
+    ``private_action_runner.restricted_shell.privileged.socket`` setting that
+    names the former default ``/run/datadog/rshell-privileged.sock`` is
+    redirected to the new path.
+fixes:
+  - |
+    On Linux, the restricted shell privileged helper socket now follows the
+    core Agent. It no longer stops when the private action runner service
+    exits, for example in split mode, and it no longer creates a boot-time
+    systemd ordering cycle that could leave it missing after a reboot. When
+    the helper is enabled in the configuration but its socket does not
+    exist, restricted shell tasks run without elevation instead of failing.

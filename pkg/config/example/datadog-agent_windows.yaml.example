@@ -4755,9 +4755,10 @@ api_key:
 
 #   # @param restricted_shell - custom object - optional
 #   # Local restrictions for remote rshell actions. Privileged execution has
-#   # an additional administrator-controlled opt-in and requires the systemd
-#   # socket. On Linux, a root-owned /etc/datadog-agent-rshell/policy.json
-#   # can optionally narrow the backend-provided command and path policy.
+#   # an additional administrator-controlled opt-in: on Linux, root creates
+#   # /etc/datadog-agent-rshell/enabled and restarts the Agent to start the
+#   # systemd socket. A root-owned /etc/datadog-agent-rshell/policy.json can
+#   # optionally narrow the backend-provided command and path policy.
 #
 #   restricted_shell:
 #     allowed_commands:
@@ -4766,7 +4767,7 @@ api_key:
 #       - /
 #     privileged:
 #       enabled: false
-#       socket: /run/datadog/rshell-privileged.sock
+#       socket: /run/datadog-agent-rshell/privileged.sock
 
 #   # @param http_timeout_seconds - integer - optional - default: 30
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_TIMEOUT_SECONDS - integer - optional - default: 30
