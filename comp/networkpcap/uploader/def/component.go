@@ -10,8 +10,13 @@ package uploader
 
 import (
 	"context"
+	"errors"
 	"io"
 )
+
+// ErrPayloadTooLarge is returned, wrapped, by Upload when the intake rejected
+// the upload as too large (HTTP 413). Resending the same content cannot succeed.
+var ErrPayloadTooLarge = errors.New("intake rejected the upload as too large")
 
 // Component uploads network packet captures to the networkpcap intake.
 //

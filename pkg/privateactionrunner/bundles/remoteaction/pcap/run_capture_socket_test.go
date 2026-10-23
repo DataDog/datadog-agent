@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pcapuploadermock "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
@@ -147,4 +148,90 @@ func TestCaptureSocketPath(t *testing.T) {
 
 	systemProbeConfig.SetInTest("packet_capture.socket", "/var/run/sysprobe-capture/capture.sock")
 	assert.Equal(t, "/var/run/sysprobe-capture/capture.sock", captureSocketPath())
+}
+
+// runOverSocket runs the action end-to-end over the socket configured by the
+// test and returns the outcome counter delta for reason and socket.
+func runOverSocket(t *testing.T, reason, socket string) (float64, error) {
+	t.Helper()
+	before := outcomeCount(reason, socket)
+	handler := NewRunCaptureHandler(pcapuploadermock.New())
+	_, err := handler.Run(context.Background(), newTask(map[string]interface{}{"durationSecs": 1}), nil)
+	return outcomeCount(reason, socket) - before, err
+}
+
+func TestRunCaptureOutcome_SuccessOverMainSocket(t *testing.T) {
+	startFakePacketCaptureServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fake-pcap-bytes"))
+	})
+
+	delta, err := runOverSocket(t, reasonSuccess, socketMain)
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, delta)
+}
+
+func TestRunCaptureOutcome_SuccessOverCaptureSocket(t *testing.T) {
+	startFakePacketCaptureServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fake-pcap-bytes"))
+	})
+	// Point the capture-only socket at the fake server.
+	cfg := configmock.NewSystemProbe(t)
+	cfg.SetInTest("packet_capture.socket", cfg.GetString("system_probe_config.sysprobe_socket"))
+
+	delta, err := runOverSocket(t, reasonSuccess, socketCapture)
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, delta)
+}
+
+func TestRunCaptureOutcome_SocketUnreachable(t *testing.T) {
+	cfg := configmock.NewSystemProbe(t)
+	cfg.SetInTest("system_probe_config.sysprobe_socket", "/tmp/pcaptest-does-not-exist.sock")
+	cfg.SetInTest("packet_capture.socket", "")
+
+	delta, err := runOverSocket(t, reasonSocketUnreachable, socketMain)
+	require.Error(t, err)
+	assert.Equal(t, 1.0, delta)
+}
+
+func TestRunCaptureOutcome_SocketNotConfigured(t *testing.T) {
+	cfg := configmock.NewSystemProbe(t)
+	cfg.SetInTest("system_probe_config.sysprobe_socket", "")
+	cfg.SetInTest("packet_capture.socket", "")
+
+	delta, err := runOverSocket(t, reasonSocketUnreachable, socketNone)
+	require.Error(t, err)
+	assert.Equal(t, 1.0, delta)
+}
+
+func TestRunCaptureOutcome_SystemProbeStatus(t *testing.T) {
+	for code, reason := range map[int]string{
+		http.StatusBadRequest:          reasonBadRequest,
+		http.StatusConflict:            reasonBusy,
+		http.StatusInternalServerError: reasonCaptureError,
+	} {
+		t.Run(reason, func(t *testing.T) {
+			startFakePacketCaptureServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				http.Error(w, "rejected", code)
+			})
+
+			delta, err := runOverSocket(t, reason, socketMain)
+			require.Error(t, err)
+			assert.Equal(t, 1.0, delta)
+		})
+	}
+}
+
+func TestRunCaptureOutcome_CaptureErrorsTrailer(t *testing.T) {
+	startFakePacketCaptureServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Trailer", "X-Capture-Errors")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fake-pcap-bytes"))
+		w.Header().Set("X-Capture-Errors", "1")
+	})
+
+	delta, err := runOverSocket(t, reasonCaptureError, socketMain)
+	require.Error(t, err)
+	assert.Equal(t, 1.0, delta)
 }

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	pcapuploadermock "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -331,4 +333,110 @@ func TestRunCapture_NoUploaderFailsTheAction(t *testing.T) {
 
 	_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
 	require.Error(t, err)
+}
+
+// outcomeCount reads the capture outcome counter for reason and socket.
+func outcomeCount(reason, socket string) float64 {
+	return captureOutcomes.WithValues(reason, socket).Get()
+}
+
+// Every run is counted exactly once, under the reason of the step that ended it.
+func TestRunCaptureOutcome_Reasons(t *testing.T) {
+	tests := []struct {
+		name      string
+		uploader  func() pcapuploader.Component
+		uploadErr error
+		inputs    map[string]interface{}
+		reason    string
+		socket    string
+	}{
+		{
+			name:   "success",
+			reason: reasonSuccess,
+			socket: socketCapture,
+		},
+		{
+			name:   "invalid input",
+			inputs: map[string]interface{}{"durationSecs": 0},
+			reason: reasonInvalidInput,
+			socket: socketNone,
+		},
+		{
+			name:      "upload too large",
+			uploadErr: fmt.Errorf("https://intake: %w (413)", pcapuploader.ErrPayloadTooLarge),
+			reason:    reasonUploadTooLarge,
+			socket:    socketCapture,
+		},
+		{
+			name:      "upload failed",
+			uploadErr: errors.New("intake returned status 503"),
+			reason:    reasonUploadFailed,
+			socket:    socketCapture,
+		},
+		{
+			name:     "uploader unavailable",
+			uploader: func() pcapuploader.Component { return nil },
+			reason:   reasonUploaderUnavailable,
+			socket:   socketCapture,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := pcapuploadermock.New()
+			mock.SetError(tt.uploadErr)
+			var uploader pcapuploader.Component = mock
+			if tt.uploader != nil {
+				uploader = tt.uploader()
+			}
+			handler := NewRunCaptureHandler(uploader)
+			handler.capture = &recordingCaptureTrigger{out: captureOutcome{
+				PcapPath: writeCapture(t, []byte("pcap")),
+				Socket:   socketCapture,
+			}}
+			inputs := tt.inputs
+			if inputs == nil {
+				inputs = validInputs()
+			}
+
+			before := outcomeCount(tt.reason, tt.socket)
+			_, err := handler.Run(context.Background(), newTask(inputs), nil)
+			if tt.reason == reasonSuccess {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+			assert.Equal(t, 1.0, outcomeCount(tt.reason, tt.socket)-before)
+		})
+	}
+}
+
+// failingCaptureTrigger fails every capture with err, on socket.
+type failingCaptureTrigger struct {
+	err    error
+	socket string
+}
+
+func (f *failingCaptureTrigger) Capture(context.Context, RunCaptureInputs) (captureOutcome, error) {
+	return captureOutcome{Socket: f.socket}, f.err
+}
+
+func TestRunCaptureOutcome_CaptureFailures(t *testing.T) {
+	for _, tt := range []struct {
+		err    error
+		reason string
+	}{
+		{withReason(reasonSocketUnreachable, errors.New("dial unix: no such file")), reasonSocketUnreachable},
+		{withReason(reasonBadRequest, errors.New("status=400")), reasonBadRequest},
+		{errors.New("writing pcap data: unexpected EOF"), reasonCaptureError},
+	} {
+		t.Run(tt.reason, func(t *testing.T) {
+			handler := NewRunCaptureHandler(pcapuploadermock.New())
+			handler.capture = &failingCaptureTrigger{err: tt.err, socket: socketMain}
+
+			before := outcomeCount(tt.reason, socketMain)
+			_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+			require.Error(t, err)
+			assert.Equal(t, 1.0, outcomeCount(tt.reason, socketMain)-before)
+		})
+	}
 }

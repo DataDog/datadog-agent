@@ -217,7 +217,7 @@ func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, 
 	case code >= 200 && code < 300:
 		return false, nil
 	case code == http.StatusRequestEntityTooLarge:
-		return false, fmt.Errorf("intake rejected the upload as too large (%d)", code)
+		return false, fmt.Errorf("%w (%d)", uploader.ErrPayloadTooLarge, code)
 	case code == http.StatusRequestTimeout, code == http.StatusTooManyRequests, code >= 500:
 		return true, fmt.Errorf("intake returned status %d", code)
 	default:

@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -62,11 +63,21 @@ type captureRequest struct {
 // configured, so the runner does not need the main system-probe socket, and
 // the main socket otherwise.
 func captureSocketPath() string {
+	path, _ := captureSocket()
+	return path
+}
+
+// captureSocket returns the socket captureSocketPath picks and which one it
+// is: socketCapture, socketMain, or socketNone when neither is configured.
+func captureSocket() (string, string) {
 	cfg := pkgconfigsetup.SystemProbe()
 	if p := cfg.GetString("packet_capture.socket"); p != "" {
-		return p
+		return p, socketCapture
 	}
-	return cfg.GetString("system_probe_config.sysprobe_socket")
+	if p := cfg.GetString("system_probe_config.sysprobe_socket"); p != "" {
+		return p, socketMain
+	}
+	return "", socketNone
 }
 
 // socketCaptureTrigger triggers captures via system-probe's packet_capture
@@ -78,11 +89,13 @@ func newCaptureTrigger() captureTrigger {
 }
 
 // Capture triggers a packet capture on system-probe over its unix socket
-// and streams the resulting PCAP data to a local temp file.
-func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (captureOutcome, error) {
-	socketPath := captureSocketPath()
+// and streams the resulting PCAP data to a local temp file. Errors are
+// tagged with their outcome reason; untagged ones are capture errors.
+func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (out captureOutcome, err error) {
+	socketPath, socket := captureSocket()
+	defer func() { out.Socket = socket }()
 	if socketPath == "" {
-		return captureOutcome{}, errors.New("system-probe socket path not configured (packet_capture.socket or system_probe_config.sysprobe_socket)")
+		return captureOutcome{}, withReason(reasonSocketUnreachable, errors.New("system-probe socket path not configured (packet_capture.socket or system_probe_config.sysprobe_socket)"))
 	}
 
 	reqBody, err := json.Marshal(captureRequest{
@@ -110,13 +123,20 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 	startTime := time.Now()
 	resp, err := captureHTTPClient(socketPath).Do(req)
 	if err != nil {
-		return captureOutcome{}, fmt.Errorf("calling system-probe packet_capture module: %w", err)
+		err = fmt.Errorf("calling system-probe packet_capture module: %w", err)
+		// A failed dial means system-probe could not be reached at all; any
+		// later failure happened once it had the request.
+		var opErr *net.OpError
+		if errors.As(err, &opErr) && opErr.Op == "dial" {
+			return captureOutcome{}, withReason(reasonSocketUnreachable, err)
+		}
+		return captureOutcome{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := sysprobeclient.ReadAllResponseBody(resp)
-		return captureOutcome{}, fmt.Errorf("packet_capture request failed: status=%d body=%s", resp.StatusCode, string(body))
+		return captureOutcome{}, withReason(statusReason(resp.StatusCode), fmt.Errorf("packet_capture request failed: status=%d body=%s", resp.StatusCode, string(body)))
 	}
 
 	tmpFile, err := os.CreateTemp(os.TempDir(), "dd-pcap-*.pcap")

@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// errUploaderUnavailable is returned when no uploader is wired in.
+var errUploaderUnavailable = errors.New("packet capture uploader is not available")
+
 // networkPcapEvent is the JSON metadata sent with the capture. The intake
 // accepts a single attachment, so all metadata goes here.
 type networkPcapEvent struct {
@@ -33,7 +36,7 @@ type networkPcapEvent struct {
 // A capture cannot be re-taken, so failures are returned rather than dropped.
 func uploadCapture(ctx context.Context, uploader pcapuploader.Component, pcapPath string, captureID string) error {
 	if uploader == nil {
-		return errors.New("packet capture uploader is not available")
+		return errUploaderUnavailable
 	}
 
 	// The capture ran on this host. A hostname lookup failure is not fatal:

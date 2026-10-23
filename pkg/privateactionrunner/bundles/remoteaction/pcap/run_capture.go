@@ -52,6 +52,9 @@ type captureOutcome struct {
 	Duration         time.Duration
 	// PcapPath is the local temp file holding the capture; the caller removes it.
 	PcapPath string
+	// Socket is the system-probe socket the capture was requested on
+	// (socketCapture, socketMain or socketNone). It is set on failure too.
+	Socket string
 }
 
 // RunCaptureHandler handles the runCapture action.
@@ -103,6 +106,10 @@ func (h *RunCaptureHandler) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
+	// Each run is counted once, with the reason set by the step that ended it.
+	reason, socket := reasonInvalidInput, socketNone
+	defer func() { captureOutcomes.Inc(reason, socket) }()
+
 	inputs, err := types.ExtractInputs[RunCaptureInputs](task)
 	if err != nil {
 		return nil, err
@@ -137,7 +144,11 @@ func (h *RunCaptureHandler) Run(
 	}
 
 	out, err := h.capture.Capture(ctx, inputs)
+	if out.Socket != "" {
+		socket = out.Socket
+	}
 	if err != nil {
+		reason = captureFailureReason(err)
 		return nil, fmt.Errorf("capture failed: %w", err)
 	}
 
@@ -145,9 +156,12 @@ func (h *RunCaptureHandler) Run(
 		defer os.Remove(out.PcapPath)
 
 		if err := uploadCapture(ctx, h.uploader, out.PcapPath, captureID); err != nil {
+			reason = uploadFailureReason(err)
 			return nil, fmt.Errorf("sending capture %s to event platform: %w", captureID, err)
 		}
 	}
+
+	reason = reasonSuccess
 
 	return &RunCaptureResult{
 		CaptureID:        captureID,
