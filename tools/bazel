@@ -38,9 +38,9 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
       exit 2
     fi
     extra_args+=(--config=ci)
-    # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
+    # The internal Fabric frontend is reachable from Linux CI runners in k8s.
     if [ "$(uname -s)" = Linux ]; then
-      extra_args+=(--config=cache:edge)
+      extra_args+=(--config=cache:frontend-internal)
     else
       extra_args+=(--config=cache:frontend)
     fi
