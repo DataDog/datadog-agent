@@ -1,0 +1,62 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_license//rules:license.bzl", "license")
+
+package(default_package_metadata = [":license"])
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+# Same invocations as the upstream Makefile (`bison -y -d`, `flex`).
+genrule(
+    name = "policy_parse_src",
+    srcs = ["policy_parse.y"],
+    outs = [
+        "y.tab.c",
+        "y.tab.h",
+    ],
+    cmd = "M4=$(M4) $(BISON) -y -d -o $(execpath y.tab.c) $<",
+    toolchains = [
+        "@rules_bison//bison:current_bison_toolchain",
+        "@rules_m4//m4:current_m4_toolchain",
+    ],
+)
+
+genrule(
+    name = "policy_scan_src",
+    srcs = ["policy_scan.l"],
+    outs = ["lex.yy.c"],
+    cmd = "M4=$(M4) $(FLEX) --outfile=$@ $<",
+    toolchains = [
+        "@rules_flex//flex:current_flex_toolchain",
+        "@rules_m4//m4:current_m4_toolchain",
+    ],
+)
+
+cc_binary(
+    name = "checkmodule",
+    srcs = [
+        "checkmodule.c",
+        "checkpolicy.h",
+        "module_compiler.c",
+        "module_compiler.h",
+        "parse_util.c",
+        "parse_util.h",
+        "policy_define.c",
+        "policy_define.h",
+        "queue.c",
+        "queue.h",
+        ":policy_parse_src",
+        ":policy_scan_src",
+    ],
+    copts = [
+        "-O2",
+        "-fno-strict-aliasing",
+    ],
+    local_defines = ["_GNU_SOURCE"],
+    visibility = ["//visibility:public"],
+    deps = ["@libsepol"],
+)
