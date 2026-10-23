@@ -576,12 +576,12 @@ type RuntimeSecurityConfig struct {
 
 	// description: SecurityProfileV2TagResolutionMaxPendingEvents is the maximum number of events, across all cgroups, queued while waiting for tag resolution.
 	// visibility: private
-	// default_value: 2048
+	// default_value: 6144
 	SecurityProfileV2TagResolutionMaxPendingEvents int
 
 	// description: SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup is the maximum number of events per cgroup queued while waiting for tag resolution.
 	// visibility: private
-	// default_value: 256
+	// default_value: 768
 	SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup int
 
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections

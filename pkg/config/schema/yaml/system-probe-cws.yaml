@@ -813,14 +813,14 @@ properties:
               max_pending_events:
                 node_type: setting
                 type: integer
-                default: 2048
+                default: 6144
                 description: |
                   Maximum number of events, across all workloads, held while
                   waiting for their workload tags to be resolved.
               max_pending_events_per_cgroup:
                 node_type: setting
                 type: integer
-                default: 256
+                default: 768
                 description: |
                   Maximum number of events per workload held while waiting for
                   its tags to be resolved.
