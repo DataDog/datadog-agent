@@ -188,6 +188,8 @@ type ManagerV2 struct {
 	// resolution) and flushed once per SendStats cycle, like the other counters above.
 	tagResolutionEventsDropped  *atomic.Uint64
 	tagResolutionCgroupsExpired *atomic.Uint64
+	tagResolutionCappedCgroup   *atomic.Uint64
+	tagResolutionCappedTotal    *atomic.Uint64
 	cleanupProfilesRemoved      *atomic.Uint64
 	evictionRuns                *atomic.Uint64
 	evictionNodesEvicted        *atomic.Uint64
@@ -288,6 +290,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 		sampleRefreshMisses:         atomic.NewUint64(0),
 		tagResolutionEventsDropped:  atomic.NewUint64(0),
 		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		tagResolutionCappedCgroup:   atomic.NewUint64(0),
+		tagResolutionCappedTotal:    atomic.NewUint64(0),
 		cleanupProfilesRemoved:      atomic.NewUint64(0),
 		evictionRuns:                atomic.NewUint64(0),
 		evictionNodesEvicted:        atomic.NewUint64(0),
@@ -782,6 +786,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
+	// Resolve the event time before firstSeen reads it: Timestamp stays zero until resolved
+	event.ResolveEventTime()
+
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
@@ -794,7 +801,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -804,6 +810,16 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
+		return
+	}
+
+	// some containers never resolve tags (e.g. Docker-in-Docker), so the queue is bounded
+	if pendingEvents.events.Len() >= m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup {
+		m.tagResolutionCappedCgroup.Inc()
+		return
+	}
+	if m.queueSize.Load() >= uint64(m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents) {
+		m.tagResolutionCappedTotal.Inc()
 		return
 	}
 
@@ -914,6 +930,16 @@ func (m *ManagerV2) SendStats() error {
 	}
 	if value := m.tagResolutionCgroupsExpired.Swap(0); value > 0 {
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedCgroup.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:cgroup"}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedTotal.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:total"}, 1.0); err != nil {
 			return err
 		}
 	}
@@ -1389,10 +1415,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
-	eventTime := event.Timestamp
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
+	eventTime := event.ResolveEventTime()
 
 	// Initialize metadata
 	secprof.Metadata = mtdt.Metadata{

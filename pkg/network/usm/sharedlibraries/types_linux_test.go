@@ -9,5 +9,5 @@ import (
 )
 
 func TestCgoAlignment_LibPath(t *testing.T) {
-	ebpftest.TestCgoAlignment[LibPath](t)
+	ebpftest.AssertCgoAlignment[LibPath](t)
 }

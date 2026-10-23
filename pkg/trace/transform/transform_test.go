@@ -108,6 +108,56 @@ func TestGetOTelHostname(t *testing.T) {
 			fallbackHost: "test-host",
 			expected:     "test-host",
 		},
+		{
+			name: "complete Azure App Service identity is hostless",
+			rattrs: map[string]string{
+				"cloud.provider":    "azure",
+				"cloud.platform":    "azure.app_service",
+				"cloud.resource_id": "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			},
+			fallbackHost: "collector-host",
+		},
+		{
+			name: "complete AWS Lambda identity is hostless",
+			rattrs: map[string]string{
+				"cloud.provider": "aws",
+				"cloud.platform": "aws_lambda",
+				"faas.id":        "arn:aws:lambda:us-east-1:123456789012:function:orders",
+			},
+			fallbackHost: "collector-host",
+		},
+		{
+			name: "complete Cloud Run Jobs identity is hostless",
+			rattrs: map[string]string{
+				"cloud.provider":              "gcp",
+				"cloud.platform":              "gcp_cloud_run",
+				"cloud.resource_id":           "//run.googleapis.com/projects/project-1/locations/us-central1/jobs/daily-job",
+				"faas.instance":               "instance-1",
+				"gcp.cloud_run.job.execution": "daily-job-abc",
+			},
+			fallbackHost: "collector-host",
+		},
+		{
+			name: "complete GKE Autopilot identity is hostless",
+			rattrs: map[string]string{
+				"cloud.provider":   "gcp",
+				"cloud.platform":   "gcp_kubernetes_engine",
+				"cloud.account.id": "project-1",
+				"k8s.cluster.name": "autopilot-cluster",
+				"host.name":        "gk3-autopilot-cluster-pool-abc",
+			},
+			fallbackHost: "collector-host",
+		},
+		{
+			name: "incomplete Lambda identity keeps current host fallback",
+			rattrs: map[string]string{
+				"cloud.provider": "aws",
+				"cloud.platform": "aws_lambda",
+				"host.id":        "existing-host",
+			},
+			fallbackHost: "collector-host",
+			expected:     "existing-host",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()

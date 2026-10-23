@@ -67,7 +67,7 @@ func (h *ScaleStatefulSetVerticallyHandler) Run(
 		return nil, fmt.Errorf("failed to get stateful set: %w", err)
 	}
 
-	containers := []interface{}{}
+	podSpecPatch := map[string][]interface{}{}
 
 	// Process each container update
 	for _, containerUpdate := range inputs.ContainerUpdates {
@@ -75,16 +75,24 @@ func (h *ScaleStatefulSetVerticallyHandler) Run(
 			return nil, errors.New("containerName cannot be empty")
 		}
 
-		// Validate that the container exists in the stateful set
-		containerFound := false
+		// Container names are unique across regular and init containers in a pod.
+		containerField := ""
 		for _, container := range statefulSet.Spec.Template.Spec.Containers {
 			if container.Name == containerUpdate.ContainerName {
-				containerFound = true
+				containerField = "containers"
 				break
 			}
 		}
+		if containerField == "" {
+			for _, container := range statefulSet.Spec.Template.Spec.InitContainers {
+				if container.Name == containerUpdate.ContainerName {
+					containerField = "initContainers"
+					break
+				}
+			}
+		}
 
-		if !containerFound {
+		if containerField == "" {
 			return nil, fmt.Errorf("container %s not found in stateful set %s", containerUpdate.ContainerName, inputs.Name)
 		}
 
@@ -137,15 +145,13 @@ func (h *ScaleStatefulSetVerticallyHandler) Run(
 			containerPatch["resources"] = resources
 		}
 
-		containers = append(containers, containerPatch)
+		podSpecPatch[containerField] = append(podSpecPatch[containerField], containerPatch)
 	}
 
 	patch := map[string]interface{}{
 		"spec": map[string]interface{}{
 			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": containers,
-				},
+				"spec": podSpecPatch,
 			},
 		},
 	}

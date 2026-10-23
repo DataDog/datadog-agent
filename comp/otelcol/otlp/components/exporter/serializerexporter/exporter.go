@@ -195,6 +195,37 @@ func translatorFromConfig(
 	statsIn chan []byte,
 	extraOptions ...metrics.TranslatorOption,
 ) (metrics.Provider, error) {
+	options, err := translatorOptionsFromConfig(cfg, hostGetter, statsIn, extraOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
+}
+
+// minimalTranslatorFromConfig builds the translator that sends OTel histograms as is.
+// It only translates delta sums and histograms, and does no metric remapping.
+func minimalTranslatorFromConfig(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
+) (metrics.Provider, error) {
+	options, err := translatorOptionsFromConfig(cfg, hostGetter, statsIn, extraOptions...)
+	if err != nil {
+		return nil, err
+	}
+	logger := set.Logger.With(zap.String("component", "metrics translator"))
+	return metrics.NewMinimalTranslator(logger, attributesTranslator, options...)
+}
+
+func translatorOptionsFromConfig(
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
+) ([]metrics.TranslatorOption, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -237,7 +268,7 @@ func translatorFromConfig(
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
+	return options, nil
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
