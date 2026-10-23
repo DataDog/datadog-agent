@@ -34,7 +34,6 @@ go_library(
         "//pkg/util/crio",
         "//pkg/util/log",
         "@com_github_aquasecurity_trivy//pkg/cache",
-        "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
         "@com_github_aquasecurity_trivy//pkg/fanal/applier",
         "@com_github_aquasecurity_trivy//pkg/fanal/artifact",
         "@com_github_aquasecurity_trivy//pkg/fanal/artifact/image",
