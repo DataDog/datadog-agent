@@ -55,6 +55,10 @@ pkg_filegroup(
         "//packages/agent:linux_default": [
             ":cws_instrumentation_binary",
             ":installer_binary",
+            "//deps/agent_integrations:integration_configuration_files",
+            "//deps/agent_integrations:integrations_bin_files",
+            "//deps/agent_integrations:integrations_runtime_files",
+            "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
