@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"math/rand"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -113,11 +112,11 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 	t.Run("Multiple buildIDs", func(t *testing.T) {
 		fileID := libpf.FileID{}
 		elfs := []*symbol.Elf{
-			symbol.NewElfForTest("arch1", "non_existing_buildid", "", fileID),
-			symbol.NewElfForTest("arch1", "buildid1", "buildid2", fileID), // multiple buildIDs, gnu_build_id should be used
-			symbol.NewElfForTest("arch2", "buildid1", "", fileID),         // arch mismatch
-			symbol.NewElfForTest("arch1", "", "", fileID),                 // empty buildID
-			symbol.NewElfForTest("arch1", "buildid2", "", fileID),         // multiple matching buildIDs, first one should be used
+			symbol.NewElfForTest("/usr/bin/foo-0", "arch1", "non_existing_buildid", "", fileID),
+			symbol.NewElfForTest("/usr/bin/foo-1", "arch1", "buildid1", "buildid2", fileID), // multiple buildIDs, gnu_build_id should be used
+			symbol.NewElfForTest("/usr/bin/foo-2", "arch2", "buildid1", "", fileID),         // arch mismatch
+			symbol.NewElfForTest("/usr/bin/foo-3", "arch1", "", "", fileID),                 // empty buildID
+			symbol.NewElfForTest("/usr/bin/foo-4", "arch1", "buildid2", "", fileID),         // multiple matching buildIDs, first one should be used
 		}
 		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
 		require.ElementsMatch(t, []ElfWithBackendSources{
@@ -180,35 +179,21 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 	})
 
 	t.Run("Errors on both endpoints", func(t *testing.T) {
-		elf, err := symbol.NewElfFromDisk("/bin/sh")
-		require.NoError(t, err)
-		t.Cleanup(elf.Close)
-
-		queriers := []SymbolQuerier{
-			&mockSymbolQuerier{e: errorMap{runtime.GOARCH: errors.New("error")}},
-			&mockSymbolQuerier{e: errorMap{runtime.GOARCH: errors.New("error")}},
+		elfs := []*symbol.Elf{
+			symbol.NewElfForTest("/usr/bin/foo", "arch0", "buildid1", "", libpf.FileID{}),
 		}
 
-		results := ExecuteSymbolQueryBatch(ctx, []*symbol.Elf{elf}, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
 		require.Error(t, results[0].BackendSymbolSources[0].Err)
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 	})
 
 	t.Run("Errors on one endpoint", func(t *testing.T) {
-		elf, err := symbol.NewElfFromDisk("/bin/sh")
-		require.NoError(t, err)
-		t.Cleanup(elf.Close)
-		buildID := elf.GnuBuildID()
-		require.NotEmpty(t, buildID)
-
-		queriers := []SymbolQuerier{
-			&mockSymbolQuerier{m: symbolMap{
-				{buildID: buildID, arch: runtime.GOARCH}: []value{{symbolSource: "debug_info", buildIDType: "gnu_build_id"}},
-			}},
-			&mockSymbolQuerier{e: errorMap{runtime.GOARCH: errors.New("error")}},
+		elfs := []*symbol.Elf{
+			symbol.NewElfForTest("/usr/bin/foo", "arch2", "buildid1", "", libpf.FileID{}),
 		}
 
-		results := ExecuteSymbolQueryBatch(ctx, []*symbol.Elf{elf}, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 		require.NoError(t, results[0].BackendSymbolSources[0].Err)
 		require.Equal(t, symbol.SourceDebugInfo, results[0].BackendSymbolSources[0].SymbolSource)
