@@ -202,3 +202,17 @@ func trailerInt(resp *http.Response, key string) int {
 	n, _ := strconv.Atoi(resp.Trailer.Get(key))
 	return n
 }
+
+// statusReason maps a non-200 status from system-probe's packet_capture
+// module to an outcome reason. System-probe does not serialise captures
+// today; 409 and 429 are mapped to busy should it start doing so.
+func statusReason(code int) string {
+	switch {
+	case code == http.StatusConflict, code == http.StatusTooManyRequests:
+		return reasonBusy
+	case code >= 400 && code < 500:
+		return reasonBadRequest
+	default:
+		return reasonCaptureError
+	}
+}

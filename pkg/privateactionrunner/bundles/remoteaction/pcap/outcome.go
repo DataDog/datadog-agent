@@ -7,7 +7,6 @@ package com_datadoghq_remoteaction_pcap
 
 import (
 	"errors"
-	"net/http"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
@@ -66,20 +65,6 @@ func captureFailureReason(err error) string {
 		return re.reason
 	}
 	return reasonCaptureError
-}
-
-// statusReason maps a non-200 status from system-probe's packet_capture
-// module to an outcome reason. System-probe does not serialise captures
-// today; 409 and 429 are mapped to busy should it start doing so.
-func statusReason(code int) string {
-	switch {
-	case code == http.StatusConflict, code == http.StatusTooManyRequests:
-		return reasonBusy
-	case code >= 400 && code < 500:
-		return reasonBadRequest
-	default:
-		return reasonCaptureError
-	}
 }
 
 // uploadFailureReason maps an error returned by uploadCapture to an outcome
