@@ -1,6 +1,6 @@
 # RC- and AAA-gated PAR startup POC
 
-PR 2 adds an independently useful RC-only startup gate. PR 3 composes it with AAA
+The core Agent combines an RC startup gate with AAA scope discovery through
 `GET /api/v2/validate`: after RC's last successful `Enabled && Authorized`, require
 `private_action_runner_enroll` before **every new PAR start**, including a stopped
 runner with a saved identity. Neither gate changes Go enrollment/persistence/retries
@@ -40,19 +40,19 @@ A failed/exited child requires operator review; already-active children are left
 It never stops an action-serving PAR or a process that might hold credentials.
 
 The existing enrollment implementation retains its own retry/persistence behavior and its
-existing limitations on ambiguous network failures. This PR adds no new enrollment POST
+existing limitations on ambiguous network failures. The startup gate adds no enrollment POST
 retry, journal, idempotency promise or credential-recovery policy. An operator restart can
 re-arm the gate: reconcile any possibly committed enrollment before manually retrying. The
 provided supervisor and core QA unit must not independently restart failed attempts.
 
 Old POC `.phone-home` attempt journals block new startup rather than silently discarding
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
-The previous recovery experiment is retained in backup refs, outside this scoped stack.
 
 Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
-No new `datadog-agent status` fields are added here; those belong to PR 4.
+When the POC is enabled, `datadog-agent status` also reports the startup-gate state,
+reason and next check in JSON, text and HTML.
 
-## AAA discovery (PR 3)
+## AAA discovery
 
 The PAR-owned core worker uses the same RC source as startup; it does not duplicate
 RC freshness or identity rules. Requests use only `DD-API-KEY`, a 10-second timeout,
@@ -65,6 +65,29 @@ Discovery ends when core hands startup to the supervisor, not when enrollment is
 confirmed. The established Go enrollment path owns everything after that handoff.
 A subsequent deliberate core restart with stopped children requires fresh AAA approval,
 even with a saved identity. No post-enrollment revocation or automatic relaunch is added.
+
+## COAT diagnostics
+
+The opted-in core component records `par_phone_home.state` (a gauge) and
+`par_phone_home.transitions` (a counter), with only `state` and `reason` labels.
+The gauge is one-hot: the previous pair is set to zero. The counter counts entries,
+including the initial observation and re-entry, not repeated polls or next-check changes.
+These describe startup gating only; `handed_off` is not enrollment or runtime health.
+
+The default COAT profile collects after 30 seconds and every 15 minutes while Agent
+telemetry is enabled. It sends the current gauge snapshot and counter increments since
+collection, not a time-averaged gauge or an ordered transition log. Zero gauge rows are
+excluded. Intermediate states can disappear from the snapshot but remain in the counter.
+The terminal handoff snapshot remains available after the startup worker exits.
+
+COAT adds `emitter` and existing host/OS metadata; version and org attribution use its
+existing transport/backend path. No new host, org, credential, URL or raw-error labels
+are added. Diagnostics use the existing Instrumentation Telemetry intake and dedicated
+COAT org, not customer DogStatsD metrics or a new org2 destination. They are best-effort:
+collection advances counter baselines before successful delivery and there is no new
+shutdown flush, retry queue or network client here. Query the latest fresh snapshot per
+host rather than summing repeated reports as distinct hosts. Custom COAT profiles must
+select these metrics explicitly; the new selection is in the default profiles only.
 
 ## Validation
 
