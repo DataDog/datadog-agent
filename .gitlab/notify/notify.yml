@@ -24,6 +24,9 @@ notify:
   tags: ["arch:amd64"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  variables:
+    # The slack-notifier image is now based on Ubuntu noble, whose system Python is externally managed (PEP 668)
+    PIP_BREAK_SYSTEM_PACKAGES: "1"
   script:
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - !reference [.setup_python_mirror_linux]
