@@ -17,6 +17,9 @@ import (
 const (
 	maxMissingForkTombstones = 4096
 	maxLifecycleStates       = 16384
+
+	// Bound the encoded size of pending metadata independently of lifecycle history.
+	maxPendingContextBytes = 4 * 1024 * 1024
 )
 
 // processIdentity identifies a process generation, not an individual thread.
@@ -42,14 +45,18 @@ type processLifecycleState struct {
 	contextAttempted bool // at most one procfs lookup per process generation, including failures
 	contextAnnounced bool // an initializing fork, exec or snapshot reached the send queue
 	contextPPID      uint32
+	pendingContext   *ebpfless.SyscallMsg // metadata only, retained until successfully enqueued
+	pendingSize      int                  // encoded size, accounting for the pending metadata budget
+	pendingEntry     *list.Element
 	exited           bool
 	tombstoneEntry   *list.Element
 	trackingEntry    *list.Element
 }
 
 // processLifecycleGuard filters late forks and stale PID generations on the
-// tracing thread. It stores only lifecycle metadata: it never buffers, sorts or
-// delays telemetry, and is not accessed by the network or procfs goroutines.
+// tracing thread. It retains lifecycle state and undelivered procfs metadata,
+// never event payloads: it does not buffer, sort or delay telemetry, and is not
+// accessed by the network or procfs goroutines.
 //
 // childCreationWaiter establishes fork-before-child ordering in the normal case.
 // If that wait expires, child events flow immediately; a subsequent fork must not
@@ -61,6 +68,9 @@ type processLifecycleGuard struct {
 	trackingOrder  list.List
 	enqueue        func([]byte) bool
 
+	pendingContexts     list.List // least recently used process metadata first
+	pendingContextBytes int
+
 	// Once a bounded history entry is evicted, its exact identity is lost.
 	// Conservatively suppress untracked forks at or below this start-time
 	// cutoff; ordinary syscall telemetry must still be forwarded.
@@ -69,6 +79,7 @@ type processLifecycleGuard struct {
 	suppressedLateForks     uint64
 	contextFallbacks        uint64
 	contextFallbackFailures uint64
+	contextCacheEvictions   uint64
 	lastReport              time.Time
 }
 
@@ -117,6 +128,7 @@ func (g *processLifecycleGuard) acceptGeneration(identity processIdentity) bool 
 		return false
 	}
 	if state := g.states[previous]; state != nil {
+		g.clearPendingContext(state)
 		state.exited = true
 		if state.missingFork {
 			g.retainExitTombstone(state)
@@ -224,12 +236,14 @@ func (g *processLifecycleGuard) prepareSyscall(msg serializedSyscall) bool {
 
 // enqueuePrepared never waits after the ptrace deadline. Only successful queue
 // insertions announce context; lifecycle history still forbids late forks even
-// when the queue dropped an event's frame.
-func (g *processLifecycleGuard) enqueuePrepared(msg serializedSyscall) {
+// when the queue dropped an event's frame. The result lets the caller retain
+// collected metadata without repeating the procfs lookup or buffering an event.
+func (g *processLifecycleGuard) enqueuePrepared(msg serializedSyscall) bool {
 	enqueued := g.enqueue(msg.payload)
 	state := g.states[msg.owner]
 	if state != nil && enqueued && (msg.hasContext || msg.kind == ebpfless.SyscallTypeExec) {
 		state.contextAnnounced = true
+		g.clearPendingContext(state)
 	}
 	if msg.kind == ebpfless.SyscallTypeFork {
 		child := g.states[msg.child]
@@ -239,9 +253,10 @@ func (g *processLifecycleGuard) enqueuePrepared(msg serializedSyscall) {
 		}
 		child.missingFork = false
 		child.contextAnnounced = enqueued
-		return
+		return enqueued
 	}
 	if msg.kind == ebpfless.SyscallTypeExit && state != nil {
+		g.clearPendingContext(state)
 		state.exited = true
 		if state.missingFork {
 			g.retainExitTombstone(state)
@@ -249,9 +264,11 @@ func (g *processLifecycleGuard) enqueuePrepared(msg serializedSyscall) {
 			g.forget(state)
 		}
 	}
+	return enqueued
 }
 
 func (g *processLifecycleGuard) forget(state *processLifecycleState) {
+	g.clearPendingContext(state)
 	delete(g.states, state.identity)
 	if g.currentByTGID[state.identity.tgid] == state.identity {
 		delete(g.currentByTGID, state.identity.tgid)
@@ -278,14 +295,14 @@ func (g *processLifecycleGuard) retainExitTombstone(state *processLifecycleState
 }
 
 func (g *processLifecycleGuard) reportStats() {
-	if g.suppressedLateForks == 0 && g.contextFallbacks == 0 && g.contextFallbackFailures == 0 {
+	if g.suppressedLateForks == 0 && g.contextFallbacks == 0 && g.contextFallbackFailures == 0 && g.contextCacheEvictions == 0 {
 		return
 	}
 	now := time.Now()
 	if !g.lastReport.IsZero() && now.Sub(g.lastReport) < time.Minute {
 		return
 	}
-	logger.Logf("process message ordering: %d late forks suppressed, %d procfs contexts collected, %d context lookup failures",
-		g.suppressedLateForks, g.contextFallbacks, g.contextFallbackFailures)
+	logger.Logf("process message ordering: %d late forks suppressed, %d procfs contexts collected, %d context lookup failures, %d pending contexts evicted",
+		g.suppressedLateForks, g.contextFallbacks, g.contextFallbackFailures, g.contextCacheEvictions)
 	g.lastReport = now
 }

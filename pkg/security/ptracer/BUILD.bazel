@@ -118,6 +118,7 @@ dd_agent_go_test(
         "cws_test.go",
         "proc_stat_test.go",
         "proc_test.go",
+        "process_context_retry_test.go",
         "process_context_test.go",
         "process_lifecycle_guard_test.go",
         "process_test.go",

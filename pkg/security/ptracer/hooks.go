@@ -105,7 +105,9 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 		if snapshot != nil && msg.Exec.Credentials == nil {
 			msg.Exec.Credentials = snapshot.Exec.Credentials
 		}
-	} else if snapshot != nil {
+	}
+	snapshot = processContextAfterEvent(snapshot, msg)
+	if msg.Type != ebpfless.SyscallTypeExec && snapshot != nil {
 		msg.Exec = snapshot.Exec
 		if msg.Type == ebpfless.SyscallTypeFork {
 			// Fork's envelope describes the child; Exec describes Fork.PPID.
@@ -126,13 +128,23 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 	data, err := marshalSyscallMessage(message)
 	if err != nil {
 		logger.Errorf("unable to marshal message: %v", err)
+		ctx.lifecycleGuard.retainProcessContext(outgoing.owner, snapshot)
 		return
 	}
 	outgoing.payload = data
 	if msg.Type != ebpfless.SyscallTypeExec && msg.Exec != nil {
 		outgoing.hasContext = msg.Exec.File.Filename != "" && msg.Exec.Credentials != nil
 	}
-	ctx.lifecycleGuard.enqueuePrepared(outgoing)
+	enqueued := ctx.lifecycleGuard.enqueuePrepared(outgoing)
+	if snapshot != nil {
+		if enqueued && (msg.Type == ebpfless.SyscallTypeExec || (msg.Exec != nil && msg.Exec.FromProcFS)) {
+			// Partial snapshots are also one-shot once delivered, even if
+			// they could not announce a complete image and credentials.
+			ctx.lifecycleGuard.clearPendingContext(ctx.lifecycleGuard.states[outgoing.owner])
+		} else {
+			ctx.lifecycleGuard.retainProcessContext(outgoing.owner, snapshot)
+		}
+	}
 	ctx.lifecycleGuard.reportStats()
 }
 

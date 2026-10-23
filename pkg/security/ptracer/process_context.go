@@ -120,9 +120,14 @@ func (ctx *CWSPtracerCtx) fillProcessContextStats(pid int, image *ebpfless.ExecS
 }
 
 // processContextForEvent reserves one procfs lookup per unknown generation,
-// including failures. New threads of an initialized process need no lookup.
+// including failures. Reuse undelivered metadata without repeating that lookup.
+// New threads of an initialized process need no lookup.
 func (ctx *CWSPtracerCtx) processContextForEvent(identity processIdentity) *ebpfless.SyscallMsg {
 	guard := ctx.lifecycleGuard
+	if state := guard.states[identity]; state != nil && !state.contextAnnounced && !state.exited && state.pendingContext != nil {
+		guard.pendingContexts.MoveToBack(state.pendingEntry)
+		return state.pendingContext
+	}
 	if !guard.beginProcessContext(identity) {
 		return nil
 	}
@@ -145,6 +150,112 @@ func (ctx *CWSPtracerCtx) processContextForEvent(identity processIdentity) *ebpf
 		state.contextPPID = snapshot.Exec.PPID
 	}
 	return snapshot
+}
+
+// clearPendingContext releases metadata, without forgetting the generation's
+// lookup attempt or late-fork history. Exits and history eviction use it too.
+func (g *processLifecycleGuard) clearPendingContext(state *processLifecycleState) {
+	if state == nil || state.pendingEntry == nil {
+		return
+	}
+	g.pendingContexts.Remove(state.pendingEntry)
+	g.pendingContextBytes -= state.pendingSize
+	state.pendingContext, state.pendingEntry, state.pendingSize = nil, nil, 0
+}
+
+// retainProcessContext keeps metadata, never the dropped event. Encode/decode
+// once on retention to own a compact copy: truncated argv strings or slices may
+// otherwise keep an entire, much larger procfs cmdline allocation alive.
+func (g *processLifecycleGuard) retainProcessContext(identity processIdentity, snapshot *ebpfless.SyscallMsg) {
+	state := g.states[identity]
+	if snapshot == nil || snapshot.Exec == nil || state == nil || state.contextAnnounced || state.exited || snapshot == state.pendingContext {
+		return
+	}
+	// An exec or credential change supersedes the old metadata even if the
+	// replacement cannot fit. Never fall back to the stale image afterwards.
+	g.clearPendingContext(state)
+	data, err := msgpack.Marshal(snapshot)
+	if err != nil {
+		return
+	}
+	if len(data) > ebpfless.MaxMessageSize {
+		compact, image := *snapshot, *snapshot.Exec
+		image.Args, image.Envs = nil, nil
+		image.ArgsTruncated, image.EnvsTruncated = true, true
+		compact.Exec = &image
+		data, err = msgpack.Marshal(&compact)
+	}
+	if err != nil || len(data) > ebpfless.MaxMessageSize {
+		return
+	}
+	var retained ebpfless.SyscallMsg
+	if err := msgpack.Unmarshal(data, &retained); err != nil {
+		return
+	}
+	for g.pendingContextBytes+len(data) > maxPendingContextBytes {
+		g.clearPendingContext(g.pendingContexts.Front().Value.(*processLifecycleState))
+		g.contextCacheEvictions++
+	}
+	state.pendingContext, state.pendingSize = &retained, len(data)
+	state.pendingEntry = g.pendingContexts.PushBack(state)
+	state.contextPPID = retained.Exec.PPID
+	g.pendingContextBytes += state.pendingSize
+}
+
+// processContextAfterEvent advances undelivered metadata from observed events,
+// not another procfs read. Copy on change so a cached snapshot stays immutable
+// until it is replaced or successfully sent. Failed syscalls change no context.
+func processContextAfterEvent(snapshot, event *ebpfless.SyscallMsg) *ebpfless.SyscallMsg {
+	if snapshot == nil || event.Retval < 0 {
+		return snapshot
+	}
+	switch event.Type {
+	case ebpfless.SyscallTypeExec, ebpfless.SyscallTypeSetUID, ebpfless.SyscallTypeSetGID:
+	default:
+		return snapshot
+	}
+	image := *snapshot.Exec
+	switch event.Type {
+	case ebpfless.SyscallTypeExec:
+		image = *event.Exec
+		image.CreateTime = snapshot.Exec.CreateTime
+		image.FromProcFS = true // metadata for the next event, never a synthetic exec
+	case ebpfless.SyscallTypeSetUID, ebpfless.SyscallTypeSetGID:
+		if image.Credentials == nil {
+			return snapshot // do not invent the remaining credentials of a partial snapshot
+		}
+		creds := *image.Credentials
+		if event.Type == ebpfless.SyscallTypeSetUID {
+			if event.SetUID.UID != -1 {
+				creds.UID, creds.User = uint32(event.SetUID.UID), event.SetUID.User
+			}
+			if event.SetUID.EUID != -1 {
+				creds.EUID, creds.EUser = uint32(event.SetUID.EUID), event.SetUID.EUser
+			}
+		} else {
+			if event.SetGID.GID != -1 {
+				creds.GID, creds.Group = uint32(event.SetGID.GID), event.SetGID.Group
+			}
+			if event.SetGID.EGID != -1 {
+				creds.EGID, creds.EGroup = uint32(event.SetGID.EGID), event.SetGID.EGroup
+			}
+		}
+		if creds == *image.Credentials {
+			return snapshot
+		}
+		image.Credentials = &creds
+	}
+	updated := *snapshot
+	updated.Exec = &image
+	if event.Type == ebpfless.SyscallTypeExec {
+		if event.ContainerID != "" {
+			updated.ContainerID = event.ContainerID
+		}
+		if event.CGroupID != "" {
+			updated.CGroupID = event.CGroupID
+		}
+	}
+	return &updated
 }
 
 // marshalSyscallMessage bounds optional procfs metadata, not real exec payloads.
