@@ -97,7 +97,9 @@ func (suite *k8sSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
-	suite.testUpAndRunning(10 * time.Minute)
+	// The EKS Windows node group joins the cluster several minutes after the Linux nodes and the
+	// Agent 6 Windows servercore image is large: 10 minutes is not enough for it to become ready.
+	suite.testUpAndRunning(25 * time.Minute)
 }
 
 // An agent restart (because of a health probe failure or because of a OOM kill for ex.)
@@ -119,7 +121,11 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
+				// EKS Fargate nodes are labelled `kubernetes.io/os=linux` but never run the node agent DaemonSet
+				LabelSelector: fields.AndSelectors(
+					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
+					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
+				).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
@@ -353,6 +359,9 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 }
 
+// The cluster-agent CLI commands are run with DD_LOG_LEVEL=off because the 7.53 cluster-agent logs
+// "Unknown environment variable: DD_..." warnings on stderr for the env vars set by the newer Helm
+// chart pinned in the e2e framework.
 func (suite *k8sSuite) testClusterAgentCLI() {
 	// The cluster-agent is deployed with multiple replicas for HA (see clusterAgent.replicas
 	// in kubernetes_helm.go), but only the leader replica runs cluster checks and reports
@@ -364,7 +373,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader cluster agent pod name should not be empty")
 
 	suite.Run("cluster-agent status", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
@@ -390,7 +399,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent checkconfig", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
@@ -401,7 +410,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "clusterchecks"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
 		suite.Contains(stdout, "agents reporting ===")
