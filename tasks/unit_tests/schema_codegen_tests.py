@@ -255,6 +255,39 @@ class TestGenerateConst(unittest.TestCase):
         }
         self.assertEqual(codegen.to_vartype(obj, '{}'), 'map[string]interface{}{}')
 
+    def test_dict_to_gotype(self):
+        res = codegen.dict_to_gotype({'type': 'integer'})
+        self.assertEqual(res, 'int')
+
+        res = codegen.dict_to_gotype({'type': 'number'})
+        self.assertEqual(res, 'float64')
+
+        res = codegen.dict_to_gotype({'type': 'string'})
+        self.assertEqual(res, 'string')
+
+        res = codegen.dict_to_gotype({'type': 'array'})
+        self.assertEqual(res, '[]interface{}')
+
+        res = codegen.dict_to_gotype({'type': 'array', 'items': {'type': 'integer'}})
+        self.assertEqual(res, '[]int')
+
+        res = codegen.dict_to_gotype({'type': 'array', 'items': {'type': 'string'}})
+        self.assertEqual(res, '[]string')
+
+        res = codegen.dict_to_gotype({'type': 'object'})
+        self.assertEqual(res, 'map[string]interface{}')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': False})
+        self.assertEqual(res, 'map[string]interface{}')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'integer'}})
+        self.assertEqual(res, 'map[string]int')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'string'}})
+        self.assertEqual(res, 'map[string]string')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'object', 'additionalProperties': {'type': 'integer'}}})
+        self.assertEqual(res, 'map[string]map[string]int')
 
 
 if __name__ == "__main__":

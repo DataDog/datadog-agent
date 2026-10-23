@@ -206,7 +206,12 @@ def dict_to_gotype(inp):
     elif inp.get('type') == 'array':
         return f"[]{dict_to_gotype(inp.get('items'))}"
     elif inp.get('type') == 'object':
-        return f"map[string]{dict_to_gotype(inp.get('additionalProperties'))}"
+        obj_shape = inp.get('additionalProperties')
+        if obj_shape is None or obj_shape is False:
+            return 'map[string]interface{}'
+        if isinstance(obj_shape, dict):
+            return f"map[string]{dict_to_gotype(obj_shape)}"
+        raise RuntimeError('unknown value for additionalProperties: %s' % obj_shape)
 
 
 # Returns the type of the node as a gotype. Should only be called for
