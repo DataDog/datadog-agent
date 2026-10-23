@@ -41,6 +41,7 @@ from tasks.libs.common.utils import (
     clean_nested_paths,
     get_build_flags,
     gitlab_section,
+    join_command,
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
@@ -1006,12 +1007,14 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
-        # If there are no files matching the build tags in the folder we do not try to run tests
+        # Check the package itself: a recursive query may find subpackages even
+        # when this directory has no files matching the selected build tags.
         if build_tags:
-            res = ctx.run(
-                f'go list -tags "{",".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
-            )
-            if res.stderr is not None and "matched no packages" in res.stderr:
+            command = join_command(["go", "list", "-tags", ",".join(build_tags), os.path.dirname(modified_file)])
+            res = ctx.run(command, hide=True, warn=True)
+            if res.stderr and (
+                "matched no packages" in res.stderr or "build constraints exclude all Go files" in res.stderr
+            ):
                 continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
