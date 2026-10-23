@@ -294,6 +294,23 @@ func installAPMPackages(s *common.Setup) {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
+	if shouldInstallAPMLibraryC(s.Env, runtime.GOOS, apmInstrumentationEnabled) {
+		s.Packages.Install(common.DatadogAPMLibraryCPackage, getLibraryVersion(s.Env, common.DatadogAPMLibraryCPackage))
+	}
+}
+
+// shouldInstallAPMLibraryC reports whether dd-trace-c should be installed.
+// dd-trace-c is language-agnostic: it is installed on every Linux host with SSI
+// enabled, regardless of which languages were requested (except CentOS 6, which
+// keeps its pinned injector), or when explicitly requested. A per-package
+// install override wins either way; it must be checked here because
+// common.resolvePackages only applies true overrides.
+func shouldInstallAPMLibraryC(e *env.Env, goos string, apmInstrumentationEnabled bool) bool {
+	if override, ok := e.DefaultPackagesInstallOverride[common.DatadogAPMLibraryCPackage]; ok {
+		return override
+	}
+	_, requested := e.ApmLibraries[packageToLanguage(common.DatadogAPMLibraryCPackage)]
+	return requested || (goos == "linux" && !e.IsCentos6 && apmInstrumentationEnabled)
 }
 
 // packageToLanguage returns the language of an APM package

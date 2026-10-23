@@ -7,6 +7,7 @@ package installer
 
 import (
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -39,7 +40,7 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-iis", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-iis-rum", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-httpd", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
-	{Name: "datadog-apm-library-c", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
+	{Name: "datadog-apm-library-c", version: apmLanguageVersion, released: true, condition: apmLibraryCEnabled},
 }
 
 // Default versions pinned for CentOS 6
@@ -127,6 +128,17 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 func apmLanguageExplicitlyEnabled(p Package, e *env.Env) bool {
 	_, ok := e.ApmLibraries[packageToLanguage(p.Name)]
 	return ok
+}
+
+// apmLibraryCEnabled returns true when dd-trace-c is explicitly requested, or
+// on any Linux host with APM injection enabled. dd-trace-c is language-agnostic,
+// so it is installed regardless of which languages ApmLibraries names. There is
+// no Windows build, and CentOS 6 keeps its pinned injector without it.
+func apmLibraryCEnabled(p Package, e *env.Env) bool {
+	if apmLanguageExplicitlyEnabled(p, e) {
+		return true
+	}
+	return runtime.GOOS == "linux" && !e.IsCentos6 && apmInjectEnabled(p, e)
 }
 
 var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)

@@ -82,7 +82,6 @@ var (
 		DatadogAPMLibraryIISPackage,
 		DatadogAPMLibraryIISRumPackage,
 		DatadogAPMLibraryHttpdPackage,
-		DatadogAPMLibraryCPackage,
 	}
 )
 
