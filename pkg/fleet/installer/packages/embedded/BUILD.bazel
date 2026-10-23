@@ -63,6 +63,7 @@ go_library(
         "tmpl/datadog-agent-action-executor.yaml.tmpl",
         "tmpl/datadog-agent-action-executor-windows.yaml.tmpl",
         "tmpl/datadog-agent-action.service.tmpl",
+        "tmpl/datadog-agent-rshell-privileged-check.service.tmpl",
         "tmpl/datadog-agent-rshell-privileged.service.tmpl",
         "tmpl/datadog-agent-rshell-privileged.socket.tmpl",
         "tmpl/datadog-agent-action-windows.yaml.tmpl",

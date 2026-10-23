@@ -1,9 +1,10 @@
 [Unit]
 Description=Datadog rshell privileged helper experiment
 PartOf=datadog-agent-exp.service
+Requires=datadog-agent-rshell-privileged-check-exp.service
+After=datadog-agent-rshell-privileged-check-exp.service
 Conflicts=datadog-agent-rshell-privileged.service
 ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
-ConditionPathExists=/etc/datadog-agent-rshell/enabled
 
 [Service]
 Type=simple

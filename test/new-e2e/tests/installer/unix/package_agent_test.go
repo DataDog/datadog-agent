@@ -45,10 +45,8 @@ const (
 	rshellSocketUnit  = "datadog-agent-rshell-privileged.socket"
 	rshellServiceUnit = "datadog-agent-rshell-privileged.service"
 	rshellBinary      = "/opt/datadog-agent/embedded/bin/rshell"
-	// rshellMarker is the root-owned opt-in the helper units are conditioned on.
-	rshellMarker     = "/etc/datadog-agent-rshell/enabled"
-	rshellSocketDir  = "/run/datadog-agent-rshell"
-	rshellSocketPath = rshellSocketDir + "/privileged.sock"
+	rshellSocketDir   = "/run/datadog-agent-rshell"
+	rshellSocketPath  = rshellSocketDir + "/privileged.sock"
 	// rshellLegacySocketPath lived in /run/datadog, the Agent's
 	// RuntimeDirectory, which forced the socket to be ordered after the Agent.
 	rshellLegacySocketPath = "/run/datadog/rshell-privileged.sock"
@@ -160,41 +158,36 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 	}
 }
 
-// TestPrivilegedRshellOptIn verifies the privileged rshell helper lifecycle:
-// the units are always installed, a root-owned marker plus an Agent restart
-// opts in without reinstalling, and the socket follows the core Agent rather
-// than the private action runner unit.
+// TestPrivilegedRshellSocketLifecycle verifies the privileged rshell helper
+// socket follows the core Agent. PAR's configuration decides whether to use
+// the helper, so the installer writes the units on every host and the socket
+// listens whenever the Agent runs; systemd only starts the root helper when a
+// client connects.
 //
 // Previously the installer parsed datadog.yaml at install time and only wrote
-// the units when the setting was already enabled, so opting in needed a
+// the units when the setting was already enabled, so enabling it needed a
 // reinstall, and the socket was bound to datadog-agent-action.service, which
 // exits whenever the monolithic runner is not used (split mode, or PAR not
 // enabled, as here) and took the socket down with it.
-func (s *packageAgentSuite) TestPrivilegedRshellOptIn() {
+func (s *packageAgentSuite) TestPrivilegedRshellSocketLifecycle() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
-	defer s.host.Run("sudo rm -f " + rshellMarker)
 	s.waitForCoreUnitsActive()
 	s.requireRshellBinary()
 
-	// Installed on every host, inactive until the host opts in.
-	for _, unit := range []string{rshellSocketUnit, rshellServiceUnit} {
-		// No --value: systemd 219 (CentOS 7, Amazon Linux 2) does not support it.
-		s.Equal("LoadState=loaded", strings.TrimSpace(s.host.Run("systemctl show -p LoadState "+unit)), unit)
-	}
-	s.assertRshellSocket(false)
-
-	// Opting in needs the marker and an Agent restart, not a reinstall.
-	s.host.Run("sudo install -o root -g root -m 0644 /dev/null " + rshellMarker)
-	s.host.Run("sudo systemctl restart " + agentUnit)
+	// The socket listens without any opt-in at install time, and in a
+	// directory dd-agent can reach but not modify.
 	s.assertRshellSocket(true)
 	s.Equal("dd-agent:dd-agent 600 socket", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a %F' "+rshellSocketPath)))
 	s.Equal("root:root 755", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a' "+rshellSocketDir)),
 		"dd-agent must reach the socket but not replace it")
 	s.False(s.fileExists(rshellLegacySocketPath))
+	// Pulled in by the Agent, never enabled, so no symlinks drift across upgrades.
+	s.Equal("static", strings.TrimSpace(s.host.Run("systemctl is-enabled "+rshellSocketUnit+" || true")))
 
-	// The helper is socket-activated: starting it passes the listening socket,
-	// and it runs with real uid root.
+	// The helper is socket-activated: it only runs once started through the
+	// socket, which passes it the listening socket, with real uid root.
+	s.Equal("ActiveState=inactive", strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+rshellServiceUnit)))
 	s.host.Run("sudo systemctl start " + rshellServiceUnit)
 	s.host.WaitForUnitActive(s.T(), rshellServiceUnit)
 	pid := strings.TrimPrefix(strings.TrimSpace(s.host.Run("systemctl show -p MainPID "+rshellServiceUnit)), "MainPID=")
@@ -211,15 +204,10 @@ func (s *packageAgentSuite) TestPrivilegedRshellOptIn() {
 	s.Equal("ActiveState=inactive", strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+rshellServiceUnit)))
 	s.host.Run("sudo systemctl start " + agentUnit)
 	s.assertRshellSocket(true)
-
-	// Opting out takes effect on the next restart as well.
-	s.host.Run("sudo rm -f " + rshellMarker)
-	s.host.Run("sudo systemctl restart " + agentUnit)
-	s.assertRshellSocket(false)
 }
 
-// TestPrivilegedRshellSurvivesReboot verifies that an opted-in host gets its
-// helper socket back after a reboot. Previously the socket kept the implicit
+// TestPrivilegedRshellSurvivesReboot verifies that the helper socket comes
+// back after a reboot. Previously the socket kept the implicit
 // Before=sockets.target of socket units while being ordered after the Agent,
 // itself ordered after basic.target and so after sockets.target: a boot-time
 // ordering cycle that made systemd drop the socket or sockets.target.
@@ -231,12 +219,9 @@ func (s *packageAgentSuite) TestPrivilegedRshellSurvivesReboot() {
 	}
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
-	defer s.host.Run("sudo rm -f " + rshellMarker)
 	s.waitForCoreUnitsActive()
 	s.requireRshellBinary()
 
-	s.host.Run("sudo install -o root -g root -m 0644 /dev/null " + rshellMarker)
-	s.host.Run("sudo systemctl restart " + agentUnit)
 	s.assertRshellSocket(true)
 	// The exit status is zero even with a cycle: check the diagnostics.
 	verify := s.host.Run("sudo systemd-analyze verify --man=no default.target 2>&1 || true")

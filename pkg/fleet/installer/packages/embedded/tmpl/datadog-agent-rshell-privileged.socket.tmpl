@@ -1,9 +1,9 @@
 [Unit]
 # The socket is pulled in by the matching Agent unit's Wants= and stops with
-# it. It is never enabled: the root-owned marker below is the only
-# opt-in. The socket lives outside /run/datadog, which is the Agent's
+# it, so it is never enabled. It lives outside /run/datadog, the Agent's
 # RuntimeDirectory, so it needs no ordering against the Agent and keeps the
-# default socket dependencies.
+# default socket dependencies. systemd starts the root helper only when a
+# client connects; PAR only connects when the helper is enabled in its config.
 {{- if .Stable}}
 Description=Datadog rshell privileged helper socket
 PartOf=datadog-agent.service
@@ -16,7 +16,6 @@ Conflicts=datadog-agent-rshell-privileged.socket
 After=datadog-agent-rshell-privileged.socket
 {{- end}}
 ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
-ConditionPathExists=/etc/datadog-agent-rshell/enabled
 
 [Socket]
 ListenStream=/run/datadog-agent-rshell/privileged.sock

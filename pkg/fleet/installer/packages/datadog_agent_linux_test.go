@@ -50,14 +50,16 @@ func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
 }
 
 func TestPrivilegedRshellUnitsAreAlwaysWritten(t *testing.T) {
-	// The root-owned marker gates the units at runtime, so every systemd
-	// install writes them instead of filtering on configuration.
+	// PAR's configuration decides at runtime whether to use the helper, so
+	// every systemd install writes the units instead of filtering on it.
 	for _, units := range [][]string{agentService.SystemdUnitsStable, agentService.ProcmgrUnitsStable} {
 		assert.Contains(t, units, "datadog-agent-rshell-privileged.service")
+		assert.Contains(t, units, "datadog-agent-rshell-privileged-check.service")
 		assert.Contains(t, units, privilegedRshellSocketStable)
 	}
 	for _, units := range [][]string{agentService.SystemdUnitsExp, agentService.ProcmgrUnitsExp} {
 		assert.Contains(t, units, "datadog-agent-rshell-privileged-exp.service")
+		assert.Contains(t, units, "datadog-agent-rshell-privileged-check-exp.service")
 		assert.Contains(t, units, privilegedRshellSocketExp)
 	}
 }
