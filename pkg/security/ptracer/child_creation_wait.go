@@ -23,11 +23,12 @@ type heldChildStop struct {
 	deadline time.Time
 }
 
-// childCreationWaiter is owned by the tracing OS thread. A child's initial
-// SIGSTOP can precede its creator's PTRACE_EVENT_FORK/CLONE/VFORK. Keep that TID
-// stopped until resource inheritance and fork enqueueing are complete, or its
-// one-second deadline expires. Other tracees must remain runnable meanwhile.
-// Ptrace restarts, including timeout restarts, must stay on this same OS thread.
+// childCreationWaiter is owned by the tracing OS thread. A new process's initial
+// SIGSTOP can precede its creator's PTRACE_EVENT_FORK/CLONE/VFORK. Hold only the
+// process leader until resource inheritance and fork enqueueing are complete, or
+// its one-second deadline expires. Threads of an existing process do not wait.
+// Other tracees must remain runnable, and all ptrace restarts, including timeout
+// restarts, must stay on this same OS thread.
 type childCreationWaiter struct {
 	heldByTID        map[int]*list.Element
 	deadlines        list.List
@@ -131,9 +132,9 @@ func (w *childCreationWaiter) detachAll(detach func(int) error) {
 	}
 }
 
-// holdChildAtInitialStop returns true when the caller must skip its usual
-// restart. Readiness is per TID: a known TGID does not initialize a new thread's
-// shared FD/CWD pointers, and initial wrapped/attached tracees are exempt.
+// holdChildAtInitialStop returns true when a new process leader must remain
+// stopped for its creation event. Threads resume normally; their clone hooks
+// still initialize shared resources. Initial wrapped/attached tracees are exempt.
 func (ctx *CWSPtracerCtx) holdChildAtInitialStop(tid int, status syscall.WaitStatus, children *childCreationWaiter) bool {
 	if status.StopSignal() != syscall.SIGSTOP {
 		return false
@@ -143,7 +144,7 @@ func (ctx *CWSPtracerCtx) holdChildAtInitialStop(tid int, status syscall.WaitSta
 		process = NewProcess(tid)
 		ctx.processCache.Add(tid, process)
 	}
-	if process.creationHandled || process.creationWaitTimedOut {
+	if process.Pid != process.Tgid || process.creationHandled || process.creationWaitTimedOut {
 		return false
 	}
 	children.hold(process)

@@ -78,11 +78,13 @@ type CWSPtracerCtx struct {
 	inFlightMsgData []byte
 	// The tracing thread owns lifecycle metadata, not a telemetry queue.
 	// This guard filters late forks after a child-creation wait has expired.
-	lifecycleGuard      *processLifecycleGuard
-	helloMsg            *ebpfless.Message
-	processCache        *ProcessCache
-	traceesReported     []int
-	stopSignalForwarder func()
+	lifecycleGuard *processLifecycleGuard
+	// Optional override of the procfs boundary; called only on the tracing thread.
+	processContextReader func(processIdentity) (*ebpfless.SyscallMsg, error)
+	helloMsg             *ebpfless.Message
+	processCache         *ProcessCache
+	traceesReported      []int
+	stopSignalForwarder  func()
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -210,11 +212,13 @@ func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
 // enqueueMsgData never waits for the network: a stalled probe must not hold
 // tracees stopped. A full outbound queue drops the new message rather than
 // blocking the tracing thread.
-func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) {
+func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) bool {
 	select {
 	case ctx.msgDataChan <- data:
+		return true
 	default:
 		logger.Errorf("unable to send message")
+		return false
 	}
 }
 

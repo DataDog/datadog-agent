@@ -552,6 +552,7 @@ func (ctx *CWSPtracerCtx) AttachTracer() error {
 		// Initial tracees have no creation event to wait for.
 		process := NewProcess(pid)
 		process.creationHandled = true
+		process.forkPPID = getPidPPID(pid)
 		ctx.processCache.Add(pid, process)
 	}
 
@@ -629,6 +630,7 @@ func (ctx *CWSPtracerCtx) NewTracer() error {
 	// Initial tracees have no creation event to wait for.
 	process := NewProcess(pid)
 	process.creationHandled = true
+	process.forkPPID = getPidPPID(pid)
 	ctx.processCache.Add(pid, process)
 
 	ctx.userCacheRefreshLimiter = rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1)

@@ -35,25 +35,28 @@ type CacheResolverKey struct {
 // EBPFLessResolver defines a resolver
 type EBPFLessResolver struct {
 	sync.RWMutex
-	entryCache   map[CacheResolverKey]*model.ProcessCacheEntry
-	opts         ResolverOpts
-	scrubber     *utils.Scrubber
-	statsdClient statsd.ClientInterface
+	entryCache        map[CacheResolverKey]*model.ProcessCacheEntry
+	processStartTimes map[CacheResolverKey]uint64 // procfs birth stamps, removed on exit
+	opts              ResolverOpts
+	scrubber          *utils.Scrubber
+	statsdClient      statsd.ClientInterface
 }
 
 // NewEBPFLessResolver returns a new process resolver
 func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, opts *ResolverOpts) (*EBPFLessResolver, error) {
 	p := &EBPFLessResolver{
-		entryCache:   make(map[CacheResolverKey]*model.ProcessCacheEntry),
-		opts:         *opts,
-		scrubber:     scrubber,
-		statsdClient: statsdClient,
+		entryCache:        make(map[CacheResolverKey]*model.ProcessCacheEntry),
+		processStartTimes: make(map[CacheResolverKey]uint64),
+		opts:              *opts,
+		scrubber:          scrubber,
+		statsdClient:      statsdClient,
 	}
 
 	return p, nil
 }
 
 func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time) {
+	delete(p.processStartTimes, key)
 	entry, ok := p.entryCache[key]
 	if !ok {
 		return
@@ -69,6 +72,35 @@ func (p *EBPFLessResolver) DeleteEntry(key CacheResolverKey, exitTime time.Time)
 	defer p.Unlock()
 
 	p.deleteEntry(key, exitTime)
+}
+
+// PrepareProcessGeneration rejects stale frames and retires a reused PID's
+// cached image before it can be inherited or attributed to a new generation.
+// Birth stamps are kernel clock ticks, not wall times: procfs creation dates
+// have coarser precision and cannot safely distinguish a quickly reused PID.
+// An explicit first context is authoritative when older senders left no stamp.
+func (p *EBPFLessResolver) PrepareProcessGeneration(key CacheResolverKey, startTime uint64, initialContext bool) bool {
+	if key.Pid == 0 {
+		return false
+	}
+	if startTime == 0 {
+		return true // backwards compatibility, or unavailable birth metadata
+	}
+	p.Lock()
+	defer p.Unlock()
+
+	previous, known := p.processStartTimes[key]
+	if known && previous > startTime {
+		return false
+	}
+	if (known && previous < startTime) || (!known && initialContext) {
+		delete(p.entryCache, key)
+	}
+	if p.processStartTimes == nil {
+		p.processStartTimes = make(map[CacheResolverKey]uint64)
+	}
+	p.processStartTimes[key] = startTime
+	return true
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
@@ -148,6 +180,43 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file 
 
 	p.insertExecEntry(key, entry)
 
+	return entry
+}
+
+// AddContextEntry installs metadata without observing an exec or inventing a
+// previous image. The caller prepares the generation first; an existing image
+// therefore belongs to that generation and must not be rolled back by a replay.
+func (p *EBPFLessResolver) AddContextEntry(key CacheResolverKey, entry *model.ProcessCacheEntry, createTime uint64) *model.ProcessCacheEntry {
+	if key.Pid == 0 || entry == nil {
+		return nil
+	}
+	p.Lock()
+	defer p.Unlock()
+
+	if previous := p.entryCache[key]; previous != nil {
+		return previous
+	}
+	birth := time.Time{}
+	if createTime != 0 {
+		birth = time.Unix(0, int64(createTime))
+	}
+
+	entry.Pid, entry.NSID = key.Pid, key.NSID
+	entry.Source = model.ProcessCacheEntryFromProcFS
+	entry.ForkTime = birth       // observed procfs birth, not a synthesized fork event
+	entry.ExecTime = time.Time{} // procfs does not reveal the last exec time
+	entry.IsExec, entry.IsExecExec = false, false
+	if key.Pid != 1 && entry.PPid != 0 && entry.PPid != key.Pid {
+		if parent := p.entryCache[CacheResolverKey{Pid: entry.PPid, NSID: key.NSID}]; parent != nil {
+			// Link ancestry only. Reparenting and CLONE_PARENT can make the
+			// observed image, argv or container differ from this parent's.
+			// Even empty observed fields must not inherit guessed values.
+			observed := entry.Process
+			entry.SetForkParent(parent)
+			entry.Process = observed
+		}
+	}
+	p.insertEntry(key, entry)
 	return entry
 }
 

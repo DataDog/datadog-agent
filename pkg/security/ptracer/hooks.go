@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vmihailenco/msgpack/v5"
-
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"golang.org/x/sys/unix"
@@ -54,15 +52,24 @@ func (ctx *CWSPtracerCtx) resolveProcessContext(process *Process) {
 	}
 }
 
+// sendSyscallMsg freezes events on the tracing thread. An unknown process gets
+// one best-effort procfs context lookup before its first event is serialized.
 func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.SyscallMsg) {
 	if msg == nil {
 		return
 	}
 	ctx.resolveProcessContext(process)
 	msg.PID = uint32(process.Tgid)
+	msg.StartTime = process.startTime
 	msg.Timestamp = uint64(time.Now().UnixNano())
 	msg.ContainerID = process.ContainerID
 	msg.CGroupID = process.CGroupID
+	if msg.Type != ebpfless.SyscallTypeExec {
+		msg.Exec = nil // handlers can reuse messages that carried a procfs snapshot
+	}
+	if msg.Type == ebpfless.SyscallTypeFork {
+		msg.Fork.ParentStartTime, msg.Fork.ParentContainerID, msg.Fork.ParentCGroupID = 0, "", ""
+	}
 	message := &ebpfless.Message{
 		Type:    ebpfless.MessageTypeSyscall,
 		Syscall: msg,
@@ -72,22 +79,10 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 		return
 	}
 
-	// Freeze the payload and capture its generation on the tracing thread.
-	// Handlers can reuse their messages; the network sender receives bytes only.
-	logger.Debugf("sending message: %s", message)
-	data, err := msgpack.Marshal(message)
-	if err != nil {
-		logger.Errorf("unable to marshal message: %v", err)
-		return
-	}
-	outgoing := serializedSyscall{
-		owner:   process.identity(),
-		kind:    msg.Type,
-		payload: data,
-	}
+	outgoing := serializedSyscall{owner: process.identity(), kind: msg.Type}
 	if msg.Type == ebpfless.SyscallTypeFork {
 		// A fork belongs to the parent's event stream but carries the child's
-		// PID on the wire. Guard both generations without changing that protocol.
+		// PID on the wire. Initialize an unknown parent before its child fork.
 		outgoing.child = outgoing.owner
 		if parent := ctx.processCache.Get(int(msg.Fork.PPID)); parent != nil {
 			outgoing.owner = parent.identity()
@@ -96,8 +91,49 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 			outgoing.owner = processIdentity{tgid: msg.Fork.PPID, startTime: startTime}
 		}
 	}
-	ctx.lifecycleGuard.filterAndEnqueue(outgoing)
-	ctx.lifecycleGuard.reportSuppressedForks()
+	if !ctx.lifecycleGuard.prepareSyscall(outgoing) {
+		ctx.lifecycleGuard.reportStats()
+		return
+	}
+	snapshot := ctx.processContextForEvent(outgoing.owner)
+	if msg.Type == ebpfless.SyscallTypeExec {
+		// Exec already carries the replacement image. Enrich it directly,
+		// never install the procfs image as a fictitious pre-exec ancestor.
+		if msg.Exec.PPID == 0 {
+			msg.Exec.PPID = ctx.lifecycleGuard.processPPID(outgoing.owner)
+		}
+		if snapshot != nil && msg.Exec.Credentials == nil {
+			msg.Exec.Credentials = snapshot.Exec.Credentials
+		}
+	} else if snapshot != nil {
+		msg.Exec = snapshot.Exec
+		if msg.Type == ebpfless.SyscallTypeFork {
+			// Fork's envelope describes the child; Exec describes Fork.PPID.
+			msg.Fork.ParentStartTime = snapshot.StartTime
+			msg.Fork.ParentContainerID = snapshot.ContainerID
+			msg.Fork.ParentCGroupID = snapshot.CGroupID
+		} else {
+			msg.ContainerID, msg.CGroupID = snapshot.ContainerID, snapshot.CGroupID
+		}
+	}
+	if snapshot != nil && msg.Type != ebpfless.SyscallTypeFork && msg.StartTime == 0 {
+		msg.StartTime = snapshot.StartTime
+	}
+
+	// Freeze the context along with the event. The network sender receives
+	// bytes only, and cannot reorder or drop their initialization separately.
+	logger.Debugf("sending message: %s", message)
+	data, err := marshalSyscallMessage(message)
+	if err != nil {
+		logger.Errorf("unable to marshal message: %v", err)
+		return
+	}
+	outgoing.payload = data
+	if msg.Type != ebpfless.SyscallTypeExec && msg.Exec != nil {
+		outgoing.hasContext = msg.Exec.File.Filename != "" && msg.Exec.Credentials != nil
+	}
+	ctx.lifecycleGuard.enqueuePrepared(outgoing)
+	ctx.lifecycleGuard.reportStats()
 }
 
 func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, process *Process, handler syscallHandler) {

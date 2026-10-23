@@ -67,7 +67,7 @@ func getPidTGID(pid int) int {
 func getPidPPID(pid int) uint32 {
 	ppid, _, err := readProcessStat(pid)
 	if err != nil {
-		// Missing proc metadata must not discard an otherwise valid exec.
+		// Missing proc metadata must not discard otherwise valid telemetry.
 		return 0
 	}
 	return ppid

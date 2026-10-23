@@ -87,26 +87,6 @@ func TestProcessIdentityAcrossThreadExec(t *testing.T) {
 	assert.Equal(t, parent.identity(), thread.identity())
 }
 
-func TestExecPPID(t *testing.T) {
-	t.Run("fork already handled", func(t *testing.T) {
-		// There is no procfs entry for this PID: the known fork parent must
-		// take the fast path rather than be replaced by a procfs lookup.
-		process := &Process{Pid: -1, forkPPID: 42}
-		assert.EqualValues(t, 42, process.execPPID())
-	})
-	t.Run("fork not yet handled", func(t *testing.T) {
-		process := &Process{Pid: os.Getpid()}
-		assert.EqualValues(t, os.Getppid(), process.execPPID())
-		// A procfs observation is not a fork notification. Until that arrives,
-		// keep resolving at exec instead of caching a potentially stale PPID.
-		assert.Zero(t, process.forkPPID)
-	})
-	t.Run("procfs unavailable", func(t *testing.T) {
-		process := &Process{Pid: -1}
-		assert.Zero(t, process.execPPID())
-	})
-}
-
 func TestForkPPID(t *testing.T) {
 	for _, nr := range []int{ForkNr, VforkNr} {
 		t.Run(fmt.Sprintf("syscall=%d", nr), func(t *testing.T) {
@@ -118,9 +98,19 @@ func TestForkPPID(t *testing.T) {
 			ctx.processCache.Add(parent.Pid, parent)
 			ctx.handlePostHooks(nr, parent.Pid, syscall.PtraceRegs{}, child, syscallHandler{})
 			assert.EqualValues(t, parent.Tgid, child.forkPPID)
-			assert.EqualValues(t, parent.Tgid, child.execPPID())
 		})
 	}
+}
+
+func TestCloneParentObservesChildPPIDAtCreation(t *testing.T) {
+	cache := NewProcessCache()
+	creator := NewProcess(-1)
+	creator.Tgid = 10
+	creator.forkPPID = uint32(os.Getppid()) + 1 // an obsolete creator parent is not authoritative
+	cache.Add(creator.Pid, creator)
+	child := NewProcess(os.Getpid())
+	cache.shareResources(child, creator.Pid, unix.CLONE_PARENT)
+	assert.EqualValues(t, os.Getppid(), child.forkPPID)
 }
 
 func TestClonePPID(t *testing.T) {
@@ -147,7 +137,6 @@ func TestClonePPID(t *testing.T) {
 			cache.Add(parent.Pid, parent)
 			cache.shareResources(child, parent.Pid, tc.flags)
 			assert.Equal(t, tc.wantPPID, child.forkPPID)
-			assert.Equal(t, tc.wantPPID, child.execPPID())
 		})
 	}
 }
