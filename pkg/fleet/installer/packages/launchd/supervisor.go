@@ -10,9 +10,11 @@ package launchd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -23,9 +25,88 @@ import (
 // Deadline is a wall-clock bound on an unsupervised experiment, persisted to disk so it survives
 // a restart of whichever process enforces it. It is the only coverage for an experiment that is
 // alive but hung: the ExitObserver sees exit, nothing else.
+//
+// The root watcher and the resume hook act on what this file says, so it is only trusted when it
+// and the directory holding it are owned by OwnerUID and writable by nobody else: a file another
+// account could have planted or replaced is refused rather than read.
 type Deadline struct {
 	// Path is the file the deadline is persisted to.
 	Path string
+	// OwnerUID is the account the file and its directory must belong to. The zero value is root,
+	// which is what production uses; tests running unprivileged set their own uid.
+	OwnerUID int
+}
+
+// maxDeadlineSize bounds how much of the deadline file is read. A deadline is one RFC 3339
+// timestamp; anything larger was not written by Write.
+const maxDeadlineSize = 256
+
+// checkOwnership verifies that info, the result of an Lstat or an Fstat, belongs to the deadline's
+// owner and is writable by no one else.
+func (d Deadline) checkOwnership(path string, info os.FileInfo) error {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("could not read the ownership of %s", path)
+	}
+	if int(st.Uid) != d.OwnerUID {
+		return fmt.Errorf("%s is owned by uid %d, expected uid %d", path, st.Uid, d.OwnerUID)
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("%s is writable by its group or by others (mode %s)", path, info.Mode().Perm())
+	}
+	return nil
+}
+
+// checkDir verifies that the directory holding the deadline file is a real directory, owned by
+// the deadline's owner and writable by no one else, so nobody else can plant, swap or remove the
+// file in it.
+func (d Deadline) checkDir() error {
+	dir := filepath.Dir(d.Path)
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("could not stat the deadline directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("the deadline directory %s is not a directory", dir)
+	}
+	if err := d.checkOwnership(dir, info); err != nil {
+		return fmt.Errorf("refusing to trust the deadline directory: %w", err)
+	}
+	return nil
+}
+
+// readRaw returns the deadline file's content, or "" when it is absent. The file is opened without
+// following a symbolic link and must be a regular file belonging to the deadline's owner.
+func (d Deadline) readRaw() (string, error) {
+	if err := d.checkDir(); err != nil {
+		return "", err
+	}
+	f, err := os.OpenFile(d.Path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("could not open deadline file: %w", err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("could not stat deadline file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("refusing to trust the deadline file %s: not a regular file", d.Path)
+	}
+	if err := d.checkOwnership(d.Path, info); err != nil {
+		return "", fmt.Errorf("refusing to trust the deadline file: %w", err)
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxDeadlineSize+1))
+	if err != nil {
+		return "", fmt.Errorf("could not read deadline file: %w", err)
+	}
+	if len(raw) > maxDeadlineSize {
+		return "", fmt.Errorf("refusing to trust the deadline file %s: larger than %d bytes", d.Path, maxDeadlineSize)
+	}
+	return strings.TrimSpace(string(raw)), nil
 }
 
 // Write persists a deadline of now+window, to the nanosecond so that no two writes persist the
@@ -35,6 +116,9 @@ type Deadline struct {
 func (d Deadline) Write(window time.Duration) error {
 	deadline := time.Now().Add(window).Format(time.RFC3339Nano)
 	path := d.Path
+	if err := d.checkDir(); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp")
 	if err != nil {
 		return fmt.Errorf("could not create temporary deadline file: %w", err)
@@ -75,27 +159,18 @@ func (d Deadline) Clear() error {
 // deliberate stop clears the file first, and racing that clear is how the watcher tells a
 // commanded stop apart from a real failure. There is no other signal between the two processes.
 func (d Deadline) Present() (bool, error) {
-	if _, err := os.Stat(d.Path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, fmt.Errorf("could not stat deadline file: %w", err)
+	raw, err := d.readRaw()
+	if err != nil {
+		return false, err
 	}
-	return true, nil
+	return raw != "", nil
 }
 
 // Read returns the deadline exactly as persisted, or "" when the file is absent. No two Writes
 // persist the same value, so it also identifies the experiment the deadline bounds: a process that
 // read it earlier can tell its own experiment apart from one started since.
 func (d Deadline) Read() (string, error) {
-	raw, err := os.ReadFile(d.Path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", nil
-		}
-		return "", fmt.Errorf("could not read deadline file: %w", err)
-	}
-	return strings.TrimSpace(string(raw)), nil
+	return d.readRaw()
 }
 
 // Expired reports whether the deadline has passed, is unparseable, or is implausibly far in the
@@ -103,14 +178,14 @@ func (d Deadline) Read() (string, error) {
 // written. All three are treated as expired: a hung experiment must not survive a clock that has
 // become unreliable. A missing file reports not expired, since there is nothing to enforce.
 func (d Deadline) Expired(maxSkew time.Duration) (bool, error) {
-	raw, err := os.ReadFile(d.Path)
+	raw, err := d.readRaw()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, fmt.Errorf("could not read deadline file: %w", err)
+		return false, err
 	}
-	deadline, err := time.Parse(time.RFC3339, strings.TrimSpace(string(raw)))
+	if raw == "" {
+		return false, nil
+	}
+	deadline, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
 		return true, nil
 	}

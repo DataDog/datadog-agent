@@ -44,7 +44,7 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	if runByExperimentDaemon() {
 		return nil
 	}
-	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
+	deadline := experimentDeadline()
 	token, err := deadline.Read()
 	if err != nil {
 		return fmt.Errorf("resume: could not read experiment deadline: %w", err)

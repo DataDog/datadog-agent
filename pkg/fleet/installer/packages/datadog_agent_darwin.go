@@ -140,6 +140,10 @@ func experimentLabels() []string {
 	return labels
 }
 
+// ensureInstallerDataDir creates the installer's root-owned state directories. Indirected so the
+// hook tests can run unprivileged.
+var ensureInstallerDataDir = paths.EnsureInstallerDataDir
+
 // launchdClient and launchdJobDir are indirected so the hook tests can run without launchd.
 var (
 	launchdClient = func() *launchd.Client { return launchd.NewClient(launchd.System) }
@@ -413,6 +417,11 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // must not also leave the Agent stopped.
 func postInstallDMG(ctx HookContext, layout agentLayout) error {
 	var errs []error
+	// The installer daemon keeps its state in its own root-owned run directory, never in the
+	// Agent's. Create it, or repair it, before the daemon is loaded below.
+	if err := ensureInstallerDataDir(); err != nil {
+		errs = append(errs, err)
+	}
 	if err := registerPackageRepository(ctx, layout); err != nil {
 		errs = append(errs, err)
 	}

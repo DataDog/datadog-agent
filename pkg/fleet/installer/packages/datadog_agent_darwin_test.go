@@ -36,6 +36,9 @@ func testLayout(t *testing.T) agentLayout {
 	t.Helper()
 
 	root := t.TempDir()
+	original := ensureInstallerDataDir
+	ensureInstallerDataDir = func() error { return nil }
+	t.Cleanup(func() { ensureInstallerDataDir = original })
 	return agentLayout{
 		installRoot:  filepath.Join(root, "opt", "datadog-agent"),
 		linkDir:      filepath.Join(root, "usr", "local", "bin"),

@@ -99,10 +99,13 @@ type launchdTemplateData struct {
 
 	// The remaining fields are the fixed state root. State is singular: one pidfile, one run
 	// directory, one log directory, whichever job set is loaded.
-	RunDir     string
-	LogDir     string
-	AgentUser  string
-	AgentGroup string
+	RunDir string
+	LogDir string
+	// InstallerRunDir is the installer daemon's own run directory. The daemon runs as root, so
+	// unlike RunDir it is root-owned (see pkg/fleet/installer/paths.RunPath).
+	InstallerRunDir string
+	AgentUser       string
+	AgentGroup      string
 }
 
 type embeddedLayout struct {
@@ -340,26 +343,28 @@ var (
 	// directory the Agent reads, so both job sets run the very same binaries and differ in
 	// EtcDir, the label suffix and whether launchd keeps them alive.
 	stableDataLaunchd = launchdTemplateData{
-		LabelSuffix: "",
-		ProgramDir:  "/opt/datadog-agent",
-		EtcDir:      "/opt/datadog-agent/etc",
-		Supervised:  true,
-		Stable:      true,
-		RunDir:      "/opt/datadog-agent/run",
-		LogDir:      "/opt/datadog-agent/logs",
-		AgentUser:   "_dd-agent",
-		AgentGroup:  "daemon",
+		LabelSuffix:     "",
+		ProgramDir:      "/opt/datadog-agent",
+		EtcDir:          "/opt/datadog-agent/etc",
+		Supervised:      true,
+		Stable:          true,
+		RunDir:          "/opt/datadog-agent/run",
+		LogDir:          "/opt/datadog-agent/logs",
+		InstallerRunDir: "/opt/datadog-packages/run",
+		AgentUser:       "_dd-agent",
+		AgentGroup:      "daemon",
 	}
 	expDataLaunchd = launchdTemplateData{
-		LabelSuffix: "-exp",
-		ProgramDir:  "/opt/datadog-agent",
-		EtcDir:      "/opt/datadog-agent/etc-exp",
-		Supervised:  false,
-		Stable:      false,
-		RunDir:      "/opt/datadog-agent/run",
-		LogDir:      "/opt/datadog-agent/logs",
-		AgentUser:   "_dd-agent",
-		AgentGroup:  "daemon",
+		LabelSuffix:     "-exp",
+		ProgramDir:      "/opt/datadog-agent",
+		EtcDir:          "/opt/datadog-agent/etc-exp",
+		Supervised:      false,
+		Stable:          false,
+		RunDir:          "/opt/datadog-agent/run",
+		LogDir:          "/opt/datadog-agent/logs",
+		InstallerRunDir: "/opt/datadog-packages/run",
+		AgentUser:       "_dd-agent",
+		AgentGroup:      "daemon",
 	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{

@@ -46,7 +46,20 @@ var configExperimentRestoreBackoff = 2 * time.Second
 // configExperimentDeadlinePath is where the watcher's deadline is persisted. A package-level var,
 // not a constant, so tests can point it at a temporary file instead of the real, root-owned run
 // directory — the same indirection launchdJobDir uses for job definitions.
+//
+// paths.RunPath is the installer's own root-owned run directory, not the Agent's: the root
+// watcher and resume hook act on this file, so it must not live anywhere the Agent's account can
+// write to.
 var configExperimentDeadlinePath = filepath.Join(paths.RunPath, "experiment-deadline")
+
+// configExperimentStateOwner is the uid the deadline file and its directory must belong to before
+// they are trusted: root. A package-level var so unprivileged tests can use their own uid.
+var configExperimentStateOwner = 0
+
+// experimentDeadline is the configuration experiment's deadline file.
+func experimentDeadline() launchd.Deadline {
+	return launchd.Deadline{Path: configExperimentDeadlinePath, OwnerUID: configExperimentStateOwner}
+}
 
 // configExperimentLockPath is the installer's package database. Every installer command holds its
 // exclusive file lock for its whole run, hooks included, so the detached watcher takes it too before
@@ -97,7 +110,7 @@ type configExperiment struct {
 // already been stopped — the stable set is put back rather than left down with nothing in its
 // place.
 func (e configExperiment) Start(ctx context.Context) error {
-	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
+	deadline := experimentDeadline()
 	if err := deadline.Write(configExperimentDeadlineWindow); err != nil {
 		return err
 	}
@@ -170,7 +183,7 @@ func (e configExperiment) Promote(ctx context.Context) error {
 // watcher's own exit observer, which fires the instant that bootout kills the experiment jobs —
 // both this method and the watcher would then try to swap the job sets at once.
 func (e configExperiment) restoreStable(ctx context.Context) error {
-	if err := (launchd.Deadline{Path: configExperimentDeadlinePath}).Clear(); err != nil {
+	if err := (experimentDeadline()).Clear(); err != nil {
 		return err
 	}
 	// Unloading the whole experiment set first keeps the reverse teardown order. It is best
@@ -206,7 +219,7 @@ func handBackInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("hand-back: %w", err)
 	}
-	token, readErr := (launchd.Deadline{Path: configExperimentDeadlinePath}).Read()
+	token, readErr := (experimentDeadline()).Read()
 	if err := lock.Close(); err != nil {
 		log.Warnf("hand-back: could not release the installer lock: %v", err)
 	}

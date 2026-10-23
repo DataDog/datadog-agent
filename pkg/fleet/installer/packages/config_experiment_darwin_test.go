@@ -123,8 +123,13 @@ func stubDeadlinePath(t *testing.T) string {
 
 	path := filepath.Join(t.TempDir(), "experiment-deadline")
 	original := configExperimentDeadlinePath
+	originalOwner := configExperimentStateOwner
 	configExperimentDeadlinePath = path
-	t.Cleanup(func() { configExperimentDeadlinePath = original })
+	configExperimentStateOwner = os.Getuid()
+	t.Cleanup(func() {
+		configExperimentDeadlinePath = original
+		configExperimentStateOwner = originalOwner
+	})
 	return path
 }
 
@@ -669,11 +674,11 @@ func TestParseWatcherPIDs(t *testing.T) {
 func TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	watcherCalls := stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	var stopped int
 	launchctlCallsAtStop := -1
@@ -699,11 +704,11 @@ func TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs(t *testing.T) {
 func TestResumeStillResumesWhenTheWatcherCannotBeStopped(t *testing.T) {
 	stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	watcherCalls := stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	original := stopSurvivingWatchers
 	stopSurvivingWatchers = func(context.Context) error { return errors.New("injected failure") }
@@ -745,11 +750,11 @@ func TestWatcherExitsWhenTheExperimentIsAlreadyOver(t *testing.T) {
 func TestRevertIsANoopForANewerExperiment(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	stale, err := deadline.Read()
 	require.NoError(t, err)
@@ -792,12 +797,12 @@ func holdInstallerLock(t *testing.T, path string) func() {
 func TestWatcherRevertWaitsForARunningInstallerCommand(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	release := holdInstallerLock(t, stubConfigExperimentLock(t))
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	token, err := deadline.Read()
 	require.NoError(t, err)
@@ -834,12 +839,12 @@ func TestWatcherRevertWaitsForARunningInstallerCommand(t *testing.T) {
 func TestWatcherRevertTakesTheInstallerLock(t *testing.T) {
 	stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	lockPath := stubConfigExperimentLock(t)
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	token, err := deadline.Read()
 	require.NoError(t, err)
@@ -861,7 +866,7 @@ func TestWatcherRevertTakesTheInstallerLock(t *testing.T) {
 func TestWatcherStopsWaitingWhenTheExperimentIsReplaced(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 	holdInstallerLock(t, stubConfigExperimentLock(t))
@@ -869,7 +874,7 @@ func TestWatcherStopsWaitingWhenTheExperimentIsReplaced(t *testing.T) {
 	installerLockPoll = 20 * time.Millisecond
 	t.Cleanup(func() { installerLockPoll = original })
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	stale, err := deadline.Read()
 	require.NoError(t, err)
@@ -984,9 +989,9 @@ func TestHandBackWaitsForTheInstallerCommandThenRestoresTheStableDaemon(t *testi
 func TestHandBackLeavesTheDaemonToANewerExperiment(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	stubConfigExperimentLock(t)
-	require.NoError(t, launchd.Deadline{Path: path}.Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(time.Hour))
 
 	require.NoError(t, handBackInstaller(context.Background()))
 	assert.Empty(t, *calls, "the hand-back touched launchd during a newer experiment")
@@ -998,13 +1003,13 @@ func TestHandBackLeavesTheDaemonToANewerExperiment(t *testing.T) {
 func TestHandOverWaitsForTheInstallerCommandThenStartsTheExperimentDaemon(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	release := holdInstallerLock(t, stubConfigExperimentLock(t))
 	original := installerLockPoll
 	installerLockPoll = 20 * time.Millisecond
 	t.Cleanup(func() { installerLockPoll = original })
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	token, err := deadline.Read()
 	require.NoError(t, err)
@@ -1057,10 +1062,10 @@ func touchesAgent(calls [][]string) bool {
 func TestHandOverIsANoopWhenTheExperimentIsOver(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	stubConfigExperimentLock(t)
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	token, err := deadline.Read()
 	require.NoError(t, err)
@@ -1082,7 +1087,7 @@ func TestHandOverRevertsEverythingWhenTheSwapFails(t *testing.T) {
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
 
-	deadline := launchd.Deadline{Path: path}
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	token, err := deadline.Read()
 	require.NoError(t, err)
@@ -1104,11 +1109,11 @@ func TestHandOverRevertsEverythingWhenTheSwapFails(t *testing.T) {
 func TestResumeLeavesTheExperimentDaemonAlone(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	watcherCalls := stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 	original := stopSurvivingWatchers
 	stopSurvivingWatchers = func(context.Context) error {
 		t.Error("the experiment daemon's resume stopped the watcher")
@@ -1129,11 +1134,11 @@ func TestResumeLeavesTheExperimentDaemonAlone(t *testing.T) {
 func TestResumeNeverSwapsTheStableDaemon(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	watcherCalls := stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 	original := stopSurvivingWatchers
 	stopSurvivingWatchers = func(context.Context) error { return nil }
 	t.Cleanup(func() { stopSurvivingWatchers = original })
@@ -1149,11 +1154,11 @@ func TestResumeNeverSwapsTheStableDaemon(t *testing.T) {
 func TestResumeRevertRemovesTheExperimentDaemonDefinition(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
-	path := stubDeadlinePath(t)
+	stubDeadlinePath(t)
 	stubConfigExperimentWatcher(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, launchd.Deadline{Path: path}.Write(-time.Minute))
+	require.NoError(t, experimentDeadline().Write(-time.Minute))
 	experimentPlist := filepath.Join(dir, installerJob+"-exp.plist")
 	require.NoError(t, os.WriteFile(experimentPlist, []byte("leftover"), 0644))
 
@@ -1227,8 +1232,8 @@ func TestHandOverStopsTheDaemonWithTheLockReleased(t *testing.T) {
 		free = lockIsFree(t, lockPath)
 	})
 	stubJobDir(t)
-	path := stubDeadlinePath(t)
-	deadline := launchd.Deadline{Path: path}
+	stubDeadlinePath(t)
+	deadline := experimentDeadline()
 	require.NoError(t, deadline.Write(time.Hour))
 	token, err := deadline.Read()
 	require.NoError(t, err)
@@ -1263,8 +1268,8 @@ func TestHandBackStopsTheDaemonWithTheLockReleased(t *testing.T) {
 // experiment daemon to run, so it is handed straight back.
 func TestHandOverHandsBackAnExperimentStoppedDuringTheSwap(t *testing.T) {
 	stubConfigExperimentLock(t)
-	path := stubDeadlinePath(t)
-	deadline := launchd.Deadline{Path: path}
+	stubDeadlinePath(t)
+	deadline := experimentDeadline()
 	calls := stubLaunchdOnBootout(t, "system/"+installerJob, func() {
 		require.NoError(t, deadline.Clear())
 	})

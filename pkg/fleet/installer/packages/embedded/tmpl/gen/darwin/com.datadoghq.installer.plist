@@ -20,6 +20,11 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
+            <!-- The daemon runs as root, so its remote configuration cache and everything else it
+                 keeps under run_path go to its own root-owned run directory rather than the
+                 Agent's. An environment variable, so datadog.yaml cannot move it back. -->
+            <key>DD_RUN_PATH</key>
+            <string>/opt/datadog-packages/run</string>
         </dict>
         <!-- The program is the façade, never the pool: this definition is written by both
              install paths and must be correct for every version, forever. -->
@@ -30,7 +35,7 @@
             <string>-c</string>
             <string>/opt/datadog-agent/etc</string>
             <string>-p</string>
-            <string>/opt/datadog-agent/run/installer.pid</string>
+            <string>/opt/datadog-packages/run/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd_installer.log</string>

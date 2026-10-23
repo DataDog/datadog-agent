@@ -20,7 +20,63 @@ import (
 
 func testDeadline(t *testing.T) Deadline {
 	t.Helper()
-	return Deadline{Path: filepath.Join(t.TempDir(), "experiment-deadline")}
+	return Deadline{Path: filepath.Join(t.TempDir(), "experiment-deadline"), OwnerUID: os.Getuid()}
+}
+
+// TestDeadlineRefusesASymlink pins that a deadline planted as a symbolic link is never followed:
+// the watcher and the resume hook run as root and act on what the file says.
+func TestDeadlineRefusesASymlink(t *testing.T) {
+	d := testDeadline(t)
+	target := filepath.Join(t.TempDir(), "elsewhere")
+	require.NoError(t, os.WriteFile(target, []byte(time.Now().Add(time.Hour).Format(time.RFC3339Nano)), 0644))
+	require.NoError(t, os.Symlink(target, d.Path))
+
+	_, err := d.Read()
+	assert.Error(t, err)
+	_, err = d.Expired(time.Hour)
+	assert.Error(t, err)
+}
+
+// TestDeadlineRefusesAnUntrustedDirectory pins that a deadline is neither read nor written in a
+// directory another account could write to, or that belongs to another account.
+func TestDeadlineRefusesAnUntrustedDirectory(t *testing.T) {
+	d := testDeadline(t)
+	require.NoError(t, d.Write(time.Hour))
+
+	require.NoError(t, os.Chmod(filepath.Dir(d.Path), 0777))
+	_, err := d.Read()
+	assert.Error(t, err, "a world-writable directory must not be trusted")
+	assert.Error(t, d.Write(time.Hour))
+	require.NoError(t, os.Chmod(filepath.Dir(d.Path), 0755))
+
+	foreign := d
+	foreign.OwnerUID = os.Getuid() + 1
+	_, err = foreign.Read()
+	assert.Error(t, err, "a directory owned by another account must not be trusted")
+}
+
+// TestDeadlineRefusesAnUntrustedFile pins the checks on the file itself: it must be a regular,
+// small file that nobody else can write to.
+func TestDeadlineRefusesAnUntrustedFile(t *testing.T) {
+	t.Run("group writable", func(t *testing.T) {
+		d := testDeadline(t)
+		require.NoError(t, d.Write(time.Hour))
+		require.NoError(t, os.Chmod(d.Path, 0666))
+		_, err := d.Read()
+		assert.Error(t, err)
+	})
+	t.Run("not a regular file", func(t *testing.T) {
+		d := testDeadline(t)
+		require.NoError(t, os.Mkdir(d.Path, 0755))
+		_, err := d.Read()
+		assert.Error(t, err)
+	})
+	t.Run("oversized", func(t *testing.T) {
+		d := testDeadline(t)
+		require.NoError(t, os.WriteFile(d.Path, make([]byte, maxDeadlineSize+1), 0644))
+		_, err := d.Read()
+		assert.Error(t, err)
+	})
 }
 
 func TestDeadlineWriteThenPresent(t *testing.T) {

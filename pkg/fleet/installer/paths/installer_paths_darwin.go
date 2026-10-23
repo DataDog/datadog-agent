@@ -8,7 +8,13 @@
 // Package paths defines commonly used paths throughout the installer
 package paths
 
-import "os"
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"syscall"
+)
 
 // macOS has no FHS equivalent to hang the Agent off of: everything the Agent owns lives under
 // the single install root /opt/datadog-agent, which holds the binaries alongside etc, etc-exp,
@@ -44,8 +50,13 @@ const (
 	// ExperimentInstallerPath is the path to the experiment installer binary. macOS runs no
 	// version experiments, so there is no second binary to point at.
 	ExperimentInstallerPath = StableInstallerPath
-	// RunPath is the default run path
-	RunPath = "/opt/datadog-agent/run"
+	// RunPath is the root installer daemon's own run directory: its socket, pid file, task
+	// database, remote configuration cache and the configuration experiment deadline.
+	//
+	// It is deliberately not the Agent's run directory, /opt/datadog-agent/run: that one belongs
+	// to the Agent's account, and the daemon runs as root. Like on Linux, it lives under
+	// PackagesPath, which only root can write to (see EnsureInstallerDataDir).
+	RunPath = "/opt/datadog-packages/run"
 	// DatadogDataDir is the path to the Datadog data directory.
 	DatadogDataDir = "/opt/datadog-agent/etc"
 	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
@@ -59,15 +70,83 @@ func ConfigDirIsTrustedForRead(_ string) (bool, error) {
 }
 
 // SetupInstallerDataDir ensures that permissions are set correctly on the installer data directory.
-// This is a no-op on non-Windows platforms.
 func SetupInstallerDataDir() error {
+	return EnsureInstallerDataDir()
+}
+
+// rootOwner is the owner every directory holding root installer state must have: root:wheel.
+var rootOwner = dirOwner{uid: 0, gid: 0}
+
+// EnsureInstallerDataDir makes sure the directories the root installer keeps its own state in,
+// PackagesPath and RunPath, are real directories owned by root:wheel and writable by root only,
+// creating them when missing and repairing their ownership and mode when they drifted.
+//
+// The root daemon, its detached watcher and its resume step trust what these directories hold,
+// so they must never be writable by the Agent's account. A path that is not a directory (a
+// symbolic link in particular) is refused rather than repaired.
+func EnsureInstallerDataDir() error {
+	for _, dir := range []string{PackagesPath, RunPath} {
+		if err := ensureTrustedDir(dir, rootOwner); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-// EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
-// This is a no-op on non-Windows platforms.
-func EnsureInstallerDataDir() error {
+// dirOwner is the uid and gid ensureTrustedDir enforces. A gid of -1 leaves the group alone.
+type dirOwner struct {
+	uid int
+	gid int
+}
+
+// ensureTrustedDir creates dir with mode 0755 if it is missing, refuses it if it is not a real
+// directory, and repairs its owner and mode if it belongs to someone else or is writable by its
+// group or by others. Its parent must already be trusted.
+func ensureTrustedDir(dir string, owner dirOwner) error {
+	info, err := os.Lstat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		if err := os.Mkdir(dir, 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("could not create %s: %w", dir, err)
+		}
+		info, err = os.Lstat(dir)
+	}
+	if err != nil {
+		return fmt.Errorf("could not stat %s: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("refusing to use %s: not a directory", dir)
+	}
+	if trusted(info, owner) {
+		return nil
+	}
+	// Lchown and Chmod act on the directory Lstat just saw: its parent is trusted, so nobody else
+	// can have swapped it for a link in the meantime.
+	if err := os.Lchown(dir, owner.uid, owner.gid); err != nil {
+		return fmt.Errorf("could not repair the ownership of %s: %w", dir, err)
+	}
+	if err := os.Chmod(dir, 0755); err != nil {
+		return fmt.Errorf("could not repair the mode of %s: %w", dir, err)
+	}
+	info, err = os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("could not stat %s: %w", dir, err)
+	}
+	if !info.IsDir() || !trusted(info, owner) {
+		return fmt.Errorf("refusing to use %s: could not make it owned and writable by uid %d only", dir, owner.uid)
+	}
 	return nil
+}
+
+// trusted reports whether info describes a directory owned by owner and writable by no one else.
+func trusted(info os.FileInfo, owner dirOwner) bool {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false
+	}
+	if int(st.Uid) != owner.uid || (owner.gid >= 0 && int(st.Gid) != owner.gid) {
+		return false
+	}
+	return info.Mode().Perm()&0o022 == 0
 }
 
 // SetRepositoryPermissions sets the permissions on the repository directory

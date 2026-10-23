@@ -22,6 +22,11 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
+            <!-- The daemon runs as root, so its remote configuration cache and everything else it
+                 keeps under run_path go to its own root-owned run directory rather than the
+                 Agent's. An environment variable, so datadog.yaml cannot move it back. -->
+            <key>DD_RUN_PATH</key>
+            <string>{{.InstallerRunDir}}</string>
 {{- if not .Stable}}
             <!-- Tells the daemon, and the installer commands and hooks it runs, that it is the
                  experiment's daemon rather than the stable one. -->
@@ -38,7 +43,7 @@
             <string>-c</string>
             <string>{{.EtcDir}}</string>
             <string>-p</string>
-            <string>{{.RunDir}}/installer.pid</string>
+            <string>{{.InstallerRunDir}}/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>

@@ -8,10 +8,13 @@
 package paths
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestDarwinPathsMatchTheLayout pins every constant to the macOS layout. The Linux values these
@@ -22,7 +25,7 @@ func TestDarwinPathsMatchTheLayout(t *testing.T) {
 	assert.Equal(t, "/opt/datadog-agent", DefaultUserConfigsDir)
 	assert.Equal(t, "/opt/datadog-agent/etc", AgentConfigDir)
 	assert.Equal(t, "/opt/datadog-agent/etc-exp", AgentConfigDirExp)
-	assert.Equal(t, "/opt/datadog-agent/run", RunPath)
+	assert.Equal(t, "/opt/datadog-packages/run", RunPath)
 	assert.Equal(t, "/opt/datadog-agent/etc", DatadogDataDir)
 	assert.Equal(t, "/opt/datadog-agent/embedded/bin/installer", StableInstallerPath)
 	assert.Equal(t, "", DatadogProgramFilesDir)
@@ -37,7 +40,6 @@ func TestEverythingTheAgentOwnsIsUnderTheInstallRoot(t *testing.T) {
 		"DefaultUserConfigsDir":   DefaultUserConfigsDir,
 		"AgentConfigDir":          AgentConfigDir,
 		"AgentConfigDirExp":       AgentConfigDirExp,
-		"RunPath":                 RunPath,
 		"DatadogDataDir":          DatadogDataDir,
 		"StableInstallerPath":     StableInstallerPath,
 		"ExperimentInstallerPath": ExperimentInstallerPath,
@@ -59,4 +61,58 @@ func TestTheExperimentConfigDirIsASibling(t *testing.T) {
 // daemon execs is the installer that ships in the package, at one address forever.
 func TestThereIsOnlyOneInstallerBinary(t *testing.T) {
 	assert.Equal(t, StableInstallerPath, ExperimentInstallerPath)
+}
+
+// TestTheInstallerRunPathIsOutsideTheAgentsTree pins that the root daemon's state is not kept
+// anywhere under the install root, which the Agent's account can write to.
+func TestTheInstallerRunPathIsOutsideTheAgentsTree(t *testing.T) {
+	assert.False(t, strings.HasPrefix(RunPath, DefaultUserConfigsDir+"/"))
+	assert.True(t, strings.HasPrefix(RunPath, PackagesPath+"/"))
+}
+
+func testOwner() dirOwner {
+	return dirOwner{uid: os.Getuid(), gid: -1}
+}
+
+func TestEnsureTrustedDirCreatesAMissingDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "run")
+	require.NoError(t, ensureTrustedDir(dir, testOwner()))
+
+	info, err := os.Lstat(dir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+	assert.Equal(t, os.FileMode(0755), info.Mode().Perm())
+}
+
+func TestEnsureTrustedDirRepairsAWritableDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "run")
+	require.NoError(t, os.Mkdir(dir, 0755))
+	require.NoError(t, os.Chmod(dir, 0777))
+
+	require.NoError(t, ensureTrustedDir(dir, testOwner()))
+
+	info, err := os.Lstat(dir)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0755), info.Mode().Perm())
+}
+
+func TestEnsureTrustedDirRefusesASymlink(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "target")
+	require.NoError(t, os.Mkdir(target, 0755))
+	link := filepath.Join(root, "run")
+	require.NoError(t, os.Symlink(target, link))
+
+	assert.Error(t, ensureTrustedDir(link, testOwner()))
+}
+
+func TestEnsureTrustedDirRefusesADirectoryItCannotRepair(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root can hand a directory to any account")
+	}
+	dir := filepath.Join(t.TempDir(), "run")
+	require.NoError(t, os.Mkdir(dir, 0755))
+
+	// Owned by the test's account, so a different expected owner cannot be enforced unprivileged.
+	assert.Error(t, ensureTrustedDir(dir, dirOwner{uid: os.Getuid() + 1, gid: -1}))
 }

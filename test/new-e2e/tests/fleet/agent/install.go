@@ -262,7 +262,7 @@ func macOSPipelineArch(arch e2eos.Architecture) string {
 // `-c /opt/datadog-agent/etc` (embedded/tmpl/com.datadoghq.installer.plist.tmpl).
 const (
 	macOSAgentConfigFile   = "/opt/datadog-agent/etc/datadog.yaml"
-	macOSInstallerRCDB     = "/opt/datadog-agent/run/remote-config-installer.db"
+	macOSInstallerRCDB     = "/opt/datadog-packages/run/remote-config-installer.db"
 	macOSInstallerJobLabel = "system/com.datadoghq.installer"
 )
 

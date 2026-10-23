@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -247,7 +248,7 @@ type updaterTaskData struct {
 // where a transient failure should be retried, not fail the test outright.
 func (s *configMacOSSuite) tryReadStatus() (backend.RemoteConfigState, error) {
 	out, err := s.Env().RemoteHost.Execute(
-		`sudo curl -sS -H 'Content-Type: application/json' --unix-socket /opt/datadog-agent/run/installer.sock http://installer/status`)
+		`sudo curl -sS -H 'Content-Type: application/json' --unix-socket /opt/datadog-packages/run/installer.sock http://installer/status`)
 	if err != nil {
 		return backend.RemoteConfigState{}, err
 	}
@@ -1277,7 +1278,7 @@ func (s *configMacOSSuite) TestShutdownAfterDeadlineExpiryRevertsMacOS() {
 	s.killAllServicesSimulatingShutdown()
 
 	_, err := s.Env().RemoteHost.Execute(
-		`sudo sh -c 'date -u -v-2H +"%Y-%m-%dT%H:%M:%SZ" > /opt/datadog-agent/run/experiment-deadline'`)
+		`sudo sh -c 'date -u -v-2H +"%Y-%m-%dT%H:%M:%SZ" > /opt/datadog-packages/run/experiment-deadline'`)
 	require.NoError(s.T(), err, "forcing the experiment deadline into the past should succeed")
 
 	// See clearPendingUpdaterTasks: without this, the start_experiment_config task pushed above gets
@@ -1300,8 +1301,8 @@ func (s *configMacOSSuite) TestShutdownAfterDeadlineExpiryRevertsMacOS() {
 // --- Set 15: daemon socket, watcher lifecycle and upgrades (macOS-specific) --------------------
 
 const (
-	installerSocketPath    = "/opt/datadog-agent/run/installer.sock"
-	experimentDeadlinePath = "/opt/datadog-agent/run/experiment-deadline"
+	installerSocketPath    = "/opt/datadog-packages/run/installer.sock"
+	experimentDeadlinePath = "/opt/datadog-packages/run/experiment-deadline"
 )
 
 // socketRequestAs calls the installer daemon's local API as user and returns the HTTP status code it
@@ -1345,6 +1346,13 @@ var rootOnlyRoutes = []struct{ method, path string }{
 // Content-Type check, so the root check is the only thing in front of it.
 func (s *configMacOSSuite) TestInstallerSocketReservesChangesForRootMacOS() {
 	s.requireResting()
+
+	// The daemon runs as root and trusts what its run directory holds, so the directory must be
+	// root's alone: the Agent's account may connect to the socket in it, never write next to it.
+	runDir, err := s.Host.GetFilePermissions(filepath.Dir(installerSocketPath))
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), [3]string{"755", "root", "wheel"}, [3]string{runDir.Mode, runDir.Owner, runDir.Group},
+		"the installer's run directory should be root:wheel 0755")
 
 	perms, err := s.Host.GetFilePermissions(installerSocketPath)
 	require.NoError(s.T(), err)

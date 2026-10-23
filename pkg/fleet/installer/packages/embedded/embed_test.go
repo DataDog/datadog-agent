@@ -248,8 +248,12 @@ func TestLaunchdInstallerExperimentVariant(t *testing.T) {
 		assert.Equal(t, []string{
 			"/opt/datadog-agent/embedded/bin/installer", "run",
 			"-c", "/opt/datadog-agent/etc" + string(variant),
-			"-p", "/opt/datadog-agent/run/installer.pid",
+			"-p", "/opt/datadog-packages/run/installer.pid",
 		}, plist.Args)
+		// The daemon runs as root: its run_path must be its own root-owned directory, never the
+		// Agent's, whatever datadog.yaml says.
+		assert.Regexp(t, `<key>DD_RUN_PATH</key>\s*<string>/opt/datadog-packages/run</string>`, string(content))
+		assert.NotContains(t, string(content), "/opt/datadog-agent/run")
 	}
 }
 

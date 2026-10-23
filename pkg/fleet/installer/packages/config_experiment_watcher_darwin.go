@@ -62,7 +62,7 @@ var installerLockPoll = time.Minute
 // (handOverInstaller): the hook that launched this process could not, running inside the daemon's
 // own job. This process runs in a session of its own, so it survives the daemon being stopped.
 func watchExperiment(ctx context.Context) error {
-	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
+	deadline := experimentDeadline()
 	jobs := configExperimentJobSet()
 
 	token, err := deadline.Read()

@@ -126,6 +126,13 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if runtime.GOOS != "windows" {
 		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
+	if runtime.GOOS == "darwin" {
+		// The daemon runs as root on macOS: make sure the run directory it keeps its socket and
+		// task database in is root-owned before opening anything in it.
+		if err := paths.EnsureInstallerDataDir(); err != nil {
+			return nil, fmt.Errorf("could not secure the installer run directory: %w", err)
+		}
+	}
 	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
 	if err != nil {

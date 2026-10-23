@@ -12,6 +12,9 @@ SYSTEM_LOG_DIR=/var/log/datadog
 SYSTEM_LOG_BASE_DIR=/var/log
 
 CONF_DIR="$INSTALL_DIR/etc"
+# The root installer daemon's own run directory, root-owned, outside the install root.
+# See pkg/fleet/installer/paths/installer_paths_darwin.go.
+INSTALLER_RUN_DIR=/opt/datadog-packages/run
 AI_USAGE_DESKTOP_MONITOR_LABEL="com.datadoghq.ai-usage-agent.desktop-monitor"
 OLD_AI_USAGE_DESKTOP_MONITOR_LABEL="com.datadoghq.ai-prompt-logger.desktop-monitor"
 
@@ -188,7 +191,15 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     # Cleared before any job is booted out: the deadline is what a running experiment watcher
     # acts on and what the next daemon resumes the experiment job set from, and the experiment
     # it bounds is discarded below.
-    rm -vf "$INSTALL_DIR/run/experiment-deadline"
+    rm -vf "$INSTALLER_RUN_DIR/experiment-deadline"
+
+    # Versions that kept the root installer daemon's state in the Agent's own run directory,
+    # which the Agent's account can write to. Nothing reads these any longer: the daemon keeps its
+    # state in $INSTALLER_RUN_DIR, and the experiment the old deadline bounded is discarded below.
+    # rm unlinks the names themselves, so a link planted in their place is never followed.
+    for stale in experiment-deadline installer.sock installer.pid installer_tasks.db remote-config-installer.db; do
+        rm -vf "$INSTALL_DIR/run/$stale"
+    done
 
     echo '# Stopping running services'
     launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
