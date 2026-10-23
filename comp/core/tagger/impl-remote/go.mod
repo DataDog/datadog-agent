@@ -13,6 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.72.0-rc.5

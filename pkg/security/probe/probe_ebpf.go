@@ -661,7 +661,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.triggerNopEvent, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1621,6 +1621,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
+	}
+	if p.profileManager != nil {
+		p.profileManager.DrainPendingEvents()
 	}
 
 	// Return any related events to the pool on every exit path (success, early
