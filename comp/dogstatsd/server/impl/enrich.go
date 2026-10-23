@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 var (
