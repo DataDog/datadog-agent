@@ -10,8 +10,13 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -24,8 +29,24 @@ const (
 	IssueID = "invalid-system-probe-config"
 )
 
-func init() {
-	issues.RegisterModuleFactory(NewModule)
+// Requires defines the dependencies for the issue module.
+type Requires struct {
+	compdef.In
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component `optional:"true"`
+	Hostname       hostnameinterface.Component
+	SelfIdent      *selfident.SelfIdent
+}
+
+// Provides defines the issue modules contributed to the registry.
+type Provides struct {
+	compdef.Out
+	Module issues.Module `group:"healthplatform_issue"`
+}
+
+// Module provides the issue modules to the health platform registry.
+func Module() fxutil.Module {
+	return fxutil.Component(fxutil.ProvideComponentConstructor(newModule))
 }
 
 type invalidSysprobeConfigModule struct {
@@ -33,9 +54,8 @@ type invalidSysprobeConfigModule struct {
 	checker *checker
 }
 
-// NewModule captures the configs so the once-only startup check can read them.
-func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidSysprobeConfigModule{datadog: deps.Config, checker: newChecker(deps.SysProbeConfig, deps.Hostname, deps.SelfIdent)}
+func newModule(reqs Requires) Provides {
+	return Provides{Module: &invalidSysprobeConfigModule{datadog: reqs.Config, checker: newChecker(reqs.SysProbeConfig, reqs.Hostname, reqs.SelfIdent)}}
 }
 
 func (m *invalidSysprobeConfigModule) IssueName() string {

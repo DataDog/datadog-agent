@@ -31,10 +31,7 @@ func TestIssueDiscriminator_FallsBackToOSHostnameWithoutHostID(t *testing.T) {
 	assert.Equal(t, osHostname, IssueDiscriminator(selfident.New(nil), ""))
 }
 
-// A nil SelfIdent must degrade to per-host scoping rather than panic: ModuleDeps
-// is a plain struct and callers do leave the field unset. Without the guard this
-// passes on non-Kubernetes builds and panics on Kubernetes ones, which is the
-// worst way to find out.
+// Direct callers may pass nil SelfIdent; fallback must work on both Kubernetes and non-Kubernetes builds.
 func TestIssueDiscriminator_NilSelfIdentFallsBackToHostID(t *testing.T) {
 	assert.Equal(t, "some-host-id", IssueDiscriminator(nil, "some-host-id"))
 }

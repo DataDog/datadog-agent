@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
@@ -24,10 +23,10 @@ func runModule(t *testing.T, yaml string) (int, error) {
 	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
 
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("host-a"))
-	m := NewModule(issues.ModuleDeps{
-		Config:   config.NewMockFromYAML(t, yaml),
-		Hostname: hn,
-	})
+	m := &missedBytesModule{
+		cfg:     config.NewMockFromYAML(t, yaml),
+		checker: newChecker(hn),
+	}
 
 	check := m.BuiltInPeriodicHealthCheck()
 	require.NotNil(t, check, "the periodic check must always be registered")
