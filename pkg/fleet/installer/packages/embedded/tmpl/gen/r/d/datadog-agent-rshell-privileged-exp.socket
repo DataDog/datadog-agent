@@ -1,4 +1,10 @@
 [Unit]
+# Starting after the Agent must not also order this socket before sockets.target.
+DefaultDependencies=no
+Requires=sysinit.target
+After=sysinit.target
+Before=shutdown.target
+Conflicts=shutdown.target
 Description=Datadog rshell privileged helper experiment socket
 After=datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
