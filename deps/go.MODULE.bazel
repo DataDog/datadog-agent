@@ -193,7 +193,6 @@ use_repo(
     "com_github_google_go_containerregistry",
     "com_github_google_gofuzz",
     "com_github_google_gopacket",
-    "com_github_google_shlex",
     "com_github_google_uuid",
     "com_github_gorilla_websocket",
     "com_github_gosnmp_gosnmp",
@@ -604,6 +603,10 @@ go_deps.module_override(
 )
 
 inject_repo(go_deps, "systemd", "libpcap")
+
+use_repo_rule("//bazel/rules/e2e_tests:repo.bzl", "e2e_tests")(name = "e2e_tests")
+
+use_repo_rule("//bazel/rules/e2e_tests:repo.bzl", "test2json")(name = "test2json")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
