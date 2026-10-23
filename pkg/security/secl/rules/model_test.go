@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -120,6 +121,57 @@ func TestDuration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, reflect.DeepEqual(setDef, deserialized))
 	})
+}
+
+func TestSetDefinitionJSONNumbers(t *testing.T) {
+	tests := []struct {
+		name                 string
+		json                 string
+		expectedValue        interface{}
+		expectedDefaultValue interface{}
+	}{
+		{
+			name:          "integer",
+			json:          `{"name":"var","value":123}`,
+			expectedValue: 123,
+		},
+		{
+			name:                 "negative default value",
+			json:                 `{"name":"var","expression":"process.pid","default_value":-1}`,
+			expectedDefaultValue: -1,
+		},
+		{
+			name:                 "arrays",
+			json:                 `{"name":"var","value":[1,2],"default_value":[0]}`,
+			expectedValue:        []interface{}{1, 2},
+			expectedDefaultValue: []interface{}{0},
+		},
+		{
+			name:          "not an integer",
+			json:          `{"name":"var","value":1.5}`,
+			expectedValue: 1.5,
+		},
+		{
+			name:          "out of the int range",
+			json:          `{"name":"var","value":1e20}`,
+			expectedValue: 1e20,
+		},
+		{
+			name:          "string",
+			json:          `{"name":"var","value":"123"}`,
+			expectedValue: "123",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var setDef SetDefinition
+			require.NoError(t, json.Unmarshal([]byte(test.json), &setDef))
+			require.NoError(t, setDef.PreCheck(PolicyLoaderOpts{}))
+			assert.Equal(t, test.expectedValue, setDef.Value)
+			assert.Equal(t, test.expectedDefaultValue, setDef.DefaultValue)
+		})
+	}
 }
 
 func TestSetDefinitionCapture(t *testing.T) {

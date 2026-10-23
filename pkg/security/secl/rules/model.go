@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"reflect"
 	"time"
 
@@ -252,6 +253,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return errors.New("variable name is empty")
 	}
 
+	// encoding/json unmarshals numbers as float64 where YAML integers are unmarshaled as int,
+	// convert them so that definitions unmarshaled from JSON are handled as the YAML ones
+	s.Value = jsonNumbersToInt(s.Value)
+	s.DefaultValue = jsonNumbersToInt(s.DefaultValue)
+
 	if s.DefaultValue != nil {
 		if defaultValueType, valueType := reflect.TypeOf(s.DefaultValue), reflect.TypeOf(s.Value); valueType != nil && defaultValueType != valueType {
 			return fmt.Errorf("'default_value' and 'value' must be of the same type (%s != %s)", defaultValueType, valueType)
@@ -285,6 +291,30 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	return nil
+}
+
+// jsonNumbersToInt applies jsonNumberToInt to a value, or to each item of an array value
+func jsonNumbersToInt(value interface{}) interface{} {
+	values, isArray := value.([]interface{})
+	if !isArray {
+		return jsonNumberToInt(value)
+	}
+
+	converted := make([]interface{}, len(values))
+	for i, item := range values {
+		converted[i] = jsonNumberToInt(item)
+	}
+	return converted
+}
+
+// jsonNumberToInt converts a float64 holding an integer, as encoding/json unmarshals JSON numbers,
+// to an int. Any other value, including a number that isn't an integer or doesn't fit in an int,
+// is returned as is
+func jsonNumberToInt(value interface{}) interface{} {
+	if number, ok := value.(float64); ok && number == math.Trunc(number) && number >= math.MinInt && number < math.MaxInt+1 {
+		return int(number)
+	}
+	return value
 }
 
 // KillDefinition describes the 'kill' section of a rule action
