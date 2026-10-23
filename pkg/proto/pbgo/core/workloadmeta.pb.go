@@ -1538,6 +1538,7 @@ type Container struct {
 	Resources                  *ContainerResources           `protobuf:"bytes,14,opt,name=resources,proto3" json:"resources,omitempty"`
 	Owner                      *WorkloadmetaEntityId         `protobuf:"bytes,15,opt,name=owner,proto3" json:"owner,omitempty"`
 	SecurityContext            *ContainerSecurityContext     `protobuf:"bytes,16,opt,name=securityContext,proto3" json:"securityContext,omitempty"`
+	GpuDeviceIDs               []string                      `protobuf:"bytes,17,rep,name=gpuDeviceIDs,proto3" json:"gpuDeviceIDs,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1680,6 +1681,13 @@ func (x *Container) GetOwner() *WorkloadmetaEntityId {
 func (x *Container) GetSecurityContext() *ContainerSecurityContext {
 	if x != nil {
 		return x.SecurityContext
+	}
+	return nil
+}
+
+func (x *Container) GetGpuDeviceIDs() []string {
+	if x != nil {
+		return x.GpuDeviceIDs
 	}
 	return nil
 }
@@ -2956,7 +2964,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x16readOnlyRootFilesystem\x18\x06 \x01(\bH\x02R\x16readOnlyRootFilesystem\x88\x01\x01B\x0f\n" +
 	"\r_runAsNonRootB\x1b\n" +
 	"\x19_allowPrivilegeEscalationB\x19\n" +
-	"\x17_readOnlyRootFilesystem\"\xdf\b\n" +
+	"\x17_readOnlyRootFilesystem\"\x83\t\n" +
 	"\tContainer\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -2980,7 +2988,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x1aresolvedAllocatedResources\x18\r \x03(\v20.datadog.workloadmeta.ContainerAllocatedResourceR\x1aresolvedAllocatedResources\x12F\n" +
 	"\tresources\x18\x0e \x01(\v2(.datadog.workloadmeta.ContainerResourcesR\tresources\x12@\n" +
 	"\x05owner\x18\x0f \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\x05owner\x12X\n" +
-	"\x0fsecurityContext\x18\x10 \x01(\v2..datadog.workloadmeta.ContainerSecurityContextR\x0fsecurityContext\x1a:\n" +
+	"\x0fsecurityContext\x18\x10 \x01(\v2..datadog.workloadmeta.ContainerSecurityContextR\x0fsecurityContext\x12\"\n" +
+	"\fgpuDeviceIDs\x18\x11 \x03(\tR\fgpuDeviceIDs\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +

@@ -12,6 +12,7 @@ from tasks.gotest import (
     _run_bazel_tests,
     _target_to_bazel_pattern,
     find_impacted_packages,
+    get_go_modified_files,
     get_modified_packages,
     should_run_all_tests,
 )
@@ -107,6 +108,42 @@ class TestGetModifiedPackages(unittest.TestCase):
         self.assertEqual(len(modules), 1)
         self.assertEqual(modules[0].test_targets, ["./."])
         self.assertEqual(modules[0].lint_targets, ["./."])
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["pkg/aggregator/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_file_in_package_under_target_dir(self):
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./pkg/aggregator"])
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["internal/somepkg/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_not_targeted_when_directory_name_contains_target(self):
+        # `internal/somepkg` must not match the `./pkg` target.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(modules, [])
+
+
+class TestGetGoModifiedFiles(unittest.TestCase):
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock(return_value="main"))
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/existing/foo.go", "docs/readme.md"]))
+    @patch(
+        "tasks.gotest.get_untracked_files",
+        new=MagicMock(return_value=["pkg/newpkg/foo.go", "pkg/existing/foo.go", "pkg/newpkg/notes.txt"]),
+    )
+    def test_untracked_files_are_included(self):
+        files = get_go_modified_files(Context())
+
+        self.assertEqual(files, ["pkg/existing/foo.go", "pkg/newpkg/foo.go"])
 
 
 class TestTargetToBazelPattern(unittest.TestCase):

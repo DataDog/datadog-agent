@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	logscrub "github.com/DataDog/datadog-agent/pkg/util/log/scrub"
 	pkglogslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	slogHandlers "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,7 +72,7 @@ func setupStdoutLogger(_ *env.Env) {
 	formatter := func(_ context.Context, r slog.Record) string {
 		return r.Message + "\n"
 	}
-	handler := slogHandlers.NewFormat(formatter, os.Stdout)
+	handler := logscrub.NewHandler(slogHandlers.NewFormat(formatter, os.Stdout))
 	loggerInterface := pkglogslog.NewWrapper(handler)
 	pkglog.SetupLogger(loggerInterface, level)
 }
