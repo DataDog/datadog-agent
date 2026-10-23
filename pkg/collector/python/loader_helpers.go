@@ -67,13 +67,14 @@ func preparePythonLoaderRuntime() (func(), error) {
 	}
 
 	log.Debugf("Performing platform loading prep")
-	if err := platformLoaderPrep(); err != nil {
+	platformLoaderDone, err := platformLoaderPrep()
+	if err != nil {
 		glock.unlock()
 		return nil, err
 	}
 
 	return func() {
-		_ = platformLoaderDone()
+		platformLoaderDone()
 		glock.unlock()
 	}, nil
 }
