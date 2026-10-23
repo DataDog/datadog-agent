@@ -359,6 +359,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
 
+	// The executor has its own span buffer; start its sender only after setup succeeds.
+	if cfg != nil {
+		p.startTelemetry(cfg)
+	}
+
 	go func() {
 		defer close(p.executorDone)
 		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
@@ -455,6 +460,10 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		}
 	}
 
+	// Flush completed spans after draining, or best-effort if the stop deadline expired.
+	// Actions still running after the deadline may finish after the sender stops.
+	p.stopTelemetry()
+
 	var stopErr error
 	if p.encryptionStore != nil {
 		p.encryptionStore.Stop()
@@ -503,12 +512,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// runner_id is only finalized after enrollment.
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
-	p.telemetry = telemetry.NewTelemetry(
-		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
-		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
-		observability.ParService,
-	)
+	p.startTelemetry(cfg)
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -561,9 +565,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 		stopErr = errors.Join(stopErr, err)
 	}
-	if p.telemetry != nil {
-		p.telemetry.Stop()
-	}
+	p.stopTelemetry()
 	if p.ownsMetricsClient && p.metricsClient != nil {
 		if err := p.metricsClient.Flush(); err != nil {
 			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
@@ -573,6 +575,22 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 	}
 	return stopErr
+}
+
+func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+	p.telemetry = telemetry.NewTelemetry(
+		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		cfg.DatadogSite,
+		observability.ParService,
+	)
+}
+
+func (p *PrivateActionRunner) stopTelemetry() {
+	if p.telemetry != nil {
+		p.telemetry.Stop()
+		p.telemetry = nil
+	}
 }
 
 func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
