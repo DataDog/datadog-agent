@@ -118,6 +118,11 @@ func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg st
 	return args.Error(0)
 }
 
+func (m *testPackageManager) StartPackageCommandDetached(ctx context.Context, packageName string, command string) error {
+	args := m.Called(ctx, packageName, command)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) ResumeConfigExperiments(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)

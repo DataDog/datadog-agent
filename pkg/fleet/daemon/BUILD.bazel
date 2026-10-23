@@ -101,6 +101,7 @@ dd_agent_go_test(
     srcs = [
         "daemon_test.go",
         "ddot_state_test.go",
+        "deferred_restart_test.go",
         "local_api_peer_darwin_test.go",
         "local_api_test.go",
         "remote_config_test.go",
@@ -111,6 +112,7 @@ dd_agent_go_test(
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
         "//pkg/fleet/installer/repository",
         "//pkg/procmgr/coat",
         "//pkg/proto/pbgo/core",

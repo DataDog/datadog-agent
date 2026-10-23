@@ -419,6 +419,13 @@ func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err er
 	return cmd.Run()
 }
 
+// Package commands that restart the Agent services on Windows after a config experiment step.
+const (
+	PostStartConfigExperimentBackgroundCommand   = "postStartConfigExperimentBackground"
+	PreStopConfigExperimentBackgroundCommand     = "preStopConfigExperimentBackground"
+	PostPromoteConfigExperimentBackgroundCommand = "postPromoteConfigExperimentBackground"
+)
+
 // StartPackageCommandDetached starts a package-specific command for a given package in the background with detached standard IO.
 func (i *InstallerExec) StartPackageCommandDetached(ctx context.Context, packageName string, command string) (err error) {
 	cmd := i.newInstallerCmdDetached(ctx, "package-command", packageName, command)

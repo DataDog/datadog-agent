@@ -51,6 +51,7 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
+	envDeferAgentRestart     = "DD_INSTALLER_DEFER_AGENT_RESTART"
 	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
@@ -236,6 +237,10 @@ type Env struct {
 
 	IsFromDaemon bool
 
+	// DeferAgentRestart tells config experiment hooks to skip launching the background Agent
+	// restart because the daemon launches it after recording the task result.
+	DeferAgentRestart bool
+
 	// FIPSMode requests the FIPS-compliant flavor of any package downloaded by the
 	// installer. When true, only manifests annotated with com.datadoghq.package.flavor=fips
 	// are eligible, with no fallback to the base flavor.
@@ -360,9 +365,10 @@ func FromEnv() *Env {
 		PAREnabled:          strings.ToLower(os.Getenv(envPAREnabled)) == "true",
 		PARActionsAllowlist: os.Getenv(envPARActionsAllowlist),
 
-		IsCentos6:    DetectCentos6(),
-		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
-		FIPSMode:     pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv(envFIPSMode)) == "true",
+		IsCentos6:         DetectCentos6(),
+		IsFromDaemon:      os.Getenv(envIsFromDaemon) == "true",
+		DeferAgentRestart: os.Getenv(envDeferAgentRestart) == "true",
+		FIPSMode:          pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv(envFIPSMode)) == "true",
 	}
 }
 
@@ -461,6 +467,9 @@ func (e *Env) ToEnv() []string {
 		// The easiest way to do this without having to import setup/log & pkg/config
 		// is by env var.
 		env = append(env, "DD_LOG_LEVEL=off")
+	}
+	if e.DeferAgentRestart {
+		env = append(env, envDeferAgentRestart+"=true")
 	}
 	if e.FIPSMode {
 		env = append(env, envFIPSMode+"=true")
