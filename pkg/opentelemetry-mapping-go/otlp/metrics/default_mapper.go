@@ -57,7 +57,7 @@ func (m *defaultMapper) MapNumberMetrics(
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.GaugeInterval, &m.warnedRateAttrErrors)
 }
 
 // MapHistogramMetrics maps double histogram metrics slices to Datadog metrics
