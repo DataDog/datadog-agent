@@ -1,0 +1,16 @@
+---
+security:
+  - |
+    The Agent creates its log files under /var/log/datadog with mode 0640
+    instead of 0644, and takes the read permission of other users away from
+    a log file there that an earlier version created. The CIS Benchmarks
+    require mode 0640 or stricter for the files under /var/log. The log files
+    at other paths keep the mode of earlier versions.
+upgrade:
+  - |
+    Reading the Agent log files under /var/log/datadog now takes root, their
+    owner, or membership in their group. The Linux packages create
+    /var/log/datadog with mode 0750, which already keeps other users out. The
+    log files there of the Agent services that run as root, such as
+    system-probe and security-agent, now belong to the dd-agent group, which
+    lets the Agent copy them into a flare.
