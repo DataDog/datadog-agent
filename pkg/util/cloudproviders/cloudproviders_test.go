@@ -15,6 +15,7 @@ import (
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
@@ -23,6 +24,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// resetCloudProviderCache drops the cloud provider cached by DetectCloudProvider, before and after the test
+func resetCloudProviderCache(t *testing.T) {
+	cache.Cache.Delete(cloudProviderCacheKey)
+	t.Cleanup(func() { cache.Cache.Delete(cloudProviderCacheKey) })
+}
 
 func TestDetectCloudProviderDMI(t *testing.T) {
 	cfg := configmock.New(t)
@@ -54,6 +61,7 @@ func TestDetectCloudProviderShortCircuitsNetworkCallsWhenDMIMatches(t *testing.T
 		cloudProviderDetectors = origDetectors
 		cloudProviderDetectorResolutionOrder = origResolutionOrder
 	}()
+	resetCloudProviderCache(t)
 
 	cfg := configmock.New(t)
 	cfg.SetInTest("ec2_use_dmi", true)
@@ -84,6 +92,7 @@ func TestDetectCloudProviderFallsBackToNetworkWhenDMIInconclusive(t *testing.T) 
 		cloudProviderDetectors = origDetectors
 		cloudProviderDetectorResolutionOrder = origResolutionOrder
 	}()
+	resetCloudProviderCache(t)
 
 	cfg := configmock.New(t)
 	cfg.SetInTest("ec2_use_dmi", true)
@@ -100,6 +109,66 @@ func TestDetectCloudProviderFallsBackToNetworkWhenDMIInconclusive(t *testing.T) 
 
 	name, _ := DetectCloudProvider(context.TODO(), false)
 	assert.Equal(t, "network-detector", name)
+}
+
+func TestDetectCloudProvider(t *testing.T) {
+	origDetectors := cloudProviderDetectors
+	origResolutionOrder := cloudProviderDetectorResolutionOrder
+	t.Cleanup(func() {
+		cloudProviderDetectors = origDetectors
+		cloudProviderDetectorResolutionOrder = origResolutionOrder
+	})
+	resetCloudProviderCache(t)
+	// make DMI inconclusive so that the network-based detectors are used
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockProductName(t, "")
+	dmi.SetupMockChassisAssetTag(t, "")
+
+	detected := false
+	detectionCalls := 0
+	accountIDCalls := 0
+	cloudProviderDetectors = map[string]cloudProviderDetector{
+		"provider1": {
+			name: "provider1",
+			callback: func(context.Context) bool {
+				detectionCalls++
+				return detected
+			},
+			accountIDCallback: func(context.Context) (string, error) {
+				accountIDCalls++
+				return "account1", nil
+			},
+		},
+	}
+	cloudProviderDetectorResolutionOrder = []string{"provider1"}
+
+	// A failed detection is not cached
+	name, accountID := DetectCloudProvider(context.Background(), true)
+	assert.Empty(t, name)
+	assert.Empty(t, accountID)
+	name, _ = DetectCloudProvider(context.Background(), true)
+	assert.Empty(t, name)
+	assert.Equal(t, 2, detectionCalls)
+
+	// A successful detection is cached
+	detected = true
+	name, accountID = DetectCloudProvider(context.Background(), true)
+	assert.Equal(t, "provider1", name)
+	assert.Equal(t, "account1", accountID)
+	assert.Equal(t, 3, detectionCalls)
+
+	detected = false
+	name, accountID = DetectCloudProvider(context.Background(), true)
+	assert.Equal(t, "provider1", name)
+	assert.Equal(t, "account1", accountID)
+	assert.Equal(t, 3, detectionCalls)
+
+	// The account ID is not cached, and only fetched when requested
+	assert.Equal(t, 2, accountIDCalls)
+	name, accountID = DetectCloudProvider(context.Background(), false)
+	assert.Equal(t, "provider1", name)
+	assert.Empty(t, accountID)
+	assert.Equal(t, 2, accountIDCalls)
 }
 
 func TestCloudProviderAliases(t *testing.T) {
