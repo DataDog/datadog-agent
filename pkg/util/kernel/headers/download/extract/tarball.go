@@ -10,16 +10,10 @@ package extract
 
 import (
 	"archive/tar"
-	"compress/bzip2"
-	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/zstd"
-	"github.com/xi2/xz"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types"
 )
@@ -29,82 +23,66 @@ type onlyWriter struct {
 }
 
 // ExtractTarball extracts the tarball in the `reader` with `filename` into `directory`.
-func ExtractTarball(reader io.Reader, filename, directory string, logger types.Logger) error {
-	var compressedTarReader io.Reader
-	var err error
-	ext := filepath.Ext(filename)
-	switch ext {
+func ExtractTarball(reader io.Reader, filename, directory string, _ types.Logger) error {
+	var compression compressionFormat
+	extension := filepath.Ext(filename)
+	switch extension {
 	case ".xz":
-		compressedTarReader, err = xz.NewReader(reader, 0)
-		if err != nil {
-			return fmt.Errorf("extract xz: %w", err)
-		}
+		compression = compressionXZ
 	case ".gz", ".tgz":
-		gzipReader, err := gzip.NewReader(reader)
-		if err != nil {
-			return fmt.Errorf("extract gzip: %w", err)
-		}
-		defer gzipReader.Close()
-		compressedTarReader = gzipReader
+		compression = compressionGzip
 	case ".bz2":
-		compressedTarReader = bzip2.NewReader(reader)
+		compression = compressionBzip2
 	case ".zst":
-		zstdReader, err := zstd.NewReader(reader)
-		if err != nil {
-			return fmt.Errorf("extract %s: failed to create zstd reader: %w", filename, err)
-		}
-		defer zstdReader.Close()
-		compressedTarReader = zstdReader
+		compression = compressionZstd
 	default:
-		return fmt.Errorf("extract %s: unsupported extension %s", filename, ext)
+		return fmt.Errorf("extract %s: unsupported extension %s", filename, extension)
 	}
+	decompressedReader, err := openCompressed(reader, compression)
+	if err != nil {
+		return fmt.Errorf("extract %s: %w", filename, err)
+	}
+	defer decompressedReader.Close()
 
-	buf := make([]byte, 50)
-	tarReader := tar.NewReader(compressedTarReader)
+	destination, err := openExtractionDirectory(directory)
+	if err != nil {
+		return err
+	}
+	defer destination.root.Close()
+	tarReader := tar.NewReader(decompressedReader)
 	for {
-		hdr, err := tarReader.Next()
+		header, err := tarReader.Next()
 		if err == io.EOF {
 			break // End of archive
 		}
 		if err != nil {
 			return fmt.Errorf("read entry from tarball: %w", err)
 		}
-
-		path := filepath.Join(directory, hdr.Name)
-		// logger.Debugf("Extracting %s to %s", hdr.Name, path)
-
-		switch hdr.Typeflag {
-		case tar.TypeSymlink:
-			// If the symlink is to an absolute path, prefix it with the download directory
-			if strings.HasPrefix(hdr.Linkname, "/") {
-				_ = os.Symlink(filepath.Join(directory, hdr.Linkname), path)
-				continue
-			}
-			// If the symlink is to a relative path, leave it be
-			_ = os.Symlink(hdr.Linkname, path)
+		if header.Typeflag == tar.TypeXGlobalHeader {
+			// Global PAX records are metadata and do not create filesystem entries.
+			continue
+		}
+		name, err := archivePath(header.Name)
+		if err != nil {
+			return err
+		}
+		switch header.Typeflag {
 		case tar.TypeDir:
-			_ = os.MkdirAll(path, 0755)
+			err = destination.mkdir(name)
 		case tar.TypeReg:
-			output, err := os.Create(path)
-			if err != nil {
-				return fmt.Errorf("create output file '%s': %w", path, err)
-			}
-
-			// By default, an os.File implements the io.ReaderFrom interface.
-			// As a result, CopyBuffer will attempt to use the output.ReadFrom method to perform
-			// the requested copy, which ends up calling the unbuffered io.Copy function & performing
-			// a large number of allocations.
-			// In order to force CopyBuffer to actually utilize the given buffer, we have to ensure
-			// output does not implement the io.ReaderFrom interface.
-			_, err = io.CopyBuffer(onlyWriter{output}, tarReader, buf)
-			output.Close()
-			if err != nil {
-				return fmt.Errorf("uncompress file %s: %w", hdr.Name, err)
-			}
+			err = destination.write(name, header.Mode, tarReader)
+		case tar.TypeSymlink:
+			err = destination.symlink(name, header.Linkname)
+		case tar.TypeLink:
+			err = errors.New("tar hardlinks are unsupported")
 		default:
-			logger.Warnf("Unsupported header flag '%d' for '%s'", hdr.Typeflag, hdr.Name)
+			err = fmt.Errorf("unsupported tar entry type %d", header.Typeflag)
+		}
+		if err != nil {
+			return fmt.Errorf("extract tar entry %q: %w", header.Name, err)
 		}
 	}
-
-	return nil
+	// Consume the compression trailer so checksum errors are not hidden by tar EOF.
+	_, err = io.CopyBuffer(io.Discard, decompressedReader, destination.buffer)
+	return err
 }

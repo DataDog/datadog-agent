@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/sassoftware/go-rpmutils"
 	"gopkg.in/ini.v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm/dnfv2/internal/utils"
@@ -114,6 +113,22 @@ type PkgInfoHeader struct {
 type PkgMatchFunc = func(*PkgInfoHeader) bool
 
 func (r *Repo) createHTTPClient() (*utils.HTTPClient, error) {
+	return r.httpClient(repositoryTransport)
+}
+
+// transportPolicy distinguishes the configured repository transport from a
+// client that always verifies TLS and refuses redirects to non-HTTPS URLs.
+type transportPolicy uint8
+
+const (
+	repositoryTransport transportPolicy = iota
+	verifiedHTTPSTransport
+)
+
+// httpClient applies the repository's client certificate and CA settings. The
+// verified HTTPS policy enforces certificate checks even when sslverify=0 is
+// configured for package downloads; signing keys require this authenticated path.
+func (r *Repo) httpClient(policy transportPolicy) (*utils.HTTPClient, error) {
 	var certs []tls.Certificate
 	if r.SSLClientCert != "" || r.SSLClientKey != "" {
 		cert, err := tls.LoadX509KeyPair(utils.HostEtcJoin(r.SSLClientCert), utils.HostEtcJoin(r.SSLClientKey))
@@ -137,12 +152,25 @@ func (r *Repo) createHTTPClient() (*utils.HTTPClient, error) {
 
 	inner := &http.Client{
 		Transport: &http.Transport{
+			// Verified HTTPS clients are short-lived; do not leave idle connections behind.
+			DisableKeepAlives: policy == verifiedHTTPSTransport,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: !r.SSLVerify,
+				InsecureSkipVerify: !r.SSLVerify && policy != verifiedHTTPSTransport,
 				Certificates:       certs,
 				RootCAs:            certPool,
 			},
 		},
+	}
+	if policy == verifiedHTTPSTransport {
+		inner.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if req.URL.Scheme != "https" {
+				return errors.New("verified HTTPS transport refuses non-HTTPS redirects")
+			}
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 HTTPS redirects")
+			}
+			return nil
+		}
 	}
 
 	return utils.NewHTTPClientFromInner(inner), nil
@@ -167,7 +195,11 @@ func (r *Repo) FetchPackage(ctx context.Context, pkgMatcher PkgMatchFunc) (*PkgI
 
 	var entityList openpgp.EntityList
 	if r.GpgCheck {
-		el, err := readGPGKeys(ctx, httpClient, r.GpgKeys)
+		keyClient, err := r.httpClient(verifiedHTTPSTransport)
+		if err != nil {
+			return nil, nil, fmt.Errorf("create signing key client: %w", err)
+		}
+		el, err := readGPGKeys(ctx, keyClient, r.GpgKeys)
 		// if we found keys we can ignore the error
 		if err != nil && len(el) == 0 {
 			return nil, nil, fmt.Errorf("read gpg key: %w", err)
@@ -191,7 +223,7 @@ func (r *Repo) FetchPackage(ctx context.Context, pkgMatcher PkgMatchFunc) (*PkgI
 	}
 
 	if r.GpgCheck {
-		_, _, err = rpmutils.Verify(bytes.NewReader(pkgRpmData), entityList)
+		err = verifyPackage(pkgRpmData, entityList)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -237,14 +269,14 @@ func readGPGKey(ctx context.Context, httpClient *utils.HTTPClient, gpgKey string
 		}
 		defer publicKeyFile.Close()
 		publicKeyReader = publicKeyFile
-	} else if gpgKeyURL.Scheme == "http" || gpgKeyURL.Scheme == "https" {
+	} else if gpgKeyURL.Scheme == "https" {
 		content, err := httpClient.Get(ctx, gpgKey)
 		if err != nil {
 			return nil, err
 		}
 		publicKeyReader = bytes.NewReader(content)
 	} else {
-		return nil, fmt.Errorf("only file and http(s) scheme are supported for gpg key: %s", gpgKey)
+		return nil, fmt.Errorf("signing key %s requires a local file or verified HTTPS; install HTTP-only keys locally and configure a file URL", gpgKey)
 	}
 
 	newEntities, err := openpgp.ReadArmoredKeyRing(publicKeyReader)
