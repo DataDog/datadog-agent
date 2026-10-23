@@ -37,13 +37,7 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
       >&2 echo "🔴 BUILDBARN_ID_TOKEN must be populated in CI!"
       exit 2
     fi
-    extra_args+=(--config=ci)
-    # The internal Fabric frontend is reachable from Linux CI runners in k8s.
-    if [ "$(uname -s)" = Linux ]; then
-      extra_args+=(--config=cache:frontend-internal)
-    else
-      extra_args+=(--config=cache:frontend)
-    fi
+    extra_args+=(--config=ci --config=cache:frontend)
   fi
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env
