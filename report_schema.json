@@ -1,0 +1,638 @@
+{
+  "$defs": {
+    "AnalysisError": {
+      "description": "An analysis that failed to run.",
+      "properties": {
+        "analysis_type": {
+          "$ref": "#/$defs/AnalysisType",
+          "description": "Analysis type"
+        },
+        "check_name": {
+          "description": "Check or analysis name.",
+          "type": "string"
+        },
+        "experiment": {
+          "description": "Experiment the error occurred for.",
+          "type": "string"
+        },
+        "message": {
+          "description": "Error message.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "experiment",
+        "check_name",
+        "analysis_type",
+        "message"
+      ],
+      "type": "object"
+    },
+    "AnalysisType": {
+      "description": "An analysis that failed to run.",
+      "oneOf": [
+        {
+          "const": "quantile_bounds",
+          "description": "Quantile bounds",
+          "type": "string"
+        }
+      ]
+    },
+    "BoundsCheck": {
+      "description": "A bounds check and its aggregated results.",
+      "properties": {
+        "lower_bound": {
+          "description": "Lower bound of acceptable values, if set.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_observed": {
+          "description": "Maximum observed value across all replicates (comparison variant only).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min_observed": {
+          "description": "Minimum observed value across all replicates (comparison variant only).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Bounds check name.",
+          "type": "string"
+        },
+        "pass_count": {
+          "description": "Number of replicates that passed the check (comparison variant only).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "series": {
+          "description": "Metric series the check was asserted against.",
+          "type": "string"
+        },
+        "total_count": {
+          "description": "Total number of replicates for this check (comparison variant only).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unit": {
+          "$ref": "#/$defs/Unit",
+          "description": "Units of the observed values. See [`Unit`]."
+        },
+        "upper_bound": {
+          "description": "Upper bound of acceptable values, if set.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "series",
+        "unit",
+        "pass_count",
+        "total_count"
+      ],
+      "type": "object"
+    },
+    "ConfidenceInterval": {
+      "description": "A closed confidence interval `[lower, upper]`.",
+      "properties": {
+        "lower": {
+          "description": "Lower bound.",
+          "format": "double",
+          "type": "number"
+        },
+        "upper": {
+          "description": "Upper bound.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "type": "object"
+    },
+    "Experiment": {
+      "description": "Results for a single experiment.",
+      "properties": {
+        "bounds_checks": {
+          "description": "Bounds checks for this experiment.",
+          "items": {
+            "$ref": "#/$defs/BoundsCheck"
+          },
+          "type": "array"
+        },
+        "erratic": {
+          "description": "Whether the experiment is configured `erratic: true`: regressions are\nreported but ignored for CI pass/fail.",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Experiment name.",
+          "type": "string"
+        },
+        "optimization_goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizationGoal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optimization goal results. `None` iff the experiment has no optimization goal"
+        },
+        "quantile_checks": {
+          "description": "Quantile checks for this experiment.",
+          "items": {
+            "$ref": "#/$defs/QuantileCheck"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "erratic",
+        "bounds_checks",
+        "quantile_checks"
+      ],
+      "type": "object"
+    },
+    "FailedReplicate": {
+      "description": "One bucket of identical failed replicate executions.",
+      "properties": {
+        "experiment": {
+          "description": "Experiment name.",
+          "type": "string"
+        },
+        "failure": {
+          "$ref": "#/$defs/ReplicateFailure",
+          "description": "Failure mode."
+        },
+        "is_dead": {
+          "description": "`true` if these failures exhausted retries (no further attempts will be made);\n`false` if the replicate may still be retried.",
+          "type": "boolean"
+        },
+        "replicate_type": {
+          "$ref": "#/$defs/ReplicateType",
+          "description": "Type of replicate that failed."
+        },
+        "replicates": {
+          "description": "Replicate indices that failed in this bucket, with counts.",
+          "items": {
+            "$ref": "#/$defs/FailedReplicateBucket"
+          },
+          "type": "array"
+        },
+        "variant": {
+          "$ref": "#/$defs/Variant",
+          "description": "Variant that failed."
+        }
+      },
+      "required": [
+        "experiment",
+        "variant",
+        "replicate_type",
+        "failure",
+        "is_dead",
+        "replicates"
+      ],
+      "type": "object"
+    },
+    "FailedReplicateBucket": {
+      "description": "A count of failures for one replicate index within a bucket.",
+      "properties": {
+        "count": {
+          "description": "Number of times this replicate failed with this failure mode.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "replicate_index": {
+          "description": "Replicate index that failed.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "replicate_index",
+        "count"
+      ],
+      "type": "object"
+    },
+    "Job": {
+      "description": "Job-level information and the tolerances the analysis was run with.",
+      "properties": {
+        "baseline_sha": {
+          "description": "Baseline variant's commit SHA or version identifier.",
+          "type": "string"
+        },
+        "comparison_sha": {
+          "description": "Comparison variant's commit SHA or version identifier.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Job UUID, as a string.",
+          "type": "string"
+        },
+        "metrics_query_end": {
+          "description": "End of the metrics query window, in unix epoch seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "metrics_query_start": {
+          "description": "Start of the metrics query window, in unix epoch seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tolerances": {
+          "$ref": "#/$defs/Tolerances",
+          "description": "Statistical tolerances the analysis was configured with."
+        }
+      },
+      "required": [
+        "id",
+        "baseline_sha",
+        "comparison_sha",
+        "metrics_query_start",
+        "metrics_query_end",
+        "tolerances"
+      ],
+      "type": "object"
+    },
+    "OptimizationGoal": {
+      "description": "Optimization goal results for a single experiment.",
+      "properties": {
+        "goal": {
+          "description": "The optimization goal as a machine-readable token, e.g.\n`\"ingress_throughput\"`.\n\nTODO: future schema versions should wire up the `goal` to get rid of the wrapping `Option<>`\nWe have it here because consignor does not provide the goal for failed analyses\nSo current impl will have \"goal = None\" <=> \"result = None\"\nBut users should not care: that value is always well-defined, and should always be `Some()`",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_trial_count": {
+          "description": "Maximum trial count configured for the experiment.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizationGoalResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The analysis result. `None` iff analysis did not produce a usable\nresult (crash, error, or absent payload)."
+        },
+        "trial_count": {
+          "description": "Number of trials completed.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "trial_count",
+        "max_trial_count"
+      ],
+      "type": "object"
+    },
+    "OptimizationGoalResult": {
+      "description": "A usable optimization-goal analysis result.",
+      "properties": {
+        "confidence_interval": {
+          "$ref": "#/$defs/ConfidenceInterval",
+          "description": "Confidence interval on the percent change."
+        },
+        "confidence_percent": {
+          "description": "Confidence level, in percent (complement of the Type I error).",
+          "format": "double",
+          "type": "number"
+        },
+        "is_erratic": {
+          "description": "Whether the experiment data varies enough that the i.i.d. assumption\nunderlying the statistical test no longer holds.",
+          "type": "boolean"
+        },
+        "is_improvement": {
+          "description": "Whether the change is a performance improvement.",
+          "type": "boolean"
+        },
+        "is_significant_change": {
+          "description": "Are we observing a performance change",
+          "type": "boolean"
+        },
+        "percent_change": {
+          "description": "Estimated percent change in mean.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "percent_change",
+        "confidence_interval",
+        "confidence_percent",
+        "is_significant_change",
+        "is_improvement",
+        "is_erratic"
+      ],
+      "type": "object"
+    },
+    "QuantileCheck": {
+      "description": "A single Cairn quantile analysis result.",
+      "properties": {
+        "analysis_method": {
+          "description": "Analysis method used (e.g. `harrell_davis`).",
+          "type": "string"
+        },
+        "bounds_check_name": {
+          "description": "Name of the bounds check this quantile analysis is associated with.",
+          "type": "string"
+        },
+        "confidence_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuantileConfidenceInterval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Confidence interval for the quantile estimate, if computed."
+        },
+        "quantile": {
+          "description": "The quantile analyzed (e.g. `0.99` for p99).",
+          "format": "double",
+          "type": "number"
+        },
+        "series": {
+          "description": "Metric series analyzed for the quantile.",
+          "type": "string"
+        },
+        "unit": {
+          "$ref": "#/$defs/Unit",
+          "description": "Units of the value."
+        },
+        "value": {
+          "description": "The computed quantile value.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bounds_check_name",
+        "series",
+        "unit",
+        "quantile",
+        "value",
+        "analysis_method"
+      ],
+      "type": "object"
+    },
+    "QuantileConfidenceInterval": {
+      "description": "Confidence interval for a quantile estimate.",
+      "properties": {
+        "confidence_level": {
+          "description": "Confidence level (e.g. `0.95`).",
+          "format": "double",
+          "type": "number"
+        },
+        "lower": {
+          "description": "Lower bound.",
+          "format": "double",
+          "type": "number"
+        },
+        "upper": {
+          "description": "Upper bound.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lower",
+        "upper",
+        "confidence_level"
+      ],
+      "type": "object"
+    },
+    "ReplicateFailure": {
+      "description": "Failure mode for a replicate execution.",
+      "oneOf": [
+        {
+          "description": "Failure mode was not specified.",
+          "properties": {
+            "kind": {
+              "const": "unspecified",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The target process exited with a non-zero exit code.",
+          "properties": {
+            "exit_code": {
+              "description": "The non-zero exit code the target exited with.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "kind": {
+              "const": "crashed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "exit_code"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The target did not shut down within the allotted time.",
+          "properties": {
+            "kind": {
+              "const": "shutdown_timeout",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The replicate exhausted its retries.",
+          "properties": {
+            "kind": {
+              "const": "exhausted_retries",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The target was OOM-killed.",
+          "properties": {
+            "kind": {
+              "const": "oom_killed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ReplicateType": {
+      "description": "Type of replicate.",
+      "oneOf": [
+        {
+          "const": "non_profiling",
+          "description": "A normal, non-profiling replicate.",
+          "type": "string"
+        },
+        {
+          "const": "internal_profiling",
+          "description": "A replicate run with the target's internal profiling enabled.",
+          "type": "string"
+        },
+        {
+          "const": "ddprof",
+          "description": "A replicate run under ddprof.",
+          "type": "string"
+        }
+      ]
+    },
+    "Tolerances": {
+      "description": "Statistical tolerances for the analysis.",
+      "properties": {
+        "coefficient_of_variation_limit": {
+          "description": "Coefficient of variation limit tolerance.",
+          "format": "double",
+          "type": "number"
+        },
+        "effect_size": {
+          "description": "Effect size tolerance (minimum meaningful `|Δ mean %|`).",
+          "format": "double",
+          "type": "number"
+        },
+        "p_value": {
+          "description": "p-value tolerance.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "p_value",
+        "effect_size",
+        "coefficient_of_variation_limit"
+      ],
+      "type": "object"
+    },
+    "Unit": {
+      "description": "Units of a metric value, published explicitly in the contract.",
+      "oneOf": [
+        {
+          "const": "bytes",
+          "description": "Byte-like values (e.g. RSS).",
+          "type": "string"
+        },
+        {
+          "const": "bytes_per_second",
+          "description": "Bytes-per-second-like values (e.g. throughput).",
+          "type": "string"
+        },
+        {
+          "const": "none",
+          "description": "No dimension (counts, percentages, ratios).",
+          "type": "string"
+        }
+      ]
+    },
+    "Variant": {
+      "description": "Type of replicate.",
+      "oneOf": [
+        {
+          "const": "baseline",
+          "description": "Reference version: (e.g. older commit, or reference branch)",
+          "type": "string"
+        },
+        {
+          "const": "comparison",
+          "description": "Version under scrutiny",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "tag:datadoghq.dev,2026-09-10:single-machine-performance/schemas/report/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A complete regression-detector report, the contents of `report.v1.json`.",
+  "properties": {
+    "$schema": {
+      "description": "URI of the schema this document conforms to; encodes the version",
+      "type": "string"
+    },
+    "analysis_errors": {
+      "description": "Analyses that failed to run.",
+      "items": {
+        "$ref": "#/$defs/AnalysisError"
+      },
+      "type": "array"
+    },
+    "experiments": {
+      "description": "One entry per experiment.",
+      "items": {
+        "$ref": "#/$defs/Experiment"
+      },
+      "type": "array"
+    },
+    "failed_replicates": {
+      "description": "Buckets of identical replicate execution failures.",
+      "items": {
+        "$ref": "#/$defs/FailedReplicate"
+      },
+      "type": "array"
+    },
+    "job": {
+      "$ref": "#/$defs/Job",
+      "description": "Job-level information and tolerances."
+    }
+  },
+  "required": [
+    "$schema",
+    "job",
+    "experiments",
+    "analysis_errors",
+    "failed_replicates"
+  ],
+  "title": "Report",
+  "type": "object"
+}
