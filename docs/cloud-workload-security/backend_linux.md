@@ -1213,6 +1213,45 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "MountEventSerializer serializes a mount event to JSON"
         },
+        "NamespaceIDs": {
+            "properties": {
+                "mntns": {
+                    "type": "integer",
+                    "description": "Mount namespace ID"
+                },
+                "netns": {
+                    "type": "integer",
+                    "description": "Network namespace ID"
+                },
+                "pidns": {
+                    "type": "integer",
+                    "description": "ID of the PID namespace future children are created in (pid_for_children)"
+                },
+                "userns": {
+                    "type": "integer",
+                    "description": "User namespace ID"
+                },
+                "utsns": {
+                    "type": "integer",
+                    "description": "UTS namespace ID"
+                },
+                "ipcns": {
+                    "type": "integer",
+                    "description": "IPC namespace ID"
+                },
+                "cgroupns": {
+                    "type": "integer",
+                    "description": "Cgroup namespace ID"
+                },
+                "timens": {
+                    "type": "integer",
+                    "description": "Time namespace ID"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
+        },
         "NetworkContext": {
             "properties": {
                 "device": {
@@ -2029,6 +2068,64 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
+        "SetNSEvent": {
+            "properties": {
+                "nstype": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
+                },
+                "mntns": {
+                    "type": "integer",
+                    "description": "Mount namespace ID"
+                },
+                "netns": {
+                    "type": "integer",
+                    "description": "Network namespace ID"
+                },
+                "pidns": {
+                    "type": "integer",
+                    "description": "ID of the PID namespace future children are created in (pid_for_children)"
+                },
+                "userns": {
+                    "type": "integer",
+                    "description": "User namespace ID"
+                },
+                "utsns": {
+                    "type": "integer",
+                    "description": "UTS namespace ID"
+                },
+                "ipcns": {
+                    "type": "integer",
+                    "description": "IPC namespace ID"
+                },
+                "cgroupns": {
+                    "type": "integer",
+                    "description": "Cgroup namespace ID"
+                },
+                "timens": {
+                    "type": "integer",
+                    "description": "Time namespace ID"
+                },
+                "previous": {
+                    "$ref": "#/$defs/NamespaceIDs",
+                    "description": "Namespace IDs of the thread before the syscall"
+                },
+                "mntns_host": {
+                    "type": "boolean",
+                    "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+                },
+                "mntns_outside_base": {
+                    "type": "boolean",
+                    "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SetNSEventSerializer serializes a setns event"
+        },
         "SetSockOptEvent": {
             "properties": {
                 "socket_type": {
@@ -2645,6 +2742,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "setrlimit": {
             "$ref": "#/$defs/SetrlimitEvent"
         },
+        "setns": {
+            "$ref": "#/$defs/SetNSEvent"
+        },
         "socket": {
             "$ref": "#/$defs/SocketEvent"
         },
@@ -2703,6 +2803,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
+| `setns` | $ref | Please see [SetNSEvent](#setnsevent) |
 | `socket` | $ref | Please see [SocketEvent](#socketevent) |
 | `unshare` | $ref | Please see [UnshareEvent](#unshareevent) |
 
@@ -4477,6 +4578,64 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ---------- |
 | [File](#file) |
 
+## `NamespaceIDs`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "mntns": {
+            "type": "integer",
+            "description": "Mount namespace ID"
+        },
+        "netns": {
+            "type": "integer",
+            "description": "Network namespace ID"
+        },
+        "pidns": {
+            "type": "integer",
+            "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+            "type": "integer",
+            "description": "User namespace ID"
+        },
+        "utsns": {
+            "type": "integer",
+            "description": "UTS namespace ID"
+        },
+        "ipcns": {
+            "type": "integer",
+            "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+            "type": "integer",
+            "description": "Cgroup namespace ID"
+        },
+        "timens": {
+            "type": "integer",
+            "description": "Time namespace ID"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `mntns` | Mount namespace ID |
+| `netns` | Network namespace ID |
+| `pidns` | ID of the PID namespace future children are created in (pid_for_children) |
+| `userns` | User namespace ID |
+| `utsns` | UTS namespace ID |
+| `ipcns` | IPC namespace ID |
+| `cgroupns` | Cgroup namespace ID |
+| `timens` | Time namespace ID |
+
+
 ## `NetworkContext`
 
 
@@ -5660,6 +5819,90 @@ ancestor lineage to find the same value. |
 | `event_type_state` | State of the event type in this profile |
 | `profile_already_sent` | True if the profile had already been persisted to the backend when this event was emitted |
 
+
+## `SetNSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "nstype": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
+        },
+        "mntns": {
+            "type": "integer",
+            "description": "Mount namespace ID"
+        },
+        "netns": {
+            "type": "integer",
+            "description": "Network namespace ID"
+        },
+        "pidns": {
+            "type": "integer",
+            "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+            "type": "integer",
+            "description": "User namespace ID"
+        },
+        "utsns": {
+            "type": "integer",
+            "description": "UTS namespace ID"
+        },
+        "ipcns": {
+            "type": "integer",
+            "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+            "type": "integer",
+            "description": "Cgroup namespace ID"
+        },
+        "timens": {
+            "type": "integer",
+            "description": "Time namespace ID"
+        },
+        "previous": {
+            "$ref": "#/$defs/NamespaceIDs",
+            "description": "Namespace IDs of the thread before the syscall"
+        },
+        "mntns_host": {
+            "type": "boolean",
+            "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+        },
+        "mntns_outside_base": {
+            "type": "boolean",
+            "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SetNSEventSerializer serializes a setns event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `nstype` | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0 |
+| `mntns` | Mount namespace ID |
+| `netns` | Network namespace ID |
+| `pidns` | ID of the PID namespace future children are created in (pid_for_children) |
+| `userns` | User namespace ID |
+| `utsns` | UTS namespace ID |
+| `ipcns` | IPC namespace ID |
+| `cgroupns` | Cgroup namespace ID |
+| `timens` | Time namespace ID |
+| `previous` | Namespace IDs of the thread before the syscall |
+| `mntns_host` | Indicates that the mount namespace of the thread after the syscall is the host's initial one |
+| `mntns_outside_base` | Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one |
+
+| References |
+| ---------- |
+| [NamespaceIDs](#namespaceids) |
 
 ## `SetSockOptEvent`
 

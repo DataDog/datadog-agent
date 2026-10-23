@@ -93,6 +93,12 @@ struct syscall_cache_t {
         } setrlimit;
 
         struct {
+            s32 nstype;
+            struct namespace_ids_t before;
+            u32 effective_nstype;
+        } setns;
+
+        struct {
             struct dentry *dentry;
             struct path *path;
             struct file_t file;

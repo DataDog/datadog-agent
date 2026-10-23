@@ -113,6 +113,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Rmdir = deepCopyRmdirEvent(e.Rmdir, c)
 	copied.SELinux = deepCopySELinuxEvent(e.SELinux, c)
 	copied.SetGID = deepCopySetgidEvent(e.SetGID, c)
+	copied.SetNS = deepCopySetNSEvent(e.SetNS, c)
 	copied.SetSockOpt = deepCopySetSockOptEvent(e.SetSockOpt, c)
 	copied.SetUID = deepCopySetuidEvent(e.SetUID, c)
 	copied.SetXAttr = deepCopySetXAttrEvent(e.SetXAttr, c)
@@ -1258,6 +1259,28 @@ func deepCopySetgidEvent(fieldToCopy SetgidEvent, c deepCopyContext) SetgidEvent
 	copied.FSGroup = fieldToCopy.FSGroup
 	copied.GID = fieldToCopy.GID
 	copied.Group = fieldToCopy.Group
+	return copied
+}
+func deepCopySetNSEvent(fieldToCopy SetNSEvent, c deepCopyContext) SetNSEvent {
+	copied := SetNSEvent{}
+	copied.MntNSHost = fieldToCopy.MntNSHost
+	copied.MntNSOutsideBase = fieldToCopy.MntNSOutsideBase
+	copied.NSType = fieldToCopy.NSType
+	copied.NamespaceIDs = deepCopyNamespaceIDs(fieldToCopy.NamespaceIDs, c)
+	copied.Previous = deepCopyNamespaceIDs(fieldToCopy.Previous, c)
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent, c)
+	return copied
+}
+func deepCopyNamespaceIDs(fieldToCopy NamespaceIDs, c deepCopyContext) NamespaceIDs {
+	copied := NamespaceIDs{}
+	copied.CgroupNS = fieldToCopy.CgroupNS
+	copied.IPCNS = fieldToCopy.IPCNS
+	copied.MntNS = fieldToCopy.MntNS
+	copied.NetNS = fieldToCopy.NetNS
+	copied.PIDNS = fieldToCopy.PIDNS
+	copied.TimeNS = fieldToCopy.TimeNS
+	copied.UTSNS = fieldToCopy.UTSNS
+	copied.UserNS = fieldToCopy.UserNS
 	return copied
 }
 func deepCopySetSockOptEvent(fieldToCopy SetSockOptEvent, c deepCopyContext) SetSockOptEvent {
