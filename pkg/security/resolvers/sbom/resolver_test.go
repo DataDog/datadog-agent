@@ -141,6 +141,87 @@ func TestRefreshScanKeepsQueuedWorkload(t *testing.T) {
 	}
 }
 
+// TestOnExecRescansContainerOnHostRoot checks that a container whose scan finds
+// no process on its root, as one the runtime is still creating, is scanned again
+// on an exec in the container, once.
+func TestOnExecRescansContainerOnHostRoot(t *testing.T) {
+	gzip := []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.12"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}
+
+	for _, tt := range []struct {
+		name       string
+		duringScan bool  // the exec comes while the first scan runs
+		rescan     error // error of the scan the exec queues
+	}{
+		{name: "exec after the scan"},
+		{name: "exec during the scan", duringScan: true},
+		{name: "still on the host root", rescan: errNoContainerRoot},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newScanResolver(t)
+			pc := &model.ProcessContext{}
+			pc.ContainerContext.ContainerID = "container-id"
+			sbom := r.newSBOM("container-id", nil, "image:tag")
+			t.Cleanup(sbom.stop)
+
+			scans := 0
+			r.scanWorkload = func(*SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
+				scans++
+				if scans == 1 {
+					if tt.duringScan {
+						// OnExec waits for the lock the scan holds
+						sbom.execs++
+					}
+					return nil, errNoContainerRoot
+				}
+				if tt.rescan != nil {
+					return nil, tt.rescan
+				}
+				return gzip, nil
+			}
+			scan := func() error {
+				err := r.analyzeWorkload(<-r.scanChan)
+				if err != nil {
+					r.scanFailed(sbom, err)
+				}
+				return err
+			}
+
+			r.queueWorkload(sbom)
+			if err := scan(); !errors.Is(err, errNoContainerRoot) {
+				t.Fatalf("first scan = %v, want errNoContainerRoot", err)
+			}
+			if !tt.duringScan {
+				if len(r.scanChan) != 0 || len(r.pendingScan) != 0 {
+					t.Fatalf("scans queued = %d, pending = %v, want none before an exec", len(r.scanChan), r.pendingScan)
+				}
+				r.OnExec(pc)
+			}
+			if n := len(r.scanChan); n != 1 {
+				t.Fatalf("%d scans queued after the exec, want 1", n)
+			}
+			r.OnExec(pc)
+			if n := len(r.scanChan); n != 1 {
+				t.Errorf("%d scans queued after a second exec, want 1", n)
+			}
+
+			if err := scan(); !errors.Is(err, tt.rescan) {
+				t.Fatalf("scan after the exec = %v, want %v", err, tt.rescan)
+			}
+			if computed := tt.rescan == nil; sbom.IsComputed() != computed {
+				t.Errorf("computed = %t, want %t", sbom.IsComputed(), computed)
+			}
+
+			r.OnExec(pc)
+			if n := len(r.scanChan); n != 0 {
+				t.Errorf("%d scans queued after a later exec, want none", n)
+			}
+		})
+	}
+}
+
 // TestTriggerScanOnFullQueue checks that a container already queued keeps its
 // place when the queue is full, while a container the queue cannot take goes.
 func TestTriggerScanOnFullQueue(t *testing.T) {

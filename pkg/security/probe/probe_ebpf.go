@@ -1274,6 +1274,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	if p.Resolvers.SBOMResolver != nil {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
+				p.Resolvers.SBOMResolver.OnExec(event.ProcessContext)
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
 			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
 				// Resolve the path on a copy of the file, which keeps the error of a
