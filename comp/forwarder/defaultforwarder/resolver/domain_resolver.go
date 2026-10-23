@@ -183,8 +183,13 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 
 	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
 
+	configName := descriptor.ConfigName
+	if configName == "" {
+		configName = descriptor.BaseURL
+	}
+
 	return &domainResolver{
-		configName:     descriptor.BaseURL,
+		configName:     configName,
 		domain:         descriptor.BaseURL,
 		apiKeys:        descriptor.APIKeySet,
 		keyVersion:     0,

@@ -1099,3 +1099,171 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }
+
+func TestParseAllowedMetricTypes(t *testing.T) {
+	t.Run("empty list allows all types including unknown", func(t *testing.T) {
+		filter, err := parseAllowedMetricTypes(nil)
+		require.NoError(t, err)
+		require.NoError(t, ValidateAllowedMetricTypes(nil))
+		assert.True(t, filter.isTypeAllowed(observerdef.UnknownType))
+		for mt := metrics.MetricType(0); mt < metrics.NumMetricTypes; mt++ {
+			assert.True(t, filter.isTypeAllowed(mt), "expected %s to be allowed", mt)
+		}
+	})
+
+	t.Run("configured list allows only specified types and rejects unknown when omitted", func(t *testing.T) {
+		filter, err := parseAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"})
+		require.NoError(t, err)
+		require.NoError(t, ValidateAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"}))
+
+		assert.True(t, filter.isTypeAllowed(metrics.GaugeType))
+		assert.True(t, filter.isTypeAllowed(metrics.CountType))
+		assert.True(t, filter.isTypeAllowed(metrics.MonotonicCountType))
+		assert.True(t, filter.isTypeAllowed(metrics.GaugeWithTimestampType))
+
+		assert.False(t, filter.isTypeAllowed(observerdef.UnknownType))
+		assert.False(t, filter.isTypeAllowed(metrics.RateType))
+		assert.False(t, filter.isTypeAllowed(metrics.CounterType))
+		assert.False(t, filter.isTypeAllowed(metrics.HistogramType))
+		assert.False(t, filter.isTypeAllowed(metrics.DistributionType))
+		assert.False(t, filter.isTypeAllowed(metrics.MetricType(-2)))
+		assert.False(t, filter.isTypeAllowed(metrics.NumMetricTypes))
+	})
+
+	t.Run("unknown can be explicitly allowed", func(t *testing.T) {
+		filter, err := parseAllowedMetricTypes([]string{"unknown", "Count"})
+		require.NoError(t, err)
+
+		assert.True(t, filter.isTypeAllowed(observerdef.UnknownType))
+		assert.True(t, filter.isTypeAllowed(metrics.CountType))
+		assert.False(t, filter.isTypeAllowed(metrics.GaugeType))
+	})
+
+	t.Run("invalid type returns error with all valid types", func(t *testing.T) {
+		err := ValidateAllowedMetricTypes([]string{"Gauge", "not_a_type"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `invalid metric type "not_a_type"`)
+		assert.Contains(t, err.Error(), "valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp")
+	})
+
+	t.Run("empty string entry returns error with all valid types", func(t *testing.T) {
+		err := ValidateAllowedMetricTypes([]string{"  "})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `invalid metric type ""`)
+		for _, name := range ValidMetricTypeNames() {
+			assert.Contains(t, err.Error(), name)
+		}
+	})
+}
+
+func TestAllowedMetricTypesFiltersLiveReplayAndLogDerivedMetrics(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  metrics:
+    allowed_types:
+      - Gauge
+      - Unknown
+    processing_rules:
+      - type: include_at_match
+        name: allow_all_names
+`)
+	filter, err := loadMetricFilter(cfg)
+	require.NoError(t, err)
+
+	telComp := telemetryimpl.NewMock(t)
+	storage := newTimeSeriesStorage()
+	connErrExtractor := &ConnectionErrorExtractor{}
+	eng := newEngine(engineConfig{
+		storage:      storage,
+		metricFilter: filter,
+		extractors: []observerdef.LogMetricsExtractor{
+			NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+			NewLogPatternExtractor(DefaultLogPatternExtractorConfig()),
+			connErrExtractor,
+		},
+	})
+
+	obs := &observerImpl{
+		engine:               eng,
+		obsCh:                make(chan observation, 32),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         filter,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+
+	h := obs.GetHandle("dogstatsd")
+	// Disallowed Count metric must be rejected before rule evaluation or tag access.
+	h.ObserveMetric(&precheckOnlyMetricView{
+		name:       "requests.count",
+		host:       "host-a",
+		metricType: metrics.CountType,
+	}, 0)
+
+	// Allowed Gauge and Unknown metrics should be ingested.
+	testObserveMetric(h, &metricObs{
+		name:       "cpu.gauge",
+		value:      42,
+		metricType: metrics.GaugeType,
+		host:       "host-a",
+		timestamp:  1000,
+	})
+	testObserveMetric(h, &metricObs{
+		name:       "legacy.unknown",
+		value:      7,
+		metricType: observerdef.UnknownType,
+		host:       "host-a",
+		timestamp:  1000,
+	})
+	obs.Flush()
+
+	// Replay path: Count is rejected, Gauge is accepted.
+	obs.IngestMetricSync("parquet", &metricObs{
+		name:       "replay.count",
+		value:      10,
+		metricType: metrics.CountType,
+		host:       "host-a",
+		timestamp:  1000,
+	}, 111)
+	obs.IngestMetricSync("parquet", &metricObs{
+		name:       "replay.gauge",
+		value:      20,
+		metricType: metrics.GaugeType,
+		host:       "host-a",
+		timestamp:  1000,
+	}, 222)
+
+	// Log ingestion: JSON numeric field produces GaugeType (allowed), while
+	// pattern and connection error extractors produce CountType (filtered out).
+	eng.IngestLog("logs", &logObs{
+		content:     `{"latency_ms": 12.5, "msg": "connection refused"}`,
+		status:      "error",
+		hostname:    "host-a",
+		timestampMs: 1_000_000,
+	})
+
+	dogstatsdSeries := storage.ListSeriesMetadata("dogstatsd")
+	require.Len(t, dogstatsdSeries, 2)
+
+	parquetSeries := storage.ListSeriesMetadata("parquet")
+	require.Len(t, parquetSeries, 1)
+	assert.Equal(t, "replay.gauge", parquetSeries[0].Name)
+
+	// Gauge metric from JSON log field is stored, while Count metrics from log pattern
+	// and connection error extractors are filtered out.
+	assert.NotEmpty(t, storage.ListSeriesMetadata(LogMetricsExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata(LogPatternExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
+
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}

@@ -235,6 +235,29 @@ func (d *safeDeviceImpl) GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error) {
 	return info, nil
 }
 
+func (d *safeDeviceImpl) GetGpuFabricInfoV3() (nvml.GpuFabricInfo_v3, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuFabricInfoV")); err != nil {
+		return nvml.GpuFabricInfo_v3{}, err
+	}
+	handler := d.nvmlDevice.GetGpuFabricInfoV()
+	return getGpuFabricInfoV3(handler.V3, handler.V2)
+}
+
+// getGpuFabricInfoV3 isolates the versioned NVML calls, whose concrete handler
+// cannot be mocked, so the V2 fallback can be tested without hardware.
+func getGpuFabricInfoV3(getV3 func() (nvml.GpuFabricInfo_v3, nvml.Return), getV2 func() (nvml.GpuFabricInfo_v2, nvml.Return)) (nvml.GpuFabricInfo_v3, error) {
+	info, ret := getV3()
+	if ret == nvml.ERROR_ARGUMENT_VERSION_MISMATCH {
+		v2, retV2 := getV2()
+		info = nvml.GpuFabricInfo_v3{ClusterUuid: v2.ClusterUuid, Status: v2.Status, CliqueId: v2.CliqueId, State: v2.State, HealthMask: v2.HealthMask}
+		ret = retV2
+	}
+	if err := NewNvmlAPIErrorOrNil("GetGpuFabricInfoV", ret); err != nil {
+		return nvml.GpuFabricInfo_v3{}, err
+	}
+	return info, nil
+}
+
 func (d *safeDeviceImpl) GetIndex() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
 		return 0, err

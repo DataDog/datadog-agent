@@ -49,7 +49,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.82.1 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/Microsoft/go-winio v0.6.3 // indirect
+	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -138,6 +138,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/mo
 
 replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
 
+replace github.com/DataDog/datadog-agent/pkg/config/schema => ../../pkg/config/schema
+
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../pkg/config/setup/constants
@@ -175,3 +177,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winu
 replace github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 
 replace github.com/DataDog/datadog-agent/comp/core/status => ../../comp/core/status
+
+replace github.com/DataDog/datadog-agent/pkg/zstd => ../../pkg/zstd

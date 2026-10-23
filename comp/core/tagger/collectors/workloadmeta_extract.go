@@ -1015,6 +1015,7 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
@@ -1032,6 +1033,17 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+// sharingModeTagValue returns the gpu_sharing_mode tag value of a GPU. Like
+// gpu_slicing_mode, it is set on every device, to "none" when no sharing
+// mechanism was detected, so that grouping by it never yields an untagged
+// bucket.
+func sharingModeTagValue(gpu *workloadmeta.GPU) string {
+	if gpu.SharingMode == "" {
+		return string(workloadmeta.GPUSharingModeNone)
+	}
+	return string(gpu.SharingMode)
 }
 
 // migProfileTagValue returns the gpu_mig_profile value for a GPU. Like every

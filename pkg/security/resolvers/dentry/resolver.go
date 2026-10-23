@@ -38,13 +38,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
 )
 
+// Caller identifies the component that requested a dentry resolution
+type Caller string
+
+const (
+	// CallerFile is used for the resolution of the path of a file
+	CallerFile Caller = "file"
+	// CallerFileHardLink is used for the resolution of the path of a file with hard links, which bypasses the cache
+	CallerFileHardLink Caller = "file_hard_link"
+	// CallerMountRoot is used for the resolution of the root of a mount
+	CallerMountRoot Caller = "mount_root"
+	// CallerMountPoint is used for the resolution of the mount point of a mount
+	CallerMountPoint Caller = "mount_point"
+	// CallerCGroup is used for the resolution of the path of a cgroup
+	CallerCGroup Caller = "cgroup"
+	// CallerDiscarder is used for the resolution of the parents of an inode discarder
+	CallerDiscarder Caller = "discarder"
+)
+
+func allCallers() []Caller {
+	return []Caller{CallerFile, CallerFileHardLink, CallerMountRoot, CallerMountPoint, CallerCGroup, CallerDiscarder}
+}
+
 type counterEntry struct {
 	resolutionType string
 	resolution     string
+	caller         Caller
 }
 
 func (ce *counterEntry) Tags() []string {
-	return []string{ce.resolutionType, ce.resolution}
+	return []string{ce.resolutionType, ce.resolution, "caller:" + string(ce.caller)}
 }
 
 // Resolver resolves inode/mountID to full paths
@@ -210,10 +233,11 @@ func (dr *Resolver) cacheInode(key model.PathKey, path PathEntry) {
 }
 
 // ResolveNameFromCache returns the name
-func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) {
+func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey, caller Caller) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.SegmentResolutionTag,
+		caller:         caller,
 	}
 
 	path, err := dr.lookupInodeFromCache(pathKey)
@@ -242,10 +266,11 @@ func newPathEntry(parent model.PathKey, name string) PathEntry {
 }
 
 // ResolveNameFromMap resolves the name of the provided inode
-func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool) (string, error) {
+func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.SegmentResolutionTag,
+		caller:         caller,
 	}
 
 	pathLeaf, err := dr.lookupInodeFromMap(pathKey)
@@ -267,23 +292,23 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool) (strin
 }
 
 // ResolveName resolves an inode/mount ID pair to a file basename
-func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
+func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool, caller Caller) string {
 	var (
 		name string
 		err  error
 	)
 
-	name, err = dr.ResolveNameFromCache(pathKey)
+	name, err = dr.ResolveNameFromCache(pathKey, caller)
 
 	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, _ = dr.ResolveNameFromMap(pathKey, cache)
+		name, _ = dr.ResolveNameFromMap(pathKey, cache, caller)
 	}
 
 	return name
 }
 
 // ResolveFromCache resolves path from the cache
-func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
+func (dr *Resolver) ResolveFromCache(pathKey model.PathKey, caller Caller) (string, error) {
 	var path PathEntry
 	var err error
 	depth := int64(0)
@@ -292,6 +317,7 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.PathResolutionTag,
+		caller:         caller,
 	}
 
 	// Fetch path recursively
@@ -348,7 +374,7 @@ func computeFilenameFromParts(parts [][]byte) string {
 }
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
-func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
+func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var resolutionErr error
 
 	keyBuffer, err := pathKey.MarshalBinary()
@@ -408,6 +434,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.PathResolutionTag,
+		caller:         caller,
 	}
 
 	if resolutionErr == nil && len(dr.keys) > 0 {
@@ -498,13 +525,14 @@ func (dr *Resolver) computeSegmentCount() int {
 }
 
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
-func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
+func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var resolutionErr error
 	depth := int64(0)
 
 	entry := counterEntry{
 		resolutionType: metrics.ERPCTag,
 		resolution:     metrics.PathResolutionTag,
+		caller:         caller,
 	}
 
 	// create eRPC request and send using the ioctl syscall
@@ -578,16 +606,16 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
+func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var path string
 	var err = ErrEntryNotFound
 
 	if cache {
-		path, err = dr.ResolveFromCache(pathKey)
+		path, err = dr.ResolveFromCache(pathKey, caller)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		t := time.Now()
-		path, err = dr.ResolveFromERPC(pathKey, cache)
+		path, err = dr.ResolveFromERPC(pathKey, cache, caller)
 		durationMicrosec := time.Since(t).Microseconds()
 
 		// update in-line average
@@ -597,7 +625,7 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 		dr.erpcResolutionTimesLock.Unlock()
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		path, err = dr.ResolveFromMap(pathKey, cache)
+		path, err = dr.ResolveFromMap(pathKey, cache, caller)
 	}
 	return path, err
 }
@@ -607,6 +635,7 @@ func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.ParentResolutionTag,
+		caller:         CallerDiscarder,
 	}
 
 	path, err := dr.lookupInodeFromCache(pathKey)
@@ -624,6 +653,7 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.ParentResolutionTag,
+		caller:         CallerDiscarder,
 	}
 
 	path, err := dr.lookupInodeFromMap(pathKey)
@@ -772,12 +802,15 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 			if resolutionType == metrics.ProcFSTag {
 				continue
 			}
-			entry := counterEntry{
-				resolutionType: resolutionType,
-				resolution:     resolution,
+			for _, caller := range allCallers() {
+				entry := counterEntry{
+					resolutionType: resolutionType,
+					resolution:     resolution,
+					caller:         caller,
+				}
+				hitsCounters[entry] = atomic.NewInt64(0)
+				missCounters[entry] = atomic.NewInt64(0)
 			}
-			hitsCounters[entry] = atomic.NewInt64(0)
-			missCounters[entry] = atomic.NewInt64(0)
 		}
 	}
 
