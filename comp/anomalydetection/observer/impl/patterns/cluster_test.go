@@ -7,6 +7,7 @@ package patterns
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -672,4 +673,38 @@ func TestPatternClusterer_MaxClustersZeroIsUnbounded(t *testing.T) {
 	}
 	require.Equal(t, 50, pc.NumClusters())
 	require.Empty(t, pc.DrainLRUEvictedClusterIDs())
+}
+
+// Large raw messages must not stay alive through cluster samples or token
+// substrings after ingestion. Use separate clusterers to retain each pattern
+// regardless of merge heuristics, and keep them alive across the GC measurement.
+func TestClusterersReleaseLargeMessages(t *testing.T) {
+	for _, kind := range []string{"pattern", "signature"} {
+		t.Run(kind, func(t *testing.T) {
+			runtime.GC()
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			retained := make([]any, 0, 32)
+			for i := 0; i < cap(retained); i++ {
+				message := "request /api/items status=500 " + strings.Repeat("x", 1<<20)
+				if kind == "pattern" {
+					c := NewPatternClusterer()
+					_, ok := c.Process(message, testUnixSec)
+					require.True(t, ok)
+					retained = append(retained, c)
+				} else {
+					c := NewSignatureClusterer()
+					_, ok := c.Process(message, testUnixSec)
+					require.True(t, ok)
+					retained = append(retained, c)
+				}
+			}
+			runtime.GC()
+			runtime.ReadMemStats(&after)
+			runtime.KeepAlive(retained)
+			// Bounded token input needs well below 4 MiB for these 32 clusters;
+			// retaining the original payloads instead keeps more than 32 MiB alive.
+			require.Less(t, int64(after.HeapAlloc)-int64(before.HeapAlloc), int64(4<<20))
+		})
+	}
 }

@@ -48,6 +48,11 @@ func (t *Tokenizer) Tokenize(message string) []Token {
 		return nil
 	}
 
+	// Tokens (including nested token fields) contain substrings of msg. Own a
+	// bounded copy so retaining a small pattern cannot pin an oversized log's
+	// backing allocation, even when message itself is already a substring.
+	msg = strings.Clone(msg)
+
 	// Most logs produce ~len(msg)/4 tokens; size scratch so the inner appends
 	// rarely grow it. Not a hard cap — it can still grow.
 	estTokens := len(msg)/4 + 8
@@ -72,10 +77,12 @@ func (t *Tokenizer) Tokenize(message string) []Token {
 	}
 
 	// Stash the (possibly grown) buffer for the next call.
-	t.scratch = tokens
+	t.scratch = tokens[:0]
 	// Return a fresh exact-sized slice so callers can safely retain it.
 	out := make([]Token, len(tokens))
 	copy(out, tokens)
+	// Scratch is only reusable capacity, not another owner of prior patterns.
+	clear(tokens)
 	return out
 }
 
