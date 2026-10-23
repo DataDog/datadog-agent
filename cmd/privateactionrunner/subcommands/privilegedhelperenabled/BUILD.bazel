@@ -23,9 +23,11 @@ dd_agent_go_test(
     srcs = ["command_test.go"],
     embed = [":privilegedhelperenabled"],
     deps = [
+        "//cmd/privateactionrunner/command",
         "//comp/core/config",
         "//comp/core/log/mock",
         "//pkg/privateactionrunner",
+        "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

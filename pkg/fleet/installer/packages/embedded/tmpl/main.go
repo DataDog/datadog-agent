@@ -138,12 +138,12 @@ func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabiliti
 
 func unitSetPrivilegedRshell(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-rshell-privileged.service":           mustReadUnit("datadog-agent-rshell-privileged.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-rshell-privileged-exp.service":       mustReadUnit("datadog-agent-rshell-privileged.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-rshell-privileged-check.service":     mustReadUnit("datadog-agent-rshell-privileged-check.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-rshell-privileged-check-exp.service": mustReadUnit("datadog-agent-rshell-privileged-check.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-rshell-privileged.socket":            mustReadUnit("datadog-agent-rshell-privileged.socket", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-rshell-privileged-exp.socket":        mustReadUnit("datadog-agent-rshell-privileged.socket", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged.service":     mustReadUnit("datadog-agent-rshell-privileged.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged-exp.service": mustReadUnit("datadog-agent-rshell-privileged.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-enabled.service":        mustReadUnit("datadog-agent-rshell-enabled.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-enabled-exp.service":    mustReadUnit("datadog-agent-rshell-enabled.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged.socket":      mustReadUnit("datadog-agent-rshell-privileged.socket", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged-exp.socket":  mustReadUnit("datadog-agent-rshell-privileged.socket", expData, ambiantCapabilitiesSupported, false),
 	}
 }
 

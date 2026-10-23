@@ -54,12 +54,12 @@ func TestPrivilegedRshellUnitsAreAlwaysWritten(t *testing.T) {
 	// every systemd install writes the units instead of filtering on it.
 	for _, units := range [][]string{agentService.SystemdUnitsStable, agentService.ProcmgrUnitsStable} {
 		assert.Contains(t, units, "datadog-agent-rshell-privileged.service")
-		assert.Contains(t, units, "datadog-agent-rshell-privileged-check.service")
+		assert.Contains(t, units, "datadog-agent-rshell-enabled.service")
 		assert.Contains(t, units, privilegedRshellSocketStable)
 	}
 	for _, units := range [][]string{agentService.SystemdUnitsExp, agentService.ProcmgrUnitsExp} {
 		assert.Contains(t, units, "datadog-agent-rshell-privileged-exp.service")
-		assert.Contains(t, units, "datadog-agent-rshell-privileged-check-exp.service")
+		assert.Contains(t, units, "datadog-agent-rshell-enabled-exp.service")
 		assert.Contains(t, units, privilegedRshellSocketExp)
 	}
 }
