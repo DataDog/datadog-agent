@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "directory",
+    srcs = ["directory.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/internal/directory",
+    visibility = ["//pkg/logs/internal/smb/thirdparty/gosmb2:__subpackages__"],
+    deps = [
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/erref",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/wire",
+    ],
+)
