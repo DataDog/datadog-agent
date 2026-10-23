@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	}
 
 	// Pattern count is based on the full JSON payload.
-	sig := logSignature(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`, 0)
+	sig := a.signatureGenerator.Generate(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
@@ -73,7 +74,7 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"service:web"}), res.Metrics[0].Tags)
 
 	// Compute expected metric name (hash of signature).
-	sig := logSignature("Request completed in 45ms", 0)
+	sig := a.signatureGenerator.Generate("Request completed in 45ms")
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
@@ -103,7 +104,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 		assert.Equal(t, float64(45), m.Value)
 	}
 
-	sig := logSignature(`{"duration_ms":45,"status":200}`, 0)
+	sig := a.signatureGenerator.Generate(`{"duration_ms":45,"status":200}`)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
@@ -122,14 +123,14 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
 
-	sig := logSignature(input, 0)
+	sig := a.signatureGenerator.Generate(input)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
 }
 
 func TestLogMetricsExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
-	a := &LogMetricsExtractor{}
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 	log := &mockLogView{
 		content: "Request completed in 45ms",
 		tags:    []string{"service:web", "env:prod"},
@@ -145,7 +146,7 @@ func TestLogMetricsExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 }
 
 func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
-	a := &LogMetricsExtractor{}
+	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 	logA := &mockLogView{
 		content: "Request completed in 45ms",
 		tags:    []string{"service:api"},
@@ -169,4 +170,20 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	assert.Equal(t, "Request completed in 45ms", ctxA.Example)
 	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
 	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+}
+
+func TestLogMetricsExtractor_MaxEvalBytesCapsSignature(t *testing.T) {
+	// Logs that differ only after the first MaxEvalBytes bytes share a series.
+	prefix := strings.Repeat("a", 16)
+	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: len(prefix)})
+	a := capped.ProcessLog(&mockLogView{content: prefix + " 123"})
+	b := capped.ProcessLog(&mockLogView{content: prefix + " xyz"})
+	require.Len(t, a.Metrics, 1)
+	require.Len(t, b.Metrics, 1)
+	assert.Equal(t, a.Metrics[0].Name, b.Metrics[0].Name)
+
+	uncapped := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+	c := uncapped.ProcessLog(&mockLogView{content: prefix + " 123"})
+	d := uncapped.ProcessLog(&mockLogView{content: prefix + " xyz"})
+	assert.NotEqual(t, c.Metrics[0].Name, d.Metrics[0].Name)
 }
