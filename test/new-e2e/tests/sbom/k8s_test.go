@@ -162,7 +162,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 	images := []scanResult{
 		{
-			app:     "datadog/apps-nginx-server",
+			app:     "apps-nginx-server",
 			version: apps.Version,
 			expectedTags: []*regexp.Regexp{
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
@@ -170,7 +170,7 @@ func (suite *k8sSuite) TestSBOM() {
 			},
 		},
 		{
-			app:     "datadog/redis",
+			app:     "redis",
 			version: apps.Version,
 			expectedTags: []*regexp.Regexp{
 				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
@@ -258,7 +258,10 @@ func (suite *k8sSuite) TestSBOM() {
 					require.NoErrorf(c, err, "Failed to query fake intake")
 
 					sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
-						return strings.Contains(id, appImage)
+						// Internal workload images omit the public registry's datadog/ namespace.
+						// Match the repository boundary so redis does not also match apps-redis-client.
+						imageName, _, _ := strings.Cut(id, "@")
+						return imageName == appImage || strings.HasSuffix(imageName, "/"+appImage)
 					})
 
 					require.NotEmptyf(c, sbomIDs, "No SBOM for %s yet", appImage)
@@ -296,8 +299,8 @@ func (suite *k8sSuite) TestSBOM() {
 						// when images are pulled from a mirror, so we allow an arbitrary prefix
 						expectedTags := []*regexp.Regexp{
 							regexp.MustCompile(`^architecture:(amd|arm)64$`),
-							regexp.MustCompile(fmt.Sprintf(`^image_id:.*%s@sha256:`, regexp.QuoteMeta(appImage))),
-							regexp.MustCompile(fmt.Sprintf(`^image_name:.*%s$`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(fmt.Sprintf(`^image_id:(?:.*/)?%s@sha256:`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(fmt.Sprintf(`^image_name:(?:.*/)?%s$`, regexp.QuoteMeta(appImage))),
 							regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
 							regexp.MustCompile(`^os_name:linux$`),
 							regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),

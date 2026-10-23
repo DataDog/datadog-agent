@@ -38,6 +38,8 @@ clusterAgent:
 `
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
+			// TODO: Route the Argo Rollouts chart's images through the internal registry.
+			scenkind.WithInternetAccess(),
 			scenkind.WithVMOptions(
 				scenec2.WithInstanceType("t3.xlarge"),
 			),
