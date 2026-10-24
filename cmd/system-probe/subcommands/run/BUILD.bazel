@@ -44,7 +44,7 @@ go_library(
         "//comp/core/sysprobeconfig/fx",
         "//comp/core/sysprobeconfig/impl",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/fx-remote",
+        "//comp/core/tagger/fx-optional-remote",
         "//comp/core/telemetry/fx",
         "//comp/core/workloadfilter/fx-remote",
         "//comp/core/workloadmeta/collectors/catalog-remote",

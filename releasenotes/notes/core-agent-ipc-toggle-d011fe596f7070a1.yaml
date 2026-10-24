@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added the ``remote_agent.core_agent_ipc.enabled`` setting (environment
+    variable ``DD_REMOTE_AGENT_CORE_AGENT_IPC_ENABLED``), enabled by default.
+    Set it to ``false`` on agents that run isolated from the core Agent and
+    cannot reach it by design, such as ``system-probe`` inside a microVM that
+    forwards its events to a ``system-probe`` on the host. When disabled, the
+    components that would otherwise stream from the core Agent fall back to a
+    local or no-op implementation instead of endlessly retrying a connection
+    that cannot succeed: remote workloadmeta, remote tagger, remote
+    workloadfilter and remote hostname resolution, while config sync, the
+    remote agent registry and the config stream consumer stay off entirely.
+    This removes the repeated ``unable to establish stream`` and
+    ``error received trying to start stream`` connection errors those agents
+    used to log.

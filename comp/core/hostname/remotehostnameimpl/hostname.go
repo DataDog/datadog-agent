@@ -25,6 +25,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
@@ -85,6 +86,14 @@ type dependencies struct {
 }
 
 func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
+	// Agents isolated from the core agent by design (e.g. system-probe inside a microVM)
+	// resolve their hostname locally instead of retrying a core-agent lookup that cannot
+	// succeed.
+	if !pkgconfigsetup.Datadog().GetBool("remote_agent.core_agent_ipc.enabled") {
+		log.Info("core agent IPC is disabled, resolving the hostname locally")
+		return hostnameimpl.NewHostnameService()
+	}
+
 	r := &remotehostimpl{
 		cache:       cache.New(defaultExpire, defaultPurge),
 		ipc:         deps.IPC,
