@@ -37,7 +37,10 @@ type runtimeEntry struct {
 	process.Info
 	runtimeID    string
 	probesByPath map[string]ir.ProbeDefinition
-	symdbEnabled bool
+	// invalidProbesByPath holds the probes whose files failed to parse. A path
+	// is in at most one of probesByPath and invalidProbesByPath.
+	invalidProbesByPath map[string]process.InvalidProbe
+	symdbEnabled        bool
 	// startTime is when the process started, or the zero time if it is unknown.
 	startTime time.Time
 	// language is the language the tracer in the process reported.
@@ -128,11 +131,12 @@ func (s *subscriberState) onScanUpdate(
 					Version:      proc.TracerMetadata.ServiceVersion,
 					DiscoveredAt: now,
 				},
-				runtimeID:         runtimeID,
-				probesByPath:      make(map[string]ir.ProbeDefinition),
-				startTime:         proc.StartTime,
-				language:          proc.TracerMetadata.TracerLanguage,
-				discoveryAttempts: proc.Attempts,
+				runtimeID:           runtimeID,
+				probesByPath:        make(map[string]ir.ProbeDefinition),
+				invalidProbesByPath: make(map[string]process.InvalidProbe),
+				startTime:           proc.StartTime,
+				language:            proc.TracerMetadata.TracerLanguage,
+				discoveryAttempts:   proc.Attempts,
 			}
 			log.Tracef(
 				"process subscriber: discovered new runtime %s (pid=%d)",
@@ -192,6 +196,9 @@ func (s *subscriberState) onStreamConfig(
 	if entry.probesByPath == nil {
 		entry.probesByPath = make(map[string]ir.ProbeDefinition)
 	}
+	if entry.invalidProbesByPath == nil {
+		entry.invalidProbesByPath = make(map[string]process.InvalidProbe)
+	}
 
 	matchedSet := make(map[string]struct{}, len(resp.MatchedConfigs))
 	symdbPathPresent := false
@@ -219,7 +226,16 @@ func (s *subscriberState) onStreamConfig(
 			deletedAny = true
 		}
 	}
+	for path := range entry.invalidProbesByPath {
+		if _, ok := matchedSet[path]; !ok {
+			delete(entry.invalidProbesByPath, path)
+			deletedAny = true
+		}
+	}
 
+	// New file contents replace what the file defined before, valid or not.
+	// Contents that do not even identify their probe are not in parsed, and
+	// leave the state as it was.
 	var addedAny bool
 	for path, probe := range parsed.probes {
 		if p, ok := entry.probesByPath[path]; !ok {
@@ -228,6 +244,16 @@ func (s *subscriberState) onStreamConfig(
 			addedAny = true
 		}
 		entry.probesByPath[path] = probe
+		delete(entry.invalidProbesByPath, path)
+	}
+	for path, invalid := range parsed.invalidProbes {
+		if p, ok := entry.invalidProbesByPath[path]; !ok {
+			addedAny = true
+		} else if ir.CompareProbeIDs(p, invalid) != 0 {
+			addedAny = true
+		}
+		entry.invalidProbesByPath[path] = invalid
+		delete(entry.probesByPath, path)
 	}
 
 	previousSymdbEnabled := entry.symdbEnabled
@@ -248,10 +274,14 @@ func (s *subscriberState) onStreamConfig(
 	}
 
 	probes := slices.SortedFunc(maps.Values(entry.probesByPath), ir.CompareProbeIDs)
+	invalidProbes := slices.SortedFunc(
+		maps.Values(entry.invalidProbesByPath), ir.CompareProbeIDs,
+	)
 	cfg := process.Config{
 		Info:              entry.Info,
 		RuntimeID:         runtimeID,
 		Probes:            probes,
+		InvalidProbes:     invalidProbes,
 		ShouldUploadSymDB: entry.symdbEnabled,
 	}
 	effects.emitUpdate(process.ProcessesUpdate{Updates: []process.Config{cfg}})

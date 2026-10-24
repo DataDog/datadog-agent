@@ -656,6 +656,69 @@ func TestNoSuccessfulProbes(t *testing.T) {
 	}, 1*time.Second, 10*time.Millisecond)
 }
 
+// TestInvalidProbesReported verifies that probes whose definitions are invalid
+// are reported as errors, and are not handed to the actuator.
+func TestInvalidProbesReported(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
+
+	valid := createTestProbe("probe-1")
+	twoLines := createTestProbe("probe-2")
+	twoLines.(*rcjson.SnapshotProbe).Where = &rcjson.Where{
+		MethodName: "main",
+		SourceFile: "main.go",
+		Lines:      []string{"10", "20"},
+	}
+	processUpdate := createTestProcessConfig()
+	processUpdate.Probes = []ir.ProbeDefinition{valid, twoLines}
+	processUpdate.InvalidProbes = []process.InvalidProbe{{
+		ID:      "probe-3",
+		Version: 3,
+		Issue: ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: "probe type TRIGGER_PROBE is not supported",
+		},
+	}}
+	deps.sendUpdates(processUpdate)
+
+	require.Len(t, deps.actuator.updates, 1)
+	require.Len(t, deps.actuator.updates[0].Processes, 1)
+	require.Equal(
+		t, []ir.ProbeDefinition{valid},
+		deps.actuator.updates[0].Processes[0].Probes,
+	)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		collectDiagnosticVersions(deps.diagUploader, uploader.StatusReceived),
+	)
+	require.Equal(
+		t, map[string]int{"probe-2": 1, "probe-3": 3},
+		collectDiagnosticVersions(deps.diagUploader, uploader.StatusError),
+	)
+	exceptions := make(map[string]uploader.DiagnosticException)
+	for _, msg := range deps.diagUploader.messages {
+		if diag := msg.Debugger.Diagnostic; diag.Status == uploader.StatusError {
+			exceptions[diag.ProbeID] = *diag.DiagnosticException
+		}
+	}
+	require.Equal(t, map[string]uploader.DiagnosticException{
+		"probe-2": {
+			Type:    "InvalidProbeDefinition",
+			Message: "lines must be a single line number",
+		},
+		"probe-3": {
+			Type:    "UnsupportedFeature",
+			Message: "probe type TRIGGER_PROBE is not supported",
+		},
+	}, exceptions)
+
+	// The errors are not reported again when the configuration is resent.
+	numDiagnostics := len(deps.diagUploader.messages)
+	deps.sendUpdates(processUpdate)
+	require.Len(t, deps.diagUploader.messages, numDiagnostics)
+}
+
 type fakeDispatcher struct {
 	sinks map[ir.ProgramID]dispatcher.Sink
 }
