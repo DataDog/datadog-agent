@@ -391,6 +391,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := ensureODBCDriverConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to configure ODBC drivers: %s", err)
+	}
 	agentVersion := getCurrentAgentVersion()
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
@@ -513,6 +516,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
+	}
+	if err := ensureODBCDriverConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to configure ODBC drivers: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err

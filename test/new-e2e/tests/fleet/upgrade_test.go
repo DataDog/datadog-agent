@@ -6,6 +6,7 @@
 package fleet
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -218,7 +219,7 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	defer s.Agent.MustUninstall()
 	_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC]\nTrace=no\n" > /opt/datadog-agent/embedded/etc/odbc.ini'`)
 	s.Require().NoError(err)
-	_, err = s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC Driver 18 for SQL Server]\nDescription=Microsoft ODBC Driver 18 for SQL Server\nDriver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1\nUsageCount=1\n" > /opt/datadog-agent/embedded/etc/odbcinst.ini'`)
+	_, err = s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC Driver 18 for SQL Server]\nDescription=Microsoft ODBC Driver 18 for SQL Server\nDriver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1\nUsageCount=1\n\n[FreeTDS]\nDriver=/opt/datadog-agent/embedded/lib/libtdsodbc.so\n" > /opt/datadog-agent/embedded/etc/odbcinst.ini'`)
 	s.Require().NoError(err)
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
@@ -234,4 +235,9 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	odbcInst, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/datadog-agent/stable/embedded/etc/odbcinst.ini")
 	s.Require().NoError(err)
 	s.Require().Contains(odbcInst, "[ODBC Driver 18 for SQL Server]")
+	s.Require().Contains(odbcInst, "Driver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1")
+	stableDir, err := s.Env().RemoteHost.Execute("readlink -f /opt/datadog-packages/datadog-agent/stable")
+	s.Require().NoError(err)
+	s.Require().Contains(odbcInst, "Driver="+strings.TrimSpace(stableDir)+"/embedded/lib/libtdsodbc.so")
+	s.Require().NotContains(odbcInst, "/datadog-agent/stable/")
 }
