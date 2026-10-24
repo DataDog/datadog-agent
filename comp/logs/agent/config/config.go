@@ -454,6 +454,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			opwEndpoint.Port = port
 			opwEndpoint.useSSL = useSSL
 			opwEndpoint.isAdditionalEndpoint = true
+			opwEndpoint.isObsPipelineWorker = true
 			opwEndpoint.isReliable = logsConfig.obsPipelineWorkerDualShipReliable()
 			opwEndpoint.Version = main.Version
 			opwEndpoint.TrackType = main.TrackType
@@ -479,6 +480,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			main.Host = host
 			main.Port = port
 			main.useSSL = useSSL
+			main.isObsPipelineWorker = true
 		}
 	}
 
