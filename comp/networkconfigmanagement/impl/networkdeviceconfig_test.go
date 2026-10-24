@@ -111,8 +111,13 @@ func (m *MockConnection) Verify(_ context.Context) error {
 	return err
 }
 
-func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.RollbackError) {
+func (m *MockConnection) PushConfig(_ context.Context, _ string) (*types.PushResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("not implemented"))
+}
+
+func (m *MockConnection) ExecuteCommand(_ context.Context, command string) (*types.CommandResult, types.TypedError) {
+	r, err := m.execute(&profile.PlainCommand{Command: command})
+	return r, types.AsTypedError(err)
 }
 
 func (m *MockConnection) SetProfile(np *profile.NCMProfile) {
@@ -129,7 +134,7 @@ type MockConnFactory struct {
 	conn            *MockConnection
 }
 
-func (m *MockConnFactory) Connect(_ *ncmconfig.DeviceInstance) (ncmremote.Connection, error) {
+func (m *MockConnFactory) Connect(_ *ncmconfig.DeviceInstance, _ ncmconfig.CredentialSet) (ncmremote.Connection, error) {
 	if m.connectionError != nil {
 		return nil, m.connectionError
 	}
@@ -214,7 +219,7 @@ func createTestDevice() *ncmconfig.DeviceInstance {
 		IPAddress: "10.0.0.1",
 		Namespace: "default",
 		Profile:   "p2",
-		Auth: ncmconfig.AuthCredentials{
+		RollbackAuth: ncmconfig.AuthCredentials{
 			Username: "admin",
 			Password: "password",
 			Port:     "22",
@@ -506,7 +511,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
 
-	conn, err := reqs.connFactory.Connect(device)
+	conn, err := reqs.connFactory.Connect(device, ncmconfig.CredentialSetRollback)
 	require.NoError(t, err)
 
 	// Run the profile matching function
@@ -525,7 +530,7 @@ func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Remove the version command for the test to fail
-	conn, err := reqs.connFactory.Connect(device)
+	conn, err := reqs.connFactory.Connect(device, ncmconfig.CredentialSetRollback)
 	require.NoError(t, err)
 
 	// Run the profile matching function
