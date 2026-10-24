@@ -9,7 +9,9 @@ permissions: {}
 
 jobs:
   ask-reviews:
-    if: github.triggering_actor != 'dd-devflow[bot]' && (github.event.action != 'labeled' || github.event.label.name == 'ask-review')
+    # PRs from forks don't have access to the SLACK_DATADOG_AGENT_BOT_TOKEN secret, so skip them
+    # to avoid a slack_sdk.errors.SlackApiError (not_authed).
+    if: github.triggering_actor != 'dd-devflow[bot]' && (github.event.action != 'labeled' || github.event.label.name == 'ask-review') && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
