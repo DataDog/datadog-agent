@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes unbounded system-probe memory growth when Cloud Network Monitoring
+    uses the Cilium load balancer conntracker. The conntracker kept every
+    Cilium backend it had seen, including backends that Cilium had since
+    removed, so memory grew with pod churn until system-probe was OOM-killed.

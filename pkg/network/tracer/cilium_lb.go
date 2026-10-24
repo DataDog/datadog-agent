@@ -221,22 +221,28 @@ func htons(n uint16) uint16 {
 }
 
 func (clb *ciliumLoadBalancerConntracker) updateBackends() {
-	clb.m.Lock()
-	defer clb.m.Unlock()
+	// rebuild the map on every update so that backends removed by cilium are dropped
+	backends := make(map[uint32]backend)
 
 	it := clb.backends.Iterate()
 	var k backend4KeyV3
 	var v backend4ValueV3
 	for it.Next(&k, &v) {
-		clb.backendIDToBackend[k.ID] = backend{
+		backends[k.ID] = backend{
 			addr: util.AddressFromNetIP(net.IPv4(v.Address[0], v.Address[1], v.Address[2], v.Address[3])),
 			port: ntohs(v.Port),
 		}
 	}
 
 	if it.Err() != nil {
+		// keep the previous backends rather than a partial set
 		log.Warnf("error iterating lb backends map: %s", it.Err())
+		return
 	}
+
+	clb.m.Lock()
+	clb.backendIDToBackend = backends
+	clb.m.Unlock()
 }
 
 // Describe returns all descriptions of the collector
