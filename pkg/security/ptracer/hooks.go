@@ -84,6 +84,11 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, proces
 		}
 	}
 
+	// exec replaces the address space holding the record: read it at the entry
+	if nr == ExecveNr || nr == ExecveatNr {
+		syscallMsg.SpanContext = ctx.otelSpanContext(process, &regs)
+	}
+
 	/* internal special cases */
 	switch nr {
 	case ExecveNr:
@@ -132,19 +137,27 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, proces
 	}
 }
 
-func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, ppid int) {
+func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, ppid int, regs *syscall.PtraceRegs) {
 	ctx.processCache.shareResources(process, ppid, flags)
 
 	if flags&unix.CLONE_THREAD == 0 {
 		if parent := ctx.processCache.Get(ppid); parent != nil {
-			ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
-				Type: ebpfless.SyscallTypeFork,
-				Fork: &ebpfless.ForkSyscallMsg{
-					PPID: uint32(parent.Tgid),
-				},
-			})
+			ctx.sendFork(process, parent, regs)
 		}
 	}
+}
+
+// sendFork reports a fork. regs are parent's, stopped at the fork event.
+func (ctx *CWSPtracerCtx) sendFork(process *Process, parent *Process, regs *syscall.PtraceRegs) {
+	ctx.processCache.inheritOTel(parent.Tgid, process.Tgid)
+
+	ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
+		Type:        ebpfless.SyscallTypeFork,
+		SpanContext: ctx.otelSpanContext(parent, regs),
+		Fork: &ebpfless.ForkSyscallMsg{
+			PPID: uint32(parent.Tgid),
+		},
+	})
 }
 
 func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceRegs, process *Process, handler syscallHandler) {
@@ -159,6 +172,11 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 		if handler.ShouldSend != nil {
 			syscallMsg.Retval = ctx.ReadRet(regs)
 			if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
+				// The thread is still stopped in the syscall, so its record is
+				// the one it had at the entry.
+				if nr != ExecveNr && nr != ExecveatNr {
+					syscallMsg.SpanContext = ctx.otelSpanContext(process, &regs)
+				}
 				ctx.sendSyscallMsg(process, syscallMsg)
 			}
 		}
@@ -169,22 +187,27 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 	case ExecveNr, ExecveatNr:
 		// now the pid is the tgid
 		process.Pid = process.Tgid
+
+		// the thread-local registered belongs to the image the exec replaced
+		if ret := ctx.ReadRet(regs); ret == 0 || ret == -int64(syscall.ENOSYS) {
+			ctx.processCache.unsetOTel(process.Tgid)
+		}
+	case PrctlNr:
+		if process.otelProcessCtxNaming {
+			process.otelProcessCtxNaming = false
+			ctx.resolveOTelProcessContext(process)
+		}
 	case CloneNr:
-		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, ppid)
+		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, ppid, &regs)
 	case Clone3Nr:
 		data, err := ctx.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
 		if err != nil {
 			return
 		}
-		ctx.handleClone(binary.NativeEndian.Uint64(data), process, ppid)
+		ctx.handleClone(binary.NativeEndian.Uint64(data), process, ppid, &regs)
 	case ForkNr, VforkNr:
 		if parent := ctx.processCache.Get(ppid); parent != nil {
-			ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
-				Type: ebpfless.SyscallTypeFork,
-				Fork: &ebpfless.ForkSyscallMsg{
-					PPID: uint32(parent.Tgid),
-				},
-			})
+			ctx.sendFork(process, parent, &regs)
 		}
 	}
 }

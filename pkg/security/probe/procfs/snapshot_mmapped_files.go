@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs/procmaps"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -24,10 +25,10 @@ type MmapedFile struct {
 }
 
 // GetMmapedFiles returns the list of executable memory-mapped files for a given process
-// Uses the shared GetMappedFiles utility with FilterExecutableRegularFiles
+// Uses the shared GetMappedFiles utility with procmaps.FilterExecutableRegularFiles
 func GetMmapedFiles(pid uint32) ([]MmapedFile, error) {
 	// Use shared parsing utilities to get executable regular files (not [vdso], [stack], etc.)
-	paths, err := GetMappedFiles(int32(pid), MaxMmapedFilesPerProcess, FilterExecutableRegularFiles)
+	paths, err := GetMappedFiles(int32(pid), MaxMmapedFilesPerProcess, procmaps.FilterExecutableRegularFiles)
 	if err != nil {
 		return nil, err
 	}

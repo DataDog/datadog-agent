@@ -11,14 +11,12 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/tracermetadata/model",
-            "//pkg/security/probe/procfs",
             "@io_opentelemetry_go_proto_slim_otlp//common/v1:common",
             "@io_opentelemetry_go_proto_slim_otlp_processcontext_v1development//:v1development",
             "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/tracermetadata/model",
-            "//pkg/security/probe/procfs",
             "@io_opentelemetry_go_proto_slim_otlp//common/v1:common",
             "@io_opentelemetry_go_proto_slim_otlp_processcontext_v1development//:v1development",
             "@org_golang_google_protobuf//proto",

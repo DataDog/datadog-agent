@@ -447,8 +447,10 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.
 	e.Resolved = false
 }
 
-// ResolveSpanContext resolves the span context of the event.
+// ResolveSpanContext resolves the span context of the event
 func (fh *EBPFLessFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
+	propagateSpanContext(ev)
+
 	return &ev.SpanContext
 }
 
