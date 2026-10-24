@@ -15,10 +15,10 @@ go_library(
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
         "@io_k8s_cli_runtime//pkg/genericclioptions",
-        "@sh_helm_helm_v3//pkg/action",
-        "@sh_helm_helm_v3//pkg/chart/loader",
-        "@sh_helm_helm_v3//pkg/cli",
-        "@sh_helm_helm_v3//pkg/storage/driver",
+        "@sh_helm_helm_v4//pkg/action",
+        "@sh_helm_helm_v4//pkg/chart/loader",
+        "@sh_helm_helm_v4//pkg/cli",
+        "@sh_helm_helm_v4//pkg/storage/driver",
     ],
 )
 
