@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package snmp
+package credentials
 
 import (
 	"os"
@@ -42,29 +42,29 @@ func newTestConfig(t *testing.T, files map[string]string) model.BuildableConfig 
 	t.Helper()
 	cfg := configmock.New(t)
 	confd := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(confd, credentialsDir), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(confd, Dir), 0o755))
 	for name, body := range files {
-		require.NoError(t, os.WriteFile(filepath.Join(confd, credentialsDir, name), []byte(body), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(confd, Dir, name), []byte(body), 0o600))
 	}
 	cfg.SetInTest("confd_path", confd)
 	return cfg
 }
 
 func TestLoadIndexesTheCredentialsByID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: credentialsYAML}))
+	store := NewStore(newTestConfig(t, map[string]string{Filename: credentialsYAML}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	require.Len(t, creds, 2)
 
-	assert.Equal(t, credential{
+	assert.Equal(t, Credential{
 		ID:              "id-v2c",
 		Name:            "v2c-public",
 		SNMPVersion:     "2c",
 		CommunityString: "public",
 	}, creds["id-v2c"])
 
-	assert.Equal(t, credential{
+	assert.Equal(t, Credential{
 		ID:              "id-v3",
 		Name:            "v3-full",
 		SNMPVersion:     "3",
@@ -79,43 +79,43 @@ func TestLoadIndexesTheCredentialsByID(t *testing.T) {
 }
 
 func TestLoadDoesNotIndexOnTheCredentialName(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: credentialsYAML}))
+	store := NewStore(newTestConfig(t, map[string]string{Filename: credentialsYAML}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.NotContains(t, creds, "v2c-public")
 }
 
 func TestLoadReadsOnlyTheCredentialFile(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{
-		credentialsFilename: "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n    community_string: public\n",
-		"customer.yaml":     "credentials:\n  - id: id-customer\n    name: customer\n    snmp_version: \"2c\"\n    community_string: public\n",
-		"customer.json":     `{"credentials":[{"id":"id-json","name":"json"}]}`,
+	store := NewStore(newTestConfig(t, map[string]string{
+		Filename:        "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"customer.yaml": "credentials:\n  - id: id-customer\n    name: customer\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"customer.json": `{"credentials":[{"id":"id-json","name":"json"}]}`,
 	}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"id-kept"}, idsOf(creds), "a file the customer drops in the directory must not be consumed")
 }
 
 func TestLoadOfAnAbsentFileIsEmptyAndNotAnError(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{"customer.yaml": "credentials: []\n"}))
+	store := NewStore(newTestConfig(t, map[string]string{"customer.yaml": "credentials: []\n"}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.Empty(t, creds)
 }
 
 func TestLoadOfAnAbsentDirectoryIsEmptyAndNotAnError(t *testing.T) {
-	store := newCredentialStore(configmock.New(t))
+	store := NewStore(configmock.New(t))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.Empty(t, creds)
 }
 
 func TestLoadSkipsAnEntryWithNoID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: `
+	store := NewStore(newTestConfig(t, map[string]string{Filename: `
 credentials:
   - name: no-id
     snmp_version: "2c"
@@ -126,13 +126,13 @@ credentials:
     community_string: public
 `}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"id-kept"}, idsOf(creds))
 }
 
 func TestLoadKeepsTheFirstOfTwoEntriesSharingAnID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: `
+	store := NewStore(newTestConfig(t, map[string]string{Filename: `
 credentials:
   - id: id-dup
     name: dup-first
@@ -144,13 +144,13 @@ credentials:
     community_string: second
 `}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "first", creds["id-dup"].CommunityString)
 }
 
 func TestLoadKeepsTwoEntriesSharingANameButNotAnID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: `
+	store := NewStore(newTestConfig(t, map[string]string{Filename: `
 credentials:
   - id: id-one
     name: same-name
@@ -162,42 +162,42 @@ credentials:
     community_string: public
 `}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"id-one", "id-two"}, idsOf(creds))
 }
 
 func TestLoadOfAFileThatCannotBeParsedIsAnErrorThatNamesIt(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: "credentials: [\n"}))
+	store := NewStore(newTestConfig(t, map[string]string{Filename: "credentials: [\n"}))
 
-	creds, err := store.load()
+	creds, err := store.Load()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), credentialsFilename)
+	assert.Contains(t, err.Error(), Filename)
 	assert.Empty(t, creds)
 }
 
 func TestLoadErrorNamesNoFileContent(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{
-		credentialsFilename: "credentials:\n  - id: id-c\n    community_string: [s3cret-community\n",
+	store := NewStore(newTestConfig(t, map[string]string{
+		Filename: "credentials:\n  - id: id-c\n    community_string: [s3cret-community\n",
 	}))
 
-	_, err := store.load()
+	_, err := store.Load()
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "s3cret-community")
 }
 
 func TestLoadRereadsTheFilesEveryTime(t *testing.T) {
-	cfg := newTestConfig(t, map[string]string{credentialsFilename: credentialsYAML})
-	store := newCredentialStore(cfg)
+	cfg := newTestConfig(t, map[string]string{Filename: credentialsYAML})
+	store := NewStore(cfg)
 
-	first, err := store.load()
+	first, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "public", first["id-v2c"].CommunityString)
 
-	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
+	path := filepath.Join(cfg.GetString("confd_path"), Dir, Filename)
 	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - id: id-v2c\n    name: v2c-public\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
 
-	second, err := store.load()
+	second, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "rotated", second["id-v2c"].CommunityString)
 }
@@ -205,56 +205,56 @@ func TestLoadRereadsTheFilesEveryTime(t *testing.T) {
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		cred    credential
+		cred    Credential
 		wantErr string
 	}{
-		{name: "v1", cred: credential{Name: "c", SNMPVersion: "1", CommunityString: "public"}},
-		{name: "v2c", cred: credential{Name: "c", SNMPVersion: "2c", CommunityString: "public"}},
-		{name: "v3 with no protocols", cred: credential{Name: "c", SNMPVersion: "3", User: "test-user"}},
+		{name: "v1", cred: Credential{Name: "c", SNMPVersion: "1", CommunityString: "public"}},
+		{name: "v2c", cred: Credential{Name: "c", SNMPVersion: "2c", CommunityString: "public"}},
+		{name: "v3 with no protocols", cred: Credential{Name: "c", SNMPVersion: "3", User: "test-user"}},
 		{
 			name: "v3 with both protocols",
-			cred: credential{Name: "c", SNMPVersion: "3", User: "test-user", AuthProtocol: "SHA", PrivProtocol: "AES"},
+			cred: Credential{Name: "c", SNMPVersion: "3", User: "test-user", AuthProtocol: "SHA", PrivProtocol: "AES"},
 		},
 		{
 			name:    "v1 with no community string",
-			cred:    credential{Name: "c", SNMPVersion: "1"},
+			cred:    Credential{Name: "c", SNMPVersion: "1"},
 			wantErr: `has no community_string`,
 		},
 		{
 			name:    "v2c with no community string",
-			cred:    credential{Name: "c", SNMPVersion: "2c"},
+			cred:    Credential{Name: "c", SNMPVersion: "2c"},
 			wantErr: `has no community_string`,
 		},
 		{
 			name:    "v3 with no user",
-			cred:    credential{Name: "c", SNMPVersion: "3"},
+			cred:    Credential{Name: "c", SNMPVersion: "3"},
 			wantErr: `has no user`,
 		},
 		{
 			name:    "an empty version",
-			cred:    credential{Name: "c"},
+			cred:    Credential{Name: "c"},
 			wantErr: `unknown SNMP version ""`,
 		},
 		{
 			name:    "an unknown version",
-			cred:    credential{Name: "c", SNMPVersion: "2"},
+			cred:    Credential{Name: "c", SNMPVersion: "2"},
 			wantErr: `unknown SNMP version "2"`,
 		},
 		{
 			name:    "an unsupported auth protocol",
-			cred:    credential{Name: "c", SNMPVersion: "3", User: "u", AuthProtocol: "NOPE"},
+			cred:    Credential{Name: "c", SNMPVersion: "3", User: "u", AuthProtocol: "NOPE"},
 			wantErr: `unsupported authProtocol "NOPE"`,
 		},
 		{
 			name:    "an unsupported priv protocol",
-			cred:    credential{Name: "c", SNMPVersion: "3", User: "u", PrivProtocol: "NOPE"},
+			cred:    Credential{Name: "c", SNMPVersion: "3", User: "u", PrivProtocol: "NOPE"},
 			wantErr: `unsupported privProtocol "NOPE"`,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validate(tc.cred)
+			err := Validate(tc.cred)
 			if tc.wantErr == "" {
 				assert.NoError(t, err)
 				return
@@ -266,7 +266,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateNeverNamesACredentialValue(t *testing.T) {
-	err := validate(credential{
+	err := Validate(Credential{
 		Name:            "c",
 		SNMPVersion:     "bogus",
 		CommunityString: "s3cret-community",
@@ -281,7 +281,7 @@ func TestValidateNeverNamesACredentialValue(t *testing.T) {
 }
 
 // idsOf returns a credential map's ids, sorted.
-func idsOf(creds map[string]credential) []string {
+func idsOf(creds map[string]Credential) []string {
 	ids := make([]string, 0, len(creds))
 	for id := range creds {
 		ids = append(ids, id)
