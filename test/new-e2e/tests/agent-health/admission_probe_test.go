@@ -44,6 +44,7 @@ const (
 
 type admissionProbeSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
+	remotePersistenceStartup remotePersistenceStartup
 }
 
 func TestAdmissionProbeSuite(t *testing.T) {
@@ -51,6 +52,7 @@ func TestAdmissionProbeSuite(t *testing.T) {
 	e2e.Run(t, &admissionProbeSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				scenariokindvm.WithPreAgentWorkloadApp(deployRemotePersistenceBackend),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(admissionProbeHelmValues),
 				),
