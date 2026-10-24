@@ -251,7 +251,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-scorer => ../../../internal/qbranch/anomalydetection-scorer
 	github.com/DataDog/datadog-agent/internal/tools => ../../../internal/tools
-	github.com/DataDog/datadog-agent/internal/tools/gotest-custom => ../../../internal/tools/gotest-custom
 	github.com/DataDog/datadog-agent/internal/tools/independent-lint => ../../../internal/tools/independent-lint
 	github.com/DataDog/datadog-agent/internal/tools/modformatter => ../../../internal/tools/modformatter
 	github.com/DataDog/datadog-agent/internal/tools/modparser => ../../../internal/tools/modparser

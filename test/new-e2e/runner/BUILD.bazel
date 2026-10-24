@@ -1,0 +1,7 @@
+load(":e2e_tests.bzl", "e2e_tests")
+load(":test_binaries.bzl", "TEST_BINARIES")
+
+e2e_tests(
+    name = "tests",
+    tests = TEST_BINARIES,
+)
