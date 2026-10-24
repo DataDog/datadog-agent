@@ -7,7 +7,7 @@ go_library(
         "matcher.go",
         "normalize.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/util/metricname",
+    importpath = "github.com/DataDog/datadog-agent/pkg/metrics/metricname",
     visibility = ["//visibility:public"],
 )
 
