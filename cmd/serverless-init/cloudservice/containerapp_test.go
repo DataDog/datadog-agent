@@ -17,7 +17,7 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
-func TestGetContainerAppTags(t *testing.T) {
+func TestContainerAppGetTags(t *testing.T) {
 	service := NewContainerApp()
 
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
@@ -55,7 +55,78 @@ func TestGetContainerAppTags(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestGetContainerAppTagsBeforeInit(t *testing.T) {
+func TestContainerAppGetInventoryData(t *testing.T) {
+	service := NewContainerApp()
+
+	t.Setenv("CONTAINER_APP_NAME", "Test_App_Name")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+	t.Setenv("CONTAINER_APP_REVISION", "Test_Revision")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "Test_Replica")
+	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "Test_Subscription_ID")
+	t.Setenv("DD_AZURE_RESOURCE_GROUP", "Test_Resource_Group")
+
+	inv := service.GetInventoryData()
+
+	appCCRID := "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name"
+	assert.Equal(t, InventoryData{
+		WorkloadType:        workloadTypeAzureContainerApp,
+		ResourceID:          appCCRID + "/revisions/Test_Revision",
+		ParentResourceID:    appCCRID,
+		ResourceName:        "Test_App_Name",
+		Region:              "eastus",
+		AzureSubscriptionID: "Test_Subscription_ID",
+		AzureResourceGroup:  "Test_Resource_Group",
+	}, inv)
+	assert.True(t, service.CanCollectInventory())
+
+	tags := service.GetTags()
+	assert.Equal(t, map[string]string{
+		"app_name":            "Test_App_Name",
+		"origin":              "containerapp",
+		"region":              "eastus",
+		"revision":            "Test_Revision",
+		"replica_name":        "Test_Replica",
+		"_dd.origin":          "containerapp",
+		"subscription_id":     "Test_Subscription_ID",
+		"resource_id":         "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.app/containerapps/test_app_name",
+		"resource_group":      "Test_Resource_Group",
+		"aca.app.name":        "Test_App_Name",
+		"aca.app.region":      "eastus",
+		"aca.app.revision":    "Test_Revision",
+		"aca.replica.name":    "Test_Replica",
+		"aca.resource.id":     "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.app/containerapps/test_app_name",
+		"aca.resource.group":  "Test_Resource_Group",
+		"aca.subscription.id": "Test_Subscription_ID",
+	}, tags)
+	assert.Equal(t, map[string]string{
+		"name":            "Test_App_Name",
+		"origin":          "containerapp",
+		"region":          "eastus",
+		"resource_group":  "Test_Resource_Group",
+		"revisionname":    "Test_Revision",
+		"subscription_id": "Test_Subscription_ID",
+	}, service.GetEnhancedMetricTags(tags).Base)
+}
+
+func TestContainerAppGetInventoryDataWithoutAzureIDs(t *testing.T) {
+	service := NewContainerApp()
+
+	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	os.Unsetenv("DD_AZURE_SUBSCRIPTION_ID")
+	os.Unsetenv("DD_AZURE_RESOURCE_GROUP")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType: workloadTypeAzureContainerApp,
+		ResourceName: "test_app_name",
+		Region:       "eastus",
+	}, inv)
+}
+
+func TestContainerAppGetTagsBeforeInit(t *testing.T) {
 	// This test demonstrates that GetTags can be called before Init
 	// and will correctly fall back to environment variables for subscription_id and resource_group
 	service := NewContainerApp()
@@ -82,7 +153,7 @@ func TestGetContainerAppTagsBeforeInit(t *testing.T) {
 	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app", tags["aca.resource.id"])
 }
 
-func TestGetContainerAppTagsEmptyDNSSuffix(t *testing.T) {
+func TestContainerAppGetTagsEmptyDNSSuffix(t *testing.T) {
 	service := NewContainerApp()
 	t.Setenv("CONTAINER_APP_NAME", "test_app")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "")
@@ -95,7 +166,7 @@ func TestGetContainerAppTagsEmptyDNSSuffix(t *testing.T) {
 	assert.Equal(t, "unknown", tags[acaRegion])
 }
 
-func TestGetContainerAppTagsShortDNSSuffix(t *testing.T) {
+func TestContainerAppGetTagsShortDNSSuffix(t *testing.T) {
 	service := NewContainerApp()
 	t.Setenv("CONTAINER_APP_NAME", "test_app")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "foo.bar")
@@ -155,6 +226,33 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 		return
 	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
+	}
+}
+
+func TestContainerAppMissingIdentity(t *testing.T) {
+	for _, missing := range []string{"none", AzureSubscriptionIdEnvVar, AzureResourceGroupEnvVar, ContainerAppNameEnvVar, ContainerAppRevision} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv(AzureSubscriptionIdEnvVar, "subscription")
+			t.Setenv(AzureResourceGroupEnvVar, "resource group")
+			t.Setenv(ContainerAppNameEnvVar, "unknown")
+			t.Setenv(ContainerAppRevision, "revision")
+			t.Setenv(ContainerAppReplicaName, "")
+			t.Setenv(ContainerAppDNSSuffix, "")
+			if missing != "none" {
+				t.Setenv(missing, "")
+			}
+			service := NewContainerApp()
+			if missing == "none" {
+				assert.NotEmpty(t, service.GetInventoryData().ResourceID)
+				assert.True(t, service.CanCollectInventory())
+			} else {
+				assert.Empty(t, service.GetInventoryData().ResourceID)
+				assert.False(t, service.CanCollectInventory())
+			}
+			if missing != "none" && missing != ContainerAppRevision {
+				assert.NotContains(t, service.GetTags(), "resource_id")
+			}
+		})
 	}
 }
 

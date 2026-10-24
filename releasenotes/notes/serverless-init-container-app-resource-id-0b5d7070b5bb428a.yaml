@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    The ``resource_id`` and ``aca.resource_id`` tags are omitted when the Azure
+    Container App name is unavailable, instead of being reported with an empty
+    trailing path segment.
+  - |
+    The Azure subscription ID and resource group used for Container App tags are
+    now read from the environment when tags are built, so later changes to those
+    values are reflected.

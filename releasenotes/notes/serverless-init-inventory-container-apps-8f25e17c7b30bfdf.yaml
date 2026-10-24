@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    When ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` is set, serverless-init
+    reports inventory metadata for Azure Container Apps, identified by revision
+    with the owning app as the parent resource.

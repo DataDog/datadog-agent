@@ -9,6 +9,7 @@ package cloudservice
 import (
 	"maps"
 	"os"
+	"strings"
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
@@ -60,17 +61,69 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+func (a *AppService) CanCollectInventory() bool {
+	return a.GetInventoryData().ResourceID != ""
+}
+
+// GetInventoryData derives the inventory metadata from
+// traceutil.GetAppServicesTags. Web apps lowercase the ARM ID for inventory
+// only; function apps keep its casing.
+func (a *AppService) GetInventoryData() InventoryData {
+	aasTags := traceutil.GetAppServicesTags()
+
+	workloadType := workloadTypeAzureAppService
+	resourceID := aasTags[traceutil.AASResourceID]
+	if _, isFunctionApp := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME"); isFunctionApp {
+		workloadType = workloadTypeAzureFunction
+	} else {
+		resourceID = strings.ToLower(resourceID)
+	}
+
+	return InventoryData{
+		WorkloadType:        workloadType,
+		ResourceID:          resourceID,
+		ResourceName:        os.Getenv(WebsiteName),
+		Region:              os.Getenv(RegionName),
+		AzureSubscriptionID: aasTags[traceutil.AASSubscriptionID],
+		AzureResourceGroup:  aasTags[traceutil.AASResourceGroup],
+		RuntimeCandidates: []string{
+			os.Getenv("FUNCTIONS_WORKER_RUNTIME"),
+			appServiceStackRuntime(),
+		},
+	}
+}
+
+func appServiceStackRuntime() string {
+	// DOCKER, SITECONTAINERS, and other non-language stacks do not identify a runtime.
+	switch os.Getenv(WebsiteStack) {
+	case "NODE":
+		return RuntimeNodeJS
+	case "PYTHON":
+		return RuntimePython
+	case "JAVA", "TOMCAT":
+		return RuntimeJava
+	case "DOTNETCORE":
+		return RuntimeDotNet
+	case "PHP":
+		return RuntimePHP
+	case "RUBY":
+		return RuntimeRuby
+	default:
+		return ""
+	}
+}
+
 func (a *AppService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"name":            tagValueOrUnknown(tags["app_name"]),
 		"origin":          tagValueOrUnknown(tags["origin"]),
 		"region":          tagValueOrUnknown(tags["region"]),
-		"resource_group":  tagValueOrUnknown(tags["aas.resource.group"]),
-		"subscription_id": tagValueOrUnknown(tags["aas.subscription.id"]),
+		"resource_group":  tagValueOrUnknown(tags[traceutil.AASResourceGroup]),
+		"subscription_id": tagValueOrUnknown(tags[traceutil.AASSubscriptionID]),
 	}
 
 	usageTags := maps.Clone(baseTags)
-	usageTags["instance"] = tagValueOrUnknown(tags["aas.environment.instance_name"])
+	usageTags["instance"] = tagValueOrUnknown(tags[traceutil.AASInstanceName])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }

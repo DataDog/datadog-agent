@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    When ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` is set, serverless-init
+    reports inventory metadata for Cloud Run jobs, identified by job execution
+    with the owning job as the parent resource.
