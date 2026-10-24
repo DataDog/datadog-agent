@@ -347,6 +347,48 @@ hostprofiler:
 	require.Equal(t, "none", level)
 }
 
+func TestProviderKeepsHealthMetricsWhenInfrastructureModeIsUnset(t *testing.T) {
+	// infrastructure_mode is unset: the Agent resolves it to "full", so health
+	// metrics must stay enabled and be wired through the telemetry readers.
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+
+	agent := newConfigManager(cfg)
+	require.True(t, agent.hostProfilerConfig.HealthMetrics.Enabled)
+
+	generated := buildConfig(agent, testCollectorParams{})
+	_, hasReaders := confmaputils.Get[[]any](generated, "service::telemetry::metrics::readers")
+	require.True(t, hasReaders, "telemetry metrics readers should be configured")
+	_, hasMetricsPipeline := confmaputils.Get[map[string]any](generated, "service::pipelines::metrics")
+	require.True(t, hasMetricsPipeline, "metrics pipeline should be created")
+	_, hasLevel := confmaputils.Get[string](generated, "service::telemetry::metrics::level")
+	require.False(t, hasLevel, "metrics level must not be forced to none")
+}
+
+func TestProviderKeepsHealthMetricsWhenInfrastructureModeIsBasic(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+infrastructure_mode: basic
+`)
+
+	agent := newConfigManager(cfg)
+	require.True(t, agent.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
+func TestProviderDisablesHealthMetricsWhenInfrastructureModeIsEndUserDevice(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+infrastructure_mode: end_user_device
+`)
+
+	agent := newConfigManager(cfg)
+	require.False(t, agent.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
 func TestProviderMethods(t *testing.T) {
 	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 
