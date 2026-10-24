@@ -66,6 +66,15 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// Flush sends a trailing stdout line that has no newline. Stderr is not buffered.
+func (cw *ChannelWriter) Flush() {
+	if cw.IsError || cw.Buffer.Len() == 0 {
+		return
+	}
+	cw.sendPayload(cw.Buffer.Bytes())
+	cw.Buffer.Reset()
+}
+
 func (cw *ChannelWriter) sendPayload(payload []byte) {
 	bufCopy := make([]byte, len(payload))
 	copy(bufCopy, payload)

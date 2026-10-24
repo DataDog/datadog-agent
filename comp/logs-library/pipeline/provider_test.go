@@ -6,7 +6,10 @@
 package pipeline
 
 import (
+	"context"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -338,4 +341,25 @@ func TestPipelineChannelDistribution(t *testing.T) {
 			assert.Empty(t, p.pipelines)
 		})
 	}
+}
+
+func TestFlushHoldsServerlessLockUntilPendingSendsFinish(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		meta := sender.NewServerlessMeta(true)
+		p := &provider{serverlessMeta: meta}
+		// One payload is still being sent when the flush deadline expires.
+		meta.WaitGroup().Add(1)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		p.Flush(ctx)
+
+		mutex := meta.(interface{ TryLock() bool })
+		assert.False(t, mutex.TryLock(), "Flush released the lock before the pending send finished")
+
+		meta.WaitGroup().Done()
+		synctest.Wait()
+		assert.True(t, mutex.TryLock(), "Flush kept the lock after the pending send finished")
+		meta.Unlock()
+	})
 }

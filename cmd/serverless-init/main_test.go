@@ -8,11 +8,13 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"slices"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -95,6 +97,23 @@ func TestFlushLogsAgentTimeout(t *testing.T) {
 func TestFlushLogsAgentNil(t *testing.T) {
 	assert.NotPanics(t, func() {
 		flushLogsAgent(100*time.Millisecond, nil)
+	})
+}
+
+// blockingDrainLogsAgent models channel tailers stuck on a full pipeline.
+type blockingDrainLogsAgent struct {
+	agentmock.MockServerlessLogsAgent
+}
+
+func (blockingDrainLogsAgent) DrainChannelInputs(ctx context.Context) {
+	<-ctx.Done()
+}
+
+func TestFlushLogsAgentBoundsChannelDrain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		flushLogsAgent(100*time.Millisecond, blockingDrainLogsAgent{agentmock.NewMockServerlessLogsAgent()})
+		assert.Equal(t, 100*time.Millisecond, time.Since(start))
 	})
 }
 

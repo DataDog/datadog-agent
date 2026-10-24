@@ -82,6 +82,31 @@ func TestGetContainerAppTagsBeforeInit(t *testing.T) {
 	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app", tags["aca.resource.id"])
 }
 
+func TestGetContainerAppJobTags(t *testing.T) {
+	service := NewContainerApp()
+	t.Setenv(ContainerAppJobNameEnvVar, "test_job_name")
+	t.Setenv(AzureSubscriptionIdEnvVar, "test_subscription_id")
+	t.Setenv(AzureResourceGroupEnvVar, "test_resource_group")
+	// Jobs don't get the app name, DNS suffix, revision, or replica variables.
+	unsetEnv(t, ContainerAppNameEnvVar)
+	unsetEnv(t, ContainerAppDNSSuffix)
+	unsetEnv(t, ContainerAppRevision)
+	unsetEnv(t, ContainerAppReplicaName)
+
+	tags := service.GetTags()
+	assert.Equal(t, "test_job_name", tags["app_name"])
+	assert.Equal(t, "test_job_name", tags[acaAppName])
+	assert.Equal(t, "containerapp", tags["origin"])
+	assert.Equal(t, "unknown", tags["region"])
+	assert.Equal(t, "unknown", tags[acaRegion])
+	for _, key := range []string{"revision", "replica_name", acaRevision, acaReplicaName} {
+		assert.NotContains(t, tags, key)
+	}
+	jobResourceID := "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/jobs/test_job_name"
+	assert.Equal(t, jobResourceID, tags["resource_id"])
+	assert.Equal(t, jobResourceID, tags[acaResourceID])
+}
+
 func TestGetContainerAppTagsEmptyDNSSuffix(t *testing.T) {
 	service := NewContainerApp()
 	t.Setenv("CONTAINER_APP_NAME", "test_app")
@@ -156,6 +181,27 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 	}
+}
+
+func TestInitContainerAppJobWithoutAzureEnvVars(t *testing.T) {
+	service := NewContainerApp()
+	t.Setenv(ContainerAppJobNameEnvVar, "test_job_name")
+	unsetEnv(t, ContainerAppNameEnvVar)
+	unsetEnv(t, AzureSubscriptionIdEnvVar)
+	unsetEnv(t, AzureResourceGroupEnvVar)
+
+	assert.NoError(t, service.Init(nil))
+
+	tags := service.GetTags()
+	assert.NotContains(t, tags, "resource_id")
+	assert.NotContains(t, tags, acaResourceID)
+}
+
+// unsetEnv unsets key for the rest of the test and restores it afterwards.
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	t.Setenv(key, "")
+	os.Unsetenv(key)
 }
 
 func TestContainerAppShutdownEmitsMetrics(t *testing.T) {

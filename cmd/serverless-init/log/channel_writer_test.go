@@ -75,6 +75,33 @@ func TestChannelWriter_Write(t *testing.T) {
 	}
 }
 
+func TestChannelWriter_FlushPartialLine(t *testing.T) {
+	ch := make(chan *logConfig.ChannelMessage, 1)
+	cw := NewChannelWriter(ch, false)
+
+	_, err := cw.Write([]byte("partial"))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(ch) != 0 {
+		t.Fatal("partial write should stay buffered")
+	}
+
+	cw.Flush()
+	if len(ch) != 1 {
+		t.Fatalf("Expected channel to have 1 message after Flush, but it has %d", len(ch))
+	}
+	msg := <-ch
+	if string(msg.Content) != "partial" {
+		t.Fatalf("Expected message content 'partial', but got '%s'", msg.Content)
+	}
+
+	cw.Flush()
+	if len(ch) != 0 {
+		t.Fatal("second Flush of an empty buffer should not send")
+	}
+}
+
 func TestChannelWriter_WriteError(t *testing.T) {
 	ch := make(chan *logConfig.ChannelMessage, 10)
 	cw := NewChannelWriter(ch, true)

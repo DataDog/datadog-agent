@@ -7,8 +7,10 @@
 package channel
 
 import (
+	"context"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -25,6 +27,9 @@ const cloudRunServiceName = "K_SERVICE"
 // containerAppName is the environment variable of the container app name (this is used only for the serverless agent)
 const containerAppName = "CONTAINER_APP_NAME"
 
+// containerAppJobName is the environment variable of the container app job name
+const containerAppJobName = "CONTAINER_APP_JOB_NAME"
+
 // Tailer consumes and processes a channel of strings, and sends them to a
 // stream of log messages.
 //
@@ -34,7 +39,8 @@ type Tailer struct {
 	source     *sources.LogSource
 	inputChan  chan *config.ChannelMessage
 	outputChan chan *message.Message
-	done       chan interface{}
+	done       chan struct{}
+	closeOnce  sync.Once
 }
 
 // NewTailer returns a new Tailer
@@ -43,7 +49,7 @@ func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage,
 		source:     source,
 		inputChan:  inputChan,
 		outputChan: outputChan,
-		done:       make(chan interface{}, 1),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -52,18 +58,21 @@ func (t *Tailer) Start() {
 	go t.run()
 }
 
-// WaitFlush waits for all items in the input channel to be processed.  In the
-// process, this closes the input channel.  Any subsequent sends to the channel
-// will fail.
-func (t *Tailer) WaitFlush() {
-	close(t.inputChan)
-	<-t.done
+// WaitFlush waits for all items in the input channel to be processed, or until
+// ctx is done.  In the process, this closes the input channel.  Any subsequent
+// sends to the channel will fail.  It is safe to call more than once.
+func (t *Tailer) WaitFlush(ctx context.Context) {
+	t.closeOnce.Do(func() {
+		close(t.inputChan)
+	})
+	select {
+	case <-t.done:
+	case <-ctx.Done():
+	}
 }
 
 func (t *Tailer) run() {
-	defer func() {
-		t.done <- true
-	}()
+	defer close(t.done)
 
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
@@ -104,6 +113,9 @@ func getServiceName() string {
 	}
 	if containerAppName := os.Getenv(containerAppName); containerAppName != "" {
 		return strings.ToLower(containerAppName)
+	}
+	if jobName := os.Getenv(containerAppJobName); jobName != "" {
+		return strings.ToLower(jobName)
 	}
 	return "agent"
 }

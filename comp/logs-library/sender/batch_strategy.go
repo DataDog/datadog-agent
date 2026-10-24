@@ -24,7 +24,7 @@ const mrfBatch string = "mrf"
 type batchStrategy struct {
 	inputChan      chan *message.Message
 	outputChan     chan *message.Payload
-	flushChan      chan struct{}
+	flushChan      chan chan struct{}
 	serverlessMeta ServerlessMeta
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName   string
@@ -46,7 +46,7 @@ type batchStrategy struct {
 func NewBatchStrategy(
 	inputChan chan *message.Message,
 	outputChan chan *message.Payload,
-	flushChan chan struct{},
+	flushChan chan chan struct{},
 	serverlessMeta ServerlessMeta,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -62,7 +62,7 @@ func NewBatchStrategy(
 func newBatchStrategyWithClock(
 	inputChan chan *message.Message,
 	outputChan chan *message.Payload,
-	flushChan chan struct{},
+	flushChan chan chan struct{},
 	serverlessMeta ServerlessMeta,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -115,21 +115,43 @@ func (s *batchStrategy) Start() {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
-
-				if m.IsMRFAllow {
-					s.getBatch(mrfBatch).processMessage(m, s.outputChan)
-				} else {
-					s.getBatch(mainBatch).processMessage(m, s.outputChan)
-				}
+				s.addMessage(m)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushAllBatches("timer")
-			case <-s.flushChan:
-				// flush payloads on demand, used for infrequently running serverless functions
+			case ack := <-s.flushChan:
+				// A ready inputChan is chosen at random with this case, so drain
+				// it before flushing. The ack closes only after Add(1).
+				s.drainInput()
 				s.flushAllBatches("flush")
+				close(ack)
 			}
 		}
 	}()
+}
+
+func (s *batchStrategy) addMessage(m *message.Message) {
+	if m.IsMRFAllow {
+		s.getBatch(mrfBatch).processMessage(m, s.outputChan)
+	} else {
+		s.getBatch(mainBatch).processMessage(m, s.outputChan)
+	}
+}
+
+// drainInput pulls every message already queued on inputChan into a batch.
+// It does not wait for messages that are not yet queued.
+func (s *batchStrategy) drainInput() {
+	for {
+		select {
+		case m, isOpen := <-s.inputChan:
+			if !isOpen {
+				return
+			}
+			s.addMessage(m)
+		default:
+			return
+		}
+	}
 }
 
 func (s *batchStrategy) getBatch(key string) *batch {

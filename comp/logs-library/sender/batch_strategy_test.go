@@ -7,6 +7,7 @@ package sender
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -21,7 +22,7 @@ import (
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 
 	s := NewBatchStrategy(
 		input,
@@ -64,7 +65,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
@@ -102,7 +103,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 
 	clk := clock.NewMock()
 	s := newBatchStrategyWithClock(
@@ -140,7 +141,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 
 	s := NewBatchStrategy(input,
 		output,
@@ -172,7 +173,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 	input := make(chan *message.Message)
 	// output needs to be buffered so the flush has somewhere to write to without blocking
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
@@ -230,7 +231,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 func TestBatchStrategyFlushChannel(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
@@ -266,10 +267,13 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 	default:
 	}
 
-	// Trigger a manual flush
-	flushChan <- struct{}{}
+	// Trigger a manual flush. The send completes when the strategy receives the
+	// ack; reading output unblocks flushBuffer, which then closes the ack.
+	ack := make(chan struct{})
+	flushChan <- ack
 
 	assert.ElementsMatch(t, messageMeta, (<-output).MessageMetas)
+	<-ack
 
 	// Ensure we read all of the messages
 	select {
@@ -292,7 +296,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 func TestBatchStrategyMRFRouting(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload, 2) // Buffer for two payloads
-	flushChan := make(chan struct{})
+	flushChan := make(chan chan struct{})
 	var batchSize = 100
 	var contentSize = 100
 
@@ -317,7 +321,9 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 	input <- normalMessage
 	input <- mrfMessage
 
-	flushChan <- struct{}{}
+	ack := make(chan struct{})
+	flushChan <- ack
+	<-ack
 
 	// Should receive two payloads: main and MRF
 	payloads := make([]*message.Payload, 2)
@@ -336,4 +342,75 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 	assert.True(t, hasMRF, "Should have received MRF payload")
 
 	strategy.Stop()
+}
+
+// TestBatchStrategyFlushDrainsInputBeforeWait queues a message on inputChan
+// before the strategy is running, then signals flush. Whichever select case
+// wins, the flush must include that message, and Wait must not return until
+// the payload's Done call.
+func TestBatchStrategyFlushDrainsInputBeforeWait(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		synctest.Test(t, func(t *testing.T) {
+			meta := NewMockServerlessMeta(true)
+			input := make(chan *message.Message, 1)
+			output := make(chan *message.Payload, 1)
+			flushChan := make(chan chan struct{}, 1)
+
+			strategy := NewBatchStrategy(
+				input,
+				output,
+				flushChan,
+				meta,
+				time.Hour,
+				100,
+				100,
+				"test",
+				compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+				metrics.NewNoopPipelineMonitor(""),
+				"test")
+
+			msg := message.NewMessage([]byte("queued"), nil, "", 0)
+			ack := make(chan struct{})
+			input <- msg
+			flushChan <- ack
+			strategy.Start()
+			synctest.Wait()
+
+			select {
+			case <-ack:
+			default:
+				t.Fatalf("iteration %d: flush ack was not closed", i)
+			}
+
+			select {
+			case payload := <-output:
+				assert.Equal(t, &msg.MessageMetadata, payload.MessageMetas[0])
+			default:
+				t.Fatalf("iteration %d: message queued on inputChan was not flushed", i)
+			}
+
+			returned := make(chan struct{})
+			go func() {
+				meta.WaitGroup().Wait()
+				close(returned)
+			}()
+			// Returns once the goroutine above is blocked in WaitGroup.Wait.
+			synctest.Wait()
+			select {
+			case <-returned:
+				t.Fatalf("iteration %d: Wait returned before Done", i)
+			default:
+			}
+
+			meta.WaitGroup().Done()
+			synctest.Wait()
+			select {
+			case <-returned:
+			default:
+				t.Fatalf("iteration %d: Wait did not return after Done", i)
+			}
+
+			strategy.Stop()
+		})
+	}
 }

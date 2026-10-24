@@ -20,6 +20,7 @@ dd_agent_go_test(
     deps = [
         "//comp/logs/agent/config",
         "//pkg/logs/message",
+        "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
     ],
 )

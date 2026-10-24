@@ -300,6 +300,15 @@ func (a *logAgent) startSchedulers() {
 	})
 }
 
+// DrainChannelInputs flushes channel tailers into the pipeline, or returns when
+// ctx is done. It is used by serverless-init at final shutdown.
+func (a *logAgent) DrainChannelInputs(ctx context.Context) {
+	if a.launchers == nil {
+		return
+	}
+	a.launchers.DrainChannels(ctx)
+}
+
 func (a *logAgent) stop(context.Context) error {
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()

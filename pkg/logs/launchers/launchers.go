@@ -7,6 +7,7 @@
 package launchers
 
 import (
+	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
@@ -66,6 +67,21 @@ func (ls *Launchers) Start() {
 		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
 	}
 	ls.started = true
+}
+
+// channelDrainer is implemented by the channel launcher. Other launchers are skipped.
+type channelDrainer interface {
+	Drain(ctx context.Context)
+}
+
+// DrainChannels flushes channel tailers so queued lines reach the pipeline,
+// or returns when ctx is done.
+func (ls *Launchers) DrainChannels(ctx context.Context) {
+	for _, launcher := range ls.launchers {
+		if drainer, ok := launcher.(channelDrainer); ok {
+			drainer.Drain(ctx)
+		}
+	}
 }
 
 // Stop all launchers and wait until they are complete.

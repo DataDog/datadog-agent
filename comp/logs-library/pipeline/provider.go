@@ -420,9 +420,19 @@ func (p *provider) Flush(ctx context.Context) {
 		}
 	}
 	if p.serverlessMeta.IsEnabled() {
-		p.serverlessMeta.Lock()
-		defer p.serverlessMeta.Unlock()
-		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
-		p.serverlessMeta.WaitGroup().Wait()
+		// Pipeline.Flush blocks until Add(1), so this wait observes the payload.
+		// The waiter holds the lock until Wait returns, even after ctx is done,
+		// so no Add(1) can race a pending Wait. ctx does not cancel the HTTP POST.
+		sent := make(chan struct{})
+		go func() {
+			p.serverlessMeta.Lock()
+			defer p.serverlessMeta.Unlock()
+			p.serverlessMeta.WaitGroup().Wait()
+			close(sent)
+		}()
+		select {
+		case <-ctx.Done():
+		case <-sent:
+		}
 	}
 }

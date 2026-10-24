@@ -107,6 +107,8 @@ func (a *mockLogsAgent) Flush(ctx context.Context) {
 	}
 }
 
+func (a *mockLogsAgent) DrainChannelInputs(context.Context) {}
+
 func (a *mockLogsAgent) GetPipelineProvider() pipeline.Provider {
 	return nil
 }
