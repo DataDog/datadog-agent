@@ -2389,6 +2389,27 @@ type GPU struct {
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
 
+	// ChassisSerial is the serial number of the chassis (rack) containing the GPU,
+	// reported on rack-scale systems such as GB200 NVL72. Empty otherwise.
+	ChassisSerial string
+
+	// SlotNumber, TrayIndex and ModuleID locate the GPU inside the chassis.
+	// They are meaningful only when ChassisSerial is set.
+	SlotNumber uint8
+	TrayIndex  uint8
+	ModuleID   uint8
+
+	// BoardSerial is the board serial number, shared by the GPUs of one
+	// superchip on GB200. It is set only when ChassisSerial is set.
+	BoardSerial string
+
+	// FabricGUID is the GPU's NVLink fabric GUID from NVML platform info (not an
+	// InfiniBand HCA GUID). Empty when not reported.
+	FabricGUID string
+
+	// NUMANode is the NUMA node closest to the GPU. Nil when not reported.
+	NUMANode *int
+
 	// NVLinkVersion is the version reported by the GPU's NVLink links.
 	NVLinkVersion string
 
