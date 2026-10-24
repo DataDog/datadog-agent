@@ -1,4 +1,4 @@
-{{with .forwarderStats -}}
+{{$status := .}}{{with .forwarderStats -}}
 {{ if .Transactions }}
   Transactions
   ============
@@ -16,8 +16,8 @@
 
   Transaction Successes
   =====================
-    Total number: {{.Transactions.Success}}
-    Successes By Endpoint:
+    Total number (Core Agent + ADP): {{.Transactions.Success}}
+    Successes By Endpoint (Core Agent):
           {{- range $type, $count := .Transactions.SuccessByEndpoint }}
             {{- if $count }}
       {{$type}}: {{humanize $count}}
@@ -28,8 +28,8 @@
 
   Transaction Errors
   ==================
-    Total number: {{.Transactions.Errors}}
-    Errors By Type:
+    Total number (Core Agent + ADP): {{.Transactions.Errors}}
+    Errors By Type (Core Agent):
           {{- range $type, $count := .Transactions.ErrorsByType }}
             {{- if $count }}
       {{$type}}: {{humanize $count}}
@@ -40,8 +40,8 @@
 
   HTTP Errors
   ==================
-    Total number: {{.Transactions.HTTPErrors}}
-    HTTP Errors By Code:
+    Total number (Core Agent + ADP): {{.Transactions.HTTPErrors}}
+    HTTP Errors By Code (Core Agent):
       {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
         {{- if $count}}
       {{$code}}: {{humanize $count}}
@@ -83,4 +83,27 @@
     {{yellowText $key}}{{yellowText ":"}} {{yellowText $value}}
   {{- end }}
 {{- end}}
+{{- end}}
+
+{{with $status.adpForwarderStats}}
+  ADP Forwarder Transactions (by agent)
+  =====================================
+  {{- range $agent, $agentStats := .}}
+    {{$agent}}:
+    {{- with $agentStats.Transactions}}
+      {{- if .DroppedOnInput}}Dropped on input: {{humanize .DroppedOnInput}}{{end}}
+      {{- if .RetryQueueSize}}Retry queue size: {{humanize .RetryQueueSize}}{{end}}
+      {{- if .Success}}Success: {{humanize .Success}}{{end}}
+      {{- if .Errors}}Errors: {{humanize .Errors}}{{end}}
+      {{- if .ErrorsByType}}
+        Errors by type:
+        {{- range $type, $count := .ErrorsByType}}
+          {{- if $count}}
+          {{$type}}: {{humanize $count}}
+          {{- end}}
+        {{- end}}
+      {{- end}}
+      {{- if .HTTPErrors}}HTTP errors: {{humanize .HTTPErrors}}{{end}}
+    {{- end}}
+  {{- end}}
 {{- end}}
