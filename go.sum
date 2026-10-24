@@ -128,8 +128,8 @@ github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxD
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
 github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d h1:kF4WFXPeCD4hJoSEhx7ofi0IkcP+Lt4niJ7QfnRDPJw=
 github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d/go.mod h1:BSLlxDNQ5Yn6gXzn9tYrUXnuh6HFTPhjLerdykT2tZo=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261021152136-830ea404b524 h1:l/EuC/dgoewewZ7fH8v9Vmn/tRae4a3hbLAft373grs=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261021152136-830ea404b524/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261024013828-94a87b52d388 h1:AZcXAbAE7RD8ykUXFXKyCvhaSOkMQ3EGraezHuzlofE=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261024013828-94a87b52d388/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
 github.com/DataDog/rshell v0.0.30 h1:EKMbkW0TBs+McC5XM6Ixt4gMOfTz1nLm1QDL6vgn3h4=
 github.com/DataDog/rshell v0.0.30/go.mod h1:a3/ZRNrMB/MQFuTIJf/xCtnBdnQZY9w3goeU1yEWKyU=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
