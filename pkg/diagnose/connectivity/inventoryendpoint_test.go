@@ -211,6 +211,90 @@ func TestBuildEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "acceptNotFound on default Datadog hosts including failover",
+			endpointDescription: endpointDescription{
+				prefix:          "trace.agent",
+				routePath:       "_health",
+				method:          http.MethodGet,
+				handlesFailover: true,
+				acceptNotFound:  true,
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+				{
+					site:          "datadoghq.eu",
+					defaultAPIKey: "api-key-2",
+					isFailover:    true,
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey:         "api-key-1",
+					url:            "https://trace.agent.datadoghq.com./_health",
+					acceptNotFound: true,
+				},
+				{
+					apiKey:         "api-key-2",
+					url:            "https://trace.agent.datadoghq.eu./_health",
+					acceptNotFound: true,
+				},
+			},
+		},
+		{
+			name: "acceptNotFound kept with url override to a Datadog host",
+			endpointDescription: endpointDescription{
+				prefix:            "trace.agent",
+				routePath:         "_health",
+				method:            http.MethodGet,
+				altURLOverrideKey: "apm_config.apm_dd_url",
+				acceptNotFound:    true,
+			},
+			config: map[string]string{
+				"apm_config.apm_dd_url": "https://trace.agent.us5.datadoghq.com",
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey:         "api-key-1",
+					url:            "https://trace.agent.us5.datadoghq.com/_health",
+					acceptNotFound: true,
+				},
+			},
+		},
+		{
+			name: "acceptNotFound dropped with url override to a custom host",
+			endpointDescription: endpointDescription{
+				prefix:            "trace.agent",
+				routePath:         "_health",
+				method:            http.MethodGet,
+				altURLOverrideKey: "apm_config.apm_dd_url",
+				acceptNotFound:    true,
+			},
+			config: map[string]string{
+				"apm_config.apm_dd_url": "http://localhost:9802",
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey: "api-key-1",
+					url:    "http://localhost:9802/_health",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -238,6 +322,7 @@ func TestBuildEndpoints(t *testing.T) {
 						found = true
 						assert.Equal(t, tt.endpointDescription.method, endpoint.method)
 						assert.Equal(t, expectedEndpoint.apiKey, endpoint.apiKey)
+						assert.Equal(t, expectedEndpoint.acceptNotFound, endpoint.acceptNotFound)
 						break
 					}
 				}
@@ -360,6 +445,63 @@ func TestCheckGet(t *testing.T) {
 	_, err = endpoint.checkGet(context.Background(), client)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status code: 401")
+}
+
+func TestCheckGetAcceptNotFound(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		acceptNotFound bool
+		wantErr        string
+	}{
+		{
+			name:           "404 with acceptNotFound is success",
+			statusCode:     http.StatusNotFound,
+			acceptNotFound: true,
+		},
+		{
+			name:       "404 without acceptNotFound fails",
+			statusCode: http.StatusNotFound,
+			wantErr:    "invalid status code: 404",
+		},
+		{
+			name:           "403 with acceptNotFound fails",
+			statusCode:     http.StatusForbidden,
+			acceptNotFound: true,
+			wantErr:        "invalid status code: 403",
+		},
+		{
+			name:           "503 with acceptNotFound fails",
+			statusCode:     http.StatusServiceUnavailable,
+			acceptNotFound: true,
+			wantErr:        "invalid status code: 503",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer ts.Close()
+
+			endpoint := resolvedEndpoint{
+				url:            ts.URL,
+				method:         http.MethodGet,
+				apiKey:         "test-api-key",
+				acceptNotFound: tt.acceptNotFound,
+			}
+
+			result, err := endpoint.checkGet(context.Background(), &http.Client{})
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				assert.Equal(t, "Success", result)
+				return
+			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 func TestRun(t *testing.T) {
