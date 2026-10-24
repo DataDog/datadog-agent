@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Expose Remote Configuration organization enablement and API-key authorization
+    status to Agent components. Failed polls retain the last successful response.
