@@ -1,0 +1,9 @@
+description: '`head -n 5 --help --bogus` prints help and exits 0, matching GNU coreutils'' left-to-right option semantics. The trial-parse trim in builtins/builtins.go confirms the prefix parses cleanly (`-n 5` is a valid count) before discarding the suffix; head''s handler then short-circuits on `--help`. Asserted via stdout_contains "Usage:" so both rshell''s minimal help and GNU''s longer help match.'
+input:
+  script: |+
+    head -n 5 --help --bogus
+expect:
+  stdout_contains:
+    - "Usage:"
+  stderr: ""
+  exit_code: 0

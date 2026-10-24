@@ -1,0 +1,8 @@
+description: Unsigned integer overflow clamps to MaxUint64 with warning and exit 0.
+input:
+  script: |+
+    printf "%u\n" 99999999999999999999
+expect:
+  stdout: "18446744073709551615\n"
+  stderr_contains: ["Numerical result out of range"]
+  exit_code: 0

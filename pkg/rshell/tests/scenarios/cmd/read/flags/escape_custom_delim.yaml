@@ -1,0 +1,14 @@
+description: |+
+  With a custom -d delimiter, a backslash before the delimiter character
+  is an escape (the delimiter is appended literally), not a line
+  continuation (which only applies to backslash-newline).
+input:
+  script: |+
+    printf 'a\\,b,c' | { read -d , x; echo "x=[$x]"; }
+    printf 'a\\,b,c' | { read -d , -r y; echo "y=[$y]"; }
+expect:
+  stdout: |+
+    x=[a,b]
+    y=[a\]
+  stderr: ""
+  exit_code: 0

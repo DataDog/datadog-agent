@@ -1,0 +1,8 @@
+description: xargs reports exit 123 when any sub-command exits non-zero (matches GNU; both `/usr/bin/false` and rshell's builtin exit 1 with no output, and xargs maps that to 123).
+input:
+  script: |+
+    echo a | xargs false
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 123

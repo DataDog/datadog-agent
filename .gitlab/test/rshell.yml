@@ -1,0 +1,81 @@
+---
+.rshell:rules:
+  - !reference [.except_disable_unit_tests]
+  - !reference [.except_light_pipeline]
+  - !reference [.on_main_or_release_branch]
+  - if: $RUN_UNIT_TESTS == "on"
+  - changes:
+      paths:
+        - pkg/rshell/**/*
+        - .gitlab/test/rshell.yml
+        - .gitlab/rshell/**/*
+        - .gitlab/build/bazel/defs.yml
+        - .gitlab-ci.yml
+        - tasks/rshell.py
+        - tasks/fuzz.py
+        - tasks/fuzz_infra.py
+        - tasks/__init__.py
+        - tasks/build_tags.*
+        - tasks/gotest.py
+        - tasks/libs/build/bazel.py
+        - tasks/schema/**/*
+        - pkg/config/schema/**/*
+        - .go-version
+        - go.mod
+        - go.sum
+        - go.work
+        - modules.yml
+        - .bazelrc
+        - .bazelversion
+        - MODULE.bazel*
+        - bazel/**/*
+        - tools/bazel
+      compare_to: $COMPARE_TO_BRANCH
+
+.rshell:base:
+  extends: .bazel:runner:linux-amd64
+  stage: source_test
+  rules: !reference [.rshell:rules]
+  before_script:
+    - dda self dep sync -f legacy-tasks
+
+rshell:checks:
+  extends: .rshell:base
+  timeout: 30m
+  script:
+    - dda inv -- rshell.verify-source-files
+    - make -C pkg/rshell compliance
+    - >-
+      dda inv test --module=pkg/rshell
+      --targets=internal/sandbox/landlock,internal/sandbox/seccomp
+      --bazel-args=--@rules_go//go/config:pure
+
+rshell:bash:
+  extends: .rshell:base
+  tags: ["docker-in-docker:amd64"]
+  timeout: 30m
+  script:
+    - docker info
+    - docker pull debian:bookworm-slim
+    - make -C pkg/rshell test_against_bash
+
+rshell:fuzz:generate:
+  extends: .rshell:base
+  script:
+    - dda inv -- rshell.generate-fuzz-pipeline
+  artifacts:
+    paths:
+      - rshell-fuzz-gitlab-ci.yml
+    expire_in: 1 week
+
+rshell:fuzz:
+  stage: source_test
+  needs: ["rshell:fuzz:generate"]
+  rules: !reference [.rshell:rules]
+  trigger:
+    include:
+      - artifact: rshell-fuzz-gitlab-ci.yml
+        job: rshell:fuzz:generate
+    strategy: depend
+    forward:
+      pipeline_variables: true

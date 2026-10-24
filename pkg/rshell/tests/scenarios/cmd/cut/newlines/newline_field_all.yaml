@@ -1,0 +1,14 @@
+description: Cut selecting all fields preserves content and adds trailing newline.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -f1- input.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

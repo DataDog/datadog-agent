@@ -1,0 +1,10 @@
+description: Basic variable expansion with $ and ${}.
+input:
+  script: |+
+    a=foo
+    echo $a ${a}
+expect:
+  stdout: |+
+    foo foo
+  stderr: ""
+  exit_code: 0

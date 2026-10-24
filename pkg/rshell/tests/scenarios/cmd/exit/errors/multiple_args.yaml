@@ -1,0 +1,10 @@
+description: >
+  Exit with multiple arguments produces an error and exits the shell.
+input:
+  script: |+
+    exit 1 2
+expect:
+  stdout: ""
+  stderr_contains:
+    - "too many arguments"
+  exit_code: 1

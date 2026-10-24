@@ -1,0 +1,10 @@
+description: xargs -t shell-quotes argv elements that contain whitespace, matching GNU xargs's trace format.
+input:
+  script: |+
+    printf 'a b\n' | xargs -I{} -t echo {} 2>&1
+expect:
+  stdout: |+
+    echo 'a b'
+    a b
+  stderr: |+
+  exit_code: 0

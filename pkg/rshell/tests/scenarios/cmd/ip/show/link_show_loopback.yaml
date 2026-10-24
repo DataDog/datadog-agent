@@ -1,0 +1,11 @@
+# ip link show: verify output contains loopback link information.
+# Uses no dev filter so it works cross-platform (lo on Linux, lo0 on macOS).
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip link show includes loopback link information"
+input:
+  script: |+
+    ip link show
+expect:
+  stdout_contains: ["LOOPBACK", "link/loopback"]
+  exit_code: 0
+skip_assert_against_bash: true

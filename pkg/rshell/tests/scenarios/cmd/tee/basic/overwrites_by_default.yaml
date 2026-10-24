@@ -1,0 +1,17 @@
+description: Without -a, tee overwrites (truncates) an existing target file.
+setup:
+  files:
+    - path: out.txt
+      content: "old content that is much longer than new"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "new\n" | tee out.txt
+    cat out.txt
+expect:
+  stdout: |+
+    new
+    new
+  stderr: |+
+  exit_code: 0

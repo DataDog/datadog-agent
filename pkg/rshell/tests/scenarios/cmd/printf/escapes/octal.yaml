@@ -1,0 +1,9 @@
+description: Printf interprets octal escape sequences in the format string.
+input:
+  script: |+
+    printf "\101\n"
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

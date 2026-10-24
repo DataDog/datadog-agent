@@ -1,0 +1,14 @@
+description: find -type with invalid character produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -type x
+expect:
+  stderr_contains: ["Unknown argument to -type: x"]
+  exit_code: 1

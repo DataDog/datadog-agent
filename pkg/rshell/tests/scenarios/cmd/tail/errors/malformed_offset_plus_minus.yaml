@@ -1,0 +1,13 @@
+description: tail rejects malformed offset forms like +-3 and ++5, matching GNU tail behaviour.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n +-3 file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["tail:"]
+  exit_code: 1

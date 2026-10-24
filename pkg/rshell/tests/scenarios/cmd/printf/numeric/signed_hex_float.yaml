@@ -1,0 +1,8 @@
+description: Printf accepts signed hex integer as float argument.
+input:
+  script: |+
+    printf '%f\n' -0xff
+expect:
+  stdout: |+
+    -255.000000
+  exit_code: 0

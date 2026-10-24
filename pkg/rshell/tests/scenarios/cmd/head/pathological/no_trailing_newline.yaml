@@ -1,0 +1,13 @@
+description: head -n 1 on input with no trailing newline outputs the content verbatim without adding a newline.
+setup:
+  files:
+    - path: file.txt
+      content: "no newline at end"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 1 file.txt
+expect:
+  stdout: "no newline at end"
+  stderr: ""
+  exit_code: 0

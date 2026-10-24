@@ -1,0 +1,9 @@
+description: Escaped hash with backslash is literal, not a comment start.
+input:
+  script: |+
+    echo hello \# world
+expect:
+  stdout: |+
+    hello # world
+  stderr: ""
+  exit_code: 0

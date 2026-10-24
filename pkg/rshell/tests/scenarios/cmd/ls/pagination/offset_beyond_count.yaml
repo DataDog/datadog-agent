@@ -1,0 +1,19 @@
+description: ls --offset beyond entry count returns empty output.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: f01
+      content: ""
+      chmod: 0644
+    - path: f02
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls --offset 100 --limit 10
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate --dry-run --force reports empty files as no-ops.
+setup:
+  files:
+    - path: empty.log
+      content: ""
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --dry-run --force empty.log
+    wc -c < empty.log
+expect:
+  stdout: |+
+    logrotate: empty.log: already empty, skipping
+    0
+  stderr: |+
+  exit_code: 0

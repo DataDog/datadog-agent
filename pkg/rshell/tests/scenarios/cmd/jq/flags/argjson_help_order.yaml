@@ -1,0 +1,37 @@
+description: jq honors help only after validating earlier --argjson bindings.
+input:
+  script: |+
+    jq -nc --argjson x not-json --help >/dev/null 2>&1
+    echo "long-before:$?"
+    jq -nc --argjson 1 not-json --help >/dev/null 2>&1
+    echo "invalid-name-before:$?"
+    jq -nc --help --argjson x not-json >/dev/null 2>&1
+    echo "long-after:$?"
+    jq -nc --argjson x not-json -h >/dev/null 2>&1
+    echo "short-before:$?"
+    jq -nc -h --argjson x not-json >/dev/null 2>&1
+    echo "short-after:$?"
+    jq -nc -h --bogus >/dev/null 2>&1
+    echo "unknown-after-short:$?"
+    jq -nc -nhz >/dev/null 2>&1
+    echo "cluster-error-after-help:$?"
+    if jq -nc -nzh >/dev/null 2>&1; then
+      echo cluster-error-before-help:accepted
+    else
+      echo cluster-error-before-help:rejected
+    fi
+    jq -nc -h --argjson x >/dev/null 2>&1
+    echo "missing-binding-after-short:$?"
+expect:
+  stdout: |+
+    long-before:2
+    invalid-name-before:2
+    long-after:0
+    short-before:2
+    short-after:0
+    unknown-after-short:0
+    cluster-error-after-help:0
+    cluster-error-before-help:rejected
+    missing-binding-after-short:0
+  stderr: |+
+  exit_code: 0

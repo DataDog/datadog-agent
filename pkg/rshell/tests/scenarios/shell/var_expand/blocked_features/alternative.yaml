@@ -1,0 +1,12 @@
+# skip: variable expansion feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Alternative value expansion ${var:+alt} is not supported.
+input:
+  script: |+
+    X=set
+    echo ${X:+alt}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

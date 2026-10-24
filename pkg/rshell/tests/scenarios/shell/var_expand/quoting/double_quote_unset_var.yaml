@@ -1,0 +1,11 @@
+description: Unset variable in double quotes expands to empty string, preserving surrounding text.
+input:
+  script: |+
+    echo "before${UNSET}after"
+    echo "a${UNSET}b${UNSET}c"
+expect:
+  stdout: |+
+    beforeafter
+    abc
+  stderr: ""
+  exit_code: 0

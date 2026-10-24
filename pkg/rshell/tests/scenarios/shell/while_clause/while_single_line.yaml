@@ -1,0 +1,11 @@
+description: Single-line while loop iterates until its condition becomes false.
+input:
+  script: |+
+    i=; while [ "$i" != aaa ]; do i="${i}a"; echo "$i"; done
+expect:
+  stdout: |+
+    a
+    aa
+    aaa
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,7 @@
+description: Basic heredoc preserves blank lines and tabs.
+input:
+  script: "cat <<END\nhere\n\n\tdocument\nEND\n"
+expect:
+  stdout: "here\n\n\tdocument\n"
+  stderr: ""
+  exit_code: 0

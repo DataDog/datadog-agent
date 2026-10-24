@@ -1,0 +1,13 @@
+# Security: unknown flags must be rejected (not silently ignored).
+description: An unrecognized flag is rejected with exit 1 and a clear error message.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    tee --follow out.txt
+expect:
+  stdout: |+
+  stderr: |+
+    tee: unrecognized option '--follow'
+    Try 'tee --help' for more information.
+  exit_code: 1

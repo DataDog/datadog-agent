@@ -1,0 +1,12 @@
+description: break exits an until-false loop without entering the next iteration.
+input:
+  script: |+
+    until false; do
+      break
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: |+
+  exit_code: 0

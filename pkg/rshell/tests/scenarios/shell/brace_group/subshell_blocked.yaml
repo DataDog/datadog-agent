@@ -1,0 +1,10 @@
+description: Subshell grouping executes commands.
+input:
+  script: |+
+    (echo hello; echo world)
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

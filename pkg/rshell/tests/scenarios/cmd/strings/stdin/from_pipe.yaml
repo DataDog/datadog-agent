@@ -1,0 +1,9 @@
+description: strings reads from stdin when no file arguments are given.
+input:
+  script: |+
+    echo "hello world" | strings
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

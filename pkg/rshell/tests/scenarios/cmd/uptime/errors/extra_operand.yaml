@@ -1,0 +1,11 @@
+description: uptime rejects extra positional operands
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime foo
+expect:
+  stdout: ""
+  stderr: |+
+    uptime: extra operand 'foo'
+    Try 'uptime --help' for more information.
+  exit_code: 1

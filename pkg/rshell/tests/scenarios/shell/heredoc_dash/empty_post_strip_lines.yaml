@@ -1,0 +1,25 @@
+# vuln-hunt 2026-05-18-initial-audit / heredoc_dash H7.
+# A line that consists entirely of leading tabs strips to an empty string,
+# but still produces a `\n` byte in the output. The cap-accounting in
+# flushLine (runner_redir.go:147-158) counts that separator. Pin the
+# observable behaviour: 3 empty-post-strip lines between two content
+# lines produce a 4-line output.
+description: <<- with tab-only lines emits empty lines after stripping.
+input:
+  script: |+
+    cat <<-EOF
+    	a
+
+
+
+    	b
+    	EOF
+expect:
+  stdout: |+
+    a
+
+
+
+    b
+  stderr: ""
+  exit_code: 0

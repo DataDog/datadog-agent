@@ -1,0 +1,10 @@
+description: Brace groups can be nested and execute correctly.
+input:
+  script: |+
+    { { echo inner; }; echo outer; }
+expect:
+  stdout: |+
+    inner
+    outer
+  stderr: ""
+  exit_code: 0

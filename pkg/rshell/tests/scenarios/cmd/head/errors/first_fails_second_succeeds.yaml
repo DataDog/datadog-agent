@@ -1,0 +1,13 @@
+description: head continues after the first file fails to open; no spurious blank line before the second file's header.
+setup:
+  files:
+    - path: good.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head missing.txt good.txt
+expect:
+  stdout: "==> good.txt <==\nhello\n"
+  stderr_contains: ["missing.txt"]
+  exit_code: 1

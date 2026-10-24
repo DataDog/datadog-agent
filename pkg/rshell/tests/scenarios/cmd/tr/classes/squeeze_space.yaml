@@ -1,0 +1,8 @@
+description: tr -s with [:space:] class squeezes consecutive whitespace.
+input:
+  script: |+
+    printf 'a  b\t\tc\n' | tr -s '[:space:]'
+expect:
+  stdout: "a b\tc\n"
+  stderr: ""
+  exit_code: 0

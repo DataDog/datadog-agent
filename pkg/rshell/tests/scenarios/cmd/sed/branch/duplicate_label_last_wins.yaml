@@ -1,0 +1,17 @@
+description: "Duplicate labels: branch goes to the last definition (GNU sed behavior)."
+setup:
+  files:
+    - path: input.txt
+      content: "x\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed ':a
+    s/x/1/
+    ba
+    s/1/2/
+    :a
+    s/1/3/' input.txt
+expect:
+  stdout: "3\n"
+  exit_code: 0

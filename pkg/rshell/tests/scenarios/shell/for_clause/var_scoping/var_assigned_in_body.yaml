@@ -1,0 +1,12 @@
+description: Variable assigned in loop body is visible after the loop.
+input:
+  script: |+
+    for i in a b c; do
+      LAST=$i
+    done
+    echo $LAST
+expect:
+  stdout: |+
+    c
+  stderr: ""
+  exit_code: 0

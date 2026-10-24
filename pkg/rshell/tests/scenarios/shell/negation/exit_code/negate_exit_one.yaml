@@ -1,0 +1,8 @@
+description: Exit inside negation still exits with the specified code (negation does not apply).
+input:
+  script: |+
+    ! exit 1
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

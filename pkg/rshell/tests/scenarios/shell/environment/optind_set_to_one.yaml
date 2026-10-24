@@ -1,0 +1,7 @@
+description: "OPTIND is set to 1 by default"
+input:
+  script: |
+    echo "$OPTIND"
+expect:
+  stdout: "1\n"
+  exit_code: 0

@@ -1,0 +1,14 @@
+# skip: pmap is not part of GNU coreutils (it ships in procps-ng), which is
+# not installed in the debian:bookworm-slim comparison image, so there is no
+# real `pmap` binary to compare against.
+description: pmap --extended rejects an explicit value (GNU getopt semantics)
+skip_assert_against_bash: true
+input:
+  script: |+
+    pmap --extended=true 1
+expect:
+  stdout: |+
+  stderr: |+
+    pmap: option '--extended' doesn't allow an argument
+    Try 'pmap --help' for more information.
+  exit_code: 1

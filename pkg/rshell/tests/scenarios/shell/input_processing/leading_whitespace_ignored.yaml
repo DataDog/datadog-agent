@@ -1,0 +1,8 @@
+description: Leading whitespace before a command is ignored.
+input:
+  script: |+
+       echo indented
+expect:
+  stdout: "indented\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Continue preserves exit status 0 after false.
+input:
+  script: |+
+    for i in 1; do false; continue; done
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

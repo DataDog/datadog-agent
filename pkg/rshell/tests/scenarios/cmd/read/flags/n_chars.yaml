@@ -1,0 +1,9 @@
+description: read -n N stops after N characters even without a delimiter.
+input:
+  script: |+
+    printf 'abcdefghij' | { read -n 4 X; echo "$X"; }
+expect:
+  stdout: |+
+    abcd
+  stderr: ""
+  exit_code: 0

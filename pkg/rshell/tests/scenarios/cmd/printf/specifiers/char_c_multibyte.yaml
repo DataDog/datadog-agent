@@ -1,0 +1,7 @@
+description: "%c takes the first byte of a multi-character argument."
+input:
+  script: |+
+    printf "%c" hello
+expect:
+  stdout: "h"
+  exit_code: 0

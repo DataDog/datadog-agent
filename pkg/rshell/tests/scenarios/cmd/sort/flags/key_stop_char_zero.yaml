@@ -1,0 +1,13 @@
+description: "sort accepts .0 on stop position of key definition."
+setup:
+  files:
+    - path: data.txt
+      content: "b\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1.1,1.0 data.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

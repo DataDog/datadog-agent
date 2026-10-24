@@ -1,0 +1,13 @@
+description: strings -t o prints octal byte offset before each string, right-justified in 7 chars.
+setup:
+  files:
+    - path: data.bin
+      content: "hello_here\nworld_too\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -t o data.bin
+expect:
+  stdout: "      0 hello_here\n     13 world_too\n"
+  stderr: ""
+  exit_code: 0

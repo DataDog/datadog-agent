@@ -1,0 +1,13 @@
+description: "Semicolons in a/i/c text arguments are literal, not command separators."
+setup:
+  files:
+    - path: input.txt
+      content: "test\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'a\hello;world' input.txt
+expect:
+  stdout: "test\nhello;world\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: Multiple consecutive line continuations join separate words across lines.
+input:
+  script: |+
+    echo one\
+     two\
+     three
+expect:
+  stdout: |+
+    one two three
+  stderr: ""
+  exit_code: 0

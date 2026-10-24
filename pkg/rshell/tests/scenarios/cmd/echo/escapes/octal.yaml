@@ -1,0 +1,9 @@
+description: Echo -e with octal escape \0101 produces 'A'.
+input:
+  script: |+
+    echo -e '\0101'
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

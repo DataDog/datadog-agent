@@ -1,0 +1,19 @@
+description: Help --all with a restricted allowed_commands set shows available commands and a full description table for commands disabled by policy. Uses stdout_contains so the test does not need editing each time a new builtin is added — exact registry coverage lives in builtins/tests/help/help_test.go.
+skip_assert_against_bash: true
+input:
+  allowed_commands: ["rshell:echo", "rshell:help"]
+  script: |+
+    help --all
+expect:
+  stdout_contains:
+    - "rshell"
+    - "Features:"
+    - "Not supported:"
+    - "Commands available now (2):"
+    - "echo  write arguments to stdout"
+    - "help  display help for features and commands"
+    - "Disabled by policy ("
+    - "concatenate and print files"
+    - "Run 'help <feature|command>' for more information on a specific topic."
+  stderr: ""
+  exit_code: 0

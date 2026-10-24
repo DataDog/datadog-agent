@@ -1,0 +1,15 @@
+description: cd to a relative path resolves against the current working directory.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+    pwd
+expect:
+  stdout_contains: ["/child"]
+  stdout_contains_windows: ["\\child"]
+  stderr: ""
+  exit_code: 0

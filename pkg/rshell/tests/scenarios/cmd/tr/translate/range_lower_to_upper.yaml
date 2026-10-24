@@ -1,0 +1,10 @@
+description: tr translates lowercase to uppercase using ranges.
+input:
+  script: |+
+    cat <<'EOF' | tr a-z A-Z
+    !abcd!
+    EOF
+expect:
+  stdout: "!ABCD!\n"
+  stderr: ""
+  exit_code: 0

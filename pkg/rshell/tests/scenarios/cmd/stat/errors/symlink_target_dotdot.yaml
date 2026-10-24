@@ -1,0 +1,16 @@
+description: stat -f validates components before .. inside a symlink target.
+setup:
+  files:
+    - path: file
+      content: "data"
+    - path: link
+      symlink: file/..
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f link
+expect:
+  stdout: |+
+  stderr_contains:
+    - "directory"
+  exit_code: 1

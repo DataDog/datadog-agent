@@ -1,0 +1,14 @@
+description: find -fprint is blocked for sandbox safety.
+skip_assert_against_bash: true  # intentional: bash allows -fprint; rshell blocks it
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -fprint output.txt
+expect:
+  stderr_contains: ["blocked"]
+  exit_code: 1

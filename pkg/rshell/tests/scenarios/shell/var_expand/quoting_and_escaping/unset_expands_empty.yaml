@@ -1,0 +1,9 @@
+description: Unset variable expands to empty string.
+input:
+  script: |+
+    echo "[$unset_var]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: head continues processing remaining files even after one fails, and exits 1.
+setup:
+  files:
+    - path: good.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -q good.txt nonexistent.txt
+expect:
+  stdout: "hello\n"
+  stderr_contains: ["head:"]
+  exit_code: 1

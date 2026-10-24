@@ -1,0 +1,11 @@
+# vuln-hunt 2026-05-19-codex / field_splitting.
+description: Inline IFS assignments do not affect argument splitting for the same simple command.
+input:
+  script: |+
+    A='a:b'
+    IFS=: echo $A
+expect:
+  stdout: |+
+    a:b
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: df --help on the right side of a pipe must not block waiting for stdin — even when the upstream stage produces data. Help output is printed immediately and exit 0. Matches bash byte-for-byte via stdout_contains substrings present in both implementations.
+input:
+  script: |+
+    echo ignore | df --help; echo "code:$?"
+expect:
+  stdout_contains:
+    - "Usage: df"
+    - "code:0"
+  stderr: ""
+  exit_code: 0

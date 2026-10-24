@@ -1,0 +1,8 @@
+description: Append redirect to /dev/null discards output.
+input:
+  script: |+
+    echo hello >>/dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

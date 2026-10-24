@@ -1,0 +1,12 @@
+description: Printf accepts and ignores C-style length modifiers (bash compat).
+input:
+  script: |+
+    printf "%ld\n" 42
+    printf "%hd\n" 42
+    printf "%lld\n" 42
+expect:
+  stdout: |+
+    42
+    42
+    42
+  exit_code: 0

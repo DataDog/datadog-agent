@@ -1,0 +1,11 @@
+# vuln-hunt 2026-05-19-codex / tr.
+# skip: rshell builtin error formatting differs from the reference implementation.
+skip_assert_against_bash: true
+description: tr rejects output-style flags instead of writing files.
+input:
+  script: |+
+    tr --output=out.txt a b
+expect:
+  stdout: ""
+  stderr_contains: ["unrecognized option"]
+  exit_code: 1

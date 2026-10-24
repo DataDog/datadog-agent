@@ -1,0 +1,15 @@
+description: read -N counts characters (not bytes) — multibyte UTF-8 input.
+# rshell always counts UTF-8 characters regardless of locale; bash counts
+# characters only when the locale is UTF-8 (in C/POSIX locale bash counts
+# bytes). LC_ALL=C.UTF-8 puts bash in UTF-8 mode so the comparison reflects
+# the equivalent locale; the rshell side ignores the env var.
+input:
+  envs:
+    LC_ALL: C.UTF-8
+  script: |+
+    printf '%s' 'éx' | { IFS= read -N 1 x; echo "[$x]"; }
+expect:
+  stdout: |+
+    [é]
+  stderr: ""
+  exit_code: 0

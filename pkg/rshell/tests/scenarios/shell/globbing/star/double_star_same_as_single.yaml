@@ -1,0 +1,16 @@
+description: Double asterisk behaves the same as single asterisk (no recursive globbing).
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo **.txt
+expect:
+  stdout: |+
+    a.txt b.txt
+  stderr: ""
+  exit_code: 0

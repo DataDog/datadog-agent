@@ -1,0 +1,8 @@
+description: Echo -e with \t escape produces a tab character.
+input:
+  script: |+
+    echo -e 'col1\tcol2\tcol3'
+expect:
+  stdout: "col1\tcol2\tcol3\n"
+  stderr: ""
+  exit_code: 0

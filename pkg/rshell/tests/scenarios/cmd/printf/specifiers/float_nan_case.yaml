@@ -1,0 +1,7 @@
+description: NaN with mixed case is accepted by float format.
+input:
+  script: |+
+    printf "%f\n" NaN
+expect:
+  stdout: "nan\n"
+  exit_code: 0

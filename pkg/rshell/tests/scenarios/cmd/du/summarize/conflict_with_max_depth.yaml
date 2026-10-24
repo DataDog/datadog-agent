@@ -1,0 +1,13 @@
+description: du -s -d 1 conflicts and exits 1.
+setup:
+  files:
+    - path: a.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -s -d 1 .
+expect:
+  stdout: |+
+  stderr_contains: ["du:"]
+  exit_code: 1

@@ -1,0 +1,11 @@
+# skip: extended globbing is intentionally unsupported in rshell.
+skip_assert_against_bash: true
+description: Extended glob syntax is rejected before expansion.
+input:
+  script: |+
+    echo @(foo|bar)
+expect:
+  stdout: ""
+  stderr: |+
+    extended globbing is not supported
+  exit_code: 2

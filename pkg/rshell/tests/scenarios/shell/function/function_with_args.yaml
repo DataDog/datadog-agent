@@ -1,0 +1,13 @@
+# skip: function declarations are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Function declaration with arguments in body is blocked.
+input:
+  script: |+
+    greet() {
+      echo "Hello $1"
+    }
+    greet World
+expect:
+  stdout: ""
+  stderr: "function declarations are not supported\n"
+  exit_code: 2

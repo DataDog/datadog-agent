@@ -1,0 +1,14 @@
+description: grep -a on a binary file (containing NUL bytes) treats it as text and prints matching lines to stdout without any "binary file matches" stderr message.
+setup:
+  files:
+    - path: file.txt
+      content: "match_here\nnul_line\x00here\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -a match file.txt
+expect:
+  stdout: "match_here\n"
+  stderr: ""
+  exit_code: 0

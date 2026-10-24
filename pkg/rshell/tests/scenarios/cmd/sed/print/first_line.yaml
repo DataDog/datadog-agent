@@ -1,0 +1,13 @@
+description: The P command prints up to the first embedded newline in the pattern space.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\nline4\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 'N; P' input.txt
+expect:
+  stdout: "line1\nline3\n"
+  stderr: ""
+  exit_code: 0

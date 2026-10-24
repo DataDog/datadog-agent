@@ -1,0 +1,14 @@
+# -i values below minInterval (200ms) are clamped with a stderr warning.
+# DNS fails immediately on the unresolvable host so the test exits fast.
+description: "ping -i with value below minimum emits clamping warning"
+input:
+  script: |+
+    ping -c 1 -i 10ms no-such-host-xyzzy.invalid
+expect:
+  stdout: ""
+  # stderr_contains is used instead of stderr because the DNS error message
+  # that follows the warning is platform-variable (resolver error text differs
+  # across Linux, macOS, and Windows).
+  stderr_contains: ["ping: warning: -i 10ms out of range"]
+  exit_code: 1
+skip_assert_against_bash: true

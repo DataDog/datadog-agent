@@ -1,0 +1,14 @@
+description: Variable expansion in for loop word list splits on whitespace.
+input:
+  script: |+
+    LIST="alpha beta gamma"
+    for word in $LIST; do
+      echo "$word"
+    done
+expect:
+  stdout: |+
+    alpha
+    beta
+    gamma
+  stderr: ""
+  exit_code: 0

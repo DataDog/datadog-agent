@@ -1,0 +1,11 @@
+description: df rejects -t TYPE -x TYPE for the same TYPE — GNU df treats this as a usage error rather than silently letting exclusion win, so configs that name the same type in both lists fail loudly. Asserted before any platform check; matches GNU df's "both selected and excluded" wording byte-for-byte.
+input:
+  script: |+
+    df -t apfs -x apfs; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "both selected and excluded"
+  exit_code: 0

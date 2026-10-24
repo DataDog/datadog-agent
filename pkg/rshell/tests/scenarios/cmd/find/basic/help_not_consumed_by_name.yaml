@@ -1,0 +1,14 @@
+description: find -name --help treats --help as a pattern, not a help flag.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name --help
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

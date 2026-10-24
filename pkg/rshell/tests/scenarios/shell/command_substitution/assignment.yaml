@@ -1,0 +1,10 @@
+description: Command substitution in variable assignment.
+input:
+  script: |+
+    x=$(echo world)
+    echo "hello $x"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

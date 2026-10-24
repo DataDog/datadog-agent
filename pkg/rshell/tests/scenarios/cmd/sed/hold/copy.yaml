@@ -1,0 +1,13 @@
+description: The h and g commands copy between pattern and hold space.
+setup:
+  files:
+    - path: input.txt
+      content: "first\nsecond\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '1h; 2{g;p}' input.txt
+expect:
+  stdout: "first\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,20 @@
+description: Variables flow through nested brace groups in shared scope.
+input:
+  script: |+
+    A=1
+    {
+      B=2
+      {
+        C=3
+        echo "$A $B $C"
+      }
+      echo "$A $B $C"
+    }
+    echo "$A $B $C"
+expect:
+  stdout: |+
+    1 2 3
+    1 2 3
+    1 2 3
+  stderr: ""
+  exit_code: 0

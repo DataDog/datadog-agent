@@ -1,0 +1,15 @@
+description: stat -f reports only the inner path error without duplicating the operand.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: file
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f file/child
+expect:
+  stdout: |+
+  stderr: |+
+    stat: cannot read file system information for "file/child": not a directory
+  exit_code: 1

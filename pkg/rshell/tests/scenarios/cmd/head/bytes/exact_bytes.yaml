@@ -1,0 +1,13 @@
+description: head -c N outputs exactly N bytes.
+setup:
+  files:
+    - path: input.txt
+      content: "abcdefghij"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -c 5 input.txt
+expect:
+  stdout: "abcde"
+  stderr: ""
+  exit_code: 0

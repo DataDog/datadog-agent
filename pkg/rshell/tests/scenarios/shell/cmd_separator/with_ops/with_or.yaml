@@ -1,0 +1,10 @@
+description: Semicolon separates independent statements; || chains within a statement.
+input:
+  script: |+
+    echo first; false || echo fallback
+expect:
+  stdout: |+
+    first
+    fallback
+  stderr: ""
+  exit_code: 0

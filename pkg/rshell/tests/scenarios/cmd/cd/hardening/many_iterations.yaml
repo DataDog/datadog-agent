@@ -1,0 +1,17 @@
+description: 200 cd iterations in a tight loop do not leak file descriptors or hang.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    for i in {1..200}; do cd a; cd ..; cd b; cd ..; done
+    pwd
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

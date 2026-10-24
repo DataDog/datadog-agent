@@ -1,0 +1,8 @@
+description: uniq --group -c is mutually exclusive and fails.
+input:
+  script: |+
+    uniq --group -c
+expect:
+  stdout: ""
+  stderr: "uniq: --group is mutually exclusive with -c/-d/-D/-u\nTry 'uniq --help' for more information.\n"
+  exit_code: 1

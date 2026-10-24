@@ -1,0 +1,10 @@
+# Derived from POSIX xargs requirement: with no -r, the command must still run once.
+description: xargs runs the command once with zero extra args when input is empty (no -r).
+input:
+  script: |+
+    printf '' | xargs echo done
+expect:
+  stdout: |+
+    done
+  stderr: |+
+  exit_code: 0

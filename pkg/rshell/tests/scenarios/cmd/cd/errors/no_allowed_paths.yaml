@@ -1,0 +1,10 @@
+description: cd fails with a clear error when no AllowedPaths sandbox is configured.
+skip_assert_against_bash: true
+input:
+  # No allowed_paths key → sandbox is nil; cd has nowhere safe to land.
+  script: |+
+    cd /tmp
+expect:
+  stdout: ""
+  stderr_contains: ["cd:", "no allowed paths configured"]
+  exit_code: 1

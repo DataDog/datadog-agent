@@ -1,0 +1,9 @@
+# skip: CRLF comment payload handling is an rshell parser-hardening behavior.
+skip_assert_against_bash: true
+description: CRLF comments containing unsupported syntax remain non-executable comments.
+input:
+  script: "# $(cat secret/data.txt)\r\n# function f() { echo pwned; }\r\n# > /tmp/evil\r\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

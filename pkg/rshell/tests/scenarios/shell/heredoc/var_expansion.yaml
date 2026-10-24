@@ -1,0 +1,12 @@
+description: Heredoc expands variables when delimiter is unquoted.
+input:
+  script: |+
+    GREETING=hello
+    cat <<EOF
+    say $GREETING
+    EOF
+expect:
+  stdout: |+
+    say hello
+  stderr: ""
+  exit_code: 0

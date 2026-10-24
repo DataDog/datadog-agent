@@ -1,0 +1,13 @@
+description: Continue 0 is an invalid operand and produces an error.
+input:
+  script: |+
+    for i in 1; do
+      continue 0
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "continue"
+    - "0"
+    - "loop count out of range"
+  exit_code: 1

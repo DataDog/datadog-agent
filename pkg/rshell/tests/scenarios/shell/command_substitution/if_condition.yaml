@@ -1,0 +1,11 @@
+description: Command substitution in if condition.
+input:
+  script: |+
+    if [ "$(echo yes)" = "yes" ]; then
+      echo matched
+    fi
+expect:
+  stdout: |+
+    matched
+  stderr: ""
+  exit_code: 0

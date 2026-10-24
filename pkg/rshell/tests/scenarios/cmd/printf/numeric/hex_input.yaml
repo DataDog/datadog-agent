@@ -1,0 +1,9 @@
+description: Printf converts hexadecimal input to decimal.
+input:
+  script: |+
+    printf "%d\n" 0xff
+expect:
+  stdout: |+
+    255
+  stderr: ""
+  exit_code: 0

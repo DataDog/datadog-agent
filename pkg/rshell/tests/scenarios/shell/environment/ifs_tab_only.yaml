@@ -1,0 +1,6 @@
+description: "IFS set to tab only splits on tabs, not spaces"
+input:
+  script: "IFS=\"\t\"\nA=\"hello world\tfoo\"\nfor w in $A; do echo \"[$w]\"; done\n"
+expect:
+  stdout: "[hello world]\n[foo]\n"
+  exit_code: 0

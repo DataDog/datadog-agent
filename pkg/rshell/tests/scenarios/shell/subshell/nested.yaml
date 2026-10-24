@@ -1,0 +1,10 @@
+description: Nested subshells work.
+input:
+  script: |+
+    (echo outer; (echo inner))
+expect:
+  stdout: |+
+    outer
+    inner
+  stderr: ""
+  exit_code: 0

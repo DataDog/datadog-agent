@@ -1,0 +1,14 @@
+# skip: lsof is not installed by default in the debian:bookworm-slim
+# comparison image, and this builtin's flag set is a custom subset of real
+# lsof (see builtins/lsof's package doc comment).
+description: lsof respects `--` end-of-flags separator — `-c` after `--` is an extra operand, not the command-name filter flag
+skip_assert_against_bash: true
+input:
+  script: |+
+    lsof -- -c
+expect:
+  stdout: |+
+  stderr: |+
+    lsof: extra operand '-c'
+    Try 'lsof --help' for more information.
+  exit_code: 1

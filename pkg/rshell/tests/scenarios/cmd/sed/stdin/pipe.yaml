@@ -1,0 +1,8 @@
+description: Sed reads from piped stdin when no file is given.
+input:
+  script: |+
+    echo "hello world" | sed 's/world/earth/'
+expect:
+  stdout: "hello earth\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: truncate in remediation mode with only a :ro AllowedPaths root blames the missing writable root, not a per-file permission error — the sandbox exists (Truncate is wired) but grants no :rw entry.
+setup:
+  files:
+    - path: f.txt
+      content: "data\n"
+input:
+  allowed_paths: ["$DIR:ro"]
+  mode: "remediation"
+  script: |+
+    truncate -s 0 f.txt
+expect:
+  stdout: |+
+  stderr: |+
+    truncate: no writable path is configured (remediation mode requires an AllowedPaths entry with :rw)
+  exit_code: 1
+skip_assert_against_bash: true

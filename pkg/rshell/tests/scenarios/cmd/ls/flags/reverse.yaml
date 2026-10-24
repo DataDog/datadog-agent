@@ -1,0 +1,23 @@
+description: ls -r reverses the default alphabetical sort.
+setup:
+  files:
+    - path: a.txt
+      content: "a"
+      chmod: 0644
+    - path: b.txt
+      content: "b"
+      chmod: 0644
+    - path: c.txt
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -r
+expect:
+  stdout: |+
+    c.txt
+    b.txt
+    a.txt
+  stderr: ""
+  exit_code: 0

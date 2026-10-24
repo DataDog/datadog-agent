@@ -1,0 +1,32 @@
+description: ls with multiple directory args silently ignores --offset.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: d1/f01
+      content: ""
+      chmod: 0644
+    - path: d1/f02
+      content: ""
+      chmod: 0644
+    - path: d2/f01
+      content: ""
+      chmod: 0644
+    - path: d2/f02
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls --offset 100 d1 d2
+expect:
+  stdout: |+
+    d1:
+    f01
+    f02
+
+    d2:
+    f01
+    f02
+  stderr: ""
+  exit_code: 0

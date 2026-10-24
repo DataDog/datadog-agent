@@ -1,0 +1,15 @@
+description: Comments in for loop at all positions.
+input:
+  script: |+
+    for v ###
+    in 1 2 3 ###
+    do ###
+        echo $v ###
+    done ###
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: ""
+  exit_code: 0

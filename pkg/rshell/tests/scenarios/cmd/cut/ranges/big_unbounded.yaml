@@ -1,0 +1,14 @@
+description: Cut handles very large start position in unbounded byte range on empty input.
+setup:
+  files:
+    - path: input.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut --output-delimiter=: -b1234567890- input.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

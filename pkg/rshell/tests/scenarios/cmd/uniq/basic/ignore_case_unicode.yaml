@@ -1,0 +1,13 @@
+description: uniq -i uses ASCII-only folding; non-ASCII characters are not case-folded.
+setup:
+  files:
+    - path: input.txt
+      content: "Ä\nä\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -i input.txt
+expect:
+  stdout: "Ä\nä\n"
+  stderr: ""
+  exit_code: 0

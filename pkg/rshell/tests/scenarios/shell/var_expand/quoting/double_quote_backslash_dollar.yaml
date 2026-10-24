@@ -1,0 +1,12 @@
+description: Backslash before dollar in double quotes escapes it to a literal dollar.
+input:
+  script: |+
+    echo "a\$b"
+    X=hello
+    echo "a\${X}b"
+expect:
+  stdout: |+
+    a$b
+    a${X}b
+  stderr: ""
+  exit_code: 0

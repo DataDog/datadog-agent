@@ -1,0 +1,18 @@
+description: Symlink in one allowed root pointing to a file in another allowed root can be read
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir1/file.txt
+      content: "cross-root content\n"
+    - path: dir2/link.txt
+      symlink: ../dir1/file.txt
+input:
+  allowed_paths: ["dir1", "dir2"]
+  script: |+
+    cat dir2/link.txt
+expect:
+  stdout: |+
+    cross-root content
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: uniq -d only prints one line per duplicated group among mixed input.
+setup:
+  files:
+    - path: input.txt
+      content: "alpha\nbeta\nbeta\ngamma\ngamma\ngamma\ndelta\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -d input.txt
+expect:
+  stdout: "beta\ngamma\n"
+  stderr: ""
+  exit_code: 0

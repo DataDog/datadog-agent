@@ -1,0 +1,14 @@
+description: stat -f preserves a trailing slash's requirement that the operand be a directory.
+setup:
+  files:
+    - path: file
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f file/
+expect:
+  stdout: |+
+  stderr_contains:
+    - "directory"
+  exit_code: 1

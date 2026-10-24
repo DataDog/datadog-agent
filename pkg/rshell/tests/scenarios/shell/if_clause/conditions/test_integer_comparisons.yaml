@@ -1,0 +1,16 @@
+description: If-elif chain with integer comparisons using test builtin.
+input:
+  script: |+
+    X=5
+    if [ "$X" -gt 10 ]; then
+      echo big
+    elif [ "$X" -gt 3 ]; then
+      echo medium
+    else
+      echo small
+    fi
+expect:
+  stdout: |+
+    medium
+  stderr: ""
+  exit_code: 0

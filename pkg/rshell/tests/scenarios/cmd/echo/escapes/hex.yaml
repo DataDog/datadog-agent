@@ -1,0 +1,9 @@
+description: Echo -e with hex escape \x41 produces 'A'.
+input:
+  script: |+
+    echo -e '\x41'
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

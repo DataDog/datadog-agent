@@ -1,0 +1,10 @@
+# -b (broadcast) is a network DoS vector and must be rejected as an unknown flag.
+description: "ping -b (broadcast) is rejected with exit 1"
+input:
+  script: |+
+    ping -b 255.255.255.255
+expect:
+  stdout: ""
+  stderr: "ping: invalid option -- 'b'\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

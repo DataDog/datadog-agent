@@ -1,0 +1,13 @@
+description: Quoted heredoc delimiter preserves all content literally.
+input:
+  script: |+
+    cat <<'echo'
+    backslash \a \$foo \\\\ line-\
+    continuation
+    echo
+expect:
+  stdout: |+
+    backslash \a \$foo \\\\ line-\
+    continuation
+  stderr: ""
+  exit_code: 0

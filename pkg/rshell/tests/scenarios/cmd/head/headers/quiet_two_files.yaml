@@ -1,0 +1,15 @@
+description: head -q suppresses file name headers even for multiple files.
+setup:
+  files:
+    - path: a.txt
+      content: "alpha\nbeta\n"
+    - path: b.txt
+      content: "gamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -q -n 2 a.txt b.txt
+expect:
+  stdout: "alpha\nbeta\ngamma\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+# skip: special variable is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Variables without special meaning can be assigned and used as regular variables.
+input:
+  script: |+
+    RANDOM=42
+    echo $RANDOM
+expect:
+  stdout: |+
+    42
+  stderr: ""
+  exit_code: 0

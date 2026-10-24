@@ -1,0 +1,11 @@
+# skip: select is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Select clause is blocked.
+input:
+  script: |+
+    select x in a b c; do echo $x; break; done
+expect:
+  stdout: ""
+  stderr: |+
+    select statements are not supported
+  exit_code: 2

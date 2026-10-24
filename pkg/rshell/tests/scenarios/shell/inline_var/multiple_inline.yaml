@@ -1,0 +1,11 @@
+description: Multiple inline variables are scoped to the command and not visible afterward.
+input:
+  script: |+
+    A=1 B=2 echo test
+    echo "[$A] [$B]"
+expect:
+  stdout: |+
+    test
+    [] []
+  stderr: ""
+  exit_code: 0

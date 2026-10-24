@@ -1,0 +1,10 @@
+description: When -P then -L are both given, the last flag (-L) wins.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd -P -L
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

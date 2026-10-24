@@ -1,0 +1,9 @@
+description: '`--help` is honored when it appears after one or more no-arg flags (here `-h` for human-readable, which is no-arg in df). The args-trim in builtins/builtins.go scans preceding tokens; if every one is a registered no-arg flag (no `=value`, no value-takers, no positionals), it trims at `--help`. Asserted via stdout_contains so both rshell''s minimal help and GNU''s longer help match.'
+input:
+  script: |+
+    df -h --help --bogus
+expect:
+  stdout_contains:
+    - "Usage:"
+  stderr: ""
+  exit_code: 0

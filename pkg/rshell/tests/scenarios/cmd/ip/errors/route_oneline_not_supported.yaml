@@ -1,0 +1,11 @@
+# ip -o route exits 1 because -o is not supported for route output.
+description: ip -o route exits 1 with "not supported" error for -o flag.
+input:
+  script: |+
+    ip -o route show
+expect:
+  stdout: |+
+  stderr: |+
+    ip: route: -o/--oneline and --brief flags are not supported for route output
+  exit_code: 1
+skip_assert_against_bash: true

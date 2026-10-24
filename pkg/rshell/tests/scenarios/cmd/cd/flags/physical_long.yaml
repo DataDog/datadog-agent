@@ -1,0 +1,17 @@
+description: cd --physical succeeds for a regular directory and changes to it.
+# bash's cd builtin does not accept --physical (only -P); intentional rshell extension.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: real/keep
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd --physical real
+    pwd
+expect:
+  stdout_contains: ["/real"]
+  stdout_contains_windows: ["\\real"]
+  stderr: ""
+  exit_code: 0

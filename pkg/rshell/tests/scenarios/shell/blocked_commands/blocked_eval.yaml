@@ -1,0 +1,12 @@
+# skip: eval/select are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Eval command is not available.
+input:
+  script: |+
+    eval echo hello
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: eval: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

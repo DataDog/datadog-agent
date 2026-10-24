@@ -1,0 +1,13 @@
+# skip: blocked commands are specific to the restricted shell
+skip_assert_against_bash: true
+description: A blocked command prevents all execution including prior valid commands.
+input:
+  script: |+
+    echo before
+    case x in x) echo y;; esac
+    echo after
+expect:
+  stdout: |+
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

@@ -1,0 +1,11 @@
+description: jq keeps bounded integer-only arithmetic exact beyond float64 precision.
+# rshell deliberately preserves bounded integers where upstream jq arithmetic uses float64.
+skip_assert_against_bash: true
+input:
+  script: |+
+    jq -nc '123456789012345678901234567890 + 1'
+expect:
+  stdout: |+
+    123456789012345678901234567891
+  stderr: |+
+  exit_code: 0

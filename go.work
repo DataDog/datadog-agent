@@ -140,6 +140,7 @@ use (
 	pkg/proto
 	pkg/remoteconfig/state
 	pkg/remoteflags
+	pkg/rshell
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer

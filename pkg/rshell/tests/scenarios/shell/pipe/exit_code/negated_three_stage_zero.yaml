@@ -1,0 +1,10 @@
+description: Negation of a 3-stage pipeline where the last command exits 0 inverts to 1.
+input:
+  script: |+
+    ! exit 1 | exit 2 | exit 0
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

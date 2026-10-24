@@ -1,0 +1,12 @@
+description: "q with exit code > 255 wraps modulo 256."
+setup:
+  files:
+    - path: input.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'q 257' input.txt
+expect:
+  stdout: "hello\n"
+  exit_code: 1

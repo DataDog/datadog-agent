@@ -1,0 +1,13 @@
+description: tail -n +2 outputs all lines starting from line 2 (skip first line).
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n +2 file.txt
+expect:
+  stdout: "beta\ngamma\ndelta\nepsilon\n"
+  stderr: ""
+  exit_code: 0

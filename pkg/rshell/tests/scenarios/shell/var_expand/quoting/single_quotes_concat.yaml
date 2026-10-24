@@ -1,0 +1,9 @@
+description: Concatenated single-quoted strings including empty pairs.
+input:
+  script: |+
+    echo 'a''''''b'
+expect:
+  stdout: |+
+    ab
+  stderr: ""
+  exit_code: 0

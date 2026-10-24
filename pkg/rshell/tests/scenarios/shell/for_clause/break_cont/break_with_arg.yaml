@@ -1,0 +1,14 @@
+description: Break with argument 1 breaks one level (same as simple break).
+input:
+  script: |+
+    for i in a b c; do
+      echo $i
+      break 1
+    done
+    echo done
+expect:
+  stdout: |+
+    a
+    done
+  stderr: ""
+  exit_code: 0

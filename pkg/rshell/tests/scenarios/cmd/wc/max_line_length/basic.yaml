@@ -1,0 +1,13 @@
+description: wc -L reports the length of the longest line.
+setup:
+  files:
+    - path: file.txt
+      content: "1\n12\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -L file.txt
+expect:
+  stdout: "2 file.txt\n"
+  stderr: ""
+  exit_code: 0

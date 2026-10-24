@@ -1,0 +1,15 @@
+description: If with test builtin checking empty and non-empty strings.
+input:
+  script: |+
+    EMPTY=""
+    FULL="hello"
+    if [ -n "$FULL" ]; then echo full_nonempty; fi
+    if [ -z "$EMPTY" ]; then echo empty_zero; fi
+    if [ -n "$EMPTY" ]; then echo wrong; else echo empty_is_empty; fi
+expect:
+  stdout: |+
+    full_nonempty
+    empty_zero
+    empty_is_empty
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: sort outputs lines in lexicographic order by default.
+setup:
+  files:
+    - path: file.txt
+      content: "banana\napple\ncherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort file.txt
+expect:
+  stdout: "apple\nbanana\ncherry\n"
+  stderr: ""
+  exit_code: 0

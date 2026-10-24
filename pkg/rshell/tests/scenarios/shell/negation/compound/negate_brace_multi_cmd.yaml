@@ -1,0 +1,17 @@
+description: Negation of a brace group with multiple commands inverts the exit code of the last command.
+input:
+  script: |+
+    ! { echo a; echo b; true; }
+    echo $?
+    ! { echo c; echo d; false; }
+    echo $?
+expect:
+  stdout: |+
+    a
+    b
+    1
+    c
+    d
+    0
+  stderr: ""
+  exit_code: 0

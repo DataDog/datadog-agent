@@ -1,0 +1,12 @@
+description: df rejects an operand passed after `--` — pflag treats `--` as end-of-flags, then df rejects the remaining argument as an extra operand. Verifies that a `-`-prefixed name is not misparsed as an unknown short flag.
+skip_assert_against_bash: true
+input:
+  script: |+
+    df -- -name-with-dash; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "extra operand"
+  exit_code: 0

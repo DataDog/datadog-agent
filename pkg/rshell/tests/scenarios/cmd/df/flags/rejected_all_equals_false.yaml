@@ -1,0 +1,11 @@
+description: df rejects --all=false explicitly — matches GNU getopt's no-argument refusal for boolean options. The =false form would otherwise be silently swallowed by pflag.BoolP.
+input:
+  script: |+
+    df --all=false; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    df: option '--all' doesn't allow an argument
+    Try 'df --help' for more information.
+  exit_code: 0

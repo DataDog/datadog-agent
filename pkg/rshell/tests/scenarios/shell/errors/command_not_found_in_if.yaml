@@ -1,0 +1,10 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: Command not found in if condition causes else branch to execute.
+input:
+  script: |+
+    if notacmd; then echo yes; else echo no; fi
+expect:
+  stdout: "no\n"
+  stderr: "rshell: notacmd: unknown command\nRun 'help' to see available commands.\n"
+  exit_code: 0

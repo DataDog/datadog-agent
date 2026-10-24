@@ -1,0 +1,9 @@
+description: Exit status of and-or list is from last executed pipeline.
+input:
+  script: |+
+    false && exit 1 || true || exit 1 || exit 2; echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

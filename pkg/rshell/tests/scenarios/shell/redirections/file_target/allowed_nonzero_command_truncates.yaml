@@ -1,0 +1,19 @@
+description: An authorized command that exits nonzero still applies its output redirect before execution.
+setup:
+  files:
+    - path: victim.txt
+      content: |+
+        old
+input:
+  allowed_paths: ["$DIR:rw"]
+  allowed_commands:
+    - rshell:false
+    - rshell:cat
+  mode: "remediation"
+  script: |+
+    false > victim.txt
+    cat victim.txt
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,22 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash.
+skip_assert_against_bash: true
+description: find -L does not follow an allowed symlink whose target is outside allowed paths.
+setup:
+  files:
+    - path: allowed/visible.txt
+      content: "ok\n"
+    - path: secret/hidden.txt
+      content: "secret\n"
+    - path: allowed/link
+      symlink: ../secret
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    find allowed/link
+    find -L allowed/link
+expect:
+  stdout: |+
+    allowed/link
+  stderr_contains:
+    - "path escapes from parent"
+  exit_code: 1

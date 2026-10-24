@@ -1,0 +1,15 @@
+description: "Files in nested subdirectories inside an allowed path are accessible"
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: "allowed/sub/deep/file.txt"
+      content: "deep content\n"
+input:
+  script: |
+    cat allowed/sub/deep/file.txt
+  allowed_paths:
+    - "allowed"
+expect:
+  stdout: "deep content\n"
+  exit_code: 0

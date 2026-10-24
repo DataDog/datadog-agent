@@ -1,0 +1,9 @@
+description: Printf uses 0 for missing %d arguments.
+input:
+  script: |+
+    printf "%d and %d\n" 42
+expect:
+  stdout: |+
+    42 and 0
+  stderr: ""
+  exit_code: 0

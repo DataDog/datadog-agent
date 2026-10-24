@@ -1,0 +1,10 @@
+description: The word "for" can be used as the iteration variable name.
+input:
+  script: |+
+    for for in 1 2; do echo $for; done
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

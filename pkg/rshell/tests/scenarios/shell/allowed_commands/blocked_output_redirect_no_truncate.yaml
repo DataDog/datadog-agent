@@ -1,0 +1,29 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+skip_assert_against_bash: true
+description: A blocked command is rejected before its output redirect can truncate a file.
+setup:
+  files:
+    - path: literal.txt
+      content: |+
+        preserved
+    - path: expanded.txt
+      content: |+
+        preserved
+input:
+  allowed_paths: ["$DIR:rw"]
+  allowed_commands:
+    - rshell:cat
+  mode: "remediation"
+  script: |+
+    tr > literal.txt
+    C=tr
+    $C > expanded.txt
+    cat literal.txt expanded.txt
+expect:
+  stdout: |+
+    preserved
+    preserved
+  stderr: |+
+    rshell: tr: command not allowed
+    rshell: tr: command not allowed
+  exit_code: 0

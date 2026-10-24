@@ -1,0 +1,11 @@
+description: read -N with a count above 1 MiB is rejected.
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo "x" | { read -N 9999999 X; echo "exit=$?"; }
+expect:
+  stdout: |+
+    exit=1
+  stderr: |+
+    read: -N: count exceeds maximum of 1048576
+  exit_code: 0

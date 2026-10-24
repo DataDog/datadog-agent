@@ -1,0 +1,13 @@
+description: head exits 1 with an error when given a directory as an argument.
+setup:
+  files:
+    - path: subdir/.keep
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head subdir
+expect:
+  stdout: ""
+  stderr_contains: ["head:"]
+  exit_code: 1

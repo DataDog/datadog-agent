@@ -1,0 +1,10 @@
+# -h / --help must print usage to stdout and exit 0.
+description: "ping --help prints usage to stdout and exits 0"
+input:
+  script: |+
+    ping --help
+expect:
+  stdout_contains: ["Usage: ping"]
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true

@@ -1,0 +1,13 @@
+description: stat --help documents the narrow filesystem-status mode.
+skip_assert_against_bash: true
+input:
+  script: |+
+    stat --help
+expect:
+  stdout_contains:
+    - "Usage: stat -f FILE..."
+    - "-f, --file-system"
+    - "-h, --help"
+    - "Ordinary file status mode is not supported."
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,19 @@
+description: awk filters records with comparisons and regex match operators.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        ok 1
+        error 2
+        warn 3
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '$2 > 1 && $1 !~ /warn/ { print $1 }' input.txt
+    awk 'BEGIN { x="a"; r="a"; a[1]=1; print x ~ r == 1, 1 in a == 1 }'
+expect:
+  stdout: |+
+    error
+    0 1
+  stderr: |+
+  exit_code: 0

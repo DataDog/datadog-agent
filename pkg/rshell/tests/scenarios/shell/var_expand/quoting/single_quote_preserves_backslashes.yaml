@@ -1,0 +1,9 @@
+description: Single quotes preserve backslash sequences literally - no escape processing occurs.
+input:
+  script: |+
+    echo 'a\\b' 'a\\\\b' 'a\b\c'
+expect:
+  stdout: |+
+    a\\b a\\\\b a\b\c
+  stderr: ""
+  exit_code: 0

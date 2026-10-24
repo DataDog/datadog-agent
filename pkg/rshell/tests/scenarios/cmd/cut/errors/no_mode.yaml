@@ -1,0 +1,8 @@
+description: Cut with no arguments exits with error.
+input:
+  script: |+
+    cut
+expect:
+  stdout: ""
+  stderr_contains: ["cut:"]
+  exit_code: 1

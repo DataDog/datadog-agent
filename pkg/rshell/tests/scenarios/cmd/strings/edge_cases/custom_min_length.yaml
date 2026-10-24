@@ -1,0 +1,13 @@
+description: strings -n 2 changes minimum printable string length.
+setup:
+  files:
+    - path: data.dat
+      content: "\x00ab\x00c\x00def\x00"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -n 2 data.dat
+expect:
+  stdout: "ab\ndef\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: find -L -newer with truly nonexistent reference (not a symlink) is fatal.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -type f -newer nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "find: 'nonexistent.txt'"
+  exit_code: 1

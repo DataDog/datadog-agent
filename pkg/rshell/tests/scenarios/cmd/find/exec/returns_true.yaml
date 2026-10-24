@@ -1,0 +1,18 @@
+description: find -exec true {} \; succeeds with exit code 0.
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:true
+  script: |+
+    find dir -type f -exec true {} \;
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

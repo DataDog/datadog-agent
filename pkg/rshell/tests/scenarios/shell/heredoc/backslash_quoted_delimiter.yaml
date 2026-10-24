@@ -1,0 +1,12 @@
+description: Backslash-quoted delimiter suppresses all expansions in heredoc body.
+input:
+  script: |+
+    X=hello
+    cat <<\END
+    $X world
+    END
+expect:
+  stdout: |+
+    $X world
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: tr accepts explicit repeat count [c*n] in STRING1.
+input:
+  script: |+
+    echo abc | tr '[a*3]' x
+expect:
+  stdout: "xbc\n"
+  stderr: ""
+  exit_code: 0

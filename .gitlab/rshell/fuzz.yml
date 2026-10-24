@@ -1,0 +1,53 @@
+---
+stages: [source_test]
+
+.rshell:fuzz:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  id_tokens:
+    BUILDBARN_ID_TOKEN:
+      aud: buildbarn.us1.ddbuild.io
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+  stage: source_test
+  timeout: 20m
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  variables:
+    XDG_CACHE_HOME: $CI_PROJECT_DIR/.cache
+    BAZELISK_HOME: $XDG_CACHE_HOME/bazelisk
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_CPU_LIMIT: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
+    RSHELL_BASH_TEST: "1"
+    GOMODCACHE: $CI_PROJECT_DIR/.cache/go/mod
+    GOCACHE: $CI_PROJECT_DIR/.cache/go/build
+  before_script:
+    - dda self dep sync -f legacy-tasks
+    - GOTOOLCHAIN="go$(cat .go-version)"
+    - export GOTOOLCHAIN
+    - go version
+    - for command in cat head tail wc; do "$command" --version; done
+  script:
+    - dda inv fuzz --targets="$FUZZ_PACKAGE" --fuzztime=30s
+  cache:
+    - key:
+        prefix: rshell-fuzz-$CI_JOB_NAME_SLUG
+        files:
+          - .go-version
+          - pkg/rshell/go.sum
+      paths:
+        - .cache/bazelisk
+        - .cache/bazel/*/install
+        - .cache/bazel/*/cache
+        - .cache/go/mod/cache
+        - .cache/go/build
+      policy: pull-push
+      when: always
+  artifacts:
+    when: on_failure
+    paths:
+      - $FUZZ_PACKAGE/testdata/fuzz/
+    expire_in: 1 week

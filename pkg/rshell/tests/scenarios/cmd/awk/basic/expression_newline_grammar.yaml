@@ -1,0 +1,42 @@
+description: awk accepts newlines only at supported expression and list continuations.
+input:
+  script: |+
+    awk 'function sum(a,
+    b) { return a + b } BEGIN { a[1,
+    2] = 3; for (i = 0;
+    i < 1;
+    i++) print 0 ||
+    1; print 1 &&
+    2; printf("%s=%d:%d\n",
+    "comma", sum(1, 2), a[1, 2]) }'
+    awk 'BEGIN { print "unreachable"; print length(
+    ) }' 2>/dev/null || printf 'open rejected\n'
+    awk 'BEGIN { print "unreachable"; print length(1
+    ) }' 2>/dev/null || printf 'close rejected\n'
+    awk 'function f(
+    x) { print x } BEGIN { f(1) }' 2>/dev/null || printf 'parameters rejected\n'
+    awk 'BEGIN { a[
+    1] = 2; print a[1] }' 2>/dev/null || printf 'subscript rejected\n'
+    awk 'BEGIN { for (
+    i = 0; i < 1; i++) print i }' 2>/dev/null || printf 'for open rejected\n'
+    awk 'BEGIN { for (i = 0; i < 1; i++
+    ) print i }' 2>/dev/null || printf 'for close rejected\n'
+    awk 'BEGIN { printf(
+    "unreachable") }' 2>/dev/null || printf 'printf rejected\n'
+    awk 'BEGIN { printf("unreachable"
+    ) }' 2>/dev/null || printf 'printf close rejected\n'
+expect:
+  stdout: |+
+    1
+    1
+    comma=3:3
+    open rejected
+    close rejected
+    parameters rejected
+    subscript rejected
+    for open rejected
+    for close rejected
+    printf rejected
+    printf close rejected
+  stderr: |+
+  exit_code: 0

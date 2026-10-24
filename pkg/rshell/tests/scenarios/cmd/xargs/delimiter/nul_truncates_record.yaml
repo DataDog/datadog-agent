@@ -1,0 +1,9 @@
+description: xargs -d truncates each record at the first NUL byte. GNU lets the bytes flow into argv but execve terminates the C string at NUL, so users only see the prefix. rshell does the same truncation explicitly because Go strings don't auto-terminate.
+input:
+  script: |+
+    printf 'a\0b,' | xargs -d, printf '[%s]\n'
+expect:
+  stdout: |+
+    [a]
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: A && chain stops when a middle command fails.
+input:
+  script: |+
+    echo one && false && echo three
+expect:
+  stdout: |+
+    one
+  stderr: ""
+  exit_code: 1

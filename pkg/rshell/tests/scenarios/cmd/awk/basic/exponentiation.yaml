@@ -1,0 +1,15 @@
+description: awk supports right-associative exponentiation and exponentiation assignment.
+input:
+  script: |+
+    awk 'BEGIN { x = 2; x ^= 3; print 2 ^ 3 ^ 2, -2 ^ 2, 2 ^ -2, 2 * 3 ^ 2, x }'
+    awk 'BEGIN { x = 2; x **= 3; print 2 ** 3 ** 2, x }'
+    awk 'BEGIN { x = 1; y = 2; print (++x ^ 2), (--y ^ 3), ("a" ++x), ("b" --y) }'
+    awk 'BEGIN { x = 1; y = 2; print (++x ++y), x, y }'
+expect:
+  stdout: |+
+    512 -4 0.25 18 8
+    512 8
+    4 1 a3 b0
+    23 2 3
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,15 @@
+# skip: pmap is not part of GNU coreutils (it ships in procps-ng), which is
+# not installed in the debian:bookworm-slim comparison image, so there is no
+# real `pmap` binary to compare against.
+description: pmap --help prints usage to stdout
+skip_assert_against_bash: true
+input:
+  script: |+
+    pmap --help
+expect:
+  stdout_contains:
+    - "Usage: pmap"
+    - "--extended"
+    - "--help"
+  stderr: |+
+  exit_code: 0

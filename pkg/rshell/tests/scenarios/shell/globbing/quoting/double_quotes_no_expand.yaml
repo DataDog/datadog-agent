@@ -1,0 +1,13 @@
+description: Glob inside double quotes is treated as literal.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+input:
+  script: |+
+    echo "*.txt"
+expect:
+  stdout: |+
+    *.txt
+  stderr: ""
+  exit_code: 0

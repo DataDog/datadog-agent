@@ -1,0 +1,9 @@
+description: Multiple assignments on same line all take effect.
+input:
+  script: |+
+    a=1 b=2 c=3
+    echo $a $b $c
+expect:
+  stdout: "1 2 3\n"
+  stderr: ""
+  exit_code: 0

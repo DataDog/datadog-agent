@@ -1,0 +1,9 @@
+description: ps -p with only commas (no actual PIDs) exits with code 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -p ','
+expect:
+  stderr_contains:
+    - "invalid PID"
+  exit_code: 1

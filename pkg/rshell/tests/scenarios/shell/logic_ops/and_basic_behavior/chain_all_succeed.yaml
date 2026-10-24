@@ -1,0 +1,11 @@
+description: A chain of && commands all succeed and all execute.
+input:
+  script: |+
+    echo one && echo two && echo three
+expect:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

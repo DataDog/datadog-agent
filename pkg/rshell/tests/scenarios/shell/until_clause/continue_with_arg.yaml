@@ -1,0 +1,15 @@
+description: continue with an explicit argument of 1 skips to the next iteration of the innermost until.
+input:
+  script: |+
+    i=
+    until [ "$i" = aaa ]; do
+      i="${i}a"
+      continue 1
+      echo unreachable
+    done
+    echo "i=$i"
+expect:
+  stdout: |+
+    i=aaa
+  stderr: |+
+  exit_code: 0

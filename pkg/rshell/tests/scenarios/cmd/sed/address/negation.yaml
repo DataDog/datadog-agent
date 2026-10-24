@@ -1,0 +1,13 @@
+description: The ! negation applies command to non-matching lines.
+setup:
+  files:
+    - path: input.txt
+      content: "keep\ndelete\nkeep\ndelete\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/delete/!s/keep/KEEP/' input.txt
+expect:
+  stdout: "KEEP\ndelete\nKEEP\ndelete\n"
+  stderr: ""
+  exit_code: 0

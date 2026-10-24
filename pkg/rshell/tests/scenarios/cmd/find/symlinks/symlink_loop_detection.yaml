@@ -1,0 +1,18 @@
+description: find -L with cyclic symlink terminates without infinite recursion.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a/file.txt
+      content: "data"
+      chmod: 0644
+    - path: dir/a/loop
+      symlink: ..
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -maxdepth 5 -type f
+expect:
+  stdout: |+
+    dir/a/file.txt
+  stderr_contains: ["find: File system loop detected"]
+  exit_code: 1

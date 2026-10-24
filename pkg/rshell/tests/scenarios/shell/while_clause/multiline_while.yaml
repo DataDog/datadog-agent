@@ -1,0 +1,13 @@
+description: Multi-line while loop with break runs the body once and exits.
+input:
+  script: |+
+    while true
+    do
+      echo loop
+      break
+    done
+expect:
+  stdout: |+
+    loop
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,21 @@
+description: awk regex bracket classes may contain slash, leading closing-bracket literals, and POSIX classes.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        /
+        x
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '/[/]/ { print }' input.txt
+    awk 'BEGIN { print ("]" ~ /[]/]/), ("/" ~ /[]/]/), ("x" ~ /[]/]/); print ("]" ~ /[^]/]/), ("/" ~ /[^]/]/), ("x" ~ /[^]/]/) }'
+    awk 'BEGIN { print "/" ~ /[[:alpha:]/]/ }'
+expect:
+  stdout: |+
+    /
+    1 1 0
+    0 0 1
+    1
+  stderr: |+
+  exit_code: 0

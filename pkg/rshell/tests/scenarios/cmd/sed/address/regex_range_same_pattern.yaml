@@ -1,0 +1,13 @@
+description: "Regex addr2 is not checked on the opening line of a range."
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\nc\na\nd\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '/a/,/a/p' input.txt
+expect:
+  stdout: "a\nb\nc\na\n"
+  stderr: ""
+  exit_code: 0

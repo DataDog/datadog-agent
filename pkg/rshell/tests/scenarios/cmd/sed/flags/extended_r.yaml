@@ -1,0 +1,13 @@
+description: The -r flag is a GNU alias for -E (extended regular expressions).
+setup:
+  files:
+    - path: input.txt
+      content: "abc123def\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -r 's/[0-9]+/NUM/' input.txt
+expect:
+  stdout: "abcNUMdef\n"
+  stderr: ""
+  exit_code: 0

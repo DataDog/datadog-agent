@@ -1,0 +1,10 @@
+description: stat -f reports a missing operand.
+input:
+  script: |+
+    stat -f
+expect:
+  stdout: |+
+  stderr: |+
+    stat: missing operand
+    Try 'stat --help' for more information.
+  exit_code: 1

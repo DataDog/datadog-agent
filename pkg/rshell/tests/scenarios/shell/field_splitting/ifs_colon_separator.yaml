@@ -1,0 +1,13 @@
+description: Custom IFS splits variable expansion on the specified delimiter.
+input:
+  script: |+
+    IFS=:
+    A="one:two:three"
+    for w in $A; do echo "$w"; done
+expect:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

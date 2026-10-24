@@ -1,0 +1,9 @@
+description: xargs -E EOF-STR is honoured in -I (line) mode just like in default whitespace mode; only -0 and -d disable -E (matches GNU xargs --help wording).
+input:
+  script: |+
+    printf 'a\nSTOP\nb\n' | xargs -E STOP -I{} echo X{}X
+expect:
+  stdout: |+
+    XaX
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: sed on a file with no trailing newline adds a trailing newline to the output. GNU sed preserves the missing newline, but rshell sed normalizes all output lines with a trailing newline.
+setup:
+  files:
+    - path: file.txt
+      content: "hello world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/hello/goodbye/' file.txt
+expect:
+  stdout: "goodbye world\n"
+  stderr: ""
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true

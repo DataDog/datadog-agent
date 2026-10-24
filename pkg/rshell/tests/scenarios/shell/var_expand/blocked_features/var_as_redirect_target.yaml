@@ -1,0 +1,13 @@
+description: |
+  A variable expansion may stand in for the redirect target. The static check
+  in redirectTargetIsDevNull only recognises a single *syntax.Lit, so a
+  non-literal target is deferred to the runtime check, which sees the expanded
+  /dev/null and accepts it — as bash does.
+input:
+  script: |+
+    DEVNULL=/dev/null
+    echo hello > $DEVNULL
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

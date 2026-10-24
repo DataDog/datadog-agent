@@ -1,0 +1,11 @@
+description: >
+  exit with a non-numeric argument prints an error and exits the shell
+  with code 2 (matching bash behavior). Subsequent commands do not run.
+input:
+  script: |+
+    exit abc; echo still running
+expect:
+  stdout: ""
+  stderr_contains:
+    - "abc: numeric argument required"
+  exit_code: 2

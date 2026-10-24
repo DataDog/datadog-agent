@@ -1,0 +1,43 @@
+# Security test: rm enforces a hard cap on files removed per invocation
+# (rm.MaxRemoveFiles = 10) so a single mistaken glob cannot delete an
+# unbounded number of files. The whole invocation is rejected up front —
+# nothing is deleted, not even the first 10 operands.
+description: rm rejects an invocation with more than MaxRemoveFiles operands, deleting nothing.
+setup:
+  files:
+    - path: f1
+      content: "1"
+    - path: f2
+      content: "2"
+    - path: f3
+      content: "3"
+    - path: f4
+      content: "4"
+    - path: f5
+      content: "5"
+    - path: f6
+      content: "6"
+    - path: f7
+      content: "7"
+    - path: f8
+      content: "8"
+    - path: f9
+      content: "9"
+    - path: f10
+      content: "10"
+    - path: f11
+      content: "11"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11
+    [ -f f1 ] && echo f1_kept
+    [ -f f11 ] && echo f11_kept
+expect:
+  stdout: |+
+    f1_kept
+    f11_kept
+  stderr_contains: ["exceeds the 10-file limit"]
+  exit_code: 0
+skip_assert_against_bash: true

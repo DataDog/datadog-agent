@@ -1,0 +1,9 @@
+description: Exit in the middle of a semicolon chain stops execution.
+input:
+  script: |+
+    echo first; exit 5; echo not reached
+expect:
+  stdout: |+
+    first
+  stderr: ""
+  exit_code: 5

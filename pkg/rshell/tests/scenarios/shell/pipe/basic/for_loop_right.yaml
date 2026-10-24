@@ -1,0 +1,9 @@
+description: For loop can receive input on the right side of a pipeline.
+input:
+  script: |+
+    echo "hello" | for w in x; do cat; done
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

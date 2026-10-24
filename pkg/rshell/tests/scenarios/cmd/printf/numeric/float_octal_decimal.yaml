@@ -1,0 +1,10 @@
+description: Printf %f treats leading-zero args as decimal, not octal (bash compat).
+input:
+  script: |+
+    printf "%f\n" 0755
+    printf "%f\n" 010
+expect:
+  stdout: |+
+    755.000000
+    10.000000
+  exit_code: 0

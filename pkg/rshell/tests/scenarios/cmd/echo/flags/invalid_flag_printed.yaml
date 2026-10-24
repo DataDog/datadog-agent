@@ -1,0 +1,9 @@
+description: Echo -nxyz is not a valid flag, printed as literal text.
+input:
+  script: |+
+    echo -nxyz hello
+expect:
+  stdout: |+
+    -nxyz hello
+  stderr: ""
+  exit_code: 0

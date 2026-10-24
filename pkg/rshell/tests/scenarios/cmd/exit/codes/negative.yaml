@@ -1,0 +1,8 @@
+description: Exit with negative number wraps via uint8 conversion.
+input:
+  script: |+
+    exit -1
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 255

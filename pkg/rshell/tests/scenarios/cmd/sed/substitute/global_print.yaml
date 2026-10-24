@@ -1,0 +1,13 @@
+description: Combined gp flags do global replacement and print on match.
+setup:
+  files:
+    - path: input.txt
+      content: "foo foo\nbar\nfoo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 's/foo/FOO/gp' input.txt
+expect:
+  stdout: "FOO FOO\nFOO\n"
+  stderr: ""
+  exit_code: 0

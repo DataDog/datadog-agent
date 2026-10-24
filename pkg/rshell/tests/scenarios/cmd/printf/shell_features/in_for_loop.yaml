@@ -1,0 +1,8 @@
+description: Printf works inside a for loop.
+input:
+  script: |+
+    for i in 1 2 3; do printf "%d " "$i"; done; printf "\n"
+expect:
+  stdout: "1 2 3 \n"
+  stderr: ""
+  exit_code: 0

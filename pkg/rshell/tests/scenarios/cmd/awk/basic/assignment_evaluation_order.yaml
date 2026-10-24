@@ -1,0 +1,16 @@
+description: awk preserves observable evaluation order for assignments and user-function arguments.
+input:
+  script: |+
+    awk 'BEGIN { i = 1; a[i++] = i; print a[1], i; i = 1; a[1] = 10; a[i++] += i; print a[1], i }'
+    awk 'BEGIN { $0 = "A B C"; i = 1; $(i++) = i; print $0, i; $0 = "10 B C"; i = 1; $(i++) += i; print $0, i }'
+    awk 'function f(a){print a} BEGIN{x=0; f(++x,++x); print x}'
+expect:
+  stdout: |+
+    1 2
+    11 2
+    1 B C 2
+    11 B C 2
+    1
+    2
+  stderr: |+
+  exit_code: 0

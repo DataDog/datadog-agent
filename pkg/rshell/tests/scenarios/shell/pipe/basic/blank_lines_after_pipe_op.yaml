@@ -1,0 +1,11 @@
+description: Blank lines after pipe operator are ignored and the pipeline continues.
+input:
+  script: |+
+    echo hello |
+
+    cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Successful && followed by || skips the fallback.
+input:
+  script: |+
+    echo ok && echo done || echo fallback
+expect:
+  stdout: |+
+    ok
+    done
+  stderr: ""
+  exit_code: 0

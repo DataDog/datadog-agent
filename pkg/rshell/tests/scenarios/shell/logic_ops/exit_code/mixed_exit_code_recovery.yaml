@@ -1,0 +1,8 @@
+description: The exit builtin terminates the script immediately so || cannot recover.
+input:
+  script: |+
+    exit 99 || true
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 99

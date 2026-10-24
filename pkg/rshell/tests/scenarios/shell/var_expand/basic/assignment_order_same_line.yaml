@@ -1,0 +1,10 @@
+description: Multiple assignments on the same line are processed left-to-right.
+input:
+  script: |+
+    a=foo b=$a
+    echo "$b"
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

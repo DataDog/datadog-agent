@@ -1,0 +1,14 @@
+description: Cut on empty input produces no output.
+setup:
+  files:
+    - path: input.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f4 input.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

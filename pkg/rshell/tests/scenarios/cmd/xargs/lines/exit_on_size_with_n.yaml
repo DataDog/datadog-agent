@@ -1,0 +1,8 @@
+description: xargs -x with -n exits 1 when the requested batch can't fit within -s (matches GNU; silent splitting violates the -x contract).
+input:
+  script: |+
+    printf 'a b c\n' | xargs -x -n 2 -s 8 echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

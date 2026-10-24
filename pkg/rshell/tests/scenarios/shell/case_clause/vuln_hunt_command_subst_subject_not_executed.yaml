@@ -1,0 +1,11 @@
+# skip: case statements are intentionally blocked in the restricted shell.
+skip_assert_against_bash: true
+description: Command substitution in a case subject must not execute before case validation rejects the statement.
+input:
+  script: |+
+    case "$(echo should-not-run >&2)" in *) echo matched;; esac
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

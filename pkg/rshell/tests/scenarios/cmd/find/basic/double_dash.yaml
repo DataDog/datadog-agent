@@ -1,0 +1,14 @@
+description: find -- terminates global options, remaining args are paths.
+setup:
+  files:
+    - path: dir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -- dir -type f
+expect:
+  stdout_unordered: |+
+    dir/file.txt
+  stderr: ""
+  exit_code: 0

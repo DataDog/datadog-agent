@@ -1,0 +1,20 @@
+# skip: AllowedPaths sandbox restriction is an rshell-specific feature.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt R2 (2026-05-18-initial-audit): an input redirect attached to a
+  while loop body must honor AllowedPaths — reading a file outside the
+  sandbox via the loop's stdin is denied.
+setup:
+  files:
+    - path: allowed/keep.txt
+      content: "ok"
+    - path: secret/forbidden.txt
+      content: "secret"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    while read line; do echo got; break; done < secret/forbidden.txt
+expect:
+  stdout: |+
+  stderr_contains: ["permission denied"]
+  exit_code: 1

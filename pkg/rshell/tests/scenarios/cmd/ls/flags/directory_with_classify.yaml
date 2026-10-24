@@ -1,0 +1,13 @@
+description: ls -dF shows directory name with trailing slash indicator.
+setup:
+  files:
+    - path: mydir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -dF mydir
+expect:
+  stdout: "mydir/\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,17 @@
+# Security test: rm on a path outside AllowedPaths is rejected.
+description: rm on a path outside the sandbox fails with exit 1 and does not delete anything.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm /etc/hosts
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove '/etc/hosts': permission denied
+  # On Windows, /etc/hosts (no drive letter) resolves inside the os.Root sandbox
+  # as $DIR\etc\hosts — it's within AllowedPaths but does not exist.
+  stderr_windows: |+
+    rm: cannot remove '/etc/hosts': no such file or directory
+  exit_code: 1
+skip_assert_against_bash: true

@@ -1,0 +1,20 @@
+description: Break 2 in double nested for loops breaks both.
+input:
+  script: |+
+    for i in 1 2 3; do
+      echo in $i
+      for j in a b c; do
+        echo in $i $j
+        break 2
+        echo out $i $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a
+    done 0
+  stderr: ""
+  exit_code: 0

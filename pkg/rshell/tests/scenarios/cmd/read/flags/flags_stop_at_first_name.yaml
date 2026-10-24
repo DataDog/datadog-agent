@@ -1,0 +1,12 @@
+description: |+
+  read stops parsing options at the first NAME, matching bash's
+  `read [OPTION]... [NAME...]` form. `read var -n 1` over `abc`
+  should assign var="abc" then error on `-n` as an invalid identifier
+  (with rc=1) — not silently re-interpret `-n 1` as a length flag.
+input:
+  script: |+
+    printf 'abc\n' | { read var -n 1 2>/dev/null; echo "rc=$? var=[$var]"; }
+expect:
+  stdout: |+
+    rc=1 var=[abc]
+  exit_code: 0

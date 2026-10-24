@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: time is not supported.
+input:
+  script: |+
+    time echo hello
+expect:
+  stdout: ""
+  stderr: |+
+    time is not supported
+  exit_code: 2

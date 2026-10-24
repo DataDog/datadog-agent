@@ -1,0 +1,13 @@
+description: Break in the middle of the loop body stops execution.
+input:
+  script: |+
+    for i in a b c; do
+      echo "start $i"
+      break
+      echo "end $i"
+    done
+expect:
+  stdout: |+
+    start a
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,19 @@
+description: find -maxdepth works after other predicates.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: a/b/c/deep.txt
+      content: "deep"
+      chmod: 0644
+    - path: a/top.txt
+      content: "top"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -type f -maxdepth 1
+expect:
+  stdout: |+
+    a/top.txt
+  stderr: ""
+  exit_code: 0

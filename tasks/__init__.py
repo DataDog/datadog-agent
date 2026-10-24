@@ -75,6 +75,7 @@ from tasks import (
     quality_gates,
     release,
     renovate,
+    rshell,
     rtloader,
     sbomgen,
     schema,
@@ -259,6 +260,7 @@ ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(renovate)
+ns.add_collection(rshell)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)

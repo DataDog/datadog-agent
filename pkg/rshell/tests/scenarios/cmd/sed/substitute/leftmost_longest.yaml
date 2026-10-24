@@ -1,0 +1,19 @@
+description: Sed selects the longest match at the leftmost position, including reused and case-insensitive expressions.
+input:
+  script: |+
+    printf 'ab\n' | sed -E 's/a|ab/X/'
+    printf 'ab\n' | sed 's/a\|ab/X/'
+    printf 'Ab ab\n' | sed -E 's/a|ab/X/Ig'
+    printf 'ab ab\n' | sed -E 's/a|ab/X/2'
+    printf 'ab\n' | sed -nE '/a|ab/s//X/p'
+    printf 'ab\n' | sed -E 's/(a|ab)/[\1]/'
+expect:
+  stdout: |+
+    X
+    X
+    X X
+    ab X
+    X
+    [ab]
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "find",
+    srcs = [
+        "eval.go",
+        "expr.go",
+        "find.go",
+        "match.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/find",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "find_test",
+    srcs = [
+        "builtin_find_gtfobins_test.go",
+        "builtin_find_pentest_test.go",
+        "eval_test.go",
+        "expr_test.go",
+        "find_test.go",
+        "match_test.go",
+        "now_test.go",
+    ],
+    embed = [":find"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

@@ -1,0 +1,13 @@
+description: Commands on separate lines are executed sequentially.
+input:
+  script: |+
+    echo first
+    echo second
+    echo third
+expect:
+  stdout: |+
+    first
+    second
+    third
+  stderr: ""
+  exit_code: 0

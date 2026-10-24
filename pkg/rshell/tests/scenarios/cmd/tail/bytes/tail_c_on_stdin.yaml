@@ -1,0 +1,8 @@
+description: tail -c N reads last N bytes from stdin via pipe.
+input:
+  script: |+
+    printf 'abcdefghij' | tail -c 4
+expect:
+  stdout: "ghij"
+  stderr: ""
+  exit_code: 0

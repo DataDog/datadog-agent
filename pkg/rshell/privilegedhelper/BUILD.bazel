@@ -1,0 +1,91 @@
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+# gazelle:proto_strip_import_prefix /pkg/rshell
+
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+proto_library(
+    name = "privilegedhelper_proto",
+    srcs = ["private_action.proto"],
+    strip_import_prefix = "/pkg/rshell",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@protobuf//:struct_proto",
+        "@protobuf//:timestamp_proto",
+    ],
+)
+
+go_proto_library(
+    name = "privilegedhelper_go_proto",
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper",
+    proto = ":privilegedhelper_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "privilegedhelper",
+    srcs = [
+        "credential.go",
+        "credential_file_linux.go",
+        "credential_file_other.go",
+        "director_proof.go",
+        "protocol.go",
+        "server.go",
+        "verify.go",
+    ],
+    embed = [":privilegedhelper_go_proto"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/remoteconfig/state",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "privilegedhelper_test",
+    srcs = [
+        "director_proof_test.go",
+        "protocol_test.go",
+        "verify_test.go",
+    ],
+    embed = [":privilegedhelper"],
+    deps = [
+        "//pkg/remoteconfig/state",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//pkg/keys",
+        "@com_github_datadog_go_tuf//sign",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        ":privilegedhelper_go_proto": [
+            "private_action.pb.go",
+        ],
+    },
+)

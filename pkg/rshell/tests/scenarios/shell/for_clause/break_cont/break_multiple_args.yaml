@@ -1,0 +1,12 @@
+description: Break with multiple arguments produces an error.
+input:
+  script: |+
+    for i in a b c; do
+      break 1 2
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "break"
+    - "too many arguments"
+  exit_code: 1

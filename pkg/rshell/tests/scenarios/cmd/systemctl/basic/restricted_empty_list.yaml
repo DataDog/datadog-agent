@@ -1,0 +1,13 @@
+# rshell never enumerates units that are absent from the exact read allowlist.
+skip_assert_against_bash: true
+description: bare systemctl lists no units when no read grants are configured
+input:
+  mode: remediation
+  script: |+
+    systemctl
+expect:
+  stdout: |+
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Sed reports an error for an invalid regular expression.
+input:
+  script: |+
+    echo "test" | sed 's/[invalid/replace/'
+expect:
+  stdout: ""
+  stderr_contains: ["sed:"]
+  exit_code: 1

@@ -1,0 +1,8 @@
+description: Incomplete specifier with flags produces an error.
+input:
+  script: |+
+    printf "%-"
+expect:
+  stdout: ""
+  stderr_contains: ["printf: `%-': missing format character"]
+  exit_code: 1

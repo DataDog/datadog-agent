@@ -1,0 +1,25 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+# skip: allowed_paths sandbox restriction is rshell-specific.
+skip_assert_against_bash: true
+description: Cat-shortcut command substitution inside a heredoc cannot read outside AllowedPaths.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: |+
+        allowed
+    - path: secret/data.txt
+      content: |+
+        SECRET
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat <<EOF
+    $(< secret/data.txt)
+    EOF
+    echo after
+expect:
+  stdout: |+
+
+    after
+  stderr_contains: ["permission denied"]
+  exit_code: 0

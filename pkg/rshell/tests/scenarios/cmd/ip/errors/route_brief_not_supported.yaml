@@ -1,0 +1,11 @@
+# ip --brief route exits 1 because --brief is not supported for route output.
+description: ip --brief route exits 1 with "not supported" error for --brief flag.
+input:
+  script: |+
+    ip --brief route show
+expect:
+  stdout: |+
+  stderr: |+
+    ip: route: -o/--oneline and --brief flags are not supported for route output
+  exit_code: 1
+skip_assert_against_bash: true

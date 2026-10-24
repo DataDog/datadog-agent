@@ -1,0 +1,16 @@
+description: truncate -s N shrinks a larger file to N bytes, preserving the first N bytes.
+setup:
+  files:
+    - path: big.txt
+      content: "0123456789abcdefghij"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 5 big.txt
+    wc -c < big.txt
+expect:
+  stdout: |+
+    5
+  stderr: |+
+  exit_code: 0

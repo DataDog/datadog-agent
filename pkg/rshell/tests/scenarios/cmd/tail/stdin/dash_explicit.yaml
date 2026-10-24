@@ -1,0 +1,13 @@
+description: tail with - as the file argument reads from stdin.
+setup:
+  files:
+    - path: src.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 2 - < src.txt
+expect:
+  stdout: "delta\nepsilon\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,18 @@
+description: awk treats regex after a newline rule separator as a pattern.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        bar
+        foo
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk 'BEGIN { print "h" }
+    /foo/ { print $1 }' input.txt
+expect:
+  stdout: |+
+    h
+    foo
+  stderr: |+
+  exit_code: 0

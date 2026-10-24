@@ -1,0 +1,11 @@
+description: Echo outputs a newline embedded in a double-quoted string.
+input:
+  script: |+
+    echo "line1
+    line2"
+expect:
+  stdout: |+
+    line1
+    line2
+  stderr: ""
+  exit_code: 0

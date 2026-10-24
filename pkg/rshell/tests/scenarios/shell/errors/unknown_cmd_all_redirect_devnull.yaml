@@ -1,0 +1,12 @@
+# vuln-hunt 2026-05-19-codex / errors.
+# Pins that unknown-command diagnostics participate in &>/dev/null, not only
+# explicit 2>/dev/null stderr redirects.
+skip_assert_against_bash: true
+description: A cmd-not-found diagnostic is silenced by &>/dev/null.
+input:
+  script: |+
+    no_such_cmd_xyz &>/dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 127

@@ -1,0 +1,10 @@
+description: cd rejects an explicit value on the boolean -L/-P flags (e.g. --physical=true).
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd --physical=true
+expect:
+  stdout: ""
+  stderr_contains: ["cd:"]
+  exit_code: 1

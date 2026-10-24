@@ -1,0 +1,13 @@
+description: "Non-special backslash escapes in replacement drop the backslash (GNU sed behaviour)."
+setup:
+  files:
+    - path: input.txt
+      content: "test\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/t/\q/g' input.txt
+expect:
+  stdout: "qesq\n"
+  stderr: ""
+  exit_code: 0

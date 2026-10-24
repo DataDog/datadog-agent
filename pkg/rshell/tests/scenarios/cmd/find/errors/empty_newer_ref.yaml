@@ -1,0 +1,14 @@
+description: find rejects empty string as -newer reference.
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -newer ""
+expect:
+  stderr: |+
+    find: '': No such file or directory
+  exit_code: 1

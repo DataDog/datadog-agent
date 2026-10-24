@@ -1,0 +1,19 @@
+description: "-name consumes -maxdepth as its pattern argument (no argument stealing)."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: a/-maxdepth
+      content: "trick"
+      chmod: 0644
+    - path: a/other.txt
+      content: "other"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find a -name -maxdepth
+expect:
+  stdout: |+
+    a/-maxdepth
+  stderr: ""
+  exit_code: 0

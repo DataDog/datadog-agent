@@ -1,0 +1,9 @@
+description: tail -n +K (offset with bare suffix, no digit) exits 1 — GNU tail rejects this form.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n +K /dev/null
+expect:
+  stdout: ""
+  stderr_contains: ["invalid"]
+  exit_code: 1

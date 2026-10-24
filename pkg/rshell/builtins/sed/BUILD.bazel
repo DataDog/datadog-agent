@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sed",
+    srcs = [
+        "engine.go",
+        "parser.go",
+        "sed.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/sed",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/flagparser",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sed_test",
+    srcs = [
+        "engine_test.go",
+        "sed_inplace_operand_loop_test.go",
+        "sed_vuln_hunt_test.go",
+    ],
+    embed = [":sed"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/internal/interpoption",
+        "//pkg/rshell/interp",
+        "@cc_mvdan_sh_v3//syntax",
+        "@com_github_spf13_pflag//:pflag",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

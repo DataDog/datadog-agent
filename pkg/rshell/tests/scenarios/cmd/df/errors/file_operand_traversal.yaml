@@ -1,0 +1,14 @@
+description: df rejects path-traversal-style operands — verifies the "extra operand" rejection happens before any path resolution, so /etc/passwd is never opened or stat'd.
+skip_assert_against_bash: true
+input:
+  script: |+
+    df ../../etc/passwd; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "extra operand"
+  # Stderr must not leak any path-resolution information that
+  # could be useful for a sandbox-escape probe.
+  exit_code: 0

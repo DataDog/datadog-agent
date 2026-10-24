@@ -1,0 +1,13 @@
+description: ls on a nonexistent path prints an error and exits 1.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls nonexistent
+expect:
+  stdout: ""
+  stderr_contains:
+    - "ls: cannot access 'nonexistent':"
+    - "no such file or directory"
+  exit_code: 1

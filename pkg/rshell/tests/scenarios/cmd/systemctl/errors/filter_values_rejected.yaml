@@ -1,0 +1,24 @@
+# Filter lists are bounded and every value must be a plain systemd token.
+skip_assert_against_bash: true
+description: systemctl rejects unsupported, empty, and over-long list filter values
+input:
+  mode: remediation
+  script: |+
+    systemctl list-units --type=bogus
+    systemctl list-units --type=service,bogus
+    systemctl list-units --type=
+    systemctl list-units --state=
+    systemctl list-units --state='act ive'
+    systemctl list-units --type=service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service,service
+    systemctl list-units --state=active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active,active
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: unsupported --type value "bogus"
+    systemctl: unsupported --type value "bogus"
+    systemctl: invalid --type value (empty)
+    systemctl: invalid --state value (empty)
+    systemctl: invalid --state value "act ive"
+    systemctl: too many --type values (maximum 32)
+    systemctl: too many --state values (maximum 32)
+  exit_code: 1

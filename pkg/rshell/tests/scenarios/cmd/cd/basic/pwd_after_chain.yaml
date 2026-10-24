@@ -1,0 +1,17 @@
+description: $PWD reflects the latest cd after a chain of directory changes.
+setup:
+  files:
+    - path: a/b/c/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a
+    cd b
+    cd c
+    if [ "$PWD" = "$(pwd)" ]; then echo match; else echo mismatch; fi
+expect:
+  stdout: |+
+    match
+  stderr: ""
+  exit_code: 0

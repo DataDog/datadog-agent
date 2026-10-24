@@ -1,0 +1,23 @@
+# vuln-hunt 2026-05-19-codex / negation.
+# A denied redirect is an ordinary command failure, so ! may invert the status,
+# but the redirect must still be sandboxed and the command must not see content.
+skip_assert_against_bash: true
+description: Negated sandbox-denied input redirect inverts status without leaking content.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    ! cat < secret/data.txt
+    echo "status=$?"
+    cat allowed/ok.txt
+expect:
+  stdout: |+
+    status=0
+    ok
+  stderr_contains: ["permission denied"]
+  exit_code: 0

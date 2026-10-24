@@ -1,0 +1,10 @@
+description: tr -d deletes characters matching set1.
+input:
+  script: |+
+    cat <<'EOF' | tr -d a-z
+    aBcD
+    EOF
+expect:
+  stdout: "BD\n"
+  stderr: ""
+  exit_code: 0

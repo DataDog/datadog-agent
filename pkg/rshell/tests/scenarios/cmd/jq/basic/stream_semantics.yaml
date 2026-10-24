@@ -1,0 +1,17 @@
+description: jq preserves generator precedence, grouped fallback, and Cartesian binary results.
+input:
+  script: |+
+    jq -nc 'false, null // 3'
+    jq -nc '(false, null) // 3'
+    jq -nc '(1,2) + (10,20)'
+expect:
+  stdout: |+
+    false
+    3
+    3
+    11
+    12
+    21
+    22
+  stderr: |+
+  exit_code: 0

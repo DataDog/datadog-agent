@@ -1,0 +1,9 @@
+description: Backslash in double quotes before non-special chars is preserved literally.
+input:
+  script: |+
+    echo "a\b" "a\c" "a\0" "a\x" "a\!"
+expect:
+  stdout: |+
+    a\b a\c a\0 a\x a\!
+  stderr: ""
+  exit_code: 0

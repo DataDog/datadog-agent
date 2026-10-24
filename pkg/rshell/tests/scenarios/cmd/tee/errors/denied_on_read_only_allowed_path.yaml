@@ -1,0 +1,18 @@
+# Security: remediation mode alone is not sufficient — the AllowedPaths
+# root must also carry :rw, matching truncate's noWritableRootHint case.
+# tee's hasWritableRoot check catches this before opening anything (or
+# reading stdin at all), so stdout stays empty and the diagnostic names
+# the missing capability directly rather than falling through to the
+# sandbox's own "permission denied".
+description: Remediation mode with a read-only AllowedPaths root still denies writes.
+input:
+  allowed_paths: ["$DIR"]
+  mode: "remediation"
+  script: |+
+    printf "hi\n" | tee out.txt
+expect:
+  stdout: |+
+  stderr: |+
+    tee: no writable path is configured (remediation mode requires an AllowedPaths entry with :rw)
+  exit_code: 1
+skip_assert_against_bash: true

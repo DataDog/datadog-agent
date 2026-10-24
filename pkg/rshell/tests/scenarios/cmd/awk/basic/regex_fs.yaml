@@ -1,0 +1,15 @@
+description: awk supports regex field separators.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a::b,c
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk -F '::|,' '{ print NF, $1, $2, $3 }' input.txt
+expect:
+  stdout: |+
+    3 a b c
+  stderr: |+
+  exit_code: 0

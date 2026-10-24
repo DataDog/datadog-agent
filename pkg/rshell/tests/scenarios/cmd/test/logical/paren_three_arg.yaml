@@ -1,0 +1,34 @@
+# POSIX 3-arg ( X ) disambiguation: when test has exactly 3 args "(" X ")",
+# the middle token is treated as a string non-emptiness test (unless it's a
+# binary operator, in which case it becomes a binary comparison).
+description: "test POSIX 3-arg ( X ) disambiguation"
+input:
+  script: |+
+    # ( ! ) treats ! as non-empty string
+    test "(" "!" ")"
+    echo "bang: $?"
+    # ( empty ) treats empty string as false
+    test "(" "" ")"
+    echo "empty: $?"
+    # ( -n ) treats -n as non-empty string, not unary operator
+    test "(" -n ")"
+    echo "dash-n: $?"
+    # ( -e ) treats -e as non-empty string, not file test
+    test "(" -e ")"
+    echo "dash-e: $?"
+    # ( = ) applies binary = rule: "(" equals ")"
+    test "(" "=" ")"
+    echo "eq: $?"
+    # ( != ) applies binary != rule: "(" not-equals ")"
+    test "(" "!=" ")"
+    echo "neq: $?"
+expect:
+  stdout: |
+    bang: 0
+    empty: 1
+    dash-n: 0
+    dash-e: 0
+    eq: 1
+    neq: 0
+  stderr: ""
+  exit_code: 0

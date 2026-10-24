@@ -1,0 +1,10 @@
+description: A variable set on one line is visible on the next line.
+input:
+  script: |+
+    x=hello
+    echo $x
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

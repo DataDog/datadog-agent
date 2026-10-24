@@ -1,0 +1,8 @@
+description: When left side of && fails, right side is skipped.
+input:
+  script: |+
+    false && echo skipped
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

@@ -1,0 +1,26 @@
+description: cat piped into head must not emit a broken-pipe error on stderr.
+setup:
+  files:
+    - path: big.txt
+      content: |+
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat big.txt | head -n 3
+expect:
+  stdout: |+
+    line 1
+    line 2
+    line 3
+  stderr: |+
+  exit_code: 0

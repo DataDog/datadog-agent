@@ -1,0 +1,26 @@
+description: Break 2 in triple nested for loop breaks the inner two loops.
+input:
+  script: |+
+    for i in 1 2; do
+      echo in $i
+      for j in a b; do
+        for k in + -; do
+          echo in $i $j $k
+          break 2
+        done
+        echo mid
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a +
+    out 1
+    in 2
+    in 2 a +
+    out 2
+    done 0
+  stderr: ""
+  exit_code: 0

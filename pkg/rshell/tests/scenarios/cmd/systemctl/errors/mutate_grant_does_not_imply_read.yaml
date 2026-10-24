@@ -1,0 +1,18 @@
+# status authorizes the read action, which a start grant never confers.
+skip_assert_against_bash: true
+description: a start-only grant does not authorize status or list-units inspection
+input:
+  mode: remediation
+  allowed_system_services:
+    - service: api.service
+      actions: [start]
+  script: |+
+    systemctl status api.service
+    systemctl list-units
+expect:
+  stdout: |+
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "read"
+  exit_code: 0

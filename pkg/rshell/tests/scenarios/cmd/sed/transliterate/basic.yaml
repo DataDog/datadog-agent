@@ -1,0 +1,13 @@
+description: The y command transliterates characters from source to destination set.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'y/helo/HELO/' input.txt
+expect:
+  stdout: "HELLO wOrLd\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: cd to a regular file fails with exit 1 and "not a directory".
+setup:
+  files:
+    - path: notadir.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd notadir.txt
+expect:
+  stdout: ""
+  # bash: "bash: line 1: cd: notadir.txt: Not a directory"
+  # ours: "cd: notadir.txt: not a directory"
+  # "irectory" matches both (case-only diverges on the leading char).
+  stderr_contains: ["cd:", "notadir.txt", "irectory"]
+  exit_code: 1

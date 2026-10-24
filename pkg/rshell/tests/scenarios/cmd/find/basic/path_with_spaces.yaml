@@ -1,0 +1,18 @@
+description: find handles paths with spaces correctly.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: "my dir/sub dir/file.txt"
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find 'my dir'
+expect:
+  stdout_unordered: |+
+    my dir
+    my dir/sub dir
+    my dir/sub dir/file.txt
+  stderr: ""
+  exit_code: 0

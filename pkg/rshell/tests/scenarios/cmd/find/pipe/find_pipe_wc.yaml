@@ -1,0 +1,21 @@
+description: find piped to wc -l counts matching files.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+    - path: dir/c.go
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f | wc -l
+expect:
+  stdout_contains: ["3"]
+  stderr: ""
+  exit_code: 0

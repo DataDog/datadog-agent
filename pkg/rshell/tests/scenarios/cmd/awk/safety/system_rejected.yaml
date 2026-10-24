@@ -1,0 +1,15 @@
+description: awk rejects system command execution.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a b
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ system("sh") }' input.txt
+expect:
+  stdout: |+
+  stderr: |+
+    awk: system() is not supported
+  exit_code: 1
