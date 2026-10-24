@@ -137,17 +137,36 @@
   - Cargo.lock
 
 include:
+  # A web-ui install gate needs released charts, not an entire Agent build pipeline.
+  - local: .gitlab/kubernetes-install.yml
+    rules:
+      - if: '$WEBUI_KUBERNETES_INSTALL == "true"'
+  - local: .gitlab/deploy/conditions.yml
+    rules:
+      - if: '$WEBUI_KUBERNETES_INSTALL == "true"'
   - local: .adms/**/*.yaml
+    rules: &regular_pipeline_includes
+      - if: '$WEBUI_KUBERNETES_INSTALL == "true"'
+        when: never
+      - when: always
   - local: .gitlab/.pre/**.yml
+    rules: *regular_pipeline_includes
   - local: .gitlab/build/**.yml
+    rules: *regular_pipeline_includes
   - local: .gitlab/deploy/**.yml
+    rules: *regular_pipeline_includes
   - local: .gitlab/test/**.yml
+    rules: *regular_pipeline_includes
   - local: .gitlab/.post/**.yml
+    rules: *regular_pipeline_includes
   # AIX jobs
   - local: .gitlab/aix/**.yml
+    rules: *regular_pipeline_includes
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
+      - if: '$WEBUI_KUBERNETES_INSTALL == "true"'
+        when: never
       - if: $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch
@@ -542,6 +561,9 @@ variables:
 #
 workflow:
   rules:
+    - if: '$WEBUI_KUBERNETES_INSTALL == "true" && $CI_PIPELINE_SOURCE == "pipeline" && $CI_COMMIT_REF_PROTECTED == "true"'
+    - if: '$WEBUI_KUBERNETES_INSTALL == "true"'
+      when: never
     - <<: *if_scheduled_main
       variables:
         WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
