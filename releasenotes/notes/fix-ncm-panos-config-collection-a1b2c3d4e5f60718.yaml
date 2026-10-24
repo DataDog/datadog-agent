@@ -1,0 +1,8 @@
+fixes:
+  - |
+    Network Configuration Management (NCM) now collects running configuration
+    from Palo Alto (PAN-OS) devices. Config retrieval now runs over an
+    interactive SSH session (previously only the login banner was captured),
+    uses ``show config effective-running``, and accepts both the XML and
+    curly-brace output formats returned by different PAN-OS versions. SNMP
+    community strings and the admin password hash are redacted in both formats.
