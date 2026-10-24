@@ -137,6 +137,10 @@ properties:
           what absorbs a rate difference between foldspace and the primary
           destination, so sizing it independently decides how much divergence is
           tolerated before the two paths affect each other.
+      dual_ship:
+        node_type: setting
+        type: boolean
+        default: false
       max_inflight_payloads:
         node_type: setting
         type: integer
