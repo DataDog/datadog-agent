@@ -951,3 +951,73 @@ func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
 	}
 	assert.Equal(t, before, marshalTraces(t, shared))
 }
+
+// TestAgentIgnoreResources covers how the root filter of dropIgnoredTraces fits in ConsumeTraces;
+// see root_filter_test.go for the root filter itself.
+func TestAgentIgnoreResources(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		traces             ptrace.Traces
+		agentIgnore        []string
+		connectorIgnore    []string
+		wantStatsResources []string
+	}{
+		{
+			name: "matching root drops the trace with its children",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore:        []string{"(GET|POST) /health"},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name: "root is matched before the connector's ignore_resources removes it",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+			}),
+			agentIgnore:     []string{"(GET|POST) /health"},
+			connectorIgnore: []string{"GET /healthcheck"},
+		},
+		{
+			name: "root is matched before obfuscation",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindClient, map[string]string{"db.system": "redis", "db.statement": "SET key value"}},
+			}),
+			agentIgnore: []string{"^SET key value$"},
+		},
+		{
+			name: "no agent ignore_resources keeps every trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+			}),
+			wantStatsResources: []string{"GET /healthcheck", "SELECT ?"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentIgnoreResources(tt.agentIgnore))
+			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+			cfg.Traces.IgnoreResources = tt.connectorIgnore
+			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+			require.NoError(t, err)
+			connector := tconn.(*traceToMetricConnector)
+			before := marshalTraces(t, tt.traces)
+
+			require.NoError(t, connector.ConsumeTraces(t.Context(), tt.traces))
+
+			var resources []string
+			for _, csp := range connector.concentrator.Flush(true).Stats {
+				for _, b := range csp.Stats {
+					for _, s := range b.Stats {
+						resources = append(resources, s.Resource)
+					}
+				}
+			}
+			assert.ElementsMatch(t, tt.wantStatsResources, resources)
+			assert.Equal(t, before, marshalTraces(t, tt.traces), "input traces must not be modified")
+		})
+	}
+}
