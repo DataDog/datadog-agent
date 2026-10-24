@@ -113,6 +113,93 @@ properties:
       to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
       is ignored.
     example: 'true'
+  foldspace:
+    node_type: section
+    type: object
+    comment: Undocumented foldspace logs transport. Incompatible with TCP and SOCKS5.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      dd_url:
+        node_type: setting
+        type: string
+        default: ""
+        comment: Overrides only the main foldspace host. Empty uses the main HTTP endpoint host.
+      tap_channel_size:
+        node_type: setting
+        type: integer
+        default: 0
+        comment: |
+          Capacity of the channel carrying messages to foldspace. Zero uses
+          `logs_config.message_channel_size`. When dual shipping, this buffer is
+          what absorbs a rate difference between foldspace and the primary
+          destination, so sizing it independently decides how much divergence is
+          tolerated before the two paths affect each other.
+      max_inflight_payloads:
+        node_type: setting
+        type: integer
+        default: 16
+      pipeline_depth:
+        node_type: setting
+        type: integer
+        default: 8
+      state_request_bytes:
+        node_type: setting
+        type: integer
+        default: 5242880
+      stream_lifetime:
+        node_type: setting
+        type: string
+        default: 15m
+        comment: |-
+          How long a stream lives before it rotates, ending its interning
+          (dictionary and pattern) epoch. A positive duration with units, such as
+          15m or 90s; zero, negative, unitless and malformed values are rejected.
+          Independent of connection_reset_interval. Raising it must respect the
+          intake's stream-age limit. For an accelerated replay, divide this and
+          batch_wait by the effective replay speed to keep the epoch cadence per
+          corpus second.
+      shutdown_timeout:
+        node_type: setting
+        type: string
+        default: 15s
+        format: duration
+        tags:
+        - golang_type:duration
+      keepalive_time:
+        node_type: setting
+        type: string
+        default: 5m
+        format: duration
+        comment: |
+          How long a connection may go without reading anything before it pings
+          the intake. Below the intake's minimum ping interval, the intake closes
+          the connection; grpc-go and Netty servers default that minimum to 5m.
+        tags:
+        - golang_type:duration
+      keepalive_timeout:
+        node_type: setting
+        type: string
+        default: 20s
+        format: duration
+        comment: How long to wait for a keepalive ping ack before closing the connection.
+        tags:
+        - golang_type:duration
+      ack_timeout:
+        node_type: setting
+        type: string
+        default: 30s
+        format: duration
+        comment: |
+          How long a stream may hold unacknowledged batches with no
+          acknowledgement arriving before it is failed and reopened. It catches
+          an intake that still answers keepalive pings but has stopped
+          acknowledging; an intake that acknowledges slowly but steadily is never
+          failed by it.
+        tags:
+        - golang_type:duration
   use_compression:
     node_type: setting
     type: boolean
