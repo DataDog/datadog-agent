@@ -3,6 +3,7 @@ fullnameOverride: datadog-agent
 datadog:
   apiKeyExistingSecret: gensim-secrets
   appKeyExistingSecret: gensim-secrets
+  logLevel: INFO
   apm:
     portEnabled: true
     instrumentation:
@@ -17,30 +18,32 @@ datadog:
     useHostPort: true
   kubelet:
     tlsVerify: false
-  clusterName: gensim
+  clusterName: "{{.ClusterName}}"
   clusterChecks:
     enabled: true
   env:
-{{- if eq .Mode "record-parquet"}}
-    - name: DD_OBSERVER_RECORDING_ENABLED
+{{- if or (eq .Mode "record-parquet") (eq .Mode "live-and-record")}}
+    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
       value: "true"
+    - name: DD_ANOMALY_DETECTION_RECORDING_OUTPUT_DIR
+      value: /tmp/observer-metrics
+    - name: DD_ANOMALY_DETECTION_RECORDING_FLUSH_INTERVAL
+      value: "{{.FlushInterval}}"
+    - name: DD_ANOMALY_DETECTION_RECORDING_RETENTION
+      value: "{{.Retention}}"
+    - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
+      value: "{{.RecordingOnly}}"
+{{- else}}
+    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
+      value: "false"
 {{- end}}
-{{- if eq .Mode "live-anomaly-detection"}}
-    - name: DD_OBSERVER_ANALYSIS_ENABLED
+{{- if or (eq .Mode "live-anomaly-detection") (eq .Mode "live-and-record")}}
+    - name: DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED
       value: "true"
-    - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
-      value: "true"
+{{- else}}
+    - name: DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED
+      value: "false"
 {{- end}}
-{{- if eq .Mode "live-and-record"}}
-    - name: DD_OBSERVER_RECORDING_ENABLED
-      value: "true"
-    - name: DD_OBSERVER_ANALYSIS_ENABLED
-      value: "true"
-    - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
-      value: "true"
-{{- end}}
-    - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
-      value: "1s"
 
 agents:
   enabled: true
@@ -51,28 +54,23 @@ agents:
     pullPolicy: Always
   useConfigMap: true
   customAgentConfig:
-    observer:
-{{- if eq .Mode "record-parquet"}}
+    anomaly_detection:
+{{- if or (eq .Mode "record-parquet") (eq .Mode "live-and-record")}}
       recording:
         enabled: true
-        parquet_output_dir: /tmp/observer-parquet
-        parquet_flush_interval: 30s
-{{- end}}
-{{- if eq .Mode "live-anomaly-detection"}}
-      analysis:
-        enabled: true
-      event_reporter:
-        sending_enabled: true
-{{- end}}
-{{- if eq .Mode "live-and-record"}}
+        output_dir: /tmp/observer-metrics
+        flush_interval: "{{.FlushInterval}}"
+        retention: "{{.Retention}}"
+{{- else}}
       recording:
-        enabled: true
-        parquet_output_dir: /tmp/observer-parquet
-        parquet_flush_interval: 30s
-      analysis:
-        enabled: true
-      event_reporter:
-        sending_enabled: true
+        enabled: false
+{{- end}}
+      reporting:
+        events:
+{{- if or (eq .Mode "live-anomaly-detection") (eq .Mode "live-and-record")}}
+          enabled: true
+{{- else}}
+          enabled: false
 {{- end}}
   containers:
     agent:
@@ -85,6 +83,7 @@ agents:
 
 clusterAgent:
   enabled: true
+  replicas: 1
   admissionController:
     enabled: true
     mutateUnlabelled: true

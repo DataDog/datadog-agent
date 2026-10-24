@@ -94,7 +94,7 @@ EOF
 }
 
 deploy_recorder() {
-    local env_file="$1" tag="$2" cluster_name="$3" flush="${4:-1m}" retention="${5:-90m}" recording_only="${6:-false}"
+    local env_file="$1" tag="$2" cluster_name="$3" flush="${4:-1m}" retention="${5:-90m}" recording_only="${6:-true}"
     [[ -f "$env_file" ]] || fail "Env file does not exist"
     [[ "$tag" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail "Invalid image tag"
     name "$cluster_name"

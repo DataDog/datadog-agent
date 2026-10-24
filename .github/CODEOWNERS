@@ -25,7 +25,7 @@
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
 /.agents/skills/agent-supply-chain-newsletter/  @DataDog/agent-devx
-/.agents/skills/anomalydetection-run-gensim-scenario-on-vm/ @DataDog/agent-anomaly-detection
+/.agents/skills/anomalydetection-run-gensim-scenario/ @DataDog/agent-anomaly-detection
 /.agents/skills/auto-jira/                      @DataDog/agent-devx
 /.agents/skills/create-component/               @DataDog/agent-runtimes
 /.agents/skills/create-core-check/              @DataDog/agent-runtimes
@@ -1057,6 +1057,9 @@
 /test/e2e-framework/scenarios/aws/ecs/                          @DataDog/ecs-experiences
 /test/e2e-framework/scenarios/aws/integrations/                 @DataDog/agent-integrations
 /tasks/e2e_framework/aws/integrations/                          @DataDog/agent-integrations
+/test/e2e-framework/scenarios/aws/gensim-eks/                   @DataDog/agent-anomaly-detection
+/tasks/e2e_framework/aws/gensim_eks.py                          @DataDog/agent-anomaly-detection
+/tasks/unit_tests/gensim_eks_tests.py                           @DataDog/agent-anomaly-detection
 /test/e2e-framework/resources/aws/ecs/                          @DataDog/ecs-experiences
 /test/e2e-framework/components/ecs/                             @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecs.go             @DataDog/ecs-experiences

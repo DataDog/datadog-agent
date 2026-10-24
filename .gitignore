@@ -275,3 +275,6 @@ pkg/config/schema/*_generated.go
 pkg/config/setup/generated.go
 pkg/config/setup/all_settings.go
 pkg/config/setup/system_probe_settings.go
+
+# Local EKS kubeconfig files
+*kubeconfig.yaml
