@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "def",
-    srcs = ["component.go"],
+    srcs = [
+        "component.go",
+        "logs_payload.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def",
     visibility = ["//visibility:public"],
     deps = [

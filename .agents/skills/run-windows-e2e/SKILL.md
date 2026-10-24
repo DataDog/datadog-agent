@@ -11,7 +11,7 @@ Detailed reference material lives in `references/` next to this file — read th
 relevant one when a step calls for it rather than duplicating it here:
 
 - [`references/setup.md`](references/setup.md) — prerequisites, `~/.test_infra_config.yaml`, dev mode
-- [`references/running.md`](references/running.md) — `setup-env`, local builds, `go test` flags
+- [`references/running.md`](references/running.md) — `setup-env`, local builds, and `new-e2e-tests.run` flags
 - [`references/vm-access.md`](references/vm-access.md) — connecting to a dev-mode VM (RDP/SSH)
 - [`references/troubleshooting.md`](references/troubleshooting.md) — test outputs, Pulumi locks, AWS profile
 
@@ -26,15 +26,15 @@ Determine:
 - **Stable/previous version** (upgrade tests only): if the user specifies a version to upgrade *from*, plan a second `setup-env` run with `--prefix STABLE_AGENT` in Step 3 (see [`references/running.md`](references/running.md) "Upgrade tests").
 - **Branch**: if the user mentions a branch ("from main"), pass `--branch <name>` to `setup-env`. The default is the current git branch, which may have no pipelines if it's a local feature branch.
 
-Map suite names to Go package paths:
+Map suite names to targets relative to the `test/new-e2e` module:
 
-| Suite | Package path |
+| Suite | Target |
 |-------|-------------|
-| `install-test` | `./test/new-e2e/tests/windows/install-test` |
-| `service-test` | `./test/new-e2e/tests/windows/service-test` |
-| `fips-test` | `./test/new-e2e/tests/windows/fips-test` |
-| `domain-test` | `./test/new-e2e/tests/windows/domain-test` |
-| installer / Fleet Automation (agent-package, install-script, install-exe, ddot, apm-inject, …) | `./test/new-e2e/tests/installer/windows` |
+| `install-test` | `./tests/windows/install-test` |
+| `service-test` | `./tests/windows/service-test` |
+| `fips-test` | `./tests/windows/fips-test` |
+| `domain-test` | `./tests/windows/domain-test` |
+| installer / Fleet Automation (agent-package, install-script, install-exe, ddot, apm-inject, …) | `./tests/installer/windows` |
 
 The installer / Fleet Automation tests are all one flat package (the
 `suites/<package>/` subdirectories were flattened in #47161) — pick the area by
@@ -58,7 +58,8 @@ iterative development). Full detail in [`references/setup.md`](references/setup.
 ### Step 3 — Resolve artifact environment variables
 
 Run `setup-env` with `--fmt json` to capture the required env vars (no shell
-`eval` needed — prepend the parsed pairs inline to `go test` in Step 5).
+`eval` needed — prepend the parsed pairs inline to `dda inv new-e2e-tests.run`
+in Step 5).
 
 ```bash
 # From a pipeline (most common)
@@ -79,15 +80,16 @@ agent installed. Ask whether they've cleaned up (MSI tests: uninstall the agent;
 installer tests: `datadog-installer.exe purge`). See
 [`references/running.md`](references/running.md) "Clean state between runs".
 
-### Step 5 — Build and confirm the `go test` command
+### Step 5 — Build and confirm the DDA command
 
 ```bash
-go test -v -timeout 30m -tags test <package-path> -run <TestFunction>$
+dda inv new-e2e-tests.run --targets=<target> --no-recursive --run='<TestFunction>$' --timeout=30m
 ```
 
 Two rules to apply (rationale in [`references/running.md`](references/running.md)):
-anchor the `-run` regex with `$` at both suite and subtest level, and use the
-exact package path with **no trailing `/...`** (or output won't stream).
+anchor the `--run` regex with `$` at both suite and subtest level, and use the
+exact target with `--no-recursive` (or output may be buffered behind recursive
+package execution).
 
 Show the full command to the user and confirm before running.
 
