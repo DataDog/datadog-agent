@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue on Windows where installing the APM Single Step
+    Instrumentation (``datadog-apm-inject``) package could fail entirely if
+    updating ``system-probe.yaml`` to enable crash detection for the
+    injection driver did not succeed. This step is now best-effort: a
+    failure no longer blocks the package install and is instead reported
+    through installer telemetry.
