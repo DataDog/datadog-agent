@@ -10,10 +10,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/multierr"
@@ -21,8 +24,10 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -86,19 +91,30 @@ type SerializerConsumer interface {
 	otlpmetrics.Consumer
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
-	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
+	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, wi workloadIdentity)
 	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge)
+	addRunningMetric(hostname string, wi workloadIdentity)
 }
 
 type serializerConsumer struct {
 	extraTags       []string
 	series          metrics.Series
 	sketches        metrics.SketchSeriesList
+	distributions   []metrics.Distribution
 	apmstats        []io.Reader
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
-	ecsFargateTags  map[string]struct{}
+	fargateTagSets  map[tagSetKey][]string
+	buildInfo       component.BuildInfo
+	// standalone reports whether otel-agent is running standalone (DD_OTEL_STANDALONE=true),
+	// as opposed to embedded/connected to the core Agent. Only used to gate addRunningMetric.
+	standalone bool
+	// sawMetric reports whether this flush contained any real (non-APM-stats)
+	// metric, set from ConsumeTimeSeries/ConsumeSketch. Used to gate
+	// addRunningMetric so that an APM-stats-only flush never emits the running
+	// billing metric.
+	sawMetric bool
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -110,12 +126,180 @@ const (
 	agentOTLPIngest
 )
 
-func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.HistogramDataPointSlice) {
-	// TODO noop for now
+var invalidHistogramLogLimit = log.NewLogLimit(10, 10*time.Minute)
+
+// otelExplicitHistogramSeries is one OTel explicit bucket histogram point, sent as is.
+type otelExplicitHistogramSeries struct {
+	metrics.DistributionMetadata
+	ts                        int64
+	haveMin, haveMax, haveSum bool
+	min, max, sum             float64
+	count                     uint64
+	bounds                    []float64
+	counts                    []uint64
 }
 
-func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
-	// TODO noop for now
+var _ metrics.Distribution = (*otelExplicitHistogramSeries)(nil)
+var _ metrics.OtelExplicitHistogramPoints = (*otelExplicitHistogramSeries)(nil)
+
+// GetName returns the metric name.
+func (s *otelExplicitHistogramSeries) GetName() string {
+	return s.Name
+}
+
+// WriteTo emits the OTel explicit bucket histogram flavor of this series.
+func (s *otelExplicitHistogramSeries) WriteTo(w metrics.DistributionWriter) error {
+	return w.WriteOtelExplicitHistogram(s.DistributionMetadata, 1, s)
+}
+
+// GetOtelExplicitHistogramPoint returns the only point of the series. It panics if i != 0.
+func (s *otelExplicitHistogramSeries) GetOtelExplicitHistogramPoint(i int) (ts int64, haveMin, haveMax, haveSum bool, min, max, sum float64, cnt uint64, bounds []float64, counts []uint64) {
+	checkSinglePointIndex(i)
+	return s.ts, s.haveMin, s.haveMax, s.haveSum, s.min, s.max, s.sum, s.count, s.bounds, s.counts
+}
+
+// otelExponentialHistogramSeries is one OTel exponential histogram point, sent as is.
+type otelExponentialHistogramSeries struct {
+	metrics.DistributionMetadata
+	ts                        int64
+	haveMin, haveMax, haveSum bool
+	min, max, sum             float64
+	zeroThreshold             float64
+	count, zeroCount          uint64
+	scale                     int32
+	posOffset, negOffset      int32
+	posCounts, negCounts      []uint64
+}
+
+var _ metrics.Distribution = (*otelExponentialHistogramSeries)(nil)
+var _ metrics.OtelExponentialHistogramPoints = (*otelExponentialHistogramSeries)(nil)
+
+// GetName returns the metric name.
+func (s *otelExponentialHistogramSeries) GetName() string {
+	return s.Name
+}
+
+// WriteTo emits the OTel exponential histogram flavor of this series.
+func (s *otelExponentialHistogramSeries) WriteTo(w metrics.DistributionWriter) error {
+	return w.WriteOtelExponentialHistogram(s.DistributionMetadata, 1, s)
+}
+
+// GetOtelExponentialHistogramPoint returns the only point of the series. It panics if i != 0.
+func (s *otelExponentialHistogramSeries) GetOtelExponentialHistogramPoint(i int) (ts int64, haveMin, haveMax, haveSum bool, min, max, sum, zeroThr float64, cnt, zeroCnt uint64, scale, posOffs, negOffs int32, posCnt, negCnt []uint64) {
+	checkSinglePointIndex(i)
+	return s.ts, s.haveMin, s.haveMax, s.haveSum, s.min, s.max, s.sum, s.zeroThreshold, s.count, s.zeroCount, s.scale, s.posOffset, s.negOffset, s.posCounts, s.negCounts
+}
+
+// checkSinglePointIndex panics on any index but 0: each series holds exactly one point.
+func checkSinglePointIndex(i int) {
+	if i != 0 {
+		panic(fmt.Sprintf("OTel histogram series has a single point, got index %d", i))
+	}
+}
+
+// invalidExplicitHistogram returns why the point breaks the OtelExplicitHistogramPoints
+// contract, or "" if it doesn't.
+func invalidExplicitHistogram(bounds []float64, counts []uint64) string {
+	if len(bounds) == 0 && len(counts) == 0 {
+		return ""
+	}
+	if len(bounds)+1 != len(counts) {
+		return "bucket counts must be one more than explicit bounds"
+	}
+	for i, b := range bounds {
+		if math.IsNaN(b) || math.IsInf(b, 0) {
+			return "explicit bounds must be finite"
+		}
+		if i > 0 && b <= bounds[i-1] {
+			return "explicit bounds must be strictly increasing"
+		}
+	}
+	return ""
+}
+
+// invalidExponentialHistogram returns why the point breaks the OtelExponentialHistogramPoints
+// contract, or "" if it doesn't.
+func invalidExponentialHistogram(p pmetric.ExponentialHistogramDataPoint) string {
+	if zt := p.ZeroThreshold(); math.IsInf(zt, 0) || !(zt >= 0) {
+		return "zero threshold must be finite and non-negative"
+	}
+	for _, b := range [2]pmetric.ExponentialHistogramDataPointBuckets{p.Positive(), p.Negative()} {
+		if n := b.BucketCounts().Len(); n > 0 && int64(b.Offset())+int64(n)-1 > math.MaxInt32 {
+			return "bucket index overflows int32"
+		}
+	}
+	return ""
+}
+
+func warnInvalidHistogram(name, reason string) {
+	if invalidHistogramLogLimit.ShouldLog() {
+		log.Warnf("Dropping OTel histogram point of %q: %s", name, reason)
+	}
+}
+
+// ConsumeExplicitBoundHistogram buffers delta explicit bucket histogram points.
+// The translator only passes delta points here.
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, pts pmetric.HistogramDataPointSlice) {
+	for i := 0; i < pts.Len(); i++ {
+		p := pts.At(i)
+		if p.Flags().NoRecordedValue() {
+			continue
+		}
+		bounds := p.ExplicitBounds().AsRaw()
+		counts := p.BucketCounts().AsRaw()
+		if reason := invalidExplicitHistogram(bounds, counts); reason != "" {
+			warnInvalidHistogram(dimensions.Name(), reason)
+			continue
+		}
+		c.sawMetric = true
+		c.distributions = append(c.distributions, &otelExplicitHistogramSeries{
+			DistributionMetadata: c.distributionMetadata(dimensions.WithAttributeMap(p.Attributes()), 0),
+			ts:                   int64(p.Timestamp() / 1e9),
+			haveMin:              p.HasMin(),
+			haveMax:              p.HasMax(),
+			haveSum:              p.HasSum(),
+			min:                  p.Min(),
+			max:                  p.Max(),
+			sum:                  p.Sum(),
+			count:                p.Count(),
+			bounds:               bounds,
+			counts:               counts,
+		})
+	}
+}
+
+// ConsumeExponentialHistogram buffers delta exponential histogram points.
+// The translator only passes delta points here.
+func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *otlpmetrics.Dimensions, pts pmetric.ExponentialHistogramDataPointSlice) {
+	for i := 0; i < pts.Len(); i++ {
+		p := pts.At(i)
+		if p.Flags().NoRecordedValue() {
+			continue
+		}
+		if reason := invalidExponentialHistogram(p); reason != "" {
+			warnInvalidHistogram(dimensions.Name(), reason)
+			continue
+		}
+		c.sawMetric = true
+		c.distributions = append(c.distributions, &otelExponentialHistogramSeries{
+			DistributionMetadata: c.distributionMetadata(dimensions.WithAttributeMap(p.Attributes()), 0),
+			ts:                   int64(p.Timestamp() / 1e9),
+			haveMin:              p.HasMin(),
+			haveMax:              p.HasMax(),
+			haveSum:              p.HasSum(),
+			min:                  p.Min(),
+			max:                  p.Max(),
+			sum:                  p.Sum(),
+			zeroThreshold:        p.ZeroThreshold(),
+			count:                p.Count(),
+			zeroCount:            p.ZeroCount(),
+			scale:                p.Scale(),
+			posOffset:            p.Positive().Offset(),
+			negOffset:            p.Negative().Offset(),
+			posCounts:            p.Positive().BucketCounts().AsRaw(),
+			negCounts:            p.Negative().BucketCounts().AsRaw(),
+		})
+	}
 }
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
@@ -136,19 +320,24 @@ func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 	return enrichedTags
 }
 
-func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
+func (c *serializerConsumer) distributionMetadata(dimensions *otlpmetrics.Dimensions, interval int64) metrics.DistributionMetadata {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
 	}
+	return metrics.DistributionMetadata{
+		Name:     dimensions.Name(),
+		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Host:     dimensions.Host(),
+		Interval: interval,
+		Source:   msrc,
+	}
+}
+
+func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
+	c.sawMetric = true
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
-		DistributionMetadata: metrics.DistributionMetadata{
-			Name:     dimensions.Name(),
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
-			Host:     dimensions.Host(),
-			Interval: interval,
-			Source:   msrc,
-		},
+		DistributionMetadata: c.distributionMetadata(dimensions, interval),
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,
@@ -169,6 +358,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
+	c.sawMetric = true
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -188,7 +378,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.
-func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge) {
+func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, _ workloadIdentity) {
 	timestamp := float64(time.Now().Unix())
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
@@ -209,8 +399,13 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 		for host := range c.hosts {
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
-		for ecsFargateTag := range c.ecsFargateTags {
-			taskArn := strings.Split(ecsFargateTag, ":")[1]
+		for _, tags := range c.fargateTagSets {
+			prefix := string(source.AWSECSFargateKind) + ":"
+			idx := slices.IndexFunc(tags, func(t string) bool { return strings.HasPrefix(t, prefix) })
+			if idx == -1 {
+				continue
+			}
+			taskArn := strings.TrimPrefix(tags[idx], prefix)
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
@@ -282,19 +477,27 @@ func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Se
 // Send exports all data recorded by the consumer. It does not reset the consumer.
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 	var serieErr, sketchesErr error
+	sketches := metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000)
 	metrics.Serialize(
 		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
-		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
-		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+		sketches,
+		// Serialize hands sketches back as the sketches sink; it is used directly
+		// because only IterableSketches accepts non-DDSketch distributions.
+		func(seriesSink metrics.SerieSink, _ metrics.SketchesSink) {
 			for _, serie := range c.series {
 				seriesSink.Append(serie)
 			}
 			for _, sketch := range c.sketches {
-				sketchesSink.Append(sketch)
+				sketches.Append(sketch)
 			}
-		}, func(serieSource metrics.SerieSource) {
+			for _, d := range c.distributions {
+				sketches.AppendDistribution(d)
+			}
+		},
+		func(serieSource metrics.SerieSource) {
 			serieErr = s.SendIterableSeries(serieSource)
-		}, func(sketchesSource metrics.SketchesSource) {
+		},
+		func(sketchesSource metrics.SketchesSource) {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
 	)
@@ -305,15 +508,20 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 func (c *serializerConsumer) sendAPMStats() error {
 	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
 	for _, body := range c.apmstats {
-		resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
-		if err != nil {
-			return fmt.Errorf("could not flush StatsPayload: %v", err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			peek := make([]byte, 1024)
-			n, _ := resp.Body.Read(peek)
-			return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+		if err := func() error {
+			resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
+			if err != nil {
+				return fmt.Errorf("could not flush StatsPayload: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				peek := make([]byte, 1024)
+				n, _ := io.ReadFull(resp.Body, peek)
+				return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+			}
+			return nil
+		}(); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -324,7 +532,125 @@ func (c *serializerConsumer) ConsumeHost(host string) {
 	c.hosts[host] = struct{}{}
 }
 
-// ConsumeTag implements the metrics.TagsConsumer interface.
-func (c *serializerConsumer) ConsumeTag(tag string) {
-	c.ecsFargateTags[tag] = struct{}{}
+// ConsumeTagSet implements the metrics.TagSetConsumer interface. It is only
+// used to attribute coatUsageMetric to individual ECS Fargate tasks sharing a
+// gateway; other workload types don't need per-task telemetry attribution.
+func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+	if metricSuffix != "fargate" {
+		return
+	}
+	sorted := slices.Clone(tags)
+	slices.Sort(sorted)
+	key := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
+	c.fargateTagSets[key] = sorted
+}
+
+// addRunningMetric emits the otel.ddot_collector.metrics.running billing metric,
+// mirroring otel.datadog_exporter.metrics.running (emitted for the ossCollector
+// path by collectorConsumer), but only for the ddot ingestion path while
+// otel-agent is running standalone (DD_OTEL_STANDALONE=true). Connected-mode DDOT
+// and agentOTLPIngest never emit this, since the core/cluster Agent already
+// reports its own running state.
+//
+// hostname is the Agent's own resolved hostname (from the hostname component),
+// not a host derived from OTel resource attributes: c.hosts is only used here
+// as a signal that some host-attributed metric was seen this cycle, never as
+// the tag value, so the billing host tag stays stable regardless of what
+// hostname OTel telemetry happens to report.
+//
+// On ECS Fargate or Azure Container Apps, wi identifies the workload and the
+// metric is tagged with the task ARN or container app identity instead of a
+// hostname, since those workloads have no host identity. Those variants are
+// deliberately emitted without consulting c.hosts: such a workload reports a
+// tag set rather than a host, so ConsumeHost is never called for it and
+// gating on c.hosts would suppress the metric entirely.
+//
+// wi is derived from the local environment, independent of payload content,
+// so c.sawMetric additionally gates all variants: without it, a flush that
+// contains only APM stats (no real metrics) would still emit the running
+// metric purely because the workload identity happened to be detected.
+func (c *serializerConsumer) addRunningMetric(hostname string, wi workloadIdentity) {
+	if c.ipath != ddot || !c.standalone || !c.sawMetric {
+		return
+	}
+	timestamp := float64(time.Now().Unix())
+	buildTags := tagsFromBuildInfo(c.buildInfo)
+
+	var workloadSerie *metrics.Serie
+	switch {
+	case wi.fargateTaskARN != "":
+		workloadSerie = ddotFargateRunningMetric(wi.fargateTaskARN, timestamp, buildTags)
+	case wi.aca != nil:
+		workloadSerie = ddotAzureContainerAppsRunningMetric(wi.aca, timestamp, buildTags)
+	}
+	if workloadSerie != nil {
+		c.series = append(c.series, workloadSerie)
+		return
+	}
+
+	// Only the host-attributed metric needs a host: c.hosts must not gate the
+	// hostless workload variants above, since a hostless workload never
+	// produces a ConsumeHost call at all.
+	if len(c.hosts) == 0 {
+		return
+	}
+	c.series = append(c.series, ddotRunningMetric(hostname, timestamp, buildTags))
+}
+
+// ddotRunningMetric creates a built-in metric to report that the DDOT collector
+// (otel-agent in standalone mode) is running. Mirrors exporterDefaultMetrics for
+// the ossCollector path, under the "otel.ddot_collector.metrics.running" name.
+func ddotRunningMetric(hostname string, timestamp float64, tags []string) *metrics.Serie {
+	return &metrics.Serie{
+		Name:   "otel.ddot_collector.metrics.running",
+		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Host:   hostname,
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
+}
+
+// ddotFargateRunningMetric creates a built-in metric to report that the DDOT
+// collector is running in an ECS Fargate task. The task is identified by its ARN
+// rather than a hostname, since Fargate tasks have no host identity.
+func ddotFargateRunningMetric(taskARN string, timestamp float64, tags []string) *metrics.Serie {
+	allTags := append([]string{taggertags.TaskARN + ":" + taskARN}, tags...)
+	return &metrics.Serie{
+		Name:   "otel.ddot_collector.metrics.running.fargate",
+		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(allTags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
+}
+
+// ddotAzureContainerAppsRunningMetric creates a built-in metric tagged with the Azure
+// Container Apps replica, app name, subscription ID and resource group instead of a
+// hostname, since Azure Container Apps replicas have no host identity. Tag keys match
+// the ones used by the community DD exporter's
+// otel.datadog_exporter.metrics.running.azurecontainerapps metric.
+// It returns nil unless name, subscriptionID, resourceGroup, and replica are all
+// present, matching the DD exporter's behavior of never emitting this billing
+// metric for a partially-identified resource (see
+// https://datadoghq.atlassian.net/wiki/x/VglyrgE).
+func ddotAzureContainerAppsRunningMetric(aca *acaIdentity, timestamp float64, tags []string) *metrics.Serie {
+	if aca.name == "" || aca.subscriptionID == "" || aca.resourceGroup == "" || aca.replica == "" {
+		return nil
+	}
+
+	allTags := append([]string{
+		"name:" + aca.name,
+		"subscription_id:" + aca.subscriptionID,
+		"resource_group:" + aca.resourceGroup,
+		"replica:" + aca.replica,
+	}, tags...)
+
+	return &metrics.Serie{
+		Name:   "otel.ddot_collector.metrics.running.azurecontainerapps",
+		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(allTags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
 }

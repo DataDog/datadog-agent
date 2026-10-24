@@ -1,25 +1,47 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
-    default_package_metadata = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "5.4.6"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://www.lua.org/ftp/lua-{version}.tar.gz",
+        package = "lua",
+        version = VERSION,
+    ),
 )
 
 license(
     name = "license",
+    copyright_notice = "Copyright © 1994–2025 Lua.org, PUC-Rio.",
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
     license_text = "license_file",
-    copyright_notice = "Copyright © 1994–2025 Lua.org, PUC-Rio.",
     visibility = ["//visibility:public"],
 )
 
 cc_library(
     name = "liblua",
-    srcs = glob(["src/*.c", "src/*.h"], exclude = [
-        "src/lua.c",
-        "src/luac.c",
-    ]),
+    srcs = glob(
+        [
+            "src/*.c",
+            "src/*.h",
+        ],
+        exclude = [
+            "src/lua.c",
+            "src/luac.c",
+        ],
+    ),
     hdrs = [
         "src/lauxlib.h",
         "src/lua.h",
@@ -27,6 +49,6 @@ cc_library(
         "src/luaconf.h",
         "src/lualib.h",
     ],
-    visibility = ["//visibility:public"],
     strip_include_prefix = "src",
+    visibility = ["//visibility:public"],
 )

@@ -14,11 +14,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -899,19 +900,38 @@ func TestGetStateNoStats(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestResetClearsKSMShardedConfigs(t *testing.T) {
+func TestResetClearsShardedConfigs(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	d := newDispatcher(fakeTagger)
 
 	// Manually mark a config as sharded (simulates a prior Schedule call)
 	digest := "some-digest"
-	d.ksmShardedConfigs[digest] = []string{"shard-1", "shard-2"}
-	require.True(t, len(d.ksmShardedConfigs) == 1)
+	d.shards.mark(digest, []string{"shard-1", "shard-2"})
+	require.True(t, d.shards.isTracked(digest))
 
 	d.reset()
 
-	d.ksmShardingMutex.Lock()
-	defer d.ksmShardingMutex.Unlock()
-	assert.Empty(t, d.ksmShardedConfigs,
-		"ksmShardedConfigs must be cleared on reset to avoid silently dropping KSM checks after leader re-election")
+	assert.False(t, d.shards.isTracked(digest),
+		"shards must be cleared on reset to avoid silently dropping sharded checks after leader re-election")
+}
+
+func TestClusterAgentOnlyChecksAreNotDispatched(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	profiling := generateIntegration(agentprofiling.CheckName)
+	other := generateIntegration("cluster-check")
+
+	dispatcher.Schedule([]integration.Config{profiling, other})
+	stored, err := dispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cluster-check"}, extractCheckNames(stored))
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
+
+	dispatcher.Unschedule([]integration.Config{profiling, other})
+	stored, err = dispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Len(t, stored, 0)
+
+	requireNotLocked(t, dispatcher.store)
 }

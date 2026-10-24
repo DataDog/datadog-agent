@@ -31,6 +31,7 @@ const (
 	ActionTypePatchStatefulSet   = "patch_statefulset"
 	ActionTypeRollbackDeployment = "rollback_deployment"
 	ActionTypeGetResource        = "get_resource"
+	ActionTypeHelmRollback       = "helm_rollback"
 )
 
 // Execution status constants.

@@ -119,11 +119,12 @@ type CustomQueryColumns struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
-	MetricPrefix string               `yaml:"metric_prefix"`
-	Pdb          string               `yaml:"pdb"`
-	Query        string               `yaml:"query"`
-	Columns      []CustomQueryColumns `yaml:"columns"`
-	Tags         []string             `yaml:"tags"`
+	MetricPrefix       string               `yaml:"metric_prefix"`
+	Pdb                string               `yaml:"pdb"`
+	Query              string               `yaml:"query"`
+	Columns            []CustomQueryColumns `yaml:"columns"`
+	Tags               []string             `yaml:"tags"`
+	CollectionInterval *int64               `yaml:"collection_interval"`
 }
 
 type asmConfig struct {
@@ -291,6 +292,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
+	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {
+		return nil, err
+	}
+	if err := validateCustomQueryCollectionIntervals("global_custom_queries", initCfg.CustomQueries); err != nil {
+		return nil, err
+	}
+
 	serverSlice := strings.Split(instance.Server, ":")
 	instance.Server = serverSlice[0]
 
@@ -344,7 +352,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	if shouldPropagateAgentTags(instance.PropagateAgentTags, initCfg.PropagateAgentTags) {
-		agentTags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+		// Instance tags become metric tags: omit infra_mode.
+		agentTags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog(), false)
 		instance.Tags = append(instance.Tags, agentTags.System...)
 		instance.Tags = append(instance.Tags, agentTags.GoogleCloudPlatform...)
 	}
@@ -398,6 +407,15 @@ func shouldPropagateAgentTags(instancePropagateTags, initConfigPropagateTags *bo
 	}
 	// if neither the instance nor the init_config has set the value, return False
 	return false
+}
+
+func validateCustomQueryCollectionIntervals(configName string, queries []CustomQuery) error {
+	for i, query := range queries {
+		if query.CollectionInterval != nil && *query.CollectionInterval <= 0 {
+			return fmt.Errorf("%s[%d].collection_interval must be greater than zero", configName, i)
+		}
+	}
+	return nil
 }
 
 func warnDeprecated(old string, new string) {

@@ -74,6 +74,7 @@ var DefaultClusterAgentActionFQNs = append([]string{
 	"com.datadoghq.kubernetes.apps.listStatefulSet",
 	// k8s core — Pods
 	"com.datadoghq.kubernetes.core.getPod",
+	"com.datadoghq.kubernetes.core.getPodLogs",
 	"com.datadoghq.kubernetes.core.listPod",
 	// k8s core — ConfigMaps
 	"com.datadoghq.kubernetes.core.getConfigMap",
@@ -98,7 +99,13 @@ var DefaultClusterAgentActionFQNs = append([]string{
 // DefaultActionFQNs is a list of action FQNs that are enabled by default
 // for non-Cluster-Agent flavors.
 // Users can opt out by setting private_action_runner.default_actions_enabled to false.
-var DefaultActionFQNs = append([]string{}, defaultCommonActionFQNs...)
+var DefaultActionFQNs = append([]string{
+	// Datadog Agent read-only diagnostics. Node-agent only: the datadogagent
+	// bundle is not registered on the Cluster Agent (see agentapi.go).
+	"com.datadoghq.remoteaction.datadogagent.getStatus",
+	"com.datadoghq.remoteaction.datadogagent.getConfig",
+	"com.datadoghq.remoteaction.datadogagent.getDiagnose",
+}, defaultCommonActionFQNs...)
 
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
 // if at least one other action matching their expected prefix is allowed

@@ -16,6 +16,9 @@ var DefaultFlareFiles = []string{
 	"install_info.log",
 	"permissions.log",
 	"process_agent_runtime_config_dump.yaml",
+	// Written whether or not dd-procmgrd answers, so support can tell a supervisor that is
+	// down from one that was never asked.
+	"procmgr/state.json",
 	"runtime_config_dump.yaml",
 	"secrets.log",
 	"status.log",

@@ -68,7 +68,7 @@ func (a *logAgent) SetupPipeline(
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
 	fileOpener := opener.NewFileOpener()
-	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
+	fingerprinter := file.NewFingerprinterWithUnreliableMount(fingerprintConfig, fileOpener, config.UnreliableMountEnabled(a.config))
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,

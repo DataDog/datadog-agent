@@ -1,0 +1,48 @@
+---
+# Compares the trace payload duplicates report of the PR (TestNoAgentIntroducedDuplicates in
+# pkg/trace/testutil/dupcheck) with the one of its merge base, and comments the differences on the
+# PR. Report-only: it never blocks the PR. Locally: dda inv trace-agent.dupcheck-diff
+.trace_dupcheck_rules:
+  - !reference [.on_dev_branches]
+  - !reference [.except_light_pipeline]
+  - changes:
+      paths:
+        - pkg/trace/**/*
+        - pkg/opentelemetry-mapping-go/**/*
+        - .gitlab/build/source_test/trace_dupcheck.yml
+        - tasks/libs/trace_dupcheck.py
+      compare_to: $COMPARE_TO_BRANCH
+
+trace_dupcheck_diff:
+  extends: .bazel:runner:linux-amd64
+  stage: source_test
+  rules: !reference [.trace_dupcheck_rules]
+  allow_failure: true
+  interruptible: true
+  variables:
+    GIT_DEPTH: 0  # Full history: dupcheck-diff uses git merge-base
+    GIT_STRATEGY: "clone" # needed because this job checks out the merge base
+  script:
+    - dda inv -- -e trace-agent.dupcheck-diff --report-file=dupcheck-report.md
+  artifacts:
+    paths:
+      - dupcheck-report.md
+    expire_in: 2 weeks
+
+trace_dupcheck_commenter:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends: .dd_octo_sts
+  rules: !reference [.trace_dupcheck_rules]
+  allow_failure: true
+  interruptible: true
+  needs: ["trace_dupcheck_diff"]
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - if [ ! -s dupcheck-report.md ]; then
+        dda inv -- -e github.pr-commenter --title="Trace payload duplicates" --force-delete ;
+      else
+        dda inv -- -e github.pr-commenter --title="Trace payload duplicates" --body-file=dupcheck-report.md ;
+      fi

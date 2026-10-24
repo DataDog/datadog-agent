@@ -30,6 +30,8 @@ import (
 type ContainerContextSerializer struct {
 	// Container ID
 	ID string `json:"id,omitempty"`
+	// Kubernetes pod UID
+	PodUID string `json:"pod_uid,omitempty"`
 	// Source of the container entry (event or procfs)
 	Source string `json:"source,omitempty"`
 	// Creation time of the container
@@ -186,6 +188,8 @@ type IMDSEventSerializer struct {
 	UserAgent string `json:"user_agent,omitempty"`
 	// server is the server header of a response
 	Server string `json:"server,omitempty"`
+	// credential_source is the credential endpoint that served the IMDS event
+	CredentialSource string `json:"credential_source,omitempty"`
 
 	// AWS holds the AWS specific data parsed from the IMDS event
 	AWS *AWSIMDSEventSerializer `json:"aws,omitempty"`
@@ -449,13 +453,14 @@ func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 	}
 
 	return &IMDSEventSerializer{
-		Type:          e.Type,
-		CloudProvider: e.CloudProvider,
-		URL:           e.URL,
-		Host:          e.Host,
-		UserAgent:     e.UserAgent,
-		Server:        e.Server,
-		AWS:           aws,
+		Type:             e.Type,
+		CloudProvider:    e.CloudProvider,
+		URL:              e.URL,
+		Host:             e.Host,
+		UserAgent:        e.UserAgent,
+		Server:           e.Server,
+		CredentialSource: model.CredentialSource(e.CredentialSource).String(),
+		AWS:              aws,
 	}
 }
 

@@ -154,8 +154,6 @@ def get_golang_type_tag(curr):
 def retrieve_default_value(node, name):
     settingDefault = node.get('default')
     settingType = node.get('type')
-    if settingType is None:
-        return 'nil'
 
     if node.get('platform_default'):
         platform_default = as_go_value(node['platform_default'], split_lines=True)
@@ -167,14 +165,19 @@ def retrieve_default_value(node, name):
     if settingType == 'boolean':
         return 'true' if settingDefault else 'false'
 
-    if settingType in ('integer', 'number'):
-        golang_type = get_golang_type_tag(node)
-        if golang_type in ('int64', 'float64'):
-            return f"{golang_type}({settingDefault})"
-        if settingDefault is None:
-            return '0'
-        if isinstance(settingDefault, int | float):
-            return str(settingDefault)
+    if settingType == 'integer':
+        if get_golang_type_tag(node) == 'int64':
+            return f"int64({settingDefault})"
+        return str(settingDefault)
+
+    if settingType == 'number':
+        if isinstance(settingDefault, float):
+            textDefault = str(settingDefault)
+            if '.' in textDefault:
+                return str(settingDefault)
+            return f"float64({settingDefault}.0)"
+        if isinstance(settingDefault, int):
+            return f"{settingDefault}.0"
 
     if settingType == 'string':
         if node.get('format') == 'duration':
@@ -182,8 +185,6 @@ def retrieve_default_value(node, name):
             durationValue = try_parse_duration(settingDefault)
             if durationValue is not None:
                 return durationValue
-        if settingDefault is None:
-            return '""'
         if isinstance(settingDefault, str):
             return f"\"{settingDefault}\""
 
@@ -280,15 +281,13 @@ def setting_sourcecode(name, node):
     return sourcecode
 
 
-def gen_delegated_auth_map(core_schema, system_probe_schema, outputs):
+def gen_delegated_auth_map(core_schema):
     """
-    Constant generator: appends the delegated auth map to the `core` output.
+    Generate the delegated auth constant map for pkg/config/setup/generated.go.
 
-    core_schema           - loaded core schema object
-    system_probe_schema  - loaded system-probe schema object, unused
-    outputs               - map of output name (see `constant_outputs`) to its Go source lines
+    core_schema - loaded core schema object
     """
-    out = outputs["core"]
+    out = file_header.split('\n') + constant_header.split('\n')
     out.append("""type delegatedAuthConfig struct {
 	apiKeyPath        string
 	delegatedAuthPath string
@@ -311,18 +310,29 @@ var delegatedAuthKeys = []delegatedAuthConfig{""")
 		description:       "{parent or 'global'}",
 	}},""")
     out.append("}")
+    return out
+
+
+def run_core_constant_codegen(core_schema, outsource_dir):
+    """
+    Generate pkg/config/setup/generated.go: the delegated auth constant map.
+
+    core_schema   - loaded core schema object
+    outsource_dir - the directory to output source code to
+    """
+    print('Output generated.go')
+    os.makedirs(outsource_dir, exist_ok=True)
+    _write_uniform_lines(os.path.join(outsource_dir, "generated.go"), gen_delegated_auth_map(core_schema))
 
 
 GENERATE_CONST_PREFIX = "generate_const:"
 
 
-def gen_generate_const(core_schema, system_probe_schema, outputs):
+def gen_generate_const(core_schema, system_probe_schema):
     """
-    Constant generator: emits a `const` block declaring every Go constant referenced by a
-    `generate_const:<name>` tag, set to its associated setting's default value.
-
-    The block goes to the `constants` output, ie. the `pkg/config/setup/constants` package, so
-    that code can use those constants without importing the whole `setup` package.
+    Generate the `const` block for pkg/config/setup/constants/generated.go, declaring every Go
+    constant referenced by a `generate_const:<name>` tag, set to its associated setting's
+    default value. Returns None if no setting carries that tag.
 
     Both schemas are traversed. A constant may be referenced by several settings (in either schema);
     they must all resolve to the same default value, otherwise codegen fails — a single constant
@@ -330,7 +340,6 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
 
     core_schema         - loaded core schema object
     system_probe_schema - loaded system-probe schema object
-    outputs             - map of output name (see `constant_outputs`) to its Go source lines
     """
     # const name -> {'value': go_value, 'source': setting_keypath}
     consts = {}
@@ -357,9 +366,9 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
     collect(system_probe_schema)
 
     if not consts:
-        return
+        return None
 
-    out = outputs["constants"]
+    out = constants_file_header.split('\n') + constant_header.split('\n')
     out.append("// Constants generated from settings tagged with a `generate_const:<name>` label.")
     out.append("// Each constant's value is the default of its associated setting.")
     out.append("const (")
@@ -367,57 +376,24 @@ def gen_generate_const(core_schema, system_probe_schema, outputs):
     for name in sorted(consts):
         out.append(f"\t{name.ljust(width)} = {consts[name]['value']}")
     out.append(")")
+    return out
 
 
-# The files produced by the constant generators, keyed by the output name generators use to
-# reach them. Each entry is (path relative to the codegen output dir, Go file header). The
-# relative path mirrors the layout under `pkg/config/setup`, so `schema.codegen` knows where
-# each file has to be copied.
-constant_outputs = {
-    "core": ("generated.go", file_header),
-    "constants": (os.path.join("constants", "generated.go"), constants_file_header),
-}
-
-
-# Ordered list of generator functions used to produce the constant files.
-# Each is called with (core_schema, system_probe_schema, outputs) and may append Go code to
-# any of the `constant_outputs` buffers.
-constant_generators = [
-    gen_delegated_auth_map,
-    gen_generate_const,
-]
-
-
-def run_constant_codegen(core_schema, system_probe_schema, outsource_dir):
+def run_constants_codegen(core_schema, system_probe_schema, outsource_dir):
     """
-    Generate the constant files by running each generator in `constant_generators` in order.
-    Each generator receives both schemas and every output buffer, so it can append Go code to
-    any of the `constant_outputs` files.
-
-    Outputs no generator wrote anything to are skipped rather than emitted as header-only
-    files.
+    Generate pkg/config/setup/constants/generated.go.
 
     core_schema         - loaded core schema object
     system_probe_schema - loaded system-probe schema object
     outsource_dir       - the directory to output source code to
     """
-    header_lines = {
-        name: header.split('\n') + constant_header.split('\n') for name, (_, header) in constant_outputs.items()
-    }
-    outputs = {name: list(lines) for name, lines in header_lines.items()}
+    lines = gen_generate_const(core_schema, system_probe_schema)
+    if lines is None:
+        return
 
-    for generator in constant_generators:
-        generator(core_schema, system_probe_schema, outputs)
-
-    for name, (filename, _) in constant_outputs.items():
-        sourcecode = outputs[name]
-        if sourcecode == header_lines[name]:
-            continue
-
-        print('Output %s' % filename)
-        out_filename = os.path.join(outsource_dir, filename)
-        os.makedirs(os.path.dirname(out_filename), exist_ok=True)
-        _write_uniform_lines(out_filename, sourcecode)
+    print('Output constants/generated.go')
+    os.makedirs(outsource_dir, exist_ok=True)
+    _write_uniform_lines(os.path.join(outsource_dir, "generated.go"), lines)
 
 
 def _write_uniform_lines(path, lines):

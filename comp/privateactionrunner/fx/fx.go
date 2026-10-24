@@ -7,15 +7,22 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
 func Module() fxutil.Module {
 	return fxutil.Component(
+		fx.Provide(newKeysManager),
 		fxutil.ProvideComponentConstructor(
 			privateactionrunnerimpl.NewComponent,
 		),
@@ -28,6 +35,7 @@ func Module() fxutil.Module {
 // ExecutorModule defines the fx options for the on-demand executor mode.
 func ExecutorModule() fxutil.Module {
 	return fxutil.Component(
+		fx.Provide(newKeysManager),
 		fxutil.ProvideComponentConstructor(
 			privateactionrunnerimpl.NewExecutorComponent,
 		),
@@ -35,4 +43,22 @@ func ExecutorModule() fxutil.Module {
 		// Force instantiation since no other component depends on privateactionrunner
 		fx.Invoke(func(_ privateactionrunner.Component) {}),
 	)
+}
+
+type keysManagerProvides struct {
+	fx.Out
+
+	Manager  taskverifier.KeysManager
+	Listener rctypes.RCListener `group:"rCListener"`
+}
+
+func newKeysManager(cfg config.Component) keysManagerProvides {
+	manager, callback := taskverifier.NewKeyManagerWithCallback()
+	var listener rctypes.RCListener
+	if callback != nil && cfg.GetBool(par.Enabled) {
+		listener = rctypes.RCListener{
+			state.ProductActionPlatformRunnerKeys: callback,
+		}
+	}
+	return keysManagerProvides{Manager: manager, Listener: listener}
 }

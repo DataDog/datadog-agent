@@ -177,11 +177,15 @@ func collectComplianceFiles(logger log.Component, complianceDir string, files ma
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
-	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
+	prometheusText, err := r.telemetry.GatherText(telemetry.StaticMetricFilter(
 		// Metrics to forward from system-probe to core agent.
 		// The emitter tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
 		"logs__encoded_bytes_sent",
+
+		// API server request telemetry for the token-authenticated endpoint. The system-probe
+		// HTTP server is plain (non-TLS), so requests are tagged "no_tls" rather than mTLS/token.
+		helper.APIServerRequestDurationMetric,
 
 		// Windows Injector metrics (using double underscore format from telemetry component)
 		"injector__processes_added_to_injection_tracker",

@@ -44,7 +44,8 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
 
         self.assertIn('"//packages/agent:linux_default": [', dependencies)
         self.assertIn('"//packages/agent:linux_fips": [', dependencies)
-        self.assertIn('"@platforms//os:macos": [\n            "//deps/agent_data_plane:all_files"', dependencies)
+        macos_srcs = dependencies.partition('"@platforms//os:macos": [')[2].partition("],")[0]
+        self.assertIn('"//deps/agent_data_plane:all_files"', macos_srcs)
         self.assertEqual(dependencies.count("//deps/agent_data_plane:all_files"), 4)
 
     def test_macos_app_installs_adp_launchdaemon_template(self):

@@ -13,7 +13,7 @@ HOOK_SYSCALL_ENTRY0(pivot_root) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_pivot_root_ret(void *ctx, int retval) {
+static __always_inline int sys_pivot_root_ret(void *ctx, int retval) {
     pop_syscall(EVENT_PIVOT_ROOT);
     return 0;
 }

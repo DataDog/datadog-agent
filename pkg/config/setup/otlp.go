@@ -20,9 +20,10 @@ const (
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
 
-	OTLPMetrics        = OTLPSection + ".metrics"
-	OTLPMetricsEnabled = OTLPMetrics + ".enabled"
-	OTLPMetricsBatch   = OTLPMetrics + ".batch"
+	OTLPMetrics                = OTLPSection + ".metrics"
+	OTLPMetricsEnabled         = OTLPMetrics + ".enabled"
+	OTLPMetricsBatch           = OTLPMetrics + ".batch"
+	OTLPMetricsInfraAttrAsTags = OTLPMetrics + ".infra_attributes.as_tags"
 
 	OTLPDebug = OTLPSection + "." + "debug"
 

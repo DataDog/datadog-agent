@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -25,7 +26,7 @@ func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), option.None[ipc.Component](), false)
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), option.New[ipc.Component](ipcmock.New(t)), false)
 }
 
 func TestNewFactoryForAgent(t *testing.T) {
@@ -34,6 +35,9 @@ func TestNewFactoryForAgent(t *testing.T) {
 
 	cfg := factory.CreateDefaultConfig()
 	require.NotNil(t, cfg)
+	// Avoid bind conflicts when this test runs concurrently with itself or other
+	// processes already listening on the default port.
+	cfg.(*Config).HTTPConfig.NetAddr.Endpoint = "localhost:0"
 
 	settings := extension.Settings{TelemetrySettings: componenttest.NewNopTelemetrySettings()}
 	ext, err := factory.Create(t.Context(), settings, cfg)

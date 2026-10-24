@@ -42,7 +42,7 @@ func TestSetXAttr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	xattrName, err := syscall.BytePtrFromString("user.test_xattr")
 	if err != nil {
@@ -297,7 +297,7 @@ func TestRemoveXAttr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	xattrName, err := syscall.BytePtrFromString("user.test_xattr")
 	if err != nil {

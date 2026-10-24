@@ -1,0 +1,42 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "unshare.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "unshare": {
+                    "type": "object",
+                    "required": [
+                        "flags"
+                    ],
+                    "properties": {
+                        "flags": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "unshare"
+            ]
+        }
+    ]
+}

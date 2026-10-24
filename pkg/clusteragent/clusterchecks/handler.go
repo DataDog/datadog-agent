@@ -185,9 +185,9 @@ func (h *Handler) runDispatch(ctx context.Context) {
 	h.dispatcher.run(ctx)
 
 	// RemoveScheduler must be called before reset() to close a race window: if autodiscovery
-	// fires a Schedule call between reset() clearing ksmShardedConfigs and RemoveScheduler
-	// stopping new calls, ksmShardedConfigs gets repopulated. On the next leadership cycle,
-	// isAlreadySharded returns true and the KSM check is silently dropped.
+	// fires a Schedule call between reset() clearing d.shards and RemoveScheduler stopping
+	// new calls, the tracker gets repopulated. On the next leadership cycle, prepareShardSchedule
+	// sees the config as already tracked and the check is silently dropped.
 	h.autoconfig.RemoveScheduler(schedulerName)
 
 	// Reset the dispatcher

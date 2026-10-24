@@ -7,6 +7,8 @@ vendor/
 bin/
 /dev/
 /site/
+# local git worktrees
+.worktrees/
 # Remote content fetched while building the documentation.
 /.docs-cache/
 # Link check results remembered between runs.
@@ -125,7 +127,6 @@ dogstatsd-msg.h
 # omnibus files
 omnibus/.tarball-version
 omnibus/files/sources
-omnibus/resources/agent/msi/cal/packages/
 
 # serverless artifact
 cmd/serverless/serverless
@@ -152,14 +153,6 @@ pkg/util/winutil/messagestrings/*.h
 pkg/util/winutil/messagestrings/*.rc
 pkg/util/winutil/messagestrings/*.bin
 
-# dev VM
-.vagrant
-Vagrantfile
-packer.json
-*.box
-devenv/iso
-devenv/output-virtualbox-iso/
-devenv/packer_cache
 test_output*.json
 module_test_output.json
 e2e_test_output.json
@@ -214,7 +207,6 @@ test/fakeintake/build/*
 kmt-deps/
 test/new-e2e/system-probe/test-json-review/test-json-review
 test/new-e2e/system-probe/test-runner/test-runner
-test/new-e2e/start-microvms
 
 # trace-agent generates install.json files during tests
 pkg/serverless/trace/**/install.json
@@ -246,6 +238,9 @@ CLAUDE_PERSONAL.md
 AUTO_JIRA.md
 .agents/skills/auto-jira/SKILL.notes.md
 
+# follow-pr worktree-local autonomy preferences (local only, never commit)
+.agents/skills/follow-pr/config.toml
+
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
@@ -256,9 +251,10 @@ AUTO_JIRA.md
 .codex/*
 !.codex/config.toml
 
-# Zed config (commit the shared MCP config; ignore everything else)
+# Zed config (commit shared project config; ignore everything else)
 .zed/*
 !.zed/settings.json
+!.zed/tasks.json
 
 # Devcontainer
 .devcontainer/
@@ -269,6 +265,9 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+
+# NCM local config store (runtime artifact)
+.run/ncm_config.db
 
 # Code generated from the config schema
 pkg/config/schema/*_settings.go

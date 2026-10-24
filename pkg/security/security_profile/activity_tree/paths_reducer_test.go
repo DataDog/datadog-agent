@@ -33,10 +33,8 @@ var tests = []struct {
 			path:      "/host/proc/2144/smaps",
 			fileEvent: &model.FileEvent{},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2144,
-					},
+				Process: ProcessInfo{
+					Pid: 2144,
 				},
 			},
 		},
@@ -48,10 +46,8 @@ var tests = []struct {
 			path:      "/proc/2144/status",
 			fileEvent: &model.FileEvent{},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2,
-					},
+				Process: ProcessInfo{
+					Pid: 2,
 				},
 			},
 		},
@@ -63,10 +59,8 @@ var tests = []struct {
 			path:      "/proc/self/exe",
 			fileEvent: &model.FileEvent{},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2,
-					},
+				Process: ProcessInfo{
+					Pid: 2,
 				},
 			},
 		},
@@ -78,10 +72,8 @@ var tests = []struct {
 			path:      "/host/proc/1/smaps",
 			fileEvent: &model.FileEvent{},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2144,
-					},
+				Process: ProcessInfo{
+					Pid: 2144,
 				},
 			},
 		},
@@ -93,10 +85,8 @@ var tests = []struct {
 			path:      "/host/proc/2144/task/2144/smaps",
 			fileEvent: &model.FileEvent{},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2144,
-					},
+				Process: ProcessInfo{
+					Pid: 2144,
 				},
 			},
 		},
@@ -108,10 +98,8 @@ var tests = []struct {
 			path:      "/host/proc/self/task/2144/smaps",
 			fileEvent: &model.FileEvent{},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2,
-					},
+				Process: ProcessInfo{
+					Pid: 2,
 				},
 			},
 		},
@@ -135,10 +123,8 @@ var tests = []struct {
 				Filesystem: "sysfs",
 			},
 			processNode: &ProcessNode{
-				Process: model.Process{
-					PIDContext: model.PIDContext{
-						Pid: 2,
-					},
+				Process: ProcessInfo{
+					Pid: 2,
 				},
 			},
 		},

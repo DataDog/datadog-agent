@@ -9,12 +9,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
-	"github.com/pkg/sftp"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -23,16 +20,9 @@ import (
 const (
 	cacheBucketURL = "s3://agent-e2e-s3-bucket"
 
-	// awsCliInstallRetries/awsS3CopyRetries account for a flaky AWS network on the test host.
-	awsCliInstallRetries = 3
-	awsS3CopyRetries     = 3
-	awsRetryInterval     = 5 * time.Second
-
-	awsCliRemoteInstallLogPath = `C:\Windows\Temp\awscli-install.log`
-
-	// msiExitSuccessRebootRequired is the successful msiexec exit code returned when /norestart
-	// defers a pending reboot. See https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
-	msiExitSuccessRebootRequired = 3010
+	// awsS3CopyRetries accounts for a flaky AWS network on the test host.
+	awsS3CopyRetries = 3
+	awsRetryInterval = 5 * time.Second
 )
 
 type unimplementedHostCache struct{}
@@ -73,49 +63,7 @@ type windowsAWSCLI struct {
 	sshExecutor *sshExecutor
 }
 
-// ensureInstalled installs AWS CLI v2 if it isn't already present on the host.
-//
-// TEMPORARY: Linux e2e AMIs have AWS CLI v2 pre-baked, but the Windows Server
-// AMIs we use have not yet been re-baked with it. Once ami-builder ships
-// Windows e2e AMI variants with AWS CLI pre-installed, delete this method and
-// the call from download() below. Tracked in ACIX-1305.
-func (c *windowsAWSCLI) ensureInstalled() error {
-	if _, err := c.sshExecutor.Execute("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" --version"); err == nil {
-		return nil
-	}
-	_, err := backoff.Retry(context.Background(), func() (any, error) {
-		// Start-Process's own exit code only reflects whether it launched msiexec, not whether the
-		// install succeeded, so capture the process with -PassThru and check its ExitCode explicitly.
-		_, err := c.sshExecutor.Execute(fmt.Sprintf(
-			`$p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/i https://awscli.amazonaws.com/AWSCLIV2.msi /qn /norestart /L*V %s"; if ($p.ExitCode -ne 0 -and $p.ExitCode -ne %d) { throw "msiexec exited with code $($p.ExitCode)" }`,
-			awsCliRemoteInstallLogPath, msiExitSuccessRebootRequired))
-		return nil, err
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(awsRetryInterval)), backoff.WithMaxTries(awsCliInstallRetries))
-	c.collectInstallLog()
-	return err
-}
-
-// collectInstallLog best-effort copies the AWS CLI msiexec log to the test's artifacts folder,
-// mirroring the log collection test/new-e2e/tests/windows/common/msi.go does for Agent MSI installs.
-func (c *windowsAWSCLI) collectInstallLog() {
-	sftpClient, err := sftp.NewClient(c.sshExecutor.client, sftp.UseConcurrentWrites(true))
-	if err != nil {
-		c.sshExecutor.context.Logf("failed to collect AWS CLI install log: %v", err)
-		return
-	}
-	defer sftpClient.Close()
-
-	remotePath := strings.ReplaceAll(awsCliRemoteInstallLogPath, "\\", "/")
-	localPath := filepath.Join(c.sshExecutor.context.SessionOutputDir(), "awscli-install.log")
-	if err := downloadFile(sftpClient, remotePath, localPath); err != nil {
-		c.sshExecutor.context.Logf("failed to collect AWS CLI install log: %v", err)
-	}
-}
-
 func (c *windowsAWSCLI) download(path string, destPath string) error {
-	if err := c.ensureInstalled(); err != nil {
-		return err
-	}
 	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := c.sshExecutor.Execute(fmt.Sprintf("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" s3 cp \"%s\" \"%s\"", path, destPath))
 		return nil, err

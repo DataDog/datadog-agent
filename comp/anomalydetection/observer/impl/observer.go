@@ -9,7 +9,7 @@ package observerimpl
 import (
 	"context"
 	"errors"
-	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -28,8 +28,9 @@ import (
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -40,8 +41,7 @@ type Requires struct {
 	Config    config.Component
 	Telemetry telemetry.Component
 
-	// Recorder is an optional component for transparent metric recording.
-	// If provided, all handles will be wrapped to record metrics to parquet files.
+	// Recorder is an optional component that records handle observations.
 	Recorder option.Option[recorderdef.Component]
 
 	// Reporters are provided by reporter/fx, reporter/fx-testbench, etc. via the
@@ -59,19 +59,56 @@ type Provides struct {
 // observation is a message sent from handles to the observer.
 type observation struct {
 	source string
-	metric *metricObs
-	log    *logObs
+	metric metricHandoff
+	// hasMetric distinguishes a metric observation from the zero-value union.
+	hasMetric bool
+	log       *logObs
 	// flush, when non-nil, is closed by the dispatch loop once this observation
 	// is reached, signalling that all prior observations have been processed.
 	flush chan struct{}
 }
 
+// metricHandoff is the immutable value queued by metric producers. Scalar
+// fields are snapshotted while the caller-owned MetricView is valid. tags is a
+// read-only view whose backing storage is guaranteed by the MetricView contract
+// to remain valid after ObserveMetric returns.
+type metricHandoff struct {
+	name       string
+	value      float64
+	metricType metrics.MetricType
+	host       string
+	tags       tagset.CompositeTags
+	timestamp  int64
+	precheck   metricFilterPrecheck
+	contextKey uint64
+}
+
+func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck metricFilterPrecheck, contextKey uint64) metricHandoff {
+	timestamp := sample.GetTimestampUnix()
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	return metricHandoff{
+		name:       name,
+		value:      sample.GetValue(),
+		metricType: sample.GetMetricType(),
+		host:       host,
+		tags:       sample.GetTags(),
+		timestamp:  timestamp,
+		precheck:   precheck,
+		contextKey: contextKey,
+	}
+}
+
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	metricType metrics.MetricType
+	host       string
+	tags       tagset.CompositeTags
+	timestamp  int64
+	storageKey uint64
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -85,9 +122,11 @@ func (m *metricObs) GetValue() float64 {
 	return m.value
 }
 
-func (m *metricObs) GetRawTags() []string {
+func (m *metricObs) GetTags() tagset.CompositeTags {
 	return m.tags
 }
+
+func (m *metricObs) GetHost() string { return m.host }
 
 func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 
@@ -96,17 +135,26 @@ func (m *metricObs) GetSampleRate() float64 {
 	return 1.0
 }
 
+func (m *metricObs) GetMetricType() metrics.MetricType { return m.metricType }
+
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content     string
-	status      string
-	tags        []string
-	hostname    string
-	timestampMs int64
+	source        string
+	logSource     string
+	content       string
+	status        string
+	tags          []string
+	hostname      string
+	timestampMs   int64
+	admissionTime time.Time
 }
 
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
+
+func (l *logObs) GetSource() string {
+	return l.source
+}
 
 func (l *logObs) GetContent() string {
 	return l.content
@@ -129,16 +177,144 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
 
+// logSourceRateState holds min_severity and per-priority rate windows for one
+// log source category ("internal", "kubelet", or "containers").
+type logSourceRateState struct {
+	minBucket     logsfilter.PriorityBucket
+	maxRateHigh   float64
+	maxRateMedium float64
+	maxRateLow    float64
+	highW         logsfilter.RateWindow
+	mediumW       logsfilter.RateWindow
+	lowW          logsfilter.RateWindow
+}
+
+func newLogSourceRateState(minSeverity string, maxRateHigh, maxRateMedium, maxRateLow float64) logSourceRateState {
+	return logSourceRateState{
+		minBucket:     logsfilter.MinBucketForSeverity(minSeverity),
+		maxRateHigh:   maxRateHigh,
+		maxRateMedium: maxRateMedium,
+		maxRateLow:    maxRateLow,
+	}
+}
+
+func (s *logSourceRateState) allowAt(bucket logsfilter.PriorityBucket, now time.Time) (bool, string) {
+	tier := logsfilter.RateTierForBucket(bucket)
+	var allowed bool
+	switch tier {
+	case "high":
+		allowed = s.highW.AllowAt(s.maxRateHigh, now)
+	case "medium":
+		allowed = s.mediumW.AllowAt(s.maxRateMedium, now)
+	default:
+		allowed = s.lowW.AllowAt(s.maxRateLow, now)
+	}
+	if allowed {
+		return true, ""
+	}
+	return false, tier
+}
+
+// logAdmissionFilter holds compiled log processing rules and per-source rate
+// limiters. Producers run mayAllowSource and minBucketForSource before
+// enqueueing; the observer dispatch goroutine runs admit before recording and
+// analysis.
+type logAdmissionFilter struct {
+	rules      *logsfilter.Rules
+	internal   logSourceRateState
+	kubelet    logSourceRateState
+	containers logSourceRateState
+}
+
+func loadLogAdmissionFilter(cfg config.Component, logsEnabled, agentLogsEnabled bool) *logAdmissionFilter {
+	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
+	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
+	if err != nil {
+		logging.Warnf("%s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
+		logsRules = &logsfilter.Rules{}
+	}
+
+	internalMin := cfg.GetString("anomaly_detection.logs.internal.min_severity")
+	internalHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
+	internalMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
+	internalLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
+
+	kubeletMin := cfg.GetString("anomaly_detection.logs.kubelet.min_severity")
+	kubeletHigh := cfg.GetFloat64("anomaly_detection.logs.kubelet.max_rate_high_priority")
+	kubeletMedium := cfg.GetFloat64("anomaly_detection.logs.kubelet.max_rate_medium_priority")
+	kubeletLow := cfg.GetFloat64("anomaly_detection.logs.kubelet.max_rate_low_priority")
+
+	containersMin := cfg.GetString("anomaly_detection.logs.containers.min_severity")
+	containersHigh := cfg.GetFloat64("anomaly_detection.logs.containers.max_rate_high_priority")
+	containersMedium := cfg.GetFloat64("anomaly_detection.logs.containers.max_rate_medium_priority")
+	containersLow := cfg.GetFloat64("anomaly_detection.logs.containers.max_rate_low_priority")
+
+	if logsEnabled {
+		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.kubelet", kubeletLow, kubeletMedium, kubeletHigh)
+		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.containers", containersLow, containersMedium, containersHigh)
+		logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.kubelet.min_severity", kubeletMin)
+		logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.containers.min_severity", containersMin)
+		if agentLogsEnabled {
+			logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.internal.min_severity", internalMin)
+			logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.internal", internalLow, internalMedium, internalHigh)
+		}
+	}
+
+	return &logAdmissionFilter{
+		rules:      logsRules,
+		internal:   newLogSourceRateState(internalMin, internalHigh, internalMedium, internalLow),
+		kubelet:    newLogSourceRateState(kubeletMin, kubeletHigh, kubeletMedium, kubeletLow),
+		containers: newLogSourceRateState(containersMin, containersHigh, containersMedium, containersLow),
+	}
+}
+
+func (f *logAdmissionFilter) mayAllowSource(source string) bool {
+	if f == nil {
+		return true
+	}
+	return f.rules.MayAllowSource(source)
+}
+
+func (f *logAdmissionFilter) minBucketForSource(logSource string) logsfilter.PriorityBucket {
+	if f == nil {
+		return logsfilter.TracePriority - 1
+	}
+	switch logSource {
+	case "internal":
+		return f.internal.minBucket
+	case "kubelet":
+		return f.kubelet.minBucket
+	default:
+		return f.containers.minBucket
+	}
+}
+
+func (f *logAdmissionFilter) admit(l *logObs) (bool, string) {
+	if f == nil {
+		return true, ""
+	}
+	if !f.rules.IsAllowed(l.source, l.tags) {
+		return false, "filtered"
+	}
+	bucket := logsfilter.BucketForStatus(l.status)
+	switch l.logSource {
+	case "internal":
+		return f.internal.allowAt(bucket, l.admissionTime)
+	case "kubelet":
+		return f.kubelet.allowAt(bucket, l.admissionTime)
+	default:
+		return f.containers.allowAt(bucket, l.admissionTime)
+	}
+}
+
 // settingsFromAgentConfig reads component configuration from the agent config
 // system (datadog.yaml). Keys follow the pattern:
 //
 //	anomaly_detection.detectors.<name>.enabled        (bool)
 //	anomaly_detection.detectors.<name>.<field>        (type-specific)
 //
-// Enabled keys must be registered in pkg/config/setup/config.go.
-// Component-specific keys are read via the AgentConfigurable interface —
-// config structs that implement it will have their fields populated
-// automatically.
+// Keys are declared in pkg/config/schema/yaml/. Component-specific fields
+// are populated by each catalog entry's readConfig callback.
 func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) ComponentSettings {
 	var settings ComponentSettings
 	if cfg == nil {
@@ -223,7 +399,6 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
-func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
 func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
@@ -259,14 +434,10 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
 	if err != nil {
-		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
+		return Provides{}, err
 	}
 
-	telemetryComp := deps.Telemetry
-	if telemetryComp == nil {
-		telemetryComp = noopsimpl.GetCompatComponent()
-	}
-	obsTelemetry := newObserverTelemetry(telemetryComp)
+	obsTelemetry := newObserverTelemetry(deps.Telemetry)
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
@@ -284,6 +455,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		extractors:      extractors,
 		detectors:       detectors,
 		correlators:     correlators,
+		metricFilter:    compiledMetricFilter,
 		scorer:          scorer,
 		scheduler:       &currentBehaviorPolicy{},
 		baseline:        settings.Baseline,
@@ -292,16 +464,12 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
+	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
 	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
-			sinkAware.SetObserverTelemetry(obsTelemetry)
-		}
-	}
-	for _, detector := range detectors {
-		if sinkAware, ok := detector.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
 		}
 	}
@@ -319,6 +487,13 @@ func NewComponent(deps Requires) (Provides, error) {
 		})
 	}
 
+	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
+	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
+	recorder, recorderEnabled := deps.Recorder.Get()
+	recordingOnly := recorderEnabled && anomalydetectionconfig.RecordingOnly(cfg)
+	logFilter := loadLogAdmissionFilter(cfg, (observerRequired || recorderEnabled) && logsEnabled, agentLogsEnabled)
+
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
@@ -326,6 +501,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		telemetry:            obsTelemetry,
 		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 		metricFilter:         compiledMetricFilter,
+		logFilter:            logFilter,
+		recorder:             recorder,
+		skipAnalysis:         !observerRequired || recordingOnly,
 	}
 
 	// When baseline muting is enabled, subscribe a sink that publishes the mute
@@ -340,24 +518,24 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// Recording enables parquet writers. ObserverRequired enables the live
-	// anomaly-detection pipeline and its default metric/log ingestion paths.
-	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
-	if observerRequired {
+	// A configured recorder wraps handles. Recording-only mode bypasses analysis
+	// while keeping the recorder in the observation path.
+	if observerRequired || recorderEnabled {
 		obsTelemetry.initLogsInFlight()
+	}
+	if observerRequired {
 		obsTelemetry.setSeriesCount(0)
 	}
 
 	obs.handleFunc = obs.noopHandle
-	if observerRequired {
+	if !obs.skipAnalysis {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	recorder, recorderEnabled := deps.Recorder.Get()
 	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
-		// Record detect digests and advance log alongside parquet for parity debugging.
+		// Record detect digests and advance log alongside observations for parity debugging.
 		parquetDir := cfg.GetString("anomaly_detection.recording.output_dir")
 		if parquetDir != "" {
 			digestPath := filepath.Join(parquetDir, detectDigestFileName)
@@ -384,34 +562,27 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	go obs.run()
 
+	if deps.Lifecycle != nil {
+		deps.Lifecycle.Append(compdef.Hook{
+			OnStop: func(ctx context.Context) error {
+				return obs.flushCtx(ctx)
+			},
+		})
+	}
+
 	// Wire agent-internal logs into the observer via the pkg/util/log tap.
 	// anomaly_detection.logs.enabled is the parent gate; without it,
 	// internal logs are also disabled. anomaly_detection.logs.internal.enabled
 	// defaults to true when unset (explicit false disables it).
-	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
-	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.logs.internal.enabled") || cfg.GetBool("anomaly_detection.logs.internal.enabled")
-
-	const logsProcessingRulesKey = "anomaly_detection.logs.processing_rules"
-	logsRules, err := logsfilter.LoadRules(cfg, logsProcessingRulesKey)
-	if err != nil {
-		logging.Warnf("%s: invalid rules, proceeding without log filtering: %v", logsProcessingRulesKey, err)
-		logsRules = &logsfilter.Rules{}
-	}
-
 	if (observerRequired || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		minSeverity := cfg.GetString("anomaly_detection.logs.internal.min_severity")
-		maxRateHigh := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_high_priority")
-		maxRateMedium := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_medium_priority")
-		maxRateLow := cfg.GetFloat64("anomaly_detection.logs.internal.max_rate_low_priority")
-		logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.internal.min_severity", minSeverity)
-		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.internal", maxRateLow, maxRateMedium, maxRateHigh)
 		agentLogsHandle := obs.GetHandle("agent_logs")
-		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
-			obsTelemetry.recordInputRateLimiterDropped("internal", priority)
-		}, logsRules)
+		agentLogTap := installAgentLogTap(agentLogsHandle, minSeverity, func(count uint64) {
+			obsTelemetry.recordObservationsDropped("logs", "internal", count)
+		})
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
-				pkglog.SetLogObserver(nil)
+				agentLogTap.stop()
 				return nil
 			},
 		})
@@ -453,10 +624,20 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		return storageCfg
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.max_series") {
-		storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		configuredMaxSeries := cfg.GetInt("anomaly_detection.storage.max_series")
+		if configuredMaxSeries <= 0 {
+			logging.Warnf("anomaly_detection.storage.max_series must be > 0, got %d; using default %d", configuredMaxSeries, storageCfg.MaxSeries)
+		} else {
+			storageCfg.MaxSeries = configuredMaxSeries
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
-		storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		configuredRatio := cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		if math.IsNaN(configuredRatio) || configuredRatio < 0 || configuredRatio >= 1 {
+			logging.Warnf("anomaly_detection.storage.eviction_floor_ratio must be >= 0 and < 1, got %g; using default %g", configuredRatio, storageCfg.EvictionFloorRatio)
+		} else {
+			storageCfg.EvictionFloorRatio = configuredRatio
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
 		configuredRetention := cfg.GetDuration("anomaly_detection.storage.point_retention")
@@ -520,6 +701,9 @@ type observerImpl struct {
 	// unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
 	metricFilter         *metricsFilterRules
+	logFilter            *logAdmissionFilter
+	recorder             recorderdef.Component
+	skipAnalysis         bool
 
 	// replayMu serialises engine access between the run() dispatch loop and
 	// the testbench's direct-ingest path (IngestLogForReplay, IngestMetricSync).
@@ -532,21 +716,74 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
+	// One generator per dispatch goroutine; its scratch space is not thread-safe.
+	keyGenerator := NewSliceKeyGenerator()
 	for obs := range o.obsCh {
 		if obs.flush != nil {
 			close(obs.flush)
 			continue
 		}
+		var metric *metricObs
+		if obs.hasMetric {
+			decision := prepareMetricHandoff(obs.source, obs.metric, o.metricFilter, keyGenerator)
+			if decision.metric == nil {
+				if o.telemetry != nil && decision.source != "" {
+					o.telemetry.recordFilteredMetric(decision.source)
+				}
+				continue
+			}
+			obs.source = decision.source
+			metric = decision.metric
+			if o.telemetry != nil {
+				o.telemetry.recordMetricAccepted(decision.source)
+			}
+		}
+
+		if obs.log != nil {
+			logSource := obs.log.logSource
+			if logSource == "" {
+				logSource = classifyLogSource(obs.source, obs.log.tags)
+			}
+			admitted, rejectReason := o.logFilter.admit(obs.log)
+			if !admitted {
+				if o.telemetry != nil {
+					if rejectReason == "filtered" {
+						o.telemetry.recordFilteredLog()
+					} else if rejectReason != "" {
+						o.telemetry.recordInputRateLimiterDropped(logSource, rejectReason)
+					}
+					o.telemetry.decrementLogsInFlight(logSource)
+				}
+				continue
+			}
+			if o.telemetry != nil {
+				o.telemetry.recordLogAccepted(logSource, len(obs.log.content))
+			}
+			if o.recorder != nil {
+				o.recorder.RecordLog(obs.source, obs.log)
+			}
+			if o.skipAnalysis {
+				if o.telemetry != nil {
+					o.telemetry.decrementLogsInFlight(logSource)
+				}
+				continue
+			}
+		}
+
 		o.replayMu.Lock()
 		var requests []advanceRequest
-		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
+		if metric != nil {
+			requests = o.engine.IngestMetric(obs.source, metric)
 		}
 		if obs.log != nil {
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
 			requests = append(requests, logRequests...)
 			if o.telemetry != nil {
-				o.telemetry.decrementLogsInFlight(classifyLogSource(obs.source, obs.log.tags))
+				logSource := obs.log.logSource
+				if logSource == "" {
+					logSource = classifyLogSource(obs.source, obs.log.tags)
+				}
+				o.telemetry.decrementLogsInFlight(logSource)
 			}
 		}
 		for _, req := range requests {
@@ -699,6 +936,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 				result.Anomalies[j].Source = observerdef.SeriesDescriptor{
 					Namespace: series.Namespace,
 					Name:      series.Name,
+					Host:      series.Host,
 					Tags:      series.Tags,
 					Aggregate: agg,
 				}
@@ -719,7 +957,8 @@ func aggSuffix(agg observerdef.Aggregate) string {
 	return observerdef.AggregateString(agg)
 }
 
-// RawAnomalies returns a copy of currently tracked raw anomalies.
+// RawAnomalies returns replay/debug history when anomaly history is enabled.
+// Live production mode returns an empty slice.
 func (o *observerImpl) RawAnomalies() []observerdef.Anomaly {
 	return o.engine.RawAnomalies()
 }
@@ -735,7 +974,7 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 }
 
 // GetHandle returns a lightweight handle for a named source.
-// If a recorder is configured, the handle will be wrapped to record metrics.
+// If a recorder is configured, the handle will be wrapped to record observations.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 	logging.Infof("getting handle for %s", name)
 	return o.handleFunc(name)
@@ -746,7 +985,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter}
+	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter, logFilter: o.logFilter}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -764,32 +1003,41 @@ type metricDropHandle struct{ inner observerdef.Handle }
 
 var _ observerdef.Handle = (*metricDropHandle)(nil)
 
-func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
-func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
+func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
+func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)               { m.inner.ObserveLog(msg) }
+
+// ObserveMetricAndReportDrop reports a metric suppressed by configuration.
+func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
 	return true
 }
-func (m *metricDropHandle) ObserveLog(msg observerdef.LogView) { m.inner.ObserveLog(msg) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
-func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
+func (o *observerImpl) noopHandle(name string) observerdef.Handle {
+	if o.recorder != nil {
+		return &noopObserveHandle{
+			logHandle: &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, logFilter: o.logFilter},
+		}
+	}
 	return &noopObserveHandle{}
 }
 
 // noopObserveHandle discards all observations.
-type noopObserveHandle struct{}
-
-func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
-func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
-	return false
+type noopObserveHandle struct {
+	logHandle *handle
 }
-func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
-// RecordSamplerDropped increments the observer input-rate-limiter drop counter.
-func (o *observerImpl) RecordSamplerDropped(source, priority string) {
-	if o.telemetry != nil {
-		o.telemetry.recordInputRateLimiterDropped(source, priority)
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
+func (h *noopObserveHandle) ObserveLog(msg observerdef.LogView) {
+	if h.logHandle != nil {
+		h.logHandle.ObserveLog(msg)
 	}
+}
+
+// ObserveMetricAndReportDrop reports that the disabled analysis handle does not
+// drop observations through backpressure.
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
+	return false
 }
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
@@ -850,9 +1098,22 @@ func (o *observerImpl) CatalogEntries() []CatalogEntry {
 // Flush blocks until all observations currently queued in the dispatch channel
 // have been processed by the engine. Implements DebugView.
 func (o *observerImpl) Flush() {
+	_ = o.flushCtx(context.Background())
+}
+
+func (o *observerImpl) flushCtx(ctx context.Context) error {
 	done := make(chan struct{})
-	o.obsCh <- observation{flush: done}
-	<-done
+	select {
+	case o.obsCh <- observation{flush: done}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
@@ -1049,6 +1310,7 @@ func (o *observerImpl) FinishReplayStream() {
 
 func logObsFromView(msg observerdef.LogView) *logObs {
 	return &logObs{
+		source:      msg.GetSource(),
 		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.Tags()),
@@ -1069,42 +1331,101 @@ type metricIngestDecision struct {
 	metric *metricObs
 }
 
-func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
+func prepareMetricIngest(source string, contextKey uint64, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
+	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
-	precheck := filter.precheck(name, normalizedSource)
+	metricType := sample.GetMetricType()
+	if !filter.isMetricTypeAllowed(metricType) {
+		return metricIngestDecision{source: normalizedSource}
+	}
+	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
-
-	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
-	// storage, and downstream Add calls hit the tagsSorted fast path.
-	tags := canonicalizeTags(sample.GetRawTags())
-	if filter.isMuted(name, normalizedSource, tags) ||
-		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
+	if contextKey != 0 && filter.isMutedWithKey(normalizedSource, storageKeyForContextKey(normalizedSource, contextKey)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
+	return prepareMetricAfterPrecheck(
+		normalizedSource,
+		name,
+		sample.GetValue(),
+		metricType,
+		host,
+		sample.GetTags(),
+		sample.GetTimestampUnix(),
+		precheck,
+		contextKey,
+		nil, // Synchronous replay supplies its own context key.
+		filter,
+	)
+}
 
-	timestamp := sample.GetTimestampUnix()
+func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter *metricsFilterRules, keyGenerator *SliceKeyGenerator) metricIngestDecision {
+	return prepareMetricAfterPrecheck(
+		normalizedSource,
+		sample.name,
+		sample.value,
+		sample.metricType,
+		sample.host,
+		sample.tags,
+		sample.timestamp,
+		sample.precheck,
+		sample.contextKey,
+		keyGenerator,
+		filter,
+	)
+}
+
+func prepareMetricAfterPrecheck(
+	source string,
+	name string,
+	value float64,
+	metricType metrics.MetricType,
+	host string,
+	resolvedTags tagset.CompositeTags,
+	timestamp int64,
+	precheck metricFilterPrecheck,
+	contextKey uint64,
+	keyGenerator *SliceKeyGenerator,
+	filter *metricsFilterRules,
+) metricIngestDecision {
+	if precheck.needsTags && !filter.isAllowedByRulesFromWithHostComposite(name, source, host, resolvedTags, precheck.firstCandidate) {
+		return metricIngestDecision{source: source}
+	}
+	if contextKey == 0 {
+		// No pipeline key: derive it from the resolved metric identity.
+		if keyGenerator == nil {
+			keyGenerator = NewSliceKeyGenerator()
+		}
+		contextKey = uint64(keyGenerator.GenerateComposite(name, host, resolvedTags))
+	}
+	seriesKey := storageKeyForContextKey(source, contextKey)
+	if filter.isMutedWithKey(source, seriesKey) {
+		return metricIngestDecision{source: source}
+	}
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
+
 	return metricIngestDecision{
-		source: normalizedSource,
+		source: source,
 		metric: &metricObs{
-			name:      name,
-			value:     sample.GetValue(),
-			tags:      tags,
-			timestamp: timestamp,
+			name:       name,
+			value:      value,
+			metricType: metricType,
+			host:       host,
+			tags:       resolvedTags,
+			timestamp:  timestamp,
+			storageKey: seriesKey,
 		},
 	}
 }
 
-// IngestMetricSync feeds a metric directly into the engine, bypassing the
-// dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
-// the non-blocking channel send. Implements DebugView.
-func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
-	decision := prepareMetricIngest(source, sample, o.metricFilter)
+// IngestMetricSync feeds a metric directly into the engine,
+// bypassing the dispatch channel. Implements DebugView.
+func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView, contextKey uint64) {
+	decision := prepareMetricIngest(source, contextKey, sample, o.metricFilter)
 	if decision.metric == nil {
 		if o.telemetry != nil && decision.source != "" {
 			o.telemetry.recordFilteredMetric(decision.source)
@@ -1128,55 +1449,69 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 }
 
 // handle is the lightweight observation interface passed to other components.
-// It only holds a channel and source name - all processing happens in the observer.
+// It rejects metrics using only name, source, and host before enqueueing them;
+// tag-dependent filtering and all other processing happen in the observer.
 type handle struct {
 	ch        chan<- observation
 	source    string
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
 	filter    *metricsFilterRules
+	logFilter *logAdmissionFilter
 
-	// The overwhelmingly common filtered-metric source for a handle is its
-	// source. Bind that Prometheus counter lazily to avoid a label lookup and a
-	// variadic allocation for every rejected metric.
+	// Cache the common source's bound counter so rejecting high-volume metrics
+	// does not add an allocation to the producer path.
 	filteredMetricOnce   sync.Once
 	filteredMetricSource string
 	filteredMetric       telemetry.SimpleCounter
 }
 
-// ObserveMetric observes a DogStatsD metric sample.
-func (h *handle) ObserveMetric(sample observerdef.MetricView) {
-	_ = h.ObserveMetricAndReportDrop(sample)
+// ObserveMetric observes a metric with its metrics-pipeline context key, or
+// requests key derivation on the preprocessing goroutine when contextKey is zero.
+func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKey uint64) {
+	_ = h.observeMetricAndReportDrop(sample, contextKey)
 }
 
-// ObserveMetricAndReportDrop observes a metric and reports whether this
-// specific call was dropped by observer backpressure (channel full).
-// Metrics rejected by processing rules are counted via telemetry but do not
-// report a channel drop.
-func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	decision := prepareMetricIngest(h.source, sample, h.filter)
-	if decision.metric == nil {
-		if h.telemetry != nil && decision.source != "" {
-			h.recordFilteredMetric(decision.source)
+// ObserveMetricAndReportDrop forwards once and reports a backpressure drop.
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView, contextKey uint64) bool {
+	return h.observeMetricAndReportDrop(sample, contextKey)
+}
+
+// observeMetricAndReportDrop reports whether this call was dropped by observer
+// backpressure. Tag-dependent filtering happens after enqueueing.
+func (h *handle) observeMetricAndReportDrop(sample observerdef.MetricView, contextKey uint64) bool {
+	name := sample.GetName()
+	host := sample.GetHost()
+	source := normalizeMetricSource(name, h.source)
+	if !h.filter.isMetricTypeAllowed(sample.GetMetricType()) {
+		if h.telemetry != nil {
+			h.recordFilteredMetric(source)
 		}
 		return false
 	}
+	precheck := h.filter.precheck(name, source, host)
+	if precheck.reject {
+		if h.telemetry != nil {
+			h.recordFilteredMetric(source)
+		}
+		return false
+	}
+
+	metric := newMetricHandoff(sample, name, host, precheck, contextKey)
 	obs := observation{
-		source: decision.source,
-		metric: decision.metric,
+		source:    source,
+		metric:    metric,
+		hasMetric: true,
 	}
 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
-		if h.telemetry != nil {
-			h.telemetry.recordMetricAccepted(decision.source)
-		}
 		return false
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
-			h.telemetry.recordObservationDropped("metrics", decision.source)
+			h.telemetry.recordObservationDropped("metrics", source)
 		}
 		return true
 	}
@@ -1193,20 +1528,50 @@ func (h *handle) recordFilteredMetric(source string) {
 	}
 
 	// datadog.* metrics are normalized to the agent namespace, rather than the
-	// source that created this handle. That path is uncommon, so retain the
-	// generic lookup to keep telemetry labels correct.
+	// source that created this handle. Keep the generic lookup for that uncommon
+	// alternate label value.
 	h.telemetry.recordFilteredMetric(source)
 }
 
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
+	rawSource := msg.GetSource()
+	if h.logFilter != nil && !h.logFilter.mayAllowSource(rawSource) {
+		if h.telemetry != nil {
+			h.telemetry.recordFilteredLog()
+		}
+		return
+	}
+
+	status := msg.GetStatus()
+	bucket := logsfilter.BucketForStatus(status)
+	var rawTags []string
+	hasRawTags := false
+	logSource := classifyLogSourceByOrigin(h.source, rawSource)
+	if logSource == "" {
+		if h.logFilter != nil && h.logFilter.kubelet.minBucket == h.logFilter.containers.minBucket && bucket < h.logFilter.containers.minBucket {
+			return
+		}
+		rawTags = msg.Tags()
+		hasRawTags = true
+		logSource = classifyLogSource(h.source, rawTags)
+	}
+	if h.logFilter != nil && bucket < h.logFilter.minBucketForSource(logSource) {
+		return
+	}
+	if !hasRawTags {
+		rawTags = msg.Tags()
+	}
+
+	admissionTime := time.Now()
 	// Use provided timestampMs if available, otherwise use current time
 	timestampMs := msg.GetTimestampUnixMilli()
-	tags := copyTags(msg.Tags())
+	if timestampMs == 0 {
+		timestampMs = admissionTime.UnixMilli()
+	}
+	tags := copyTags(rawTags)
 	content := msg.GetContent()
-	logSource := ""
 	if h.telemetry != nil {
-		logSource = classifyLogSource(h.source, tags)
 		// Increment before enqueue to avoid a race where the consumer dequeues and
 		// decrements to zero before this producer increments.
 		h.telemetry.incrementLogsInFlight(logSource)
@@ -1215,20 +1580,20 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     content,
-			status:      msg.GetStatus(),
-			tags:        tags,
-			hostname:    msg.GetHostname(),
-			timestampMs: timestampMs,
+			source:        rawSource,
+			logSource:     logSource,
+			content:       content,
+			status:        status,
+			tags:          tags,
+			hostname:      msg.GetHostname(),
+			timestampMs:   timestampMs,
+			admissionTime: admissionTime,
 		},
 	}
 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
-		if h.telemetry != nil {
-			h.telemetry.recordLogAccepted(logSource, len(content))
-		}
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
@@ -1238,14 +1603,3 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		}
 	}
 }
-
-// logView wraps logObs to implement LogView interface.
-type logView struct {
-	obs *logObs
-}
-
-func (v *logView) GetContent() string           { return v.obs.content }
-func (v *logView) GetStatus() string            { return v.obs.status }
-func (v *logView) Tags() []string               { return v.obs.tags }
-func (v *logView) GetHostname() string          { return v.obs.hostname }
-func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }

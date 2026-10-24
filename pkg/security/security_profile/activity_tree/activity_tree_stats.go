@@ -28,6 +28,7 @@ type Stats struct {
 	IMDSNodes       int64
 	SyscallNodes    int64
 	FlowNodes       int64
+	ConnectNodes    int64
 	CapabilityNodes int64
 	SizeBytes       int64
 
@@ -78,6 +79,7 @@ func (stats *Stats) ApproximateSize() int64 {
 	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
 	total += stats.SyscallNodes * int64(unsafe.Sizeof(SyscallNode{}))
 	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
+	total += stats.ConnectNodes * int64(unsafe.Sizeof(ConnectNode{}))
 	total += stats.CapabilityNodes * int64(unsafe.Sizeof(CapabilityNode{}))
 	return total
 }

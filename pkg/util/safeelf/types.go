@@ -58,6 +58,7 @@ const PF_R = elf.PF_R
 const STB_GLOBAL = elf.STB_GLOBAL
 const STB_WEAK = elf.STB_WEAK
 const STT_OBJECT = elf.STT_OBJECT
+const STT_SECTION = elf.STT_SECTION
 const STT_FUNC = elf.STT_FUNC
 const STT_FILE = elf.STT_FILE
 const SHN_UNDEF = elf.SHN_UNDEF
@@ -68,6 +69,8 @@ const SHN_ABS = elf.SHN_ABS
 const SHN_COMMON = elf.SHN_COMMON
 
 const SHF_COMPRESSED = elf.SHF_COMPRESSED
+const SHF_MERGE = elf.SHF_MERGE
+const SHF_STRINGS = elf.SHF_STRINGS
 
 func ST_TYPE(info uint8) SymType { return elf.ST_TYPE(info) }
 func ST_BIND(info uint8) SymBind { return elf.ST_BIND(info) }

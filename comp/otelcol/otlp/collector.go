@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -87,7 +88,7 @@ func getComponents(
 	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, hostname.Get, store),
+		serializerexporter.NewFactoryForAgent(s, hostname.Get, hosttags.NewHostTagProvider().GetHostTags, store),
 		debugexporter.NewFactory(),
 	}
 
@@ -151,6 +152,11 @@ type PipelineConfig struct {
 	// `ddtags` log record attribute (real Datadog log tags) instead of resource
 	// attributes (log attributes) for the Logs pipeline.
 	LogsTagsAsDDTags bool
+	// MetricsInfraAttrsAsTags controls whether the InfraAttributes processor promotes
+	// custom tags (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they
+	// survive the metrics translator's allowlist and become metric tags for the Metrics
+	// pipeline. Without it, custom tags that are not known DD/OTel conventions are dropped.
+	MetricsInfraAttrsAsTags bool
 	// Logs contains configuration options for the logs
 	Logs map[string]interface{}
 	// Debug contains debug configurations.

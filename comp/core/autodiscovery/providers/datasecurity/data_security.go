@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // TODO(dsec-215): mutualize code principles with datastreams/kafka_actions.go.
@@ -34,6 +35,10 @@ const (
 	postgresPlatform        = "postgres"
 	// defaultPostgresPort is used when the matched instance omits the port.
 	defaultPostgresPort = 5432
+	// ssl modes kept as is when `data_security.enforce_ssl` is set; weaker ones are elevated to sslRequire.
+	sslRequire    = "require"
+	sslVerifyCA   = "verify-ca"
+	sslVerifyFull = "verify-full"
 	// rcSubscriptionRetryInterval is how often we re-check for a postgres integration.
 	rcSubscriptionRetryInterval = 10 * time.Second
 )
@@ -58,14 +63,19 @@ type controller struct {
 
 	// scheduledByPath holds the config scheduled per RC path: at most one task per path.
 	scheduledByPath map[string]integration.Config
+
+	// enforceSSL elevates weak postgres ssl modes to require (`data_security.enforce_ssl`).
+	enforceSSL bool
 }
 
 // NewController creates a Data Security controller. Only call it when both `data_security.enabled`
 // and `shared_library_check.enabled` are set (see configUtils.IsDataSecurityEnabled).
-func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
+// enforceSSL is the value of `data_security.enforce_ssl`.
+func NewController(ac autodiscovery.Component, rcclient rcclient.Component, enforceSSL bool) types.ConfigProvider {
 	c := &controller{
-		ac:       ac,
-		rcclient: rcclient,
+		ac:         ac,
+		rcclient:   rcclient,
+		enforceSSL: enforceSSL,
 		// TODO(dsec-198): include backpressure to avoid blocking indefinitely
 		configChanges:   make(chan integration.ConfigChanges, 10),
 		scheduledByPath: make(map[string]integration.Config),
@@ -137,6 +147,15 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 // update translates each RC scan task into a datasecurity check instance and schedules it.
 func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	changes := integration.ConfigChanges{}
+
+	// RC delivers the full set of active tasks: a path we scheduled but no longer receive was deleted.
+	for path, prev := range c.scheduledByPath {
+		if _, ok := updates[path]; !ok {
+			changes.Unschedule = append(changes.Unschedule, prev)
+			delete(c.scheduledByPath, path)
+		}
+	}
+
 	for path, rawConfig := range updates {
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
@@ -169,7 +188,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
-	if len(changes.Schedule) == 0 {
+	if len(changes.Schedule) == 0 && len(changes.Unschedule) == 0 {
 		return
 	}
 
@@ -211,8 +230,7 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 		})
 	}
 
-	// JSON is valid YAML (parsed by the check's serde_yaml) and emits the scanning_rule (json.RawMessage) as-is.
-	return json.Marshal(inst)
+	return inst.toYAML()
 }
 
 // resolvePostgresConnection builds the scan connection from the local postgres instance
@@ -229,7 +247,7 @@ func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 				continue
 			}
 			if matchesHost(instance, e.DatabaseHostName) {
-				return buildPostgresConnection(instance, e), nil
+				return buildPostgresConnection(instance, e, c.enforceSSL)
 			}
 		}
 	}
@@ -240,7 +258,7 @@ func (c *controller) resolvePostgresConnection(e entity) (connection, error) {
 // matchesHost reports whether a postgres instance targets the given host: an exact match
 // or the "host:port" form some backends send.
 func matchesHost(instance map[string]any, targetHost string) bool {
-	host, _ := instance["host"].(string)
+	host := instanceString(instance, "host")
 	if host == targetHost {
 		return true
 	}
@@ -251,21 +269,52 @@ func matchesHost(instance map[string]any, targetHost string) bool {
 }
 
 // buildPostgresConnection copies credentials from the matched instance and targets the entity's database.
-func buildPostgresConnection(instance map[string]any, e entity) connection {
-	host, _ := instance["host"].(string)
-	username, _ := instance["username"].(string)
-	password, _ := instance["password"].(string)
+func buildPostgresConnection(instance map[string]any, e entity, enforceSSL bool) (connection, error) {
 	port, ok := instancePort(instance)
 	if !ok {
 		port = defaultPostgresPort
 	}
-	return connection{
-		Host:     host,
-		Port:     port,
-		DBName:   e.Database,
-		Username: username,
-		Password: password,
+	host := instanceString(instance, "host")
+	sslMode, err := postgresSSLMode(instance, host, enforceSSL)
+	if err != nil {
+		return connection{}, err
 	}
+	return connection{
+		Host:        host,
+		Port:        port,
+		DBName:      e.Database,
+		Username:    instanceString(instance, "username"),
+		Password:    instanceString(instance, "password"),
+		SSLMode:     sslMode,
+		SSLRootCert: instanceString(instance, "ssl_root_cert"),
+		SSLCert:     instanceString(instance, "ssl_cert"),
+		SSLKey:      instanceString(instance, "ssl_key"),
+		SSLPassword: instanceString(instance, "ssl_password"),
+	}, nil
+}
+
+// postgresSSLMode returns the ssl mode to scan with. When enforcing, anything weaker than
+// `require` (including unset or invalid) is elevated to it, and Unix sockets (no TLS) are rejected.
+func postgresSSLMode(instance map[string]any, host string, enforceSSL bool) (string, error) {
+	// An invalid `ssl` is forwarded as is: like the postgres integration, the Rust check falls back to `allow`.
+	mode := instanceString(instance, "ssl")
+	if !enforceSSL {
+		return mode, nil
+	}
+	if strings.HasPrefix(host, "/") {
+		return "", fmt.Errorf("postgres host %q is a Unix socket, which cannot be encrypted (data_security.enforce_ssl is set)", host)
+	}
+	switch mode {
+	case sslRequire, sslVerifyCA, sslVerifyFull:
+		return mode, nil
+	}
+	log.Infof("data_security.enforce_ssl enabled: elevating postgres ssl mode %q to %q for host %q", mode, sslRequire, host)
+	return sslRequire, nil
+}
+
+func instanceString(instance map[string]any, key string) string {
+	value, _ := instance[key].(string)
+	return value
 }
 
 // instancePort returns the instance port, handling the numeric types YAML/JSON can produce

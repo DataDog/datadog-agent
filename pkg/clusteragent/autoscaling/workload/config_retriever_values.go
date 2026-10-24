@@ -296,6 +296,15 @@ func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.Wor
 				}
 			}
 
+			if containerResources.Runtime != nil && containerResources.Runtime.Gomemlimit != "" {
+				if err := model.ValidateGoMemLimit(containerResources.Runtime.Gomemlimit); err != nil {
+					return nil, fmt.Errorf("container %s: %w", containerResources.ContainerName, err)
+				}
+				convertedResources.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+					Gomemlimit: containerResources.Runtime.Gomemlimit,
+				}
+			}
+
 			verticalValues.ContainerResources = append(verticalValues.ContainerResources, convertedResources)
 		}
 	}

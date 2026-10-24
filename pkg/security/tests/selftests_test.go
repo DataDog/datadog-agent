@@ -24,15 +24,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var _ = declare(TestSelfTests, testOpts{enableSelfTests: true})
+
 func TestSelfTests(t *testing.T) {
 	SkipIfNotAvailable(t)
 	flake.MarkOnJobName(t, "ubuntu_25.10")
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.msgSender.flush()
 

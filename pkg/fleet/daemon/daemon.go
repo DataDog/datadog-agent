@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -100,6 +101,8 @@ type daemonImpl struct {
 	gcInterval      time.Duration
 	ctx             context.Context
 	cancel          context.CancelFunc
+
+	procmgrCollector procmgrSnapshotCollector
 
 	secretsPubKey, secretsPrivKey *[32]byte
 }
@@ -166,7 +169,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		return nil, fmt.Errorf("could not generate box key: %w", err)
 	}
 
-	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey), nil
+	d := newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey)
+	d.procmgrCollector = coat.NewCLICollector()
+	return d, nil
 }
 
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration, secretsPubKey, secretsPrivKey *[32]byte) *daemonImpl {
@@ -249,7 +254,7 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	if len(d.catalogOverride.Packages) > 0 {
 		catalog = d.catalogOverride
 	}
-	catalogPackage, ok := catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	catalogPackage, ok := catalog.GetPackage(pkg, version, runtime.GOOS, runtime.GOARCH)
 	if !ok {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
@@ -652,7 +657,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		experimentPackage, ok := d.catalog.GetPackage(request.Package, params.Version, runtime.GOOS, runtime.GOARCH)
 		if !ok {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,
@@ -811,6 +816,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningConfigVersions := map[string]string{
 		"datadog-agent": d.env.ConfigID,
 	}
+	var ddotProcessState string
+	if _, ok := configAndPackageStates.States["datadog-agent"]; ok {
+		ddotProcessState = d.ddotProcessState(ctx)
+	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
@@ -822,6 +831,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
+		}
+		if pkg == "datadog-agent" {
+			p.ProcessStates = map[string]string{
+				coat.ServiceIDDDOT: ddotProcessState,
+			}
 		}
 
 		requestState, ok := tasksState[pkg]

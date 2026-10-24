@@ -11,7 +11,7 @@ Go Server (:8080)                 React UI (:5173)
 │ (parquet/logs/demo)  │  HTTP   │ Toggle detectors     │
 │         ↓            │◄───────►│ Browse series tree   │
 │ Run detectors        │  JSON   │ View charts + zoom   │
-│ (BOCPD, RRCF, scans) │         │ Inspect anomalies    │
+│ (BOCPD, scans)       │         │ Inspect anomalies    │
 │         ↓            │         │ Click correlations   │
 │ Detect correlations  │         └──────────────────────┘
 └──────────────────────┘
@@ -56,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173
+Open `http://localhost:5173` in your browser.
 
 ## UI Controls
 

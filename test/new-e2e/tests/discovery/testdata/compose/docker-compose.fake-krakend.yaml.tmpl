@@ -1,0 +1,20 @@
+services:
+  fake-krakend:
+    container_name: fake-krakend
+    # python:3.12-slim is already pulled by the mutatedbyadmissioncontroller
+    # k8s e2e test (test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller/k8s.go)
+    # through the same ${DD_REGISTRY}/dockerhub/library/python ECR pull-through
+    # cache path, so reusing it here avoids warming the cache for a new tag.
+    image: ${DD_REGISTRY:-docker.io}/library/python:3.12-slim
+    command:
+      - sh
+      - -c
+      - |
+        python3 << 'EOF'
+{{.Script}}
+        EOF
+    labels:
+      com.datadoghq.ad.check.id: krakend
+    expose:
+      - "9090"
+      - "9091"

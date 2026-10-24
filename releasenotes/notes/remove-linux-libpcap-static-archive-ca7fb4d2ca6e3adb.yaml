@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    Linux Agent packages no longer include the static archive
+    ``/opt/datadog-agent/embedded/lib/libpcap.a``. This affects users whose
+    custom integrations or build scripts link directly against that archive.
+    Before upgrading, check for references to this path and instead install the
+    platform's libpcap development package or provide a separate libpcap build.
+    The libpcap headers under ``/opt/datadog-agent/embedded/include`` remain
+    available.

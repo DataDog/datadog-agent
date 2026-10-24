@@ -18,6 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CheckAgentFlavor is only required on Windows.
+func (s *Setup) CheckAgentFlavor() error {
+	return nil
+}
+
 func (s *Setup) postInstallPackages() (err error) {
 	s.addAgentToAdditionalGroups()
 

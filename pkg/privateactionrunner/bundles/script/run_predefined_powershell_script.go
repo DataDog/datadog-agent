@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
+	workflowjsonschema "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -138,7 +139,7 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 	}
 
 	if config.ParameterSchema != nil {
-		if err := validateParameters(parameters, config.ParameterSchema); err != nil {
+		if err := workflowjsonschema.ValidateParameters(config.ParameterSchema, parameters); err != nil {
 			return nil, err
 		}
 	}

@@ -346,6 +346,38 @@ func TestServicesDiffer(t *testing.T) {
 			},
 			result: false,
 		},
+		"Add non-standard label": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Labels: map[string]string{
+						"team": "container-platform",
+					},
+				},
+			},
+			result: true,
+		},
+		"Add non-AD annotation": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Annotations: map[string]string{
+						"team": "container-platform",
+					},
+				},
+			},
+			result: true,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.result, servicesDiffer(tc.first, tc.second))

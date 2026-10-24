@@ -37,8 +37,8 @@ run_binary(
     srcs = ["//:go.mod"],
     outs = ["agent_payload_version.bzl.gen"],
     args = [
-        "$(location //:go.mod)",
-        "$(location agent_payload_version.bzl.gen)",
+        "$(execpath //:go.mod)",
+        "$(execpath agent_payload_version.bzl.gen)",
     ],
     tool = ":get_payload_version_tool",
 )

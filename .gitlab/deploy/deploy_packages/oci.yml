@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/container_publish_job_templates.yml
-
 .deploy_packages_oci:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64", "specific:true"]
@@ -29,21 +26,21 @@ include:
 
 deploy_agent_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "agent_oci", "go_tools_deps"]
+  needs: [ "setup_agent_version", "agent_oci", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
     S3_PACKAGE: "agent-package"
 
 deploy_installer_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "installer_oci", "go_tools_deps" ]
+  needs: [ "setup_agent_version", "installer_oci", "go_tools_deps" ]
   variables:
     OCI_PRODUCT: "datadog-installer"
     S3_PACKAGE: "installer-package"
 
 deploy_ddot_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "ddot_oci", "go_tools_deps" ]
+  needs: [ "setup_agent_version", "ddot_oci", "go_tools_deps" ]
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
     S3_PACKAGE: "ddot-package"

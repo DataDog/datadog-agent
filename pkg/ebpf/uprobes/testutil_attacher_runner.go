@@ -270,8 +270,9 @@ func (r *FmapperRunner) GetTargetPid(_ *testing.T) int {
 
 // Stop terminates the target process
 func (r *FmapperRunner) Stop(t *testing.T) {
-	err := r.cmd.Process.Kill()
-	require.NoError(t, err, "failed to kill fmapper")
+	require.NoError(t, r.cmd.Process.Kill(), "failed to kill fmapper")
+	_, err := r.cmd.Process.Wait()
+	require.NoError(t, err, "failed to wait for fmapper to exit")
 }
 
 // SameProcessAttacherRunner runs the attacher in the same process as the caller code
@@ -368,6 +369,8 @@ func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName Attac
 		ebpfCfg.KernelHeadersDownloadDir: ebpfCfg.KernelHeadersDownloadDir,
 		ebpfCfg.RuntimeCompilerOutputDir: ebpfCfg.RuntimeCompilerOutputDir,
 		ebpfCfg.BTFOutputDir:             ebpfCfg.BTFOutputDir,
+		"/usr/src":                       "/usr/src",             // for system kernel headers
+		"/lib/modules":                   "/lib/modules",         // for system kernel headers
 		"/etc/os-release":                "/host/etc/os-release", // for correct BTF detection
 		"/sys":                           "/sys",
 		"/proc":                          "/host/proc",

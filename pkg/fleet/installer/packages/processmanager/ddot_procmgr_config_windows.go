@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -46,9 +45,7 @@ func WriteDDOTProcmgrConfig(installRootResolved string) error {
 	log.Debugf("DDOT processes.d: template replace __DDOT_INSTALL_ROOT__=%q __DDOT_ETC_ROOT__=%q",
 		installRootRepl, etcRootRepl)
 
-	config := embedded.DDOTWindowsProcmgrConfig
-	config = strings.ReplaceAll(config, "__DDOT_INSTALL_ROOT__", installRootRepl)
-	config = strings.ReplaceAll(config, "__DDOT_ETC_ROOT__", etcRootRepl)
+	config := substituteProcmgrYAMLPlaceholders(embedded.DDOTWindowsProcmgrConfig, "DDOT", installRootResolved, paths.DatadogDataDir)
 
 	path := filepath.Join(processesDir, ddotProcmgrConfigFileName)
 	log.Debugf("DDOT processes.d: writing %q", path)

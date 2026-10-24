@@ -5,10 +5,16 @@ dd_agent_go_test(
     srcs = [
         "apmtags_test.go",
         "apmtags_testdefs_test.go",
+        "assets_test.go",
         "sysprobe_test.go",
     ],
     data = ["fixtures/system-probe.yaml"],
-    embedsrcs = ["fixtures/system-probe.yaml"],
+    embedsrcs = [
+        "assets/iisstart.htm",
+        "assets/iisstart.png",
+        "fixtures/system-probe.yaml",
+    ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2/windows",

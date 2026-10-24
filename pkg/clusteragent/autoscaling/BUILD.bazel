@@ -32,7 +32,6 @@ go_library(
         "@io_k8s_apimachinery//pkg/labels",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
-        "@io_k8s_apimachinery//pkg/util/dump",
         "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//dynamic/dynamicinformer",
         "@io_k8s_client_go//dynamic/fake",
@@ -40,6 +39,7 @@ go_library(
         "@io_k8s_client_go//testing",
         "@io_k8s_client_go//tools/cache",
         "@io_k8s_client_go//util/workqueue",
+        "@io_k8s_utils//dump",
     ],
 )
 
@@ -52,7 +52,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [

@@ -23,9 +23,11 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // TestIsInPlaceResizeSupportedConcurrent reproduces the scenario that raced in
@@ -168,6 +170,7 @@ func TestShouldTriggerRollout_Complete(t *testing.T) {
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionComplete, decision)
@@ -202,6 +205,7 @@ func TestShouldTriggerRollout_AlreadyTriggered(t *testing.T) {
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionWait, decision)
@@ -235,6 +239,7 @@ func TestShouldTriggerRollout_NewRecommendationNoRollout(t *testing.T) {
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionTrigger, decision)
@@ -265,6 +270,7 @@ func TestShouldTriggerRollout_OngoingRolloutNoBypass(t *testing.T) {
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionWait, decision)
@@ -315,6 +321,7 @@ func TestShouldTriggerRollout_BypassAllowed(t *testing.T) {
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionTrigger, decision)
@@ -366,6 +373,7 @@ func TestShouldTriggerRollout_BypassRateLimited(t *testing.T) {
 		currentTime,
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionWait, decision)
@@ -393,6 +401,7 @@ func TestShouldTriggerRollout_FirstTriggerNoLastAction(t *testing.T) {
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	assert.Equal(t, rolloutDecisionTrigger, decision)
@@ -455,6 +464,7 @@ func TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout(t *testi
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
+		false, // not forced resources
 	)
 
 	// Must trigger: removeLimitSentinel (-1) means CPU limit is removed (unlimited > 500m = limit increase)
@@ -1120,4 +1130,205 @@ func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
 			"toggling burstable must change the recommendationID so the vertical controller "+
 				"detects that pods carry a stale hash and triggers a rollout to restore CPU limits")
 	})
+}
+
+func podWithRuntimeValuesAnnotation(containerName string, rv datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues) *workloadmeta.KubernetesPod {
+	hash, _ := computeRuntimeRecommendationID([]datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		{Name: containerName, Runtime: &rv},
+	})
+	return &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{model.RuntimeRecommendationIDAnnotation: hash},
+		},
+	}
+}
+
+func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
+	// Enable in-place vertical scaling so that the flag-based early-return does not interfere.
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+
+	svWithRuntimeValues := func(rv datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues) model.ScalingValues {
+		return model.ScalingValues{Vertical: &model.VerticalScalingValues{
+			ResourcesHash: "hash",
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "app", Runtime: &rv},
+			},
+		}}
+	}
+	buildAI := func(sv model.ScalingValues) model.PodAutoscalerInternal {
+		return (&model.FakePodAutoscalerInternal{Namespace: "default", Name: "ai", ScalingValues: sv}).Build()
+	}
+
+	t.Run("no runtime values — no rollout", func(t *testing.T) {
+		sv := model.ScalingValues{Vertical: &model.VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{Name: "app"}},
+		}}
+		ai := buildAI(sv)
+		assert.False(t, isRolloutRequired(&ai, nil))
+	})
+
+	t.Run("runtime values — no pods — rollout forced", func(t *testing.T) {
+		ai := buildAI(svWithRuntimeValues(datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}))
+		assert.True(t, isRolloutRequired(&ai, nil))
+	})
+
+	t.Run("runtime values — pods missing annotation — rollout forced", func(t *testing.T) {
+		ai := buildAI(svWithRuntimeValues(datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}))
+		pods := []*workloadmeta.KubernetesPod{{EntityMeta: workloadmeta.EntityMeta{Annotations: map[string]string{}}}}
+		assert.True(t, isRolloutRequired(&ai, pods))
+	})
+
+	t.Run("runtime values — all pods up to date — no rollout", func(t *testing.T) {
+		rv := datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}
+		ai := buildAI(svWithRuntimeValues(rv))
+		pods := []*workloadmeta.KubernetesPod{
+			podWithRuntimeValuesAnnotation("app", rv),
+			podWithRuntimeValuesAnnotation("app", rv),
+		}
+		assert.False(t, isRolloutRequired(&ai, pods))
+	})
+
+	t.Run("runtime values changed — stale pod — rollout forced", func(t *testing.T) {
+		ai := buildAI(svWithRuntimeValues(datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "512MiB"}))
+		pods := []*workloadmeta.KubernetesPod{
+			podWithRuntimeValuesAnnotation("app", datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "512MiB"}),
+			podWithRuntimeValuesAnnotation("app", datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}), // stale
+		}
+		assert.True(t, isRolloutRequired(&ai, pods))
+	})
+
+	t.Run("runtime values — terminating pods ignored — no rollout", func(t *testing.T) {
+		rv := datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}
+		ai := buildAI(svWithRuntimeValues(rv))
+		deletionTime := metav1.Now()
+		pods := []*workloadmeta.KubernetesPod{
+			podWithRuntimeValuesAnnotation("app", rv),
+			{
+				EntityMeta: workloadmeta.EntityMeta{Annotations: map[string]string{
+					model.RuntimeRecommendationIDAnnotation: "stale-hash",
+				}},
+				DeletionTimestamp: &deletionTime.Time,
+			},
+		}
+		assert.False(t, isRolloutRequired(&ai, pods))
+	})
+}
+
+func TestApplyVerticalConstraints_RuntimeValuesFiltered(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+				Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+			},
+			{
+				Name:     "disabled",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")},
+				Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "128MiB"},
+			},
+		},
+	}
+
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{Name: "disabled", Enabled: pointer.Ptr(false)},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	// "disabled" container (with its Runtime) must be gone from ContainerResources
+	require.Len(t, vertical.ContainerResources, 1)
+	assert.Equal(t, "app", vertical.ContainerResources[0].Name)
+	require.NotNil(t, vertical.ContainerResources[0].Runtime)
+	assert.Equal(t, "256MiB", vertical.ContainerResources[0].Runtime.Gomemlimit)
+
+	// Hash must be recomputed and consistent with the new state
+	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
+	require.NoError(t, err)
+	assert.Equal(t, expectedHash, vertical.ResourcesHash)
+}
+
+// TestGetVerticalPatchingStrategyPaused verifies the vertical gate refuses to act while paused.
+// This is the same gate the admission webhook consults, so it also covers POD patching.
+func TestGetVerticalPatchingStrategyPaused(t *testing.T) {
+	newInternal := func(paused bool) model.PodAutoscalerInternal {
+		pai := model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "dpa-0",
+			Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
+			ScalingValues: model.ScalingValues{
+				Vertical: &model.VerticalScalingValues{
+					Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ResourcesHash: "version1",
+				},
+			},
+		}.Build()
+		if paused {
+			pai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+		}
+		return pai
+	}
+
+	t.Run("auto when not paused", func(t *testing.T) {
+		pai := newInternal(false)
+		strategy, _ := getVerticalPatchingStrategy(&pai)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, strategy)
+	})
+
+	t.Run("disabled when paused", func(t *testing.T) {
+		pai := newInternal(true)
+		strategy, reason := getVerticalPatchingStrategy(&pai)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, strategy)
+		assert.Contains(t, reason, "paused")
+	})
+}
+
+func TestShouldTriggerRollout_ForcedResources(t *testing.T) {
+	now := time.Now()
+	recommendationID := "r1"
+	oldPod := pod("p1", "old", "ReplicaSet", "rs1")
+	cpuLimit := 100.0 // 1 core
+	oldPod.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{CPULimit: &cpuLimit}}}
+	pods := []*workloadmeta.KubernetesPod{oldPod, pod("p2", recommendationID, "ReplicaSet", "rs2")}
+	podsPerRecommendationID := map[string]int32{"old": 1, recommendationID: 1}
+	// A recommendation raising the cpu limit, the other case that may bypass an ongoing rollout.
+	limitIncrease := &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		{Name: "c1", Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
+	}}
+	actionAgo := func(version string, ago time.Duration) *datadoghqcommon.DatadogPodAutoscalerVerticalAction {
+		return &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+			Time:    metav1.NewTime(now.Add(-ago)),
+			Version: version,
+			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
+		}
+	}
+
+	for _, tt := range []struct {
+		name              string
+		lastAction        *datadoghqcommon.DatadogPodAutoscalerVerticalAction
+		rolloutInProgress bool
+		recommendation    *model.VerticalScalingValues
+		forced            bool
+		expected          rolloutDecision
+	}{
+		{name: "a recommendation waits for the ongoing rollout", lastAction: actionAgo("old", 15*time.Minute), rolloutInProgress: true, expected: rolloutDecisionWait},
+		{name: "forced resources bypass the ongoing rollout", lastAction: actionAgo("old", 15*time.Minute), rolloutInProgress: true, forced: true, expected: rolloutDecisionTrigger},
+		{name: "forced resources wait for the delay between rollouts, like a limit increase", lastAction: actionAgo("old", time.Minute), rolloutInProgress: true, forced: true, expected: rolloutDecisionWait},
+		{name: "a limit increase waits for the delay between rollouts", lastAction: actionAgo("old", time.Minute), rolloutInProgress: true, recommendation: limitIncrease, expected: rolloutDecisionWait},
+		{name: "a limit increase bypasses the ongoing rollout after the delay", lastAction: actionAgo("old", 15*time.Minute), rolloutInProgress: true, recommendation: limitIncrease, expected: rolloutDecisionTrigger},
+		{name: "forced resources trigger when no rollout is in progress", forced: true, expected: rolloutDecisionTrigger},
+		{name: "the same recommendation is not triggered twice", lastAction: actionAgo(recommendationID, 15*time.Minute), rolloutInProgress: true, forced: true, expected: rolloutDecisionWait},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := shouldTriggerRollout(recommendationID, pods, podsPerRecommendationID, tt.lastAction, tt.rolloutInProgress, tt.recommendation, now, 10*time.Minute, "test-autoscaler", tt.forced)
+			assert.Equal(t, tt.expected, decision)
+		})
+	}
 }

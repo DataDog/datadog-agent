@@ -119,6 +119,9 @@ func (h *offlinereporterImpl) readLastHeartbeat() {
 
 func (h *offlinereporterImpl) onStart(_ context.Context) error {
 	h.readLastHeartbeat()
+	if err := h.writeNow(); err != nil {
+		h.log.Errorf("offlinereporter: failed to write heartbeat file %q: %v", h.filePath, err)
+	}
 	go h.loop()
 	return nil
 }
@@ -129,9 +132,6 @@ func (h *offlinereporterImpl) writeNow() error {
 }
 
 func (h *offlinereporterImpl) loop() {
-	if err := h.writeNow(); err != nil {
-		h.log.Errorf("offlinereporter: failed to write heartbeat file %q: %v", h.filePath, err)
-	}
 	ticker := time.NewTicker(h.heartbeatInterval)
 	defer ticker.Stop()
 	for {

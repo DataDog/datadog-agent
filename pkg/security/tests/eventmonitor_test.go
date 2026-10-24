@@ -20,6 +20,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ = declareInlineConfig(TestEventMonitor)
+
 func TestEventMonitor(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -34,7 +36,7 @@ func TestEventMonitor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -75,6 +77,8 @@ func TestEventMonitor(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestEventMonitorNoEnvs)
+
 func TestEventMonitorNoEnvs(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -90,7 +94,7 @@ func TestEventMonitorNoEnvs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	lsExecutable := which(t, "ls")
 

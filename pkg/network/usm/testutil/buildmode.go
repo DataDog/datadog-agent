@@ -9,16 +9,34 @@ package testutil
 
 import (
 	"os"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 )
 
-// SupportedBuildModes returns the build modes supported on the current host
+// SupportedBuildModes returns the build modes supported on the current host.
+//
+// Does not include ebpftest.Fentry because callers of this helper live in
+// pkg/network/usm and exercise a USM monitor without constructing a connection tracer.
+//
+// Tests that do build a connection tracer want SupportedBuildModesForConnectionTracer.
 func SupportedBuildModes() []ebpftest.BuildMode {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, ebpftest.Prebuilt)
+	}
+
+	return modes
+}
+
+// SupportedBuildModesForConnectionTracer returns the build modes that tests
+// constructing a connection tracer should exercise: SupportedBuildModes, plus
+// ebpftest.Fentry when the host is eligible for it.
+func SupportedBuildModesForConnectionTracer() []ebpftest.BuildMode {
+	modes := SupportedBuildModes()
+	if slices.Contains(ebpftest.SupportedBuildModes(), ebpftest.Fentry) {
+		modes = append(modes, ebpftest.Fentry)
 	}
 
 	return modes

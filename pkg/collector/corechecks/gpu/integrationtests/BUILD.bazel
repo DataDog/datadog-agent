@@ -3,16 +3,32 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "integrationtests",
-    srcs = ["doc.go"],
+    srcs = [
+        "doc.go",
+        "gpu_burner_helper.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/integrationtests",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "integrationtests_test",
     srcs = [
         "check_test.go",
+        "gpu_burner_test.go",
         "nvml_test.go",
+        "value_validation_test.go",
     ],
     embed = [":integrationtests"],
     gotags_sets = [["nvml"]],
@@ -26,13 +42,13 @@ dd_agent_go_test(
             "//pkg/collector/corechecks/gpu/nvidia",
             "//pkg/collector/corechecks/gpu/spec",
             "//pkg/config/env",
+            "//pkg/config/setup",
             "//pkg/gpu/safenvml",
             "//pkg/gpu/testutil",
             "//pkg/process/util/containers/mocks",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_stretchr_testify//require",
-            "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
         ],
         "@rules_go//go/platform:linux": [
@@ -43,13 +59,13 @@ dd_agent_go_test(
             "//pkg/collector/corechecks/gpu/nvidia",
             "//pkg/collector/corechecks/gpu/spec",
             "//pkg/config/env",
+            "//pkg/config/setup",
             "//pkg/gpu/safenvml",
             "//pkg/gpu/testutil",
             "//pkg/process/util/containers/mocks",
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_stretchr_testify//require",
-            "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
         ],
         "//conditions:default": [],

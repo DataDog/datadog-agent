@@ -4,10 +4,11 @@
 #include "constants/syscall_macro.h"
 #include "helpers/approvers.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_rename(void *ctx, u8 async, const char *oldpath, const char *newpath) {
+static __always_inline int trace__sys_rename(void *ctx, u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
@@ -90,7 +91,11 @@ int hook_vfs_rename(ctx_t *ctx) {
 
     // use src_dentry as target inode is currently empty and the target file will
     // have the src inode anyway
-    set_file_inode(src_dentry, &syscall->rename.target_file, invalidate_type);
+    fill_file_inode(src_dentry, &syscall->rename.target_file);
+
+    // the target file is the src file once renamed, so it has to carry the path id after the invalidation
+    struct path_id_pair_t path_ids = get_path_id_pair(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.metadata.nlink, invalidate_type);
+    syscall->rename.target_file.path_key.path_id = path_ids.after;
 
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
@@ -124,10 +129,9 @@ int hook_vfs_rename(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_RENAME);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
@@ -177,6 +181,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
         resolve_dentry(ctx, prog_type);
     }
 
+pop_and_exit:
     // if the tail call failed we need to pop the syscall cache entry
     pop_syscall(EVENT_RENAME);
     return 0;
@@ -213,8 +218,8 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_rename_exit, struct tracepoint_raw_syscalls_
     return sys_rename_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
     }
@@ -222,32 +227,37 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
-    struct rename_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .old = syscall->rename.src_file,
-        .new = syscall->rename.target_file,
-    };
+    struct rename_event_t *event = SPAN_FILL_EVENT(struct rename_event_t, EVENT_RENAME);
+    if (!event) {
+        goto pop_and_exit;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->old = syscall->rename.src_file;
+    event->new = syscall->rename.target_file;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    pop_syscall(EVENT_RENAME);
 
-    send_event(ctx, EVENT_RENAME, event);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
+    span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_RENAME);
     return 0;
 }
 
 TAIL_CALL_FNC(dr_rename_callback, ctx_t *ctx) {
-    return dr_rename_callback(ctx);
+    return dr_rename_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_rename_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_rename_callback(args);
+    return dr_rename_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif

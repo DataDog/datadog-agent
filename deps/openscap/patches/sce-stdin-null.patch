@@ -1,0 +1,109 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -692,6 +692,18 @@
+ 			close(stdout_pipefd[1]);
+ 			close(stderr_pipefd[1]);
+ 
++			// give the script /dev/null as standard input, so that a command
++			// reading it gets end of file at once, while the input of oscap,
++			// such as the rule list oscap-io reads, stays with oscap
++			int null_fd = open("/dev/null", O_RDONLY);
++			if (null_fd != -1) {
++				dup2(null_fd, fileno(stdin));
++				if (null_fd != fileno(stdin))
++					close(null_fd);
++			} else {
++				close(fileno(stdin));
++			}
++
+ 			// before we execute the script, lets make sure we get SIGTERM when
+ 			// oscap is killed, crashes or otherwise terminates
+ #if defined(PR_SET_PDEATHSIG)
+--- a/tests/sce/CMakeLists.txt
++++ b/tests/sce/CMakeLists.txt
+@@ -8,6 +8,7 @@
+ 	add_oscap_test("test_sce_in_ds.sh")
+ 	add_oscap_test("test_sce_in_report.sh")
+ 	add_oscap_test("test_sce_stdout_stderr.sh")
++	add_oscap_test("test_sce_stdin.sh")
+ 	add_oscap_test("test_sce_streams_fill.sh")
+ 	add_oscap_test("test_sce_probe_root.sh")
+ endif()
+diff --git a/tests/sce/read_stdin.sh b/tests/sce/read_stdin.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/read_stdin.sh
+@@ -0,0 +1,7 @@
++#!/bin/sh
++#
++# This is an SCE script used to test the standard input SCE gives scripts. It
++# reads its standard input to the end.
++
++cat >/dev/null
++exit "$XCCDF_RESULT_PASS"
+diff --git a/tests/sce/test_sce_stdin.sh b/tests/sce/test_sce_stdin.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/test_sce_stdin.sh
+@@ -0,0 +1,43 @@
++#!/usr/bin/env bash
++
++# Test that an SCE script reads end of file on its standard input while the
++# standard input of oscap stays open.
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_sce_stdin {
++
++	local xccdf="$1"
++	local xccdf_file="${srcdir}/${xccdf}"
++	local dir
++	dir=$(mktemp -d)
++	local result="$dir/results.xml"
++
++	# The writer holds the FIFO open while it sleeps, so a read of the FIFO
++	# waits until the writer exits.
++	mkfifo "$dir/fifo"
++	sleep 60 >"$dir/fifo" &
++	local writer=$!
++
++	local ret=0
++	# OSCAP holds a command and its arguments.
++	# shellcheck disable=SC2086
++	timeout 15 $OSCAP xccdf eval --results "$result" "$xccdf_file" <"$dir/fifo" || ret=$?
++	kill "$writer"
++	[[ $ret -ne 124 ]] || die "oscap timed out: the SCE script read the standard input of oscap"
++	[[ $ret -eq 0 ]]
++
++	assert_exists 1 "//rule-result/result[text()='pass']"
++
++	rm -r "$dir"
++	return 0
++}
++
++# Testing.
++test_init
++
++test_run "SCE standard input" test_sce_stdin test_sce_stdin.xccdf.xml
++
++test_exit
+diff --git a/tests/sce/test_sce_stdin.xccdf.xml b/tests/sce/test_sce_stdin.xccdf.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/test_sce_stdin.xccdf.xml
+@@ -0,0 +1,13 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_moc.elpmaxe.www_benchmark_test">
++  <status>incomplete</status>
++  <version>1.0</version>
++  <model system="urn:xccdf:scoring:default"/>
++  <model system="urn:xccdf:scoring:flat"/>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_1">
++    <title>Test SCE Rule</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-content-ref href="read_stdin.sh"/>
++    </check>
++  </Rule>
++</Benchmark>

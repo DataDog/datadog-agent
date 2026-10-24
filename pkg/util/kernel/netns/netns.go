@@ -74,6 +74,10 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	var nss []netns.NsHandle
 	seen := make(map[string]interface{})
 	err := kernel.WithAllProcs(procRoot, func(pid int) error {
+		if zombie, _ := kernel.IsZombiePid(procRoot, pid); zombie {
+			return nil
+		}
+
 		ns, err := netns.GetFromPath(path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)))
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, unix.ENOENT) {

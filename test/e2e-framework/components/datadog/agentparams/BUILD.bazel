@@ -25,6 +25,7 @@ dd_agent_go_test(
     embed = [":agentparams"],
     deps = [
         "//test/e2e-framework/common",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
     ],
 )

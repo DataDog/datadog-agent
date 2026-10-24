@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Automatically add the ``dynamo_graph_deployment`` tag to Kubernetes pod and container metrics from the ``nvidia.com/dynamo-graph-deployment-name`` pod label.

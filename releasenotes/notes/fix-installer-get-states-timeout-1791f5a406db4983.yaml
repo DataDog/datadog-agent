@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Prevent the Fleet Automation installer daemon from hanging indefinitely
+    when its Linux or macOS package-state subprocess does not exit.

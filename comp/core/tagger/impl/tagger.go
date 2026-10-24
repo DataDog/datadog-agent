@@ -208,6 +208,24 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 	}, nil
 }
 
+// GetInfraTags returns the infrastructure mode tags for this Agent, or nil when
+// the mode does not carry a mark.
+//
+// The entity is published by the collector at construction and holds no tags for
+// an unmarked mode, so an empty result is normalized to nil to keep the contract
+// the same whether or not the entity has been seen.
+func (t *localTagger) GetInfraTags() []string {
+	tags, err := t.Tag(types.GetInfraTagsEntityID(), types.LowCardinality)
+	if err != nil {
+		t.log.Warnf("error getting infra tags: %s", err)
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
+}
+
 // getTags returns a read only list of tags for a given entity.
 func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	if cardinality == types.ChecksConfigCardinality {

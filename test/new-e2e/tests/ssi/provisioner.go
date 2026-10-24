@@ -6,6 +6,7 @@
 package ssi
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -131,7 +132,32 @@ func kindLocalProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 	if opts.AgentDependentWorkloadAppFunc != nil {
 		localOpts = append(localOpts, provlocal.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
 	}
+	for _, image := range localAgentImagesFromStackParams() {
+		localOpts = append(localOpts, provlocal.WithKindLoadImage(image))
+	}
 	return provlocal.Provisioner(localOpts...)
+}
+
+func localAgentImagesFromStackParams() []string {
+	raw, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackParameters, "")
+	if err != nil || raw == "" {
+		return nil
+	}
+	var params map[string]string
+	if err := json.Unmarshal([]byte(raw), &params); err != nil {
+		return nil
+	}
+
+	var images []string
+	for _, key := range []string{
+		"ddagent:" + config.DDAgentFullImagePathParamName,
+		"ddagent:" + config.DDClusterAgentFullImagePathParamName,
+	} {
+		if image := params[key]; image != "" {
+			images = append(images, image)
+		}
+	}
+	return images
 }
 
 // kindProvisioner returns an AWS Kind VM provisioner

@@ -20,7 +20,7 @@ jobs:
     environment:
       name: main
     steps:
-      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
@@ -29,7 +29,7 @@ jobs:
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: ".go-version"
       - name: Install dda

@@ -9,10 +9,13 @@
 package probes
 
 import (
+	"runtime"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // syscallMonitorProbes holds the list of probes used to track syscall events
@@ -68,6 +71,15 @@ func getSyscallTableMap() *manager.Map {
 			},
 			Value: uint8(1),
 		},
+	}
+
+	// Ignore list for the v2 syscall sampler: high-frequency, low-signal syscalls the
+	// sampler fast-exits on to avoid per-syscall overhead (key SAMPLING_IGNORED_SYSCALL_KEY).
+	for _, id := range utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH) {
+		m.Contents = append(m.Contents, ebpf.MapKV{
+			Key:   syscallTableKey{id: uint64(id), key: 3},
+			Value: uint8(1),
+		})
 	}
 	return m
 }

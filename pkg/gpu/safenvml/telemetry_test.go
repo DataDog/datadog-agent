@@ -12,38 +12,26 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // mockFailingNvmlNew returns a mock that always fails initialization
 func mockFailingNvmlNew(_ ...nvml.LibraryOption) nvml.Interface {
-	return &nvmlmock.Interface{
-		InitFunc: func() nvml.Return {
-			return nvml.ERROR_UNKNOWN
-		},
-	}
+	return testutil.NewMockNVML(testutil.WithInitReturn(nvml.ERROR_UNKNOWN))
 }
 
 // mockSuccessfulNvmlNew returns a mock that successfully initializes
 func mockSuccessfulNvmlNew(_ ...nvml.LibraryOption) nvml.Interface {
-	return &nvmlmock.Interface{
-		InitFunc: func() nvml.Return {
-			return nvml.SUCCESS
-		},
-		ExtensionsFunc: func() nvml.ExtendedInterface {
-			return &nvmlmock.ExtendedInterface{
-				LookupSymbolFunc: func(_ string) error {
-					return nil
-				},
-			}
-		},
-	}
+	return testutil.NewMockNVML(
+		testutil.WithInitReturn(nvml.SUCCESS),
+		testutil.WithSymbolsMock(allSymbols),
+	)
 }
 
 func TestNvmlStateTelemetry_CheckUnavailable(t *testing.T) {

@@ -8,14 +8,13 @@
 package winutil
 
 import (
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
 var (
-	advapi32 = syscall.NewLazyDLL("advapi32.dll")
+	advapi32 = windows.NewLazySystemDLL("advapi32.dll")
 
 	//revive:disable:var-naming Name is intended to match the Windows API name
 	procGetAclInformation    = advapi32.NewProc("GetAclInformation")

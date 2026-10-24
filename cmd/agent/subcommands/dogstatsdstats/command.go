@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcommon"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -71,7 +72,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
-func requestDogstatsdStats(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	if err := dogstatsdcommon.CheckDataPlaneOwnsDogstatsd(config); err != nil {
+		return err
+	}
+
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string

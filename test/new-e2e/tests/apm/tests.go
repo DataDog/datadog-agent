@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -20,32 +21,16 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
-// tracerPayloadHasService reports whether the tracer payload contains at least
-// one span for the given service.
-func tracerPayloadHasService(tp *trace.TracerPayload, service string) bool {
-	for _, chunk := range tp.Chunks {
-		for _, sp := range chunk.Spans {
-			if sp.Service == service {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// tracePayloadHasService reports whether any tracer payload in the agent payload
-// contains a span for the given service.
-func tracePayloadHasService(p *aggregator.TracePayload, service string) bool {
-	for _, tp := range p.TracerPayloads {
-		if tracerPayloadHasService(tp, service) {
-			return true
-		}
-	}
-	return false
-}
+// The convert-traces feature is enabled by default, so the agent now serializes
+// tracer payloads in the v1 string-indexed idx format (AgentPayload.IdxTracerPayloads).
+// Instead of the legacy tracerPayloads field, span/chunk/payload metadata is
+// carried as references into a per-payload string table, and tags/meta/metrics
+// live in a single attributes map keyed by string reference. The assertions below
+// resolve those references with the fakeintake.Idx* accessors.
 
 // clientStatsHasService reports whether the client stats payload contains stats
 // for the given service.
@@ -73,11 +58,11 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	// environment whose agent keeps posting to a recycled intake IP can inject
 	// unrelated payloads (e.g. another suite's traces). Select the payload for
 	// our own tracegen service instead of blindly taking traces[0].
-	var tp *trace.TracerPayload
+	var tp *idx.TracerPayload
 	var hostName, env string
 	for _, tr := range traces {
-		for _, p := range tr.TracerPayloads {
-			if tracerPayloadHasService(p, service) {
+		for _, p := range tr.IdxTracerPayloads {
+			if fakeintake.IdxTracerPayloadHasService(p, service) {
 				tp, hostName, env = p, tr.HostName, tr.Env
 				break
 			}
@@ -89,10 +74,11 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	if !assert.NotNil(c, tp, "no trace payload found for service %s", service) {
 		return
 	}
+	strs := tp.Strings
 	assert.Equal(c, agent.Hostname(), hostName)
 	assert.Equal(c, "none", env)
-	assert.Equal(c, "go", tp.LanguageName)
-	assert.NotContains(c, tp.Tags, "_dd.apm_mode")
+	assert.Equal(c, "go", fakeintake.IdxStr(strs, tp.LanguageNameRef))
+	assert.False(c, fakeintake.IdxHasAttr(strs, tp.Attributes, "_dd.apm_mode"))
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -101,14 +87,17 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(c, service, sp.Service)
-		assert.Contains(c, sp.Name, "tracegen")
-		assert.Contains(c, sp.Meta, "language")
-		assert.Equal(c, "go", sp.Meta["language"])
-		assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
+		assert.Equal(c, service, fakeintake.IdxStr(strs, sp.ServiceRef))
+		assert.Contains(c, fakeintake.IdxStr(strs, sp.NameRef), "tracegen")
+		language, ok := fakeintake.IdxStrAttr(strs, sp.Attributes, "language")
+		assert.True(c, ok, "span missing language attribute")
+		assert.Equal(c, "go", language)
+		assert.True(c, fakeintake.IdxHasAttr(strs, sp.Attributes, "_sampling_priority_v1"))
 		if sp.ParentID == 0 {
-			assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
-			assert.Equal(c, float64(1), sp.Metrics["_top_level"])
+			topLevel, _ := fakeintake.IdxNumAttr(strs, sp.Attributes, "_dd.top_level")
+			assert.Equal(c, float64(1), topLevel)
+			legacyTopLevel, _ := fakeintake.IdxNumAttr(strs, sp.Attributes, "_top_level")
+			assert.Equal(c, float64(1), legacyTopLevel)
 		}
 	}
 }
@@ -124,7 +113,7 @@ func testTPS(c *assert.CollectT, intake *components.FakeIntake, service string, 
 	// may hold unrelated payloads with a different TargetTPS.
 	found := false
 	for _, p := range traces {
-		if !tracePayloadHasService(p, service) {
+		if !fakeintake.IdxPayloadHasService(p, service) {
 			continue
 		}
 		found = true
@@ -165,8 +154,8 @@ func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, proces
 	// TracerPayload carries the expected process
 	found := false
 	for _, p := range traces {
-		for _, tp := range p.TracerPayloads {
-			tags, ok := tp.Tags["_dd.tags.process"]
+		for _, tp := range p.IdxTracerPayloads {
+			tags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.process")
 			if !ok {
 				continue
 			}
@@ -229,12 +218,13 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, service string, int
 	t.Logf("Got %d apm traces", len(traces))
 	found := false
 	for _, tr := range traces {
-		for _, tp := range tr.TracerPayloads {
-			if !tracerPayloadHasService(tp, service) {
+		for _, tp := range tr.IdxTracerPayloads {
+			if !fakeintake.IdxTracerPayloadHasService(tp, service) {
 				continue
 			}
 			found = true
-			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
+			containerTags, _ := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
+			t.Log("Tracer Payload Tags:", containerTags)
 			ctags, ok := getContainerTags(t, tp)
 			assert.True(c, ok, "expected to find container tags at _dd.tags.container")
 			imageTag, ok := ctags["image_tag"]
@@ -252,17 +242,21 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, service
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	t.Logf("Got %d apm traces", len(traces))
+	// In the v1 idx format the decision maker (_dd.p.dm) is no longer carried as a
+	// chunk attribute: it is promoted to the dedicated SamplingMechanism chunk field.
+	// The probabilistic sampler sets mechanism 9 (the legacy "_dd.p.dm: -9" tag).
+	const probabilitySamplingMechanism = 9
 	found := false
 	for _, p := range traces {
-		for _, tp := range p.TracerPayloads {
-			if !tracerPayloadHasService(tp, service) {
+		for _, tp := range p.IdxTracerPayloads {
+			if !fakeintake.IdxTracerPayloadHasService(tp, service) {
 				continue
 			}
 			for _, chunk := range tp.Chunks {
 				found = true
-				dm, ok := chunk.Tags["_dd.p.dm"]
-				assert.True(c, ok, "expected trace chunk tags to contain _dd.p.dm")
-				assert.Equal(c, "-9", dm, "expected dm == -9 for service %s", service)
+				if chunk.SamplingMechanism != probabilitySamplingMechanism {
+					t.Errorf("Expected chunk SamplingMechanism == %d, but got %d for service %s", probabilitySamplingMechanism, chunk.SamplingMechanism, fakeintake.IdxStr(tp.Strings, chunk.Spans[0].ServiceRef))
+				}
 			}
 		}
 	}
@@ -317,8 +311,8 @@ func testIsTraceRootTag(t *testing.T, c *assert.CollectT, service string, intake
 	assert.True(c, found, "no stats found for service %s", service)
 }
 
-func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
-	ctags, ok := tp.Tags["_dd.tags.container"]
+func getContainerTags(t *testing.T, tp *idx.TracerPayload) (map[string]string, bool) {
+	ctags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 	if !ok {
 		return nil, false
 	}
@@ -366,8 +360,8 @@ func hasPeerTagsStats(payloads []*aggregator.APMStatsPayload, fullTag string) bo
 
 func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	for _, p := range payloads {
-		for _, t := range p.AgentPayload.TracerPayloads {
-			tags, ok := t.Tags["_dd.tags.container"]
+		for _, tp := range p.IdxTracerPayloads {
+			tags, ok := fakeintake.IdxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
 			if ok && strings.Count(tags, tag) > 0 {
 				return true
 			}
@@ -483,10 +477,10 @@ func hasStatsForResource(payloads []*aggregator.APMStatsPayload, resource string
 
 func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) bool {
 	for _, p := range payloads {
-		for _, t := range p.AgentPayload.TracerPayloads {
-			for _, c := range t.Chunks {
+		for _, tp := range p.IdxTracerPayloads {
+			for _, c := range tp.Chunks {
 				for _, s := range c.Spans {
-					if s.Resource == resource {
+					if fakeintake.IdxStr(tp.Strings, s.ResourceRef) == resource {
 						return true
 					}
 				}
@@ -542,7 +536,7 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, service stri
 	}
 	found := false
 	for _, p := range traces {
-		if !tracePayloadHasService(p, service) {
+		if !fakeintake.IdxPayloadHasService(p, service) {
 			continue
 		}
 		found = true
@@ -556,4 +550,56 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, service stri
 		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm_mode"])
 	}
 	assert.True(c, found, "no trace payload found for service %s", service)
+}
+
+// testSQLDBStatement checks the spans sent by sendSQLTraces: the trace-agent
+// obfuscates the resource and the query tags the client sent, never adds
+// sql.query, and the db.statement the intake derives from each span (emulated by
+// fakeintake.IdxSpanEffectiveDBStatement) is the obfuscated query.
+func testSQLDBStatement(c *assert.CollectT, intake *components.FakeIntake, service string) {
+	traces, err := intake.Client().GetTraces()
+	require.NoError(c, err)
+
+	// Span name -> (query tag -> expected value) and expected effective db.statement.
+	expected := map[string]struct {
+		tags        map[string]string
+		dbStatement string
+	}{
+		"sql.no_query_tags":       {dbStatement: sqlObfuscatedQuery},
+		"cassandra.no_query_tags": {dbStatement: sqlObfuscatedQuery},
+		"sql.sql_query":           {tags: map[string]string{"sql.query": sqlObfuscatedQuery}, dbStatement: sqlObfuscatedQuery},
+		"sql.db_statement":        {tags: map[string]string{"db.statement": sqlOtherObfuscatedQuery}, dbStatement: sqlOtherObfuscatedQuery},
+	}
+	seen := map[string]bool{}
+	for _, p := range traces {
+		for _, tp := range p.IdxTracerPayloads {
+			strs := tp.Strings
+			for _, chunk := range tp.Chunks {
+				for _, sp := range chunk.Spans {
+					if fakeintake.IdxStr(strs, sp.ServiceRef) != service {
+						continue
+					}
+					name := fakeintake.IdxStr(strs, sp.NameRef)
+					want, ok := expected[name]
+					if !assert.True(c, ok, "unexpected span %q", name) {
+						continue
+					}
+					seen[name] = true
+					assert.Equal(c, sqlObfuscatedQuery, fakeintake.IdxStr(strs, sp.ResourceRef), "resource of span %q", name)
+					for _, key := range []string{"sql.query", "db.statement"} {
+						v, found := fakeintake.IdxStrAttr(strs, sp.Attributes, key)
+						wantV, wantFound := want.tags[key]
+						assert.Equal(c, wantFound, found, "presence of %s on span %q", key, name)
+						assert.Equal(c, wantV, v, "%s of span %q", key, name)
+					}
+					dbStatement, found := fakeintake.IdxSpanEffectiveDBStatement(tp, sp, p.AgentVersion)
+					assert.True(c, found, "no effective db.statement for span %q", name)
+					assert.Equal(c, want.dbStatement, dbStatement, "effective db.statement of span %q", name)
+				}
+			}
+		}
+	}
+	for name := range expected {
+		assert.True(c, seen[name], "span %q of service %s not received", name, service)
+	}
 }

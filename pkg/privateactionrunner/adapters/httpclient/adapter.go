@@ -6,8 +6,6 @@
 package httpclient
 
 import (
-	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,7 +13,6 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"golang.org/x/net/http2"
 )
 
 // Authorizer describes security authorization gates for HTTP clients.
@@ -68,18 +65,10 @@ func WrapClient(client *http.Client, az Authorizer) *http.Client {
 
 	// Decorate the transport with the safe dialer
 	switch tr := transport.(type) {
-	case *http2.Transport:
-		tr.DialTLSContext = func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-			tlsDialer := &tls.Dialer{
-				NetDialer: dialer,
-				Config:    cfg,
-			}
-			return tlsDialer.DialContext(ctx, network, addr)
-		}
 	case *http.Transport:
 		tr.DialContext = dialer.DialContext
 	default:
-		log.Errorf("client.Transport is of type %T, not of type *http.Transport or *http2.Transport, replacing with the default transporter", client.Transport)
+		log.Errorf("client.Transport is of type %T, not of type *http.Transport, replacing with the default transporter", client.Transport)
 		transport = defaultTransport
 		transport.(*http.Transport).DialContext = dialer.DialContext
 	}

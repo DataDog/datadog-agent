@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,21 +16,8 @@ import (
 	securejoin "github.com/cyphar/filepath-securejoin"
 )
 
-const (
-	defaultExecutablePath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-)
-
-// managedEnvironmentVariables are set by BuildEnvironment from session/package state.
-// AllowedEnvVars or setSessionEnvVars entries with these names will error out, since the
-// script cannot pass through or override the runner's own value for them.
-var managedEnvironmentVariables = map[string]struct{}{
-	"HOME":   {},
-	"PATH":   {},
-	"TMPDIR": {},
-}
-
 // BuildEnvironment creates the environment available to an authored script.
-func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
+func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]interface{}) ([]string, error) {
 	if pkg == nil || pkg.Manifest == nil {
 		return nil, errors.New("authored-script package is required")
 	}
@@ -39,37 +25,45 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 		return nil, errors.New("authored-script session is required")
 	}
 
-	executablePath, err := buildExecutablePath(pkg.ToolPaths)
+	executablePath, err := buildExecutablePath(pkg.ExecutableDirectories)
 	if err != nil {
 		return nil, err
 	}
-	environment := map[string]string{
-		"HOME":   session.HomeDirectory,
-		"PATH":   executablePath,
-		"TMPDIR": session.TempDirectory,
+	envVars, err := platformEnvironment(session, executablePath)
+	if err != nil {
+		return nil, err
 	}
-	for _, name := range pkg.Manifest.Config.AllowedEnvVars {
-		if _, managed := managedEnvironmentVariables[name]; managed {
+	// Platform-provided variables are managed by PAR and cannot be overridden by package metadata.
+	managedVariables := make(map[string]struct{}, len(envVars))
+	for name := range envVars {
+		managedVariables[normalizeEnvironmentVariableName(name)] = struct{}{}
+	}
+	for _, name := range pkg.Manifest.AllowedEnvVars {
+		if _, managed := managedVariables[normalizeEnvironmentVariableName(name)]; managed {
 			return nil, fmt.Errorf("authored-script environment variable %q is managed by PAR and cannot be declared as an allowed environment variable", name)
 		}
 		if value, found := os.LookupEnv(name); found {
-			environment[name] = value
+			setEnvironmentEntry(envVars, name, value)
 		}
 	}
 
-	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
-		if _, managed := managedEnvironmentVariables[variable.Name]; managed {
+	for _, variable := range pkg.Manifest.SetSessionEnvVars {
+		if _, managed := managedVariables[normalizeEnvironmentVariableName(variable.Name)]; managed {
 			return nil, fmt.Errorf("authored-script session environment variable %q cannot override the managed %q value", variable.Name, variable.Name)
 		}
 		value, err := materializeEnvironmentVariable(session.RootDirectory, "session", variable)
 		if err != nil {
 			return nil, err
 		}
-		environment[variable.Name] = value
+		setEnvironmentEntry(envVars, variable.Name, value)
 	}
 
-	result := make([]string, 0, len(environment))
-	for name, value := range environment {
+	if err := addParameterEnvironment(envVars, pkg.Manifest.ParameterEnvMapping, parameters); err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0, len(envVars))
+	for name, value := range envVars {
 		if strings.IndexByte(value, 0) >= 0 {
 			return nil, fmt.Errorf("authored-script environment variable %q contains a NUL byte", name)
 		}
@@ -78,11 +72,42 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 	return result, nil
 }
 
-func buildExecutablePath(toolPaths []string) (string, error) {
-	seenDirectories := make(map[string]struct{}, len(toolPaths)+1)
-	executablePaths := make([]string, 0, len(toolPaths)+1)
-	for _, toolPath := range toolPaths {
-		directory := filepath.Dir(toolPath)
+// addParameterEnvironment converts input parameters into environment variable
+// assignments in the environment.
+func addParameterEnvironment(envVars map[string]string, parameterEnvMapping map[string]string, parameters map[string]interface{}) error {
+	for name, value := range parameters {
+		envName, ok := parameterEnvMapping[name]
+		if !ok {
+			return fmt.Errorf("authored-script parameter %q has no configured environment variable mapping", name)
+		}
+		if _, exists := envVars[normalizeEnvironmentVariableName(envName)]; exists {
+			return fmt.Errorf("authored-script parameter %q maps to environment variable %q, which is already set", name, envName)
+		}
+
+		var stringValue string
+		if s, ok := value.(string); ok {
+			stringValue = s
+		} else {
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return fmt.Errorf("failed to encode authored-script parameter %q: %w", name, err)
+			}
+			stringValue = string(encoded)
+		}
+		setEnvironmentEntry(envVars, envName, stringValue)
+	}
+	return nil
+}
+
+func buildExecutablePath(executableDirectories []string) (string, error) {
+	defaultPath, err := platformDefaultExecutablePath()
+	if err != nil {
+		return "", err
+	}
+
+	seenDirectories := make(map[string]struct{}, len(executableDirectories)+1)
+	executablePaths := make([]string, 0, len(executableDirectories)+1)
+	for _, directory := range executableDirectories {
 		if strings.ContainsRune(directory, os.PathListSeparator) {
 			return "", fmt.Errorf("authored-script tool directory %q contains a path separator", directory)
 		}
@@ -92,8 +117,12 @@ func buildExecutablePath(toolPaths []string) (string, error) {
 		seenDirectories[directory] = struct{}{}
 		executablePaths = append(executablePaths, directory)
 	}
-	executablePaths = append(executablePaths, defaultExecutablePath)
+	executablePaths = append(executablePaths, defaultPath)
 	return strings.Join(executablePaths, string(os.PathListSeparator)), nil
+}
+
+func setEnvironmentEntry(envVars map[string]string, name, value string) {
+	envVars[normalizeEnvironmentVariableName(name)] = value
 }
 
 func materializeEnvironmentVariable(root, scope string, variable EnvironmentVariable) (string, error) {

@@ -46,8 +46,8 @@ type Sender interface {
 	GetSenderStats() stats.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
-	// SetInfraTagger sets the Tagger that appends infra_mode tags to every metric sample.
-	SetInfraTagger(tagger *infratags.Tagger)
+	// SetInfraTagger sets the MetricTagger that appends infra_mode tags to every metric sample.
+	SetInfraTagger(tagger *infratags.MetricTagger)
 	SetCheckService(service string)
 	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()

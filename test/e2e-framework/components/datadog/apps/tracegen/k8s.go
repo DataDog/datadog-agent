@@ -22,7 +22,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func generateTracegenTCPSpec(namespace string, imagePullSecrets corev1.LocalObjectReferenceArray) *appsv1.DeploymentArgs {
+func generateTracegenTCPSpec(e config.Env, namespace string, imagePullSecrets corev1.LocalObjectReferenceArray) *appsv1.DeploymentArgs {
 	return &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("tracegen-tcp"),
@@ -49,7 +49,7 @@ func generateTracegenTCPSpec(namespace string, imagePullSecrets corev1.LocalObje
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("tracegen-tcp"),
-							Image: pulumi.String("ghcr.io/datadog/apps-tracegen:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-tracegen")),
 							Env: &corev1.EnvVarArray{
 								&corev1.EnvVarArgs{
 									Name: pulumi.String("DD_AGENT_HOST"),
@@ -78,7 +78,7 @@ func generateTracegenTCPSpec(namespace string, imagePullSecrets corev1.LocalObje
 	}
 }
 
-func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringPtrInput, imagePullSecrets corev1.LocalObjectReferenceArray) *appsv1.DeploymentArgs {
+func generateTracegenUdsSpec(e config.Env, namespace string, serviceAccountName pulumi.StringPtrInput, imagePullSecrets corev1.LocalObjectReferenceArray) *appsv1.DeploymentArgs {
 	return &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("tracegen-uds"),
@@ -106,7 +106,7 @@ func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringP
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("tracegen-uds"),
-							Image: pulumi.String("ghcr.io/datadog/apps-tracegen:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-tracegen")),
 							Env: &corev1.EnvVarArray{
 								&corev1.EnvVarArgs{
 									Name:  pulumi.String("DD_TRACE_AGENT_URL"),
@@ -210,11 +210,11 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		})
 	}
 
-	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-uds", generateTracegenUdsSpec(namespace, sa.Metadata.Name().Elem(), imagePullSecrets), opts...); err != nil {
+	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-uds", generateTracegenUdsSpec(e, namespace, sa.Metadata.Name().Elem(), imagePullSecrets), opts...); err != nil {
 		return nil, err
 	}
 
-	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-tcp", generateTracegenTCPSpec(namespace, imagePullSecrets), opts...); err != nil {
+	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-tcp", generateTracegenTCPSpec(e, namespace, imagePullSecrets), opts...); err != nil {
 		return nil, err
 	}
 

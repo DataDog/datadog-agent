@@ -35,6 +35,7 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "gpu",
+    "amd_gpu",
     "nccl",
     "discovery",
     "versa",
@@ -63,6 +64,7 @@ AIX_CORECHECKS = [
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "battery",
+    "powershell",
     "sbom",
     "thermal",
     "windows_registry",
@@ -70,6 +72,7 @@ WINDOWS_CORECHECKS = [
     "wincrashdetect",
     "windows_certificate",
     "winproc",
+    "vdi",
     "win32_event_log",
     "wlan",
 ]

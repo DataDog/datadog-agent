@@ -32,7 +32,10 @@ type Config struct {
 // defaultEnvVars lists environment variables read from profiled processes to populate
 // unified service tags (service, env, version) in OTLP resource attributes.
 // The order indicates which environment variable takes precedence.
-var defaultEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION"}
+var defaultEnvVars = []string{
+	"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION",
+	"OTEL_RESOURCE_ATTRIBUTES", // TODO: remove once we rebase our fork on upstream.
+}
 
 var _ confmap.Validator = (*Config)(nil)
 
@@ -87,6 +90,7 @@ func defaultConfig(profilerName string) component.Config {
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
+	cfg.SendErrorFrames = false
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{

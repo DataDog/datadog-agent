@@ -8,6 +8,8 @@
 package oracle
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -51,7 +53,7 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err == nil {
 		return err
 	}
-	if strings.Contains(err.Error(), "no rows in result") {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	isPrivilegeError, err := handlePrivilegeError(c, err)

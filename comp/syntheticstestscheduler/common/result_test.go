@@ -6,8 +6,51 @@
 package common
 
 import (
+	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
+
+func TestTestResult_MarshalJSON_Enrichment(t *testing.T) {
+	tests := []struct {
+		name        string
+		enrichment  json.RawMessage
+		expectField bool
+	}{
+		{
+			name: "missing enrichment",
+		},
+		{
+			name:        "empty enrichment",
+			enrichment:  json.RawMessage(`{}`),
+			expectField: true,
+		},
+		{
+			name:        "nested unknown enrichment fields",
+			enrichment:  json.RawMessage(`{"execution":{"origin":"network-ephemeral"},"future":{"large":9007199254740993,"values":[true,null,"value"]}}`),
+			expectField: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := TestResult{Enrichment: tt.enrichment}
+			data, err := json.Marshal(result)
+			require.NoError(t, err)
+
+			var envelope map[string]json.RawMessage
+			err = json.Unmarshal(data, &envelope)
+			require.NoError(t, err)
+
+			actual, ok := envelope["enrichment"]
+			require.Equal(t, tt.expectField, ok)
+			if tt.expectField {
+				require.Equal(t, tt.enrichment, actual)
+			}
+		})
+	}
+}
 
 func TestAssertionResult_Compare(t *testing.T) {
 	tests := map[Operator][]struct {

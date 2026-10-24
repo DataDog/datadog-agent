@@ -14,7 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	configstreamtestutil "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/testutil"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -43,20 +45,27 @@ func TestCommand(t *testing.T) {
 		},
 	}
 
+	// configstream is on by default, so the fx graph blocks until it seeds from a core agent.
+	configstreambootstrap.UseDynamicSchema(t)
+	fakeCore := configstreamtestutil.StartFakeCoreAgent(t, t.TempDir())
+
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			Commands(newGlobalParamsTest(t)),
+			Commands(newGlobalParamsTest(t, fakeCore)),
 			test.cliInput,
 			start,
 			test.check,
 		)
 	}
+
+	registers, _ := fakeCore.Counts()
+	require.NotZero(t, registers, "consumer never registered, so this test no longer covers configstream")
 }
 
-func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
+func newGlobalParamsTest(t *testing.T, fakeCore *configstreamtestutil.FakeCoreAgent) *command.GlobalParams {
 	// the config needs an existing config file when initializing
 	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	err := os.WriteFile(config, []byte("hostname: test\n"+fakeCore.ConfigYAML()), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{

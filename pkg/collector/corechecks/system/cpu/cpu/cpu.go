@@ -11,13 +11,12 @@ import (
 	"errors"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -35,10 +34,9 @@ var getContextSwitches = GetContextSwitches
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	instanceConfig    cpuInstanceConfig
-	lastNbCycle       float64
-	lastTimes         cpu.TimesStat
-	systemCPUUserTags []string
+	instanceConfig cpuInstanceConfig
+	lastNbCycle    float64
+	lastTimes      cpu.TimesStat
 }
 
 type cpuInstanceConfig struct {
@@ -127,7 +125,7 @@ func (c *Check) reportCPUMetricsPercent(sender sender.Sender, numCores int32) (e
 		stolen := (t.Steal - c.lastTimes.Steal) / float64(numCores)
 		guest := (t.Guest - c.lastTimes.Guest) / float64(numCores)
 
-		sender.Gauge("system.cpu.user", user*toPercent, "", c.systemCPUUserTags)
+		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
 		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
 		sender.Gauge("system.cpu.interrupt", interrupt*toPercent, "", nil)
 		sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
@@ -182,13 +180,7 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	var systemCPUUserTags []string
-	infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
-	if infraMode != "full" {
-		systemCPUUserTags = []string{"infra_mode:" + infraMode}
-	}
 	return &Check{
-		CheckBase:         core.NewCheckBase(CheckName),
-		systemCPUUserTags: systemCPUUserTags,
+		CheckBase: core.NewCheckBase(CheckName),
 	}
 }

@@ -8,6 +8,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -271,6 +272,11 @@ func retryGetNetworkID() (string, error) {
 		networkID, err = cloudprovidersnetwork.GetNetworkID(context.Background())
 		if err == nil {
 			return networkID, nil
+		}
+		if errors.Is(err, cloudprovidersnetwork.ErrCloudProviderUnsupported) {
+			// the host's cloud provider is known and doesn't support network ID
+			// resolution: retrying won't produce a different result
+			return "", err
 		}
 		log.Debugf(
 			"failed to fetch network ID (attempt %d/%d): %s",

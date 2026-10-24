@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -29,9 +30,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/dd-policy-engine/go/policies"
 )
+
+func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDIAPMConfig {
+	return ssi.DDIAPMConfig{
+		CR:             cr,
+		Enabled:        enabled,
+		TracerVersions: tracerVersions,
+		TracerConfigs:  tracerConfigs,
+	}
+}
 
 var (
 	defaultLibraries = map[string]string{
@@ -55,6 +69,52 @@ var (
 
 	imageResolver = imageresolver.NewNoOpResolver()
 )
+
+type mockDDIProvider map[ssi.DDICRTarget]ssi.DDIAPMConfig
+
+func (m mockDDIProvider) GetTarget(target ssi.DDICRTarget) (ssi.DDIAPMConfig, bool) {
+	t, ok := m[target]
+	return t, ok
+}
+
+func TestHasAllowedTracerConfigPrefix(t *testing.T) {
+	require.True(t, hasAllowedTracerConfigPrefix("DD_PROFILING_ENABLED"))
+	require.True(t, hasAllowedTracerConfigPrefix("OTEL_TRACES_EXPORTER"))
+	require.False(t, hasAllowedTracerConfigPrefix("NOT_DD"))
+	require.False(t, hasAllowedTracerConfigPrefix(""))
+}
+
+func TestBuildInjectionPlansTracerConfigPrefix(t *testing.T) {
+	config := &Config{staticConfig: staticConfig{containerRegistry: "registry"}}
+
+	t.Run("DD_ and OTEL_ prefixed tracer configs are accepted", func(t *testing.T) {
+		plans, err := buildInjectionPlans(config, []Target{
+			{
+				Name: "otel-mode",
+				TracerConfigs: []TracerConfig{
+					{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
+					{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
+				},
+			},
+		}, nil)
+		require.NoError(t, err)
+		require.Len(t, plans, 1)
+		require.Equal(t, []corev1.EnvVar{
+			{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
+			{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
+		}, plans[0].tracerEnvVars)
+	})
+
+	t.Run("tracer config without an allowed prefix is rejected", func(t *testing.T) {
+		_, err := buildInjectionPlans(config, []Target{
+			{
+				Name:          "bad-target",
+				TracerConfigs: []TracerConfig{{Name: "GENERIC_VAR", Value: "true"}},
+			},
+		}, nil)
+		require.Error(t, err)
+	})
+}
 
 func TestNewTargetMutator(t *testing.T) {
 	tests := map[string]struct {
@@ -88,7 +148,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -103,8 +163,10 @@ func TestNewTargetMutator(t *testing.T) {
 func TestMutatePod(t *testing.T) {
 	tests := map[string]struct {
 		configPath                  string
+		configOverrides             map[string]any
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
+		ddiTargetEntries            mockDDIProvider
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -235,13 +297,74 @@ func TestMutatePod(t *testing.T) {
 				"DD_SERVICE": "best-service",
 			},
 		},
+		"CRD target gets SSI defaults when static instrumentation is disabled": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.enabled": false,
+			},
+			in: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "web"}: ddiTarget(
+					types.NamespacedName{Namespace: "default", Name: "ddi-web"},
+					true,
+					map[string]string{"python": "v4"},
+					[]corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+				),
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				"registry/dd-lib-python-init:v4",
+			},
+			expectedEnv: map[string]string{
+				"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				"DD_LOGS_INJECTION":               "true",
+				"DD_RUNTIME_METRICS_ENABLED":      "true",
+				"DD_SERVICE":                      "web",
+				"DD_TRACE_ENABLED":                "true",
+				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				AppliedTargetEnvVar:               "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				annotation.AppliedTarget: "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+			},
+		},
+		"CRD target in disabled namespace does not mutate pod": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.disabled_namespaces": []string{"application"},
+			},
+			in: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			ddiTargetEntries: map[ssi.DDICRTarget]ssi.DDIAPMConfig{
+				{Kind: "Deployment", Namespace: "application", Name: "web"}: ddiTarget(
+					types.NamespacedName{Namespace: "application", Name: "ddi-web"},
+					true,
+					map[string]string{"python": "v4"},
+					nil,
+				),
+			},
+			expectNoChange: true,
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
+			var mockConfig model.BuildableConfig
+			if test.configPath == "" {
+				mockConfig = configmock.New(t)
+			} else {
+				mockConfig = configmock.NewFromFile(t, test.configPath)
+			}
 			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+			for key, value := range test.configOverrides {
+				mockConfig.SetInTest(key, value)
+			}
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -258,8 +381,11 @@ func TestMutatePod(t *testing.T) {
 				wmeta.Set(&ns)
 			}
 
+			if test.ddiTargetEntries == nil {
+				test.ddiTargetEntries = make(mockDDIProvider)
+			}
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, test.ddiTargetEntries)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -364,7 +490,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -376,142 +502,11 @@ func TestShouldMutatePod(t *testing.T) {
 	}
 }
 
-func TestIsNamespaceEligible(t *testing.T) {
-	tests := map[string]struct {
-		configPath string
-		in         string
-		expected   bool
-		namespaces []workloadmeta.KubernetesMetadata
-	}{
-		"a matchNames namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "billing-service",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("billing-service", nil),
-			},
-			expected: true,
-		},
-		"a rule without a namespace selector is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", nil),
-			},
-			expected: true,
-		},
-		"a matchLabels namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", map[string]string{
-					"tracing": "yes",
-					"env":     "prod",
-				}),
-			},
-			expected: true,
-		},
-		"a disabled namespace is not eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "infra",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("infra", nil),
-			},
-			expected: false,
-		},
-		"kube-system is eligible because default namespaces are filtered at the webhook layer": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "kube-system",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("kube-system", nil),
-			},
-			expected: true,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig)
-			require.NoError(t, err)
-
-			// Create a mock meta.
-			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Supply(coreconfig.Params{}),
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			))
-
-			// Add the namespaces.
-			for _, ns := range test.namespaces {
-				wmeta.Set(&ns)
-			}
-
-			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
-			require.NoError(t, err)
-
-			// Determine if the namespace is eligible.
-			actual := f.IsNamespaceEligible(test.in)
-
-			// Validate the output.
-			require.Equal(t, test.expected, actual)
-		})
-	}
-}
-
-func TestIsNamespaceEligibleSkipsTargetWhenNamespaceMetadataIsUnavailable(t *testing.T) {
-	tests := map[string]struct {
-		fallback string
-		want     bool
-	}{
-		"catch-all fallback makes namespace eligible": {
-			fallback: `
-      - name: "fallback"`,
-			want: true,
-		},
-		"pod-only fallback makes namespace eligible": {
-			fallback: `
-      - name: "pod-only"
-        podSelector:
-          matchLabels:
-            app: "web"`,
-			want: true,
-		},
-		"no fallback leaves namespace ineligible": {
-			want: false,
-		},
-	}
-
-	const configTemplate = `
-apm_config:
-  instrumentation:
-    enabled: true
-    targets:
-      - name: "namespace-label-target"
-        namespaceSelector:
-          matchLabels:
-            instrument: "true"
-%s
-`
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			wmeta := newMatchTestWmeta(t)
-			m := newMatchMutator(t, fmt.Sprintf(configTemplate, test.fallback), wmeta)
-
-			require.Equal(t, test.want, m.IsNamespaceEligible("temporarily-unavailable"))
-		})
-	}
-}
-
 func TestGetTargetFromAnnotation(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
-		expected   *targetInternal
+		expected   *injectionPlan
 	}{
 		"a pod with no annotations gets no values": {
 			configPath: "testdata/filter_limited.yaml",
@@ -535,8 +530,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -570,11 +565,11 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
-				envVars: []corev1.EnvVar{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
 					{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
 				},
@@ -594,13 +589,13 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				envVars: []corev1.EnvVar{
+			expected: &injectionPlan{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
 				},
 			},
 		},
-		"tracer-configs entries without a DD_ prefix are skipped": {
+		"tracer-configs entries without a DD_ or OTEL_ prefix are skipped": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -614,12 +609,36 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
-				envVars: []corev1.EnvVar{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"tracer-configs entries with an OTEL_ prefix are forwarded": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"OTEL_TRACES_EXPORTER","value":"otlp"},{"name":"DD_TRACE_OTEL_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &injectionPlan{
+				libraries: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+				tracerEnvVars: []corev1.EnvVar{
+					{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
+					{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
 				},
 			},
 		},
@@ -637,8 +656,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -662,27 +681,212 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
-			// Get the target from the annotation.
-			actual := f.getTargetFromAnnotation(test.in)
+			// Get the target from the annotation source.
+			actual := findInjectionSource(t, f, injectionSourceAnnotation).resolve(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
-				require.Nil(t, actual.target)
+				require.Nil(t, actual.plan)
 			} else {
 				require.NotNil(t, actual)
-				require.NotNil(t, actual.target)
+				require.NotNil(t, actual.plan)
 				// Some cases (e.g. inject-all) populate libVersions with the default
 				// libraries, which we don't assert on here; only check when set.
-				if test.expected.libVersions != nil {
-					require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				if test.expected.libraries != nil {
+					require.Equal(t, test.expected.libraries, actual.plan.libraries)
 				}
-				require.Equal(t, test.expected.envVars, actual.target.envVars)
+				require.Equal(t, test.expected.tracerEnvVars, actual.plan.tracerEnvVars)
 			}
 		})
 	}
+}
+
+func TestGetTargetFromCRD(t *testing.T) {
+	tests := map[string]struct {
+		pod                *corev1.Pod
+		workload           ssi.DDICRTarget
+		entry              ssi.DDIAPMConfig
+		expected           *injectionPlan
+		continueResolution bool
+	}{
+		"deployment owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-bcdfg",
+			}.Create(),
+			workload: ssi.DDICRTarget{Kind: "Deployment", Namespace: "application", Name: "web"},
+			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}}),
+			expected: &injectionPlan{
+				libraries:     []libInfo{defaultLibInfoWithVersion(python, "v4")},
+				tracerEnvVars: []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+			},
+		},
+		"rollout owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "web-rollout-bcdfg",
+				Labels: map[string]string{
+					kubernetes.ArgoRolloutLabelKey: "bcdfg",
+				},
+			}.Create(),
+			workload: ssi.DDICRTarget{Kind: "Rollout", Namespace: "application", Name: "web-rollout"},
+			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-rollout"}, true, map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}}),
+			expected: &injectionPlan{
+				libraries:     []libInfo{defaultLibInfoWithVersion(python, "v4")},
+				tracerEnvVars: []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+			},
+		},
+		"statefulset owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "statefulset",
+				ParentName: "db",
+			}.Create(),
+			workload: ssi.DDICRTarget{Kind: "StatefulSet", Namespace: "application", Name: "db"},
+			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-db"}, true, map[string]string{"java": "v1"}, nil),
+			expected: &injectionPlan{
+				libraries: []libInfo{defaultLibInfoWithVersion(java, "v1")},
+			},
+		},
+		"job owned pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "batch-job",
+			}.Create(),
+			workload: ssi.DDICRTarget{Kind: "Job", Namespace: "application", Name: "batch-job"},
+			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-job"}, true, map[string]string{"dotnet": "v3"}, nil),
+			expected: &injectionPlan{
+				libraries: []libInfo{defaultLibInfoWithVersion(dotnet, "v3")},
+			},
+		},
+		"cronjob owned job pod gets CRD target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "nightly-28104120",
+			}.Create(),
+			workload: ssi.DDICRTarget{Kind: "CronJob", Namespace: "application", Name: "nightly"},
+			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-cron"}, true, map[string]string{"ruby": "v2"}, nil),
+			expected: &injectionPlan{
+				libraries: []libInfo{defaultLibInfoWithVersion(ruby, "v2")},
+			},
+		},
+		"cronjob owned pod does not match generated job target": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "job",
+				ParentName: "nightly-28104120",
+			}.Create(),
+			workload:           ssi.DDICRTarget{Kind: "Job", Namespace: "application", Name: "nightly-28104120"},
+			entry:              ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-job"}, true, map[string]string{"ruby": "v2"}, nil),
+			continueResolution: true,
+		},
+		"disabled CRD target stops resolution": {
+			pod: mutatecommon.FakePodSpec{
+				NS:         "application",
+				ParentKind: "daemonset",
+				ParentName: "node-agent",
+			}.Create(),
+			workload: ssi.DDICRTarget{Kind: "DaemonSet", Namespace: "application", Name: "node-agent"},
+			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-node"}, false, nil, nil),
+			expected: nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Supply(coreconfig.Params{}),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, mockDDIProvider{
+				test.workload: test.entry,
+			})
+			require.NoError(t, err)
+
+			actual := findInjectionSource(t, mutator, injectionSourceDatadogInstrumentation).resolve(test.pod)
+			if test.continueResolution {
+				require.Equal(t, sourcePass, actual.action)
+				require.Nil(t, actual.plan)
+				return
+			}
+			require.NotEqual(t, sourcePass, actual.action)
+			if test.expected == nil {
+				require.Nil(t, actual.plan)
+				return
+			}
+
+			require.NotNil(t, actual.plan)
+			require.Equal(t, test.expected.libraries, actual.plan.libraries)
+			require.ElementsMatch(t, test.expected.tracerEnvVars, actual.plan.tracerEnvVars)
+		})
+	}
+}
+
+func TestGetTargetPrecedenceWithCRD(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
+	mockConfig.SetInTest("apm_config.instrumentation.enabled", true)
+	config, err := NewConfig(mockConfig)
+	require.NoError(t, err)
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(coreconfig.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store := make(mockDDIProvider)
+	workload := ssi.DDICRTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
+	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil)
+	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
+	require.NoError(t, err)
+	require.NoError(t, mutator.SetRemotePolicies([]policies.Policy{{
+		Name:  "remote-config",
+		Rules: policies.AlwaysTrue(),
+		Outcome: policies.Outcome{
+			Inject:         true,
+			TracerVersions: map[string]string{"java": "v1"},
+		},
+	}}))
+
+	pod := mutatecommon.FakePodSpec{
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "web-bcdfg",
+		Labels:     map[string]string{common.EnabledLabelKey: "false"},
+	}.Create()
+	require.Nil(t, mutator.getTarget(pod), "annotation opt-out should win over remote config")
+
+	pod = mutatecommon.FakePodSpec{
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "web-bcdfg",
+	}.Create()
+	resolved := mutator.getTarget(pod)
+	require.NotNil(t, resolved)
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.plan.libraries, "DDI should win over remote config")
+
+	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, false, nil, nil)
+	require.Nil(t, mutator.getTarget(pod), "CRD opt-out should block static and remote config fallback")
+
+	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil)
+	mutator.ClearRemotePolicies()
+	resolved = mutator.getTarget(pod)
+	require.NotNil(t, resolved)
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.plan.libraries)
 }
 
 func TestGetTargetLibraries(t *testing.T) {
@@ -692,7 +896,7 @@ func TestGetTargetLibraries(t *testing.T) {
 		configPath string
 		in         *corev1.Pod
 		namespaces []workloadmeta.KubernetesMetadata
-		expected   *targetInternal
+		expected   *injectionPlan
 	}{
 		"a rule without selectors applies as a default": {
 			configPath: "testdata/filter.yaml",
@@ -707,8 +911,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("foo", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
@@ -741,8 +945,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("billing-service", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -760,8 +964,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
@@ -795,8 +999,8 @@ func TestGetTargetLibraries(t *testing.T) {
 					"env":     "prod",
 				}),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(dotnet, "v1"),
 				},
 			},
@@ -829,8 +1033,8 @@ func TestGetTargetLibraries(t *testing.T) {
 					Labels:    map[string]string{},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
@@ -848,8 +1052,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
@@ -872,8 +1076,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("kube-system", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
@@ -888,8 +1092,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -904,8 +1108,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
@@ -939,18 +1143,20 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
-			// Filter the pod.
-			actual := f.getMatchingTarget(test.in)
+			actual := f.resolveTarget(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
 				require.Nil(t, actual)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.NotNil(t, actual.plan)
+				require.True(t, actual.isSSI)
+				require.False(t, actual.plan.blocked)
+				require.Equal(t, test.expected.libraries, actual.plan.libraries)
 			}
 		})
 	}
@@ -1107,7 +1313,7 @@ admission_controller:
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.

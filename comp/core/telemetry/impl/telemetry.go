@@ -26,17 +26,17 @@ import (
 
 // TODO (components): Remove the globals and move this into `newTelemetry` after all telemetry is migrated to the component
 var (
-	registry = newRegistry()
-	mutex    = sync.Mutex{}
-
-	defaultRegistry = prometheus.NewRegistry()
+	registry        = newRegistry()
+	mutex           = sync.Mutex{}
+	metricHelpMutex = sync.RWMutex{}
+	metricHelp      = make(map[string]string)
 )
 
 type telemetryImpl struct {
-	mutex    *sync.Mutex
-	registry *prometheus.Registry
-
-	defaultRegistry *prometheus.Registry
+	mutex           *sync.Mutex
+	registry        *prometheus.Registry
+	metricHelpMutex *sync.RWMutex
+	metricHelp      map[string]string
 }
 
 func newRegistry() *prometheus.Registry {
@@ -79,11 +79,14 @@ func NewComponent(deps Requires) Provides {
 }
 
 func newTelemetry() *telemetryImpl {
-	return &telemetryImpl{
-		mutex:    &mutex,
-		registry: registry,
+	mutex.Lock()
+	defer mutex.Unlock()
 
-		defaultRegistry: defaultRegistry,
+	return &telemetryImpl{
+		mutex:           &mutex,
+		registry:        registry,
+		metricHelpMutex: &metricHelpMutex,
+		metricHelp:      metricHelp,
 	}
 }
 
@@ -102,6 +105,18 @@ func (t *telemetryImpl) Reset() {
 	defer mutex.Unlock()
 	registry = newRegistry()
 	t.registry = registry
+	t.metricHelpMutex.Lock()
+	defer t.metricHelpMutex.Unlock()
+	metricHelp = make(map[string]string)
+	t.metricHelp = metricHelp
+}
+
+// CanonicalMetricHelp returns the HELP text for a metric family created in the normal telemetry registry.
+func (t *telemetryImpl) CanonicalMetricHelp(metricName string) (help string, found bool) {
+	t.metricHelpMutex.RLock()
+	defer t.metricHelpMutex.RUnlock()
+	help, found = t.metricHelp[metricName]
+	return help, found
 }
 
 // RegisterCollector Registers a Collector with the prometheus registry
@@ -134,7 +149,7 @@ func (t *telemetryImpl) NewCounterWithOpts(subsystem, name string, tags []string
 			tags,
 		),
 	}
-	t.mustRegister(c.pc, opts)
+	t.mustRegister(c.pc, subsystem, name, help)
 	return c
 }
 
@@ -154,7 +169,7 @@ func (t *telemetryImpl) NewSimpleCounterWithOpts(subsystem, name, help string, o
 		Help:      help,
 	})
 
-	t.mustRegister(pc, opts)
+	t.mustRegister(pc, subsystem, name, help)
 	return &simplePromCounter{c: pc}
 }
 
@@ -178,7 +193,7 @@ func (t *telemetryImpl) NewGaugeWithOpts(subsystem, name string, tags []string, 
 			tags,
 		),
 	}
-	t.mustRegister(g.pg, opts)
+	t.mustRegister(g.pg, subsystem, name, help)
 	return g
 }
 
@@ -198,7 +213,7 @@ func (t *telemetryImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opt
 		Help:      help,
 	})}
 
-	t.mustRegister(pc.g, opts)
+	t.mustRegister(pc.g, subsystem, name, help)
 	return pc
 }
 
@@ -224,7 +239,7 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 		),
 	}
 
-	t.mustRegister(h.ph, opts)
+	t.mustRegister(h.ph, subsystem, name, help)
 
 	return h
 }
@@ -246,43 +261,46 @@ func (t *telemetryImpl) NewSimpleHistogramWithOpts(subsystem, name, help string,
 		Buckets:   buckets,
 	})}
 
-	t.mustRegister(pc.h, opts)
+	t.mustRegister(pc.h, subsystem, name, help)
 	return pc
 }
 
-func (t *telemetryImpl) mustRegister(c prometheus.Collector, opts telemetry.Options) {
-	if opts.DefaultMetric {
-		t.defaultRegistry.MustRegister(c)
-	} else {
-		t.registry.MustRegister(c)
-	}
+func (t *telemetryImpl) mustRegister(c prometheus.Collector, subsystem, name, help string) {
+	t.registry.MustRegister(c)
+	t.metricHelpMutex.Lock()
+	defer t.metricHelpMutex.Unlock()
+	t.metricHelp[prometheus.BuildFQName("", subsystem, name)] = help
 }
 
-func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, error) {
-	if defaultGather {
-		return t.defaultRegistry.Gather()
+func (t *telemetryImpl) Gather(filter telemetry.MetricFilter) ([]*telemetry.MetricFamily, error) {
+	t.mutex.Lock()
+	metricFamilies, err := t.registry.Gather()
+	t.mutex.Unlock()
+	if err != nil {
+		return nil, err
 	}
 
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	filtered := make([]*telemetry.MetricFamily, 0, len(metricFamilies))
+	for _, mf := range metricFamilies {
+		if filter(mf) {
+			filtered = append(filtered, mf)
+		}
+	}
 
-	return t.registry.Gather()
+	return filtered, nil
 }
 
 func (t *telemetryImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
-	// Use defaultGather=false to match the /telemetry HTTP endpoint (Handler), which
-	// serves t.registry. Most agent metrics use DefaultOptions and go to t.registry;
-	// only metrics with Options{DefaultMetric:true} go to defaultRegistry (defaultGather=true).
-	text, err := t.GatherText(false, telemetry.NoFilter)
+	text, err := t.GatherText(telemetry.NoFilter)
 	if err != nil {
 		return err
 	}
 	return fb.AddFile("telemetry.log", []byte(text))
 }
 
-func (t *telemetryImpl) GatherText(defaultGather bool, filter telemetry.MetricFilter) (string, error) {
+func (t *telemetryImpl) GatherText(filter telemetry.MetricFilter) (string, error) {
 	// Gather metrics
-	metricFamilies, err := t.Gather(defaultGather)
+	metricFamilies, err := t.Gather(filter)
 	if err != nil {
 		return "", err
 	}
@@ -291,9 +309,6 @@ func (t *telemetryImpl) GatherText(defaultGather bool, filter telemetry.MetricFi
 	var buf bytes.Buffer
 	encoder := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	for _, mf := range metricFamilies {
-		if !filter(mf) {
-			continue
-		}
 		if err := encoder.Encode(mf); err != nil {
 			return "", err
 		}

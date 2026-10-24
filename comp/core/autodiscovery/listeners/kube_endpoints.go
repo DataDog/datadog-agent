@@ -23,6 +23,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
@@ -268,8 +269,19 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 		return true
 	}
 
+	// Endpoints' own annotations/labels, used for CEL workload-exclude filtering
+	if metadataDiffers(first, second) {
+		return true
+	}
+
 	// Endpoint subsets
 	return subsetsDiffer(first, second)
+}
+
+// metadataDiffers detects if two objects have different annotations or labels.
+func metadataDiffers(first, second metav1.Object) bool {
+	return !equality.Semantic.DeepEqual(first.GetAnnotations(), second.GetAnnotations()) ||
+		!equality.Semantic.DeepEqual(first.GetLabels(), second.GetLabels())
 }
 
 // subsetsDiffer detects if two Endpoints have different subsets.
@@ -340,7 +352,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
-	filterableEndpoint := workloadfilter.CreateKubeEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations(), kep.GetLabels())
 	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
 	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 
@@ -513,9 +525,33 @@ func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }
 
-// FilterTemplates filters the given configs based on the service's CEL selector.
+// FilterTemplates filters the given configs based on the service's CEL selector
+// and endpoint annotation precedence.
 func (s *KubeEndpointService) FilterTemplates(configs map[string]integration.Config) {
 	filterTemplatesMatched(s, configs)
+	s.filterTemplatesOverriddenChecks(configs)
+}
+
+// filterTemplatesOverriddenChecks drops DatadogInstrumentation endpoint
+// templates when an endpoint annotation configures the same integration.
+func (s *KubeEndpointService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
+	annotationCheckNames := make(map[string]struct{})
+	for _, config := range configs {
+		if config.Provider == names.KubeEndpoints || config.Provider == names.KubeEndpointSlices {
+			annotationCheckNames[config.Name] = struct{}{}
+		}
+	}
+
+	for digest, config := range configs {
+		if config.Provider != names.KubeEndpointSlicesCR {
+			continue
+		}
+		if _, found := annotationCheckNames[config.Name]; found {
+			log.Debugf("Ignoring config from %s: endpoint annotation overrides check %s for service %s",
+				config.Source, config.Name, s.GetServiceID())
+			delete(configs, digest)
+		}
+	}
 }
 
 // GetFilterableEntity returns the filterable entity of the service

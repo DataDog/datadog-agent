@@ -44,6 +44,7 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/api/grpcserver/helpers",
+            "//comp/core/telemetry/impl",
             "//pkg/config/env",
             "//pkg/ebpf/ebpftest",
             "//pkg/network",
@@ -64,6 +65,7 @@ dd_agent_go_test(
             "//pkg/network/protocols/testutil",
             "//pkg/network/protocols/tls/gotls/testutil",
             "//pkg/network/tracer",
+            "//pkg/network/tracer/connection/fentry",
             "//pkg/network/tracer/connection/kprobe",
             "//pkg/network/tracer/testutil",
             "//pkg/network/usm",
@@ -92,6 +94,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/api/grpcserver/helpers",
+            "//comp/core/telemetry/impl",
             "//pkg/config/env",
             "//pkg/ebpf/ebpftest",
             "//pkg/network",
@@ -112,6 +115,7 @@ dd_agent_go_test(
             "//pkg/network/protocols/testutil",
             "//pkg/network/protocols/tls/gotls/testutil",
             "//pkg/network/tracer",
+            "//pkg/network/tracer/connection/fentry",
             "//pkg/network/tracer/connection/kprobe",
             "//pkg/network/tracer/testutil",
             "//pkg/network/usm",
@@ -139,6 +143,7 @@ dd_agent_go_test(
             "@org_mongodb_go_mongo_driver_v2//mongo",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/telemetry/impl",
             "//pkg/config/env",
             "//pkg/ebpf/ebpftest",
             "//pkg/network",

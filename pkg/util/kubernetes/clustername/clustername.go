@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -117,14 +119,19 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 		}
 
+		// Cluster check runners aren't scheduled on a specific node and don't have a
+		// reachable local kubelet, so skip the node-label based auto discovery to avoid
+		// noisy "Impossible to reach Kubelet" warnings.
 		var clusterName string
-		nodeInfo, err := hostinfo.NewNodeInfo()
-		if err != nil {
-			log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-		} else {
-			clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
+		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
+			nodeInfo, err := hostinfo.NewNodeInfo()
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+			} else {
+				clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
+				if err != nil {
+					log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+				}
 			}
 		}
 		if len(clusterName) > 0 {
@@ -188,13 +195,19 @@ func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
 }
 
-// GetClusterID looks for an env variable which should contain the cluster ID.
-// This variable should come from a configmap, created by the cluster-agent.
-// This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
+// GetClusterID returns the Kubernetes cluster ID.
+// The Cluster Agent gets it from Kubernetes. Other agents use the
+// DD_ORCHESTRATOR_CLUSTER_ID env variable when it is set, otherwise the Cluster Agent API.
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
+	}
+
+	// Do not call the Cluster Agent service from a Cluster Agent: a follower can
+	// call itself or another replica that is not ready.
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return getClusterAgentClusterID()
 	}
 
 	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent

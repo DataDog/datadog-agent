@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -33,6 +34,15 @@ type upgradeSuite struct {
 	srcVersion     string
 	destVersion    string
 	testingKeysURL string
+}
+
+func (is *upgradeSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	defer is.CleanupOnSetupFailure()
+
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
 }
 
 func TestUpgradeScript(t *testing.T) {
@@ -91,7 +101,6 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 		installparams.WithArch(string(is.osDesc.Architecture)),
 		installparams.WithFlavor(*flavorName),
 		installparams.WithMajorVersion(is.srcVersion),
-		installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")),
 		installparams.WithPipelineID(""),
 	}
 	if is.testingKeysURL != "" {
@@ -100,6 +109,9 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 	install.Unix(is.T(), VMclient, installOptions...)
 	var err error
 	if is.srcVersion == "5" {
+		// install.Unix skipped starting Agent 5 (DD_INSTALL_ONLY), so start it here instead.
+		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent start")
+		require.NoError(is.T(), err)
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
 	} else {
 		_, err = VMclient.SvcManager.Stop("datadog-agent")

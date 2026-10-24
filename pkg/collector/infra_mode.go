@@ -34,6 +34,11 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 		return true
 	}
 
+	// cloud_cost_only is tagging-only; check allowlisting uses integration.<mode>.tagged elsewhere.
+	if infraMode == "cloud_cost_only" {
+		return true
+	}
+
 	// If allowed checks is empty, all checks are allowed
 	if allowedChecks := cfg.GetStringSlice("integration." + infraMode + ".allowed"); len(allowedChecks) == 0 || slices.Contains(allowedChecks, checkName) {
 		return true

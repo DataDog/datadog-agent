@@ -60,14 +60,20 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 	}
 }
 
-// image is a wrapper for github.com/google/go-containerregistry/pkg/v1/daemon.Image
-// daemon.Image loads the entire image into the memory at first,
-// but it doesn't need to load it if the information is already in the persistentCache,
-// To avoid entire loading, this wrapper uses ImageInspect and checks image ID and layer IDs.
+// image wraps github.com/google/go-containerregistry/pkg/v1/daemon.Image,
+// which loads the whole image into memory up front. The wrapper answers the
+// image ID and, in most cases, the config file from ImageInspect, and exports
+// the image the first time Trivy reads a layer or the raw config. Each Trivy
+// scan starts with an empty cache and reads every layer. The image is exported
+// once, so the OS rescan after an application scan runs out of time reads the
+// layers from the same export, or gets the error of a failed one: the export
+// went to the temporary file, which a second export would append to or find
+// closed.
 type image struct {
 	v1.Image
 	name    string
 	opener  opener
+	openErr error // the error of a failed export
 	inspect dimage.InspectResponse
 	history []v1.History
 }
@@ -83,10 +89,14 @@ func (img *image) populateImage() (err error) {
 	if img.Image != nil {
 		return nil
 	}
+	if img.openErr != nil {
+		return img.openErr
+	}
 
 	img.Image, err = img.opener()
 	if err != nil {
-		return fmt.Errorf("unable to open: %w", err)
+		img.openErr = fmt.Errorf("unable to open: %w", err)
+		return img.openErr
 	}
 
 	return nil
@@ -127,13 +137,12 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture:  img.inspect.Architecture,
-		Author:        img.inspect.Author,
-		Created:       v1.Time{Time: created},
-		DockerVersion: "", // DockerVersion was removed from image.InspectResponse in Docker SDK v29
-		Config:        img.imageConfig(img.inspect.Config),
-		History:       img.history,
-		OS:            img.inspect.Os,
+		Architecture: img.inspect.Architecture,
+		Author:       img.inspect.Author,
+		Created:      v1.Time{Time: created},
+		Config:       img.imageConfig(img.inspect.Config),
+		History:      img.history,
+		OS:           img.inspect.Os,
 		RootFS: v1.RootFS{
 			Type:    img.inspect.RootFS.Type,
 			DiffIDs: diffIDs,

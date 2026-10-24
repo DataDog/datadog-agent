@@ -216,6 +216,18 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Safe wrapper around NVIDIA NVML library
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
+- `DeviceCache.Refresh` keeps a previously enumerated physical GPU when that index returns `NVML_ERROR_GPU_IS_LOST`. No lost-state attribute is added to `DeviceInfo`; callers that need the current state must query NVML. Any other per-device error still drops that index.
+
+### NVML test mocks (`testutil/`)
+- Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside
+  the `safenvml` package; it installs and returns the canonical `MockNVML`
+  device graph.
+- `NvmlMockOption` configures library behavior. `NvmlDeviceOption` can also be
+  applied globally or through `WithDeviceOptions` for one physical device.
+- MIG and GPM support are disabled by default and must be enabled explicitly.
+- Mock responsibilities are split across `nvml_mock.go` (ownership/state),
+  `nvml_device.go` (device behavior), `nvml_options.go` (configuration), and
+  `nvml_defaults.go` (fixture data).
 
 ---
 
@@ -227,7 +239,7 @@ The GPU monitoring system emits two active time metrics:
 - **`process.sm_active`**: Per-process percentage of time the GPU had active kernels
 - **`sm_active`**: Device-wide percentage of time any GPU kernels were active
 
-Both are emitted with **Low priority** to serve as fallbacks when NVML or GPM-based metrics are unavailable.
+`process.sm_active` is emitted with **Low priority**. Device-wide `sm_active` is emitted with **MediumLow priority**, below NVML sampling and above the GPM fallback.
 
 ### How They Are Generated
 
@@ -235,6 +247,13 @@ Active time is derived from kernel execution intervals captured within each coll
 
 - **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
 - **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
+
+### Other `sm_active` Sources
+
+- `sampling` collector (Medium): derived from NVML per-process utilization samples.
+- `gpm` collector with `gpu.legacy_sm_active` (High): `GPM_METRIC_SM_UTIL`.
+- `gpm` collector (Low, High with `gpu.prefer_gr_engine_sm_active`, off with
+  `gpu.legacy_sm_active`): `GPM_METRIC_GRAPHICS_UTIL`.
 
 ## GPU Spec Guidance
 

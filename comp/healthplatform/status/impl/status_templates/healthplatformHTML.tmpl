@@ -1,0 +1,23 @@
+<div class="stat">
+  <span class="stat_title">Health Platform</span>
+  <span class="stat_data">
+    {{ with .healthPlatform }}
+      {{ if not .enabled }}
+        Health Platform is disabled.
+      {{ else }}
+        Active issues: {{ .activeIssues }} ({{ .highSeverityIssues }} high, {{ .mediumSeverityIssues }} medium, {{ .lowSeverityIssues }} low{{ if .unknownSeverityIssues }}, {{ .unknownSeverityIssues }} unknown{{ end }})<br>
+        Run <code>agent diagnose</code> for the full list of detected issues.<br>
+        <br>
+        Reporting to Datadog<br>
+        Last successful send: {{ if .lastSuccessAt }}{{ .lastSuccessAt }}{{ else }}never{{ end }}<br>
+        Bytes sent: {{ humanize .bytesSentTotal }}<br>
+        {{ if .egressHealthy }}
+          Send errors: {{ .sendErrorsTotal }}<br>
+        {{ else }}
+          <span class="error">Send errors: {{ .sendErrorsTotal }}</span><br>
+          {{ if .lastError }}<span class="error">Last error: {{ .lastError }}</span><br>{{ end }}
+        {{ end }}
+      {{ end }}
+    {{ end }}
+  </span>
+</div>

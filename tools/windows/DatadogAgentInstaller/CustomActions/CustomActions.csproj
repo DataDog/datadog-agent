@@ -83,6 +83,7 @@
     <Compile Include="Interfaces\IWindowsService.cs" />
     <Compile Include="Native\FileSystemServices.cs" />
     <Compile Include="Native\Registries.cs" />
+    <Compile Include="Native\SecureDirectory.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
     <Compile Include="Native\ServiceController.cs" />
@@ -104,7 +105,6 @@
     <Compile Include="Interfaces\ISession.cs" />
     <Compile Include="InstallStateCustomActions.cs" />
     <Compile Include="SessionWrapper.cs" />
-    <Compile Include="Telemetry.cs" />
     <Compile Include="ProcessUserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

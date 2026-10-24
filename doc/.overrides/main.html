@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{# Rebase the displayed navigation without changing the site's reading sequence or search index. #}
+{% set roots = config.extra.navigation_roots | default([]) %}
+{% if roots %}
+  {% set navigation = namespace(items = [], root = none, settings = none) %}
+  {% for nav_item in nav.items %}
+    {% set homepage = nav_item.children | default([]) | first %}
+    {% set settings = roots | selectattr("url", "equalto", homepage.url) | first if homepage else none %}
+    {% if settings %}
+      {% set navigation.items = navigation.items + [{"title": nav_item.title, "url": homepage.url}] %}
+      {% if nav_item.active %}
+        {% set navigation.root = nav_item %}
+        {% set navigation.settings = settings %}
+      {% endif %}
+    {% else %}
+      {% set navigation.items = navigation.items + [nav_item] %}
+    {% endif %}
+  {% endfor %}
+  {% if navigation.root %}
+    {% set back_key = navigation.settings.back_key | default("b") %}
+    {% set back_title = "← " ~ (navigation.settings.back_label | default("Back to main docs", true)) %}
+    {% if back_key %}
+      {% set back_title = back_title ~ " (" ~ back_key ~ ")" %}
+    {% endif %}
+    {% set back = {"title": back_title, "url": nav.homepage.url} %}
+    {% set nav = {"items": (navigation.root.children | list) + [back], "homepage": navigation.root.children | first} %}
+  {% else %}
+    {% set nav = {"items": navigation.items, "homepage": nav.homepage} %}
+  {% endif %}
+{% endif %}
+
+{% block content %}
+  {% if roots and navigation.root and back_key %}
+    <span hidden data-navigation-root-back="{{ back.url | url }}" data-navigation-root-back-key="{{ back_key }}"></span>
+  {% endif %}
+  {{ super() }}
+{% endblock %}

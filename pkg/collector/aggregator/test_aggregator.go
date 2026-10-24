@@ -315,29 +315,45 @@ func testSubmitEvent(t *testing.T) {
 }
 
 func testSubmitHistogramBucket(t *testing.T) {
-	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
-	logReceiver := option.None[integrations.Component]()
-	tagger := nooptagger.NewComponent()
-	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
-	defer release()
+	// The exports take the bounds as different C types: float for SubmitHistogramBucket and
+	// double for SubmitHistogramBucketMulti.
+	submit := func(lowerBound, upperBound float64, tags **C.char) {
+		SubmitHistogramBucket(C.CString("testID"), C.CString("test_histogram"), C.longlong(42), C.float(lowerBound), C.float(upperBound), C.int(1), C.CString("my_hostname"), tags, true)
+	}
+	submitMulti := func(lowerBound, upperBound float64, tags **C.char) {
+		SubmitHistogramBucketMulti(C.CString("testID"), C.CString("test_histogram"), C.longlong(42), C.double(lowerBound), C.double(upperBound), C.int(1), C.CString("my_hostname"), tags, true)
+	}
 
-	sender.SetupAcceptAll()
+	cases := []struct {
+		name       string
+		submit     func(lowerBound, upperBound float64, tags **C.char)
+		method     string
+		lowerBound float64
+		upperBound float64
+	}{
+		{"SubmitHistogramBucket", submit, "OpenmetricsBucket", 1.0, 2.0},
+		{"SubmitHistogramBucketMulti", submitMulti, "HistogramBucket", 1.0, 2.0},
+		// A float would round both bounds to 100000000, so the buckets would share their state
+		{"SubmitHistogramBucketMulti/double precision bounds", submitMulti, "HistogramBucket", 100000001.0, 100000002.0},
+	}
 
-	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
-	SubmitHistogramBucket(
-		C.CString("testID"),
-		C.CString("test_histogram"),
-		C.longlong(42),
-		C.float(1.0),
-		C.float(2.0),
-		C.int(1),
-		C.CString("my_hostname"),
-		&cTags[0],
-		true,
-	)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender(t, checkid.ID("testID"))
+			logReceiver := option.None[integrations.Component]()
+			tagger := nooptagger.NewComponent()
+			filterStore := workloadfilterfxmock.SetupMockFilter(t)
+			release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+			defer release()
 
-	sender.AssertOpenmetricsBucket(t, "OpenmetricsBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
+			sender.SetupAcceptAll()
+
+			cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
+			tc.submit(tc.lowerBound, tc.upperBound, &cTags[0])
+
+			sender.AssertHistogramBucket(t, tc.method, "test_histogram", 42, tc.lowerBound, tc.upperBound, true, "my_hostname", []string{"tag1", "tag2"}, true)
+		})
+	}
 }
 
 func testSubmitEventPlatformEvent(t *testing.T) {

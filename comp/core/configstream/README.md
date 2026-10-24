@@ -66,7 +66,7 @@ message ConfigStreamRequest {
 message ConfigEvent {
   oneof event {
     ConfigSnapshot snapshot = 1;  // Sent first, then on resync
-    ConfigUpdate update = 2;      // Incremental changes
+    ConfigUpdate update = 2;      // Incremental changes, including removals
   }
 }
 
@@ -86,8 +86,15 @@ message ConfigSetting {
   string source = 1;             // "file", "env-var", "remote-config", etc.
   string key = 2;                // Setting name
   google.protobuf.Value value = 3; // Typed value (string, int, bool, etc.)
+  string unset_source = 4;       // Set only on a removal: the layer cleared
 }
 ```
+
+**Removals** travel as updates, not as their own event. Snapshots carry only the merged view, one entry per key tagged with the winning source, so a subscriber has no lower layer of its own to fall back to. A removal therefore sets `unset_source` to the layer that was cleared while `source` and `value` describe what the key resolves to without it, which a layer-aware subscriber writes before dropping the cleared entry. Every declared setting has a default, so the fallback bottoms out there; `source` is empty only for an undeclared key, which leaves the config entirely. A subscriber that keeps a single layer can ignore `unset_source` entirely and just apply the value.
+
+**Snapshots are authoritative, not additive.** A snapshot is the sender's entire state, so a layer-aware subscriber must retract any layer it wrote earlier that the snapshot no longer claims for that key, not merely apply the entries it does carry. A layer cleared while the subscriber was disconnected is visible only as its absence from the reconnect snapshot; left in place it outranks the snapshot's own entry and resurrects a value that was removed. Retract after applying the snapshot, so each local notification already carries the value that now wins.
+
+**Unrecognized events** must trigger a resynchronization, not be ignored: skipping an event silently diverges from the sender, whereas erroring out of the stream reconnects and receives a fresh snapshot.
 
 ## Configuration
 

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM : Add support for installing APM injection on AMD64 systems that also
+    run 32-bit binaries. 32-bit executables run without injection, while
+    supported 64-bit executables continue to be instrumented.

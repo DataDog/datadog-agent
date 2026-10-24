@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -251,123 +252,6 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 	return nil
 }
 
-func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
-	messages := make([]string, 0)
-	checkAndRecordString := func(str string, prefix string) {
-		if res := FindUnexpectedUnicode(str); len(res) != 0 {
-			for _, detected := range res {
-				msg := fmt.Sprintf("%s - Unexpected unicode %s codepoint '%U' detected at byte position %v", prefix, detected.reason, detected.codepoint, detected.position)
-				messages = append(messages, msg)
-			}
-		}
-	}
-
-	var visitElement func(string, interface{})
-	visitElement = func(key string, element interface{}) {
-		switch elementValue := element.(type) {
-		case string:
-			checkAndRecordString(elementValue, fmt.Sprintf("For key '%s', configuration value string '%s'", key, elementValue))
-		case []string:
-			for _, s := range elementValue {
-				checkAndRecordString(s, fmt.Sprintf("For key '%s', configuration value string '%s'", key, s))
-			}
-		case []interface{}:
-			for _, listItem := range elementValue {
-				visitElement(key, listItem)
-			}
-		}
-	}
-
-	allKeys := config.AllKeysLowercased()
-	for _, key := range allKeys {
-		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
-		if unknownValue := config.Get(key); unknownValue != nil {
-			visitElement(key, unknownValue)
-		}
-	}
-
-	return messages
-}
-
-func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, additionalKnownEnvVars []string) []string {
-	var unknownVars []string
-
-	knownVars := map[string]struct{}{
-		// these variables are used by the agent, but not via the Config struct,
-		// so must be listed separately.
-		"DD_INSIDE_CI":      {},
-		"DD_PROXY_HTTP":     {},
-		"DD_PROXY_HTTPS":    {},
-		"DD_PROXY_NO_PROXY": {},
-		// these variables are used by serverless, but not via the Config struct
-		"DD_AAS_DOTNET_EXTENSION_VERSION":          {},
-		"DD_AAS_EXTENSION_VERSION":                 {},
-		"DD_AAS_JAVA_EXTENSION_VERSION":            {},
-		"DD_AGENT_PIPE_NAME":                       {},
-		"DD_API_KEY_SECRET_ARN":                    {},
-		"DD_APM_FLUSH_DEADLINE_MILLISECONDS":       {},
-		"DD_APPSEC_ENABLED":                        {},
-		"DD_AZURE_APP_SERVICES":                    {},
-		"DD_DOGSTATSD_ARGS":                        {},
-		"DD_DOGSTATSD_PATH":                        {},
-		"DD_DOGSTATSD_WINDOWS_PIPE_NAME":           {},
-		"DD_DOTNET_TRACER_HOME":                    {},
-		"DD_EXTENSION_PATH":                        {},
-		"DD_FLUSH_TO_LOG":                          {},
-		"DD_KMS_API_KEY":                           {},
-		"DD_INTEGRATIONS":                          {},
-		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
-		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
-		"DD_LOGS_INJECTION":                        {},
-		"DD_MERGE_XRAY_TRACES":                     {},
-		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
-		"DD_PROFILING_LOG_DIR":                     {},
-		"DD_RUNTIME_METRICS_ENABLED":               {},
-		"DD_SERVERLESS_APPSEC_ENABLED":             {},
-		"DD_SERVERLESS_FLUSH_STRATEGY":             {},
-		"DD_SERVICE":                               {},
-		"DD_TRACE_AGENT_ARGS":                      {},
-		"DD_TRACE_AGENT_PATH":                      {},
-		"DD_TRACE_AGENT_URL":                       {},
-		"DD_TRACE_LOG_DIRECTORY":                   {},
-		"DD_TRACE_LOG_PATH":                        {},
-		"DD_TRACE_METRICS_ENABLED":                 {},
-		"DD_TRACE_PIPE_NAME":                       {},
-		"DD_TRACE_TRANSPORT":                       {},
-		"DD_VERSION":                               {},
-		// this variable is used by the Kubernetes leader election mechanism
-		"DD_POD_NAME": {},
-		// this variable is used by tracers
-		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
-		// these variables are used by source code integration
-		"DD_GIT_COMMIT_SHA":     {},
-		"DD_GIT_REPOSITORY_URL": {},
-		// signals whether or not ADP is enabled (deprecated)
-		"DD_ADP_ENABLED": {},
-		// trace-loader socket file descriptors
-		"DD_APM_NET_RECEIVER_FD":  {},
-		"DD_APM_UNIX_RECEIVER_FD": {},
-		"DD_OTLP_CONFIG_GRPC_FD":  {},
-	}
-	for _, key := range config.GetEnvVars() {
-		knownVars[key] = struct{}{}
-	}
-	for _, key := range additionalKnownEnvVars {
-		knownVars[key] = struct{}{}
-	}
-
-	for _, equality := range environ {
-		key := strings.SplitN(equality, "=", 2)[0]
-		if !strings.HasPrefix(key, "DD_") {
-			continue
-		}
-		if _, known := knownVars[key]; !known {
-			unknownVars = append(unknownVars, key)
-		}
-	}
-	return unknownVars
-}
-
 func useHostEtc(config pkgconfigmodel.Config) {
 	if pkgconfigenv.IsContainerized() && pathExists("/host/etc") {
 		if !config.GetBool("ignore_host_etc") {
@@ -397,7 +281,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -407,7 +291,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config, additionalEnvVars)
+	err := loadCustom(config)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -422,10 +306,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		return err
 	}
 
-	// Configure delegated auth after secrets are resolved but before other components initialize
-	// Cloud provider detection happens automatically within the delegatedauth component
-	// Use a background context since LoadDatadog doesn't take a context parameter.
-	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
+	// Configure delegated auth after secrets are resolved but before other components initialize.
 	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
 		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
@@ -489,6 +370,13 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		// region itself once detection picks AWS.
 	}
 
+	startupCtx := ctx
+	cancelStartup := func() {}
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	defer cancelStartup()
+
 	// Scan all registered prefixes to find which ones have delegated auth enabled
 	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
@@ -499,47 +387,38 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
-		// Call AddInstance - the component auto-initializes on the first call
-		// Config and ProviderConfig are only used on the first call
-		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
-			Config:          config,
-			ProviderConfig:  providerConfig,
-			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
-			APIKeyConfigKey: section.apiKeyPath,
+		err := delegatedAuthComp.AddInstance(startupCtx, delegatedauth.InstanceParams{
+			Config:            config,
+			ProviderConfig:    providerConfig,
+			OrgUUID:           orgUUID,
+			RefreshInterval:   config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey:   section.apiKeyPath,
+			AllowAsyncStartup: section.apiKeyPath == "api_key",
 		})
 		if err != nil {
 			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
-	return nil
+	// Register directives embedded in the supported additional endpoint settings.
+	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
+	configureListShapeAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
+
+	return ctx.Err()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
-func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
-	return loadCustom(config, additionalKnownEnvVars)
+func LoadSystemProbe(config pkgconfigmodel.Config) error {
+	return loadCustom(config)
 }
 
 // loadCustom reads config into the provided config object
-func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
+func loadCustom(config pkgconfigmodel.Config) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		return err
 	}
-
-	for _, warn := range config.Warnings() {
-		log.Warnf("%s", warn)
-	}
-
-	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
-		log.Warnf("Unknown environment variable: %v", v)
-	}
-
-	for _, warningMsg := range findUnexpectedUnicode(config) {
-		log.Warnf("%s", warningMsg)
-	}
-
+	config.Validate()
 	return nil
 }
 
@@ -717,7 +596,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		// updating it.
 		yamlConf, err := yaml.Marshal(config.AllSettings())
 		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %w", err)
 		}
 
 		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
@@ -753,9 +632,8 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	// `kubernetes_node_annotations_as_tags`, etc. Since these arbitrary keys can
 	// contain a '.' character, we are unable to use the standard `config.Set` method.
 	// Instead, we remove trailing elements from the end of the path until we find a known
-	// config field, retrieve the compound object at that point, and then use the trailing
-	// elements to figure out how to modify that particular object, before setting it back
-	// on the config.
+	// config field, then modify the compound object at that point through config.SetWithLock,
+	// using the trailing elements to find the value to replace.
 	//
 	// Example with the follow configuration:
 	//
@@ -775,10 +653,10 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	//
 	// This function will effectively do:
 	//
-	// var original map[string][]string = config.Get('process_config.additional_endpoints')
-	// var slice []string               = original['http://url.com']
-	// slice[0] = 'password'
-	// config.Set('process_config.additional_endpoints', original)
+	// config.SetWithLock('process_config.additional_endpoints', SourceSecret, func(original, _) {
+	//     original['http://url.com'][0] = 'password'
+	//     return original, true
+	// })
 
 	trailingElements := make([]string, 0, len(settingPath))
 	// copy the path and hold onto the original, useful for error messages
@@ -799,66 +677,68 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	}
 	slices.Reverse(trailingElements)
 
-	// retrieve the config value at the known field
-	startingValue := config.Get(settingName)
-	iterateValue := startingValue
-	// iterate down until we find the final object that we are able to modify
-	for k, elem := range trailingElements {
-		switch modifyValue := iterateValue.(type) {
-		case map[string]interface{}:
-			if k == len(trailingElements)-1 {
-				// if we reached the final object, modify it directly by assigning the newValue parameter
-				modifyValue[elem] = newValue
-			} else {
-				// otherwise iterate inside that compound object
-				iterateValue = modifyValue[elem]
-			}
-		case map[interface{}]interface{}:
-			if k == len(trailingElements)-1 {
-				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
-				if index, err := strconv.Atoi(elem); err == nil {
-					if _, exists := modifyValue[index]; exists {
-						modifyValue[index] = newValue
-						continue
-					}
+	var updateErr error
+	config.SetWithLock(settingName, pkgconfigmodel.SourceSecret, func(startingValue interface{}, _ pkgconfigmodel.Source) (interface{}, bool) {
+		iterateValue := startingValue
+		// Iterate down until we find the final object that we are able to modify.
+		for k, elem := range trailingElements {
+			switch modifyValue := iterateValue.(type) {
+			case map[string]interface{}:
+				if k == len(trailingElements)-1 {
+					modifyValue[elem] = newValue
+				} else {
+					iterateValue = modifyValue[elem]
 				}
-				modifyValue[elem] = newValue
-			} else {
-				iterateValue = modifyValue[elem]
+			case map[interface{}]interface{}:
+				if k == len(trailingElements)-1 {
+					if index, err := strconv.Atoi(elem); err == nil {
+						if _, exists := modifyValue[index]; exists {
+							modifyValue[index] = newValue
+							continue
+						}
+					}
+					modifyValue[elem] = newValue
+				} else {
+					iterateValue = modifyValue[elem]
+				}
+			case []string:
+				index, err := strconv.Atoi(elem)
+				if err != nil {
+					updateErr = err
+					return nil, false
+				}
+				if index >= len(modifyValue) {
+					updateErr = fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+					return nil, false
+				}
+				if k == len(trailingElements)-1 {
+					modifyValue[index] = fmt.Sprintf("%s", newValue)
+				} else {
+					iterateValue = modifyValue[index]
+				}
+			case []interface{}:
+				index, err := strconv.Atoi(elem)
+				if err != nil {
+					updateErr = err
+					return nil, false
+				}
+				if index >= len(modifyValue) {
+					updateErr = fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+					return nil, false
+				}
+				if k == len(trailingElements)-1 {
+					modifyValue[index] = newValue
+				} else {
+					iterateValue = modifyValue[index]
+				}
+			default:
+				updateErr = fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, iterateValue)
+				return nil, false
 			}
-		case []string:
-			index, err := strconv.Atoi(elem)
-			if err != nil {
-				return err
-			}
-			if index >= len(modifyValue) {
-				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
-			}
-			if k == len(trailingElements)-1 {
-				modifyValue[index] = fmt.Sprintf("%s", newValue)
-			} else {
-				iterateValue = modifyValue[index]
-			}
-		case []interface{}:
-			index, err := strconv.Atoi(elem)
-			if err != nil {
-				return err
-			}
-			if index >= len(modifyValue) {
-				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
-			}
-			if k == len(trailingElements)-1 {
-				modifyValue[index] = newValue
-			} else {
-				iterateValue = modifyValue[index]
-			}
-		default:
-			return fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, iterateValue)
 		}
-	}
-
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecret)
-	return nil
+		return startingValue, true
+	})
+	return updateErr
 }
 
 // envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
@@ -969,6 +849,15 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
+	// A value outside the declared set applies no mode override and carries no
+	// `infra_mode` mark on the payloads, so report it rather than letting a typo
+	// look like a working configuration. Other readers of the raw setting still
+	// see the typo, so this does not claim the Agent behaves as `full`.
+	if infraMode != "" && !constants.IsKnownInfraMode(infraMode) {
+		log.Warnf("invalid value for 'infrastructure_mode': %q, expected one of %v",
+			infraMode, constants.KnownInfraModes)
+	}
+
 	// Apply legacy alias: copy values from legacy key to integration.additional
 	// Legacy `allowed_additional_checks` -> `integration.additional`
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
@@ -976,13 +865,13 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	if infraMode == "end_user_device" {
+	if infraMode == constants.InfraModeEndUserDevice {
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("logon_duration.enabled", true, pkgconfigmodel.SourceInfraMode)
-	} else if infraMode == "none" {
+	} else if infraMode == constants.InfraModeNone {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.

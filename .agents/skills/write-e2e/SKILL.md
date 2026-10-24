@@ -199,7 +199,7 @@ Needs `dda`, `pulumi`, `~/.test_infra_config.yaml` (created by `dda inv e2e.setu
 |---|---|---|
 | G1 | `dda inv linter.go --module=test/new-e2e --targets=./tests/<area>` | Compile errors, including nonexistent provisioner options |
 | G2 | `grep -rn -e 'docker\.io' -e 'apt-get install' -e 'apt install' -e 'yum install' -e 'curl http' test/new-e2e/tests/<area>/` | External dependencies and unpinned installs |
-| G3 | `grep -rn 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml .gitlab/windows/test/` and the JOBOWNERS entry | A test that never runs, or fails silently to no owner |
+| G3 | `grep -rn 'TARGETS:.*<area>' .gitlab/test/e2e/*.yml .gitlab/windows/test/e2e/*.yml .gitlab/windows/test/e2e_install_packages/*.yml` and the JOBOWNERS entry | A test that never runs, or fails silently to no owner |
 | G4 | The dev-mode session below | Provisioning, timing, real Agent behavior, hidden inter-test dependencies, missing cleanup |
 | G5 | Compare G4's wall time to 15 min (PR-gated) and 30–40 min (main/nightly) | A suite that will slow every pipeline |
 
@@ -250,6 +250,6 @@ Follow-ups   Test-only change, so qa/no-code-change. Runs on PR branches
              via .on_arun_or_e2e_changes. 11m of the 15m budget used.
 ```
 
-Recommend a QA label, and note that the checks accept exactly one. A pull request that only adds tests or CI wiring takes `qa/no-code-change`, whichever branches its job runs on. `qa/rc-required` is for changes that can only be validated on a release candidate — a workload that cannot be emulated, or behavior observable only during RC deployment — so reach for it based on what the *change* needs, not on whether the new job happens to skip pull-request branches. `docs/public/guidelines/contributing.md` has the full list.
+Recommend a QA label, and note that the checks accept exactly one. A pull request that only adds tests or CI wiring takes `qa/no-code-change`, whichever branches its job runs on. `qa/rc-required` is for changes that can only be validated on a release candidate — a workload that cannot be emulated, or behavior observable only during RC deployment — so reach for it based on what the *change* needs, not on whether the new job happens to skip pull-request branches. `doc/guidelines/contributing.md` has the full list.
 
 When a repository document turns out to be wrong, correct it in the same change — the root `AGENTS.md` asks for exactly that.

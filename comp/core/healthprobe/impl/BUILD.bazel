@@ -12,7 +12,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/def",
         "//pkg/status/health",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

@@ -1,0 +1,7 @@
+"""toolchain to wrap the SELinux userspace policy tools.
+
+Type: @selinux_tools//:selinux_tools_toolchain_type
+
+Toolchains:
+- @selinux_tools//:selinux_tools_toolchain: provides checkmodule and semodule_package.
+"""

@@ -7,7 +7,13 @@ package observerimpl
 
 import (
 	"fmt"
+	"slices"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // diverseLogContent returns distinct line shapes (JSON, kv, syslog, plain) for series s
@@ -130,4 +136,185 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 			}
 		})
 	}
+}
+
+// BenchmarkLogContextSteadyState measures repeated writes to an existing
+// log-derived series, so series creation does not hide per-log context costs.
+func BenchmarkLogContextSteadyState(b *testing.B) {
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
+	e := newEngine(engineConfig{
+		storage:    newTimeSeriesStorage(),
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+	log := &logObs{
+		content:     "GET /users/123 returned 500",
+		tags:        []string{"service:api"},
+		timestampMs: 1_000,
+	}
+	e.IngestLog("logs", log)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		log.timestampMs = int64(i+2) * 1_000
+		e.IngestLog("logs", log)
+	}
+}
+
+func highLoadLogTags() []string {
+	return []string{
+		"pod_name:api-123", "container_id:abc", "env:staging", "service:api",
+		"kube_namespace:default", "kube_deployment:api", "image_name:api", "image_tag:v1",
+		"cluster_name:stormeagle", "region:us-east-1", "team:agent", "version:7.84.0",
+		"orchestrator:ecs", "container_name:api", "kube_replica_set:api-123", "short_image:api",
+	}
+}
+
+func newBenchLogRules(b *testing.B, raw []logsfilter.ProcessingRule) *logsfilter.Rules {
+	b.Helper()
+	rules, err := logsfilter.NewRules(raw)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return rules
+}
+
+// BenchmarkLogProducer_Handoff measures the producer-side cost of filtering and
+// enqueueing a log observation across rule configurations and channel states.
+func BenchmarkLogProducer_Handoff(b *testing.B) {
+	noRules := newBenchLogRules(b, nil)
+	sourceOnlyRejectRules := newBenchLogRules(b, []logsfilter.ProcessingRule{
+		{Name: "drop_containerd", Type: "exclude_at_match", Source: "containerd"},
+	})
+	tagRules := newBenchLogRules(b, []logsfilter.ProcessingRule{
+		{Name: "keep_prod_api", Type: "include_at_match", Source: "containerd", Tags: []string{"env:prod", "service:api"}},
+		{Name: "keep_staging_web", Type: "include_at_match", Source: "containerd", Tags: []string{"env:staging", "service:web"}},
+		{Name: "keep_staging_api", Type: "include_at_match", Source: "containerd", Tags: []string{"env:staging", "service:api", "team:agent"}},
+		{Name: "drop_all", Type: "exclude_at_match"},
+	})
+
+	acceptedTags := highLoadLogTags()
+	rejectedTags := slices.Clone(acceptedTags)
+	rejectedTags[2] = "env:dev"
+
+	for _, tc := range []struct {
+		name        string
+		rules       *logsfilter.Rules
+		source      string
+		tags        []string
+		channelFull bool
+	}{
+		{name: "no_rules_16_tags", rules: noRules, source: "containerd", tags: acceptedTags},
+		{name: "source_only_rejected_16_tags", rules: sourceOnlyRejectRules, source: "containerd", tags: acceptedTags},
+		{name: "tag_accepted_16_tags", rules: tagRules, source: "containerd", tags: acceptedTags},
+		{name: "tag_rejected_16_tags", rules: tagRules, source: "containerd", tags: rejectedTags},
+		{name: "channel_full_16_tags", rules: noRules, source: "containerd", tags: acceptedTags, channelFull: true},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			telemetryComp := telemetryimpl.NewMock(b)
+			ch := make(chan observation, 1000)
+			stopDrain := make(chan struct{})
+			if tc.channelFull {
+				for i := 0; i < cap(ch); i++ {
+					ch <- observation{}
+				}
+			} else {
+				go func() {
+					for {
+						select {
+						case <-ch:
+						case <-stopDrain:
+							return
+						}
+					}
+				}()
+				b.Cleanup(func() { close(stopDrain) })
+			}
+
+			logFilter := &logAdmissionFilter{
+				rules:      tc.rules,
+				containers: newLogSourceRateState("info", -1, -1, -1),
+			}
+			h := &handle{
+				ch:        ch,
+				source:    "logs",
+				telemetry: newObserverTelemetry(telemetryComp),
+				logFilter: logFilter,
+			}
+			sample := &logObs{
+				source:      tc.source,
+				content:     `{"msg":"request completed","status":200}`,
+				status:      "warn",
+				tags:        tc.tags,
+				hostname:    "host-1",
+				timestampMs: 1_700_000_000_000,
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				h.ObserveLog(sample)
+			}
+		})
+	}
+}
+
+// BenchmarkMixedMetricLogConsumer measures mixed metric and log ingestion
+// through the shared observer channel and reports any queue drops.
+func BenchmarkMixedMetricLogConsumer(b *testing.B) {
+	cfg := configmock.NewFromYAML(b, `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  logs:
+    internal:
+      enabled: false
+    processing_rules:
+      - type: include_at_match
+        name: keep_staging_api
+        source: containerd
+        tags: ["env:staging", "service:api"]
+      - type: exclude_at_match
+        name: drop_all
+`)
+	provides, err := NewComponent(Requires{
+		Lifecycle: &testLifecycle{},
+		Config:    cfg,
+		Telemetry: telemetryimpl.NewMock(b),
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	obs := provides.Comp.(*observerImpl)
+	b.Cleanup(func() { close(obs.obsCh) })
+
+	metricHandle := obs.GetHandle("check")
+	logHandle := obs.GetHandle("logs")
+
+	metricSample := highLoadMetric("system.cpu.user")
+	contextKey := testContextKeyFor(metricSample)
+	logSample := &logObs{
+		source:      "containerd",
+		content:     `{"msg":"request failed","status":500}`,
+		status:      "error",
+		tags:        highLoadLogTags(),
+		hostname:    "host-1",
+		timestampMs: 1_700_000_000_000,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tsSec := int64(1_700_000_000 + i/64)
+		metricSample.timestamp = tsSec
+		metricHandle.ObserveMetric(metricSample, contextKey)
+
+		logSample.timestampMs = tsSec * 1000
+		logHandle.ObserveLog(logSample)
+	}
+	obs.Flush()
+	totalDrops := metricHandle.(*handle).dropCount.Load() + logHandle.(*handle).dropCount.Load()
+	b.ReportMetric(float64(totalDrops)/float64(b.N), "drops/op")
 }

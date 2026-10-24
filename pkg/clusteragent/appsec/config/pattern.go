@@ -9,6 +9,7 @@ package config
 
 import (
 	"context"
+	"errors"
 
 	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -57,6 +58,11 @@ type MutationSkippedReason struct {
 
 func (s *MutationSkippedReason) Error() string { return "mutation skipped: " + string(s.Reason) }
 
+// ErrInjectionNotApplicable indicates a proxy type does not apply to the current
+// configuration and should be skipped quietly rather than reported as a failure.
+// Patterns wrap it from IsInjectionPossible to opt into a quiet skip.
+var ErrInjectionNotApplicable = errors.New("injection not applicable")
+
 // InjectionPattern is the main interface to implement to support a new proxy type
 // for appsec injection. It is similar to the controller pattern used in
 // controller-runtime, but much simpler.
@@ -79,8 +85,20 @@ type InjectionPattern interface {
 	Namespace() string
 	// Added is called when an object is added or at startup for existing objects. It should be idempotent.
 	Added(ctx context.Context, obj *unstructured.Unstructured) error
-	// Deleted is called when an object is deleted. It should be idempotent.
+	// Deleted is called when an object is deleted, or on live objects during cleanup (see IsCleanup). It should be idempotent.
 	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
+}
+
+type cleanupContextKey struct{}
+
+// WithCleanup marks ctx as a cleanup pass, where Deleted is called on objects that still exist.
+func WithCleanup(ctx context.Context) context.Context {
+	return context.WithValue(ctx, cleanupContextKey{}, true)
+}
+
+// IsCleanup reports whether ctx was marked with WithCleanup.
+func IsCleanup(ctx context.Context) bool {
+	return ctx.Value(cleanupContextKey{}) != nil
 }
 
 // Starter optional reconciler (e.g. nginx ConfigMap sync).

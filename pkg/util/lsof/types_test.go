@@ -17,9 +17,9 @@ func TestFilesString(t *testing.T) {
 		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libutil.so.1"},
 	}
 
-	expected := `FD  Type Size OpenPerm FilePerm   Name                                    
-3   REG  0    r-       -rwx------ /some/file                              
-mem REG  8    r-xp     -r-------- /usr/lib/aarch64-linux-gnu/libutil.so.1 
+	expected := `FD  Type Size OpenPerm FilePerm   Name
+3   REG  0    r-       -rwx------ /some/file
+mem REG  8    r-xp     -r-------- /usr/lib/aarch64-linux-gnu/libutil.so.1
 `
 
 	require.Equal(t, expected, files.String())

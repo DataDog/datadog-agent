@@ -1,0 +1,7 @@
+exports_files(
+    [
+        "etc/box64.box64rc",
+        "usr/bin/box64",
+    ],
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+)

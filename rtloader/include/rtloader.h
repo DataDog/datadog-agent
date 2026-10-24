@@ -282,6 +282,15 @@ public:
     */
     virtual void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t) = 0;
 
+    //! setSubmitHistogramBucketMultiCb member.
+    /*!
+      \param A cb_submit_histogram_bucket_multi_t function pointer to the CGO callback.
+
+      Actual histogram buckets that share their context with other buckets are submitted from
+      go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitHistogramBucketMultiCb(cb_submit_histogram_bucket_multi_t) = 0;
+
     //! setSubmitEventPlatformEventCb member.
     /*!
       \param A cb_submit_event_platform_event_t function pointer to the CGO callback.

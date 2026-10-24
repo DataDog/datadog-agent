@@ -301,7 +301,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier
+			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -309,7 +309,11 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	} else {
 		// fallback hostname
 		hostname = o.conf.Hostname
-		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
+		src = source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       hostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
+		}
 	}
 
 	// Create a single accessor for all resource-level semantic lookups below, avoiding
@@ -417,7 +421,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
@@ -503,7 +511,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier
+			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -511,7 +519,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	} else {
 		// fallback hostname
 		hostname = o.conf.Hostname
-		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
+		src = source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       hostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
+		}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
@@ -588,9 +600,15 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		var samplingPriorty sampler.SamplingPriority
 		var decisionMaker string
 		if p, ok := prioritiesByID[k]; ok {
-			// a manual decision has been made by the user
 			samplingPriorty = p
-			decisionMaker = "-4"
+			if dm, ok := tracerDecisionMaker(spans); ok {
+				// the sampling decision was made upstream by a Datadog SDK exporting OTLP
+				// (e.g. remote or adaptive sampling rules); preserve its decision maker.
+				decisionMaker = dm
+			} else {
+				// a manual decision has been made by the user
+				decisionMaker = "-4"
+			}
 		} else {
 			// we use the probabilistic sampler to decide
 			samplingPriorty = o.sample(k)
@@ -605,6 +623,58 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 		traceChunks = append(traceChunks, chunk)
 	}
 	return traceChunks
+}
+
+// tracerDecisionMaker returns the sampling decision maker set upstream by the tracer on
+// any span of the chunk, either as a `_dd.p.dm` attribute or, failing that, as the `t.dm`
+// field of the `dd` member of the W3C tracestate. Only well-formed values are returned.
+func tracerDecisionMaker(spans pb.Trace) (string, bool) {
+	for _, s := range spans {
+		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) {
+			return dm, true
+		}
+	}
+	for _, s := range spans {
+		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok {
+			return dm, true
+		}
+	}
+	return "", false
+}
+
+// decisionMakerFromTracestate extracts `t.dm` from the `dd` member of a W3C tracestate,
+// e.g. "dd=s:2;t.dm:-12,other=value" yields "-12".
+func decisionMakerFromTracestate(ts string) (string, bool) {
+	for ts != "" {
+		var member string
+		member, ts, _ = strings.Cut(ts, ",")
+		key, value, ok := strings.Cut(strings.TrimSpace(member), "=")
+		if !ok || key != "dd" {
+			continue
+		}
+		for value != "" {
+			var field string
+			field, value, _ = strings.Cut(value, ";")
+			if dm, ok := strings.CutPrefix(field, "t.dm:"); ok && isValidDecisionMaker(dm) {
+				return dm, true
+			}
+		}
+		return "", false
+	}
+	return "", false
+}
+
+// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits.
+func isValidDecisionMaker(dm string) bool {
+	if len(dm) < 2 || dm[0] != '-' {
+		return false
+	}
+	for i := 1; i < len(dm); i++ {
+		if dm[i] < '0' || dm[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // convertSpan converts the span in to a Datadog span, and uses the res resource and the lib instrumentation

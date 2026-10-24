@@ -8,6 +8,7 @@ via `write_source_file`. They follow the same shape as
 
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 def _operators_impl(name, output, visibility):
     gen = "{}_gen".format(name)
@@ -23,6 +24,7 @@ def _operators_impl(name, output, visibility):
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 operators = macro(
@@ -96,6 +98,7 @@ def _bpf_maps_generator_impl(name, header, output, package_name, visibility):
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 bpf_maps_generator = macro(
@@ -105,6 +108,139 @@ bpf_maps_generator = macro(
         "header": attr.label(mandatory = True, configurable = False, allow_single_file = [".h"], doc = "Label of the BPF maps header file to scan (e.g. //pkg/security/ebpf/c/include:maps.h)."),
         "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. consts_map_names_linux.go)."),
         "package_name": attr.string(mandatory = True, configurable = False, doc = "Go package name to write into the generated file."),
+    },
+)
+
+def _easyjson_impl(name, package, package_path, src, output, build_tags, visibility):
+    bootstrap = "{}_bootstrap".format(name)
+    gen = "{}_gen".format(name)
+
+    # A -build_tags value means the annotated types only exist on that platform,
+    # so the generator can only be compiled and run there. Deriving the bootstrap
+    # itself is just parsing, so that step stays platform-neutral.
+    compatible_with = ["@platforms//os:{}".format(build_tags)] if build_tags else None
+
+    # Outputs referenced by file label must start with `<name>_` in a symbolic macro.
+    bootstrap_go = "{}/bootstrap.go".format(bootstrap)
+    stub = "{}_stub/{}".format(name, output)
+    args = [
+        "-input=$(execpath {})".format(src),
+        "-output=$(execpath {})".format(bootstrap_go),
+        "-stub-output=$(execpath {})".format(stub),
+        "-package-path={}".format(package_path),
+        "-out-basename={}".format(output),
+    ]
+    if build_tags:
+        args.append("-build-tags={}".format(build_tags))
+
+    run_binary(
+        name = bootstrap,
+        srcs = [src],
+        args = args,
+        outs = [
+            bootstrap_go,
+            stub,
+        ],
+        tool = "//pkg/security/generators/easyjson_bootstrap",
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
+    )
+
+    # easyjson_stubs in the calling package lists this filegroup. The macro's
+    # visibility attribute is wider (//pkg/security, for the writeback target).
+    native.filegroup(
+        name = "{}_stub".format(name),
+        srcs = [stub],
+        tags = ["manual"],
+        visibility = ["//{}:__pkg__".format(native.package_name())],
+    )
+
+    go_library(
+        name = "{}_lib".format(name),
+        srcs = [bootstrap_go],
+        importpath = "github.com/DataDog/datadog-agent/bazel/rules/cws_codegen/easyjson/{}/{}".format(native.package_name(), name),
+        target_compatible_with = compatible_with,
+        deps = [
+            package,
+            "@com_github_mailru_easyjson//gen",
+        ],
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
+    )
+
+    go_binary(
+        name = "{}_bin".format(name),
+        embed = [":{}_lib".format(name)],
+        target_compatible_with = compatible_with,
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
+    )
+
+    run_binary(
+        name = gen,
+        args = ["-output=$(execpath {}/{})".format(name, output)],
+        outs = ["{}/{}".format(name, output)],
+        target_compatible_with = compatible_with,
+        tool = ":{}_bin".format(name),
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
+    )
+    native.exports_files([output], visibility)
+    write_source_file(
+        name = name,
+        in_file = ":{}".format(gen),
+        out_file = output,
+        check_that_out_file_exists = False,
+        visibility = visibility,
+    )
+
+easyjson = macro(
+    implementation = _easyjson_impl,
+    doc = """Generate easyjson marshalers for a source file and write the result back to the source tree.
+
+The easyjson CLI writes a bootstrap program into the target package, `go run`s
+it, and gofmts the output, which needs a Go toolchain and a writable source
+tree. This splits the two halves: //pkg/security/generators/easyjson_bootstrap
+derives the program from the `easyjson:json` comments in `src`, and Bazel
+compiles and runs it. Types are never listed here — the annotations stay the
+single source of truth.
+
+The generator links `package`, the package's `easyjson_stubs` library, so it
+builds without the checked-in output. `<name>_stub` holds the empty marshaler
+methods that library compiles in its place.
+""",
+    attrs = {
+        "package": attr.label(mandatory = True, configurable = False, doc = "`easyjson_stubs` library of the package the marshalers are generated for."),
+        "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
+        "src": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Annotated .go file holding the easyjson:json comments (the one carrying the //go:generate directive)."),
+        "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. event_easyjson.go)."),
+        "build_tags": attr.string(configurable = False, default = "", doc = "Value of the CLI's -build_tags flag, when the annotated file is platform-specific. Doubles as the OS the generator is constrained to, so it must name a @platforms//os value."),
+    },
+)
+
+def _easyjson_stubs_impl(name, sources, package_path, stubs, visibility):
+    go_library(
+        name = name,
+        srcs = stubs,
+        embed = [sources],
+        importpath = package_path,
+        tags = ["manual"],
+        visibility = visibility,
+    )
+
+easyjson_stubs = macro(
+    implementation = _easyjson_stubs_impl,
+    doc = """Compile a package with empty easyjson methods in place of its checked-in marshalers.
+
+`easyjson` generators linked against this library build even when the
+checked-in output no longer compiles, e.g. after a serialized field is removed.
+The package's deps come from `sources`, which already carries jlexer/jwriter
+for the generated files.
+""",
+    attrs = {
+        "sources": attr.label(mandatory = True, configurable = False, doc = "go_source with the package's sources minus its easyjson output: the `<library>_sources` target of `# gazelle:go_split_generated *_easyjson.go`."),
+        "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
+        "stubs": attr.label_list(mandatory = True, configurable = False, doc = "`<name>_stub` of every easyjson call in the package. All of them are needed: easyjson calls a nested annotated type's marshaler only when the type has one, whichever file declares it."),
     },
 )
 
@@ -170,4 +306,5 @@ def accessors(name, tags, model, types_file, output, field_handlers, field_acces
             field_handlers: ":{}/{}".format(out_dir, field_handlers),
             field_accessors_output: ":{}/{}".format(out_dir, field_accessors_output),
         },
+        visibility = visibility,
     )

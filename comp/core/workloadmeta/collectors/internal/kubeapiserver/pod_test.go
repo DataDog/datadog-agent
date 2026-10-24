@@ -329,6 +329,18 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 					Type:   corev1.PodReady,
 					Status: corev1.ConditionTrue,
 				},
+				{
+					Type:               corev1.PodResizePending,
+					Status:             corev1.ConditionTrue,
+					Reason:             corev1.PodReasonInfeasible,
+					LastTransitionTime: metav1.NewTime(time.Date(2026, 10, 19, 19, 28, 50, 0, time.UTC)),
+				},
+				{
+					Type:               corev1.PodResizeInProgress,
+					Status:             corev1.ConditionTrue,
+					Reason:             corev1.PodReasonError,
+					LastTransitionTime: metav1.NewTime(time.Date(2026, 10, 19, 19, 30, 0, 0, time.UTC)),
+				},
 			},
 			PodIP:    "10.0.0.1",
 			QOSClass: corev1.PodQOSBurstable,

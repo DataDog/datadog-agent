@@ -10,15 +10,19 @@ go_library(
         "collector_darwin_homebrew.go",
         "collector_darwin_kext.go",
         "collector_darwin_macports.go",
+        "collector_darwin_os.go",
         "collector_darwin_pkg.go",
         "collector_darwin_pkg_helper.go",
         "collector_darwin_sysext.go",
         "collector_nix.go",
         "collector_windows.go",
+        "collector_windows_drivers.go",
+        "collector_windows_os.go",
         "msi_collector.go",
         "msstoreapps_collector.go",
         "registry_collector.go",
         "types.go",
+        "types_common.go",
         "win32.go",
         "wire.go",
     ],
@@ -46,15 +50,21 @@ go_library(
 dd_agent_go_test(
     name = "software_test",
     srcs = [
+        "collector_darwin_os_test.go",
         "collector_darwin_pkg_helper_test.go",
         "collector_darwin_pkg_test.go",
         "collector_darwin_test.go",
         "collector_test.go",
+        "collector_windows_drivers_test.go",
+        "collector_windows_os_test.go",
         "collector_windows_test.go",
         "config_test.go",
         "integration_windows_test.go",
         "main_windows_test.go",
         "wire_test.go",
+    ],
+    args = [
+        "-test.short",  # Skip integration tests
     ],
     data = select({
         "@rules_go//go/platform:windows": [
@@ -69,22 +79,14 @@ dd_agent_go_test(
         },
         "//conditions:default": {},
     }),
-    # Windows MS Store / Appx collection needs an elevated token. Opt in:
-    #   bazel test //pkg/inventory/software:software_test
-    # from an elevated prompt.
-    tags = ["manual"],
     deps = [
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
-        "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//require",
-        ],
         "@rules_go//go/platform:windows": [
             "//pkg/config/mock",
-            "@com_github_stretchr_testify//require",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],

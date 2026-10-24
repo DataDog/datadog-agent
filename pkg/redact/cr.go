@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 package redact
 
@@ -15,13 +15,20 @@ import (
 
 // ScrubCRManifest scrubs sensitive information from a Custom Resource Manifest
 func ScrubCRManifest(r *unstructured.Unstructured, scrubber *DataScrubber) {
-	// Scrub spec fields
-	if spec, ok := r.Object["spec"]; ok {
-		if specMap, ok := spec.(map[string]interface{}); ok {
-			shouldRedact := false
-			scrubMap(specMap, scrubber, shouldRedact)
-			r.Object["spec"] = specMap
+	// Custom resources can store configuration outside spec, such as Kong's config.
+	// Metadata is processed separately. Preserve resource identity fields.
+	fields := make(map[string]interface{}, len(r.Object))
+	for key, value := range r.Object {
+		switch key {
+		case "apiVersion", "kind", "metadata":
+			continue
+		default:
+			fields[key] = value
 		}
+	}
+	scrubMap(fields, scrubber, false)
+	for key, value := range fields {
+		r.Object[key] = value
 	}
 }
 
@@ -40,8 +47,11 @@ func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive 
 		}
 
 		if k == "env" {
-			if env, ok := v.([]interface{}); ok {
+			switch env := v.(type) {
+			case []interface{}:
 				scrubEnv(env, scrubber, shouldRedact)
+			case map[string]interface{}:
+				scrubEnvMap(env, scrubber, shouldRedact)
 			}
 			continue
 		}
@@ -77,11 +87,25 @@ func scrubEnv(env []interface{}, scrubber *DataScrubber, parentSensitive bool) {
 		if item, ok := item.(map[string]interface{}); ok {
 			if name, ok := item["name"].(string); ok {
 				if _, ok := item["value"].(string); ok {
-					if scrubber.ContainsSensitiveWord(name) || parentSensitive {
+					if isSensitiveEnvVarName(name, scrubber) || parentSensitive {
 						item["value"] = redactedSecret
 					}
 				}
 			}
 		}
 	}
+}
+
+// scrubEnvMap scrubs sensitive values from map-form environment variables.
+func scrubEnvMap(env map[string]interface{}, scrubber *DataScrubber, parentSensitive bool) {
+	for name, value := range env {
+		if _, ok := value.(string); ok && (isSensitiveEnvVarName(name, scrubber) || parentSensitive) {
+			env[name] = redactedSecret
+		}
+	}
+}
+
+func isSensitiveEnvVarName(name string, scrubber *DataScrubber) bool {
+	lowerName := strings.ToLower(name)
+	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" || strings.HasSuffix(lowerName, "_token")
 }

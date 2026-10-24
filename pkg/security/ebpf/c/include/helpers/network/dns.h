@@ -9,12 +9,12 @@
 
 #include "maps.h"
 
-__attribute__((always_inline)) struct dns_event_t *get_dns_event() {
+static __always_inline struct dns_event_t *get_dns_event() {
     u32 key = DNS_EVENT_KEY;
     return bpf_map_lookup_elem(&dns_event, &key);
 }
 
-__attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline struct dns_event_t *reset_dns_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct dns_event_t *evt = get_dns_event();
     if (evt == NULL) {
         // should never happen
@@ -29,12 +29,13 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
+    // reset and fill span context unconditionally
+    reset_span_context(&evt->span, &evt->go_labels);
+
     u64 sched_cls_has_current_pid_tgid_helper = 0;
     LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
     if (sched_cls_has_current_pid_tgid_helper) {
-        // reset and fill span context
-        reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     // network context
@@ -51,22 +52,15 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         }
     }
 
-    // rate limit only
-    if (!(evt->event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
-        if (approve_dns_sample(evt->process.pid) == SAMPLED) {
-            evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
-        }
-    }
-
     return evt;
 }
 
-__attribute__((always_inline)) union dns_responses_t *get_dns_response_event() {
+static __always_inline union dns_responses_t *get_dns_response_event() {
     const u32 key = DNS_EVENT_KEY;
     return bpf_map_lookup_elem(&dns_response_event, &key);
 }
 
-__attribute__((always_inline)) union dns_responses_t *reset_dns_response_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline union dns_responses_t *reset_dns_response_event(struct __sk_buff *skb, struct packet_t *pkt) {
     union dns_responses_t *evt = get_dns_response_event();
 
     if (evt == NULL) {

@@ -1,5 +1,6 @@
 import shutil
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import patch
@@ -64,11 +65,36 @@ class TestGroupPerTag(unittest.TestCase):
         test_dir = Path("./tasks/unit_tests/testdata/to_group")
         grouped = junit.group_per_tags(test_dir, [])
         self.assertIn("default", grouped)
-        self.assertCountEqual([f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball"], grouped["default"])
+        self.assertCountEqual(
+            [f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball", f"{str(test_dir)}/gintama"],
+            grouped["default"],
+        )
         self.assertIn("e2e", grouped)
-        self.assertEqual([f"{str(test_dir)}/naruto"], grouped["e2e"])
+        self.assertCountEqual([f"{str(test_dir)}/naruto", f"{str(test_dir)}/bleach"], grouped["e2e"])
         self.assertNotIn("kitchen", grouped)
         self.assertNotIn("kitchen-e2e", grouped)
+
+
+class TestIsE2EInternalFailure(unittest.TestCase):
+    def test_e2e_internal_error_string(self):
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/naruto")
+        self.assertTrue(junit.is_e2e_internal_failure(xml_file))
+
+    def test_fakeintake_timeout(self):
+        # Verbatim from the WINA-3079 job log: a fakeintake control endpoint that timed out
+        # at the network level, matched on its route prefix.
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/bleach")
+        self.assertTrue(junit.is_e2e_internal_failure(xml_file))
+
+    def test_unrelated_timeout_is_not_flagged(self):
+        # Same dial timeout, but on a non-fakeintake route: it may be a genuine
+        # product/networking regression, so it must not be swept in as an infra flake.
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/gintama")
+        self.assertFalse(junit.is_e2e_internal_failure(xml_file))
+
+    def test_no_failure(self):
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/dragonball")
+        self.assertFalse(junit.is_e2e_internal_failure(xml_file))
 
 
 class TestSetTag(unittest.TestCase):
@@ -76,7 +102,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "putsch"})
     def test_default(self):
         tags = junit.set_tags("agent-devx", "base", "", {}, "")
-        self.assertEqual(len(tags), 20)
+        self.assertEqual(len(tags), 22)
         self.assertIn("slack_channel:agent-devx-ops", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
@@ -89,7 +115,7 @@ class TestSetTag(unittest.TestCase):
             ["upload_option.os_version_from_name"],
             "kitchen-rspec-win2016-azure-x86_64.xml",
         )
-        self.assertEqual(len(tags), 24)
+        self.assertEqual(len(tags), 26)
         self.assertIn("e2e_internal_error:true", tags)
         self.assertIn("version:win2016", tags)
         self.assertNotIn("upload_option.os_version_from_name", tags)
@@ -98,7 +124,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
     def test_additional_tags(self):
         tags = junit.set_tags("agent-devx", "base", "", ["--tags", "simple:basique"], "")
-        self.assertEqual(len(tags), 22)
+        self.assertEqual(len(tags), 24)
         self.assertIn("simple:basique", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
@@ -107,7 +133,7 @@ class TestSetTag(unittest.TestCase):
         tags = junit.set_tags(
             "agent-devx", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
         )
-        self.assertEqual(len(tags), 20)
+        self.assertEqual(len(tags), 22)
 
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
@@ -159,3 +185,44 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         self.assertEqual(len(eg.exception.exceptions), 14)
         for _, kwargs in mock_check_call.call_args_list:
             self.assertFalse(Path(kwargs["env"]["TMPDIR"]).exists())
+
+
+class TestSkipGitMetadataUploadFlags(unittest.TestCase):
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=True)
+    def test_flags_on_windows(self, _is_windows):
+        self.assertEqual(junit.skip_git_metadata_upload_flags(), ["--skip-git-metadata-upload"])
+
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=False)
+    def test_no_flags_on_other_platforms(self, _is_windows):
+        self.assertEqual(junit.skip_git_metadata_upload_flags(), [])
+
+
+class TestUploadJunitxmlsGitMetadataFlag(unittest.TestCase):
+    @patch('tasks.libs.common.junit_upload_core._generate_junitxmls')
+    @patch('tasks.libs.common.junit_upload_core.check_call')
+    @patch('tasks.libs.common.junit_upload_core.which')
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=True)
+    def test_includes_flag_on_windows(self, _is_windows, mock_which, mock_check_call, mock_generate):
+        mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
+        mock_generate.return_value = iter([(["--tags", "test:flag"], {})])
+
+        with ThreadPoolExecutor() as executor:
+            junit._upload_junitxmls([Path("agent-devx_base")], executor)
+
+        args = mock_check_call.call_args[0][0]
+        self.assertEqual(args[:4], ["/usr/local/bin/datadog-ci", "junit", "upload", "--skip-git-metadata-upload"])
+
+    @patch('tasks.libs.common.junit_upload_core._generate_junitxmls')
+    @patch('tasks.libs.common.junit_upload_core.check_call')
+    @patch('tasks.libs.common.junit_upload_core.which')
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=False)
+    def test_omits_flag_on_other_platforms(self, _is_windows, mock_which, mock_check_call, mock_generate):
+        mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
+        mock_generate.return_value = iter([(["--tags", "test:flag"], {})])
+
+        with ThreadPoolExecutor() as executor:
+            junit._upload_junitxmls([Path("agent-devx_base")], executor)
+
+        args = mock_check_call.call_args[0][0]
+        self.assertEqual(args[:3], ["/usr/local/bin/datadog-ci", "junit", "upload"])
+        self.assertNotIn("--skip-git-metadata-upload", args)

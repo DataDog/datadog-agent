@@ -48,16 +48,16 @@ func shouldHaveKueueMetadata(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.kueue.enabled")
 }
 
-func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore, error) {
+func newKueueQueueStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
 			if err != nil {
 				return nil, fmt.Errorf("listing Kueue %s: %w", gvr.Resource, err)
 			}
 			return obj, nil
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			watcher, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(ctx, options)
 			if err != nil {
 				return nil, fmt.Errorf("watching Kueue %s: %w", gvr.Resource, err)
@@ -87,16 +87,16 @@ func newKueueQueueStore(ctx context.Context, wlmetaStore workloadmeta.Component,
 	return reflector, store, nil
 }
 
-func newKueueResourceFlavorStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
+func newKueueResourceFlavorStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
 			if err != nil {
 				return nil, fmt.Errorf("listing Kueue %s: %w", gvr.Resource, err)
 			}
 			return obj, nil
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			watcher, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(ctx, options)
 			if err != nil {
 				return nil, fmt.Errorf("watching Kueue %s: %w", gvr.Resource, err)
@@ -121,16 +121,16 @@ func newKueueResourceFlavorStore(ctx context.Context, wlmetaStore workloadmeta.C
 	return reflector, store, nil
 }
 
-func newKueueWorkloadStore(ctx context.Context, wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
+func newKueueWorkloadStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
 			if err != nil {
 				return nil, fmt.Errorf("listing Kueue %s: %w", gvr.Resource, err)
 			}
 			return obj, nil
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			watcher, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).Watch(ctx, options)
 			if err != nil {
 				return nil, fmt.Errorf("watching Kueue %s: %w", gvr.Resource, err)

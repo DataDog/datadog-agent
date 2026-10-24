@@ -32,6 +32,10 @@ const kubeadmContainerdRepoReleasever = "9"
 // the current upstream latest release happens to ship.
 const kubeadmFlannelVersion = "v0.28.5"
 
+// kubeadmMinorFile carries the Kubernetes minor from the CRI-O install step to
+// the kubelet install step, which run as separate remote commands on the node.
+const kubeadmMinorFile = "/etc/kubeadm-e2e-k8s-minor"
+
 // ContainerRuntime selects the CRI installed on the kubeadm node. The Agent
 // produces identical SBOMs across runtimes; only the install steps and the CRI
 // socket differ.
@@ -145,26 +149,37 @@ systemctl restart containerd`, kubeadmContainerdRepoReleasever)
 		if runtime == CRIO {
 			criSocket = "unix:///var/run/crio/crio.sock"
 			runtimeName = "kubeadm-crio"
-			// CRI-O ships in pkgs.k8s.io under addons:/cri-o. Its stable streams can
-			// lag the Kubernetes core repo (a new k8s minor may have no matching
-			// CRI-O stream yet), so probe down from the kubelet minor and use the
-			// newest stream that exists. The repo is $basearch (no $releasever), so
-			// one repo serves RHEL 9 and 10, and CRI-O defaults to the systemd
-			// cgroup driver, matching the kubelet.
+			// CRI-O ships from its own openSUSE Build Service project
+			// (isv:/cri-o:/stable:/vX.Y); the former pkgs.k8s.io addons:/cri-o path
+			// is deprecated. See https://github.com/cri-o/packaging for the current
+			// list of supported streams. Its stable streams can lag the Kubernetes
+			// core repo (a new k8s minor may have no matching CRI-O stream yet), so
+			// probe down from the kubelet minor and use the newest stream that exists.
+			// The repo is $basearch (no $releasever), so one repo serves RHEL 9 and
+			// 10, and CRI-O defaults to the systemd cgroup driver, matching the kubelet.
+			//
+			// CRI-O releases track the Kubernetes minor they ship for, so the stream
+			// that was found also decides the cluster version: it is recorded in
+			// kubeadmMinorFile for the kubelet install below, which keeps the pair on
+			// one minor. A kubelet talking to a CRI-O two minors older brings pods up
+			// as far as Init:ImagePullBackOff and no further.
 			runtimeScript = fmt.Sprintf(`kmaj=$(echo %[1]s | cut -d. -f1); kmin=$(echo %[1]s | cut -d. -f2)
+crio_repo="https://download.opensuse.org/repositories/isv:/cri-o:/stable:"
 crio_ver=""
-for d in 0 1 2 3 4; do
+for d in 0 1 2 3 4 5; do
   cand="v${kmaj}.$((kmin-d))"
-  if curl -fsSL -o /dev/null "https://pkgs.k8s.io/addons:/cri-o:/stable:/${cand}/rpm/repodata/repomd.xml"; then crio_ver="$cand"; break; fi
+  if curl -fsSL -o /dev/null "${crio_repo}/${cand}/rpm/repodata/repomd.xml"; then crio_ver="$cand"; break; fi
 done
 test -n "$crio_ver" || { echo "no CRI-O stable stream available at or below v%[1]s"; exit 1; }
+printf '%%s' "${crio_ver#v}" >%[2]s
+echo "CRI-O ${crio_ver} selected, pinning Kubernetes to ${crio_ver#v}"
 cat >/etc/yum.repos.d/cri-o.repo <<EOF
 [cri-o]
 name=CRI-O
-baseurl=https://pkgs.k8s.io/addons:/cri-o:/stable:/${crio_ver}/rpm/
+baseurl=${crio_repo}/${crio_ver}/rpm/
 enabled=1
 gpgcheck=1
-gpgkey=https://pkgs.k8s.io/addons:/cri-o:/stable:/${crio_ver}/rpm/repodata/repomd.xml.key
+gpgkey=${crio_repo}/${crio_ver}/rpm/repodata/repomd.xml.key
 EOF
 dnf install -y cri-o container-selinux
 # Route docker.io pulls through mirror.gcr.io to avoid Docker Hub anonymous rate limits (429).
@@ -178,7 +193,7 @@ location = "mirror.gcr.io"
 EOF
 # Drop CRI-O's packaged CNI bridge so flannel owns pod networking (the containerd path has none).
 rm -f /etc/cni/net.d/*crio* || true
-systemctl enable --now crio`, minor)
+systemctl enable --now crio`, minor, kubeadmMinorFile)
 		}
 
 		runtimeInstall, err := runner.Command(namer.ResourceName(runtimeName), &command.Args{
@@ -191,17 +206,22 @@ systemctl enable --now crio`, minor)
 
 		tools, err := runner.Command(namer.ResourceName("kubeadm-tools"), &command.Args{
 			Sudo: true,
-			Create: rootScript(fmt.Sprintf(`cat >/etc/yum.repos.d/kubernetes.repo <<'EOF'
+			// The CRI-O install pins the minor it found in kubeadmMinorFile, so the
+			// kubelet follows the runtime onto one minor. The containerd path writes
+			// no such file and installs the requested minor.
+			Create: rootScript(fmt.Sprintf(`minor=%[1]s
+if [ -s %[2]s ]; then minor=$(cat %[2]s); fi
+cat >/etc/yum.repos.d/kubernetes.repo <<EOF
 [kubernetes]
 name=Kubernetes
-baseurl=https://pkgs.k8s.io/core:/stable:/v%[1]s/rpm/
+baseurl=https://pkgs.k8s.io/core:/stable:/v${minor}/rpm/
 enabled=1
 gpgcheck=1
-gpgkey=https://pkgs.k8s.io/core:/stable:/v%[1]s/rpm/repodata/repomd.xml.key
+gpgkey=https://pkgs.k8s.io/core:/stable:/v${minor}/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl cri-tools
 EOF
 dnf install -y kubelet kubeadm kubectl cri-tools --disableexcludes=kubernetes
-systemctl enable --now kubelet`, minor)),
+systemctl enable --now kubelet`, minor, kubeadmMinorFile)),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(runtimeInstall))...)
 		if err != nil {
 			return err

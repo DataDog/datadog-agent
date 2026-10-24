@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -222,9 +221,9 @@ func (s *testInjectorStats) enableInjectorTelemetry() {
 	err = s.writeYamlConfig(configPath, config)
 	s.Require().NoErrorf(err, "failed to write system-probe config")
 
-	// Restart system-probe to pick up the config
-	err = windowscommon.RestartService(host, "datadog-system-probe")
-	s.Require().NoErrorf(err, "failed to restart system-probe")
+	// Restart system-probe to pick up the config. dd-procmgr supervises it, so restarting the
+	// legacy SCM service would leave the running process on the old config.
+	s.restartUnderProcmgr(sysprobeProcmgrProcess)
 
 	s.waitForServiceRunning()
 }

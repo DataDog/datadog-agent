@@ -14,6 +14,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RunAsAdmin { get; }
 
+        public ManagedAction EnsureSecureConfigRoot { get; }
+
+        public ManagedAction EnsureSecureConfigRootUI { get; }
+
         public ManagedAction ReadConfig { get; }
 
         public ManagedAction PatchInstaller { get; set; }
@@ -72,10 +76,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteInstallInfo { get; }
 
-        public ManagedAction ReportInstallFailure { get; }
-
-        public ManagedAction ReportInstallSuccess { get; }
-
         public ManagedAction EnsureNpmServiceDepdendency { get; }
 
         public ManagedAction ConfigureServices { get; }
@@ -119,6 +119,36 @@ namespace WixSetup.Datadog_Agent
                 Condition.Always,
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence);
 
+            // See PrerequisitesCustomActions.EnsureSecureConfigRoot.
+            //
+            // After InstallValidate and before InstallInitialize, so rejection happens before the
+            // transaction starts. ReadConfig independently validates ownership before importing settings.
+            //
+            // Runs unconditionally, including on uninstall and on removal for an upgrade: this only
+            // asserts (never creates or modifies) the directory, so it cannot leave a partial
+            // installation behind either way. See DDCreateFolders for the part of the check that
+            // creates the directory when missing.
+            EnsureSecureConfigRoot = new CustomAction<CustomActions>(
+                new Id(nameof(EnsureSecureConfigRoot)),
+                CustomActions.EnsureSecureConfigRoot,
+                Return.check,
+                When.After,
+                Step.InstallValidate,
+                Condition.Always,
+                Sequence.InstallExecuteSequence);
+
+            // Same check, run from the Welcome dialog so an interactive install reports the problem
+            // early. It reports the outcome in properties instead of failing, see
+            // PrerequisitesCustomActions.EnsureSecureConfigRoot.
+            EnsureSecureConfigRootUI = new CustomAction<CustomActions>(
+                new Id(nameof(EnsureSecureConfigRootUI)),
+                CustomActions.EnsureSecureConfigRootUI
+            )
+            {
+                // Not run in a sequence, run when Next is clicked on the Welcome dialog
+                Sequence = Sequence.NotInSequence
+            };
+
             ReadInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(ReadInstallState)),
                 CustomActions.ReadInstallState,
@@ -147,8 +177,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.ReadConfig,
                     Return.ignore,
                     When.After,
-                    // Must execute after CostFinalize since we depend
-                    // on APPLICATIONDATADIRECTORY being set.
+                    // The directory is resolved here; ReadConfig validates its owner before reading.
                     Step.CostFinalize,
                     // Not needed during uninstall, but since it runs before InstallValidate the recommended
                     // REMOVE=ALL condition does not work, so always run it.
@@ -174,20 +203,6 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             };
-
-            ReportInstallFailure = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallFailure)),
-                    CustomActions.ReportFailure,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallInitialize
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -547,6 +562,7 @@ namespace WixSetup.Datadog_Agent
                            "DD_APP_KEY=[DD_APP_KEY]," +
                            "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED]," +
                            "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]," +
+                           "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=[DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
@@ -603,20 +619,6 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
                                "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
-
-            // Hitting this CustomAction always means the install succeeded
-            // because when an install fails, it rollbacks from the `InstallFinalize`
-            // step.
-            ReportInstallSuccess = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallSuccess)),
-                    CustomActions.ReportSuccess,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-                )
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted
@@ -752,22 +754,24 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
+            // the config root must already be secure before any other install/uninstall action
+            // that may rely on its contents.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
-                    When.Before,
-                    Step.CreateFolders,
-                    // Run only on FirstInstall.
-                    // In Upgrade/Repair the directory has already been
-                    // created and configured, and this action could leave the directory
-                    // without access for ddagentuser if the installer rolls back.
-                    Conditions.FirstInstall
+                    When.After,
+                    Step.InstallInitialize,
+                    Condition.Always
                     )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            }.SetProperties(
+                "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                "INSTALLED=[Installed], " +
+                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]");
 
             // Installer package hooks (prerm / postinst)
             // These call datadog-installer.exe prerm/postinst, mirroring the deb/rpm maintainer

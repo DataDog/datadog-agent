@@ -7,6 +7,7 @@
 package metrics
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -30,11 +31,17 @@ type Tags struct {
 type ServerlessMetricAgent struct {
 	Demux aggregator.Demultiplexer
 	tags  Tags
+	// enhancedUsageMetricTags backs AddEnhancedUsageMetric. Swapped via
+	// SetEnhancedUsageMetricTags once MicroVM's /run hook learns the
+	// instance tag; same pattern as spanModifier.tags.
+	enhancedUsageMetricTags atomic.Pointer[[]string]
 }
 
 // New constructs a ServerlessMetricAgent.
 func New(demux aggregator.Demultiplexer, tags Tags) *ServerlessMetricAgent {
-	return &ServerlessMetricAgent{Demux: demux, tags: tags}
+	agent := &ServerlessMetricAgent{Demux: demux, tags: tags}
+	agent.enhancedUsageMetricTags.Store(&tags.EnhancedUsageMetric)
+	return agent
 }
 
 // AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
@@ -53,7 +60,56 @@ func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, me
 // AddEnhancedUsageMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced usage metrics.
 // optional tags supplied as `key:value` strings through extraTags.
 func (c *ServerlessMetricAgent) AddEnhancedUsageMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
-	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, c.tags.EnhancedUsageMetric, extraTags...)
+	tags := c.tags.EnhancedUsageMetric
+	if loaded := c.enhancedUsageMetricTags.Load(); loaded != nil {
+		tags = *loaded
+	}
+	c.sendMetricSample(name, value, metricSource, metrics.GaugeType, timestamp, tags, extraTags...)
+}
+
+// SetEnhancedUsageMetricTags atomically replaces the enhanced usage metric's
+// tags. Safe to call concurrently with AddEnhancedUsageMetric.
+func (c *ServerlessMetricAgent) SetEnhancedUsageMetricTags(tags []string) {
+	c.enhancedUsageMetricTags.Store(&tags)
+}
+
+// Flush forces an immediate flush of already-closed buckets to the serializer.
+// Satisfied interface: cmd/serverless-init/lifecycle.Flusher, used by MicroVM
+// to flush telemetry on-demand before a Firecracker snapshot on /suspend,
+// independent of the Fx-managed shutdown flush. /terminate uses FlushAll instead.
+func (c *ServerlessMetricAgent) Flush() {
+	if c.Demux == nil {
+		return
+	}
+	c.Demux.ForceFlushToSerializer(time.Now(), true, false)
+}
+
+// FlushAll additionally includes the current, not-yet-closed bucket. Satisfied
+// interface: cmd/serverless-init/lifecycle.ForceFlusher — see that doc for why
+// this must stay off /suspend's path.
+func (c *ServerlessMetricAgent) FlushAll() {
+	if c.Demux == nil {
+		return
+	}
+	c.Demux.ForceFlushToSerializer(time.Now(), true, true)
+}
+
+// pendingSampleDrainer is satisfied by *aggregator.AgentDemultiplexer, and by
+// anything embedding it — notably the Fx demultiplexer component's wrapper
+// struct, which is what c.Demux actually holds in production. Asserting
+// against this interface instead of the concrete *AgentDemultiplexer type
+// lets Go's method promotion see through that wrapper.
+type pendingSampleDrainer interface {
+	WaitForPendingSamples()
+}
+
+// WaitForPendingSamples blocks until samples enqueued before this call have
+// been consumed. Satisfied interface: cmd/serverless-init/lifecycle.SampleDrainer.
+// No-op if the demux doesn't support draining (e.g. unset in tests).
+func (c *ServerlessMetricAgent) WaitForPendingSamples() {
+	if d, ok := c.Demux.(pendingSampleDrainer); ok {
+		d.WaitForPendingSamples()
+	}
 }
 
 // sendMetricSample records a distribution metric sample using the agent's extra tags plus any

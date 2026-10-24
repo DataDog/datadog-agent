@@ -469,3 +469,44 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	acc.detectHashCollision(aggHash3, *flowA1, *flowB1)
 	assert.Equal(t, uint64(1), acc.hashCollisionFlowCount.Load())
 }
+
+func Test_flowAccumulator_rdnsEnrichmentAfterFlush(t *testing.T) {
+	logger := logmock.New(t)
+	// the mock resolves 10.0.0.1 and 10.0.0.2 synchronously, like a cache hit
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	timeNow = MockTimeNow
+	flushInterval := 60 * time.Second
+
+	newFlow := func() *common.Flow {
+		return &common.Flow{
+			FlowType:     common.TypeNetFlow9,
+			ExporterAddr: []byte{127, 0, 0, 1},
+			Bytes:        20,
+			Packets:      4,
+			SrcAddr:      []byte{10, 0, 0, 1},
+			DstAddr:      []byte{10, 0, 0, 2},
+			IPProtocol:   uint32(6),
+			SrcPort:      2000,
+			DstPort:      80,
+		}
+	}
+
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: flushInterval,
+	}
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+
+	// first flush of a new flow context
+	acc.add(newFlow())
+	flushed := acc.flush(common.FlushContext{FlushTime: MockTimeNow()})
+	require.Len(t, flushed, 1)
+	assert.Equal(t, "hostname-10.0.0.1", flushed[0].SrcReverseDNSHostname)
+	assert.Equal(t, "hostname-10.0.0.2", flushed[0].DstReverseDNSHostname)
+
+	// same flow re-added to the existing (flushed) flow context keeps its hostnames
+	acc.add(newFlow())
+	flushed = acc.flush(common.FlushContext{FlushTime: MockTimeNow().Add(flushInterval)})
+	require.Len(t, flushed, 1)
+	assert.Equal(t, "hostname-10.0.0.1", flushed[0].SrcReverseDNSHostname)
+	assert.Equal(t, "hostname-10.0.0.2", flushed[0].DstReverseDNSHostname)
+}

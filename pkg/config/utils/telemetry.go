@@ -6,8 +6,6 @@
 package utils
 
 import (
-	"regexp"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -44,9 +42,8 @@ func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
 	// Disable Agent Telemetry for GovCloud
-	if cfg.GetBool("fips.enabled") || reSite.MatchString(cfg.GetString("site")) {
+	if cfg.GetBool("fips.enabled") || reFedSite.MatchString(cfg.GetString("site")) {
 		return false
 	}
 	return cfg.GetBool("agent_telemetry.enabled")

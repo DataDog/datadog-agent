@@ -10,9 +10,10 @@ package clusterchecks
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -43,6 +44,21 @@ func (m *ksmShardingManager) isEnabled() bool {
 	return m.enabled
 }
 
+// label satisfies shardingStrategy.
+func (m *ksmShardingManager) label() string {
+	return "resource-sharded KSM"
+}
+
+// shouldShard satisfies shardingStrategy; see shouldShardKSMCheck.
+func (m *ksmShardingManager) shouldShard(config integration.Config) bool {
+	return m.shouldShardKSMCheck(config)
+}
+
+// createShardedConfigs satisfies shardingStrategy; see createShardedKSMConfigs.
+func (m *ksmShardingManager) createShardedConfigs(config integration.Config) ([]integration.Config, error) {
+	return m.createShardedKSMConfigs(config)
+}
+
 // isKSMCheck returns true if the config is a KSM check
 // Only kubernetes_state_core (Go implementation) is supported for sharding
 // The legacy kubernetes_state (Python) check doesn't support the "collectors" parameter
@@ -50,11 +66,26 @@ func (m *ksmShardingManager) isKSMCheck(config integration.Config) bool {
 	return config.Name == "kubernetes_state_core"
 }
 
-// defaultKSMCollectors returns the KSM default resource collectors with
-// "endpoints" added back for backward compatibility (upstream KSM v2.18
-// replaced "endpoints" with "endpointslices" in its defaults).
+// excludedDefaultKSMCollectors mirrors excludedDefaultCollectors in
+// pkg/collector/corechecks/cluster/ksm/kubernetes_state.go: KSM default
+// resources the check leaves out of its defaults. They must be left out here
+// too, otherwise the "others" shard lists them explicitly and enables them.
+var excludedDefaultKSMCollectors = []string{
+	"mutatingadmissionpolicies",
+	"mutatingadmissionpolicybindings",
+	"validatingadmissionpolicies",
+	"validatingadmissionpolicybindings",
+}
+
+// defaultKSMCollectors returns the KSM default resource collectors, minus
+// excludedDefaultKSMCollectors, with "endpoints" added back for backward
+// compatibility (upstream KSM v2.18 replaced "endpoints" with "endpointslices"
+// in its defaults). It must match the defaults of the check (defaultCollectors
+// in pkg/collector/corechecks/cluster/ksm/kubernetes_state.go).
 func defaultKSMCollectors() []string {
-	collectors := options.DefaultResources.AsSlice()
+	collectors := slices.DeleteFunc(options.DefaultResources.AsSlice(), func(c string) bool {
+		return slices.Contains(excludedDefaultKSMCollectors, c)
+	})
 	if _, found := options.DefaultResources["endpoints"]; !found {
 		collectors = append(collectors, "endpoints")
 	}

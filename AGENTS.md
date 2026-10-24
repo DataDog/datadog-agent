@@ -32,6 +32,10 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 ## Development Workflow
 
+### Developer documentation
+
+`doc/` is the sole source of Datadog Agent developer documentation. Consult `docs/README.md` before moving or deleting files remaining in `docs/`.
+
 ### Critical: Always use `dda inv`, never raw `go` commands
 
 This project uses extensive custom Go build tags. Most source files are ignored
@@ -100,19 +104,55 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
   arrive in **fakeintake**. By default it forwards payloads to `dddev` org account.
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
-  (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
+  (intake mock), `doc/how-to/test/e2e/` (setup, running, dependencies, AMIs)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
   skill, which runs the test in a `dda env dev` sandbox and triages setup failures
 
+**One-time E2E setup — AI agents must run it non-interactively.** Never launch the
+interactive setup (it blocks on prompts an agent cannot answer). Instead:
+
+1. Ask the user for their GitHub team (kebab-case, e.g. `agent-platform`) if you
+don't already know it — it tags cloud resources for cost attribution.
+2. Run on the host, with the team passed via the flag:
+
+```bash
+dda inv e2e.setup --team=<github-team>
+```
+
+This is fully non-interactive: the AWS SSO profile and keypair are configured
+automatically with no confirmation prompts (a keypair/SSO already configured is
+skipped — the task is idempotent, so re-running is always safe). If the SSH key
+cannot be added to ssh-agent, the task prints a non-blocking warning with the
+commands to fix it; continue and only revisit if SSH-based tests fail.
+Never run this interactive form inside a dev container (`dda env dev`) — it
+derives the keypair name from the container username; use the host instead.
+
 ### Manual QA
 - When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
-- Full guide (scenarios, commands, stack lifecycle): `docs/public/how-to/test/manual-qa/index.md`
+- Full guide (scenarios, commands, stack lifecycle): `doc/how-to/test/manual-qa/index.md`
 
 ### Linting
+- Go: `dda inv linter.go` (see the `dda inv` table above)
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
+
+#### Typechecking code for another platform
+Build-tagged files are invisible to the host test run, so `//go:build windows`
+code can be broken for a long time before CI says so. Prefix the linter with
+`GOOS`/`GOARCH` to typecheck it locally:
+
+```bash
+GOOS=windows GOARCH=amd64 dda inv linter.go --module=<module path>
+```
+
+Cross-linting for Windows needs mingw-w64 on `PATH` (`brew install mingw-w64` on
+macOS). `CGO_ENABLED=0` is not a substitute: core packages reach
+`pkg/util/winutil`, which requires real cgo. Note that
+`bazel build --platforms=@rules_go//go/toolchain:windows_amd64` builds libraries
+but cannot build `*_test` targets — Bazel requires exec platform == target
+platform for test rules — so the linter is the route for test files.
 
 ## Build System
 
@@ -145,22 +185,40 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 
 #### Fetching CI job logs locally
 
-`gitlab.ddbuild.io` is OAuth-gated, so `curl` can't fetch traces. Use
-`dda inv gitlab.print-job-trace <job_id>` (`dda` handles auth). The `<job_id>`
-is the trailing path of a `.../builds/<job_id>` URL, found in the `dd-gitlab/*`
-rows of `gh pr checks <pr_number>`. See `dda inv -l | grep gitlab` for more.
+Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...`) or installed from [the repo](https://github.com/DataDog/ddgl-cli) using uv:
+```bash
+uv tool install git+https://github.com/DataDog/ddgl-cli
+```
+
+For example:
+ - `ddgl logs --name <pattern>` will fetch all logs for jobs in the current ref's latest pipeline that match the pattern
+ - `ddgl logs --failed` will fetch all logs for _failed_ jobs in the current ref's latest pipeline
+ - `ddgl logs --job <some-id>` will fetch the logs for the job with the given ID
+
+ > Note these flags (e.g. `--name` and `--failed`) can be combined. Check `ddgl` help text for more info if needed.
 
 ### GitHub Actions
 Secondary CI: pull-request/repository-configuration checks and release automation.
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
-`docs/public/guidelines/` (contributing, coding style, components, etc.).
+`doc/guidelines/` (contributing, coding style, components, etc.).
+
+### Code ownership
+`.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`
+and `# END COMPONENTS` is built from the `// team:` annotation in each
+component's `def/component.go` (or bundle's `bundle.go`). To change who owns a
+component or bundle, edit that annotation and run
+`dda inv components.lint-components --fix`, which also regenerates
+`comp/README.md`; never hand-edit lines inside the block (CI's `lint_components`
+job fails if they disagree with the annotations). Edit `CODEOWNERS` directly for
+everything else. To override part of a component (a subfolder or single file),
+add the line after `# END COMPONENTS`: rules are last-match-wins.
 
 ## Code Review
 
 Code reviewer plugins for Go and Python are available from the
-[Datadog Claude Marketplace](https://github.com/DataDog/claude-marketplace):
+Datadog Claude Marketplace (ddoghq/claude-marketplace, internal-only repo):
 
 - `/go-review`, `/go-improve` - Go code review and iterative improvement
 - `/py-review`, `/py-improve` - Python code review and iterative improvement

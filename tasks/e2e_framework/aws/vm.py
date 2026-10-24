@@ -1,4 +1,3 @@
-import contextlib
 import json
 
 from invoke.context import Context
@@ -88,6 +87,9 @@ def create_vm(
     deploy_job = None if no_verify or not pipeline_id else get_deploy_job(os_family, os_arch, agent_version)
     extra_flags["ddinfra:osDescriptor"] = f"{os_family}:{os_version if os_version else ''}:{os_arch}"
     extra_flags["ddinfra:deployFakeintakeWithLoadBalancer"] = use_loadBalancer
+    # Keep the "last-activity" tag up to date while the VM is used over SSH, so that
+    # test-infra-cleaner does not delete it while it is still in use
+    extra_flags["ddinfra:aws/trackSSHActivity"] = True
 
     if ami_id is not None:
         extra_flags["ddinfra:osImageID"] = ami_id
@@ -282,20 +284,18 @@ def rdp_vm(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    with tool.use_ci_pulumi_backend(ctx) if ci else contextlib.nullcontext():
-        out = tool.get_stack_json_outputs(ctx, stack_name)
+    out = tool.get_stack_json_outputs(ctx, stack_name, config_path=config_path, ci=ci)
     if not out:
         raise Exit("No VM found in the stack.")
 
     for vm_id, vm in out.items():
-        import pyperclip
-
         if "address" not in vm:
             continue
         vm_ip = vm["address"]
         password = vm["password"]
         tool.rdp(ctx, vm_ip)
         print(f"Password for VM {vm_id} ({vm_ip}): {password}")
-        print("Username is Administrator, password has been copied to clipboard")
-
-        pyperclip.copy(password)
+        if tool.copy_to_clipboard_if_supported(password):
+            print("Username is Administrator, password has been copied to clipboard")
+        else:
+            print("Username is Administrator")

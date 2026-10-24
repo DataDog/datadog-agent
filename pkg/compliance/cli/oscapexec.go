@@ -64,7 +64,20 @@ func getOSCAPIODefaultBinPath() (string, error) {
 	return binPath, fmt.Errorf("can't access the default oscap-io binary at %s", binPath)
 }
 
-// dropCapabilities drops all capabilities except CAP_SYS_CHROOT and CAP_DAC_OVERRIDE
+// oscapIOCapabilities are the capabilities oscap-io keeps when the process holds
+// them: CAP_DAC_OVERRIDE to read files whatever their mode, CAP_SYS_CHROOT for the
+// probes that enter OSCAP_PROBE_ROOT, and CAP_NET_ADMIN and CAP_NET_RAW for the
+// SCE checks that read the firewall with ufw, nft and iptables.
+var oscapIOCapabilities = []capability.Cap{
+	capability.CAP_DAC_OVERRIDE,
+	capability.CAP_NET_ADMIN,
+	capability.CAP_NET_RAW,
+	capability.CAP_SYS_CHROOT,
+}
+
+// dropCapabilities reduces the effective, permitted and inheritable sets to the
+// oscapIOCapabilities the process holds, since capset can only shrink the
+// permitted set.
 func dropCapabilities() error {
 	// Create a new capability set for the current process
 	caps, err := capability.NewPid2(0)
@@ -77,11 +90,19 @@ func dropCapabilities() error {
 		return fmt.Errorf("failed to load capabilities: %w", err)
 	}
 
+	// Keep the oscapIOCapabilities the process holds
+	var keep []capability.Cap
+	for _, c := range oscapIOCapabilities {
+		if caps.Get(capability.PERMITTED, c) {
+			keep = append(keep, c)
+		}
+	}
+
 	// Clear all capabilities in all sets
 	caps.Clear(capability.CAPS)
 
-	// Set CAP_SYS_CHROOT and CAP_DAC_OVERRIDE in all capability sets
-	caps.Set(capability.CAPS, capability.CAP_SYS_CHROOT, capability.CAP_DAC_OVERRIDE)
+	// Set the kept capabilities in all capability sets
+	caps.Set(capability.CAPS, keep...)
 
 	// Apply the capability changes
 	if err := caps.Apply(capability.CAPS); err != nil {

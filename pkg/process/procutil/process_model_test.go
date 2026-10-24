@@ -11,6 +11,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestStatsIsZombie(t *testing.T) {
+	tests := []struct {
+		name  string
+		stats *Stats
+		want  bool
+	}{
+		{name: "nil stats"},
+		{name: "empty status", stats: &Stats{}},
+		{name: "running process", stats: &Stats{Status: "R"}},
+		{name: "zombie process", stats: &Stats{Status: "Z"}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.stats.IsZombie())
+		})
+	}
+}
+
 func TestProcessIdentity(t *testing.T) {
 	// Basic identity generation
 	identity := ProcessIdentity(1234, 1000000, []string{"bash", "-c", "echo hello"})

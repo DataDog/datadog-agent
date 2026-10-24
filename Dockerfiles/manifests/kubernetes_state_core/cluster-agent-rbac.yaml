@@ -6,7 +6,7 @@ automountServiceAccountToken: true
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.195.1"
+    chart: "datadog-3.246.0"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -64,6 +64,21 @@ rules:
       - list
       - watch
   - apiGroups:
+      - "datadoghq.com"
+    resources:
+      - "datadoginstrumentations"
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - "datadoghq.com"
+    resources:
+      - "datadoginstrumentations/status"
+    verbs:
+      - patch
+      - update
+  - apiGroups:
       - ""
     resources:
       - configmaps
@@ -111,109 +126,6 @@ rules:
       - "/metrics"
     verbs:
       - get
-  - apiGroups: # to get the kube-system namespace UID and generate a cluster ID
-      - ""
-    resources:
-      - namespaces
-    resourceNames:
-      - "kube-system"
-    verbs:
-      - get
-  - apiGroups: # To create the cluster-id configmap
-      - ""
-    resources:
-      - configmaps
-    resourceNames:
-      - "datadog-cluster-id"
-    verbs:
-      - create
-      - get
-      - update
-  - apiGroups:
-      - ""
-    resources:
-      - persistentvolumes
-      - persistentvolumeclaims
-      - serviceaccounts
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - "apps"
-    resources:
-      - deployments
-      - replicasets
-      - daemonsets
-      - statefulsets
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - "batch"
-    resources:
-      - cronjobs
-      - jobs
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - networking.k8s.io
-    resources:
-      - ingresses
-      - networkpolicies
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - "rbac.authorization.k8s.io"
-    resources:
-      - roles
-      - rolebindings
-      - clusterroles
-      - clusterrolebindings
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - "storage.k8s.io"
-    resources:
-      - storageclasses
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - autoscaling.k8s.io
-    resources:
-      - verticalpodautoscalers
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - kueue.x-k8s.io
-    resources:
-      - localqueues
-      - clusterqueues
-      - resourceflavors
-      - workloads
-    verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - apiextensions.k8s.io
-    resources:
-      - customresourcedefinitions
-    verbs:
-      - list
-      - get
-      - watch
   - apiGroups:
       - admissionregistration.k8s.io
     resources:
@@ -237,6 +149,9 @@ rules:
   - apiGroups: [""]
     resources: ["replicationcontrollers"]
     verbs: ["get"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csidrivers"]
+    verbs: ["get", "list", "watch"]
   - apiGroups:
       - "security.openshift.io"
     resources:
@@ -246,56 +161,74 @@ rules:
     resourceNames:
       - datadog-cluster-agent
       - hostnetwork
+  # Used by datadog.appsec.injector feature.
+  # These rules are intentionally present by default, not gated behind
+  # `datadog.appsec.injector.enabled`: the cluster-agent injector controller
+  # creates cluster resources (Backend / EnvoyExtensionPolicy / EnvoyFilter /
+  # ReferenceGrant / ConfigMap copies) and patches user Gateways. Retaining
+  # get/list/delete/patch when the feature is disabled lets the controller clean
+  # up those resources instead of orphaning them.
   - apiGroups:
-      - "policy"
+      - "gateway.networking.k8s.io"
     resources:
-      - poddisruptionbudgets
+      - gateways
+      - gatewayclasses
     verbs:
       - get
       - list
       - watch
+      - patch
   - apiGroups:
-      - "datadoghq.com"
-      - eks.amazonaws.com
-      - karpenter.azure.com
-      - karpenter.k8s.aws
-      - karpenter.sh
+      - "gateway.networking.k8s.io"
     resources:
-      - "*"
+      - referencegrants
     verbs:
-      - list
-      - watch
-  - apiGroups:
-      - argoproj.io
-    resources:
-      - rollouts
-      - applications
-      - applicationsets
-    verbs:
-      - list
-      - watch
       - get
+      - delete
+      - create
+      - patch
   - apiGroups:
-      - source.toolkit.fluxcd.io
+      - "gateway.envoyproxy.io"
     resources:
-      - buckets
-      - helmcharts
-      - externalartifacts
-      - gitrepositories
-      - helmrepositories
-      - ocirepositories
+      - envoyextensionpolicies
+      - backends
     verbs:
+      - get
+      - delete
+      - create
+  - apiGroups:
+      - "networking.istio.io"
+    resources:
+      - envoyfilters
+    verbs:
+      - get
+      - create
+      - delete
+  - apiGroups:
+      - "networking.istio.io"
+    resources:
+      - gateways
+    verbs:
+      - get
       - list
       - watch
-      - get
-  - apiGroups:
-      - kustomize.toolkit.fluxcd.io
-    resources:
-      - kustomizations
-    verbs:
-      - list
-      - watch
-      - get
+  # AppSec proxy injection - ingress-nginx
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  # AppSec proxy injection - ingress-nginx ConfigMap management
+  # SECURITY CONSIDERATION: These permissions are cluster-wide and unscoped.
+  # ConfigMap names are derived dynamically from the controller's --configmap arg
+  # (e.g. datadog-appsec-<original-name>) and cannot be predicted at RBAC
+  # definition time. The watch verb is needed for the ConfigMap reconciler that
+  # keeps DD copies in sync with originals. In practice, the code only operates
+  # on ConfigMaps with the labels
+  #   appsec.datadoghq.com/watched-configmap=true       (reconciler)
+  #   app.kubernetes.io/component=datadog-appsec-injector (cleanup)
+  # Consider namespace-scoped Roles if the blast radius needs to be reduced.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
 ---
 # This file has been generated by `helm template datadog-agent datadog/datadog` from datadog/templates/cluster-agent-rbac.yaml. Please re-run `generate.sh` rather than modifying this file manually.
 apiVersion: "rbac.authorization.k8s.io/v1"

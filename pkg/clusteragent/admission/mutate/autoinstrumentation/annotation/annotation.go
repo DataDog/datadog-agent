@@ -33,7 +33,7 @@ const (
 	// TracerConfigs sets tracer configuration options (injected as environment variables) during
 	// Local SDK Injection. It is the annotation-based equivalent of the targets[].ddTraceConfigs
 	// config option. The value is a JSON array of objects matching the ddTraceConfigs schema, and
-	// every entry's name must start with the DD_ prefix.
+	// every entry's name must start with the DD_ or OTEL_ prefix.
 	// Example value: [{"name":"DD_PROFILING_ENABLED","value":"true"}]
 	TracerConfigs = "admission.datadoghq.com/apm-inject.tracer-configs"
 	// LibraryVersion sets the library to use during Local SDK Injection.
@@ -81,9 +81,12 @@ const (
 	// regardless of the configured or requested mode. For "auto" mode, this reflects the resolved mode.
 	// Example value: csi
 	EffectiveInjectionMode = "internal.apm.datadoghq.com/effective-injection-mode"
+	// AutoInjectionModeReason is set with the reason why the "auto" mode picked the effective injection mode.
+	// Example value: the cluster runs OpenShift
+	AutoInjectionModeReason = "internal.apm.datadoghq.com/auto-injection-mode-reason"
 	// CSIDriverStatus is set with the observed state of the Datadog CSI driver at
-	// injection time. It is only present when CSI driver detection is active
-	// (i.e. CSIDriverWatcher is non-nil). See the CSIDriverStatus* constants below.
+	// injection time. It is set whenever the CSIDriverWatcher exists, which is the
+	// case when auto instrumentation is enabled. See the CSIDriverStatus* constants below.
 	CSIDriverStatus = "internal.apm.datadoghq.com/csi-driver-status"
 	// InjectionStatus is set with the overall outcome of the APM injection attempt.
 	// See the InjectionStatus* constants below for possible values.
@@ -119,6 +122,9 @@ const (
 	InjectionStatusSkipped = "skipped"
 	// InjectionStatusError means a fatal error prevented the injector from running.
 	InjectionStatusError = "error"
+	// InjectionStatusBlocked means a remote-config policy denied injection.
+	// The applied-policy annotation names that policy.
+	InjectionStatusBlocked = "blocked"
 )
 
 // LibraryAnnotationFormat is a helper type to format an annotation with a language.

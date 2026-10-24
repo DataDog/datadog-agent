@@ -7,6 +7,8 @@ package helper
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -370,6 +372,94 @@ func TestServerLifecycle(t *testing.T) {
 
 // TestRegisteredServicesReported tests that services registered with the gRPC
 // server are properly reported during registration with the core agent
+type streamingCommandProvider struct {
+	pbcore.UnimplementedRemoteCommandProviderServer
+}
+
+func (streamingCommandProvider) ListCommands(context.Context, *pbcore.ListCommandsRequest) (*pbcore.ListCommandsResponse, error) {
+	return &pbcore.ListCommandsResponse{}, nil
+}
+
+func (streamingCommandProvider) ExecuteCommand(_ *pbcore.ExecuteCommandRequest, stream grpc.ServerStreamingServer[pbcore.ExecuteCommandResponse]) error {
+	for _, frame := range []*pbcore.ExecuteCommandResponse{
+		{Frame: &pbcore.ExecuteCommandResponse_Stdout{Stdout: "one"}},
+		{Frame: &pbcore.ExecuteCommandResponse_Stderr{Stderr: "two"}},
+		{Frame: &pbcore.ExecuteCommandResponse_BinaryOutput{BinaryOutput: []byte{3, 4}}},
+		{Frame: &pbcore.ExecuteCommandResponse_ExitCode{ExitCode: 0}},
+	} {
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestCommandProviderStreamAuthSessionAndFrames(t *testing.T) {
+	lc := compdef.NewTestLifecycle(t)
+	ipcComp := ipcmock.New(t)
+	mockCoreAgent := newMockCoreAgentServer(t, ipcComp, func(_ context.Context, _ *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
+		return &pbcore.RegisterRemoteAgentResponse{SessionId: "stream-session", RecommendedRefreshIntervalSecs: 60}, nil
+	}, nil)
+	defer mockCoreAgent.stop()
+
+	server, err := NewUnimplementedRemoteAgentServer(ipcComp, logmock.New(t), configmock.New(t), lc, mockCoreAgent.address, "test-agent", "Test Agent")
+	require.NoError(t, err)
+	pbcore.RegisterRemoteCommandProviderServer(server.GetGRPCServer(), streamingCommandProvider{})
+	server.Start()
+	defer lc.Stop(context.Background())
+
+	newClient := func(token string) (pbcore.RemoteCommandProviderClient, *grpc.ClientConn) {
+		conn, err := grpc.NewClient(server.listener.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())), grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(token)))
+		require.NoError(t, err)
+		return pbcore.NewRemoteCommandProviderClient(conn), conn
+	}
+
+	t.Run("rejects invalid bearer token", func(t *testing.T) {
+		client, conn := newClient("invalid-token")
+		defer conn.Close()
+		stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Equal(t, codes.Unauthenticated, status.Code(err))
+	})
+
+	client, conn := newClient(ipcComp.GetAuthToken())
+	defer conn.Close()
+
+	require.Eventually(t, func() bool {
+		stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+		if err != nil {
+			return false
+		}
+		header, err := stream.Header()
+		if err != nil {
+			return false
+		}
+		return len(header.Get("session_id")) == 1 && header.Get("session_id")[0] == "stream-session"
+	}, 5*time.Second, 50*time.Millisecond)
+
+	stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+	require.NoError(t, err)
+	header, err := stream.Header()
+	require.NoError(t, err)
+	require.Equal(t, []string{"stream-session"}, header.Get("session_id"))
+
+	var frames []*pbcore.ExecuteCommandResponse
+	for {
+		frame, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		frames = append(frames, frame)
+	}
+	require.Len(t, frames, 4)
+	require.Equal(t, "one", frames[0].GetStdout())
+	require.Equal(t, "two", frames[1].GetStderr())
+	require.Equal(t, []byte{3, 4}, frames[2].GetBinaryOutput())
+	require.Equal(t, int32(0), frames[3].GetExitCode())
+}
+
 func TestRegisteredServicesReported(t *testing.T) {
 	lc := compdef.NewTestLifecycle(t)
 	ipcComp := ipcmock.New(t)
