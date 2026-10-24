@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
@@ -666,6 +667,45 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 
 		assert.NotContains(t, minSpan.Meta, "team")
+	})
+}
+
+// TestOtelSpanToDDSpanMinimalNumericTypes checks that integer-valued attributes are
+// read whether stored as Int or as a whole Double.
+func TestOtelSpanToDDSpanMinimalNumericTypes(t *testing.T) {
+	cfg := &config.AgentConfig{OTLPReceiver: &config.OTLP{}}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	lib := pcommon.NewInstrumentationScope()
+	for _, tc := range []struct {
+		name string
+		put  func(pcommon.Map, string, int64)
+	}{
+		{"int", func(m pcommon.Map, k string, v int64) { m.PutInt(k, v) }},
+		{"double", func(m pcommon.Map, k string, v int64) { m.PutDouble(k, float64(v)) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			tc.put(span.Attributes(), "http.response.status_code", 404)
+			tc.put(span.Attributes(), "_dd.measured", 1)
+
+			minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, cfg, nil, nil)
+
+			assert.Equal(t, float64(404), minSpan.Metrics[traceutil.TagStatusCode])
+			assert.True(t, traceutil.IsMeasured(minSpan))
+		})
+	}
+
+	t.Run("fractional double is ignored", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutDouble("http.response.status_code", 404.5)
+		span.Attributes().PutDouble("_dd.measured", 1.5)
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, cfg, nil, nil)
+
+		assert.NotContains(t, minSpan.Metrics, traceutil.TagStatusCode)
+		assert.False(t, traceutil.IsMeasured(minSpan))
 	})
 }
 

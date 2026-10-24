@@ -44,9 +44,9 @@ func (a DDSpanAccessor) GetInt64(key string) (int64, bool) {
 
 // DDSpanAccessorV1 adapts an *idx.InternalSpan into an Accessor.
 //
-// Attribute routing is strictly typed:
+// Attribute routing is typed:
 //   - GetString returns a value only if the attribute is stored as a StringValueRef.
-//   - GetFloat64 returns a value only if the attribute is stored as a DoubleValue.
+//   - GetFloat64 returns a value for DoubleValue or IntValue (converted to float64).
 //   - GetInt64 returns a value for IntValue or exact-integer DoubleValue.
 type DDSpanAccessorV1 struct {
 	span *idx.InternalSpan
@@ -73,17 +73,19 @@ func (a DDSpanAccessorV1) GetString(key string) string {
 	return a.span.Strings.Get(v.StringValueRef)
 }
 
-// GetFloat64 returns the attribute value if it is a DoubleValue, or (0, false) otherwise.
+// GetFloat64 returns the attribute value as float64 for DoubleValue or IntValue.
 func (a DDSpanAccessorV1) GetFloat64(key string) (float64, bool) {
 	attr, ok := a.span.GetAttribute(key)
 	if !ok || attr == nil {
 		return 0, false
 	}
-	v, ok := attr.Value.(*idx.AnyValue_DoubleValue)
-	if !ok {
-		return 0, false
+	switch v := attr.Value.(type) {
+	case *idx.AnyValue_DoubleValue:
+		return v.DoubleValue, true
+	case *idx.AnyValue_IntValue:
+		return float64(v.IntValue), true
 	}
-	return v.DoubleValue, true
+	return 0, false
 }
 
 // GetInt64 returns the attribute value for IntValue directly, or converts an exact-integer
