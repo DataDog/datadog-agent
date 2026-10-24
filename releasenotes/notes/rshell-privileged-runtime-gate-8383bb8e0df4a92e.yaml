@@ -1,0 +1,30 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    On Linux, the restricted shell privileged helper units are now always
+    installed. Setting
+    ``private_action_runner.restricted_shell.privileged.enabled`` and
+    restarting the Agent is enough to turn the helper on or off; reinstalling
+    the Agent is no longer required. Before each start, systemd checks the
+    setting as ``dd-agent``, and the root helper does not run unless it is
+    enabled. The helper socket moves to
+    ``/run/datadog-agent-rshell/privileged.sock``; a
+    ``private_action_runner.restricted_shell.privileged.socket`` setting that
+    names the former default ``/run/datadog/rshell-privileged.sock`` is
+    redirected to the new path.
+fixes:
+  - |
+    On Linux, the restricted shell privileged helper socket now follows the
+    core Agent. It no longer stops when the private action runner service
+    exits, for example in split mode, and it no longer creates a boot-time
+    systemd ordering cycle that could leave it missing after a reboot. When
+    the helper is enabled but its socket does not exist, or the kernel does
+    not provide the Landlock support it needs, restricted shell tasks run
+    without elevation instead of failing.

@@ -110,7 +110,8 @@ const (
 
 // GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
 func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
-	if strings.HasPrefix(name, "datadog-agent-rshell-privileged") {
+	// rshell units live in a short directory to keep Windows checkout paths short.
+	if strings.HasPrefix(name, "datadog-agent-rshell-") {
 		return systemdUnits.ReadFile(path.Join("tmpl/gen/r", shortFlavorDir(unitType, ambiantCapabilitiesSupported), name))
 	}
 	return systemdUnits.ReadFile(path.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))

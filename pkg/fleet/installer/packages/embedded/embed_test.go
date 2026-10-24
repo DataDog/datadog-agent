@@ -42,6 +42,8 @@ func TestGetSystemdUnitEmbedsPrivilegedRshellVariants(t *testing.T) {
 	units := []string{
 		"datadog-agent-rshell-privileged.service",
 		"datadog-agent-rshell-privileged-exp.service",
+		"datadog-agent-rshell-enabled.service",
+		"datadog-agent-rshell-enabled-exp.service",
 		"datadog-agent-rshell-privileged.socket",
 		"datadog-agent-rshell-privileged-exp.socket",
 	}

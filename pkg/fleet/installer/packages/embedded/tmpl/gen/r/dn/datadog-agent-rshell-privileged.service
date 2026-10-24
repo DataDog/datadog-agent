@@ -1,7 +1,8 @@
 [Unit]
 Description=Datadog rshell privileged helper
-After=datadog-agent.service datadog-agent-action.service
-BindsTo=datadog-agent.service datadog-agent-action.service
+PartOf=datadog-agent.service
+Requires=datadog-agent-rshell-enabled.service
+After=datadog-agent-rshell-enabled.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
 

@@ -56,14 +56,14 @@ const (
 // captureBootID returns the current kernel boot id. Used as the source of
 // truth for "has this host actually rebooted?" — reboot-command exit status is
 // unreliable because sshd can be torn down before the SSH session returns.
-func (s *packageApmInjectSuite) captureBootID() string {
+func (s *packageBaseSuite) captureBootID() string {
 	s.T().Helper()
 	return strings.TrimSpace(s.Env().RemoteHost.MustExecute("cat /proc/sys/kernel/random/boot_id"))
 }
 
 // waitForBootIDChange reconnects over SSH and polls until the boot id differs
 // from bootIDBefore, meaning the host has come back on a fresh boot.
-func (s *packageApmInjectSuite) waitForBootIDChange(bootIDBefore string) {
+func (s *packageBaseSuite) waitForBootIDChange(bootIDBefore string) {
 	s.T().Helper()
 	host := s.Env().RemoteHost
 
@@ -101,7 +101,7 @@ func (s *packageApmInjectSuite) waitForBootIDChange(bootIDBefore string) {
 // and would be killed by ld.so. See TestSystemdServiceRebootBrokenInjector
 // for the broken-injector variant that uses shutdown(8) to schedule the
 // reboot before installing the crashy lib.
-func (s *packageApmInjectSuite) reboot() {
+func (s *packageBaseSuite) reboot() {
 	s.T().Helper()
 	host := s.Env().RemoteHost
 

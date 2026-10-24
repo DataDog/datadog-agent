@@ -43,7 +43,7 @@ const (
 	privilegedRshellBinary         = "/opt/datadog-agent/embedded/bin/rshell"
 	privilegedRshellPolicy         = "/etc/datadog-agent-rshell/policy.json"
 	privilegedRshellPolicyStage    = "/tmp/par-rshell-e2e-policy.json"
-	privilegedRshellSocket         = "/run/datadog/rshell-privileged.sock"
+	privilegedRshellSocket         = "/run/datadog-agent-rshell/privileged.sock"
 	privilegedRshellSocketUnit     = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellServiceUnit    = "datadog-agent-rshell-privileged.service"
 	privilegedRshellFixtureDir     = "/root/par-rshell-e2e"
@@ -119,8 +119,9 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().Equal("root:root 755", strings.TrimSpace(host.MustExecute(
 		"sudo stat -c '%U:%G %a' "+privilegedRshellBinary,
 	)))
-	s.Require().Equal("enabled", strings.TrimSpace(host.MustExecute(
-		"sudo systemctl is-enabled "+privilegedRshellSocketUnit,
+	// The socket is never enabled: datadog-agent.service pulls it in.
+	s.Require().Equal("static", strings.TrimSpace(host.MustExecute(
+		"sudo systemctl is-enabled "+privilegedRshellSocketUnit+" || true",
 	)))
 	s.Require().Equal("active", strings.TrimSpace(host.MustExecute(
 		"sudo systemctl is-active "+privilegedRshellSocketUnit,
