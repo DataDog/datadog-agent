@@ -1,0 +1,370 @@
+-- allium: 3
+-- quantile_sketch.allium
+
+-- Scope: how the Agent's distribution sketch (pkg/util/quantile) turns
+--   observations into bins: what an insert, a merge and a reset do to the
+--   bins, how many bins they take, how the bin limit trims them, and what
+--   quantiles and serialised columns are read back from them.
+-- Includes: the bin budget (bin limit, bin width, max count), the Agent-side
+--   inserts (unsampled values, sampled values, interpolated histogram
+--   buckets) and the batches they hand to the bin store, overflow bins,
+--   trimming to the bin limit, merge, reset, the summary, quantiles, equality
+--   and the payload columns handed to the serializer.
+-- Excludes:
+--   - The value-to-key mapping (gamma, bias, saturation to the infinite
+--     keys). Keys are ordered integers; key_of, finite_key and key_value are
+--     black boxes.
+--   - Non-finite values and bounds. The aggregator drops them before they
+--     reach an AgentSketch; see the open questions for what happens if they
+--     do.
+--   - How InsertInterpolate spreads a bucket's count over its keys: the
+--     interpolate black box only promises a total and key order.
+--   - Buffer pooling, printing and byte-level memory accounting. Memory is
+--     modelled as the number of bins a store holds.
+--   - The DDSketch conversion, beyond the batch of rounded counts it hands
+--     to InsertBatch on a new store.
+--   - What callers do around the sketch: the OTLP mapper drops data points
+--     past max_count and overwrites the summary of the sketches it builds;
+--     the serializer leaves avg out of V3 payloads and drops sketches too
+--     big for a payload.
+--
+-- Black box functions:
+--   key_of(value)               the key of the bin a finite value falls into.
+--                               Keys are ordered like values and symmetric
+--                               around 0, with an infinite key past the
+--                               largest finite one on each side.
+--   finite_key(value)           key_of(value), with the infinite keys
+--                               clamped to the largest finite ones.
+--   key_value(key)              the value a key stands for: the middle of its
+--                               bin on a log scale, so that
+--                               key_of(key_value(k)) = k. Infinite at the
+--                               infinite keys.
+--   tally(keys)                 one KeyCount per distinct key, in key order.
+--   one_key(key, count)         a batch of a single KeyCount.
+--   interpolate(lower, upper, count)
+--                               count spread over the keys from
+--                               finite_key(lower) to finite_key(upper), in
+--                               key order, at most one KeyCount per key,
+--                               adding up to count. Nothing for a count past
+--                               2^63 - 1, see the open questions.
+--   total(batch)                the sum of a batch's counts.
+--   total_bins(bins)            the sum of the bins' counts.
+--   sorted_by_key(bins)         whether keys never decrease along bins.
+--   add_counts(bins, batch)     the bins with each KeyCount of the batch,
+--                               whose keys are distinct, added in key order.
+--                               The count joins the first bin of its key, or
+--                               a new bin if there is none. Their sum n
+--                               becomes a bin of n mod max_bin_width, left
+--                               out if empty, followed by n div
+--                               max_bin_width full bins. The other bins of
+--                               the key stay as they are. So the bins grow
+--                               with the count, not only with the keys, and
+--                               a key can hold several partial bins.
+--   add_bins(bins, other)       the bins of another store added, walking
+--                               both in key order: the i-th bin of a key in
+--                               other joins the i-th bin of that key in
+--                               bins, their sum split as in add_counts, or
+--                               stays as it is when bins has fewer bins of
+--                               that key.
+--   trim_left(bins, limit)      bins unchanged if there are no more than
+--                               limit of them. Otherwise the lowest
+--                               (bins.count - limit) bins collapse into the
+--                               lowest bin kept, as in sketches-go's
+--                               CollapsingLowestDenseStore. The result is the
+--                               top limit bins; what the lowest of them
+--                               cannot count past max_bin_width is dropped.
+--   record(summary, value, weight)
+--                               the summary with weight more observations
+--                               of value: count grows by truncate(weight),
+--                               sum by weight * value, min and max take
+--                               value in, and avg moves toward value by
+--                               truncate(weight) / count. So avg can differ
+--                               from sum / count.
+--   record_deposits(summary, deposits)
+--                               record(summary, key_value(d.key), d.count)
+--                               for each deposit d.
+--   merged(summary, other)      the summary of both sets of observations.
+--   value_at_rank(bins, rank, summary)
+--                               walking the bins in order, the first one
+--                               whose cumulative count passes rank. The
+--                               result moves (rank - the count before that
+--                               bin) / its count of the way from its
+--                               key_value (summary.min for the first bin)
+--                               toward key_value * gamma, the ratio between
+--                               the values of consecutive positive keys.
+--                               That is the next key's value for a positive
+--                               key, but the previous key's for a negative
+--                               one, 0 for key 0 and infinite at the
+--                               infinite keys: the result can fall outside
+--                               summary.min and summary.max, or be NaN, see
+--                               the open questions. A NaN rank gives NaN;
+--                               summary.max if no bin passes the rank.
+--   round_half_even(x), truncate(x), append(list, item)
+--   empty()                     an empty list.
+--   empty_summary()             the summary of no observations, all zeros.
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- The payload builder that reads finished sketches.
+external entity Serializer {}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value Summary {
+    count: Integer
+    sum: Decimal
+    min: Decimal
+    max: Decimal
+    avg: Decimal
+}
+
+-- A bin counts observations of one key. A key with more than max_bin_width
+-- observations spans several bins, which stay next to each other.
+value Bin {
+    key: Integer
+    count: Integer
+}
+
+-- Observations of one key, as handed to a store in a batch.
+value KeyCount {
+    key: Integer
+    count: Integer
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity BinStore {
+    bins: List<Bin>
+    -- The observations held in the bins.
+    count: Integer
+
+    invariant CountMatchesBins {
+        count = total_bins(bins)
+    }
+
+    invariant BinsSortedByKey {
+        sorted_by_key(bins)
+    }
+
+    invariant BinsWithinWidth {
+        bins.all(b => b.count <= config.max_bin_width)
+    }
+
+    -- Each bin holds at most max_bin_width observations, so the bins grow at
+    -- least as fast as the count: 1.42e12 observations take 331 bins.
+    invariant BinsGrowWithCount {
+        bins.count * config.max_bin_width >= count
+    }
+
+    invariant BinsWithinLimit {
+        bins.count <= config.bin_limit
+    }
+}
+
+entity Sketch {
+    store: BinStore
+    -- Updated by every insert, whatever happens to the bins.
+    summary: Summary
+
+    quantile(q):
+        if store.count = 0: 0
+        else if q <= 0: summary.min
+        else if q >= 1: summary.max
+        else: value_at_rank(store.bins, round_half_even(q * (store.count - 1)), summary)
+
+    -- As the code compares sketches: by float equality, so a summary holding
+    -- NaN is same_as nothing, its own copy included.
+    same_as(other):
+        summary = other.summary
+        and store.count = other.store.count
+        and store.bins = other.store.bins
+
+    -- What the serializer reads, one column per bin.
+    columns: store.bins
+}
+
+-- The insert-optimised sketch the aggregator keeps per context and bucket
+-- (quantile.Agent). Unsampled values wait in a buffer before reaching the
+-- bins; the summary records them at once.
+entity AgentSketch {
+    sketch: Sketch
+    buffered_keys: List<Integer>
+
+    is_empty: sketch.summary.count = 0 and buffered_keys.count = 0
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Bins trim_left keeps. NewConfig turns 0 into this default.
+    bin_limit: Integer = 4096
+    -- Observations one bin can count.
+    max_bin_width: Integer = 4_294_967_295
+    -- What bin_limit bins could count when bins were 16-bit. Callers such as
+    -- the OTLP mapper still bound their input with it.
+    max_count: Integer = bin_limit * 65_535
+    -- Unsampled values buffered before they reach the bins.
+    agent_buffer_capacity: Integer = 512
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- A sample rate outside (0, 1], NaN included, counts as unsampled.
+rule AgentRecordsUnsampledValue {
+    when: InsertValue(agent, value, sample_rate)
+    requires: not (sample_rate > 0 and sample_rate < 1)
+
+    ensures: agent.sketch.summary = record(agent.sketch.summary, value, 1)
+    ensures: agent.buffered_keys = append(agent.buffered_keys, key_of(value))
+    ensures:
+        if agent.buffered_keys.count >= config.agent_buffer_capacity:
+            FlushAgent(agent)
+}
+
+-- A sampled value stands for 1 / sample_rate observations of it, truncated.
+rule AgentRecordsSampledValue {
+    when: InsertValue(agent, value, sample_rate)
+    requires: sample_rate > 0 and sample_rate < 1
+
+    -- A float64 quotient: @1e-9 weighs 999,999,999.
+    let weight = 1 / sample_rate
+
+    ensures: agent.sketch.summary = record(agent.sketch.summary, value, weight)
+    ensures: FlushAgent(agent)
+    ensures: InsertBatch(agent.sketch.store, one_key(key_of(value), truncate(weight)))
+
+    @guidance
+        -- The buffered keys reach the bins before this batch. The order
+        -- matters once trim_left folds bins.
+}
+
+-- A histogram bucket's count, spread over the keys between its bounds. Finite
+-- bounds past the largest finite key count as the largest finite key, on
+-- either side.
+rule AgentInterpolatesBucket {
+    when: InsertInterpolate(agent, lower, upper, count)
+    -- Otherwise the insert fails with non-monotonic boundaries.
+    requires: finite_key(upper) >= finite_key(lower)
+
+    let deposits = interpolate(lower, upper, count)
+
+    ensures: agent.sketch.summary = record_deposits(agent.sketch.summary, deposits)
+    ensures: FlushAgent(agent)
+    ensures:
+        if deposits.count > 0:
+            InsertBatch(agent.sketch.store, deposits)
+
+    @guidance
+        -- The buffered keys reach the bins before the deposits, as for a
+        -- sampled value.
+}
+
+rule AgentFlushes {
+    when: FlushAgent(agent)
+    requires: agent.buffered_keys.count > 0
+
+    -- Bound before the buffer is cleared: emitted parameters read the
+    -- resulting state.
+    let batch = tally(agent.buffered_keys)
+
+    ensures: InsertBatch(agent.sketch.store, batch)
+    ensures: agent.buffered_keys = empty()
+}
+
+rule StoreInsertsBatch {
+    when: InsertBatch(store, batch)
+
+    let bins = trim_left(add_counts(store.bins, batch), config.bin_limit)
+
+    ensures: store.bins = bins
+    ensures: store.count = total_bins(bins)
+
+    @guidance
+        -- Lay out only the bins trim_left keeps: add_counts gives a count past
+        -- max_bin_width a bin per max_bin_width of it, and trim_left drops all
+        -- but bin_limit of them.
+}
+
+-- The other sketch is left as it was.
+rule SketchMerges {
+    when: MergeSketch(sketch, other)
+
+    let bins = trim_left(add_bins(sketch.store.bins, other.store.bins), config.bin_limit)
+
+    ensures: sketch.summary = merged(sketch.summary, other.summary)
+    ensures: sketch.store.bins = bins
+    ensures: sketch.store.count = total_bins(bins)
+}
+
+rule AgentResets {
+    when: ResetSketch(agent)
+
+    ensures: agent.sketch.summary = empty_summary()
+    ensures: agent.sketch.store.bins = empty()
+    ensures: agent.sketch.store.count = 0
+    ensures: agent.buffered_keys = empty()
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- No observation is lost on the way to the bins until trim_left drops some
+-- past max_bin_width, and as long as weights and counts stay below 2^63: see
+-- the open questions. Past that, the summary counts more than the bins.
+invariant SummaryCountsEveryObservation {
+    for a in AgentSketches:
+        a.sketch.summary.count >= a.sketch.store.count + a.buffered_keys.count
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- The serializer reads the sketches AgentSketches finish, and sketches
+-- converted from a DDSketch. Finishing flushes the buffer, then hands over a
+-- copy of the sketch, or nothing when the AgentSketch is_empty.
+surface SketchPayload {
+    facing serializer: Serializer
+
+    context sketch: Sketch
+
+    exposes:
+        sketch.summary.count
+        sketch.summary.sum
+        sketch.summary.min
+        sketch.summary.max
+        sketch.summary.avg
+        for c in sketch.columns:
+            c.key
+            c.count
+
+    @guarantee ColumnsCountEveryObservation
+        -- For sketches as this package builds them, the column counts add up
+        -- to the store's count, which equals the summary's once the buffer is
+        -- flushed, unless trim_left dropped observations past max_bin_width.
+
+    @guarantee FinishedSketchIsACopy
+        -- The finished sketch holds the AgentSketch's summary, count and bins
+        -- once flushed, and shares no bins with it.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "Counts past 2^63: a DogStatsD sample rate at or below 2^-63 (about 1.08e-19) is accepted, and 1 / sample_rate no longer fits the signed 64-bit counts. Go leaves those conversions to the platform: on amd64 the summary count turns negative (two @1e-20 samples wrap it to 0, so Finish drops the sketch), while the store's count differs from it or a bin of 0 appears; arm64 saturates instead. InsertInterpolate with a count past 2^63 - 1 records nothing and reports no error. Should the Agent clamp such weights and counts, reject them, or leave them to callers?"
+
+open question "Non-finite inputs: key_of(+Inf) is 1, the key next to 0, and NaN's key depends on the platform. An AgentSketch given an infinite or NaN value, or such a bucket bound, keeps it in a bin near 0 while its summary holds the infinity or NaN. The aggregator drops these before the Agent sees them, but the package is its own module. Should the Agent reject them itself, or should the spec make finite inputs a precondition?"
+
+open question "Quantiles outside the observations: value_at_rank interpolates toward key_value * gamma, which is the previous key for negative keys. So a quantile can fall below summary.min (from -100 x 4 and -10 x 4, the 10th percentile is -100.38), quantiles can decrease within a bin as q increases, and values above about 4.2e211 give NaN. Is this intended, given that outside tests only printing reads Quantile, or should value_at_rank stay within the bin and within summary.min and summary.max?"

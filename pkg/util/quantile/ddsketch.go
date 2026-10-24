@@ -235,8 +235,8 @@ func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sket
 	keyCounts, cnt := convertFloatCountsToIntCounts(floatKeyCounts)
 
 	// Populate sparseStore object with the collected keyCounts
-	// insertCounts will take care of creating multiple uint16 bins for a
-	// single key if the count overflows uint16
+	// insertCounts will take care of creating multiple bins for a single key
+	// if the count overflows a bin
 	sparseStore.insertCounts(c, keyCounts)
 
 	// Deep-copy bins so the returned Sketch owns its memory independently of
