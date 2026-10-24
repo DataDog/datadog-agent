@@ -524,7 +524,9 @@ typedef struct stack_walk_ctx {
   // Difference between populate_stack_frame loop index and
   // populated stack size.
   int16_t idx_shift;
-  struct pt_regs regs;
+  // The user-visible registers at the probe. The full struct pt_regs isn't
+  // used: its kernel-internal tail varies between kernel versions.
+  bpf_user_pt_regs_t regs;
   target_stack_t stack;
 } stack_walk_ctx_t;
 
@@ -556,7 +558,7 @@ typedef struct global_ctx {
   stack_walk_ctx_t* stack_walk;
   // Set during goroutine iteration, read during stack machine execution.
   // Declared here, as pointers in maps are treated as scalars by verifier.
-  struct pt_regs* regs;
+  bpf_user_pt_regs_t* regs;
 } global_ctx_t;
 
 typedef struct call_depths_entry {
