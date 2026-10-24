@@ -69,7 +69,7 @@ func createForwarder(deps dependencies, options *defaultforwarderimpl.Options) d
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarderimpl.Options, error) {
-	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
+	resolver, err := resolver.NewSingleDomainResolvers2(apicfg.EndpointDescriptors(endpoints))
 	if err != nil {
 		return nil, err
 	}

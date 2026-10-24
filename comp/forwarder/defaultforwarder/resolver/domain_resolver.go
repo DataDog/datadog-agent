@@ -288,11 +288,10 @@ func (r *domainResolver) SetBaseDomain(domain string) {
 }
 
 // reloadAdditionalEndpoints replaces this resolver's keys for setting with what's in config and
-// returns the deduped keys before and after. If the domain is missing from config (found=false),
-// its keys for setting are dropped, but only for the infra additional_endpoints setting: its
-// resolvers are keyed by the raw config URL, and it's the only resolver-backed setting with
-// delegated auth write-back. Other forwarders normalize to scheme://host, so a miss there isn't a
-// removal and nothing changes (applied=false).
+// returns the deduped keys before and after. If the config name is missing from config
+// (found=false), its keys for setting are dropped, but only for the infra additional_endpoints
+// setting. For other settings nothing changes (applied=false): their resolvers can be named
+// scheme://host without a ConfigName (see EndpointDescriptor), so a miss isn't a removal.
 //
 // The OnUpdate callback and the startup reconcile in OnUpdateConfig can run concurrently, so the
 // config read and the replacement happen under r.mu: a stale snapshot can't overwrite a newer one.

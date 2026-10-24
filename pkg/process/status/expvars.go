@@ -217,7 +217,9 @@ func getEndpointsInfo(config config.Component) interface{} {
 	// obfuscate the api keys
 	for _, endpoint := range eps {
 		apiKey := endpoint.APIKey
-		if len(apiKey) > 4 {
+		if endpoint.HasPendingDelegatedAuth {
+			apiKey = "pending"
+		} else if len(apiKey) > 4 {
 			apiKey = apiKey[len(apiKey)-4:]
 		}
 

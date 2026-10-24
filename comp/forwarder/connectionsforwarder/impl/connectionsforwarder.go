@@ -66,7 +66,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarderimpl.Options, error) {
-	r, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
+	r, err := resolver.NewSingleDomainResolvers2(apicfg.EndpointDescriptors(endpoints))
 	if err != nil {
 		return nil, err
 	}
