@@ -51,6 +51,11 @@ func (m *inventoryagentMock) SetReady(bool) {}
 // Submit is an empty function on this mock
 func (m *inventoryagentMock) Submit() {}
 
+// SendNow is a mocked function
+func (m *inventoryagentMock) SendNow() error {
+	return nil
+}
+
 // MockModule defines the fx options for the mock component.
 //
 // Usage:

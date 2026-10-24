@@ -38,6 +38,7 @@ func newTestEgress(t *testing.T, store storedef.Component, forwarder forwarderde
 		forwarder:   forwarder,
 		resolvedCh:  make(chan *healthplatformpayload.Issue, resolvedChBuf),
 		resolved:    make(map[string]*healthplatformpayload.Issue),
+		triggerCh:   make(chan chan error),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
@@ -494,4 +495,76 @@ func TestStatusRecoversAfterErrorThenSuccess(t *testing.T) {
 	assert.NoError(t, s.LastError)
 	assert.EqualValues(t, 1, s.SendErrorsTotal, "cumulative error count must be preserved across recovery")
 	assert.EqualValues(t, 10, s.BytesSentTotal)
+}
+
+func TestSendNow(t *testing.T) {
+	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
+	var sendCount atomic.Int32
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
+		sendCount.Add(1)
+		return 0, nil
+	}))
+	e := newTestEgress(t, store, fwd)
+	e.interval = time.Hour
+
+	require.NoError(t, e.start(context.Background()))
+	defer e.stop(context.Background()) //nolint:errcheck
+
+	require.NoError(t, e.SendNow(context.Background()))
+	assert.Equal(t, int32(1), sendCount.Load())
+	assert.False(t, e.Status().LastSuccessAt.IsZero())
+}
+
+func TestSendNowForwarderError(t *testing.T) {
+	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
+		return 0, assert.AnError
+	}))
+	e := newTestEgress(t, store, fwd)
+	e.interval = time.Hour
+
+	require.NoError(t, e.start(context.Background()))
+	defer e.stop(context.Background()) //nolint:errcheck
+
+	assert.ErrorIs(t, e.SendNow(context.Background()), assert.AnError)
+}
+
+func TestSendNowNothingToReport(t *testing.T) {
+	var called bool
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, _ *healthplatformpayload.HealthReport) (int, error) {
+		called = true
+		return 0, nil
+	}))
+	e := newTestEgress(t, storemock.New(t), fwd)
+	e.interval = time.Hour
+
+	require.NoError(t, e.start(context.Background()))
+	defer e.stop(context.Background()) //nolint:errcheck
+
+	assert.NoError(t, e.SendNow(context.Background()))
+	assert.False(t, called)
+}
+
+func TestSendNowDisabled(t *testing.T) {
+	e := &egress{}
+	assert.Error(t, e.SendNow(context.Background()))
+}
+
+func TestSendNowStopped(t *testing.T) {
+	e := newTestEgress(t, storemock.New(t), forwardermock.New(t))
+	e.interval = time.Hour
+
+	require.NoError(t, e.start(context.Background()))
+	require.NoError(t, e.stop(context.Background()))
+
+	assert.Error(t, e.SendNow(context.Background()))
+}
+
+func TestSendNowContextCanceled(t *testing.T) {
+	// run() is not started, so the request is never served
+	e := newTestEgress(t, storemock.New(t), forwardermock.New(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.ErrorIs(t, e.SendNow(ctx), context.Canceled)
 }

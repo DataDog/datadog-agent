@@ -6,7 +6,10 @@
 // Package egress defines the interface for the health platform egress component.
 package egress
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // team: fleet-remediation
 
@@ -37,9 +40,13 @@ type SendStatus struct {
 // Component is the health platform egress component interface.
 // Egress drives the periodic outbound HTTP POST to the Datadog intake:
 // on each tick it calls store.GetAllIssues(), builds a HealthReport, and
-// forwards it via forwarder.Send. Behaviour is driven entirely by its fx
-// lifecycle hooks; Status exposes the outcome for display in `agent status`.
+// forwards it via forwarder.Send. Behaviour is driven by its fx lifecycle
+// hooks, and SendNow can force an immediate send; Status exposes the outcome
+// for display in `agent status`.
 type Component interface {
 	// Status returns the current health of the egress send pipeline.
 	Status() SendStatus
+	// SendNow sends a report of the current issues immediately, without
+	// waiting for the next tick. Having nothing to report is not an error.
+	SendNow(ctx context.Context) error
 }

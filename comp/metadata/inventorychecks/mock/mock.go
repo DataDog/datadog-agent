@@ -52,6 +52,11 @@ func (m *InventorychecksMock) Set(instanceID string, key string, value interface
 // Refresh is a empty method for the inventorychecks mock
 func (m *InventorychecksMock) Refresh() {}
 
+// SendNow is a empty method for the inventorychecks mock
+func (m *InventorychecksMock) SendNow() error {
+	return nil
+}
+
 // GetInstanceMetadata returns all the metadata set for an instanceID using the Set method
 func (m *InventorychecksMock) GetInstanceMetadata(instanceID string) map[string]interface{} {
 	if metadata, found := m.metadata[instanceID]; found {

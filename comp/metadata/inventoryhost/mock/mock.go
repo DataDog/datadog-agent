@@ -31,6 +31,10 @@ type inventoryhostMock struct{}
 
 func (m *inventoryhostMock) Refresh() {}
 
+func (m *inventoryhostMock) SendNow() error {
+	return nil
+}
+
 func newMock() MockProvides {
 	ih := &inventoryhostMock{}
 	return MockProvides{

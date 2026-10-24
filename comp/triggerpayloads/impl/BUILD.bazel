@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["triggerpayloads.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/triggerpayloads/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/healthplatform/egress/def",
+        "//comp/metadata/inventoryagent/def",
+        "//comp/metadata/inventorychecks/def",
+        "//comp/metadata/inventoryhost/def",
+        "//comp/remote-config/rcclient/types",
+        "//comp/triggerpayloads/def",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["triggerpayloads_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/healthplatform/egress/mock",
+        "//comp/remote-config/rcclient/types",
+        "//comp/triggerpayloads/def",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
