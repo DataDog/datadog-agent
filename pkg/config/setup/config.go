@@ -363,11 +363,21 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		providerConfig = &cloudauthconfig.AWSProviderConfig{
 			Region: config.GetString("delegated_auth.aws.region"),
 		}
+	case cloudauthconfig.ProviderOIDC:
+		providerConfig = &cloudauthconfig.OIDCProviderConfig{
+			Source:        config.GetString("delegated_auth.oidc.source"),
+			TokenFile:     config.GetString("delegated_auth.oidc.token_file"),
+			Audience:      config.GetString("delegated_auth.oidc.audience"),
+			ClientID:      config.GetString("delegated_auth.oidc.client_id"),
+			OrgUUIDSource: config.GetString("delegated_auth.oidc.org_uuid_source"),
+		}
 	case "":
 		// Empty provider means auto-detect, so ProviderConfig stays nil even when
 		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
 		// downstream and would skip provider detection entirely. The component reads the configured
 		// region itself once detection picks AWS.
+	default:
+		return fmt.Errorf("unsupported delegated_auth.provider %q", provider)
 	}
 
 	startupCtx := ctx
