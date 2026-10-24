@@ -101,6 +101,11 @@ fn test_config_endpoint_returns_yaml() {
         Some(true),
         "discovery.use_system_probe_lite should be true"
     );
+    assert_eq!(
+        doc["privileged_logs"]["enabled"].as_bool(),
+        Some(false),
+        "privileged_logs.enabled should be false without --privileged-logs"
+    );
 
     kill_child(&mut child);
 }
@@ -143,6 +148,11 @@ fn test_config_by_source_endpoint_returns_json() {
         default["discovery"]["use_system_probe_lite"],
         serde_json::json!(true),
         "discovery.use_system_probe_lite should be true"
+    );
+    assert_eq!(
+        default["privileged_logs"]["enabled"],
+        serde_json::json!(false),
+        "privileged_logs.enabled should be false without --privileged-logs"
     );
 
     kill_child(&mut child);
