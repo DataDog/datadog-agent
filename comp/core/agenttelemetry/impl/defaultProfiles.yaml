@@ -101,6 +101,14 @@ profiles:
       - name: points.dropped
         preserve_tags:
           - domain
+      # Metadata payloads over the serializer size limits are dropped before
+      # reaching the forwarder, so they are invisible from intake.
+      - name: serializer.metadata_payload_dropped
+        preserve_tags:
+          - reason
+      - name: serializer.metadata_payload_dropped_bytes
+        preserve_tags:
+          - encoding
       - name: transactions.input_count
         preserve_tags:
           - domain
