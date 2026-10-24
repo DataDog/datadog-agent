@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/tokenizer"
 	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -48,6 +49,10 @@ const LogMetricsExtractorName = "log_metrics_extractor"
 // This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
 type LogMetricsExtractor struct {
 	config LogMetricsExtractorConfig
+	// tokenizer and tokens are created on first use and reused; ProcessLog is
+	// never called concurrently (the observer ingests one log at a time).
+	tokenizer *tokenizer.Tokenizer
+	tokens    []tokenizer.Token
 }
 
 // NewLogMetricsExtractor creates a LogMetricsExtractor with the given config.
@@ -62,7 +67,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	tags := tagset.CompositeTagsFromSlice(log.Tags())
 
 	// Always emit pattern frequency metric for all logs
-	patternSig := logSignature(content, a.config.MaxEvalBytes)
+	patternSig := a.logSignature(content)
 	if patternSig == "" {
 		return observer.LogMetricsExtractorOutput{}
 	}
@@ -168,6 +173,48 @@ func coerceNumber(v any) (float64, bool) {
 	}
 }
 
+// logSignature returns the shape of the first MaxEvalBytes bytes of content, as
+// printed by the Logs tokenizer (for example "CCC DDD" for "abc 123"). Severity
+// keywords and IPv4 addresses keep the letter and digit runs AAD has always
+// printed for them, so existing log.pattern series keep their names.
+func (a *LogMetricsExtractor) logSignature(content string) string {
+	if a.tokenizer == nil {
+		a.tokenizer = tokenizer.NewTokenizer(a.config.MaxEvalBytes)
+	}
+	if n := a.config.MaxEvalBytes; n > 0 && len(content) > n {
+		content = content[:n] // the prefix the tokenizer reads, so the last token ends at len(input)
+	}
+	input := []byte(content)
+	view := a.tokenizer.TokenizeBorrowed(input)
+	toks, starts := view.Borrow(), view.Indices()
+
+	a.tokens = a.tokens[:0]
+	for i, t := range toks {
+		end := len(input)
+		if i+1 < len(starts) {
+			end = starts[i+1]
+		}
+		switch {
+		case t >= tokenizer.Warn && t <= tokenizer.Timeout:
+			a.tokens = append(a.tokens, min(tokenizer.C1+tokenizer.Token(end-starts[i]-1), tokenizer.C10))
+		case t == tokenizer.IPv4:
+			run := 0
+			for _, c := range input[starts[i]:end] {
+				if c == '.' {
+					a.tokens = append(a.tokens, tokenizer.D1+tokenizer.Token(run-1), tokenizer.Period)
+					run = 0
+				} else {
+					run++
+				}
+			}
+			a.tokens = append(a.tokens, tokenizer.D1+tokenizer.Token(run-1))
+		default:
+			a.tokens = append(a.tokens, t)
+		}
+	}
+	return tokenizer.TokensToString(a.tokens)
+}
+
 func patternCountMetricName(signature string) string {
 	return "log.pattern." + strconv.FormatUint(fnv64aString(signature), 16) + ".count"
 }
@@ -194,333 +241,4 @@ func sanitizeMetricFragment(s string) string {
 		}
 	}
 	return b.String()
-}
-
-// ---------------------------------------------------------------------------
-// Inlined log signature generation (avoids dependency on pkg/logs/pattern)
-// ---------------------------------------------------------------------------
-
-// maxRun is the maximum run of a char or digit before it is capped.
-const maxRun = 10
-
-// Token types for log signature generation
-type sigToken byte
-
-const (
-	tokSpace sigToken = iota
-	tokColon
-	tokSemicolon
-	tokDash
-	tokUnderscore
-	tokFslash
-	tokBslash
-	tokPeriod
-	tokComma
-	tokSinglequote
-	tokDoublequote
-	tokBacktick
-	tokTilda
-	tokStar
-	tokPlus
-	tokEqual
-	tokParenopen
-	tokParenclose
-	tokBraceopen
-	tokBraceclose
-	tokBracketopen
-	tokBracketclose
-	tokAmpersand
-	tokExclamation
-	tokAt
-	tokPound
-	tokDollar
-	tokPercent
-	tokUparrow
-	// Digit runs D1..D10
-	tokD1
-	tokD2
-	tokD3
-	tokD4
-	tokD5
-	tokD6
-	tokD7
-	tokD8
-	tokD9
-	tokD10
-	// Char runs C1..C10
-	tokC1
-	tokC2
-	tokC3
-	tokC4
-	tokC5
-	tokC6
-	tokC7
-	tokC8
-	tokC9
-	tokC10
-	// Special tokens
-	tokMonth
-	tokDay
-	tokApm
-	tokZone
-	tokT
-	tokEnd
-)
-
-// logSignature returns a deterministic signature for the input string, capped to maxEvalBytes if > 0.
-func logSignature(input string, maxEvalBytes int) string {
-	if len(input) == 0 {
-		return ""
-	}
-	maxBytes := len(input)
-	if maxEvalBytes > 0 && maxBytes > maxEvalBytes {
-		maxBytes = maxEvalBytes
-	}
-	input = input[:maxBytes]
-
-	var out strings.Builder
-	out.Grow(len(input))
-
-	var buf [maxRun]byte
-	bufLen := 0
-	resetBuf := func() { bufLen = 0 }
-	appendBuf := func(b byte) {
-		if bufLen < len(buf) {
-			if b >= 'a' && b <= 'z' {
-				b = b - 'a' + 'A'
-			}
-			buf[bufLen] = b
-			bufLen++
-		}
-	}
-
-	run := 0
-	lastToken := getTokenType(input[0])
-	resetBuf()
-	appendBuf(input[0])
-
-	insertToken := func() {
-		defer func() {
-			run = 0
-			resetBuf()
-		}()
-
-		if lastToken == tokC1 {
-			if bufLen == 1 {
-				if specialToken := getSpecialShortToken(buf[0]); specialToken != tokEnd {
-					out.WriteString(sigTokenToString(specialToken))
-					return
-				}
-			} else if bufLen > 1 {
-				if specialToken := getSpecialLongToken(string(buf[:bufLen])); specialToken != tokEnd {
-					out.WriteString(sigTokenToString(specialToken))
-					return
-				}
-			}
-		}
-
-		if lastToken == tokC1 || lastToken == tokD1 {
-			if run >= maxRun {
-				run = maxRun - 1
-			}
-			out.WriteString(sigTokenToString(lastToken + sigToken(run)))
-			return
-		}
-
-		out.WriteString(sigTokenToString(lastToken))
-	}
-
-	for i := 1; i < len(input); i++ {
-		char := input[i]
-		currentToken := getTokenType(char)
-		if currentToken != lastToken {
-			insertToken()
-		} else {
-			run++
-		}
-		appendBuf(char)
-		lastToken = currentToken
-	}
-	insertToken()
-
-	return out.String()
-}
-
-func getTokenType(char byte) sigToken {
-	if unicode.IsDigit(rune(char)) {
-		return tokD1
-	} else if unicode.IsSpace(rune(char)) {
-		return tokSpace
-	}
-
-	switch char {
-	case ':':
-		return tokColon
-	case ';':
-		return tokSemicolon
-	case '-':
-		return tokDash
-	case '_':
-		return tokUnderscore
-	case '/':
-		return tokFslash
-	case '\\':
-		return tokBslash
-	case '.':
-		return tokPeriod
-	case ',':
-		return tokComma
-	case '\'':
-		return tokSinglequote
-	case '"':
-		return tokDoublequote
-	case '`':
-		return tokBacktick
-	case '~':
-		return tokTilda
-	case '*':
-		return tokStar
-	case '+':
-		return tokPlus
-	case '=':
-		return tokEqual
-	case '(':
-		return tokParenopen
-	case ')':
-		return tokParenclose
-	case '{':
-		return tokBraceopen
-	case '}':
-		return tokBraceclose
-	case '[':
-		return tokBracketopen
-	case ']':
-		return tokBracketclose
-	case '&':
-		return tokAmpersand
-	case '!':
-		return tokExclamation
-	case '@':
-		return tokAt
-	case '#':
-		return tokPound
-	case '$':
-		return tokDollar
-	case '%':
-		return tokPercent
-	case '^':
-		return tokUparrow
-	}
-
-	return tokC1
-}
-
-func getSpecialShortToken(char byte) sigToken {
-	switch char {
-	case 'T':
-		return tokT
-	case 'Z':
-		return tokZone
-	}
-	return tokEnd
-}
-
-func getSpecialLongToken(input string) sigToken {
-	switch input {
-	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL",
-		"AUG", "SEP", "OCT", "NOV", "DEC":
-		return tokMonth
-	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-		return tokDay
-	case "AM", "PM":
-		return tokApm
-	case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-		"MST", "MDT", "PST", "PDT", "JST", "KST",
-		"IST", "MSK", "CEST", "CET", "BST", "NZST",
-		"NZDT", "ACST", "ACDT", "AEST", "AEDT",
-		"AWST", "AWDT", "AKST", "AKDT", "HST",
-		"HDT", "CHST", "CHDT", "NST", "NDT":
-		return tokZone
-	}
-	return tokEnd
-}
-
-func sigTokenToString(token sigToken) string {
-	if token >= tokD1 && token <= tokD10 {
-		return strings.Repeat("D", int(token-tokD1)+1)
-	} else if token >= tokC1 && token <= tokC10 {
-		return strings.Repeat("C", int(token-tokC1)+1)
-	}
-
-	switch token {
-	case tokSpace:
-		return " "
-	case tokColon:
-		return ":"
-	case tokSemicolon:
-		return ";"
-	case tokDash:
-		return "-"
-	case tokUnderscore:
-		return "_"
-	case tokFslash:
-		return "/"
-	case tokBslash:
-		return "\\"
-	case tokPeriod:
-		return "."
-	case tokComma:
-		return ","
-	case tokSinglequote:
-		return "'"
-	case tokDoublequote:
-		return "\""
-	case tokBacktick:
-		return "`"
-	case tokTilda:
-		return "~"
-	case tokStar:
-		return "*"
-	case tokPlus:
-		return "+"
-	case tokEqual:
-		return "="
-	case tokParenopen:
-		return "("
-	case tokParenclose:
-		return ")"
-	case tokBraceopen:
-		return "{"
-	case tokBraceclose:
-		return "}"
-	case tokBracketopen:
-		return "["
-	case tokBracketclose:
-		return "]"
-	case tokAmpersand:
-		return "&"
-	case tokExclamation:
-		return "!"
-	case tokAt:
-		return "@"
-	case tokPound:
-		return "#"
-	case tokDollar:
-		return "$"
-	case tokPercent:
-		return "%"
-	case tokUparrow:
-		return "^"
-	case tokMonth:
-		return "MTH"
-	case tokDay:
-		return "DAY"
-	case tokApm:
-		return "PM"
-	case tokT:
-		return "T"
-	case tokZone:
-		return "ZONE"
-	}
-	return ""
 }
