@@ -206,6 +206,20 @@ type Config struct {
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
 
+	// EnableNetNSContainerAttribution attributes a socket to the container that owns its network
+	// namespace, rather than the container of its owning process, when the owner is a proxy that
+	// creates sockets inside other pods (for example Istio ambient's ztunnel). Requires EnableProcessEventMonitoring.
+	EnableNetNSContainerAttribution bool
+
+	// NetNSContainerAttributionOwnerImages lists the short image names of the owning containers
+	// whose sockets may be reattributed.
+	NetNSContainerAttributionOwnerImages []string
+
+	// NetNSContainerAttributionIgnoredContainers lists container names of helpers (for example
+	// vault-agent or cloud-sql-proxy) that don't count toward a pod's containers when choosing the
+	// reattribution target, because any traffic they carry belongs to the pod's application.
+	NetNSContainerAttributionIgnoredContainers []string
+
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
@@ -326,6 +340,10 @@ func New() *Config {
 		MaxContainersTracked: cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "max_containers_tracked")),
 
 		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
+
+		EnableNetNSContainerAttribution:            cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_netns_container_attribution")),
+		NetNSContainerAttributionOwnerImages:       cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_owner_images")),
+		NetNSContainerAttributionIgnoredContainers: cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_ignored_containers")),
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
