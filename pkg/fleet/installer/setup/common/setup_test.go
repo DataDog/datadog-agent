@@ -145,6 +145,54 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 		assert.Zero(t, spy.stateCalls)
 	})
 
+	t.Run("reinstalls an injector after Docker uninstrumentation", func(t *testing.T) {
+		previousDetector := detectDockerInjectorReinstall
+		detectDockerInjectorReinstall = func() bool { return true }
+		t.Cleanup(func() { detectDockerInjectorReinstall = previousDetector })
+
+		spy := &setupInstallerSpy{installed: true}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledDocker
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.71.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
+	})
+
+	t.Run("reinstalls an injector after host uninstrumentation", func(t *testing.T) {
+		previousDetector := detectHostInjectorReinstall
+		detectHostInjectorReinstall = func() bool { return true }
+		t.Cleanup(func() { detectHostInjectorReinstall = previousDetector })
+
+		spy := &setupInstallerSpy{installed: true}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledHost
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.71.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
+	})
+
+	t.Run("reinstalls an injector when all instrumentation needs repair", func(t *testing.T) {
+		previousDetector := detectAllInjectorReinstall
+		detectAllInjectorReinstall = func() bool { return true }
+		t.Cleanup(func() { detectAllInjectorReinstall = previousDetector })
+
+		spy := &setupInstallerSpy{installed: true}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledAll
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.71.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
+	})
+
 	t.Run("ignores Agent-only installation", func(t *testing.T) {
 		spy := &setupInstallerSpy{isInstalledErr: errors.New("must not be called")}
 		setup := newSetup(spy)

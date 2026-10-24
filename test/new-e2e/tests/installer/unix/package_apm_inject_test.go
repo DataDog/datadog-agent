@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -154,6 +155,99 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertDockerdNotInstrumented()
+}
+
+// TestReinstallAfterUninstrumentation exercises the public SSI install script
+// against an injector package that remains installed after the helper scripts
+// remove its host or Docker wiring.
+func (s *packageApmInjectSuite) TestReinstallAfterUninstrumentation() {
+	if s.installMethod != InstallMethodInstallScript || s.os.Flavor != e2eos.Ubuntu2404.Flavor || s.arch != e2eos.AMD64Arch {
+		s.T().Skip("reinstall lifecycle runs on the Ubuntu 24.04 amd64 install-script host")
+	}
+	s.host.PrepareDocker()
+	install := func(t *testing.T, mode string) {
+		err := s.RunInstallScriptWithError("DD_NO_AGENT_INSTALL=true", "DD_APM_INSTRUMENTATION_ENABLED="+mode, "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+		require.NoErrorf(t, err, "SSI install failed; stdout: %s; stderr: %s",
+			s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"),
+			s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
+	}
+	assertDefaultRuntime := func(t *testing.T, expected string) {
+		t.Helper()
+		actual := strings.TrimSpace(s.Env().RemoteHost.MustExecute("sudo docker system info --format '{{.DefaultRuntime}}'"))
+		assert.Equal(t, expected, actual)
+	}
+
+	s.T().Run("docker", func(t *testing.T) {
+		defer s.Purge()
+		install(t, "docker")
+		s.host.AssertPackageInstalledByInstaller("datadog-apm-inject")
+		s.assertDockerdInstrumented(injectOCIPath)
+		assertDefaultRuntime(t, "dd-shim")
+		s.Env().RemoteHost.MustExecute("sudo dd-container-install --uninstall")
+		s.host.AssertPackageInstalledByInstaller("datadog-apm-inject")
+		s.assertDockerdNotInstrumented()
+		assertDefaultRuntime(t, "runc")
+		install(t, "docker")
+		s.assertDockerdInstrumented(injectOCIPath)
+		assertDefaultRuntime(t, "dd-shim")
+	})
+
+	s.T().Run("host", func(t *testing.T) {
+		defer s.Purge()
+		install(t, "host")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+		s.Env().RemoteHost.MustExecute("sudo dd-host-install --uninstall")
+		s.host.AssertPackageInstalledByInstaller("datadog-apm-inject")
+		s.assertLDPreloadNotInstrumented()
+		install(t, "host")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+		state := s.host.State()
+		state.AssertUnitsEnabled("datadog-apm-inject.service")
+		state.AssertUnitsActive("datadog-apm-inject.service")
+
+		// Keep the preload entry but disable the unit: reinstall must restore
+		// boot-time instrumentation as well as current process injection.
+		s.Env().RemoteHost.MustExecute("sudo systemctl disable datadog-apm-inject.service")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+		install(t, "host")
+		state = s.host.State()
+		state.AssertUnitsEnabled("datadog-apm-inject.service")
+		state.AssertUnitsActive("datadog-apm-inject.service")
+
+		// A present tmpfs preload entry also needs its unit file on disk.
+		s.Env().RemoteHost.MustExecute("sudo rm /etc/systemd/system/datadog-apm-inject.service")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+		install(t, "host")
+		state = s.host.State()
+		state.AssertFileExists("/etc/systemd/system/datadog-apm-inject.service", 0644, "root", "root")
+		state.AssertUnitsEnabled("datadog-apm-inject.service")
+		state.AssertUnitsActive("datadog-apm-inject.service")
+	})
+
+	s.T().Run("all", func(t *testing.T) {
+		defer s.Purge()
+		install(t, "all")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+		s.assertDockerdInstrumented(injectOCIPath)
+		assertDefaultRuntime(t, "dd-shim")
+
+		s.Env().RemoteHost.MustExecute("sudo dd-container-install --uninstall")
+		s.assertDockerdNotInstrumented()
+		assertDefaultRuntime(t, "runc")
+		install(t, "all")
+		s.assertDockerdInstrumented(injectOCIPath)
+		assertDefaultRuntime(t, "dd-shim")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+
+		s.Env().RemoteHost.MustExecute("sudo dd-host-install --uninstall")
+		s.assertLDPreloadNotInstrumented()
+		install(t, "all")
+		s.assertLDPreloadInstrumented(injectOCIPath)
+		s.assertDockerdInstrumented(injectOCIPath)
+		assertDefaultRuntime(t, "dd-shim")
+		state := s.host.State()
+		state.AssertUnitsEnabled("datadog-apm-inject.service")
+	})
 }
 
 func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {

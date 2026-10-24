@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM : Re-running the Single Step Instrumentation install script now restores
+    host or Docker instrumentation after it has been removed, even when the
+    ``datadog-apm-inject`` package is already installed at the requested version.
+    It also restores the host instrumentation service when it is missing or disabled.

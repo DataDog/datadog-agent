@@ -29,6 +29,18 @@ func TestNewSystemdServiceManager(t *testing.T) {
 	assert.Equal(t, systemdServiceName, mgr.serviceName)
 }
 
+func TestTmpfsServiceNeedsRepair(t *testing.T) {
+	dir := t.TempDir()
+	unitPath := filepath.Join(dir, "datadog-apm-inject.service")
+	linkPath := filepath.Join(dir, "inject")
+	assert.True(t, tmpfsServiceNeedsRepair(unitPath, linkPath, func() bool { return true }))
+	require.NoError(t, os.WriteFile(unitPath, []byte("[Unit]\n"), 0600))
+	assert.True(t, tmpfsServiceNeedsRepair(unitPath, linkPath, func() bool { return true }))
+	require.NoError(t, os.Mkdir(linkPath, 0700))
+	assert.True(t, tmpfsServiceNeedsRepair(unitPath, linkPath, func() bool { return false }))
+	assert.False(t, tmpfsServiceNeedsRepair(unitPath, linkPath, func() bool { return true }))
+}
+
 func TestSystemdServiceManager_Setup(t *testing.T) {
 	// Skip if not running as root or if systemctl is not available
 	if os.Geteuid() != 0 {
@@ -228,6 +240,8 @@ func TestRequiresReinstallForPreload(t *testing.T) {
 	assert.True(t, requiresReinstallForPreload(multilibTmpfsLauncher+"\n", false))
 	assert.False(t, requiresReinstallForPreload(tmpfsLauncher+"\n", true))
 	assert.False(t, requiresReinstallForPreload(persistentLauncher+"\n", false))
+	assert.False(t, requiresReinstallForPreload("# "+tmpfsLauncher+"\n", false))
+	assert.False(t, requiresReinstallForPreload(persistentLauncher+" # "+tmpfsLauncher+"\n", false))
 	assert.False(t, requiresReinstallForPreload("", false))
 }
 

@@ -10,3 +10,15 @@ package common
 func apmInjectorRequiresReinstall() bool {
 	return false
 }
+
+func apmDockerInjectorRequiresReinstall() bool {
+	return false
+}
+
+func apmHostInjectorRequiresReinstall() bool {
+	return false
+}
+
+func apmAllInjectorRequiresReinstall() bool {
+	return false
+}
