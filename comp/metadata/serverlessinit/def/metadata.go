@@ -1,0 +1,76 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package serverlessinit
+
+import (
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+// Application-runtime names shared by every metadata derivation path. Platform
+// metadata mapping and wrapped-command detection must select from the same
+// vocabulary, and these exact strings are what downstream consumers join on.
+const (
+	RuntimeNodeJS = "Node.js"
+	RuntimePython = "Python"
+	RuntimeJava   = "Java"
+	RuntimeDotNet = ".NET"
+	RuntimePHP    = "PHP"
+	RuntimeRuby   = "Ruby"
+)
+
+// CloudServiceMetadata holds the per-platform serverless fields that feed the
+// serverless-init metadata payload. Each CloudServiceMetadataProvider
+// implementation derives these from its own environment so the payload builder
+// stays thin and the derivation lives next to the existing tag logic.
+//
+// Empty strings represent unavailable values. The serverless-init payload builder
+// converts them to nil, allowing optional fields to be omitted or serialized as
+// JSON null. Payloads without resource identity are withheld.
+type CloudServiceMetadata struct {
+	WorkloadType string
+
+	// ResourceID is the Canonical Cloud Resource ID (CCRID), the first component
+	// of the downstream composite key.
+	ResourceID string
+
+	// ResourceName is the platform display name (app / service / job); it is
+	// never substituted with dd_service.
+	ResourceName string
+
+	Region              string
+	GCPProjectID        string
+	AWSAccountID        string
+	AzureSubscriptionID string
+	AzureResourceGroup  string
+
+	// RuntimeCandidates are raw application-runtime values in priority order.
+	// The runtime resolver normalizes them and selects the first usable value.
+	// Platform-derived candidates use the runtime names declared above; values
+	// read verbatim from platform metadata keep their own naming and case.
+	RuntimeCandidates []string
+
+	// ParentResourceID is the CCRID of the semantic parent (e.g. the Cloud Run
+	// service behind a revision), not necessarily a string prefix of ResourceID.
+	// Empty when the workload has no distinct parent.
+	ParentResourceID string
+}
+
+// CloudServiceMetadataProvider is the platform contract this component consumes.
+// The embedding binary's cloud-service detection implements it. GetMetadata
+// must not perform I/O and must support concurrent reads while identity changes.
+type CloudServiceMetadataProvider interface {
+	// CanCollectMetadata reports platform support without collecting data or checking identity readiness.
+	CanCollectMetadata() bool
+	// GetMetadata returns the per-platform serverless fields for the
+	// metadata payload.
+	GetMetadata() CloudServiceMetadata
+}
+
+// Eligible reports whether the serverless metadata payload may be
+// collected: the configuration opt-in and a provider that can collect.
+func Eligible(conf configmodel.Reader, provider CloudServiceMetadataProvider) bool {
+	return conf.GetBool("serverless.metadata_enabled") && provider.CanCollectMetadata()
+}
