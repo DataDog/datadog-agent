@@ -146,7 +146,19 @@ single_machine_performance-regression_detector-merge_base_check:
                       # an HTTP error while emitting nothing, and `jq` exits
                       # nonzero on a non-JSON body, so the empty-string check
                       # below is what actually detects failure.
-                      SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" || true)
+                      #
+                      # TODO(ddci-run migration, CIEXE-2696): under DDCI Run
+                      # CI_JOB_TOKEN is a ddci- token and cannot call the GitLab
+                      # trigger API, so the automatic trigger is skipped when
+                      # DDCI_REQUEST_ID is set and the manual instructions below
+                      # are printed instead. Replace with a DDCI on-demand request
+                      # (POST /internal/api/v2/requests) once CI-job auth to the
+                      # DDCI API is established.
+                      SMP_REBUILD_PIPELINE=""
+                      if [[ -z "${DDCI_REQUEST_ID:-}" ]]
+                      then
+                          SMP_REBUILD_PIPELINE=$(curl --silent --show-error --fail --request POST --data "token=${CI_JOB_TOKEN}" --data "ref=${SMP_BASE_BRANCH}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/trigger/pipeline" || true)
+                      fi
                       SMP_REBUILD_PIPELINE_URL=$(echo "${SMP_REBUILD_PIPELINE}" | jq -r '.web_url // empty' || true)
                       if [[ -z "${SMP_REBUILD_PIPELINE_URL}" ]]
                       then
