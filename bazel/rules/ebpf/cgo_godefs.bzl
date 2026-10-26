@@ -97,7 +97,7 @@ def _cgo_godefs_impl(ctx):
     ctx.actions.run_shell(
         outputs = outputs,
         inputs = depset(
-            [src, go.sdk.go, ctx.file.c_compiler],
+            [src, go.sdk.go, ctx.file.c_compiler] + ctx.files.c_compiler_data,
             transitive = [headers, go.sdk.tools, go.sdk.srcs, go.sdk.libs],
         ),
         tools = [genpost],
@@ -136,6 +136,11 @@ _cgo_godefs = go_rule(
             allow_single_file = True,
             cfg = "exec",
         ),
+        "c_compiler_data": attr.label_list(
+            allow_files = True,
+            cfg = "exec",
+            doc = "Files the C compiler needs at run time, e.g. clang's builtin resource directory (stddef.h, ...).",
+        ),
         "_genpost": attr.label(
             default = "//pkg/ebpf/cgo:genpost",
             executable = True,
@@ -172,6 +177,12 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         c_compiler = select({
             "@platforms//os:windows": "@winlibs_mingw64//:gcc",
             "//conditions:default": "@llvm//tools:clang",
+        }),
+        # The minimal LLVM distribution ships builtin headers apart from the
+        # binary; clang finds them via bin/../lib/clang/<ver> only if staged.
+        c_compiler_data = select({
+            "@platforms//os:windows": [],
+            "//conditions:default": ["@llvm//:builtin_resource_dir"],
         }),
         target_compatible_with = compat,
     )
