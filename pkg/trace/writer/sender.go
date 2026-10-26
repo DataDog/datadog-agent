@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -74,43 +73,21 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 		senders[i] = newSender(scfg, apiKeyManager, statsd, endpoint.HasPendingDelegatedAuth)
 	}
 
-	// Delegated-auth write-backs update the pending senders with the resolved key, and
-	// keep updating them across key rotations.
+	// Track config slots even when the first credential resolved before construction.
 	if cfg.OnAdditionalEndpointsUpdate != nil {
 		cfg.OnAdditionalEndpointsUpdate(func(host string, apiKeys []string) {
-			// apiKeys are already trimmed and free of DELA[...] directives.
-			if len(apiKeys) == 0 {
-				return
-			}
-			// Keys already held by the host's static senders are never handed to a
-			// pending one; pending-origin senders take distinct keys (also across
-			// rotations, where the list replaces their previous key).
-			staticHeld := make(map[string]struct{}, len(senders))
-			for _, s := range senders {
-				if s.cfg.host == host && !s.awaitDelegatedAuth {
-					if key := s.apiKeyManager.Get(); key != "" {
-						staticHeld[strings.TrimSpace(key)] = struct{}{}
-					}
-				}
-			}
-			assigned := make(map[string]struct{}, len(senders))
-			for _, s := range senders {
-				if s.cfg.host != host || !s.awaitDelegatedAuth {
+			for i, s := range senders {
+				endpoint := endpoints[i]
+				if endpoint.Host != host || endpoint.APIKeyConfigIndex == nil {
 					continue
 				}
-				for _, key := range apiKeys {
-					if _, ok := staticHeld[key]; ok {
-						continue
-					}
-					if _, ok := assigned[key]; ok {
-						continue
-					}
-					assigned[key] = struct{}{}
-					if s.apiKeyManager.Get() != key {
-						s.apiKeyManager.Update(key)
-						log.Infof("delegated auth provided an API key for endpoint %s", host)
-					}
-					break
+				index := *endpoint.APIKeyConfigIndex
+				if index < 0 || index >= len(apiKeys) || apiKeys[index] == "" {
+					continue
+				}
+				if s.apiKeyManager.Get() != apiKeys[index] {
+					s.apiKeyManager.Update(apiKeys[index])
+					log.Infof("API key updated for additional endpoint %s", host)
 				}
 			}
 		})

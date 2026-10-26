@@ -54,6 +54,10 @@ type Endpoint struct {
 	// API key. APIKey is empty for such endpoints; writers hold payloads for them until
 	// the key arrives.
 	HasPendingDelegatedAuth bool `mapstructure:"-" json:"-"`
+
+	// APIKeyConfigIndex identifies this key's slot in the additional-endpoint host's
+	// key list. Nil for endpoints that do not subscribe to that setting.
+	APIKeyConfigIndex *int `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -404,9 +408,8 @@ type AgentConfig struct {
 
 	// OnAdditionalEndpointsUpdate, when set, subscribes cb to runtime changes of the
 	// apm_config.additional_endpoints setting (e.g. delegated-auth key writeback), delivering
-	// the host and its current API keys, trimmed and without DELA[...] directives. Set by the
-	// config loader when the underlying
-	// config supports update notifications; nil means runtime updates are unavailable.
+	// the host and its current API keys in config order. Keys are trimmed and pending
+	// DELA[...] slots are empty. Nil means runtime updates are unavailable.
 	OnAdditionalEndpointsUpdate func(cb func(host string, apiKeys []string)) `json:"-"`
 
 	// SkipMainEndpoint makes the trace and stats writers skip the main endpoint

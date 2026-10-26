@@ -656,10 +656,11 @@ func TestNewSendersSkipMainEndpoint(t *testing.T) {
 
 func TestNewSendersDeliversDelegatedAuthKey(t *testing.T) {
 	cfg := config.New()
+	staticIndex, pendingIndex := 0, 1
 	cfg.Endpoints = []*config.Endpoint{
 		{Host: "https://main.example.com", APIKey: "main-key"},
-		{Host: "https://additional.example.com", APIKey: "static-key"},
-		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true},
+		{Host: "https://additional.example.com", APIKey: "static-key", APIKeyConfigIndex: &staticIndex},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &pendingIndex},
 	}
 	var deliver func(host string, keys []string)
 	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
@@ -678,8 +679,7 @@ func TestNewSendersDeliversDelegatedAuthKey(t *testing.T) {
 	assert.Equal(t, "https://additional.example.com", pending.cfg.host)
 	assert.Empty(t, pending.apiKeyManager.Get())
 
-	// The write-back lands alongside the static key: the pending sender must take the key
-	// no sibling sender already holds, not the static one.
+	// Each sender receives the key from its own config slot.
 	deliver("https://additional.example.com", []string{"static-key", "resolved-key"})
 	assert.Equal(t, "resolved-key", pending.apiKeyManager.Get())
 
@@ -732,9 +732,10 @@ func TestSenderHoldsPayloadWhileDelegatedAuthPending(t *testing.T) {
 
 func TestNewSendersDeliversRotatedDelegatedAuthKey(t *testing.T) {
 	cfg := config.New()
+	index := 0
 	cfg.Endpoints = []*config.Endpoint{
 		{Host: "https://main.example.com", APIKey: "main-key"},
-		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &index},
 	}
 	var deliver func(host string, keys []string)
 	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
@@ -760,14 +761,41 @@ func TestNewSendersDeliversRotatedDelegatedAuthKey(t *testing.T) {
 	assert.Equal(t, "rotated-key", pending.apiKeyManager.Get())
 }
 
+func TestNewSendersRotatesKeyResolvedBeforeConstruction(t *testing.T) {
+	for _, path := range []string{pathTraces, pathStats} {
+		t.Run(path, func(t *testing.T) {
+			cfg := config.New()
+			index := 0
+			cfg.Endpoints = []*config.Endpoint{
+				{Host: "https://main.example.com", APIKey: "main-key"},
+				{Host: "https://additional.example.com", APIKey: "first-key", APIKeyConfigIndex: &index},
+			}
+			var deliver func(string, []string)
+			cfg.OnAdditionalEndpointsUpdate = func(cb func(string, []string)) {
+				deliver = cb
+				// Reconcile a rotation between the config snapshot and subscription.
+				cb("https://additional.example.com", []string{"current-key"})
+			}
+			senders := newSenders(cfg, &mockRecorder{}, path, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			t.Cleanup(func() { stopSenders(senders) })
+			require.Equal(t, "current-key", senders[1].apiKeyManager.Get())
+
+			deliver("https://additional.example.com", []string{"rotated-key"})
+			assert.Equal(t, "rotated-key", senders[1].apiKeyManager.Get())
+			assert.Equal(t, "main-key", senders[0].apiKeyManager.Get())
+		})
+	}
+}
+
 func TestNewSendersMultiOrgSameHost(t *testing.T) {
 	// Two DELA directives on one host resolve to two keys: both pending senders must be
 	// assigned distinct keys so both orgs ship.
 	cfg := config.New()
+	firstIndex, secondIndex := 0, 1
 	cfg.Endpoints = []*config.Endpoint{
 		{Host: "https://main.example.com", APIKey: "main-key"},
-		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true},
-		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &firstIndex},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &secondIndex},
 	}
 	var deliver func(host string, keys []string)
 	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
@@ -786,22 +814,56 @@ func TestNewSendersMultiOrgSameHost(t *testing.T) {
 	assert.Empty(t, pendingKeys[0])
 	assert.Empty(t, pendingKeys[1])
 
+	// Resolving the second directive first must not change the first sender's identity.
+	deliver("https://additional.example.com", []string{"", "resolved-b"})
+	assert.Empty(t, senders[1].apiKeyManager.Get())
+	require.Equal(t, "resolved-b", senders[2].apiKeyManager.Get())
 	deliver("https://additional.example.com", []string{"resolved-a", "resolved-b"})
-	got := map[string]int{}
-	for _, s := range senders {
-		if s.awaitDelegatedAuth {
-			got[s.apiKeyManager.Get()]++
-		}
+	require.Equal(t, "resolved-a", senders[1].apiKeyManager.Get())
+	deliver("https://additional.example.com", []string{"rotated-a", "resolved-b"})
+	assert.Equal(t, "rotated-a", senders[1].apiKeyManager.Get())
+	assert.Equal(t, "resolved-b", senders[2].apiKeyManager.Get())
+}
+
+func TestNewSendersRotationKeepsUnchangedKeys(t *testing.T) {
+	const host = "https://additional.example.com"
+	for _, skipMain := range []bool{false, true} {
+		t.Run(strconv.FormatBool(skipMain), func(t *testing.T) {
+			staticIndex, rotatingIndex := 0, 1
+			cfg := config.New()
+			cfg.SkipMainEndpoint = skipMain
+			cfg.Endpoints = []*config.Endpoint{
+				{Host: host, APIKey: "shared-key"},
+				{Host: host, APIKey: "shared-key", IsMRF: true},
+				{Host: host, APIKey: "shared-key", APIKeyConfigIndex: &staticIndex},
+				{Host: host, APIKey: "shared-key", APIKeyConfigIndex: &rotatingIndex},
+			}
+			var deliver func(string, []string)
+			cfg.OnAdditionalEndpointsUpdate = func(cb func(string, []string)) { deliver = cb }
+			senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			t.Cleanup(func() { stopSenders(senders) })
+
+			deliver(host, []string{"shared-key", "rotated-key"})
+			for _, s := range senders[:len(senders)-1] {
+				assert.Equal(t, "shared-key", s.apiKeyManager.Get())
+			}
+			rotating := senders[len(senders)-1]
+			require.Equal(t, "rotated-key", rotating.apiKeyManager.Get())
+			// A missing or pending slot must not substitute another slot's key.
+			deliver(host, []string{"shared-key"})
+			deliver(host, []string{"shared-key", ""})
+			assert.Equal(t, "rotated-key", rotating.apiKeyManager.Get())
+		})
 	}
-	assert.Equal(t, map[string]int{"resolved-a": 1, "resolved-b": 1}, got)
 }
 
 func TestNewSendersStaticOnlyUpdateLeavesPendingKeyless(t *testing.T) {
 	cfg := config.New()
+	staticIndex, pendingIndex := 0, 1
 	cfg.Endpoints = []*config.Endpoint{
 		{Host: "https://main.example.com", APIKey: "main-key"},
-		{Host: "https://additional.example.com", APIKey: "static-key"},
-		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true},
+		{Host: "https://additional.example.com", APIKey: "static-key", APIKeyConfigIndex: &staticIndex},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &pendingIndex},
 	}
 	var deliver func(host string, keys []string)
 	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {

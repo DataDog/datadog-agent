@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -197,25 +198,19 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
 			continue
 		}
-		realKeys, hasPending := utils.PartitionRealAndPendingKeys(keys)
-		for _, key := range realKeys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
-		}
-		if hasPending {
-			if !pkgconfigsetup.IsDelegatedAuthMapEndpointKey(cfgKey) {
-				log.Warnf("a delegated auth directive at %q in '%s' has no delegated auth write-back for this setting; the endpoint stays pending and will not send", url, cfgKey)
+		for index, key := range keys {
+			endpoint := &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)}
+			if cfgKey == "apm_config.additional_endpoints" {
+				endpoint.APIKeyConfigIndex = &index
 			}
-			// One pending endpoint per directive: several orgs may share a host, and each
-			// resolves to its own key (one sender per key, like static entries).
-			pendingDirectives := 0
-			for _, key := range keys {
-				if utils.IsDelaDirective(key) {
-					pendingDirectives++
+			if utils.IsDelaDirective(key) {
+				endpoint.APIKey = ""
+				endpoint.HasPendingDelegatedAuth = true
+				if !pkgconfigsetup.IsDelegatedAuthMapEndpointKey(cfgKey) {
+					log.Warnf("a delegated auth directive at %q in '%s' has no delegated auth write-back for this setting; the endpoint stays pending and will not send", url, cfgKey)
 				}
 			}
-			for i := 0; i < pendingDirectives; i++ {
-				endpoints = append(endpoints, &config.Endpoint{Host: url, HasPendingDelegatedAuth: true})
-			}
+			endpoints = append(endpoints, endpoint)
 		}
 	}
 	return endpoints
@@ -275,19 +270,21 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
-	// Deliver runtime changes of apm_config.additional_endpoints (delegated-auth key
-	// write-back) to consumers of this snapshot: the trace and stats writers hold pending
-	// delegated-auth endpoints until the resolved key arrives. Subscribe first, then
-	// reconcile with the current value so a write-back between the snapshot and the
-	// subscription cannot be missed.
+	// Subscribe before reconciling so writeback between the snapshot and subscription
+	// is delivered even when the first credential resolved before sender construction.
 	c.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
+		var mu sync.Mutex
 		deliver := func() {
+			mu.Lock()
+			defer mu.Unlock()
 			for host, keys := range core.GetStringMapStringSlice("apm_config.additional_endpoints") {
-				realKeys, _ := utils.PartitionRealAndPendingKeys(keys)
-				for i := range realKeys {
-					realKeys[i] = utils.SanitizeAPIKey(realKeys[i])
+				apiKeys := make([]string, len(keys))
+				for i, key := range keys {
+					if !utils.IsDelaDirective(key) {
+						apiKeys[i] = utils.SanitizeAPIKey(key)
+					}
 				}
-				cb(host, realKeys)
+				cb(host, apiKeys)
 			}
 		}
 		core.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
