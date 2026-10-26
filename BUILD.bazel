@@ -78,7 +78,7 @@ cc_library(
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.
-# gazelle:exclude internal/qbranch/anomalydetection-testbench
+# gazelle:exclude internal/anomalydetection/anomalydetection-testbench
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======

@@ -22,7 +22,7 @@ Go Server (:8080)                 React UI (:5173)
 ## Project Layout
 
 ```
-internal/qbranch/anomalydetection-testbench/
+internal/anomalydetection/anomalydetection-testbench/
 ├── main.go              # Entry point, starts HTTP server
 └── ui/
     ├── src/
@@ -35,7 +35,7 @@ internal/qbranch/anomalydetection-testbench/
     │   └── hooks/useObserver.ts        # API polling, reconnect
     └── package.json
 
-internal/qbranch/anomalydetection-testbench/bench/
+internal/anomalydetection/anomalydetection-testbench/bench/
 ├── bench.go             # Scenario loading and analysis orchestration
 ├── api.go               # REST API handlers
 └── output.go            # Headless evaluation output
@@ -45,13 +45,13 @@ internal/qbranch/anomalydetection-testbench/bench/
 
 **Terminal 1** — Go server (auto-rebuild on changes):
 ```bash
-cd internal/qbranch/anomalydetection-testbench
+cd internal/anomalydetection/anomalydetection-testbench
 watchexec -r -e go -- go run . -scenarios-dir=../../scenarios
 ```
 
 **Terminal 2** — UI dev server:
 ```bash
-cd internal/qbranch/anomalydetection-testbench/ui
+cd internal/anomalydetection/anomalydetection-testbench/ui
 npm install
 npm run dev
 ```

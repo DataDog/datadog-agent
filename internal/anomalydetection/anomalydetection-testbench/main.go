@@ -32,7 +32,7 @@ import (
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
+	"github.com/DataDog/datadog-agent/internal/anomalydetection/anomalydetection-testbench/bench"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench
+module github.com/DataDog/datadog-agent/internal/anomalydetection/anomalydetection-testbench
 
 go 1.26.6
 
@@ -249,7 +249,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../comp/trace/compression/impl-zstd
-	github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-scorer => ../../../internal/qbranch/anomalydetection-scorer
+	github.com/DataDog/datadog-agent/internal/anomalydetection/anomalydetection-scorer => ../../../internal/anomalydetection/anomalydetection-scorer
 	github.com/DataDog/datadog-agent/internal/tools => ../../../internal/tools
 	github.com/DataDog/datadog-agent/internal/tools/gotest-custom => ../../../internal/tools/gotest-custom
 	github.com/DataDog/datadog-agent/internal/tools/independent-lint => ../../../internal/tools/independent-lint

@@ -36,7 +36,7 @@ false-positive rate; recovery does not change its denominator.
 dda inv anomalydetection.build-scorer
 bin/anomalydetection-scorer --input /tmp/observer-eval-example.json \
   --scenarios-dir comp/anomalydetection/observer/scenarios --sigma 30 --json
-dda inv test --module=internal/qbranch/anomalydetection-scorer --targets=.
+dda inv test --module=internal/anomalydetection/anomalydetection-scorer --targets=.
 ```
 
 Replay with `anomaly_scorer` enabled, `correlation_events: true`,

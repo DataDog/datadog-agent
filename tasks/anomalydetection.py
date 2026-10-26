@@ -91,7 +91,7 @@ def build_scorer(ctx):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
+    ctx.run("go build -C internal/anomalydetection/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
 
 
 @task
@@ -106,7 +106,7 @@ def _build_testbench(ctx, *, env: dict[str, str] | None = None):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
     ctx.run(
-        "go build -C internal/qbranch/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench .",
+        "go build -C internal/anomalydetection/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench .",
         env=env or {},
     )
 
@@ -220,7 +220,7 @@ def launch_testbench(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
         )
         ctx.run(
-            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir}{flags} & ( cd internal/qbranch/anomalydetection-testbench/ui && npm install && npm run dev ) &"
+            f"bin/anomalydetection-testbench --scenarios-dir {scenarios_dir}{flags} & ( cd internal/anomalydetection/anomalydetection-testbench/ui && npm install && npm run dev ) &"
         )
 
 
