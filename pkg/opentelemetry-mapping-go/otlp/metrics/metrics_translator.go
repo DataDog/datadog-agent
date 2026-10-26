@@ -663,6 +663,9 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			}
 		}
 	}
+	if t.cfg.withAzureMonitorAppServiceMetrics {
+		consumeAzureMonitorAppServiceMetrics(ctx, md, consumer, t.cfg.originProduct)
+	}
 	return metadata, nil
 }
 
