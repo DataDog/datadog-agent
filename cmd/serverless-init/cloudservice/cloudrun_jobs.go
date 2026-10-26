@@ -66,7 +66,7 @@ type CloudRunJobs struct {
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
-	tags := maps.Clone(c.gcpMetadata.resolve(CloudRunJob))
+	tags := c.gcpMetadata.tags(CloudRunJob)
 	tags["origin"] = CloudRunJobsOrigin
 	tags["_dd.origin"] = CloudRunJobsOrigin
 

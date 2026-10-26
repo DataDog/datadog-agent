@@ -431,6 +431,42 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 	}
 }
 
+func TestCloudRunTagsOmitFailedMetadataLookups(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	t.Setenv(ServiceNameEnvVar, "service")
+	t.Setenv(revisionNameEnvVar, "revision")
+	t.Setenv(cloudRunJobNameEnvVar, "job")
+	for _, tt := range []struct {
+		kind    CloudRunType
+		prefix  string
+		service CloudService
+	}{
+		{CloudRunService, cloudRunServiceTagPrefix, &CloudRun{}},
+		{CloudRunFunction, cloudRunFunctionTagPrefix, &CloudRun{isFunction: true}},
+		{CloudRunJob, cloudRunJobTagPrefix, &CloudRunJobs{}},
+	} {
+		t.Run(string(tt.kind), func(t *testing.T) {
+			metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+				return map[string]string{
+					projectID: "", tt.prefix + projectID: "",
+					location: "region", tt.prefix + location: "region",
+					containerID: "", tt.prefix + containerID: "",
+				}
+			}
+			tags := tt.service.GetTags()
+			for _, key := range []string{projectID, containerID} {
+				assert.NotContains(t, tags, key)
+				assert.NotContains(t, tags, tt.prefix+key)
+			}
+			assert.NotContains(t, tags, tt.prefix+resourceName)
+			assert.Equal(t, "region", tags[location])
+			assert.Equal(t, "region", tags[tt.prefix+location])
+			assert.Empty(t, tt.service.GetMetadata().ResourceID)
+		})
+	}
+}
+
 func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 	for _, isFunction := range []bool{false, true} {
 		for _, available := range []bool{false, true} {

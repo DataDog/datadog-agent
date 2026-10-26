@@ -117,6 +117,14 @@ func (g *gcpMetadataCache) resolve(cloudRunType CloudRunType) map[string]string 
 	return *g.resolved.Load()
 }
 
+// tags returns a copy of the resolved values without the failed lookups, so
+// telemetry carries no empty-valued tags.
+func (g *gcpMetadataCache) tags(cloudRunType CloudRunType) map[string]string {
+	tags := maps.Clone(g.resolve(cloudRunType))
+	maps.DeleteFunc(tags, func(_, value string) bool { return value == "" })
+	return tags
+}
+
 // cached returns the resolved values, or nil before resolve has run.
 func (g *gcpMetadataCache) cached() map[string]string {
 	if metadata := g.resolved.Load(); metadata != nil {
@@ -148,7 +156,7 @@ func (c *CloudRun) tagPrefix() string {
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	tags := maps.Clone(c.gcpMetadata.resolve(c.cloudRunType()))
+	tags := c.gcpMetadata.tags(c.cloudRunType())
 	tags["origin"] = CloudRunOrigin
 	tags["_dd.origin"] = CloudRunOrigin
 
