@@ -8,23 +8,25 @@
 ---
 upgrade:
   - |
-    On Linux, the restricted shell privileged helper units are now always
-    installed. Setting
-    ``private_action_runner.restricted_shell.privileged.enabled`` and
-    restarting the Agent is enough to turn the helper on or off; reinstalling
-    the Agent is no longer required. Before each start, systemd checks the
-    setting as ``dd-agent``, and the root helper does not run unless it is
-    enabled. The helper socket moves to
+    On Linux, the restricted shell privileged helper is now a single systemd
+    service, ``datadog-agent-rshell-privileged.service``, that starts with the
+    Agent. It exits immediately unless
+    ``private_action_runner.restricted_shell.privileged.enabled`` is set;
+    otherwise it creates its socket and keeps running until the Agent stops.
+    Changing the setting, or ``/etc/datadog-agent-rshell/policy.json``, takes
+    effect when the Agent restarts; reinstalling the Agent is no longer
+    required. The ``datadog-agent-rshell-privileged.socket`` unit is removed,
+    and the helper socket moves to
     ``/run/datadog-agent-rshell/privileged.sock``; a
     ``private_action_runner.restricted_shell.privileged.socket`` setting that
     names the former default ``/run/datadog/rshell-privileged.sock`` is
     redirected to the new path.
 fixes:
   - |
-    On Linux, the restricted shell privileged helper socket now follows the
-    core Agent. It no longer stops when the private action runner service
-    exits, for example in split mode, and it no longer creates a boot-time
-    systemd ordering cycle that could leave it missing after a reboot. When
-    the helper is enabled but its socket does not exist, or the kernel does
-    not provide the Landlock support it needs, restricted shell tasks run
-    without elevation instead of failing.
+    On Linux, the restricted shell privileged helper now follows the core
+    Agent. It no longer stops when the private action runner service exits,
+    for example in split mode, and it no longer creates a boot-time systemd
+    ordering cycle that could leave it missing after a reboot. When the
+    helper is enabled but not running, for example because the kernel lacks
+    the Landlock support it needs, restricted shell tasks run without
+    elevation instead of failing.

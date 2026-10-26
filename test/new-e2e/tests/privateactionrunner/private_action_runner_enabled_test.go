@@ -44,7 +44,6 @@ const (
 	privilegedRshellPolicy         = "/etc/datadog-agent-rshell/policy.json"
 	privilegedRshellPolicyStage    = "/tmp/par-rshell-e2e-policy.json"
 	privilegedRshellSocket         = "/run/datadog-agent-rshell/privileged.sock"
-	privilegedRshellSocketUnit     = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellServiceUnit    = "datadog-agent-rshell-privileged.service"
 	privilegedRshellFixtureDir     = "/root/par-rshell-e2e"
 	privilegedRshellFixture        = privilegedRshellFixtureDir + "/secret.txt"
@@ -108,8 +107,8 @@ func stagePrivateActionRunnerConfig(configContent string) func(*aws.Environment,
 }
 
 // TestPrivilegedRshellEndToEnd verifies the complete deployed privilege boundary:
-// package permissions, systemd socket activation, TUF-authenticated task signing,
-// selective elevation from dd-agent to root, and helper idle reactivation.
+// package permissions, the helper socket, TUF-authenticated task signing, and
+// selective elevation from dd-agent to root.
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	host := s.Env().RemoteHost
 	client := s.Env().FakeIntake.Client()
@@ -119,32 +118,28 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().Equal("root:root 755", strings.TrimSpace(host.MustExecute(
 		"sudo stat -c '%U:%G %a' "+privilegedRshellBinary,
 	)))
-	// The socket is never enabled: datadog-agent.service pulls it in.
+	// The helper is never enabled: datadog-agent.service pulls it in. With
+	// the setting enabled, it runs and serves its socket.
 	s.Require().Equal("static", strings.TrimSpace(host.MustExecute(
-		"sudo systemctl is-enabled "+privilegedRshellSocketUnit+" || true",
+		"sudo systemctl is-enabled "+privilegedRshellServiceUnit+" || true",
 	)))
-	s.Require().Equal("active", strings.TrimSpace(host.MustExecute(
-		"sudo systemctl is-active "+privilegedRshellSocketUnit,
-	)))
+	s.waitForSystemdUnitState(privilegedRshellServiceUnit, "active", 30*time.Second)
 	s.Require().Equal("dd-agent:dd-agent 600", strings.TrimSpace(host.MustExecute(
 		"sudo stat -c '%U:%G %a' "+privilegedRshellSocket,
 	)))
 
-	// A same-host retry may find the helper inside its idle window.
-	_, err := host.Execute("sudo systemctl stop " + privilegedRshellServiceUnit)
-	s.Require().NoError(err)
-	s.waitForSystemdUnitState(privilegedRshellServiceUnit, "inactive", 30*time.Second)
-
+	// The helper reads its policy when it starts.
 	s.installPrivilegedRshellFixture()
+	s.restartPrivilegedHelper()
 	s.T().Cleanup(func() {
-		_, _ = host.Execute("sudo systemctl stop " + privilegedRshellServiceUnit)
 		_, _ = host.Execute("sudo rm -f " + privilegedRshellPolicy)
 		_, _ = host.Execute("sudo rm -f " + privilegedRshellFixture)
 		_, _ = host.Execute("sudo rmdir " + privilegedRshellFixtureDir)
+		_, _ = host.Execute("sudo systemctl restart " + privilegedRshellServiceUnit)
 	})
 
 	// Establish that the fixture is genuinely inaccessible to PAR's service user.
-	_, err = host.Execute("sudo -u dd-agent cat " + privilegedRshellFixture)
+	_, err := host.Execute("sudo -u dd-agent cat " + privilegedRshellFixture)
 	s.Require().Error(err, "dd-agent unexpectedly read the root-only fixture")
 
 	_, err = svcManager.Start(privateActionRunnerServiceName)
@@ -194,16 +189,23 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 		))
 	}, 20*time.Second, time.Second, "helper journal should identify the authorized task")
 
-	// The root helper exits when idle, while its socket remains available for
-	// the next task. A second success proves socket reactivation works.
-	s.waitForSystemdUnitState(privilegedRshellServiceUnit, "inactive", 50*time.Second)
-	s.Require().Equal("active", strings.TrimSpace(host.MustExecute(
-		"sudo systemctl is-active "+privilegedRshellSocketUnit,
-	)))
-	reactivated := s.runPrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
-	s.Require().True(reactivated.Success, "reactivated privileged helper failed: %+v", reactivated)
-	s.Require().Zero(rshellExitCode(s.T(), reactivated), "reactivated privileged helper failed: %+v", reactivated)
-	s.Require().Equal(privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
+	// The helper keeps serving: a second task reaches the same process.
+	pid := strings.TrimSpace(host.MustExecute("sudo systemctl show --property MainPID --value " + privilegedRshellServiceUnit))
+	again := s.runPrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
+	s.Require().True(again.Success, "second privileged rshell command failed: %+v", again)
+	s.Require().Zero(rshellExitCode(s.T(), again), "second privileged rshell command failed: %+v", again)
+	s.Require().Equal(privilegedRshellSecret+"\n", again.Outputs["stdout"])
+	s.Require().Equal(pid, strings.TrimSpace(host.MustExecute("sudo systemctl show --property MainPID --value "+privilegedRshellServiceUnit)))
+}
+
+// restartPrivilegedHelper restarts the helper and waits for its socket.
+func (s *linuxPrivateActionRunnerEnabledSuite) restartPrivilegedHelper() {
+	host := s.Env().RemoteHost
+	host.MustExecute("sudo systemctl restart " + privilegedRshellServiceUnit)
+	s.waitForSystemdUnitState(privilegedRshellServiceUnit, "active", 30*time.Second)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		host.MustExecuteOn(c, "sudo test -S "+privilegedRshellSocket)
+	}, 30*time.Second, time.Second, "the helper should create its socket")
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) installPrivilegedRshellFixture() {

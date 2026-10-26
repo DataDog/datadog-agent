@@ -1,8 +1,8 @@
 [Unit]
 Description=Datadog Agent Experiment
-After=network.target datadog-agent-rshell-privileged-exp.socket
+After=network.target datadog-agent-rshell-privileged-exp.service
 Conflicts=datadog-agent.service
-Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-data-plane-exp.service datadog-agent-action-exp.service datadog-agent-rshell-privileged-exp.socket datadog-agent-ddot-exp.service
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-data-plane-exp.service datadog-agent-action-exp.service datadog-agent-rshell-privileged-exp.service datadog-agent-ddot-exp.service
 OnFailure=datadog-agent.service
 Before=datadog-agent.service
 

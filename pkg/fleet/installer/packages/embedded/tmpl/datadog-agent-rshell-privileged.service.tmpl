@@ -1,25 +1,32 @@
 [Unit]
+# Pulled in by the matching Agent unit's Wants= and stopped with it. The
+# privateactionrunner launcher exits without creating the socket unless the
+# Agent configuration enables the helper; otherwise it creates the socket and
+# replaces itself with the rshell helper, which serves it until the Agent
+# stops.
 {{- if .Stable}}
 Description=Datadog rshell privileged helper
 PartOf=datadog-agent.service
-Requires=datadog-agent-rshell-enabled.service
-After=datadog-agent-rshell-enabled.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
-ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
 {{- else}}
 Description=Datadog rshell privileged helper experiment
 PartOf=datadog-agent-exp.service
-Requires=datadog-agent-rshell-enabled-exp.service
-After=datadog-agent-rshell-enabled-exp.service
 Conflicts=datadog-agent-rshell-privileged.service
-ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
+# Both variants use the same socket: release it before creating it.
+After=datadog-agent-rshell-privileged.service
 {{- end}}
+ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
 
 [Service]
 Type=simple
 Group=dd-agent
 UMask=0077
-ExecStart={{.InstallDir}}/embedded/bin/rshell privileged-helper --policy=/etc/datadog-agent-rshell/policy.json --idle-timeout=30s
+RuntimeDirectory=datadog-agent-rshell
+RuntimeDirectoryMode=0755
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner privileged-helper --cfgpath={{.EtcDir}}/datadog.yaml --helper={{.InstallDir}}/embedded/bin/rshell --socket=/run/datadog-agent-rshell/privileged.sock --policy=/etc/datadog-agent-rshell/policy.json
+Restart=on-failure
 PrivateNetwork=yes
 RestrictAddressFamilies=AF_UNIX
 LockPersonality=yes

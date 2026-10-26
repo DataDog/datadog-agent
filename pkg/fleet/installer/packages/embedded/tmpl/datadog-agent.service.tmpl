@@ -1,14 +1,14 @@
 [Unit]
 {{- if .Stable}}
 Description=Datadog Agent
-After=network.target datadog-agent-rshell-privileged.socket
+After=network.target datadog-agent-rshell-privileged.service
 Conflicts=datadog-agent-exp.service
-Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-action.service datadog-agent-rshell-privileged.socket {{ if .Procmgr}}datadog-agent-procmgr.service{{ else }}datadog-agent-ddot.service{{ end }}
+Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-action.service datadog-agent-rshell-privileged.service {{ if .Procmgr}}datadog-agent-procmgr.service{{ else }}datadog-agent-ddot.service{{ end }}
 {{- else}}
 Description=Datadog Agent Experiment
-After=network.target datadog-agent-rshell-privileged-exp.socket
+After=network.target datadog-agent-rshell-privileged-exp.service
 Conflicts=datadog-agent.service
-Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-data-plane-exp.service datadog-agent-action-exp.service datadog-agent-rshell-privileged-exp.socket {{ if .Procmgr}}datadog-agent-procmgr-exp.service{{ else }}datadog-agent-ddot-exp.service{{ end }}
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-data-plane-exp.service datadog-agent-action-exp.service datadog-agent-rshell-privileged-exp.service {{ if .Procmgr}}datadog-agent-procmgr-exp.service{{ else }}datadog-agent-ddot-exp.service{{ end }}
 OnFailure=datadog-agent.service
 Before=datadog-agent.service
 {{- end}}

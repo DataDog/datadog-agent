@@ -6,8 +6,6 @@ go_library(
     srcs = [
         "entrypoint.go",
         "helper.go",
-        "privileged_support_linux.go",
-        "privileged_support_other.go",
         "rshell_unsupported.go",
         "run_command.go",
     ],
@@ -31,7 +29,6 @@ go_library(
             "@com_github_datadog_rshell//interp",
             "@com_github_datadog_rshell//privilegedhelper",
             "@org_golang_google_protobuf//types/known/structpb",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/config/env",
@@ -90,7 +87,6 @@ go_library(
             "@com_github_datadog_rshell//interp",
             "@com_github_datadog_rshell//privilegedhelper",
             "@org_golang_google_protobuf//types/known/structpb",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/privateactionrunner/adapters/config",

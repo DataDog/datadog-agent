@@ -315,9 +315,9 @@ func (h *RunCommandHandler) Run(
 				return h.runPrivileged(ctx, task, inputs)
 			}
 			// Permission to elevate does not require elevation. Without local
-			// opt-in, or when the host cannot run the helper or its socket is
-			// not listening, the ordinary interpreter runs commands and
-			// rejects sudo if it is invoked, including through shell expansion.
+			// opt-in, or when the helper is not running, the ordinary
+			// interpreter runs commands and rejects sudo if it is invoked,
+			// including through shell expansion.
 		case "Root":
 			return nil, errors.New("whole-script root execution is not supported")
 		default:
@@ -456,22 +456,17 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 }
 
 // privilegedHelperAvailable reports whether a task can be handed to the
-// privileged helper. systemd removes the helper socket when the socket stops,
-// for example with the Agent or on a host without systemd, so an absent
-// socket, like a host that cannot run the helper, means no helper can run the
-// task and it is safe to run in the ordinary interpreter. Any
-// later failure, including a helper that accepts the connection and then
-// fails, is returned without retrying locally.
+// privileged helper. The helper only creates its socket once it starts with
+// the setting enabled on a host that can run it, and the socket is removed
+// when it stops, so an absent socket means no helper can run the task and it
+// is safe to run in the ordinary interpreter. Any later failure is returned
+// without retrying locally.
 func (h *RunCommandHandler) privilegedHelperAvailable() bool {
 	if h.privilegedSocket == "" {
 		return true // runPrivileged reports the misconfiguration
 	}
-	if err := checkPrivilegedHelperSupported(); err != nil {
-		h.warnPrivilegedFallback("this host cannot run the rshell privileged helper (%v); running without elevation", err)
-		return false
-	}
 	if _, err := os.Stat(h.privilegedSocket); errors.Is(err, os.ErrNotExist) {
-		h.warnPrivilegedFallback("rshell privileged helper is enabled but its socket %s does not exist; running without elevation. The socket is created by systemd while the Agent runs.", h.privilegedSocket)
+		h.warnPrivilegedFallback("rshell privileged helper is enabled but its socket %s does not exist; running without elevation", h.privilegedSocket)
 		return false
 	}
 	return true

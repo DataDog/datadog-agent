@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package privilegedhelperenabled
+package privilegedhelper
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,20 +22,25 @@ import (
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"privileged-helper-enabled"},
+		[]string{"privileged-helper", "--helper", "/opt/datadog-agent/embedded/bin/rshell"},
 		run,
 		func() {})
 }
 
-func TestRun(t *testing.T) {
-	cfg := configmock.NewMock(t)
-	logger := logmock.New(t)
+func TestRunStartsHelperOnlyWhenEnabled(t *testing.T) {
+	started := 0
+	original := start
+	start = func(log.Component, *helperParams) error { started++; return nil }
+	t.Cleanup(func() { start = original })
 
-	err := run(logger, cfg)
-	var exitCoder interface{ ExitCode() int }
-	require.True(t, errors.As(err, &exitCoder), "disabled by default")
-	assert.Equal(t, disabledExitCode, exitCoder.ExitCode())
+	cfg := config.NewMock(t)
+	logger := logmock.New(t)
+	params := &helperParams{helperPath: "/opt/datadog-agent/embedded/bin/rshell"}
+
+	require.NoError(t, run(logger, cfg, params))
+	assert.Zero(t, started, "the helper must not start while the setting is disabled")
 
 	cfg.SetInTest(par.RestrictedShellPrivilegedEnabled, true)
-	assert.NoError(t, run(logger, cfg))
+	require.NoError(t, run(logger, cfg, params))
+	assert.Equal(t, 1, started)
 }

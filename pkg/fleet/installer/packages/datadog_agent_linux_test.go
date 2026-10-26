@@ -33,6 +33,7 @@ func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
 		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root", Mode: 0755},
 	}, privilegedRshellPackagePermissions)
 	for _, permission := range privilegedRshellPackagePermissions {
 		assert.NotEqual(t, ".", permission.Path, "the package root must keep dd-agent ownership")
@@ -49,18 +50,16 @@ func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
 	require.ErrorContains(t, err, "privileged rshell helper is not a regular file")
 }
 
-func TestPrivilegedRshellUnitsAreAlwaysWritten(t *testing.T) {
-	// PAR's configuration decides at runtime whether to use the helper, so
-	// every systemd install writes the units instead of filtering on it.
+func TestPrivilegedRshellUnitIsAlwaysWritten(t *testing.T) {
+	// The helper reads the configuration when it starts, so every systemd
+	// install writes its unit instead of filtering on the configuration.
 	for _, units := range [][]string{agentService.SystemdUnitsStable, agentService.ProcmgrUnitsStable} {
 		assert.Contains(t, units, "datadog-agent-rshell-privileged.service")
-		assert.Contains(t, units, "datadog-agent-rshell-enabled.service")
-		assert.Contains(t, units, privilegedRshellSocketStable)
+		assert.NotContains(t, units, legacyPrivilegedRshellSocket, "the helper creates its own socket")
 	}
 	for _, units := range [][]string{agentService.SystemdUnitsExp, agentService.ProcmgrUnitsExp} {
 		assert.Contains(t, units, "datadog-agent-rshell-privileged-exp.service")
-		assert.Contains(t, units, "datadog-agent-rshell-enabled-exp.service")
-		assert.Contains(t, units, privilegedRshellSocketExp)
+		assert.NotContains(t, units, legacyPrivilegedRshellSocketExp, "the helper creates its own socket")
 	}
 }
 
@@ -70,7 +69,7 @@ func TestLegacyPrivilegedRshellSocketLinksAreRemoved(t *testing.T) {
 		linkPath := filepath.Join(root, string(link))
 		require.NoError(t, os.MkdirAll(filepath.Dir(linkPath), 0755))
 		// Dangling, as after a DEB to OCI migration removed the target.
-		require.NoError(t, os.Symlink("/lib/systemd/system/"+privilegedRshellSocketStable, linkPath))
+		require.NoError(t, os.Symlink("/lib/systemd/system/"+legacyPrivilegedRshellSocket, linkPath))
 	}
 	unrelated := filepath.Join(root, "sockets.target.wants", "dbus.socket")
 	require.NoError(t, os.Symlink("/lib/systemd/system/dbus.socket", unrelated))

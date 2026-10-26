@@ -58,8 +58,10 @@ const (
 
 	privilegedRshellBinaryRelPath = "embedded/bin/rshell"
 	privilegedRshellPolicyDir     = "/etc/datadog-agent-rshell"
-	privilegedRshellSocketStable  = "datadog-agent-rshell-privileged.socket"
-	privilegedRshellSocketExp     = "datadog-agent-rshell-privileged-exp.socket"
+	// legacyPrivilegedRshellSocket is the socket unit older versions used to
+	// start the helper. The helper now creates its own socket.
+	legacyPrivilegedRshellSocket    = "datadog-agent-rshell-privileged.socket"
+	legacyPrivilegedRshellSocketExp = "datadog-agent-rshell-privileged-exp.socket"
 )
 
 var (
@@ -102,6 +104,8 @@ var (
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
 		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
+		// systemd runs privateactionrunner as root to launch the helper.
+		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root", Mode: 0755},
 	}
 
 	// integrationRestorePermissions re-applies dd-agent ownership to embedded/lib after
@@ -143,13 +147,13 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", "datadog-agent-rshell-enabled.service", privilegedRshellSocketStable, "datadog-agent-ddot.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", "datadog-agent-rshell-enabled-exp.service", privilegedRshellSocketExp, "datadog-agent-ddot-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", "datadog-agent-ddot.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", "datadog-agent-ddot-exp.service"},
 
 		ProcmgrMainUnitStable: "datadog-agent.service",
 		ProcmgrMainUnitExp:    "datadog-agent-exp.service",
-		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", "datadog-agent-rshell-enabled.service", privilegedRshellSocketStable, "datadog-agent-procmgr.service"},
-		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", "datadog-agent-rshell-enabled-exp.service", privilegedRshellSocketExp, "datadog-agent-procmgr-exp.service"},
+		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-rshell-privileged.service", "datadog-agent-procmgr.service"},
+		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", "datadog-agent-procmgr-exp.service"},
 		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml", "datadog-agent-par-control.yaml"},
 
 		UpstartMainService: "datadog-agent",
@@ -165,16 +169,15 @@ var (
 		"datadog-installer.service",
 	}
 
-	// legacyPrivilegedRshellSocketLinks are enablement symlinks, relative to
-	// /etc/systemd/system, that older versions created with `systemctl enable`.
-	// The socket is now pulled in by the Agent unit's Wants= and has no
-	// [Install] section, so a leftover link would start it independently of the
-	// Agent. The previous package's prerm normally disables the socket; this
+	// legacyPrivilegedRshellSocketLinks are the enablement symlinks, relative
+	// to /etc/systemd/system, that older versions created for the helper
+	// socket unit. The previous package's prerm normally disables it; this
 	// covers hosts where that did not happen.
+	legacyPrivilegedRshellSocketUnits = file.Paths{legacyPrivilegedRshellSocket, legacyPrivilegedRshellSocketExp}
 	legacyPrivilegedRshellSocketLinks = file.Paths{
-		"sockets.target.wants/" + privilegedRshellSocketStable,
-		"datadog-agent-action.service.wants/" + privilegedRshellSocketStable,
-		"datadog-agent.service.wants/" + privilegedRshellSocketStable,
+		"sockets.target.wants/" + legacyPrivilegedRshellSocket,
+		"datadog-agent-action.service.wants/" + legacyPrivilegedRshellSocket,
+		"datadog-agent.service.wants/" + legacyPrivilegedRshellSocket,
 	}
 
 	// legacyProcmgrUnitNames are pre-rename systemd units for dd-procmgrd (retired on upgrade).
@@ -279,11 +282,11 @@ func installFilesystem(ctx HookContext) (err error) {
 	return nil
 }
 
-// removeLegacyPrivilegedRshellSocketLinks removes the privileged rshell socket
+// removeLegacyPrivilegedRshellSocket removes the helper socket unit and its
 // enablement symlinks left by older versions. It only runs when installing or
 // promoting the stable package: during an experiment, the previous stable
-// version may still rely on them to start its socket after a rollback.
-func removeLegacyPrivilegedRshellSocketLinks(ctx HookContext) {
+// version may still rely on them to start its helper after a rollback.
+func removeLegacyPrivilegedRshellSocket(ctx HookContext) {
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType, service.ProcmgrType:
 	default:
@@ -291,6 +294,14 @@ func removeLegacyPrivilegedRshellSocketLinks(ctx HookContext) {
 	}
 	if err := legacyPrivilegedRshellSocketLinks.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		log.Warnf("failed to remove legacy privileged rshell socket links: %v", err)
+	}
+	unitsPath, err := unitsPath(ctx)
+	if err != nil {
+		log.Warnf("failed to remove legacy privileged rshell socket units: %v", err)
+		return
+	}
+	if err := legacyPrivilegedRshellSocketUnits.EnsureAbsent(ctx, unitsPath); err != nil {
+		log.Warnf("failed to remove legacy privileged rshell socket units: %v", err)
 	}
 }
 
@@ -420,7 +431,7 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
 	}
-	removeLegacyPrivilegedRshellSocketLinks(ctx)
+	removeLegacyPrivilegedRshellSocket(ctx)
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -583,7 +594,7 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
-	removeLegacyPrivilegedRshellSocketLinks(ctx)
+	removeLegacyPrivilegedRshellSocket(ctx)
 	err := agentService.WriteStable(ctx)
 	if err != nil {
 		return err

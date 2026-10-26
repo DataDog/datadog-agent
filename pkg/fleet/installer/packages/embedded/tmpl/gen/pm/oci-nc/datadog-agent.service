@@ -1,8 +1,8 @@
 [Unit]
 Description=Datadog Agent
-After=network.target datadog-agent-rshell-privileged.socket
+After=network.target datadog-agent-rshell-privileged.service
 Conflicts=datadog-agent-exp.service
-Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-action.service datadog-agent-rshell-privileged.socket datadog-agent-procmgr.service
+Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-action.service datadog-agent-rshell-privileged.service datadog-agent-procmgr.service
 
 [Service]
 Type=simple

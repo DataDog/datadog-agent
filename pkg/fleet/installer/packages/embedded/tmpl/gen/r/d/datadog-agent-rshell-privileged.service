@@ -1,8 +1,11 @@
 [Unit]
+# Pulled in by the matching Agent unit's Wants= and stopped with it. The
+# privateactionrunner launcher exits without creating the socket unless the
+# Agent configuration enables the helper; otherwise it creates the socket and
+# replaces itself with the rshell helper, which serves it until the Agent
+# stops.
 Description=Datadog rshell privileged helper
 PartOf=datadog-agent.service
-Requires=datadog-agent-rshell-enabled.service
-After=datadog-agent-rshell-enabled.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
 
@@ -10,7 +13,12 @@ ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
 Type=simple
 Group=dd-agent
 UMask=0077
-ExecStart=/opt/datadog-agent/embedded/bin/rshell privileged-helper --policy=/etc/datadog-agent-rshell/policy.json --idle-timeout=30s
+RuntimeDirectory=datadog-agent-rshell
+RuntimeDirectoryMode=0755
+EnvironmentFile=-/etc/datadog-agent/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
+ExecStart=/opt/datadog-agent/embedded/bin/privateactionrunner privileged-helper --cfgpath=/etc/datadog-agent/datadog.yaml --helper=/opt/datadog-agent/embedded/bin/rshell --socket=/run/datadog-agent-rshell/privileged.sock --policy=/etc/datadog-agent-rshell/policy.json
+Restart=on-failure
 PrivateNetwork=yes
 RestrictAddressFamilies=AF_UNIX
 LockPersonality=yes

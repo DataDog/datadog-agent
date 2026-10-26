@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "privilegedhelper",
+    srcs = [
+        "command.go",
+        "start_linux.go",
+        "start_other.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/privilegedhelper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/privateactionrunner",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "privilegedhelper_test",
+    srcs = [
+        "command_test.go",
+        "start_linux_test.go",
+    ],
+    embed = [":privilegedhelper"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//pkg/privateactionrunner",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
