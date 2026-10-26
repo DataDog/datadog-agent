@@ -148,7 +148,7 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 				t.Errorf("stop gpu-burner process group: %v", err)
 			}
 		}
-		<-burner.done
+		<-burner.done //nolint:errcheck // only reflects the SIGKILL that stopped gpu-burner
 	})
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {

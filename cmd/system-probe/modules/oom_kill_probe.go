@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -29,7 +28,7 @@ var OOMKillProbe = &module.Factory{
 	Name: config.OOMKillProbeModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
-		okp, err := oomkill.NewProbe(ebpf.NewConfig())
+		okp, err := oomkill.NewProbe(oomkill.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the OOM kill probe: %w", err)
 		}

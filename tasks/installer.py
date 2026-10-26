@@ -6,6 +6,7 @@ import glob
 import hashlib
 import sys
 from os import getenv, makedirs, path
+from pathlib import PurePosixPath
 
 from invoke import task
 
@@ -86,8 +87,14 @@ def build(
     if output_bin:
         installer_bin = output_bin
 
-    if no_cgo and not fips_mode:
+    if no_cgo:
         env["CGO_ENABLED"] = "0"
+        if fips_mode and install_path:
+            rpath = [f"{install_path}/embedded/lib"]  # OpenSSL is dlopen'ed from there at runtime
+            package_path = PurePosixPath(install_path).parent
+            if package_path.parent.name == "datadog-packages":
+                rpath.append(f"{package_path}/stable/embedded/lib")  # OpenSSL is dlopen'ed from there at upgrade time
+            ldflags += f" -r {':'.join(rpath)}"
     else:
         env["CGO_ENABLED"] = "1"
 

@@ -1,0 +1,499 @@
+--- a/src/OVAL/probes/independent/filehash58_probe.c
++++ b/src/OVAL/probes/independent/filehash58_probe.c
+@@ -167,8 +167,8 @@
+ 	if (prefix == NULL) {
+ 		fd = open(pbuf, O_RDONLY | O_NONBLOCK);
+ 	} else {
+-		char *path_with_prefix = oscap_path_join(prefix, pbuf);
+-		fd = open(path_with_prefix, O_RDONLY | O_NONBLOCK);
++		char *path_with_prefix = oscap_path_in_root(prefix, pbuf, true);
++		fd = path_with_prefix != NULL ? open(path_with_prefix, O_RDONLY | O_NONBLOCK) : -1;
+ 		free(path_with_prefix);
+ 	}
+ 
+--- a/src/OVAL/probes/independent/filehash_probe.c
++++ b/src/OVAL/probes/independent/filehash_probe.c
+@@ -120,8 +120,8 @@
+ 	if (prefix == NULL) {
+ 		fd = open(pbuf, O_RDONLY | O_NONBLOCK);
+ 	} else {
+-		char *path_with_prefix = oscap_path_join(prefix, pbuf);
+-		fd = open(path_with_prefix, O_RDONLY | O_NONBLOCK);
++		char *path_with_prefix = oscap_path_in_root(prefix, pbuf, true);
++		fd = path_with_prefix != NULL ? open(path_with_prefix, O_RDONLY | O_NONBLOCK) : -1;
+ 		free(path_with_prefix);
+ 	}
+ 
+--- a/src/OVAL/probes/independent/textfilecontent54_probe.c
++++ b/src/OVAL/probes/independent/textfilecontent54_probe.c
+@@ -151,8 +151,8 @@
+ 	if (probe_path_is_blocked(whole_path, blocked_paths)) {
+ 		goto cleanup;
+ 	}
+-	whole_path_with_prefix = oscap_path_join(prefix, whole_path);
+-	fd = open(whole_path_with_prefix, O_RDONLY | O_NONBLOCK);
++	whole_path_with_prefix = oscap_path_in_root(prefix, whole_path, true);
++	fd = whole_path_with_prefix != NULL ? open(whole_path_with_prefix, O_RDONLY | O_NONBLOCK) : -1;
+ 	if (fd == -1) {
+ 		if (errno == ENOENT || errno == EACCES || errno == ENOTDIR
+ 		    || errno == ENAMETOOLONG || errno == ELOOP)
+--- a/src/OVAL/probes/independent/textfilecontent_probe.c
++++ b/src/OVAL/probes/independent/textfilecontent_probe.c
+@@ -175,8 +175,8 @@
+ 	if (probe_path_is_blocked(whole_path, blocked_paths)) {
+ 		goto cleanup;
+ 	}
+-	whole_path_with_prefix = oscap_path_join(prefix, whole_path);
+-	tmp_fd = open(whole_path_with_prefix, O_RDONLY | O_NONBLOCK);
++	whole_path_with_prefix = oscap_path_in_root(prefix, whole_path, true);
++	tmp_fd = whole_path_with_prefix != NULL ? open(whole_path_with_prefix, O_RDONLY | O_NONBLOCK) : -1;
+ 	if (tmp_fd == -1) {
+ 		if (errno != ENOENT && errno != EACCES && errno != ENOTDIR
+ 		    && errno != ENAMETOOLONG && errno != ELOOP)
+--- a/src/OVAL/probes/independent/xmlfilecontent_probe.c
++++ b/src/OVAL/probes/independent/xmlfilecontent_probe.c
+@@ -177,8 +177,8 @@
+ 	if (prefix == NULL) {
+ 		doc = xmlParseFile(whole_path);
+ 	} else {
+-		char *path_with_prefix = oscap_path_join(prefix, whole_path);
+-		doc = xmlParseFile(path_with_prefix);
++		char *path_with_prefix = oscap_path_in_root(prefix, whole_path, true);
++		doc = path_with_prefix != NULL ? xmlParseFile(path_with_prefix) : NULL;
+ 		free(path_with_prefix);
+ 	}
+ 
+--- a/src/OVAL/probes/independent/yamlfilecontent_probe.c
++++ b/src/OVAL/probes/independent/yamlfilecontent_probe.c
+@@ -406,14 +406,14 @@
+ 	yaml_parser_t parser;
+ 	yaml_parser_initialize(&parser);
+ 
+-	char *filepath_with_prefix = oscap_path_join(prefix, filepath);
++	char *filepath_with_prefix = oscap_path_in_root(prefix, filepath, true);
+ 	struct stat st;
+ 
+-	tmp_fd = open(filepath_with_prefix, O_RDONLY | O_NONBLOCK);
++	tmp_fd = filepath_with_prefix != NULL ? open(filepath_with_prefix, O_RDONLY | O_NONBLOCK) : -1;
+ 	if (tmp_fd == -1) {
+ 		if (errno != ENOENT && errno != EACCES && errno != ENOTDIR
+ 		    && errno != ENAMETOOLONG && errno != ELOOP)
+-			result_error("Unable to open file '%s': %s", filepath_with_prefix, strerror(errno));
++			result_error("Unable to open file '%s': %s", filepath, strerror(errno));
+ 		goto cleanup;
+ 	}
+ 	if (fstat(tmp_fd, &st) == -1
+@@ -422,7 +422,7 @@
+ 		goto cleanup;
+ 	yaml_file = fdopen(tmp_fd, "r");
+ 	if (yaml_file == NULL) {
+-		result_error("Unable to open file '%s': %s", filepath_with_prefix, strerror(errno));
++		result_error("Unable to open file '%s': %s", filepath, strerror(errno));
+ 		goto cleanup;
+ 	}
+ 	tmp_fd = -1;
+--- a/src/OVAL/probes/oval_fts.c
++++ b/src/OVAL/probes/oval_fts.c
+@@ -127,6 +127,26 @@
+ 		ofts_ent->file = NULL;
+ 	}
+ 
++#if !defined(OS_WINDOWS)
++	/*
++	 * fts follows a symbolic link from the real root, so a link whose
++	 * target lies in the prefix alone looks dangling. Classify such an
++	 * entry by its target in the prefix.
++	 */
++	if (ofts->prefix != NULL && fts_ent->fts_info == FTS_SLNONE) {
++		char *target = oscap_path_in_root(ofts->prefix, fts_ent->fts_path + shift, true);
++		struct stat st;
++
++		if (target != NULL && stat(target, &st) == 0) {
++			if (S_ISREG(st.st_mode))
++				ofts_ent->fts_info = FTS_F;
++			else if (S_ISDIR(st.st_mode))
++				ofts_ent->fts_info = FTS_D;
++		}
++		free(target);
++	}
++#endif
++
+ #if defined(OSCAP_FTS_DEBUG)
+ 	dD("New OVAL_FTSENT: file: '%s', path: '%s'.", ofts_ent->file, ofts_ent->path);
+ #endif
+--- a/src/OVAL/probes/unix/file_probe.c
++++ b/src/OVAL/probes/unix/file_probe.c
+@@ -329,7 +329,11 @@
+ 		return 0;
+ 	}
+ 
+-	char *st_path_with_prefix = oscap_path_join(prefix, st_path);
++	char *st_path_with_prefix = oscap_path_in_root(prefix, st_path, false);
++	if (st_path_with_prefix == NULL) {
++		dD("Cannot resolve %s in the probe root: errno=%u, %s.", st_path, errno, strerror(errno));
++		return 0;
++	}
+ 	if (lstat(st_path_with_prefix, &st) == -1) {
+                 dD("lstat failed when processing %s: errno=%u, %s.", st_path, errno, strerror (errno));
+ 		/*
+--- a/src/OVAL/probes/unix/fileextendedattribute_probe.c
++++ b/src/OVAL/probes/unix/fileextendedattribute_probe.c
+@@ -239,7 +239,10 @@
+ 		return 0;
+ 	}
+ 
+-	char *st_path_with_prefix = oscap_path_join(prefix, st_path);
++	char *st_path_with_prefix = oscap_path_in_root(prefix, st_path, false);
++	if (st_path_with_prefix == NULL) {
++		goto exit;
++	}
+ 	do {
+ 		/* estimate the size of the buffer */
+ 		xattr_count = llistxattr(st_path_with_prefix, NULL, 0);
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -262,6 +262,30 @@
+         return PROBE_OFFLINE_OWN;
+ }
+ 
++#if defined(OS_LINUX)
++/*
++ * open_mounts opens the mount table at path. Under a probe root it opens
++ * the mounts of the init process of the root when the root has them, and
++ * puts their path in path: MTAB_PATH lists the mounts of the reading
++ * process, which for a probe in a container are those of the container.
++ */
++static int open_mounts(const char *prefix, char *path)
++{
++        if (prefix != NULL) {
++                char init_path[PATH_MAX];
++                int fd;
++
++                snprintf(init_path, PATH_MAX, "%s/proc/1/mounts", prefix);
++                fd = open(init_path, O_RDONLY);
++                if (fd >= 0 || errno != ENOENT) {
++                        snprintf(path, PATH_MAX, "%s", init_path);
++                        return fd;
++                }
++        }
++        return open(path, O_RDONLY);
++}
++#endif
++
+ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+ {
+         int probe_ret = 0;
+@@ -278,7 +302,7 @@
+         int   mnt_fd;
+         struct statfs stfs;
+ 
+-        mnt_fd = open(mnt_path, O_RDONLY);
++        mnt_fd = open_mounts(prefix, mnt_path);
+ 
+         if (mnt_fd < 0) {
+                 if (errno == ENOENT) {
+--- a/src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.c
++++ b/src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.c
+@@ -268,7 +268,11 @@
+ 
+ 	pbuf[plen+flen] = '\0';
+ 
+-	char *path_with_prefix = oscap_path_join(prefix, pbuf);
++	char *path_with_prefix = oscap_path_in_root(prefix, pbuf, true);
++	if (path_with_prefix == NULL) {
++		dD("Cannot resolve %s in the probe root: errno=%d, %s.", pbuf, errno, strerror(errno));
++		return 0;
++	}
+ 	if (access(path_with_prefix, F_OK) == -1 ) {
+ 		dD("File does not exists anymore (could happen to /dev/fd/X)");
+ 		free(path_with_prefix);
+--- a/src/common/util.c
++++ b/src/common/util.c
+@@ -45,8 +45,10 @@
+ #include <stdlib.h>
+ #include <windows.h>
+ #else
++#include <errno.h>
+ #include <libgen.h>
+ #include <strings.h>
++#include <unistd.h>
+ #endif
+ 
+ #define PATH_SEPARATOR '/'
+@@ -380,12 +382,97 @@
+ }
+ 
+ #ifndef OS_WINDOWS
++/* The limit of symbolic links in one resolution, as on Linux. */
++#define MAX_SYMLINKS 40
++
++char *oscap_path_in_root(const char *root, const char *path, bool follow)
++{
++	char out[PATH_MAX], rest[PATH_MAX], full[PATH_MAX], target[PATH_MAX];
++	size_t rootlen, outlen = 0, len;
++	int links = 0;
++	char *p, *end;
++	bool last;
++
++	if (root == NULL)
++		return oscap_strdup(path);
++	rootlen = strlen(root);
++	while (rootlen > 0 && root[rootlen - 1] == PATH_SEPARATOR)
++		rootlen--;
++	if (snprintf(rest, sizeof(rest), "%s", path) >= (int)sizeof(rest))
++		goto toolong;
++	out[0] = '\0';
++	p = rest;
++	for (;;) {
++		while (*p == PATH_SEPARATOR)
++			p++;
++		if (*p == '\0')
++			break;
++		end = strchr(p, PATH_SEPARATOR);
++		len = end != NULL ? (size_t)(end - p) : strlen(p);
++		end = p + len;
++		last = end[strspn(end, "/")] == '\0';
++		if (len == 1 && p[0] == '.') {
++			p = end;
++			continue;
++		}
++		if (len == 2 && p[0] == '.' && p[1] == '.') {
++			while (outlen > 0 && out[outlen - 1] != PATH_SEPARATOR)
++				outlen--;
++			if (outlen > 0)
++				outlen--;
++			out[outlen] = '\0';
++			p = end;
++			continue;
++		}
++		if (outlen + 1 + len >= sizeof(out))
++			goto toolong;
++		out[outlen] = PATH_SEPARATOR;
++		memcpy(out + outlen + 1, p, len);
++		out[outlen + 1 + len] = '\0';
++		if (last && !follow && *end == '\0') {
++			outlen += 1 + len;
++			break;
++		}
++		if (snprintf(full, sizeof(full), "%.*s%s", (int)rootlen, root, out) >= (int)sizeof(full))
++			goto toolong;
++		/* readlink fails with EINVAL for a file that is not a link */
++		ssize_t n = readlink(full, target, sizeof(target) - 1);
++		if (n >= 0 && ++links > MAX_SYMLINKS) {
++			errno = ELOOP;
++			return NULL;
++		}
++		if (n < 0) {
++			/* Not a symbolic link, or one that cannot be read:
++			   keep the component as it is. */
++			outlen += 1 + len;
++			p = end;
++			continue;
++		}
++		target[n] = '\0';
++		/* The target replaces the component, relative to the
++		   directory resolved so far, or to root when absolute. */
++		if (target[0] == PATH_SEPARATOR)
++			outlen = 0;
++		out[outlen] = '\0';
++		if (strlen(target) + strlen(end) >= sizeof(rest))
++			goto toolong;
++		memmove(rest + strlen(target), end, strlen(end) + 1);
++		memcpy(rest, target, strlen(target));
++		p = rest;
++	}
++	return oscap_sprintf("%.*s%s", (int)rootlen, root, outlen > 0 ? out : "/");
++
++toolong:
++	errno = ENAMETOOLONG;
++	return NULL;
++}
++
+ FILE *oscap_fopen_with_prefix(const char *prefix, const char *path)
+ {
+ 	FILE *fp;
+ 	if (prefix != NULL) {
+-		char *path_with_prefix = oscap_sprintf("%s%s", prefix, path);
+-		fp = fopen(path_with_prefix, "r");
++		char *path_with_prefix = oscap_path_in_root(prefix, path, true);
++		fp = path_with_prefix != NULL ? fopen(path_with_prefix, "r") : NULL;
+ 		free(path_with_prefix);
+ 	} else {
+ 		fp = fopen(path, "r");
+--- a/src/common/util.h
++++ b/src/common/util.h
+@@ -411,6 +411,24 @@
+  */
+ char *oscap_path_join(const char *path1, const char *path2);
+ 
++#ifndef OS_WINDOWS
++/**
++ * Find the file that a path names when another directory is the root.
++ * Symbolic links resolve inside root, an absolute target from root
++ * itself, and ".." stops at root. A component that does not exist or
++ * is not a symbolic link is kept as it is.
++ * Caller is responsible for freeing the returned pointer.
++ * @param root the root directory, or NULL for the real root
++ * @param path an absolute path in root
++ * @param follow whether a symbolic link in the last component resolves
++ * too, as for stat(2), or stays, as for lstat(2), which also resolves it
++ * when the path ends in a slash
++ * @return the path of the file from the real root, or NULL with errno
++ * set to ELOOP or ENAMETOOLONG
++ */
++char *oscap_path_in_root(const char *root, const char *path, bool follow);
++#endif
++
+ /// In a list of key-value pairs (odd indicies are keys, even values), find a value for given key
+ const char *oscap_strlist_find_value(char ** const kvalues, const char *key);
+ /// Right trim @a ch characters (modifies its first argument!)
+--- a/tests/probes/system_info/test_probes_system_info_offline_mode.sh
++++ b/tests/probes/system_info/test_probes_system_info_offline_mode.sh
+@@ -13,12 +13,19 @@
+ set -e -o pipefail
+ 
+ function test_offline_mode_system_info_offline {
+-	# This test is dependent on /etc/os-release being present, so skip this test if it doesn't exist.
+-	[ -f "/etc/os-release" ] || return 255
++	os_name="Offline Linux"
++	os_version="1.0 (Offline)"
++	host_name="offline.example.com"
+ 
++	# A root of its own, as a probe root is: its /etc/os-release links to
++	# /usr/lib/os-release, as on most systems, and the link resolves in the
++	# root.
+ 	temp_dir="$(mktemp -d)"
+-
+-	ln -s /etc $temp_dir
++	mkdir -p "$temp_dir/etc" "$temp_dir/usr/lib"
++	printf 'NAME="%s"\nVERSION="%s"\n' "$os_name" "$os_version" > "$temp_dir/usr/lib/os-release"
++	ln -s /usr/lib/os-release "$temp_dir/etc/os-release"
++	echo "$host_name" > "$temp_dir/etc/hostname"
++	echo "hostname=\"$host_name\"" > "$temp_dir/etc/rc.conf"
+ 
+ 	result="$(mktemp)"
+ 
+@@ -30,22 +37,11 @@
+ 
+ 	[ -s "$result" ]
+ 
+-	. /etc/os-release
+-
+-	case $(uname) in
+-		FreeBSD)
+-			HOSTNAME=`grep hostname= /etc/rc.conf | cut -d '"' -f 2`
+-			;;
+-		*)
+-			HOSTNAME=`cat /etc/hostname`
+-			;;
+-	esac
+-
+ 	assert_exists 1 '/oval_results/results/system/oval_system_characteristics/system_info'
+-	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_info/os_name[text()=\"${NAME}\"]"
+-	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_info/os_version[text()=\"${VERSION}\"]"
++	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_info/os_name[text()=\"${os_name}\"]"
++	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_info/os_version[text()=\"${os_version}\"]"
+ 	assert_exists 1 '/oval_results/results/system/oval_system_characteristics/system_info/architecture[text()="Unknown"]'
+-	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_info/primary_host_name[text()=\"${HOSTNAME}\"]"
++	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_info/primary_host_name[text()=\"${host_name}\"]"
+ 
+ 	assert_exists 1 '/oval_results/results/system/oval_system_characteristics/system_info/interfaces'
+ 	# Getting network interfaces information from the guest is not implemented,
+--- a/tests/probes/textfilecontent54/CMakeLists.txt
++++ b/tests/probes/textfilecontent54/CMakeLists.txt
+@@ -2,6 +2,7 @@
+ 	add_oscap_test("test_behavior_multiline.sh" LABELS independent)
+ 	add_oscap_test("test_filecontent_non_utf.sh" LABELS independent)
+ 	add_oscap_test("test_offline_mode_textfilecontent54.sh" LABELS independent)
++	add_oscap_test("test_offline_mode_textfilecontent54_symlink.sh" LABELS independent)
+ 	add_oscap_test("test_probes_textfilecontent54.sh" LABELS independent)
+ 	add_oscap_test("test_recursion_limit.sh" LABELS independent)
+ 	add_oscap_test("test_symlinks.sh" LABELS independent)
+diff --git a/tests/probes/textfilecontent54/test_offline_mode_textfilecontent54_symlink.sh b/tests/probes/textfilecontent54/test_offline_mode_textfilecontent54_symlink.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/probes/textfilecontent54/test_offline_mode_textfilecontent54_symlink.sh
+@@ -0,0 +1,40 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_offline_mode_textfilecontent54_symlink {
++    local temp_dir result tfc_item
++    temp_dir="$(mktemp -d)"
++
++    # authselect makes /etc/pam.d/system-auth a link to
++    # /etc/authselect/system-auth. The probe follows the absolute link
++    # inside the root.
++    mkdir -p "$temp_dir/etc/authselect" "$temp_dir/etc/pam.d"
++    echo "auth required pam_faillock.so preauth" > "$temp_dir/etc/authselect/system-auth"
++    ln -s /etc/authselect/system-auth "$temp_dir/etc/pam.d/system-auth"
++    result="$(mktemp)"
++
++    set_chroot_offline_test_mode "$temp_dir"
++    $OSCAP oval eval --results "$result" "$srcdir/test_offline_mode_textfilecontent54_symlink.xml"
++    unset_chroot_offline_test_mode
++
++    [[ -s "$result" ]]
++
++    tfc_item='/oval_results/results/system/oval_system_characteristics/system_data/ind-sys:textfilecontent_item'
++    assert_exists 1 "$tfc_item"
++    assert_exists 1 "$tfc_item/ind-sys:filepath[text()=\"/etc/pam.d/system-auth\"]"
++    assert_exists 1 "$tfc_item/ind-sys:text[text()=\"auth required pam_faillock.so preauth\"]"
++    assert_exists 1 '/oval_results/results/system/definitions/definition[@definition_id="oval:x:def:1" and @result="true"]'
++
++    rm -rf "$temp_dir"
++    rm -f "$result"
++    return 0
++}
++
++test_init "test_offline_mode_textfilecontent54_symlink.log"
++
++test_run "test_offline_mode_textfilecontent54_symlink" test_offline_mode_textfilecontent54_symlink
++
++test_exit
+diff --git a/tests/probes/textfilecontent54/test_offline_mode_textfilecontent54_symlink.xml b/tests/probes/textfilecontent54/test_offline_mode_textfilecontent54_symlink.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/probes/textfilecontent54/test_offline_mode_textfilecontent54_symlink.xml
+@@ -0,0 +1,38 @@
++<?xml version="1.0"?>
++<oval_definitions xmlns:oval-def="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:ind="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xsi:schemaLocation="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent independent-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-definitions-5 oval-definitions-schema.xsd http://oval.mitre.org/XMLSchema/oval-common-5 oval-common-schema.xsd">
++  <generator>
++    <oval:schema_version>5.11.1</oval:schema_version>
++    <oval:timestamp>2026-10-20T00:00:00+00:00</oval:timestamp>
++  </generator>
++
++  <definitions>
++    <definition class="compliance" version="1" id="oval:x:def:1">
++      <metadata>
++        <title>pam_faillock is in the auth stack of /etc/pam.d/system-auth</title>
++        <description>x</description>
++        <affected family="unix">
++          <platform>x</platform>
++        </affected>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:x:tst:1" comment="textfilecontent54_test"/>
++      </criteria>
++    </definition>
++  </definitions>
++
++  <tests>
++    <ind:textfilecontent54_test id="oval:x:tst:1" version="1" comment="/etc/pam.d/system-auth calls pam_faillock" check="all" check_existence="at_least_one_exists">
++      <ind:object object_ref="oval:x:obj:1"/>
++    </ind:textfilecontent54_test>
++  </tests>
++
++  <objects>
++    <ind:textfilecontent54_object id="oval:x:obj:1" version="1" comment="The pam_faillock line of /etc/pam.d/system-auth">
++      <ind:path>/etc/pam.d</ind:path>
++      <ind:filename>system-auth</ind:filename>
++      <ind:pattern operation="pattern match">^auth required pam_faillock\.so preauth$</ind:pattern>
++      <ind:instance datatype="int" operation="greater than or equal">1</ind:instance>
++    </ind:textfilecontent54_object>
++  </objects>
++
++</oval_definitions>

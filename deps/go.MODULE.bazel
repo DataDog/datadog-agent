@@ -48,10 +48,6 @@ go_deps.gazelle_override(
     path = "cel.dev/cel-go",
 )
 go_deps.gazelle_override(
-    directives = ["gazelle:build_file_generation on"],
-    path = "github.com/coreos/etcd",
-)
-go_deps.gazelle_override(
     directives = ["gazelle:go_naming_convention go_default_library"],
     path = "github.com/google/cel-go",
 )
@@ -180,7 +176,6 @@ use_repo(
     "com_github_go_viper_mapstructure_v2",
     "com_github_go_zookeeper_zk",
     "com_github_gobwas_glob",
-    "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
     "com_github_gofrs_flock",
@@ -207,7 +202,6 @@ use_repo(
     "com_github_hashicorp_go_retryablehttp",
     "com_github_hashicorp_go_version",
     "com_github_hashicorp_golang_lru_v2",
-    "com_github_hashicorp_vault",
     "com_github_hashicorp_vault_api",
     "com_github_hashicorp_vault_api_auth_approle",
     "com_github_hashicorp_vault_api_auth_aws",

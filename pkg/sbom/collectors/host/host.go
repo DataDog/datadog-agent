@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
-	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 // Collector defines a host collector
@@ -30,16 +29,12 @@ type Collector struct {
 
 // Init initialize the host collector
 func (c *Collector) Init(cfg config.Component, _ option.Option[workloadmeta.Component]) error {
-	return c.initWithOpts(cfg, sbom.ScanOptionsFromConfigForHosts(cfg))
-}
-
-func (c *Collector) initWithOpts(cfg config.Component, opts sbom.ScanOptions) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	c.opts = opts
+	c.opts = sbom.ScanOptionsFromConfigForHosts(cfg)
 	return nil
 }
 
@@ -48,37 +43,10 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	path := request.ID() // for host request, ID == path
 	log.Infof("host scan request [%v]", path)
 
-	report, err := c.DirectScan(ctx, path)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
 	return sbom.ScanResult{
 		Error:            err,
 		Report:           report,
 		GenerationMethod: "filesystem",
 	}
-}
-
-// DirectScan performs a scan on a specific path
-func (c *Collector) DirectScan(ctx context.Context, path string) (sbom.Report, error) {
-	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
-}
-
-// DirectScanForTrivyReport performs a scan on a specific path
-func (c *Collector) DirectScanForTrivyReport(ctx context.Context, path string) (*types.Report, error) {
-	report, err := c.trivyCollector.ScanFSTrivyReport(ctx, path, c.opts, true)
-	if err != nil {
-		return nil, err
-	}
-	return report, nil
-}
-
-// NewCollectorForCWS creates a new host collector, specifically for CWS
-func NewCollectorForCWS(cfg config.Component, opts sbom.ScanOptions) (*Collector, error) {
-	c := &Collector{
-		resChan: make(chan sbom.ScanResult, channelSize),
-	}
-
-	if err := c.initWithOpts(cfg, opts); err != nil {
-		return nil, err
-	}
-
-	return c, nil
 }
