@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,24 +74,47 @@ func DetectCloudProviderDMI() string {
 	}
 }
 
+var cloudProviderCacheKey = cache.BuildAgentKey("cloudproviders", "DetectCloudProvider")
+
 // DetectCloudProvider detects the cloud provider where the agent is running in order. It first
 // tries DetectCloudProviderDMI, which is network-free and therefore much faster; only when DMI
 // can't tell us the cloud provider do we fall back to the network-based detectors.
+// A detected cloud provider is cached, the account ID is fetched on every call that requests it.
 func DetectCloudProvider(ctx context.Context, collectAccountID bool) (string, string) {
+	name := detectCloudProvider(ctx)
+	if name == "" {
+		log.Info("No cloud provider detected")
+		return "", ""
+	}
+	return name, detectCloudProviderAccountID(ctx, name, collectAccountID, cloudProviderDetectors[name].accountIDCallback)
+}
+
+// detectCloudProvider returns the name of the cloud provider where the agent is running, or an empty string if
+// it couldn't be detected. A detected cloud provider is cached as it doesn't change during the agent lifetime.
+// A failed detection is not cached since it can be caused by a transient error, such as a metadata endpoint timing out.
+func detectCloudProvider(ctx context.Context) string {
+	if cachedName, found := cache.Cache.Get(cloudProviderCacheKey); found {
+		if name, ok := cachedName.(string); ok {
+			log.Infof("Cloud provider %s retrieved from cache", name)
+			return name
+		}
+	}
+
 	if name := DetectCloudProviderDMI(); name != "" {
 		log.Infof("Cloud provider %s detected via DMI", name)
-		return name, detectCloudProviderAccountID(ctx, name, collectAccountID, cloudProviderDetectors[name].accountIDCallback)
+		cache.Cache.Set(cloudProviderCacheKey, name, cache.NoExpiration)
+		return name
 	}
 
 	for _, name := range cloudProviderDetectorResolutionOrder {
 		cloudDetector := cloudProviderDetectors[name]
 		if cloudDetector.callback(ctx) {
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
-			return cloudDetector.name, detectCloudProviderAccountID(ctx, cloudDetector.name, collectAccountID, cloudDetector.accountIDCallback)
+			cache.Cache.Set(cloudProviderCacheKey, cloudDetector.name, cache.NoExpiration)
+			return cloudDetector.name
 		}
 	}
-	log.Info("No cloud provider detected")
-	return "", ""
+	return ""
 }
 
 // detectCloudProviderAccountID fetches the account ID for the given cloud provider, if requested
