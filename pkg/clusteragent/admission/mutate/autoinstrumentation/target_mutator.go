@@ -188,6 +188,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if resolved == nil {
 		return false, nil
 	}
+	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
+
 	injection := resolved.plan
 	if injection.blocked {
 		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
@@ -231,9 +233,6 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if injection.appliedMetadataJSON != "" {
 		m.addAppliedMetadata(pod, resolved)
 	}
-
-	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
-
 	return true, nil
 }
 
