@@ -46,6 +46,10 @@ supervisor registration UUIDs once a minute. A supervisor restart recreates both
 registrations; only then does core re-arm startup and require RC plus a fresh AAA grant.
 Replacing only one registration waits without starting anything. Losing connectivity
 alone does not re-arm the gate, and a recovered connection restores the handoff state.
+Unchanged registrations remain supervisor-owned even if their configuration becomes invalid.
+Safe automatic recovery assumes the old supervisor's children have been terminated, as with
+systemd's packaged control-group cleanup. Custom supervisors need equivalent cleanup:
+new UUIDs alone do not prove that old OS processes are gone.
 
 There is at most one accepted or ambiguous core Start request for the same observed
 registration lifecycle. A definitive `NotFound` before spawn allows re-observation;
