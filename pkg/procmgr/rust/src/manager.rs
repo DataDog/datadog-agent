@@ -819,14 +819,17 @@ impl ProcessManager {
     }
 
     async fn shutdown(&self) {
-        let order: Vec<usize> = self
-            .startup_order
-            .read()
-            .await
-            .iter()
-            .copied()
-            .rev()
-            .collect();
+        let n = self.processes.read().await.len();
+        let ordered = self.startup_order.read().await.clone();
+        // Reverse dependency order for processes in the graph, then append
+        // cycle-excluded indices so a running omittee is still stopped.
+        let mut order: Vec<usize> = ordered.iter().copied().rev().collect();
+        let in_order: HashSet<usize> = ordered.into_iter().collect();
+        for idx in 0..n {
+            if !in_order.contains(&idx) {
+                order.push(idx);
+            }
+        }
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
     }
@@ -2076,6 +2079,53 @@ mod tests {
         assert!(
             procs.iter().all(|p| !p.is_running()),
             "runtime-created process should also be shut down"
+        );
+        Ok(())
+    }
+
+    /// An unchanged running process pulled into a cycle is omitted from
+    /// `startup_order`. Shutdown must still stop it.
+    #[tokio::test]
+    async fn test_shutdown_stops_cycle_excluded_running_process() -> anyhow::Result<()> {
+        let mut a = sleep_def("svc-a");
+        a.config.after = vec!["svc-b".to_string()];
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![a, sleep_def("svc-b")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.start(&exit_tx).await;
+        assert!(
+            mgr.processes().await.iter().all(|p| p.is_running()),
+            "both should be running before the cycle reload"
+        );
+
+        let mut a = sleep_def("svc-a");
+        a.config.after = vec!["svc-b".to_string()];
+        let mut b = sleep_def_secs("svc-b", test_helpers::ALT_TEST_SLEEP_SECS);
+        b.config.after = vec!["svc-a".to_string()];
+        config_loader.set(vec![a, b]);
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        {
+            let order = mgr.startup_order.read().await;
+            assert!(
+                order.is_empty(),
+                "cycle members must be excluded from startup order, got {order:?}"
+            );
+            let procs = mgr.processes().await;
+            let a = procs.iter().find(|p| p.name() == "svc-a").unwrap();
+            assert!(
+                a.is_running(),
+                "unchanged svc-a stays running while excluded from order"
+            );
+        }
+
+        mgr.shutdown().await;
+
+        let procs = mgr.processes().await;
+        assert!(
+            procs.iter().all(|p| !p.is_running()),
+            "cycle-excluded running processes must still be stopped"
         );
         Ok(())
     }
