@@ -19,21 +19,6 @@ func (l *LocalService) GetMetadata() serverlessdef.CloudServiceMetadata {
 	return serverlessdef.CloudServiceMetadata{}
 }
 
-func (c *CloudRun) CanCollectMetadata() bool { return false }
-func (c *CloudRun) GetMetadata() serverlessdef.CloudServiceMetadata {
-	return serverlessdef.CloudServiceMetadata{}
-}
-
-func (c *CloudRunJobs) CanCollectMetadata() bool { return false }
-func (c *CloudRunJobs) GetMetadata() serverlessdef.CloudServiceMetadata {
-	return serverlessdef.CloudServiceMetadata{}
-}
-
-func (c *ContainerApp) CanCollectMetadata() bool { return false }
-func (c *ContainerApp) GetMetadata() serverlessdef.CloudServiceMetadata {
-	return serverlessdef.CloudServiceMetadata{}
-}
-
 func (m *MicroVM) CanCollectMetadata() bool { return false }
 func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
 	return serverlessdef.CloudServiceMetadata{}

@@ -6,14 +6,17 @@
 package cloudservice
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -25,19 +28,18 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestGetSingleMetadataMalformedUrl(t *testing.T) {
-	assert.Equal(t, "unknown", getSingleMetadata(&http.Client{}, string([]byte("\u007F"))))
+	assert.Empty(t, getSingleMetadata(&http.Client{}, string([]byte("\u007F"))))
 }
 
 func TestSingleMetadataTimeout(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(100 * time.Millisecond)
-		w.WriteHeader(200)
+	ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
 	}))
 	defer ts.Close()
 	httpClient := &http.Client{
 		Timeout: 1 * time.Nanosecond,
 	}
-	assert.Equal(t, "unknown", getSingleMetadata(httpClient, ts.URL))
+	assert.Empty(t, getSingleMetadata(httpClient, ts.URL))
 }
 
 func TestSingleMetadataOK(t *testing.T) {
@@ -46,6 +48,15 @@ func TestSingleMetadataOK(t *testing.T) {
 	}))
 	defer ts.Close()
 	assert.Equal(t, "1234", getSingleMetadata(&http.Client{}, ts.URL))
+}
+
+func TestSingleMetadataHTTPError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer ts.Close()
+	assert.Empty(t, getSingleMetadata(ts.Client(), ts.URL))
+	assert.Empty(t, getRegion(ts.Client(), ts.URL))
 }
 
 func TestGetRegionUnknown(t *testing.T) {
@@ -111,9 +122,8 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 		w.Write([]byte("superProjectID"))
 	}))
 	defer tsProjectID.Close()
-	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(1 * time.Second)
-		w.Write([]byte("greatRegion"))
+	tsRegion := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
 	}))
 	defer tsRegion.Close()
 	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -129,10 +139,10 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}
 	expected := map[string]string{
 		"gcr.container_id": "acb54",
-		"gcr.location":     "unknown",
+		"gcr.location":     "",
 		"gcr.project_id":   "superprojectid",
 		"container_id":     "acb54",
-		"location":         "unknown",
+		"location":         "",
 		"project_id":       "superprojectid",
 	}
 
@@ -177,7 +187,7 @@ func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
 }
 
 func TestGetCloudRunTags(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+	service := &CloudRun{}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -193,20 +203,19 @@ func TestGetCloudRunTags(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"container_id":      "test_container",
-		"gcr.container_id":  "test_container",
-		"gcr.location":      "test_region",
-		"location":          "test_region",
-		"project_id":        "test_project",
-		"gcr.project_id":    "test_project",
-		"origin":            "cloudrun",
-		"_dd.origin":        "cloudrun",
-		"gcr.resource_name": "projects/test_project/locations/test_region/services/",
+		"container_id":     "test_container",
+		"gcr.container_id": "test_container",
+		"gcr.location":     "test_region",
+		"location":         "test_region",
+		"project_id":       "test_project",
+		"gcr.project_id":   "test_project",
+		"origin":           "cloudrun",
+		"_dd.origin":       "cloudrun",
 	}, tags)
 }
 
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+	service := &CloudRun{}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -242,7 +251,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
+	service := &CloudRun{isFunction: true}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -282,6 +291,200 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 		"gcrfx.function_signature_type": "test_signature",
 		"gcrfx.resource_name":           "projects/test_project/locations/test_region/services/test_service/functions/test_target",
 	}, tags)
+}
+
+func TestCloudRunServiceGetMetadata(t *testing.T) {
+	service := &CloudRun{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id":     "test_container",
+			"location":         "test_region",
+			"project_id":       "test_project",
+			"gcr.container_id": "test_container",
+			"gcr.location":     "test_region",
+			"gcr.project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("K_SERVICE", "test_service")
+	t.Setenv("K_REVISION", "test_revision")
+
+	service.GetTags()
+	metadata := service.GetMetadata()
+
+	assert.Equal(t, serverlessdef.CloudServiceMetadata{
+		WorkloadType:     workloadTypeCloudRunService,
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/revisions/test_revision",
+		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
+		ResourceName:     "test_service",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
+	}, metadata)
+	assert.True(t, service.CanCollectMetadata())
+}
+
+func TestCloudRunFunctionGetMetadata(t *testing.T) {
+	service := &CloudRun{isFunction: true}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id":       "test_container",
+			"location":           "test_region",
+			"project_id":         "test_project",
+			"gcrfx.container_id": "test_container",
+			"gcrfx.location":     "test_region",
+			"gcrfx.project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("K_SERVICE", "test_service")
+	t.Setenv("K_REVISION", "test_revision")
+	t.Setenv("FUNCTION_TARGET", "test_target")
+
+	service.GetTags()
+	metadata := service.GetMetadata()
+
+	assert.Equal(t, serverlessdef.CloudServiceMetadata{
+		WorkloadType:     workloadTypeCloudRunFunction,
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/revisions/test_revision",
+		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
+		ResourceName:     "test_service",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
+	}, metadata)
+	assert.True(t, service.CanCollectMetadata())
+}
+
+func TestCloudRunFunctionMetadataIndependentOfFunctionTarget(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{projectID: "project", location: "region"}
+	}
+	t.Setenv(ServiceNameEnvVar, "service")
+	t.Setenv(revisionNameEnvVar, "revision")
+	t.Setenv(functionTargetEnvVar, "target")
+	service := &CloudRun{isFunction: true}
+	service.GetTags()
+	first := service.GetMetadata()
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/revisions/revision", first.ResourceID)
+
+	for _, target := range []struct {
+		name  string
+		value string
+		unset bool
+	}{
+		{name: "changed", value: "another_target"},
+		{name: "empty"},
+		{name: "unset", unset: true},
+	} {
+		t.Run(target.name, func(t *testing.T) {
+			t.Setenv(functionTargetEnvVar, target.value)
+			if target.unset {
+				require.NoError(t, os.Unsetenv(functionTargetEnvVar))
+			}
+			assert.Equal(t, first, service.GetMetadata())
+		})
+	}
+}
+
+func TestCloudRunMissingIdentity(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	for _, kind := range []CloudRunType{CloudRunService, CloudRunFunction, CloudRunJob} {
+		t.Run(string(kind), func(t *testing.T) {
+			env := map[string]string{
+				ServiceNameEnvVar: "unknown", revisionNameEnvVar: "revision", functionTargetEnvVar: "target",
+				cloudRunJobNameEnvVar: "job", cloudRunExecutionEnvVar: "execution",
+			}
+			for key, value := range env {
+				t.Setenv(key, value)
+			}
+			keys := []string{projectID, location, ServiceNameEnvVar, revisionNameEnvVar}
+			if kind == CloudRunJob {
+				keys = []string{projectID, location, cloudRunJobNameEnvVar, cloudRunExecutionEnvVar}
+			}
+			for _, missing := range append([]string{"none", containerID, functionTargetEnvVar}, keys...) {
+				t.Run(missing, func(t *testing.T) {
+					values := map[string]string{projectID: "unknown", location: "region", containerID: "instance"}
+					delete(values, missing)
+					if _, ok := env[missing]; ok {
+						t.Setenv(missing, "")
+					}
+					metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string { return values }
+					var service CloudService = &CloudRun{isFunction: kind == CloudRunFunction}
+					if kind == CloudRunJob {
+						service = &CloudRunJobs{}
+					}
+					service.GetTags()
+					id := service.GetMetadata().ResourceID
+					if missing == "none" || missing == containerID || missing == functionTargetEnvVar {
+						assert.NotEmpty(t, id)
+					} else {
+						assert.Empty(t, id)
+					}
+					assert.True(t, service.CanCollectMetadata(), "identity readiness does not change platform support")
+				})
+			}
+		})
+	}
+}
+
+func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
+	for _, isFunction := range []bool{false, true} {
+		for _, available := range []bool{false, true} {
+			t.Run(fmt.Sprintf("function=%t/metadata=%t", isFunction, available), func(t *testing.T) {
+				t.Setenv(ServiceNameEnvVar, "service")
+				t.Setenv(revisionNameEnvVar, "revision")
+				t.Setenv(functionTargetEnvVar, "handler")
+				service := &CloudRun{isFunction: isFunction}
+				prefix := cloudRunServiceTagPrefix
+				kind := CloudRunService
+				if isFunction {
+					prefix = cloudRunFunctionTagPrefix
+					kind = CloudRunFunction
+				}
+				gcpMetadata := map[string]string{projectID: "", location: "", containerID: ""}
+				if available {
+					gcpMetadata = map[string]string{projectID: "project", location: "region", containerID: "instance"}
+				}
+				saved := metadataHelperFunc
+				t.Cleanup(func() { metadataHelperFunc = saved })
+				calls := 0
+				metadataHelperFunc = func(_ *GCPConfig, gotKind CloudRunType) map[string]string {
+					calls++
+					assert.Equal(t, kind, gotKind)
+					return gcpMetadata
+				}
+
+				assert.Empty(t, service.GetMetadata().ResourceID, "metadata before GetTags has no GCP values")
+				assert.Zero(t, calls, "GetMetadata must not fetch GCP metadata")
+
+				first := service.GetTags()
+				first[projectID] = "mutated-by-caller"
+				second := service.GetTags()
+				assert.Equal(t, gcpMetadata[projectID], second[projectID])
+				assert.NotContains(t, gcpMetadata, "origin", "tag enrichment must not mutate cached metadata")
+				assert.Equal(t, CloudRunOrigin, second["origin"])
+				assert.Equal(t, "service", second[prefix+serviceName])
+				assert.Equal(t, "revision", second[prefix+revisionName])
+				if available {
+					resource := "projects/project/locations/region/services/service"
+					if isFunction {
+						resource += "/functions/handler"
+					}
+					assert.Equal(t, resource, second[prefix+resourceName])
+					assert.NotEmpty(t, service.GetMetadata().ResourceID)
+				} else {
+					assert.NotContains(t, second, prefix+resourceName)
+					assert.Equal(t, "unknown", service.GetEnhancedMetricTags(second).Base[projectID])
+					assert.Empty(t, service.GetMetadata().ResourceID)
+				}
+				assert.Equal(t, 1, calls, "metadata and telemetry share the cached lookup, including failures")
+			})
+		}
+	}
 }
 
 func TestCloudRunShutdownEmitsMetrics(t *testing.T) {

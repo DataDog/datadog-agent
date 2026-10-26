@@ -109,6 +109,13 @@ func TestAppServiceGetMetadata(t *testing.T) {
 	assert.Equal(t, "Test_Site_Name", tags["aas.site.name"])
 	assert.Equal(t, "Test_Subscription_ID", tags["aas.subscription.id"])
 	assert.Equal(t, "Test_Resource_Group", tags["aas.resource.group"])
+	assert.Equal(t, map[string]string{
+		"name":            "Test_Site_Name",
+		"origin":          "appservice",
+		"region":          "eastus",
+		"resource_group":  "Test_Resource_Group",
+		"subscription_id": "Test_Subscription_ID",
+	}, service.GetEnhancedMetricTags(tags).Base)
 }
 
 func TestAppServiceGetMetadataFunctionApp(t *testing.T) {
@@ -139,6 +146,70 @@ func TestAppServiceGetMetadataFunctionApp(t *testing.T) {
 			assert.Equal(t, inv.ResourceID, tags["aas.resource.id"])
 			assert.Equal(t, "functionapp", tags["aas.site.kind"])
 			assert.Equal(t, worker, tags["aas.environment.runtime"])
+		})
+	}
+}
+
+func TestAppServiceMissingIdentity(t *testing.T) {
+	for _, missing := range []string{"none", "WEBSITE_OWNER_NAME", "WEBSITE_RESOURCE_GROUP", WebsiteName} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv(WebsiteName, "Test_Site_Name")
+			t.Setenv(RegionName, "")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+			require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+			if missing != "none" {
+				t.Setenv(missing, "")
+			}
+
+			service := &AppService{}
+			metadata := service.GetMetadata()
+			assert.Empty(t, metadata.ParentResourceID)
+			if missing == "none" {
+				assert.NotEmpty(t, metadata.ResourceID)
+			} else {
+				assert.Empty(t, metadata.ResourceID)
+				assert.Empty(t, service.GetTags()["aas.resource.id"])
+			}
+			assert.True(t, service.CanCollectMetadata(), "identity readiness does not change platform support")
+		})
+	}
+}
+
+func TestAppServiceMetadataPreservesTelemetry(t *testing.T) {
+	for _, worker := range []string{"", "python"} {
+		t.Run("worker="+worker, func(t *testing.T) {
+			t.Setenv("WEBSITE_SITE_NAME", "Test-Site")
+			t.Setenv("WEBSITE_OWNER_NAME", "Test-Subscription+webspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test-Group")
+			t.Setenv("REGION_NAME", "eastus")
+			t.Setenv("WEBSITE_STACK", "NODE")
+			t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "~18")
+			t.Setenv("COMPUTERNAME", "Test-Instance")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", worker)
+			if worker == "" {
+				require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+			}
+			service := &AppService{}
+			tags := service.GetTags()
+			assert.Equal(t, "/subscriptions/Test-Subscription/resourcegroups/Test-Group/providers/microsoft.web/sites/Test-Site", tags["aas.resource.id"])
+			if worker == "" {
+				assert.Equal(t, "Node.js", tags["aas.environment.runtime"])
+			} else {
+				assert.Equal(t, worker, tags["aas.environment.runtime"])
+			}
+			enhanced := service.GetEnhancedMetricTags(tags)
+			assert.Equal(t, map[string]string{
+				"name": "Test-Site", "origin": "appservice", "region": "eastus",
+				"resource_group": "Test-Group", "subscription_id": "Test-Subscription",
+			}, enhanced.Base)
+			assert.Equal(t, "Test-Instance", enhanced.Usage["instance"])
+
+			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "MetadataOnly")
+			service.GetMetadata()
+			assert.Equal(t, tags, service.GetTags())
+			assert.Equal(t, enhanced, service.GetEnhancedMetricTags(service.GetTags()))
 		})
 	}
 }
@@ -187,7 +258,7 @@ func TestAppServiceMetadataRuntimeCandidates(t *testing.T) {
 
 			expected := []string{tt.worker, tt.want}
 			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "candidates retain raw values and precedence")
-			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "InventoryOnly")
+			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "MetadataOnly")
 			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "override belongs to the metadata builder")
 			assert.Equal(t, originalTags, service.GetTags(), "metadata derivation and override must not change tracing tags")
 			if tt.worker != "" {

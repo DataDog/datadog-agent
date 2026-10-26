@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    The ``resource_id`` and ``aca.resource.id`` tags are omitted when the Azure
+    Container App name is unavailable, instead of being reported with an empty
+    trailing path segment.
+  - |
+    serverless-init now reads the Azure subscription ID and resource group for
+    Container App tags from the environment each time it builds tags, so later
+    changes to those values are reflected.
