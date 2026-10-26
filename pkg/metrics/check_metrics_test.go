@@ -90,3 +90,28 @@ func TestCheckMetricsNoExpiry(t *testing.T) {
 	assert.Contains(t, cm.metrics, ckey.ContextKey(3))
 	assert.Contains(t, cm.metrics, ckey.ContextKey(4))
 }
+
+func TestPeriodicSetKeepsRunUniqueness(t *testing.T) {
+	cm := NewCheckMetrics(true, time.Hour)
+	cfg := setupConfig(t)
+	add := func(v string) {
+		assert.NoError(t, cm.AddSample(1, &MetricSample{Mtype: SetType, RawValue: v}, 1, 1, cfg))
+	}
+	add("a")
+	add("b")
+	series, errs := cm.FlushIntermediate(100)
+	assert.Empty(t, series)
+	assert.Empty(t, errs)
+	add("b")
+	add("c")
+	series, errs = cm.FlushRunScoped(101)
+	assert.Empty(t, errs)
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, float64(3), series[0].Points[0].Value)
+	}
+	add("a")
+	series, _ = cm.FlushRunScoped(102)
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, float64(1), series[0].Points[0].Value)
+	}
+}
