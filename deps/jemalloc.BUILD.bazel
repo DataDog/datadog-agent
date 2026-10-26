@@ -91,6 +91,8 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
+    # Bazel uses gcc for CXX; jemalloc assumes that CXX links libstdc++ itself.
+    env = {"LDFLAGS": "-lstdc++"},
     lib_source = ":all_srcs",
     out_shared_libs = ["libjemalloc.so"],
     resource_size = "medium",
