@@ -142,9 +142,6 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		if err != nil || p.GetDetail() == nil {
 			return set("waiting", "supervisor_unavailable", pollInterval)
 		}
-		if p.Detail.AutoStart || p.Detail.RestartPolicy != "never" {
-			return set("blocked", "supervisor_must_be_on_demand_no_restart", 0)
-		}
 		children[i] = p.Detail
 	}
 	generation := [2]string{children[0].Uuid, children[1].Uuid}
@@ -166,6 +163,11 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		}
 		c.attempted = false
 		c.generation = [2]string{}
+	}
+	for _, child := range children {
+		if child.AutoStart || child.RestartPolicy != "never" {
+			return set("blocked", "supervisor_must_be_on_demand_no_restart", 0)
+		}
 	}
 	for _, child := range children {
 		switch child.State {
