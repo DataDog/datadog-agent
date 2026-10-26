@@ -69,7 +69,7 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	buildFIPS, err := fips.Enabled()
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || buildFIPS || cfg.GetBool("fips.enabled") ||
 		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
-		publish(State{State: "blocked", Reason: "unsupported_poc_configuration"})
+		publish(State{State: "blocked", Reason: "unsupported_configuration"})
 		return
 	}
 	socket := os.Getenv("DD_PM_SOCKET_PATH")
