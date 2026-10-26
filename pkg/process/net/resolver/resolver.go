@@ -170,10 +170,9 @@ containersLoop:
 // If lookup by table fails above, we fall back to using
 // the l.addrToCtrID map
 //
-// It returns the connections whose laddr container differs from their
-// process's container, mapped to the process's container. system-probe sets
-// such a laddr when it attributes a proxy's socket to the container that owns
-// the socket's network namespace.
+// It returns the connections system-probe marked as reattributed to the
+// container owning the socket's network namespace, mapped to the owning
+// process's own container.
 func (l *LocalResolver) Resolve(c *model.Connections) map[*model.Connection]string {
 	l.mux.Lock()
 	defer l.mux.Unlock()
@@ -214,16 +213,15 @@ func (l *LocalResolver) Resolve(c *model.Connections) map[*model.Connection]stri
 		// then laddr container id may be set, so check that
 		// first
 		cid := conn.Laddr.ContainerId
-		if v, ok := l.ctrForPid[int(conn.Pid)]; ok {
-			pidCID, _ := v.cid.Get().(string)
-			if cid == "" {
-				cid = pidCID
-			} else if pidCID != "" && pidCID != cid {
-				if reattributed == nil {
-					reattributed = make(map[*model.Connection]string)
-				}
-				reattributed[conn] = pidCID
+		if cid == "" {
+			if v, ok := l.ctrForPid[int(conn.Pid)]; ok {
+				cid, _ = v.cid.Get().(string)
 			}
+		} else if original := conn.NetnsOriginalContainerId; original != "" {
+			if reattributed == nil {
+				reattributed = make(map[*model.Connection]string)
+			}
+			reattributed[conn] = original
 		}
 
 		if cid == "" {

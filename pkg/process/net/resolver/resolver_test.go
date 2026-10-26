@@ -793,18 +793,21 @@ func TestLocalResolverCacheLimits(t *testing.T) {
 
 func TestResolveReportsNetNSReattributedConnections(t *testing.T) {
 	resolver := NewLocalResolver(nil, nil, 10, 10)
-	resolver.LoadAddrs(nil, map[int]string{7: "proxy-container", 8: "app-container"})
+	resolver.LoadAddrs(nil, map[int]string{7: "proxy-container", 8: "app-container", 9: "old-container"})
 
-	// system-probe set laddr to the pod owning the socket's namespace, not the proxy's container
-	moved := &model.Connection{Pid: 7, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 8080, ContainerId: "app-container"}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 15008}}
+	// system-probe set laddr to the pod owning the socket's namespace and marked the proxy's container
+	moved := &model.Connection{Pid: 7, Laddr: &model.Addr{Ip: "10.0.0.1", Port: 8080, ContainerId: "app-container"}, Raddr: &model.Addr{Ip: "10.0.0.2", Port: 15008}, NetnsOriginalContainerId: "proxy-container"}
 	// laddr matches the process's container
 	own := &model.Connection{Pid: 7, Laddr: &model.Addr{Ip: "10.0.0.3", Port: 9090, ContainerId: "proxy-container"}, Raddr: &model.Addr{Ip: "10.0.0.4", Port: 15008}}
 	// laddr left empty and filled from the PID
 	filled := &model.Connection{Pid: 8, Laddr: &model.Addr{Ip: "10.0.0.5", Port: 7070}, Raddr: &model.Addr{Ip: "10.0.0.6", Port: 80}}
+	// a stale PID map or a reused PID: laddr differs from the PID's container, but system-probe didn't mark it
+	stale := &model.Connection{Pid: 9, Laddr: &model.Addr{Ip: "10.0.0.7", Port: 6060, ContainerId: "new-container"}, Raddr: &model.Addr{Ip: "10.0.0.8", Port: 80}}
 
-	reattributed := resolver.Resolve(&model.Connections{Conns: []*model.Connection{moved, own, filled}})
+	reattributed := resolver.Resolve(&model.Connections{Conns: []*model.Connection{moved, own, filled, stale}})
 
 	assert.Equal(t, map[*model.Connection]string{moved: "proxy-container"}, reattributed)
 	assert.Equal(t, "app-container", moved.Laddr.ContainerId, "the reattributed container must be kept")
 	assert.Equal(t, "app-container", filled.Laddr.ContainerId)
+	assert.Equal(t, "new-container", stale.Laddr.ContainerId, "an unmarked mismatch keeps system-probe's laddr container")
 }
