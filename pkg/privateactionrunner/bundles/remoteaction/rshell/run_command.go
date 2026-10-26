@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 	"mvdan.cc/sh/v3/syntax"
@@ -47,6 +48,12 @@ const (
 	containerizedPathPrefix      = "/host"
 	directorProofKeyType         = privilegedhelper.KeyType("TUF_DIRECTOR")
 )
+
+// defaultMaxExecutionTime bounds an rshell run when the task context carries
+// no deadline, so a script that never terminates cannot hold a worker and a
+// CPU core indefinitely. A task timeout, when set, keeps precedence. It is a
+// variable so tests can shorten it.
+var defaultMaxExecutionTime = 10 * time.Minute
 
 // statFn is the function used to check path existence. It defaults to os.Stat
 // and can be overridden in tests.
@@ -362,6 +369,9 @@ func (h *RunCommandHandler) Run(
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		runnerOptions = append(runnerOptions, interp.MaxExecutionTime(defaultMaxExecutionTime))
 	}
 	if h.disableCommandTelemetry {
 		runnerOptions = append(runnerOptions, interp.DisableDetailedTelemetry())
