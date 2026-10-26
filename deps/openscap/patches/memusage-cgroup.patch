@@ -9,18 +9,19 @@ Date:   Thu Jul 20 13:40:38 2023 +0200
     cgroup. Both cgroup and cgroup2 are supported.
 
 diff --git a/src/common/memusage.c b/src/common/memusage.c
-index 8d75ee09c..f758de16c 100644
+index 8d75ee09c..de7db83f3 100644
 --- a/src/common/memusage.c
 +++ b/src/common/memusage.c
 @@ -46,14 +46,13 @@
  #define GET_VM_FREE_PAGE_COUNT  "vm.stats.vm.v_free_count"
  #define GET_VM_INACT_PAGE_COUNT "vm.stats.vm.v_inactive_count"
  #define GET_VM_ACT_PAGE_COUNT   "vm.stats.vm.v_active_count"
-+#endif /* OS_FREEBSD */
+-
+-#define BYTES_TO_KIB(x) (x >> 10)
+ #endif /* OS_FREEBSD */
  
- #define BYTES_TO_KIB(x) (x >> 10)
--#endif /* OS_FREEBSD */
- 
++#define BYTES_TO_KIB(x) ((x) >> 10)
++
  #if defined(OS_APPLE)
  #include <mach/mach.h>
  #include <sys/sysctl.h>
@@ -55,41 +56,31 @@ index 8d75ee09c..f758de16c 100644
  #define stat_sizet_field(name, stype, sfield)                           \
  	{ (name), &read_common_sizet, (ptrdiff_t)offsetof(stype, sfield) }
  
-@@ -303,14 +322,31 @@ int oscap_sys_memusage(struct sys_memusage *mu)
- 	if (mu == NULL)
- 		return -1;
- #if defined(OS_LINUX)
--	if (read_status(MEMUSAGE_LINUX_SYS_STATUS,
--	                mu, __sys_stat_ptable,
--	                (sizeof __sys_stat_ptable)/sizeof(struct stat_parser)) != 0)
--	{
--		return -1;
-+	// cgroup
-+	size_t cgroup_memory_usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_USAGE);
-+	size_t cgroup_memory_limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT);
-+	if (cgroup_memory_usage != (size_t)-1 && cgroup_memory_limit != (size_t)-1) {
-+		mu->mu_total = BYTES_TO_KIB(cgroup_memory_limit);
-+		mu->mu_realfree = BYTES_TO_KIB(cgroup_memory_limit) - BYTES_TO_KIB(cgroup_memory_usage);
-+	} else {
-+		// cgroup2
-+		size_t cgroup_memory_current = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT);
-+		size_t cgroup_memory_max = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_MAX);
-+		if (cgroup_memory_current != (size_t)-1 && cgroup_memory_max != (size_t)-1) {
-+			mu->mu_total = BYTES_TO_KIB(cgroup_memory_max);
-+			mu->mu_realfree = BYTES_TO_KIB(cgroup_memory_max) - BYTES_TO_KIB(cgroup_memory_current);
-+		} else {
-+			if (read_status(MEMUSAGE_LINUX_SYS_STATUS,
-+			                mu, __sys_stat_ptable,
-+			                (sizeof __sys_stat_ptable)/sizeof(struct stat_parser)) != 0)
-+			{
-+				return -1;
-+			}
-+
-+			mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
-+		}
+@@ -311,6 +330,27 @@ int oscap_sys_memusage(struct sys_memusage *mu)
  	}
  
--	mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
+ 	mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
++
++	/*
++	 * A cgroup memory limit below the physical memory bounds the memory
++	 * of the process. cgroup v1 reports a group without a limit as a
++	 * number larger than any memory, and cgroup v2 as "max", which does
++	 * not parse.
++	 */
++	size_t usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_USAGE);
++	size_t limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT);
++	if (usage == (size_t)-1 || limit == (size_t)-1) {
++		usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT);
++		limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_MAX);
++	}
++	if (usage != (size_t)-1 && limit != (size_t)-1 && BYTES_TO_KIB(limit) < mu->mu_total) {
++		size_t room = usage < limit ? BYTES_TO_KIB(limit - usage) : 0;
++
++		mu->mu_total = BYTES_TO_KIB(limit);
++		if (room < mu->mu_realfree)
++			mu->mu_realfree = room;
++	}
++
  #elif defined(OS_FREEBSD)
  	if (freebsd_sys_memusage(mu))
  		return -1;
@@ -109,3 +100,142 @@ index daa29fe57..aa8b9c9f0 100644
  #endif /* OS_LINUX */
  
  struct proc_memusage {
+--- a/tests/API/probes/test_memusage.c
++++ b/tests/API/probes/test_memusage.c
+@@ -6,6 +6,21 @@
+ 
+ #include <stdio.h>
+ #include "memusage.h"
++
++#if defined(OS_LINUX)
++/* oscap_sys_memusage reads the files that test_sys_memusage writes. */
++#undef MEMUSAGE_LINUX_SYS_STATUS
++#undef MEMUSAGE_LINUX_SYS_CGROUP_USAGE
++#undef MEMUSAGE_LINUX_SYS_CGROUP_LIMIT
++#undef MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT
++#undef MEMUSAGE_LINUX_SYS_CGROUP2_MAX
++#define MEMUSAGE_LINUX_SYS_STATUS "test_memusage.meminfo"
++#define MEMUSAGE_LINUX_SYS_CGROUP_USAGE "test_memusage.memory.usage_in_bytes"
++#define MEMUSAGE_LINUX_SYS_CGROUP_LIMIT "test_memusage.memory.limit_in_bytes"
++#define MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT "test_memusage.memory.current"
++#define MEMUSAGE_LINUX_SYS_CGROUP2_MAX "test_memusage.memory.max"
++#endif
++
+ #define OSCAP_TEST_READ_COMMON_SIZET
+ #include "memusage.c"
+ 
+@@ -51,6 +66,102 @@
+ 	return (ret != -1);
+ }
+ 
++#if defined(OS_LINUX)
++static const char meminfo[] =
++	"MemTotal:        8000000 kB\n"
++	"MemFree:         1000000 kB\n"
++	"Buffers:          200000 kB\n"
++	"Cached:          3000000 kB\n"
++	"Active:          4000000 kB\n"
++	"Inactive:        2000000 kB\n";
++
++/*
++ * Each test gives the contents of the cgroup files in bytes, NULL for a
++ * missing file, and the memory oscap_sys_memusage must report in KiB.
++ * The memory comes from meminfo, where the free memory is MemFree +
++ * Cached + Buffers, unless a cgroup limit below MemTotal bounds the total
++ * and the free memory. 9223372036854771712 is how cgroup v1 reports a
++ * group without a limit.
++ */
++static const struct sys_test {
++	const char *name;
++	const char *usage;	/* cgroup v1 memory.usage_in_bytes */
++	const char *limit;	/* cgroup v1 memory.limit_in_bytes */
++	const char *current;	/* cgroup v2 memory.current */
++	const char *max;	/* cgroup v2 memory.max */
++	size_t total;		/* mu_total */
++	size_t realfree;	/* mu_realfree */
++} sys_tests[] = {
++	{ "cgroup v1", "536870912\n", "2147483648\n", NULL, NULL, 2097152, 1572864 },
++	{ "cgroup v2", NULL, NULL, "268435456\n", "1073741824\n", 1048576, 786432 },
++	{ "cgroup v2 max", NULL, NULL, "268435456\n", "max\n", 8000000, 4200000 },
++	{ "no cgroup", NULL, NULL, NULL, NULL, 8000000, 4200000 },
++	{ "cgroup v1 unlimited", "536870912\n", "9223372036854771712\n", NULL, NULL, 8000000, 4200000 },
++	{ "cgroup v1 above MemTotal", "536870912\n", "17179869184\n", NULL, NULL, 8000000, 4200000 },
++	{ "cgroup v2 above MemTotal", NULL, NULL, "268435456\n", "17179869184\n", 8000000, 4200000 },
++	{ "cgroup v1 usage above limit", "2147487744\n", "2147483648\n", NULL, NULL, 2097152, 0 },
++};
++
++/* Write text to path, or remove path if text is NULL. */
++static int set_file(const char *path, const char *text)
++{
++	FILE *f;
++
++	if (text == NULL) {
++		if (remove(path) != 0 && errno != ENOENT)
++			return -1;
++		return 0;
++	}
++	f = fopen(path, "w");
++	if (f == NULL)
++		return -1;
++	if (fputs(text, f) == EOF) {
++		fclose(f);
++		return -1;
++	}
++	return fclose(f) == 0 ? 0 : -1;
++}
++
++static int test_sys_memusage()
++{
++	const struct sys_test *t;
++	struct sys_memusage mu;
++	size_t i;
++	int ok = 1;
++
++	if (set_file(MEMUSAGE_LINUX_SYS_STATUS, meminfo) != 0) {
++		perror(MEMUSAGE_LINUX_SYS_STATUS);
++		return 0;
++	}
++	for (i = 0; i < sizeof sys_tests / sizeof sys_tests[0]; i++) {
++		t = &sys_tests[i];
++		if (set_file(MEMUSAGE_LINUX_SYS_CGROUP_USAGE, t->usage) != 0 ||
++		    set_file(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT, t->limit) != 0 ||
++		    set_file(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT, t->current) != 0 ||
++		    set_file(MEMUSAGE_LINUX_SYS_CGROUP2_MAX, t->max) != 0) {
++			perror(t->name);
++			ok = 0;
++			break;
++		}
++		memset(&mu, 0, sizeof mu);
++		if (oscap_sys_memusage(&mu) != 0) {
++			fprintf(stderr, "%s: oscap_sys_memusage failed\n", t->name);
++			ok = 0;
++		} else if (mu.mu_total != t->total || mu.mu_realfree != t->realfree) {
++			fprintf(stderr, "%s: mu_total %zu, mu_realfree %zu, want %zu, %zu\n",
++				t->name, mu.mu_total, mu.mu_realfree, t->total, t->realfree);
++			ok = 0;
++		}
++	}
++	set_file(MEMUSAGE_LINUX_SYS_STATUS, NULL);
++	set_file(MEMUSAGE_LINUX_SYS_CGROUP_USAGE, NULL);
++	set_file(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT, NULL);
++	set_file(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT, NULL);
++	set_file(MEMUSAGE_LINUX_SYS_CGROUP2_MAX, NULL);
++	return ok;
++}
++#endif
++
+ int main(int argc, char *argv[])
+ {
+ 	if (!test_basic()) {
+@@ -69,5 +180,11 @@
+ 		fprintf(stderr, "test_errno has failed\n");
+ 		return 1;
+ 	}
++#if defined(OS_LINUX)
++	if (!test_sys_memusage()) {
++		fprintf(stderr, "test_sys_memusage has failed\n");
++		return 1;
++	}
++#endif
+ 	return 0;
+ }

@@ -131,7 +131,7 @@ var distroUbuntu2404 = distro{
 	os:   os.Ubuntu2404,
 	// The container VM needs Docker pre-baked: ec2docker no longer runtime-installs it
 	// for Ubuntu, and the plain 24.04 AMI lacks it. The -e2e AMI is still Ubuntu 24.04.
-	containerOS: &os.Ubuntu2404E2E,
+	containerOS: &os.Ubuntu2404,
 	frameworkID: "cis-ubuntu2404",
 	family:      debian,
 	minRules:    320,

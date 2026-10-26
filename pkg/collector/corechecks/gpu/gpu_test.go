@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
@@ -42,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -416,11 +418,11 @@ func TestGPUToContainersMapSkipsKAIReservationPods(t *testing.T) {
 }
 
 func TestSyncNvmlHealthIssue(t *testing.T) {
-	healthStore := healthplatformmock.New(t)
+	healthStore := healthplatformmock.New(t, healthplatformmock.WithResourceIdentity("cluster", "cluster-id-123"))
 	check := &Check{}
 	check.SetIssueReporter(healthStore)
 
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	issueID := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable + ":cluster-id-123"
 
 	check.syncNvmlHealthIssue(true, false)
 	issue := healthStore.GetIssue(issueID)
@@ -435,6 +437,37 @@ func TestSyncNvmlHealthIssue(t *testing.T) {
 	assert.Nil(t, healthStore.GetIssue(issueID))
 }
 
+func TestSyncNvmlHealthIssueResolvesLegacyID(t *testing.T) {
+	healthStore := healthplatformmock.New(t)
+	check := &Check{}
+	check.SetIssueReporter(healthStore)
+
+	legacyID := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	issue, err := gpuenvironment.NewGPUEnvironmentIssue().BuildIssue(map[string]string{"reason": gpuenvironment.ReasonNvmlUnavailable})
+	require.NoError(t, err)
+	issue.Id = legacyID
+	require.NoError(t, healthStore.ReportIssue(issue))
+
+	check.syncNvmlHealthIssue(false, true)
+	assert.Nil(t, healthStore.GetIssue(legacyID))
+}
+
+func TestSyncNvmlHealthIssueReplacesLegacyIDWhileUnavailable(t *testing.T) {
+	healthStore := healthplatformmock.New(t, healthplatformmock.WithResourceIdentity("cluster", "cluster-id-123"))
+	check := &Check{}
+	check.SetIssueReporter(healthStore)
+
+	legacyID := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	issue, err := gpuenvironment.NewGPUEnvironmentIssue().BuildIssue(map[string]string{"reason": gpuenvironment.ReasonNvmlUnavailable})
+	require.NoError(t, err)
+	issue.Id = legacyID
+	require.NoError(t, healthStore.ReportIssue(issue))
+
+	check.syncNvmlHealthIssue(true, false)
+	assert.Nil(t, healthStore.GetIssue(legacyID))
+	assert.NotNil(t, healthStore.GetIssue(legacyID+":cluster-id-123"))
+}
+
 func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
 	check := &Check{}
 
@@ -444,8 +477,9 @@ func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
 }
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
-	// eBPF is disabled by default, and PLR requires the system-probe endpoint.
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 2
+	// eBPF and KAI Scheduler support are disabled by default, and PLR
+	// requires the system-probe endpoint.
+	numSupportedCollectorTypes := nvidia.NumCollectors() - 3
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	curDeviceCount := atomic.Int32{}
@@ -507,9 +541,58 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	assertCollectors(check.collectors)
 }
 
+func TestCollectorsRetriedAfterCreationFailure(t *testing.T) {
+	// GPM is denied when the collectors are created, and allowed later
+	var gpmPermissionDenied atomic.Bool
+	gpmPermissionDenied.Store(true)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessData(nil, nvml.SUCCESS),
+		testutil.WithDeviceCount(1),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			gpmSampleGet := device.GpmSampleGetFunc
+			device.GpmSampleGetFunc = func(sample nvml.GpmSample) nvml.Return {
+				if gpmPermissionDenied.Load() {
+					return nvml.ERROR_NO_PERMISSION
+				}
+				return gpmSampleGet(sample)
+			}
+		}),
+	)
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	now := time.Now()
+	check.collectorBuilder.SetClockForTest(func() time.Time { return now })
+	gpmCollectors := func() int {
+		count := 0
+		for _, c := range check.collectors {
+			if c.Name() == "gpm" {
+				count++
+			}
+		}
+		return count
+	}
+
+	require.NoError(t, check.Run())
+	deniedCount := gpmCollectors()
+
+	gpmPermissionDenied.Store(false)
+	now = now.Add(time.Minute)
+	require.NoError(t, check.Run())
+	require.Equal(t, deniedCount+1, gpmCollectors())
+
+	// no duplicate collectors are created afterwards
+	collectorCount := len(check.collectors)
+	now = now.Add(time.Hour)
+	require.NoError(t, check.Run())
+	require.Len(t, check.collectors, collectorCount)
+}
+
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
-	// eBPF is disabled by default, and PLR requires the system-probe endpoint.
-	parentCollectorTypes := nvidia.NumCollectors() - 2
+	// eBPF and KAI Scheduler support are disabled by default, and PLR
+	// requires the system-probe endpoint.
+	parentCollectorTypes := nvidia.NumCollectors() - 3
 	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
 	migCollectorTypes := parentCollectorTypes - 4
 
@@ -1014,6 +1097,8 @@ func TestLostGPUStillReportsDeviceTotal(t *testing.T) {
 	})
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{})
+	// emitMetrics is called directly, so start the device events gatherer as Run does
+	require.NoError(t, check.deviceEvtGatherer.Start())
 
 	runCheck := func(runTime time.Time) float64 {
 		mockSender.ResetCalls()
@@ -1331,6 +1416,121 @@ func TestRunEmitsSharedProcessTagsMultiGPUContainer(t *testing.T) {
 	mockSender.AssertExpectations(t)
 }
 
+// withKAISchedulerEnabled enables KAI Scheduler support, which the sharing
+// collector requires, for the duration of the test.
+func withKAISchedulerEnabled(t *testing.T) {
+	t.Helper()
+	configmock.New(t).SetInTest("gpu.kai_scheduler.enabled", true)
+}
+
+func TestEmitSharingFractionPerContainer(t *testing.T) {
+	// Two KAI pods share GPU 0 in halves, and one of them also holds half of
+	// GPU 1. Each fraction must carry the tags of its own pod only.
+	withKAISchedulerEnabled(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
+	// The real collectors run, and their process samples look up containers by PID.
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, map[int]string{})
+	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	gpu0, gpu1 := testutil.GPUUUIDs[0], testutil.GPUUUIDs[1]
+	fracA := &workloadmeta.Container{
+		EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "frac-a"},
+		Runtime:      workloadmeta.ContainerRuntimeContainerd,
+		GPUDeviceIDs: []string{gpu0},
+		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5}},
+	}
+	fracMulti := &workloadmeta.Container{
+		EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "frac-multi"},
+		Runtime:      workloadmeta.ContainerRuntimeContainerd,
+		GPUDeviceIDs: []string{gpu0, gpu1},
+		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5}, gpu1: {Fraction: 0.5}},
+	}
+	for _, container := range []*workloadmeta.Container{fracA, fracMulti} {
+		wmetaMock.Set(container)
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", []string{"pod_name:" + container.ID}, nil, nil, nil)
+	}
+	for _, uuid := range []string{gpu0, gpu1} {
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai_fraction"}, nil, nil, nil)
+	}
+
+	require.NoError(t, check.Run())
+
+	type series struct {
+		value float64
+		tags  []string
+	}
+	var emitted []series
+	for _, call := range mockSender.Mock.Calls {
+		if call.Method != "GaugeWithTimestamp" || call.Arguments.Get(0).(string) != "gpu.device.sharing_fraction" {
+			continue
+		}
+		tags := slices.Sorted(slices.Values(call.Arguments.Get(3).([]string)))
+		emitted = append(emitted, series{call.Arguments.Get(1).(float64), tags})
+	}
+
+	assert.ElementsMatch(t, []series{
+		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
+		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
+		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+	}, emitted)
+}
+
+func TestSharingFractionFollowsSpec(t *testing.T) {
+	// device.sharing_fraction needs a container on the device, which
+	// TestMetricsFollowSpec cannot add without giving every device metric
+	// container tags that their spec does not list. Validate it on its own,
+	// against the same spec and validation code.
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+	withKAISchedulerEnabled(t)
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+
+	for _, config := range gpuspec.KnownGPUConfigs(specs) {
+		if config.DeviceMode == gpuspec.DeviceModeMIG {
+			// The MIG mock exposes a different device layout; the share
+			// logic does not depend on the device mode.
+			continue
+		}
+		t.Run(fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode), func(t *testing.T) {
+			setup := setupMockCheckForMetricCollection(t, config, specs.Architectures, specs.Architectures.Architectures[config.Architecture])
+			setup.wmeta.Set(&workloadmeta.Container{
+				EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "fractional"},
+				Runtime:      workloadmeta.ContainerRuntimeContainerd,
+				GPUDeviceIDs: []string{testutil.DefaultGpuUUID},
+				GPUShares:    map[string]workloadmeta.GPUShare{testutil.DefaultGpuUUID: {Fraction: 0.5}},
+			})
+			setup.fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "fractional"), "spec-test", []string{"kube_container_name:fractional"}, nil, nil, nil)
+
+			setup.runCollection()
+
+			emitted := GetEmittedGPUMetrics(setup.mockSender)
+			require.NotEmpty(t, emitted["device.sharing_fraction"])
+			results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]gpuspec.MetricObservation{
+				"device.sharing_fraction": emitted["device.sharing_fraction"],
+			}, setup.knownTagValues, gpuspec.ValidationOptions{
+				WorkloadActive:  true,
+				ConfigFeatures:  gpuspec.AllConfigFeatures(),
+				WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
+			})
+			require.NoError(t, err)
+			status := results.Metrics["device.sharing_fraction"]
+			require.NotNil(t, status)
+			assert.False(t, status.HasFailures(), "%+v", status)
+			for tag, tagResult := range status.TagResults {
+				assert.Zero(t, tagResult.Missing, "tag %s missing", tag)
+				assert.Zero(t, tagResult.Unknown, "tag %s unknown", tag)
+				assert.Zero(t, tagResult.InvalidValue, "tag %s invalid: %v", tag, tagResult.InvalidValueSamples)
+			}
+		})
+	}
+}
+
 func TestGetGPUToProcessesMap(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	check := &Check{wmeta: wmetaMock}
@@ -1396,8 +1596,7 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 	}
 
 	// Only keep stateless + ebpf; disable everything else.
-	collectors, err := nvidia.BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := nvidia.BuildCollectors(devices, deps)
 
 	processData := []testutil.MockProcessInfoList{
 		// Round 1: active process
@@ -1517,8 +1716,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 		Config:       gpuconfig.Config{DisabledCollectors: disabled},
 	}
-	collectors, err := nvidia.BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := nvidia.BuildCollectors(devices, deps)
 	require.Len(t, collectors, 2)
 
 	collectorSamples := make(map[nvidia.CollectorName][]nvidia.Sample)
@@ -1636,14 +1834,8 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 		pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{})
 	})
 
-	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
-	nvmltestutil.SetupMockNVML(t,
-		testutil.WithMockAllFunctions(),
-		testutil.WithDeviceCount(2),
-	)
-
 	var createdCollectorUUIDs []string
-	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.CollectorBuilder{
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
 		"mock": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
 			deviceUUID := device.GetDeviceInfo().UUID
 			createdCollectorUUIDs = append(createdCollectorUUIDs, deviceUUID)
@@ -1651,11 +1843,105 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 		},
 	})
 
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(2),
+	)
+
 	require.NoError(t, check.ensureInitCollectors())
 
 	assert.Equal(t, []string{includedDeviceUUID}, createdCollectorUUIDs)
 	require.Len(t, check.collectors, 1)
 	assert.Equal(t, includedDeviceUUID, check.collectors[0].Device().GetDeviceInfo().UUID)
+}
+
+func TestDeviceEventsRegisteredOnceGathererStarts(t *testing.T) {
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+
+	var eventSetCreateFails atomic.Bool
+	eventSetCreateFails.Store(true)
+	var eventTypeQueries atomic.Int32
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessData(nil, nvml.SUCCESS),
+		testutil.WithDeviceCount(1),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			getSupportedEventTypes := device.GetSupportedEventTypesFunc
+			device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
+				eventTypeQueries.Inc()
+				return getSupportedEventTypes()
+			}
+		}),
+		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
+			if eventSetCreateFails.Load() {
+				return nil, nvml.ERROR_NO_PERMISSION
+			}
+			return &nvmlmock.EventSet{
+				FreeFunc: func() nvml.Return { return nvml.SUCCESS },
+				WaitFunc: func(v uint32) (nvml.EventData, nvml.Return) {
+					time.Sleep(time.Duration(v) * time.Millisecond)
+					return nvml.EventData{}, nvml.ERROR_TIMEOUT
+				},
+			}, nvml.SUCCESS
+		}),
+	)
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+
+	require.NoError(t, check.Run())
+	require.False(t, check.deviceEvtGatherer.Started())
+	require.Empty(t, check.deviceEvtGatherer.GetRegisteredDeviceUUIDs())
+
+	// registrations are not reset while the gatherer cannot start, so the backoff applies
+	queries := eventTypeQueries.Load()
+	require.NoError(t, check.Run())
+	require.Equal(t, queries, eventTypeQueries.Load())
+
+	// once the gatherer starts, the devices are registered right away
+	eventSetCreateFails.Store(false)
+	require.NoError(t, check.Run())
+	require.True(t, check.deviceEvtGatherer.Started())
+	require.Equal(t, []string{testutil.GPUUUIDs[0]}, check.deviceEvtGatherer.GetRegisteredDeviceUUIDs())
+}
+
+func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
+	okCalls := 0
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
+		"ok": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			okCalls++
+			return &mockCollector{name: "ok", deviceUUID: device.GetDeviceInfo().UUID}, nil
+		},
+		"failing": func(_ ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			return nil, errors.New("insufficient permissions")
+		},
+	})
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	check.sysprobeNvmlState = func(model.NvmlState, time.Duration) error { return nil }
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+	)
+
+	require.NoError(t, check.ensureInitCollectors())
+	require.Len(t, check.collectors, 1)
+
+	check.releaseNVML()
+	require.True(t, ddnvml.IsNVMLReleased())
+	require.Empty(t, check.collectors)
+	check.reacquireNVML(true)
+	// releaseNVML shut the library down, so set up the NVML mock again
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+	)
+
+	// the collectors that worked are built again, even if the device has a collector pending a retry
+	require.NoError(t, check.deviceCache.Refresh())
+	require.NoError(t, check.ensureInitCollectors())
+	require.Len(t, check.collectors, 1)
+	require.Equal(t, 2, okCalls)
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
@@ -1700,6 +1986,8 @@ type metricCollectionSetup struct {
 	mockSender     *mocksender.MockSender
 	runCollection  func()
 	knownTagValues map[string]string
+	wmeta          workloadmetamock.Mock
+	fakeTagger     taggermock.Mock
 }
 
 func seedContainersForPIDMapping(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock, pidToContainerID map[int]string) {
@@ -1832,6 +2120,8 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		mockSender:     mockSender,
 		runCollection:  runCollection,
 		knownTagValues: knownTagValues,
+		wmeta:          wmeta,
+		fakeTagger:     fakeTagger,
 	}
 }
 

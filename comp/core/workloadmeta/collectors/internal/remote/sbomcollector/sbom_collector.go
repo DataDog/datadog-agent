@@ -281,6 +281,7 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		GenerationDuration: existingImage.SBOM.GenerationDuration,
 		GenerationMethod:   existingImage.SBOM.GenerationMethod,
 		Error:              existingImage.SBOM.Error,
+		OSFallback:         existingImage.SBOM.OSFallback,
 	}
 
 	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
@@ -346,9 +347,13 @@ func readyImage(store workloadmeta.Component, id string) (*workloadmeta.Containe
 	}
 
 	// A failed scan merged here would outlive the retry that replaces it, since
-	// this collector's source takes precedence in the store.
+	// this collector's source takes precedence in the store. So would an SBOM
+	// of the OS packages alone, left by a scan that ran out of time.
 	if existingImage.SBOM.Status != workloadmeta.Success {
 		return nil, "", fmt.Errorf("image %s SBOM is in state %q: %w", imageID, existingImage.SBOM.Status, errNotReady)
+	}
+	if existingImage.SBOM.OSFallback {
+		return nil, "", fmt.Errorf("image %s SBOM lists the OS packages alone: %w", imageID, errNotReady)
 	}
 
 	return existingImage, imageID, nil
