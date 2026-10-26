@@ -127,8 +127,6 @@
       aud: image-integrity
   variables:
     BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
-    # A signing failure must not block the image build.
-    DDSIGN_FAIL_OPEN: "1"
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
