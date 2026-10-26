@@ -30,6 +30,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)

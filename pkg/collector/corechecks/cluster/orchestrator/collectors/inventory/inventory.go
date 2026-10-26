@@ -23,6 +23,7 @@ import (
 var defaultGenericResource = []k8sCollectors.GenericResource{
 	{
 		Name:     "endpointslices",
+		Kind:     "EndpointSlice",
 		Group:    "discovery.k8s.io",
 		Version:  "v1",
 		NodeType: orchestrator.K8sEndpointSlice,

@@ -3,8 +3,28 @@ go_sdk.from_file(
     name = "go_work_sdk",
     go_work = "//:go.work",
 )
-use_repo(go_sdk, "go_work_sdk")
+go_sdk.from_file(
+    name = "go_civisibility_sdk",
+    go_work = "//:go.work",
+    patches = ["//bazel/patches:go_sdk-civisibility.patch"],
+)
+use_repo(go_sdk, "go_toolchains", "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
+
+msgo = use_extension("//bazel/rules/msgo:extension.bzl", "msgo")
+msgo.from_file(
+    go_work = "//:go.work",
+    msgo_revision = 1,
+)
+use_repo(msgo, "msgo", "msgo_toolchains")
+
+inject_repo(
+    msgo,
+    io_bazel_rules_go = "rules_go",
+)
+
+# Control registration order so the first toolchain takes precedence when @rules_go//go/toolchain:sdk_name is not set
+register_toolchains("@go_toolchains//:all", "@msgo_toolchains//:all")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
@@ -31,10 +51,6 @@ go_deps.gazelle_default_attributes(
 go_deps.gazelle_override(
     directives = ["gazelle:go_naming_convention go_default_library"],
     path = "cel.dev/cel-go",
-)
-go_deps.gazelle_override(
-    directives = ["gazelle:build_file_generation on"],
-    path = "github.com/coreos/etcd",
 )
 go_deps.gazelle_override(
     directives = ["gazelle:go_naming_convention go_default_library"],
@@ -165,7 +181,6 @@ use_repo(
     "com_github_go_viper_mapstructure_v2",
     "com_github_go_zookeeper_zk",
     "com_github_gobwas_glob",
-    "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
     "com_github_gofrs_flock",
@@ -192,7 +207,6 @@ use_repo(
     "com_github_hashicorp_go_retryablehttp",
     "com_github_hashicorp_go_version",
     "com_github_hashicorp_golang_lru_v2",
-    "com_github_hashicorp_vault",
     "com_github_hashicorp_vault_api",
     "com_github_hashicorp_vault_api_auth_approle",
     "com_github_hashicorp_vault_api_auth_aws",
@@ -519,6 +533,14 @@ go_deps.module_override(
     path = "github.com/tinylib/msgp",
 )
 
+# datadogV2 (~1.4M generated lines) peaks at 6.4 GiB per compile, way above GoCompilePkg's 250MB default, and gets
+# compiled in a dozen configurations by `bazel test //...`: book memory accordingly to keep containers from OOMing.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:datadog-api-client-go-datadogV2-memory.patch"],
+    path = "github.com/DataDog/datadog-api-client-go/v2",
+)
+
 # zstd's vendored C (divsufsort.c) compiles assert() calls whose __FILE__ expands to
 # the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
 # makes zstd.a non-reproducible build-to-build, so every test linking it always misses
@@ -582,10 +604,6 @@ go_deps.module_override(
 )
 
 inject_repo(go_deps, "systemd", "libpcap")
-
-register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
-
-use_repo_rule("//bazel/rules/go_civisibility_sdk:repo.bzl", "go_civisibility_sdk")(name = "go_civisibility_sdk")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
