@@ -40,7 +40,8 @@ fn parent_pid(pid: u32) -> Option<u32> {
 fn orphaned_grandchild_is_adopted_and_reaped() {
     let procmgr = TestEnv::new().with_process("orphan_grandchild").start();
     let daemon_pid = procmgr.daemon_pid();
-    let grandchild = wait_for_grandchild_pid(procmgr.env_root());
+    let root = procmgr.env_root();
+    let grandchild = wait_for_grandchild_pid(root);
 
     let deadline = Instant::now() + WAIT;
     while parent_pid(grandchild) != Some(daemon_pid) {
@@ -51,6 +52,9 @@ fn orphaned_grandchild_is_adopted_and_reaped() {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
+
+    std::fs::write(root.join("grandchild.release"), b"")
+        .expect("write grandchild.release so the orphan can exit");
 
     assert!(
         wait_for_pid_gone(grandchild, WAIT),
