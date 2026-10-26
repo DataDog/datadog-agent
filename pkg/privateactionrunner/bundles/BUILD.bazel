@@ -52,6 +52,7 @@ go_library(
         "//pkg/privateactionrunner/bundles/kubernetes/discovery",
         "//pkg/privateactionrunner/bundles/kubernetes/kubeactions",
         "//pkg/privateactionrunner/bundles/kubernetes/networking",
+        "//pkg/privateactionrunner/bundles/kubernetes/watermarkpodautoscaler",
         "//pkg/privateactionrunner/bundles/mongodb",
         "//pkg/privateactionrunner/bundles/remoteaction",
         "//pkg/privateactionrunner/bundles/remoteaction/datadogagent",
