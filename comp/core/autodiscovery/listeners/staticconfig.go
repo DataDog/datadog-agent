@@ -45,20 +45,27 @@ func (l *StaticConfigListener) createServices() {
 	// Each entry maps a config key (which controls enablement) to an autodiscovery
 	// identifier (which routes to a check via ad_identifiers). Nested config keys
 	// like gpu.nccl require an explicit AD identifier because dots are not
-	// conventional in AD names.
+	// conventional in AD names. requires, when set, is another config key that
+	// must also be enabled.
 	for _, entry := range []struct {
 		configKey    string
 		adIdentifier string
+		requires     string
 	}{
-		{"container_image.enabled", "_container_image"},
-		{"container_lifecycle.enabled", "_container_lifecycle"},
-		{"sbom.enabled", "_sbom"},
-		{"gpu.enabled", "_gpu"},
-		{"gpu.nccl.enabled", "_gpu_nccl"},
+		{"container_image.enabled", "_container_image", ""},
+		{"container_lifecycle.enabled", "_container_lifecycle", ""},
+		{"sbom.enabled", "_sbom", ""},
+		{"gpu.enabled", "_gpu", ""},
+		{"gpu.nccl.enabled", "_gpu_nccl", ""},
+		{"gpu.amd.enabled", "_gpu_amd", "gpu.enabled"},
 	} {
-		if enabled := pkgconfigsetup.Datadog().GetBool(entry.configKey); enabled {
-			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
+		if !pkgconfigsetup.Datadog().GetBool(entry.configKey) {
+			continue
 		}
+		if entry.requires != "" && !pkgconfigsetup.Datadog().GetBool(entry.requires) {
+			continue
+		}
+		l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
 	}
 
 	// System-probe sourced toggles: these live in system-probe.yaml and enable

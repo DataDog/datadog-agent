@@ -40,7 +40,12 @@ type ExporterConfig struct {
 	// to the legacy forwarder_backoff_* values for parity.
 	RetryConfig configretry.BackOffConfig `mapstructure:"retry_on_failure"`
 
-	configtls.ClientConfig `mapstructure:"tls"`
+	// ClientConfig is a named field rather than an embedded one: confmap decodes
+	// the fields around a squashed confmap.Unmarshaler (HTTPConfig) through
+	// reflect.StructOf, which does not support embedded types with methods
+	// that are not the first field. It keeps the name of the embedded field,
+	// which the contrib datadogexporter sets.
+	ClientConfig configtls.ClientConfig `mapstructure:"tls"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 	// API defines the Datadog API configuration.

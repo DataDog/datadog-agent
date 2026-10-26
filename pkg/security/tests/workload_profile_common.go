@@ -450,6 +450,40 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 	})) > 0
 }
 
+// profileFileSeenTimes returns the seen timestamps of a file node, for the image tag, under the process node of execBasename
+func profileFileSeenTimes(p *profile.Profile, execBasename string, basename string, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+
+	var findFile func(files map[string]*activity_tree.FileNode) *activity_tree.FileNode
+	findFile = func(files map[string]*activity_tree.FileNode) *activity_tree.FileNode {
+		for name, file := range files {
+			if name == basename {
+				return file
+			}
+			if child := findFile(file.Children); child != nil {
+				return child
+			}
+		}
+		return nil
+	}
+
+	for _, node := range walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return filepath.Base(node.Process.FileEvent.PathnameStr) == execBasename
+	}) {
+		file := findFile(node.Files)
+		if file == nil {
+			continue
+		}
+		if first, last, ok := file.GetSeenTimes(imageTagID); ok {
+			return time.Unix(0, first), time.Unix(0, last), true
+		}
+	}
+	return time.Time{}, time.Time{}, false
+}
+
 // profileHasDNS returns true if the profile contains a DNS node for the provided domain
 func profileHasDNS(p *profile.Profile, domain string) bool {
 	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {

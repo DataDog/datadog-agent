@@ -203,7 +203,8 @@ func (n *WorkflowRunner) handleTask(ctx context.Context, preparedTask *PreparedW
 	if err == nil {
 		n.publishSuccess(ctx, task, output)
 	} else {
-		logger.Warn("task execution failed", log.ErrorField(err))
+		// The error text can carry credentials, so it is only published to OPMS.
+		logger.Warn("task execution failed", log.Int32("error_code", int32(util.DefaultPARError(err).ErrorCode)))
 		n.publishFailure(ctx, task, err)
 	}
 }

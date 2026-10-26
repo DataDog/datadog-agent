@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Metrics received through OTLP ingest in the Datadog Agent carry the host tags
+    again for the period set by ``expected_tags_duration``. This stopped working
+    in Agent 7.60.0.

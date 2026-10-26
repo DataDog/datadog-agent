@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	debVersion "github.com/knqyf263/go-deb-version"
@@ -60,8 +61,10 @@ func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtype
 const statusPath = "var/lib/dpkg/status"
 const statusDPath = "var/lib/dpkg/status.d/"
 const infoPath = "var/lib/dpkg/info/"
+const diversionsPath = "var/lib/dpkg/diversions"
 const readDirBatchSize = 32
 const md5sumsSuffix = ".md5sums"
+const listSuffix = ".list"
 
 func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, error) {
 	pkgs, err := s.parseStatusFile(root, statusPath)
@@ -97,7 +100,8 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 			fullPath := filepath.Join(statusDPath, statusFile.Name())
 			pkg, err := s.parseStatusFile(root, fullPath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", fullPath, err)
+				seclog.Warnf("failed to parse dpkg status file (%s): %v", fullPath, err)
+				continue
 			}
 			pkgs = append(pkgs, pkg...)
 		}
@@ -122,7 +126,50 @@ func (s *dpkgScanner) listInstalledFiles(root *os.Root) (map[string][]string, er
 	res := make(map[string][]string, len(installedFilesInfo)+len(installedFilesStatus))
 	maps.Copy(res, installedFilesStatus)
 	maps.Copy(res, installedFilesInfo)
+
+	diversions := s.readDiversions(root)
+	for pkg, files := range res {
+		for i, file := range files {
+			if d, ok := diversions[file]; ok && d.pkg != pkg {
+				files[i] = d.to
+			}
+		}
+	}
 	return res, nil
+}
+
+// diversion holds the path where dpkg installs the files that packages other
+// than pkg ship at a diverted path. pkg is ":" for a local diversion.
+type diversion struct {
+	to, pkg string
+}
+
+// readDiversions returns the dpkg diversions by path. The database holds three
+// lines for each: the path, its new name and the diverting package.
+func (s *dpkgScanner) readDiversions(root *os.Root) map[string]diversion {
+	f, err := root.Open(diversionsPath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			seclog.Warnf("failed to open dpkg diversions (%s): %v", diversionsPath, err)
+		}
+		return nil
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		seclog.Warnf("failed to scan %s: %v", diversionsPath, err)
+	}
+
+	diversions := make(map[string]diversion, len(lines)/3)
+	for i := 0; i+2 < len(lines); i += 3 {
+		diversions[lines[i]] = diversion{to: lines[i+1], pkg: lines[i+2]}
+	}
+	return diversions
 }
 
 func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (map[string][]string, error) {
@@ -148,7 +195,8 @@ func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (
 			if !strings.HasSuffix(fileName, md5sumsSuffix) {
 				continue
 			}
-			pkgName := strings.TrimSuffix(fileName, md5sumsSuffix)
+			infoName := strings.TrimSuffix(fileName, md5sumsSuffix)
+			pkgName := infoName
 			// dpkg info files for multiarch packages are named "pkg:arch.md5sums"
 			// but the Package: field in the status file is unqualified ("pkg"), so strip the arch suffix.
 			if i := strings.LastIndex(pkgName, ":"); i >= 0 {
@@ -161,6 +209,20 @@ func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (
 					seclog.Warnf("failed to parse dpkg info file (%s): %v", fileName, err)
 				}
 				continue
+			}
+
+			// The list drops the files another package took over, which md5sums
+			// keeps. An image minimizer may leave a list empty.
+			listed, err := s.parseListFile(root, filepath.Join(baseDir, infoName+listSuffix))
+			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					seclog.Warnf("failed to parse dpkg list file (%s): %v", infoName+listSuffix, err)
+				}
+			} else if len(listed) > 0 {
+				installedFiles = slices.DeleteFunc(installedFiles, func(file string) bool {
+					_, ok := listed[file]
+					return !ok
+				})
 			}
 
 			res[pkgName] = append(res[pkgName], installedFiles...)
@@ -187,18 +249,35 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 		// https: //man7.org/linux/man-pages/man5/deb-md5sums.5.html
 		// but some files have a single space, especially mongodb-database-tools
 		// so we cut on the first space and then trim the path
-		_, installedPath, ok := strings.Cut(scanner.Text(), " ")
-		if !ok {
-			return nil, errors.New("failed to parse installed file line, bad format")
-		}
+		_, installedPath, _ := strings.Cut(scanner.Text(), " ")
 		installedPath = strings.TrimSpace(installedPath)
-		installedFiles = append(installedFiles, "/"+installedPath)
+		if installedPath == "" {
+			continue
+		}
+		// nfpm writes ./usr/bin/x where dpkg writes usr/bin/x
+		installedFiles = append(installedFiles, filepath.Clean("/"+installedPath))
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to scan %s: %w", path, err)
 	}
 
 	return installedFiles, nil
+}
+
+// parseListFile returns the set of paths in a dpkg .list file.
+func (s *dpkgScanner) parseListFile(root *os.Root, path string) (map[string]struct{}, error) {
+	f, err := root.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	listed := make(map[string]struct{})
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		listed[scanner.Text()] = struct{}{}
+	}
+	return listed, scanner.Err()
 }
 
 var dpkgSrcCaptureRegexp = regexp.MustCompile(`([^\s]*)(?: \((.*)\))?`)
@@ -267,7 +346,7 @@ func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]sbomtypes.P
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan %s: %w", path, err)
+		seclog.Warnf("failed to scan %s past %d packages: %v", path, len(pkgs), err)
 	}
 
 	return pkgs, nil
@@ -280,10 +359,9 @@ type dpkgStatusScanner struct {
 // newDPKGStatusScanner returns a new scanner that splits on empty lines.
 func newDPKGStatusScanner(r io.Reader) *dpkgStatusScanner {
 	s := bufio.NewScanner(r)
-	// Package data may exceed default buffer size
-	// Increase the buffer default size by 2 times
-	buf := make([]byte, 0, 128*1024)
-	s.Buffer(buf, 128*1024)
+	// A stanza lists every conffile of its package, and Trivy reads stanzas of
+	// up to 256 KiB, so the index lists the packages the image SBOM lists.
+	s.Buffer(make([]byte, 0, 64*1024), 1<<20)
 
 	s.Split(emptyLineSplit)
 	return &dpkgStatusScanner{Scanner: s}

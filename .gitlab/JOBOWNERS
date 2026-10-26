@@ -63,6 +63,7 @@ cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 # AIX/ppc64 jobs
 tests_aix-ppc64                       @DataDog/agent-devx @DataDog/agent-runtimes
 package_aix-ppc64                     @DataDog/agent-build @DataDog/agent-runtimes
+deploy_packages_aix-ppc64             @DataDog/agent-delivery @DataDog/agent-runtimes
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
@@ -167,6 +168,7 @@ deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
 deploy_mutable_secret_generic_connector_tags*  @Datadog/agent-delivery
 deploy_mutable_dca_tags*               @Datadog/agent-delivery
 deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
+deploy_mutable_host_profiler_tags*     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security

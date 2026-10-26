@@ -8,6 +8,7 @@
 package defaultforwarderimpl
 
 import (
+	"net/http"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -62,6 +63,30 @@ func TestDomainForwarderStart(t *testing.T) {
 	assert.NotNil(t, forwarder.Start())
 
 	forwarder.Stop(false)
+}
+
+func TestDomainForwarderSemaphorePerPolicy(t *testing.T) {
+	newForwarder := func(t *testing.T, concurrency concurrencyDomain) *domainForwarder {
+		mockConfig := mock.New(t)
+		log := logmock.New(t)
+		retryQueue := retry.NewTransactionRetryQueue(nil, 2, 0, retry.NewTransactionRetryQueueTelemetry("domain"), retry.NewPointCountTelemetryMock())
+		return newDomainForwarder(mockConfig, log, secretsmock.New(t), "test", false, false, retryQueue, concurrency, 0, retry.NewPointCountTelemetry("domain"), nil)
+	}
+
+	t.Run("static gives each worker its own semaphore", func(t *testing.T) {
+		forwarder := newForwarder(t, newTestConcurrencyDomain(3, 1))
+		require.NoError(t, forwarder.Start())
+		defer forwarder.Stop(false)
+
+		require.Len(t, forwarder.workers, 3)
+		distinct := map[weightedSemaphore]struct{}{}
+		for _, w := range forwarder.workers {
+			distinct[w.maxConcurrentRequests] = struct{}{}
+		}
+		assert.Len(t, distinct, 3)
+		assert.IsType(t, &http.Transport{}, forwarder.Client.GetClient().Transport)
+	})
+
 }
 
 func TestDomainForwarderInit(t *testing.T) {
@@ -381,7 +406,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	forwarder := newDomainForwarder(mockConfig, log, secrets, "test", false, false, transactionRetryQueue, newTestConcurrencyPolicy(0, 1), 10, retry.NewPointCountTelemetry("domain"), nil)
+	forwarder := newDomainForwarder(mockConfig, log, secrets, "test", false, false, transactionRetryQueue, newTestConcurrencyDomain(0, 1), 10, retry.NewPointCountTelemetry("domain"), nil)
 	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -490,7 +515,7 @@ func TestDomainForwarderStopFlushesRetryQueueAndLowPrioToDisk(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	forwarder := newDomainForwarder(mockConfig, log, secrets, "test", false, false, retryQueue, newTestConcurrencyPolicy(1, 1), 0, retry.NewPointCountTelemetry("domain"), nil)
+	forwarder := newDomainForwarder(mockConfig, log, secrets, "test", false, false, retryQueue, newTestConcurrencyDomain(1, 1), 0, retry.NewPointCountTelemetry("domain"), nil)
 	forwarder.Start()
 
 	forwarder.workers[0].Stop(false)
@@ -529,7 +554,7 @@ func newDomainForwarderForTest(t *testing.T, config config.Component, log log.Co
 		retry.NewPointCountTelemetryMock())
 
 	secrets := secretsmock.New(t)
-	return newDomainForwarder(config, log, secrets, "test", ha, false, transactionRetryQueue, newTestConcurrencyPolicy(1, 1), connectionResetInterval, retry.NewPointCountTelemetry("domain"), nil)
+	return newDomainForwarder(config, log, secrets, "test", ha, false, transactionRetryQueue, newTestConcurrencyDomain(1, 1), connectionResetInterval, retry.NewPointCountTelemetry("domain"), nil)
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {
