@@ -1933,7 +1933,7 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 
 	apiKeyConfigKey := "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	params := delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		ProviderConfig:               &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
 		OrgUUID:                      "second-org-uuid",
@@ -1944,8 +1944,10 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 		AdditionalEndpointDirective:  "DELA[second-org-uuid, aws, fallback=static-fallback-key]",
 		FallbackAPIKey:               "static-fallback-key",
 		AllowAsyncStartup:            true,
-	})
-	require.NoError(t, err)
+	}
+	comp.clock = clock.NewMock()
+	t.Cleanup(func() { require.NoError(t, comp.stopStartupRecovery(context.Background(), apiKeyConfigKey)) })
+	require.NoError(t, comp.AddInstance(context.Background(), params))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
@@ -1954,9 +1956,20 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	// A startup recovery worker is created in this case (unlike the no-provider case).
 	comp.mu.RLock()
 	instance := comp.instances[apiKeyConfigKey]
+	recovery := comp.startupRecoveries[apiKeyConfigKey]
 	comp.mu.RUnlock()
 	require.NotNil(t, instance)
+	require.NotNil(t, recovery)
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	comp.mu.RLock()
+	assert.Same(t, instance, comp.instances[apiKeyConfigKey])
+	assert.Same(t, recovery, comp.startupRecoveries[apiKeyConfigKey])
+	comp.mu.RUnlock()
+
+	// The instance keeps the registration after recovery has stopped, too.
 	require.NoError(t, comp.stopStartupRecovery(context.Background(), apiKeyConfigKey))
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	assert.Same(t, instance, comp.instances[apiKeyConfigKey])
 }
 
 func TestAddInstanceStopsAfterInitialFailureWhenAsyncStartupIsDisabled(t *testing.T) {
@@ -2252,46 +2265,113 @@ func TestInitializeIfNeeded_DetectionTimeoutCanRetry(t *testing.T) {
 	assert.True(t, comp.initialized)
 }
 
-func TestAddInstanceIsNoOpForUnchangedEndpointDirective(t *testing.T) {
-	mockClock := clock.NewMock()
-	mockConfig := mock.New(t)
-	attempts := 0
-	comp := &delegatedAuthComponent{
-		instances:         make(map[string]*authInstance),
-		startupRecoveries: make(map[string]*startupRecovery),
-		clock:             mockClock,
+func TestAddInstanceEndpointRegistration(t *testing.T) {
+	identity := func(port int) string {
+		value, ok := common.ListEntryIdentity(map[string]any{"host": "logs.datadoghq.com", "port": port})
+		require.True(t, ok)
+		return value
 	}
-	comp.addInstanceAttempt = func(_ context.Context, _ delegatedauth.InstanceParams) error {
-		attempts++
-		return errors.New("provider unavailable")
+	tests := []struct {
+		name   string
+		change func(*delegatedauth.InstanceParams)
+	}{
+		{"target site", func(p *delegatedauth.InstanceParams) { p.TargetSite = "datadoghq.eu" }},
+		{"port on same site", func(p *delegatedauth.InstanceParams) { p.AdditionalEndpointIdentity = identity(8443) }},
+		{"list position", func(p *delegatedauth.InstanceParams) { p.ListEntryIndex++ }},
+		{"list config path", func(p *delegatedauth.InstanceParams) {
+			p.AdditionalEndpointsListConfigKey = "compliance_config.endpoints.additional_endpoints"
+		}},
+		{"directive", func(p *delegatedauth.InstanceParams) { p.AdditionalEndpointDirective = "DELA[test-org, aws:us-west-2]" }},
 	}
+	for _, state := range []string{"active", "recovery", "recovery with older instance"} {
+		for _, tt := range tests {
+			t.Run(state+"/"+tt.name, func(t *testing.T) {
+				params := delegatedauth.InstanceParams{
+					Config:                           mock.New(t),
+					OrgUUID:                          "test-org",
+					APIKeyConfigKey:                  "runtime_security_config.endpoints.additional_endpoints[0][test-org]",
+					AllowAsyncStartup:                true,
+					AdditionalEndpointDirective:      "DELA[test-org, aws]",
+					AdditionalEndpointsListConfigKey: "runtime_security_config.endpoints.additional_endpoints",
+					AdditionalEndpointIdentity:       identity(443),
+					TargetSite:                       "datadoghq.com",
+				}
+				comp := &delegatedAuthComponent{
+					instances:         make(map[string]*authInstance),
+					startupRecoveries: make(map[string]*startupRecovery),
+					clock:             clock.NewMock(),
+				}
+				t.Cleanup(func() { require.NoError(t, comp.stopStartupRecovery(context.Background(), params.APIKeyConfigKey)) })
 
-	params := delegatedauth.InstanceParams{
-		Config:                      mockConfig,
-		OrgUUID:                     "test-org",
-		APIKeyConfigKey:             "runtime_security_config.endpoints.additional_endpoints[0][test-org]",
-		AllowAsyncStartup:           true,
-		AdditionalEndpointDirective: "DELA[test-org, aws]",
+				var oldInstance *authInstance
+				if state != "recovery" {
+					oldParams := params
+					if state == "recovery with older instance" {
+						oldParams.TargetSite = "old.datadoghq.com"
+					}
+					oldInstance = fallbackTargetInstance(oldParams)
+					oldInstance.refreshCtx, oldInstance.refreshCancel = context.WithCancel(context.Background())
+					t.Cleanup(oldInstance.refreshCancel)
+					oldInstance.lastWrittenValue = "previously-resolved-key"
+					comp.instances[params.APIKeyConfigKey] = oldInstance
+				}
+				var recovery *startupRecovery
+				if state != "active" {
+					comp.startStartupRecovery(params, errors.New("provider unavailable"))
+					comp.mu.RLock()
+					recovery = comp.startupRecoveries[params.APIKeyConfigKey]
+					comp.mu.RUnlock()
+				}
+
+				var attempts []delegatedauth.InstanceParams
+				comp.addInstanceAttempt = func(ctx context.Context, p delegatedauth.InstanceParams) error {
+					attempts = append(attempts, p)
+					if state != "active" {
+						return errors.New("provider unavailable")
+					}
+					return comp.replaceInstance(ctx, p.APIKeyConfigKey, fallbackTargetInstance(p))
+				}
+
+				require.NoError(t, comp.AddInstance(context.Background(), params))
+				require.Empty(t, attempts, "unchanged registration must not fetch again")
+				comp.mu.RLock()
+				currentInstance := comp.instances[params.APIKeyConfigKey]
+				currentRecovery := comp.startupRecoveries[params.APIKeyConfigKey]
+				comp.mu.RUnlock()
+				if oldInstance != nil {
+					assert.Same(t, oldInstance, currentInstance)
+				} else {
+					assert.Nil(t, currentInstance)
+				}
+				if recovery != nil {
+					assert.Same(t, recovery, currentRecovery)
+				} else {
+					assert.Nil(t, currentRecovery)
+				}
+
+				tt.change(&params)
+				require.NoError(t, comp.AddInstance(context.Background(), params))
+				require.Len(t, attempts, 1, "changed route must re-register even with the same directive")
+				assert.Equal(t, params, attempts[0])
+				if state == "active" {
+					assert.ErrorIs(t, oldInstance.refreshCtx.Err(), context.Canceled)
+					assert.NotSame(t, oldInstance, comp.instances[params.APIKeyConfigKey])
+				} else {
+					select {
+					case <-recovery.done:
+					default:
+						t.Fatal("old recovery was not stopped")
+					}
+					comp.mu.RLock()
+					currentRecovery = comp.startupRecoveries[params.APIKeyConfigKey]
+					comp.mu.RUnlock()
+					require.NotNil(t, currentRecovery)
+					assert.NotSame(t, recovery, currentRecovery)
+				}
+
+				require.NoError(t, comp.AddInstance(context.Background(), params))
+				assert.Len(t, attempts, 1, "unchanged replacement must also be reused")
+			})
+		}
 	}
-	require.NoError(t, comp.AddInstance(context.Background(), params))
-	require.Equal(t, 1, attempts)
-
-	comp.mu.RLock()
-	recovery := comp.startupRecoveries[params.APIKeyConfigKey]
-	comp.mu.RUnlock()
-	require.NotNil(t, recovery)
-
-	// A late scan re-registering the same directive is a no-op: no new fetch, and the
-	// running recovery is neither restarted nor stopped.
-	require.NoError(t, comp.AddInstance(context.Background(), params))
-	assert.Equal(t, 1, attempts, "unchanged directive must not trigger a new fetch")
-	comp.mu.RLock()
-	recoveryAgain := comp.startupRecoveries[params.APIKeyConfigKey]
-	comp.mu.RUnlock()
-	assert.Same(t, recovery, recoveryAgain, "unchanged directive must keep the running recovery")
-
-	// A changed directive still replaces the registration.
-	params.AdditionalEndpointDirective = "DELA[other-org, aws]"
-	require.NoError(t, comp.AddInstance(context.Background(), params))
-	assert.Equal(t, 2, attempts, "changed directive must re-register")
 }
