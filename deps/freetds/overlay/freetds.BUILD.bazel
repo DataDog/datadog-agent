@@ -198,7 +198,6 @@ cc_shared_library(
     deps = [":libtdsodbc"],
     dynamic_deps = [
         "@unixodbc//:odbc_pkg",
-        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [

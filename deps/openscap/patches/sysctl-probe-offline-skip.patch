@@ -9,3 +9,32 @@
  }
  
  int sysctl_probe_main(probe_ctx *ctx, void *probe_arg)
+--- a/tests/probes/sysctl/test_sysctl_probe_offline_mode.sh
++++ b/tests/probes/sysctl/test_sysctl_probe_offline_mode.sh
+@@ -15,16 +15,21 @@
+ 	tmpdir=$(make_temp_dir /tmp "test_offline_mode_sysctl")
+ 	mkdir -p "${tmpdir}/proc/sys/kernel"
+ 	echo "${hostname}" > "${tmpdir}/proc/sys/kernel/hostname"
+-	set_chroot_offline_test_mode "${tmpdir}"
++	set_offline_chroot_dir "${tmpdir}"
+ 
+ 	$OSCAP oval eval --results $result $srcdir/test_sysctl_probe.oval.xml 2>$stderr
+ 
+-	unset_chroot_offline_test_mode
++	set_offline_chroot_dir ""
+ 	rm -rf "${tmpdir}"
+ 
+-	[ ! -s $stderr ]
+-	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_data/unix-sys:sysctl_item/unix-sys:name[text()='kernel.hostname']"
+-	assert_exists 1 "/oval_results/results/system/oval_system_characteristics/system_data/unix-sys:sysctl_item/unix-sys:value[text()='$hostname']"
++	# The probe reads the running kernel alone, so under a probe root it
++	# reports its object not applicable, and says so, whatever
++	# <root>/proc/sys holds.
++	[[ "$(cat "$stderr")" == "W: oscap: Requested offline mode is not supported by sysctl probe." ]]
++	assert_exists 1 '/oval_results/results/system/definitions/definition[@definition_id="oval:oscap:def:1"][@result="not applicable"]'
++	assert_exists 1 '/oval_results/results/system/tests/test[@test_id="oval:oscap:tst:1"][@result="not applicable"]'
++	assert_exists 1 '/oval_results/results/system/oval_system_characteristics/collected_objects/object[@id="oval:oscap:obj:1"][@flag="not applicable"]'
++	assert_exists 0 '/oval_results/results/system/oval_system_characteristics/system_data/unix-sys:sysctl_item'
+ 
+ 	rm $result
+ 	rm $stderr
