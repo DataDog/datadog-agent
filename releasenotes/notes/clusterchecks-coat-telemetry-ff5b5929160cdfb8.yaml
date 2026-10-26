@@ -1,0 +1,14 @@
+---
+other:
+  - |
+    Added Cross-Org Agent Telemetry (COAT) metrics to the ``cluster-agent`` profile to
+    surface cluster checks and Cluster Level Check (CLC) runner health fleet-wide. The
+    metrics are emitter-only (the per-node label is aggregated away):
+
+    | Metric Name | Type | Description |
+    | --- | --- | --- |
+    | ``cluster_checks.nodes_reporting`` | Gauge | Number of node agents reporting to the Cluster Agent |
+    | ``endpoint_checks.configs_dispatched`` | Gauge | Number of endpoint check configurations dispatched |
+    | ``cluster_checks.rebalancing_decisions`` | Counter | Total number of check rebalancing decisions |
+    | ``cluster_checks.successful_rebalancing_moves`` | Counter | Total number of successful check rebalancing moves |
+    | ``cluster_checks.failed_stats_collection`` | Counter | Total number of unsuccessful runner stats collection attempts |
