@@ -327,10 +327,12 @@ func (d *dispatcher) reschedule(configs []integration.Config) []string {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
-	target := d.getNodeToScheduleCheck()
+	target, anyNode := d.getNodeToScheduleCheck(config.Name)
 	if target == "" {
-		// If no node is found, store it in the danglingConfigs map for retrying later.
-		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		if anyNode {
+			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+		}
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}

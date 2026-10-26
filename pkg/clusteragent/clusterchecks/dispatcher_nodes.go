@@ -11,6 +11,7 @@ import (
 	"cmp"
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -86,7 +87,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check should be scheduled
+// getNodeToScheduleCheck returns the node where a new check should be scheduled, and whether any node is registered.
 //
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
@@ -98,12 +99,16 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck() string {
-	if d.advancedDispatching.Load() {
-		return d.getRandomNode()
-	}
+func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyNode bool) {
+	d.store.RLock()
+	defer d.store.RUnlock()
 
-	return d.getNodeWithLessChecks()
+	if d.advancedDispatching.Load() {
+		node = d.getRandomNode(checkName)
+	} else {
+		node = d.getNodeWithLessChecks(checkName)
+	}
+	return node, len(d.store.nodes) > 0
 }
 
 // updateGroup records the worker's runner group. The store must be locked.
@@ -119,15 +124,30 @@ func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string)
 	node.group = group
 }
 
-func (d *dispatcher) getRandomNode() string {
-	d.store.RLock()
-	defer d.store.RUnlock()
+// accepts reports whether a worker may run a check: a check claimed by a
+// runner group only runs in that group, any other check only on general
+// workers (no group). A worker in a group the Cluster Agent doesn't know runs
+// nothing.
+func (d *dispatcher) accepts(node *nodeStore, checkName string) bool {
+	return node.group == d.checkGroup[checkName]
+}
 
+// groupNodes returns the sorted nodes of a runner group ("" for general
+// workers). The store must be read-locked.
+func (d *dispatcher) groupNodes(group string) []string {
 	var nodes []string
-	for name := range d.store.nodes {
-		nodes = append(nodes, name)
+	for name, node := range d.store.nodes {
+		if node.group == group {
+			nodes = append(nodes, name)
+		}
 	}
+	sort.Strings(nodes)
+	return nodes
+}
 
+// getRandomNode must be called with the store read-locked.
+func (d *dispatcher) getRandomNode(checkName string) string {
+	nodes := d.groupNodes(d.checkGroup[checkName])
 	if len(nodes) == 0 {
 		return ""
 	}
@@ -135,14 +155,15 @@ func (d *dispatcher) getRandomNode() string {
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func (d *dispatcher) getNodeWithLessChecks() string {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
+// getNodeWithLessChecks must be called with the store read-locked.
+func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	var selectedNode string
 	minNumChecks := 0
 
 	for name, store := range d.store.nodes {
+		if !d.accepts(store, checkName) {
+			continue
+		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
 			selectedNode = name
 			minNumChecks = len(store.digestToConfig)
