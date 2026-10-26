@@ -278,3 +278,174 @@ func TestOTelSpanEBPFLess(t *testing.T) {
 		}
 	})
 }
+
+// TestDDTraceGoSpanEBPFLess covers dd-trace-go pprof labels span collection by
+// the ptracer, against the span_go_tester TestDDTraceGoSpan drives.
+//
+// The ptracer resolves the labels layout at the exit of the fcntl that seals
+// the tester's tracer-info memfd, which the tester is still stopped in, so
+// unlike the eBPF probe nothing races the tester and it runs without a
+// continue file.
+func TestDDTraceGoSpanEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable := which(t, "touch")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_ddtrace_span_ebpfless_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span-ebpfless"`,
+		},
+		{
+			ID:         "test_ddtrace_span_ebpfless_rule_open_no_span",
+			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span-ebpfless-no-span"`,
+		},
+		{
+			// Shared by all the exec sub-tests, which run sequentially.
+			ID:         "test_ddtrace_span_ebpfless_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// runDDTrace runs the tester with the given flag, against the file the
+	// sub-test watches, and checks the event ruleID reports. The ids of the span
+	// the tester started, zero without one, are passed along.
+	runDDTrace := func(t *testing.T, mode, testFlag, fileName, ruleID string, withSpan bool,
+		check func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID)) {
+		t.Helper()
+
+		test.RunMultiMode(t, mode, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path(fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{testFlag, "-ddtrace-span-file-path", testFile}
+			if mode == "exec" {
+				args = append(args, "-ddtrace-span-exec-target", ddTraceTouchPath(kind, executable))
+			}
+
+			var spanID uint64
+			var traceID utils.TraceID
+
+			test.WaitSignalFromRule(t, func() error {
+				out, err := test.runSpanTester(cmdFunc, spanTester, args)
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				spanID, traceID = parseDDTraceIDs(out)
+				if withSpan && spanID == 0 {
+					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, ruleID)
+				check(t, event, spanID, traceID)
+			}, ruleID)
+		})
+	}
+
+	t.Run("ddtrace_span", func(t *testing.T) {
+		runDDTrace(t, "open", "-ddtrace-span-test", "test-ddtrace-span-ebpfless", "test_ddtrace_span_ebpfless_rule_open", true,
+			func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID) {
+				assert.Equal(t, spanID, event.SpanContext.SpanID, "open event should carry dd-trace-go's span_id")
+				assert.Equal(t, traceID, event.SpanContext.TraceID, "open event should carry dd-trace-go's trace_id")
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedTrace(t, jsonStr, strconv.FormatUint(spanID, 10), traceID.HexString(), nil)
+				}
+			})
+	})
+
+	t.Run("ddtrace_span_exec", func(t *testing.T) {
+		// In-process exec via syscall.Exec: the ptracer reads the labels at the
+		// execve entry, before the new image replaces the address space holding
+		// them.
+		runDDTrace(t, "exec", "-ddtrace-span-exec-test", "test-ddtrace-span-ebpfless-exec", "test_ddtrace_span_ebpfless_rule_exec", true,
+			func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID) {
+				assert.Equal(t, spanID, event.SpanContext.SpanID, "exec event should carry dd-trace-go's span_id")
+				assert.Equal(t, traceID, event.SpanContext.TraceID, "exec event should carry dd-trace-go's trace_id")
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, strconv.FormatUint(spanID, 10), traceID.HexString(), nil,
+						spanLocations{onTopLevelProcess: true})
+				}
+			})
+	})
+
+	t.Run("no_span", func(t *testing.T) {
+		// dd-trace-go is started but no active span is created: the goroutine
+		// carries no span labels.
+		runDDTrace(t, "open", "-ddtrace-no-span-test", "test-ddtrace-span-ebpfless-no-span", "test_ddtrace_span_ebpfless_rule_open_no_span", false,
+			func(t *testing.T, event *model.Event, _ uint64, _ utils.TraceID) {
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
+			})
+	})
+
+	t.Run("no_span_exec", func(t *testing.T) {
+		runDDTrace(t, "exec", "-ddtrace-no-span-exec-test", "test-ddtrace-span-ebpfless-no-span-exec", "test_ddtrace_span_ebpfless_rule_exec", false,
+			func(t *testing.T, event *model.Event, _ uint64, _ utils.TraceID) {
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
+			})
+	})
+
+	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
+		// os/exec vforks: the child execs with the parent's goroutine still in
+		// the address space it shares, and with the layout the fork handed down,
+		// so the exec event reports the parent's labels. The fork, read in the
+		// parent, leaves the parent's span in the lineage of the exec'd image.
+		runDDTrace(t, "exec", "-ddtrace-span-fork-exec-test", "test-ddtrace-span-ebpfless-fork-exec", "test_ddtrace_span_ebpfless_rule_exec", true,
+			func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID) {
+				assert.Equal(t, spanID, event.SpanContext.SpanID,
+					"exec event should carry dd-trace-go's parent span_id")
+				assert.Equal(t, traceID, event.SpanContext.TraceID,
+					"exec event should carry dd-trace-go's trace_id")
+
+				var ancestorTrace *model.SpanContext
+				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+					if pce.Tracer.Trace.SpanID != 0 {
+						ancestorTrace = &pce.Tracer.Trace
+						break
+					}
+				}
+				if assert.NotNil(t, ancestorTrace, "an ancestor should carry the dd-trace-go parent span captured at fork time") {
+					assert.Equal(t, spanID, ancestorTrace.SpanID)
+					assert.Equal(t, traceID, ancestorTrace.TraceID)
+				}
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, strconv.FormatUint(spanID, 10), traceID.HexString(), nil,
+						spanLocations{onTopLevelProcess: true, onAncestor: true})
+				}
+			})
+	})
+}
