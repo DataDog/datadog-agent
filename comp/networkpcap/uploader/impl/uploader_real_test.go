@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -50,7 +51,7 @@ func TestUpload_RealIntake(t *testing.T) {
 	if host := os.Getenv("PCAP_UPLOADER_REAL_INTAKE_HOST"); host != "" {
 		cfg.SetInTest("network_pcap.forwarder.logs_dd_url", host)
 	}
-	u := newUploader(cfg)
+	u := newUploader(cfg, telemetrymock.New(t))
 
 	// Minimal valid pcap: global header only, no packet records.
 	syntheticPcap := []byte{

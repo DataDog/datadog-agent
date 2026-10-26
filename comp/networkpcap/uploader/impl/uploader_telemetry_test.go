@@ -21,30 +21,30 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-// uploadMetrics is a snapshot of the upload telemetry. The metrics are
-// process-wide, so tests compare snapshots taken before and after an upload.
-type uploadMetrics struct {
+// metricsSnapshot is a snapshot of an uploader's telemetry. Tests compare
+// snapshots taken before and after an upload.
+type metricsSnapshot struct {
 	attempts map[[2]string]float64
 	results  map[[2]string]float64
 	bytes    telemetry.HistogramValue
 	duration telemetry.HistogramValue
 }
 
-func snapshotUploadMetrics() uploadMetrics {
-	m := uploadMetrics{
+func snapshotUploadMetrics(u *pcapUploader) metricsSnapshot {
+	m := metricsSnapshot{
 		attempts: map[[2]string]float64{},
 		results:  map[[2]string]float64{},
-		bytes:    uploadBytes.Get(),
-		duration: uploadDuration.Get(),
+		bytes:    u.metrics.bytes.Get(),
+		duration: u.metrics.duration.Get(),
 	}
 	for _, class := range []string{"2xx", "4xx", "5xx", "transport", "other"} {
 		for _, retry := range []string{"false", "true"} {
-			m.attempts[[2]string{class, retry}] = uploadAttempts.WithValues(class, retry).Get()
+			m.attempts[[2]string{class, retry}] = u.metrics.attempts.WithValues(class, retry).Get()
 		}
 	}
 	for _, endpoint := range []string{"reliable", "unreliable"} {
 		for _, result := range []string{"success", "too_large", "failed"} {
-			m.results[[2]string{endpoint, result}] = uploadResults.WithValues(endpoint, result).Get()
+			m.results[[2]string{endpoint, result}] = u.metrics.results.WithValues(endpoint, result).Get()
 		}
 	}
 	return m
@@ -60,7 +60,7 @@ type uploadMetricsDelta struct {
 	durationCount uint64
 }
 
-func (m uploadMetrics) since(before uploadMetrics) uploadMetricsDelta {
+func (m metricsSnapshot) since(before metricsSnapshot) uploadMetricsDelta {
 	d := uploadMetricsDelta{
 		attempts:      map[[2]string]float64{},
 		results:       map[[2]string]float64{},
@@ -99,12 +99,12 @@ func newSizedIntake(t *testing.T, lastBodySize *atomic.Int64, statuses ...int) *
 func TestUploadTelemetrySuccess(t *testing.T) {
 	var bodySize atomic.Int64
 	in := newSizedIntake(t, &bodySize, http.StatusAccepted)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest(bytes.Repeat([]byte("pcap"), 64<<10))
 
-	before := snapshotUploadMetrics()
+	before := snapshotUploadMetrics(u)
 	require.NoError(t, u.Upload(context.Background(), req))
-	d := snapshotUploadMetrics().since(before)
+	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{{"2xx", "false"}: 1}, d.attempts)
 	assert.Equal(t, map[[2]string]float64{{"reliable", "success"}: 1}, d.results)
@@ -116,12 +116,12 @@ func TestUploadTelemetrySuccess(t *testing.T) {
 func TestUploadTelemetryRetryThenSuccess(t *testing.T) {
 	var bodySize atomic.Int64
 	in := newSizedIntake(t, &bodySize, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusAccepted)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("pcap"))
 
-	before := snapshotUploadMetrics()
+	before := snapshotUploadMetrics(u)
 	require.NoError(t, u.Upload(context.Background(), req))
-	d := snapshotUploadMetrics().since(before)
+	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{
 		{"5xx", "false"}: 1,
@@ -136,12 +136,12 @@ func TestUploadTelemetryRetryThenSuccess(t *testing.T) {
 
 func TestUploadTelemetryTooLarge(t *testing.T) {
 	in := newIntake(t, http.StatusRequestEntityTooLarge)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("pcap"))
 
-	before := snapshotUploadMetrics()
+	before := snapshotUploadMetrics(u)
 	require.Error(t, u.Upload(context.Background(), req))
-	d := snapshotUploadMetrics().since(before)
+	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{{"4xx", "false"}: 1}, d.attempts)
 	assert.Equal(t, map[[2]string]float64{{"reliable", "too_large"}: 1}, d.results)
@@ -156,12 +156,12 @@ func TestUploadTelemetryTransportError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "main-api-key")
 	cfg.SetInTest(testPrefix+"logs_dd_url", closed.URL)
-	u := newTestUploader(cfg)
+	u := newTestUploader(t, cfg)
 	req, _ := pcapRequest([]byte("pcap"))
 
-	before := snapshotUploadMetrics()
+	before := snapshotUploadMetrics(u)
 	require.Error(t, u.Upload(context.Background(), req))
-	d := snapshotUploadMetrics().since(before)
+	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{
 		{"transport", "false"}: 1,
@@ -180,12 +180,12 @@ func TestUploadTelemetryCountsEachEndpoint(t *testing.T) {
 	cfg.SetInTest(testPrefix+"additional_endpoints", []map[string]interface{}{
 		{"api_key": "unreliable-api-key", "host": hostOf(t, unreliable), "port": portOf(t, unreliable), "use_ssl": false, "is_reliable": false},
 	})
-	u := newTestUploader(cfg)
+	u := newTestUploader(t, cfg)
 	req, _ := pcapRequest([]byte("pcap"))
 
-	before := snapshotUploadMetrics()
+	before := snapshotUploadMetrics(u)
 	require.NoError(t, u.Upload(context.Background(), req))
-	d := snapshotUploadMetrics().since(before)
+	d := snapshotUploadMetrics(u).since(before)
 
 	assert.Equal(t, map[[2]string]float64{
 		{"reliable", "success"}:  1,

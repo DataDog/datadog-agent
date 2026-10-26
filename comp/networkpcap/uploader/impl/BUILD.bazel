@@ -8,7 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/telemetry/impl",
+        "//comp/core/telemetry/def",
         "//comp/logs/agent/config",
         "//comp/networkpcap/uploader/def",
         "//pkg/config/model",
@@ -29,6 +29,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
         "//comp/networkpcap/uploader/def",
         "//pkg/config/mock",
         "//pkg/config/model",

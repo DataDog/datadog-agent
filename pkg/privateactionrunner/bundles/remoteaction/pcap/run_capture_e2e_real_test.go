@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	pcapuploaderimpl "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -171,5 +172,5 @@ func newRealUploader(t *testing.T, apiKey, site, intakeHost string) pcapuploader
 		"site":                               site,
 		"network_pcap.forwarder.logs_dd_url": intakeHost,
 	})
-	return pcapuploaderimpl.NewComponent(pcapuploaderimpl.Requires{Config: cfg}).Comp
+	return pcapuploaderimpl.NewComponent(pcapuploaderimpl.Requires{Config: cfg, Telemetry: telemetrymock.New(t)}).Comp
 }

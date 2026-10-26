@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -133,8 +134,9 @@ func newTestConfig(t *testing.T, in *intake) model.ReaderWriter {
 	return cfg
 }
 
-func newTestUploader(cfg model.Reader) *pcapUploader {
-	u := newUploader(cfg)
+func newTestUploader(t *testing.T, cfg model.Reader) *pcapUploader {
+	t.Helper()
+	u := newUploader(cfg, telemetrymock.New(t))
 	u.retryBackoff = time.Millisecond
 	return u
 }
@@ -163,7 +165,7 @@ func pcapRequest(content []byte) (uploader.UploadRequest, *atomic.Int32) {
 
 func TestUploadSendsZstdMultipart(t *testing.T) {
 	in := newIntake(t)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	content := bytes.Repeat([]byte("pcap"), 64<<10)
 	req, _ := pcapRequest(content)
 
@@ -194,7 +196,7 @@ func TestUploadSendsZstdMultipart(t *testing.T) {
 
 func TestUploadDefaultsAttachmentContentType(t *testing.T) {
 	in := newIntake(t)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("x"))
 	req.Attachments[0].ContentType = ""
 
@@ -208,7 +210,7 @@ func TestUploadDefaultsAttachmentContentType(t *testing.T) {
 // Each attempt opens the source again, so a retry resends the whole content.
 func TestUploadRetryReopensTheSource(t *testing.T) {
 	in := newIntake(t, http.StatusServiceUnavailable, http.StatusAccepted)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	content := bytes.Repeat([]byte{0xab}, 128<<10)
 	req, opens := pcapRequest(content)
 
@@ -235,7 +237,7 @@ func TestUploadRetriesRetryableStatuses(t *testing.T) {
 	} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			in := newIntake(t, status, http.StatusAccepted)
-			u := newTestUploader(newTestConfig(t, in))
+			u := newTestUploader(t, newTestConfig(t, in))
 			req, _ := pcapRequest([]byte("pcap"))
 			require.NoError(t, u.Upload(context.Background(), req))
 			assert.EqualValues(t, 2, in.calls.Load())
@@ -245,7 +247,7 @@ func TestUploadRetriesRetryableStatuses(t *testing.T) {
 
 func TestUploadDoesNotRetryTooLarge(t *testing.T) {
 	in := newIntake(t, http.StatusRequestEntityTooLarge)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("pcap"))
 
 	err := u.Upload(context.Background(), req)
@@ -256,7 +258,7 @@ func TestUploadDoesNotRetryTooLarge(t *testing.T) {
 
 func TestUploadDoesNotRetryClientErrors(t *testing.T) {
 	in := newIntake(t, http.StatusBadRequest)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, _ := pcapRequest([]byte("pcap"))
 
 	require.Error(t, u.Upload(context.Background(), req))
@@ -265,7 +267,7 @@ func TestUploadDoesNotRetryClientErrors(t *testing.T) {
 
 func TestUploadGivesUpAfterMaxAttempts(t *testing.T) {
 	in := newIntake(t, http.StatusServiceUnavailable)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req, opens := pcapRequest([]byte("pcap"))
 
 	err := u.Upload(context.Background(), req)
@@ -277,7 +279,7 @@ func TestUploadGivesUpAfterMaxAttempts(t *testing.T) {
 
 func TestUploadStopsRetryingWhenContextIsDone(t *testing.T) {
 	in := newIntake(t, http.StatusServiceUnavailable)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	u.retryBackoff = time.Hour
 	req, _ := pcapRequest([]byte("pcap"))
 
@@ -291,7 +293,7 @@ func TestUploadStopsRetryingWhenContextIsDone(t *testing.T) {
 // An unreadable attachment fails the upload before anything is sent.
 func TestUploadOpenFailureSendsNothing(t *testing.T) {
 	in := newIntake(t)
-	u := newTestUploader(newTestConfig(t, in))
+	u := newTestUploader(t, newTestConfig(t, in))
 	req := uploader.UploadRequest{
 		Event: []byte(`{}`),
 		Attachments: []uploader.Attachment{{
@@ -310,7 +312,7 @@ func TestUploadWithoutAPIKeyFails(t *testing.T) {
 	in := newIntake(t)
 	cfg := newTestConfig(t, in)
 	cfg.SetInTest("api_key", "")
-	u := newTestUploader(cfg)
+	u := newTestUploader(t, cfg)
 	req, _ := pcapRequest([]byte("pcap"))
 
 	require.Error(t, u.Upload(context.Background(), req))
@@ -337,7 +339,7 @@ func TestUploadAdditionalEndpoints(t *testing.T) {
 				{"api_key": "healthy-api-key", "host": hostOf(t, healthy), "port": portOf(t, healthy), "use_ssl": false},
 				{"api_key": "failing-api-key", "host": hostOf(t, failing), "port": portOf(t, failing), "use_ssl": false, "is_reliable": tc.reliable},
 			})
-			u := newTestUploader(cfg)
+			u := newTestUploader(t, cfg)
 			req, _ := pcapRequest([]byte("pcap"))
 
 			err := u.Upload(context.Background(), req)
@@ -370,7 +372,7 @@ func TestUploadMRFEndpointFollowsFailover(t *testing.T) {
 	cfg.SetInTest("multi_region_failover.enabled", true)
 	cfg.SetInTest("multi_region_failover.dd_url", mrf.srv.URL)
 	cfg.SetInTest("multi_region_failover.api_key", "mrf-api-key")
-	u := newTestUploader(cfg)
+	u := newTestUploader(t, cfg)
 	req, _ := pcapRequest([]byte("pcap"))
 
 	require.NoError(t, u.Upload(context.Background(), req))
@@ -389,7 +391,7 @@ func TestDefaultEndpointUsesNetworkPcapHostPrefix(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "main-api-key")
 	cfg.SetInTest("site", "datadoghq.eu")
-	u := newTestUploader(cfg)
+	u := newTestUploader(t, cfg)
 
 	endpoints, err := u.getEndpoints()
 	require.NoError(t, err)
@@ -403,7 +405,7 @@ func TestEndpointOverrideKeepsPortAndPath(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "main-api-key")
 	cfg.SetInTest(testPrefix+"logs_dd_url", "intake.example.com:8443")
-	u := newTestUploader(cfg)
+	u := newTestUploader(t, cfg)
 
 	endpoints, err := u.getEndpoints()
 	require.NoError(t, err)

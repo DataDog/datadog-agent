@@ -21,7 +21,7 @@ import (
 	"time"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	uploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -48,30 +48,40 @@ const (
 	defaultAttemptTimeout = 60 * time.Second
 )
 
-// Upload telemetry. Every endpoint an upload is sent to is counted on its own,
-// tagged reliable or unreliable: additional endpoints are reliable unless
-// configured otherwise, and the MRF endpoint is counted only while a failover
-// is active. An upload whose endpoints cannot be resolved is only timed.
-var (
-	uploadAttempts = telemetryimpl.GetCompatComponent().NewCounter(
-		"remote_pcap", "upload_attempts", []string{"status_class", "retry"},
-		"Packet capture upload requests sent to an intake endpoint, by response status class",
-	)
-	uploadResults = telemetryimpl.GetCompatComponent().NewCounter(
-		"remote_pcap", "upload_result", []string{"endpoint", "result"},
-		"Packet capture uploads by intake endpoint and final result, after retries",
-	)
-	uploadBytes = telemetryimpl.GetCompatComponent().NewSimpleHistogram(
-		"remote_pcap", "upload_bytes",
-		"Compressed request body size of successful packet capture uploads, per endpoint",
-		[]float64{64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20, 64 << 20, 256 << 20},
-	)
-	uploadDuration = telemetryimpl.GetCompatComponent().NewSimpleHistogram(
-		"remote_pcap", "upload_duration_seconds",
-		"Duration of packet capture uploads across all endpoints, retries included",
-		[]float64{0.5, 1, 2, 5, 10, 20, 30, 60, 120},
-	)
-)
+// uploadMetrics is the upload telemetry. Every endpoint an upload is sent to
+// is counted on its own, tagged reliable or unreliable: additional endpoints
+// are reliable unless configured otherwise, and the MRF endpoint is counted
+// only while a failover is active. An upload whose endpoints cannot be
+// resolved is only timed.
+type uploadMetrics struct {
+	attempts telemetry.Counter
+	results  telemetry.Counter
+	bytes    telemetry.SimpleHistogram
+	duration telemetry.SimpleHistogram
+}
+
+func newUploadMetrics(tel telemetry.Component) uploadMetrics {
+	return uploadMetrics{
+		attempts: tel.NewCounter(
+			"remote_pcap", "upload_attempts", []string{"status_class", "retry"},
+			"Packet capture upload requests sent to an intake endpoint, by response status class",
+		),
+		results: tel.NewCounter(
+			"remote_pcap", "upload_result", []string{"endpoint", "result"},
+			"Packet capture uploads by intake endpoint and final result, after retries",
+		),
+		bytes: tel.NewSimpleHistogram(
+			"remote_pcap", "upload_bytes",
+			"Compressed request body size of successful packet capture uploads, per endpoint",
+			[]float64{64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20, 64 << 20, 256 << 20},
+		),
+		duration: tel.NewSimpleHistogram(
+			"remote_pcap", "upload_duration_seconds",
+			"Duration of packet capture uploads across all endpoints, retries included",
+			[]float64{0.5, 1, 2, 5, 10, 20, 30, 60, 120},
+		),
+	}
+}
 
 // statusClass returns the status_class tag of a response status.
 func statusClass(code int) string {
@@ -90,19 +100,19 @@ func statusClass(code int) string {
 
 // recordResult records the outcome of an upload to one endpoint, sent being
 // the compressed body size when it succeeded.
-func recordResult(endpoint *logsconfig.Endpoint, sent int64, err error) {
+func (m uploadMetrics) recordResult(endpoint *logsconfig.Endpoint, sent int64, err error) {
 	endpointTag := "unreliable"
 	if endpoint.IsReliable() {
 		endpointTag = "reliable"
 	}
 	switch {
 	case err == nil:
-		uploadResults.Inc(endpointTag, "success")
-		uploadBytes.Observe(float64(sent))
+		m.results.Inc(endpointTag, "success")
+		m.bytes.Observe(float64(sent))
 	case errors.Is(err, uploader.ErrPayloadTooLarge):
-		uploadResults.Inc(endpointTag, "too_large")
+		m.results.Inc(endpointTag, "too_large")
 	default:
-		uploadResults.Inc(endpointTag, "failed")
+		m.results.Inc(endpointTag, "failed")
 	}
 }
 
@@ -120,7 +130,8 @@ func (r countingReader) Read(p []byte) (int, error) {
 
 // Requires defines the component's dependencies.
 type Requires struct {
-	Config configcomp.Component
+	Config    configcomp.Component
+	Telemetry telemetry.Component
 }
 
 // Provides defines the component's output.
@@ -130,7 +141,7 @@ type Provides struct {
 
 // NewComponent creates a new network packet capture uploader component.
 func NewComponent(reqs Requires) Provides {
-	return Provides{Comp: newUploader(reqs.Config)}
+	return Provides{Comp: newUploader(reqs.Config, reqs.Telemetry)}
 }
 
 type pcapUploader struct {
@@ -138,12 +149,13 @@ type pcapUploader struct {
 	httpClient   *http.Client
 	maxAttempts  int
 	retryBackoff time.Duration
+	metrics      uploadMetrics
 
 	mu        sync.Mutex
 	endpoints *logsconfig.Endpoints
 }
 
-func newUploader(cfg model.Reader) *pcapUploader {
+func newUploader(cfg model.Reader, tel telemetry.Component) *pcapUploader {
 	return &pcapUploader{
 		cfg: cfg,
 		// The Agent transport applies the proxy and TLS settings.
@@ -153,6 +165,7 @@ func newUploader(cfg model.Reader) *pcapUploader {
 		},
 		maxAttempts:  defaultMaxAttempts,
 		retryBackoff: defaultRetryBackoff,
+		metrics:      newUploadMetrics(tel),
 	}
 }
 
@@ -187,7 +200,7 @@ func (u *pcapUploader) getEndpoints() (*logsconfig.Endpoints, error) {
 // reliable endpoints are returned; failures on unreliable ones are logged.
 func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) error {
 	start := time.Now()
-	defer func() { uploadDuration.Observe(time.Since(start).Seconds()) }()
+	defer func() { u.metrics.duration.Observe(time.Since(start).Seconds()) }()
 
 	endpoints, err := u.getEndpoints()
 	if err != nil {
@@ -213,7 +226,7 @@ func (u *pcapUploader) Upload(ctx context.Context, req uploader.UploadRequest) e
 			defer wg.Done()
 			endpointURL := buildURL(endpoint)
 			sent, err := u.sendWithRetries(ctx, endpoint, endpointURL, req)
-			recordResult(endpoint, sent, err)
+			u.metrics.recordResult(endpoint, sent, err)
 			if err != nil {
 				if !endpoint.IsReliable() {
 					log.Warnf("packet capture upload to unreliable endpoint %s failed: %v", endpointURL, err)
@@ -296,12 +309,12 @@ func (u *pcapUploader) send(ctx context.Context, endpoint *logsconfig.Endpoint, 
 	retryTag := strconv.FormatBool(retry)
 	resp, err := u.httpClient.Do(httpReq)
 	if err != nil {
-		uploadAttempts.Inc("transport", retryTag)
+		u.metrics.attempts.Inc("transport", retryTag)
 		return true, 0, fmt.Errorf("sending request: %w", err)
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	_ = resp.Body.Close()
-	uploadAttempts.Inc(statusClass(resp.StatusCode), retryTag)
+	u.metrics.attempts.Inc(statusClass(resp.StatusCode), retryTag)
 
 	switch code := resp.StatusCode; {
 	case code >= 200 && code < 300:
