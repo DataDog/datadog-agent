@@ -65,7 +65,7 @@ def read_deb_metadata(package: Path) -> dict:
         subprocess.check_output(['dpkg-deb', '--field', str(package)], text=True, encoding='utf-8')
     )
     result = {key: control.get(key, '') for key in DEB_FIELDS}
-    # Read the control archive directly: no extraction of package-provided paths.
+    # Buffer only metadata/scripts, not the package payload; no extraction of package-provided paths.
     archive = subprocess.check_output(['dpkg-deb', '--ctrl-tarfile', str(package)])
     with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
         for member in tar:

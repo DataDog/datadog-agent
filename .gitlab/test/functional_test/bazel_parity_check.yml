@@ -15,10 +15,4 @@ bazel_parity_check:
         export DD_API_KEY
       fi
     - dda inv -- bazel-parity.check --omnibus-dir "$OMNIBUS_PACKAGE_DIR" --bazel-dir bazel-packages
-  artifacts:
-    when: always
-    expire_in: 2 weeks
-    paths:
-      - bazel_parity_report.json
-      - bazel_parity_report.md
   allow_failure: true

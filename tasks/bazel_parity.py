@@ -127,7 +127,7 @@ def metric_values(report: dict) -> list[dict]:
 
 def submit_metrics(report: dict, dry_run: bool) -> None:
     if not should_submit(dry_run):
-        print(f'Dry run: {len(report["metrics"])} metrics recorded in report; nothing submitted.')
+        print(f'Dry run: {len(report["metrics"])} metrics; nothing submitted.')
         return
     timestamp = int(time.time())
     series = [create_gauge(m['name'], timestamp, m['value'], m['tags']) for m in report['metrics']]
@@ -151,7 +151,7 @@ def measure_inventory(ctx, package: Path, product: str, package_format: str, arc
 
 
 def build_report(ctx, omnibus_dir: str, bazel_dir: str) -> dict:
-    report = {'schema_version': 1, 'branch': os.environ.get('CI_COMMIT_BRANCH', 'local'), 'packages': [], 'tasks': []}
+    report = {'branch': os.environ.get('CI_COMMIT_BRANCH', 'local'), 'packages': [], 'tasks': []}
     for product in PRODUCTS:
         for package_format, reader in FORMATS.items():
             for arch in ARCHITECTURES:
@@ -169,7 +169,6 @@ def build_report(ctx, omnibus_dir: str, bazel_dir: str) -> dict:
                     files, package['files'] = file_tasks(previous, current)
                     report['tasks'].extend({**scope, **item} for item in files)
                     previous_metadata, current_metadata = reader(old), reader(new)
-                    package['metadata'] = {'omnibus': previous_metadata, 'bazel': current_metadata}
                     for field in sorted(previous_metadata.keys() | current_metadata.keys()):
                         old_value, new_value = previous_metadata.get(field, ''), current_metadata.get(field, '')
                         report['tasks'].append(
@@ -202,10 +201,7 @@ def build_report(ctx, omnibus_dir: str, bazel_dir: str) -> dict:
     return report
 
 
-def write_report(report: dict, output: str) -> str:
-    path = Path(output)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+def print_report(report: dict) -> None:
     summary = report['summary']
     complete = summary['done']
     total = complete + summary['remaining']
@@ -237,28 +233,29 @@ def write_report(report: dict, output: str) -> str:
             )
         if 'error' in package:
             lines.extend(['', f'{package["format"]} comparison failed: {package["error"]}'])
-    markdown = '\n'.join(lines) + '\n'
-    path.with_suffix('.md').write_text(markdown, encoding='utf-8')
-    return markdown
+    for item in report['tasks']:
+        if item['differences']:
+            lines.extend(
+                [
+                    '',
+                    f'{item["product"]}/{item["format"]}/{item["arch"]}: {item["title"]}',
+                    json.dumps(item['differences'], indent=2),
+                ]
+            )
+    print('\n'.join(lines))
 
 
 @task(
     help={
         'omnibus_dir': 'Directory containing omnibus DEB/RPM artifacts',
         'bazel_dir': 'Directory containing Bazel DEB/RPM artifacts',
-        'dry_run': 'Write reports without submitting metrics, even on main',
+        'dry_run': 'Display results without submitting metrics, even on main',
     }
 )
-def check(
-    ctx,
-    omnibus_dir,
-    bazel_dir,
-    output='bazel_parity_report.json',
-    dry_run=False,
-):
+def check(ctx, omnibus_dir, bazel_dir, dry_run=False):
     """Report package parity; remaining tasks fail this advisory CI check."""
     report = build_report(ctx, omnibus_dir, bazel_dir)
-    print(write_report(report, output))
+    print_report(report)
     submit_metrics(report, dry_run)
     if report['summary']['remaining']:
-        raise Exit(f'{report["summary"]["remaining"]} Bazel parity tasks remaining; see {output}', code=1)
+        raise Exit(f'{report["summary"]["remaining"]} Bazel parity tasks remaining', code=1)
