@@ -57,7 +57,6 @@ type fixture struct {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	cfg := configmock.New(t)
 	for k, v := range map[string]interface{}{"api_key": "key", "site": "datadoghq.com", "dd_url": "", "remote_configuration.enabled": true, par.Enabled: true, par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json")} {
@@ -97,6 +96,14 @@ func TestRCOnlyStartupProductionSource(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestDisabledPARDoesNotReadRCOrStart(t *testing.T) {
+	f := newFixture(t)
+	f.cfg.SetInTest(par.Enabled, false)
+	f.rc.onRead = func() { t.Fatal("disabled PAR must not read RC") }
+	require.Zero(t, f.c.step(context.Background()))
+	require.Zero(t, f.pm.starts)
 }
 
 func TestStartupDoesNotReplayOrStopChildren(t *testing.T) {

@@ -21,26 +21,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiscoveryOptInPlatform(t *testing.T) {
+func TestDiscoveryRequiresEnabledPARAndSupportedPlatform(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	cfg := configmock.New(t)
 	cfg.SetInTest("api_key", "scope-test-key")
 	cfg.SetInTest("private_action_runner.enabled", true)
 	cfg.SetInTest("dd_url", "https://api.datadoghq.com")
 	cfg.SetInTest("remote_configuration.rc_dd_url", "https://config.datadoghq.com")
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
 	rc := NewSource(cfg, &statusService{})
 	poller := NewDiscovery(cfg, rc)
 	require.Equal(t, runtime.GOOS == "windows", poller == nil)
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "false")
+	cfg.SetInTest("private_action_runner.enabled", false)
 	require.Nil(t, NewDiscovery(cfg, rc))
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
+	cfg.SetInTest("private_action_runner.enabled", true)
 	require.Nil(t, NewDiscovery(cfg, nil))
 }
 
 func TestDiscoveryRCEndpointFQDN(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
 	for _, site := range []string{"datadoghq.com", "datadoghq.eu", "us3.datadoghq.com"} {
 		for _, fqdn := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/fqdn=%t", site, fqdn), func(t *testing.T) {

@@ -25,7 +25,6 @@ type lifecycle struct{ hooks []compdef.Hook }
 func (l *lifecycle) Append(h compdef.Hook) { l.hooks = append(l.hooks, h) }
 
 func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
 	lc := &lifecycle{}
 	tel := telemetrymock.New(t)
@@ -51,10 +50,9 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 	require.Equal(t, float64(1), counts[0].Value())
 }
 
-func TestOptOutDoesNotRegisterBackgroundWork(t *testing.T) {
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "false")
+func TestDisabledPARDoesNotRegisterBackgroundWork(t *testing.T) {
 	lc := &lifecycle{}
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": false})
 	tel := telemetrymock.New(t)
 	component := NewComponent(Requires{Config: cfg, Lifecycle: lc, Telemetry: tel}).Comp
 	require.NotNil(t, component)
