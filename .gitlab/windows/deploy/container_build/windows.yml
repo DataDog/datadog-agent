@@ -47,7 +47,7 @@
     - $REPO_DIGEST = docker inspect --format '{{index .RepoDigests 0}}' ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - New-Item -ItemType Directory -Force -Path signing | Out-Null
-    - "${TARGET_TAG}@$($REPO_DIGEST.Split('@')[1])" | Out-File -Encoding ascii -FilePath "signing/${CI_JOB_ID}.ref"
+    - Set-Content -Encoding ascii -Path "signing/${CI_JOB_ID}.ref" -Value "${TARGET_TAG}@$($REPO_DIGEST.Split('@')[1])"
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
