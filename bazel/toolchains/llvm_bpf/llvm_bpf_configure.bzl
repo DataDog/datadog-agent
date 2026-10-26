@@ -48,7 +48,17 @@ def _download_llvm_bpf_impl(rctx):
 
     binary_attrs = ""
     install_target = ""
+    exec_compatible_with = ""
     if downloaded:
+        cpu_constraint = {
+            "amd64": "@platforms//cpu:x86_64",
+            "arm64": "@platforms//cpu:arm64",
+        }[arch]
+        exec_compatible_with = """    exec_compatible_with = [
+        "@platforms//os:linux",
+        "{cpu}",
+    ],
+""".format(cpu = cpu_constraint)
         binary_attrs = """    clang_bpf = "{clang}",
     llc_bpf = "{llc}",
     llvm_strip = "{strip}",""".format(
@@ -88,13 +98,14 @@ llvm_bpf_toolchain(
 
 toolchain(
     name = "llvm_bpf_toolchain",
-    target_compatible_with = ["@platforms//os:linux"],
+{exec_compatible_with}    target_compatible_with = ["@platforms//os:linux"],
     toolchain = ":llvm_bpf_impl",
     toolchain_type = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type",
     visibility = ["//visibility:public"],
 )
 {install_target}""".format(
         binary_attrs = binary_attrs,
+        exec_compatible_with = exec_compatible_with,
         version = clang_version,
         install_target = install_target,
     ))
