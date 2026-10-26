@@ -81,17 +81,14 @@ func TestHTML(t *testing.T) {
 	assert.NotEqual(t, "", b.String())
 }
 
-func TestStatusRendersADPForwarderStatsSeparately(t *testing.T) {
+func TestForwarderStatusKeepsADPSectionSeparate(t *testing.T) {
 	statusInfo := map[string]interface{}{
 		"forwarderStats": map[string]interface{}{
 			"Transactions": map[string]interface{}{
 				"Success":           float64(10),
 				"SuccessByEndpoint": map[string]interface{}{"series": float64(8)},
-			},
-		},
-		"adpForwarderStats": map[string]interface{}{
-			"agent-data-plane": map[string]interface{}{
-				"Transactions": map[string]interface{}{"Success": float64(2)},
+				"Errors":            float64(3),
+				"ErrorsByType":      map[string]interface{}{"DNSErrors": float64(3)},
 			},
 		},
 	}
@@ -100,24 +97,13 @@ func TestStatusRendersADPForwarderStatsSeparately(t *testing.T) {
 	require.NoError(t, status.RenderText(templatesFS, "forwarder.tmpl", &text, statusInfo))
 	assert.Contains(t, text.String(), "Total number (Core Agent + ADP): 10")
 	assert.Contains(t, text.String(), "Successes By Endpoint (Core Agent):")
-	assert.Contains(t, text.String(), "ADP Forwarder Transactions (by agent)")
-	assert.Contains(t, text.String(), "agent-data-plane")
-	assert.Contains(t, text.String(), "Success: 2")
+	assert.Contains(t, text.String(), "Errors By Type (Core Agent + mapped ADP types):")
+	assert.NotContains(t, text.String(), "ADP Forwarder Transactions")
 
 	var html bytes.Buffer
 	require.NoError(t, status.RenderHTML(templatesFS, "forwarderHTML.tmpl", &html, statusInfo))
 	assert.Contains(t, html.String(), "Total number (Core Agent + ADP): 10")
 	assert.Contains(t, html.String(), "Successes By Endpoint (Core Agent):")
-	assert.Contains(t, html.String(), "ADP Forwarder Transactions")
-	assert.Contains(t, html.String(), "agent-data-plane")
-	assert.Contains(t, html.String(), "Success: 2")
-}
-
-func TestADPForwarderStatsFromJSON(t *testing.T) {
-	stats := adpForwarderStatsFromJSON(`{"agent-data-plane":{"forwarder":{"Transactions":{"Success":7}}},"process-agent":{"process":{"CPU":1}}}`)
-
-	assert.Contains(t, stats, "agent-data-plane")
-	assert.NotContains(t, stats, "process-agent")
-	transactions := stats["agent-data-plane"].(map[string]interface{})["Transactions"].(map[string]interface{})
-	assert.Equal(t, float64(7), transactions["Success"])
+	assert.Contains(t, html.String(), "Errors By Type (Core Agent + mapped ADP types):")
+	assert.NotContains(t, html.String(), "ADP Forwarder Transactions")
 }

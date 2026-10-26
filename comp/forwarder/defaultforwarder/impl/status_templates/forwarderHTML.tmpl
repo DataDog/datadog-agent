@@ -1,4 +1,4 @@
-{{$status := .}}{{- with .forwarderStats -}}
+{{- with .forwarderStats -}}
 <div class="stat">
   <span class="stat_title">Forwarder</span>
   <span class="stat_data">
@@ -26,7 +26,7 @@
         <span class="stat_subtitle">Transaction Errors</span>
           <span class="stat_subdata">
             Total number (Core Agent + ADP): {{.Transactions.Errors}}<br>
-            Errors By Type (Core Agent):<br>
+            Errors By Type (Core Agent + mapped ADP types):<br>
             <span class="stat_subdata">
               {{- range $type, $count := .Transactions.ErrorsByType }}
                 {{- if $count}}
@@ -89,28 +89,3 @@
     </span>
   </div>
 {{- end -}}
-{{- with $status.adpForwarderStats}}
-<div class="stat">
-  <span class="stat_title">ADP Forwarder Transactions</span>
-  <span class="stat_data">
-    {{- range $agent, $agentStats := .}}
-      <span class="stat_subtitle">{{$agent}}</span>
-      <span class="stat_subdata">
-        {{- with $agentStats.Transactions}}
-          {{- if .DroppedOnInput}}Dropped on input: {{humanize .DroppedOnInput}}<br>{{end}}
-          {{- if .RetryQueueSize}}Retry queue size: {{humanize .RetryQueueSize}}<br>{{end}}
-          {{- if .Success}}Success: {{humanize .Success}}<br>{{end}}
-          {{- if .Errors}}Errors: {{humanize .Errors}}<br>{{end}}
-          {{- if .ErrorsByType}}
-            Errors by type:<br>
-            {{- range $type, $count := .ErrorsByType}}
-              {{- if $count}}{{$type}}: {{humanize $count}}<br>{{end}}
-            {{- end}}
-          {{- end}}
-          {{- if .HTTPErrors}}HTTP errors: {{humanize .HTTPErrors}}<br>{{end}}
-        {{- end}}
-      </span>
-    {{- end}}
-  </span>
-</div>
-{{- end}}

@@ -1,4 +1,4 @@
-{{$status := .}}{{with .forwarderStats -}}
+{{with .forwarderStats -}}
 {{ if .Transactions }}
   Transactions
   ============
@@ -29,7 +29,7 @@
   Transaction Errors
   ==================
     Total number (Core Agent + ADP): {{.Transactions.Errors}}
-    Errors By Type (Core Agent):
+    Errors By Type (Core Agent + mapped ADP types):
           {{- range $type, $count := .Transactions.ErrorsByType }}
             {{- if $count }}
       {{$type}}: {{humanize $count}}
@@ -83,27 +83,4 @@
     {{yellowText $key}}{{yellowText ":"}} {{yellowText $value}}
   {{- end }}
 {{- end}}
-{{- end}}
-
-{{with $status.adpForwarderStats}}
-  ADP Forwarder Transactions (by agent)
-  =====================================
-  {{- range $agent, $agentStats := .}}
-    {{$agent}}:
-    {{- with $agentStats.Transactions}}
-      {{- if .DroppedOnInput}}Dropped on input: {{humanize .DroppedOnInput}}{{end}}
-      {{- if .RetryQueueSize}}Retry queue size: {{humanize .RetryQueueSize}}{{end}}
-      {{- if .Success}}Success: {{humanize .Success}}{{end}}
-      {{- if .Errors}}Errors: {{humanize .Errors}}{{end}}
-      {{- if .ErrorsByType}}
-        Errors by type:
-        {{- range $type, $count := .ErrorsByType}}
-          {{- if $count}}
-          {{$type}}: {{humanize $count}}
-          {{- end}}
-        {{- end}}
-      {{- end}}
-      {{- if .HTTPErrors}}HTTP errors: {{humanize .HTTPErrors}}{{end}}
-    {{- end}}
-  {{- end}}
 {{- end}}

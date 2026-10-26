@@ -1,9 +1,15 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "status",
-    srcs = ["status.go"],
+    srcs = [
+        "adp_forwarder.go",
+        "status.go",
+    ],
     embedsrcs = [
+        "status_templates/adp_forwarder.tmpl",
+        "status_templates/adp_forwarder_html.tmpl",
         "status_templates/remote_agents.tmpl",
         "status_templates/remote_agents_html.tmpl",
     ],
@@ -12,5 +18,16 @@ go_library(
     deps = [
         "//comp/core/remoteagentregistry/def",
         "//comp/core/status",
+    ],
+)
+
+dd_agent_go_test(
+    name = "status_test",
+    srcs = ["adp_forwarder_test.go"],
+    embed = [":status"],
+    deps = [
+        "//comp/core/status",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

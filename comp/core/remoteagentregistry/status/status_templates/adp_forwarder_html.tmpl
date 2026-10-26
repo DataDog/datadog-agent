@@ -1,0 +1,26 @@
+<div class="stat">
+  <span class="stat_title">ADP Forwarder Transactions</span>
+  <span class="stat_data">
+    {{- with .adpForwarderStats}}
+      {{- range $agent, $agentStats := .}}
+        <span class="stat_subtitle">{{$agent}}</span>
+        <span class="stat_subdata">
+          {{- with $agentStats.Transactions}}
+            {{- if .RetryQueueSize}}Retry queue size: {{humanize .RetryQueueSize}}<br>{{end}}
+            {{- if .Success}}Success: {{humanize .Success}}<br>{{end}}
+            {{- if .Errors}}Errors: {{humanize .Errors}}<br>{{end}}
+            {{- if .ErrorsByType}}
+              Errors by type:<br>
+              {{- range $type, $count := .ErrorsByType}}
+                {{- if $count}}{{$type}}: {{humanize $count}}<br>{{end}}
+              {{- end}}
+            {{- end}}
+            {{- if .HTTPErrors}}HTTP errors: {{humanize .HTTPErrors}}<br>{{end}}
+          {{- end}}
+        </span>
+      {{- end}}
+    {{- else}}
+      No ADP Forwarder telemetry available.
+    {{- end}}
+  </span>
+</div>
