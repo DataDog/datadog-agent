@@ -63,6 +63,8 @@ const (
 	ReasonPARScopeUnchecked                   Reason = "par_scope_unchecked"
 	ReasonPARScopeWaitingForRCOrDemand        Reason = "par_scope_waiting_for_rc_or_demand"
 	ReasonScopePresent                        Reason = "scope_present"
+	ReasonSupervisorRegistrationChangePending Reason = "supervisor_registration_change_pending"
+	ReasonSupervisorRegistrationUnavailable   Reason = "supervisor_registration_unavailable"
 )
 
 // DiscoveryHTTPReason preserves the status code for unexpected discovery responses.
