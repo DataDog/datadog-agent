@@ -557,6 +557,26 @@ func TestRetryLogic_ContainerStopped(t *testing.T) {
 	})
 }
 
+// TestProcessScanAttachesImage checks that a failed image scan carries the
+// image of its request, which the image collectors file the failure under.
+func TestProcessScanAttachesImage(t *testing.T) {
+	resultCh := make(chan sbom.ScanResult, 1)
+	collector := collectors.NewMockCollector()
+	collector.On("Options").Return(sbom.ScanOptions{})
+	collector.On("Channel").Return(resultCh)
+	collector.On("Type").Return(collectors.ContainerImageScanType)
+	collector.On("Scan", mock.Anything, mock.Anything).Return(sbom.ScanResult{Error: errors.New("scan error")})
+	scanner := NewScanner(configmock.New(t), map[string]collectors.Collector{"mock": collector}, option.None[workloadmeta.Component]())
+	defer scanner.scanQueue.ShutDown()
+
+	imgMeta := &workloadmeta.ContainerImageMetadata{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "id"}}
+	scanner.processScan(context.Background(), &scanRequest{collectorName: "mock", id: "id"}, imgMeta, collector)
+
+	result := <-resultCh
+	assert.EqualError(t, result.Error, "scan error")
+	assert.Same(t, imgMeta, result.ImgMeta)
+}
+
 // Test retry handling in case of an error when sending the result to a full channel
 func TestRetryChannelFull(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
