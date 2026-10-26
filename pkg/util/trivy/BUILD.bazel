@@ -99,6 +99,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//pkg/config/mock",
         "//pkg/sbom",
+        "//pkg/util/crio",
         "@com_github_aquasecurity_trivy//pkg/fanal/artifact",
         "@com_github_aquasecurity_trivy//pkg/fanal/types",
         "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
