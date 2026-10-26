@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    DDOT: Added the OpenTelemetry ``opamp`` extension to the set of components
+    bundled in the Datadog distribution of the OpenTelemetry Collector. The
+    extension can now be configured under ``extensions.opamp``, allowing the
+    collector to report its status and effective configuration to an OpAMP
+    server. Setting ``reports_raw_config: true`` additionally reports the
+    unexpanded configuration, so configuration references such as
+    ``${env:FOO}`` are preserved rather than resolved.
