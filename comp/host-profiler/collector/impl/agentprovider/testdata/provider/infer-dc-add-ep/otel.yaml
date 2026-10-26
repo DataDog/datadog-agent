@@ -41,6 +41,7 @@ processors:
               value: 7.0.0-test
 receivers:
     profiling:
+        send_error_frames: false
         symbol_uploader:
             enabled: true
             symbol_endpoints:

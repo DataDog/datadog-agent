@@ -238,15 +238,15 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 
 	case "ZADD":
 		// Obfuscate every 2nd argument after potential optional ones.
-		// • ZADD key [NX|XX] [CH] [INCR] score member [score member ...]
+		// • ZADD key [NX|XX] [GT|LT] [CH] [INCR] score member [score member ...]
 		var i int
 	loop:
 		for i = range args {
 			if i == 0 {
 				continue // key
 			}
-			switch args[i] {
-			case "NX", "XX", "CH", "INCR":
+			switch strings.ToUpper(args[i]) {
+			case "NX", "XX", "GT", "LT", "CH", "INCR":
 				// continue
 			default:
 				break loop
