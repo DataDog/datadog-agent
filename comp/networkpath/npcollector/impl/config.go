@@ -60,6 +60,13 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	cnm := sysprobeConfig.GetBool("network_config.enabled")
 	infraMode := agentConfig.GetString("infrastructure_mode")
 	isEUDM := infraMode == "end_user_device"
+	// Basic tests are on by default, so they stand down when system-probe traceroute is
+	// explicitly disabled (e.g. the Helm chart default): every test would fail otherwise.
+	tracerouteDisabled := sysprobeConfig.IsConfigured("traceroute.enabled") && !sysprobeConfig.GetBool("traceroute.enabled")
+	basicTestsRequested := !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm
+	if basicTestsRequested && tracerouteDisabled {
+		logger.Infof("Network Path basic dynamic tests are disabled because system-probe traceroute is explicitly disabled (traceroute.enabled: false)")
+	}
 	eudmBasicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
 	candidateLimit := basicCandidateLimit
 	selectionLimit := basicSelectionsPerWindow
@@ -73,7 +80,7 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled") && cnm,
-		basicTestsEnabled:            !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm,
+		basicTestsEnabled:            basicTestsRequested && !tracerouteDisabled,
 		eudmBasicTestsEnabled:        eudmBasicTestsEnabled,
 		basicCandidateLimit:          candidateLimit,
 		basicSelectionLimit:          selectionLimit,

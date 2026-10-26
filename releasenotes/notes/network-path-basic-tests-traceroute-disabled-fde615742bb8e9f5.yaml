@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Basic Network Path dynamic tests no longer run when system-probe traceroute
+    is explicitly disabled (``traceroute.enabled: false``, the Helm chart default).
+    Previously, the Agent selected paths and every test failed. Standard dynamic
+    tests are unchanged.

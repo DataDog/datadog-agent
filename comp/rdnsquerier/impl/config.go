@@ -59,9 +59,11 @@ const (
 func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Component) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
 	isEUDM := agentConfig.GetString("infrastructure_mode") == "end_user_device"
+	// Basic tests stand down when system-probe traceroute is explicitly disabled (see npcollector).
+	tracerouteDisabled := sysprobeConfig.IsConfigured("traceroute.enabled") && !sysprobeConfig.GetBool("traceroute.enabled")
 	cnmDynamicTestsEnabled := sysprobeConfig.GetBool("network_config.enabled") &&
 		(agentConfig.GetBool("network_path.connections_monitoring.enabled") ||
-			(!isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled")))
+			(!isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && !tracerouteDisabled))
 	eudmDynamicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
 	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
 		(cnmDynamicTestsEnabled || eudmDynamicTestsEnabled)
