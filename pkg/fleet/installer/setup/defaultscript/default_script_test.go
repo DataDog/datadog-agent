@@ -107,40 +107,51 @@ func TestSetConfigProcessAgent(t *testing.T) {
 	}
 }
 
-func TestShouldInstallAPMLibraryC(t *testing.T) {
+func TestAPMLibraryCInstall(t *testing.T) {
 	cOverride := func(install bool) map[string]bool {
 		return map[string]bool{common.DatadogAPMLibraryCPackage: install}
 	}
+	remoteUpdates := env.Env{RemoteUpdates: true}
 	tests := []struct {
-		name       string
-		env        env.Env
-		goos       string
-		ssiEnabled bool
-		expected   bool
+		name             string
+		env              env.Env
+		goos             string
+		ssiEnabled       bool
+		expectedInstall  bool
+		expectedOptional bool
 	}{
-		{name: "linux with ssi", goos: "linux", ssiEnabled: true, expected: true},
+		{name: "linux with ssi and remote updates", env: remoteUpdates, goos: "linux", ssiEnabled: true, expectedInstall: true, expectedOptional: true},
+		{name: "linux with ssi without remote updates", goos: "linux", ssiEnabled: true, expectedInstall: false},
 		{
-			name:       "linux with ssi and other languages only",
-			env:        env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"java": "1"}},
-			goos:       "linux",
-			ssiEnabled: true,
-			expected:   true,
+			name:             "linux with ssi and other languages only",
+			env:              env.Env{RemoteUpdates: true, ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"java": "1"}},
+			goos:             "linux",
+			ssiEnabled:       true,
+			expectedInstall:  true,
+			expectedOptional: true,
 		},
-		{name: "linux without ssi", goos: "linux", ssiEnabled: false, expected: false},
-		{name: "windows with ssi", goos: "windows", ssiEnabled: true, expected: false},
-		{name: "centos 6 with ssi", env: env.Env{IsCentos6: true}, goos: "linux", ssiEnabled: true, expected: false},
+		{name: "linux without ssi", env: remoteUpdates, goos: "linux", ssiEnabled: false, expectedInstall: false},
+		{name: "windows with ssi", env: remoteUpdates, goos: "windows", ssiEnabled: true, expectedInstall: false},
+		{name: "centos 6 with ssi", env: env.Env{RemoteUpdates: true, IsCentos6: true}, goos: "linux", ssiEnabled: true, expectedInstall: false},
 		{
-			name:     "explicitly requested without ssi",
-			env:      env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
-			goos:     "linux",
-			expected: true,
+			name:            "explicitly requested without ssi or remote updates",
+			env:             env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
+			goos:            "linux",
+			expectedInstall: true,
 		},
 		{
-			name:       "false override opts out on linux with ssi",
-			env:        env.Env{DefaultPackagesInstallOverride: cOverride(false)},
-			goos:       "linux",
-			ssiEnabled: true,
-			expected:   false,
+			name:            "explicitly requested with ssi is not optional",
+			env:             env.Env{RemoteUpdates: true, ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
+			goos:            "linux",
+			ssiEnabled:      true,
+			expectedInstall: true,
+		},
+		{
+			name:            "false override opts out on linux with ssi",
+			env:             env.Env{RemoteUpdates: true, DefaultPackagesInstallOverride: cOverride(false)},
+			goos:            "linux",
+			ssiEnabled:      true,
+			expectedInstall: false,
 		},
 		{
 			name: "false override wins over explicit request",
@@ -148,20 +159,22 @@ func TestShouldInstallAPMLibraryC(t *testing.T) {
 				ApmLibraries:                   map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""},
 				DefaultPackagesInstallOverride: cOverride(false),
 			},
-			goos:       "linux",
-			ssiEnabled: true,
-			expected:   false,
+			goos:            "linux",
+			ssiEnabled:      true,
+			expectedInstall: false,
 		},
 		{
-			name:     "true override installs without ssi",
-			env:      env.Env{DefaultPackagesInstallOverride: cOverride(true)},
-			goos:     "windows",
-			expected: true,
+			name:            "true override installs without ssi",
+			env:             env.Env{DefaultPackagesInstallOverride: cOverride(true)},
+			goos:            "windows",
+			expectedInstall: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, shouldInstallAPMLibraryC(&tt.env, tt.goos, tt.ssiEnabled))
+			install, optional := apmLibraryCInstall(&tt.env, tt.goos, tt.ssiEnabled)
+			assert.Equal(t, tt.expectedInstall, install, "install")
+			assert.Equal(t, tt.expectedOptional, optional, "optional")
 		})
 	}
 }

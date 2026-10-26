@@ -294,23 +294,31 @@ func installAPMPackages(s *common.Setup) {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
-	if shouldInstallAPMLibraryC(s.Env, runtime.GOOS, apmInstrumentationEnabled) {
-		s.Packages.Install(common.DatadogAPMLibraryCPackage, getLibraryVersion(s.Env, common.DatadogAPMLibraryCPackage))
+	if install, optional := apmLibraryCInstall(s.Env, runtime.GOOS, apmInstrumentationEnabled); install {
+		version := getLibraryVersion(s.Env, common.DatadogAPMLibraryCPackage)
+		if optional {
+			s.Packages.InstallOptional(common.DatadogAPMLibraryCPackage, version)
+		} else {
+			s.Packages.Install(common.DatadogAPMLibraryCPackage, version)
+		}
 	}
 }
 
-// shouldInstallAPMLibraryC reports whether dd-trace-c should be installed.
-// dd-trace-c is language-agnostic: it is installed on every Linux host with SSI
-// enabled, regardless of which languages were requested (except CentOS 6, which
-// keeps its pinned injector), or when explicitly requested. A per-package
-// install override wins either way; it must be checked here because
-// common.resolvePackages only applies true overrides.
-func shouldInstallAPMLibraryC(e *env.Env, goos string, apmInstrumentationEnabled bool) bool {
+// apmLibraryCInstall reports whether dd-trace-c should be installed, and
+// whether a failure to install it may be ignored.
+//
+// dd-trace-c is language-agnostic, so it is installed on Linux hosts with SSI
+// enabled regardless of which languages were requested (except CentOS 6, which
+// keeps its pinned injector).
+func apmLibraryCInstall(e *env.Env, goos string, apmInstrumentationEnabled bool) (install bool, optional bool) {
 	if override, ok := e.DefaultPackagesInstallOverride[common.DatadogAPMLibraryCPackage]; ok {
-		return override
+		return override, false
 	}
-	_, requested := e.ApmLibraries[packageToLanguage(common.DatadogAPMLibraryCPackage)]
-	return requested || (goos == "linux" && !e.IsCentos6 && apmInstrumentationEnabled)
+	if _, requested := e.ApmLibraries[packageToLanguage(common.DatadogAPMLibraryCPackage)]; requested {
+		return true, false
+	}
+	implicit := goos == "linux" && !e.IsCentos6 && apmInstrumentationEnabled && e.RemoteUpdates
+	return implicit, implicit
 }
 
 // packageToLanguage returns the language of an APM package

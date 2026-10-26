@@ -202,15 +202,8 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to prepare APM injector reinstallation: %w", err)
 	}
-	for _, p := range packages {
-		if p.name == DatadogAPMInjectPackage {
-			p.forceInstall = apmInjectorReinstall
-		}
-		url := oci.PackageURL(s.Env, p.name, p.version)
-		err = s.installPackage(p, url)
-		if err != nil {
-			return fmt.Errorf("failed to install package %s: %w", url, err)
-		}
+	if err = s.installPackages(packages, apmInjectorReinstall); err != nil {
+		return err
 	}
 	if err = s.postInstallPackages(); err != nil {
 		return fmt.Errorf("failed during post-package installation: %w", err)
@@ -326,6 +319,25 @@ func (s *Setup) backfillConfigTemplates(freshConfigs []string) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// installPackages installs the resolved packages in order. A failure aborts
+// the setup, except for optional packages, which only emit a warning.
+func (s *Setup) installPackages(packages []packageWithVersion, apmInjectorReinstall bool) error {
+	for _, p := range packages {
+		if p.name == DatadogAPMInjectPackage {
+			p.forceInstall = apmInjectorReinstall
+		}
+		url := oci.PackageURL(s.Env, p.name, p.version)
+		if err := s.installPackage(p, url); err != nil {
+			if p.optional {
+				s.Out.WriteString(fmt.Sprintf("Warning: failed to install optional package %s, skipping it: %v\n", url, err))
+				continue
+			}
+			return fmt.Errorf("failed to install package %s: %w", url, err)
+		}
+	}
+	return nil
 }
 
 // installPackage mimicks the telemetry of calling the install package command

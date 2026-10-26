@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,7 +30,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	}
 	packages := DefaultPackages(env)
 
-	expected := []string{
+	assert.Equal(t, []string{
 		"oci://install.datadoghq.com/apm-inject-package:latest",
 		"oci://install.datadoghq.com/apm-library-java-package:1",
 		"oci://install.datadoghq.com/apm-library-ruby-package:2",
@@ -40,64 +39,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
 		"oci://install.datadoghq.com/apm-library-nginx-package:1",
-	}
-	if runtime.GOOS == "linux" {
-		expected = append(expected, "oci://install.datadoghq.com/apm-library-c-package:latest")
-	}
-	assert.Equal(t, expected, packages)
-}
-
-func TestDefaultPackagesAPMLibraryC(t *testing.T) {
-	const cPackage = "oci://install.datadoghq.com/apm-library-c-package:latest"
-	onLinux := runtime.GOOS == "linux"
-	cases := map[string]struct {
-		env      env.Env
-		expected bool
-	}{
-		"ssi with no libraries": {
-			env:      env.Env{InstallScript: env.InstallScriptEnv{APMInstrumentationEnabled: env.APMInstrumentationEnabledHost}},
-			expected: onLinux,
-		},
-		"ssi with all libraries": {
-			env: env.Env{
-				InstallScript: env.InstallScriptEnv{APMInstrumentationEnabled: env.APMInstrumentationEnabledDocker},
-				ApmLibraries:  map[env.ApmLibLanguage]env.ApmLibVersion{"all": ""},
-			},
-			expected: onLinux,
-		},
-		"ssi with other languages only": {
-			env: env.Env{
-				InstallScript: env.InstallScriptEnv{APMInstrumentationEnabled: env.APMInstrumentationEnabledAll},
-				ApmLibraries:  map[env.ApmLibLanguage]env.ApmLibVersion{"java": "1"},
-			},
-			expected: onLinux,
-		},
-		"ssi on centos 6": {
-			env: env.Env{
-				InstallScript: env.InstallScriptEnv{APMInstrumentationEnabled: env.APMInstrumentationEnabledAll},
-				IsCentos6:     true,
-			},
-			expected: false,
-		},
-		"explicitly requested without ssi": {
-			env:      env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
-			expected: true,
-		},
-		"no ssi": {
-			env:      env.Env{},
-			expected: false,
-		},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			packages := DefaultPackages(&tc.env)
-			if tc.expected {
-				assert.Contains(t, packages, cPackage)
-			} else {
-				assert.NotContains(t, packages, cPackage)
-			}
-		})
-	}
+	}, packages)
 }
 
 func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
@@ -159,6 +101,7 @@ func TestPreRegisteredPackagesNotSelectedByDefault(t *testing.T) {
 				assert.NotContains(t, url, "apm-library-iis-package")
 				assert.NotContains(t, url, "apm-library-iis-rum-package")
 				assert.NotContains(t, url, "apm-library-httpd-package")
+				assert.NotContains(t, url, "apm-library-c-package")
 			}
 		})
 	}

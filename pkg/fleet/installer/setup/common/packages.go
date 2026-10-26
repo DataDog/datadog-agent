@@ -112,6 +112,8 @@ type packageWithVersion struct {
 	name         string
 	version      string
 	forceInstall bool
+	// optional packages do not fail the setup when their installation fails.
+	optional bool
 }
 
 // Install marks a package to be installed
@@ -119,6 +121,17 @@ func (p *Packages) Install(pkg string, version string) {
 	p.install[pkg] = packageWithVersion{
 		name:    pkg,
 		version: version,
+	}
+}
+
+// InstallOptional marks a package to be installed without failing the setup
+// if its installation fails. Use it for packages that are inert by default,
+// so a missing image (e.g. in a registry mirror) cannot break the whole install.
+func (p *Packages) InstallOptional(pkg string, version string) {
+	p.install[pkg] = packageWithVersion{
+		name:     pkg,
+		version:  version,
+		optional: true,
 	}
 }
 
