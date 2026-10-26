@@ -118,3 +118,7 @@ Locally, set `E2E_DEV_MODE=true` to skip infra teardown. This is impossible in C
 
 ## Wiring the test into CI
 Add appropriate `needs:` blocks for things your test depends on (e.g. the Agent/Cluster Agent docker images). Otherwise the test may hang or fail while waiting for the artifact to be pushed to a registry.
+
+## Scope assertions to the test's resources
+
+When reading payloads from shared fakeintake, filter assertions by the host or other unique identity owned by the test. Flag assertions over every retained host or payload when unrelated suites can contribute data. A test that owns a dedicated intake or explicitly filters all resources it owns can assert across that set.

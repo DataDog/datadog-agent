@@ -50,7 +50,11 @@ An implementation receives a lifecycle in its `Requires` struct and appends hook
 1. Runtime begins after startup completes. Startup hooks schedule ongoing work and return, allowing later hooks to run.
 1. Shutdown calls `OnStop` hooks in reverse order. If startup fails, Fx rolls back the hooks whose startup completed successfully.
 
+Completing startup establishes only what the hooks promise: a hook may have launched background initialization without waiting for it to finish. If a consumer needs that initialization to be complete, use the component's readiness contract. Reverse hook ordering likewise follows registered dependencies; runtime subscriptions, callbacks, or resources managed inside a component may need explicit shutdown coordination.
+
 An unused provider never gets an opportunity to register its hooks. This is why registering a component's wrapper alone does not start its background work. Public methods may also be called by an invocation before startup, which motivates the [component lifecycle requirements](../../guidelines/components.md#concurrency-and-lifecycle).
+
+A start hook that acquires resources and then fails must unwind its own partial initialization: its stop hook is not included in rollback. Rollback is subject to the startup context's deadline, so it is not an unconditional cleanup guarantee. Components also own the synchronization of their background work; calling cancellation does not establish that workers have exited.
 
 The boundary between the plain lifecycle and Fx is explicit. <<<repo("pkg/util/fxutil/provide_comp.go", "`fxutil.FxLifecycleAdapter()`", match="^func FxLifecycleAdapter")>>> supplies `compdef.Lifecycle` from Fx's lifecycle. `fxutil.FxAgentBase()` includes that adapter, the shutdown adapter, and Fx logging. An application built directly with `fx.New` needs the appropriate option when its components request these interfaces. The constructor adapter does not supply lifecycle adaptation.
 
@@ -58,7 +62,11 @@ The boundary between the plain lifecycle and Fx is explicit. <<<repo("pkg/util/f
 
 Direct callers provide their own lifecycle implementation. Tests can use `compdef.NewTestLifecycle(t)` with the repository's `test` build tag. Older Agent implementations and underlying Fx examples may instead depend directly on `fx.Lifecycle` and `fx.Hook`.
 
+`TestLifecycle` is a spy that invokes hooks in registration order, not an emulator of Fx's reverse shutdown ordering, rollback, or timeout behavior. Use an Fx-backed test when the behavior being checked depends on those guarantees.
+
 Fx applies startup and shutdown timeouts when running an application. Hooks that respect cancellation of their supplied context allow those limits to take effect.
+
+An application timeout can return control while a hook that ignores cancellation is still running. Define what happens to unfinished work and resources at that boundary rather than treating the timeout as proof of completion.
 
 ## Ins and outs
 

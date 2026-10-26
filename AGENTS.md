@@ -227,6 +227,11 @@ See the marketplace README for installation instructions.
 
 Area-specific review rules live in `codereview_guideline.md` files co-located with the code they cover (e.g. `bazel/codereview_guideline.md` for Bazel changes). When reviewing a PR, search the repo for `codereview_guideline.md` files and load every one that is relevant to the changed files. Always load the one at the root of the repository in addition.
 
+## Engineering principles
+
+- **Make lifecycle ownership and completion explicit.** When changing resource acquisition or asynchronous work, identify its owner and start/use/stop/cleanup contract. Distinguish cancellation from completion and, where exposed, readiness from construction. Account for partial initialization and the supported failure, disabled, and concurrent-stop paths. Use the framework/API's actual guarantees; verify which cleanup and synchronization remain the implementation's responsibility. Order teardown around remaining users of resources. For bounded shutdown, make the disposition of unfinished work, data, and resources explicit. Validate the affected transitions and overlaps without inventing unsupported restart or idempotency guarantees.
+- **Check changed contracts at consumer boundaries.** When changing shared or externally consumed availability, defaults, data shape, identity, or timing, identify the affected contract and its direct consumers. Inspect effective configuration when enablement or defaults change; follow actual subscription, forwarding, IPC, and persistence paths as needed to establish the consumer-visible effect. Stop following a path once its observable contract is unchanged. Preserve the contract or make intentional changes explicit to affected consumers. Validate the changed consumer-visible behavior, and document externally visible changes when relevant. Dependency injection describes construction relationships; runtime consumers and readiness can differ.
+
 ## Security Considerations
 
 ### Sensitive Data

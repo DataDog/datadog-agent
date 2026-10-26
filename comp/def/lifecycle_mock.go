@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestLifecycle is a testing spy for fx.Lifecycle
+// TestLifecycle is a testing spy that invokes hooks in registration order.
+// It does not emulate Fx rollback, reverse shutdown ordering, or nil-hook handling.
 type TestLifecycle struct {
 	hooks []Hook
 	t     *testing.T
@@ -43,7 +44,7 @@ func (t *TestLifecycle) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop executes all registered OnStop hooks in reverse order, halting at the first
+// Stop executes all registered OnStop hooks in registration order, halting at the first error.
 func (t *TestLifecycle) Stop(ctx context.Context) error {
 	for _, h := range t.hooks {
 		err := h.OnStop(ctx)
