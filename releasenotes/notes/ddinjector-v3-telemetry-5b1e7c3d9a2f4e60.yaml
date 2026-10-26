@@ -4,4 +4,6 @@ enhancements:
     On Windows, the ``ddinjector`` system-probe telemetry now reports the V3
     driver counters when the driver supports them: skip-list skips by source
     (default, custom, crash recovery), processes automatically added to the
-    skip list, binary signature policy skips, and 8.3 short-name skips.
+    skip list, binary signature policy skips, and 8.3 short-name skips. Every
+    ``injector.*`` metric is also tagged with the ``ddinjector_version`` of the
+    installed driver, which is reported as the ``driver_version`` injector stat.
