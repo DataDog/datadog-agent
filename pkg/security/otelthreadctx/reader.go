@@ -15,7 +15,7 @@ import (
 )
 
 // Mirrors pkg/security/ebpf/c/include/helpers/span_otel.h hop for hop: change
-// both together.
+// both together. The Node.js reader is in reader_nodejs.go.
 
 // ReadStatus mirrors SPAN_CTX_EVENT_* in pkg/security/ebpf/c/include/constants/custom.h.
 type ReadStatus int
@@ -50,11 +50,19 @@ const (
 // ReadRecord reads the record the thread whose thread pointer is threadPointer
 // publishes, out of mem, the memory of its process.
 func (res Layout) ReadRecord(mem otelprocessctx.Memory, threadPointer uint64) (Record, ReadStatus) {
-	// Go publishes through pprof labels, and Node.js is not read in user space
-	// yet.
-	if res.runtimeLang != otelRuntimeNative {
+	switch res.runtimeLang {
+	case otelRuntimeNative:
+		return res.readNativeRecord(mem, threadPointer)
+	case otelRuntimeNodeJS:
+		return res.readNodeJSRecord(mem, threadPointer)
+	default:
+		// Go publishes through pprof labels.
 		return Record{}, ReadNone
 	}
+}
+
+// readNativeRecord mirrors fill_span_context_otel.
+func (res Layout) readNativeRecord(mem otelprocessctx.Memory, threadPointer uint64) (Record, ReadStatus) {
 	if threadPointer == 0 {
 		return Record{}, ReadNoThreadPointer
 	}
