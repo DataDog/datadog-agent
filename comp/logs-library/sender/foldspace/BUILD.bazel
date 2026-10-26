@@ -28,6 +28,7 @@ dd_agent_go_test(
     name = "foldspace_test",
     srcs = [
         "driver_test.go",
+        "stale_stream_test.go",
     ],
     embed = [":foldspace"],
     deps = [
