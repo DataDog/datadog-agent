@@ -18,3 +18,10 @@ type Model interface {
 	// GetFieldRestrictions returns the event type for which the field is available
 	GetFieldRestrictions(field Field) []EventType
 }
+
+// FieldDerivationModel is implemented by the models in which the value of a string field can be computed from the value
+// of another one, so that the partial evaluation of a rule on the latter can account for the former
+type FieldDerivationModel interface {
+	// GetFieldDerivation returns the function computing the value of field from the value of from, nil if there is none
+	GetFieldDerivation(field Field, from Field) func(string) string
+}

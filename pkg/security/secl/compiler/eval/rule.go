@@ -315,7 +315,9 @@ func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error
 
 // GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) genPartials(field Field) error {
-	if !slices.Contains(r.GetFields(), field) {
+	if !slices.ContainsFunc(r.GetFields(), func(f Field) bool {
+		return f == field || getFieldDerivation(r.Model, f, field) != nil
+	}) {
 		return nil
 	}
 

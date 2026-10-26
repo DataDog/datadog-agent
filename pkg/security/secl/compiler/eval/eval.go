@@ -191,6 +191,12 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 
 	state.UpdateFields(field)
 
+	if !isArrayAccess && regID == "" {
+		if derived := derivedEvaluator(evaluator, field, state); derived != nil {
+			return derived, obj.Pos, nil
+		}
+	}
+
 	// Handle numeric array index access (e.g., field[0])
 	if isArrayAccess {
 		wrappedEvaluator, err := WrapEvaluatorWithArrayIndex(evaluator, arrayIndex, field)
@@ -221,6 +227,49 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	return evaluator, obj.Pos, nil
+}
+
+// derivedEvaluator returns, when partially evaluating a rule on a field, an evaluator computing the given field from the
+// value of the partial field if the model allows it. The field name is kept, so that the values compared to it keep
+// being validated against it, but the evaluator is deterministic for the partial field.
+func derivedEvaluator(evaluator Evaluator, field Field, state *State) *StringEvaluator {
+	if state.field == "" || field == state.field {
+		return nil
+	}
+
+	derivation := getFieldDerivation(state.model, field, state.field)
+	if derivation == nil {
+		return nil
+	}
+
+	fieldEvaluator, ok := evaluator.(*StringEvaluator)
+	if !ok {
+		return nil
+	}
+
+	from, err := state.model.GetEvaluator(state.field, "", 0)
+	if err != nil {
+		return nil
+	}
+	fromEvaluator, ok := from.(*StringEvaluator)
+	if !ok || fromEvaluator.EvalFnc == nil {
+		return nil
+	}
+
+	derived := *fieldEvaluator
+	derived.EvalFnc = func(ctx *Context) string {
+		return derivation(fromEvaluator.EvalFnc(ctx))
+	}
+	derived.isDeterministic = true
+
+	return &derived
+}
+
+func getFieldDerivation(model Model, field Field, from Field) func(string) string {
+	if model, ok := model.(FieldDerivationModel); ok {
+		return model.GetFieldDerivation(field, from)
+	}
+	return nil
 }
 
 func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {

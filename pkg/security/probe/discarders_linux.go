@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -237,7 +238,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 
 	for _, rule := range bucket.GetRules() {
 		// a rule without path condition only allows discarders through the basename, which says nothing about the siblings
-		if rule.GetPartialEval(field) == nil {
+		if !slices.Contains(rule.GetFields(), field) {
 			fnc = func(_ string) (bool, error) { return false, nil }
 			id.parentDiscarderFncs[depth-1][field] = fnc
 			return fnc, nil
