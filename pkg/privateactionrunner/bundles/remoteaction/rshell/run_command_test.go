@@ -1241,11 +1241,11 @@ func TestRunCommandTaskDeadlineTakesPrecedenceOverDefault(t *testing.T) {
 	// The task deadline is longer than the default: the run must last until
 	// the task deadline, not stop at the default.
 	const taskTimeout = 500 * time.Millisecond
+	task := makeTask("while X=1; do Y=1; done", nil)
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), taskTimeout)
 	defer cancel()
-	task := makeTask("while X=1; do Y=1; done", nil)
 
-	start := time.Now()
 	_, err := newDefaultRunCommandHandler().Run(ctx, task, nil)
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
