@@ -244,7 +244,7 @@ func newModule(reqs Requires) Provides {
 - Request only the dependencies the module uses; omit `Requires` for a zero-argument constructor.
 - Use a direct top-level `issues.Module` field tagged `group:"healthplatform_issue"`; no provider wrapper is needed.
 - Add the package's `Module()` to `fxutil.Bundle(...)` in `bundle.go` with a normal import.
-- Return an empty `Provides` to opt out at construction time; the registry drops nil members with `fxutil.GetAndFilterGroup`.
+- Return an empty `Provides` to opt out at construction time; the registry skips nil group members in its registration loop.
 - Config is available in the constructor, so config and environment gates are legitimate. Keep gates inside `Fn` when the check must still resolve stale issues after being disabled.
 - For build-tagged modules, add an opposite-tag `module_noop.go` exposing `Module()` that returns `fxutil.Component()`; see `rofspermissions`.
 - Modules needing `*selfident.SelfIdent` receive the single shared provider from `bundle.go`; workloadmeta is optional.

@@ -17,7 +17,6 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
-        "//comp/core/workloadmeta/def",
         "//comp/def",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
