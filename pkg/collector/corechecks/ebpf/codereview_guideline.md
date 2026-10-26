@@ -2,7 +2,7 @@
 
 ## Capability selection and configuration
 
-For kernel-dependent attachment choices, prefer runtime capability detection over adding a per-probe setting solely to select a supported implementation. Known kernel defects can justify an operator override; explain that exception and consider a shared system-probe control when it affects multiple probes.
+For kernel-dependent attachment choices, prefer automatic runtime capability detection. Allow an explicit configuration override as a documented escape hatch for known kernel defects. If the same defect affects several probes, consider one system-probe setting rather than a separate setting for each probe.
 
 ## Program type is metadata
 
