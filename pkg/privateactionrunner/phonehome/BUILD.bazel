@@ -37,6 +37,7 @@ dd_agent_go_test(
         "discovery_test.go",
         "http_stack_test.go",
         "source_test.go",
+        "supervisor_recovery_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":phonehome"],

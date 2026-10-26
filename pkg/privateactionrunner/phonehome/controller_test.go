@@ -31,9 +31,13 @@ type supervisor struct {
 	control, executor *pb.ProcessDetail
 	starts            int
 	startErr          error
+	describeErr       error
 }
 
 func (p *supervisor) Describe(_ context.Context, r *pb.DescribeRequest, _ ...grpc.CallOption) (*pb.DescribeResponse, error) {
+	if p.describeErr != nil {
+		return nil, p.describeErr
+	}
 	if r.NameOrUuid == controlProcess {
 		return &pb.DescribeResponse{Detail: p.control}, nil
 	}
@@ -116,7 +120,12 @@ func TestStartupDoesNotReplayOrStopChildren(t *testing.T) {
 				} else {
 					f.pm.control.State = state
 				}
-				require.Zero(t, f.c.step(context.Background()))
+				delay := f.c.step(context.Background())
+				if state == pb.ProcessState_RUNNING || state == pb.ProcessState_STARTING || state == pb.ProcessState_STOPPING {
+					require.Equal(t, pollInterval, delay)
+				} else {
+					require.Zero(t, delay)
+				}
 				require.Zero(t, f.pm.starts)
 			})
 		}
@@ -169,7 +178,7 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 			// Model a scheduling pause after successful supervisor inspection.
 			time.Sleep(6 * time.Second)
 		}
-		require.Zero(t, f.c.step(context.Background()))
+		require.Equal(t, pollInterval, f.c.step(context.Background()))
 		require.NoError(t, pm.startContextErr, "Start must not inherit an exhausted preflight deadline")
 		require.Equal(t, 1, pm.starts)
 		require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
