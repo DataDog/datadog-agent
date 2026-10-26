@@ -108,7 +108,7 @@ Please refer to the following example in order to manually set the `pprof`, `hea
 - [pprof](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/pprofextension/README.md): Enables collecting collector profiles at a defined endpoint.
 - [health_check](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/healthcheckextension/README.md): Enables an HTTP url that can be probed to check the status of the OpenTelemetry Collector.
 - [zpages](https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension/README.md): Enables an extension that serves zPages, an HTTP endpoint that provides live data for debugging different components
-- [ddflare](../extension/README.md): Enables otel-agent information to be collected in the datadog-agent flare.
+- [ddflare](../ddflareextension/README.md): Enables otel-agent information to be collected in the datadog-agent flare.
 - [datadog](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/datadogextension): Enables collector configuration and build info to be viewed in both Datadog Infrastructure Monitoring and Fleet Automation.
 - [opamp](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/opampextension): Enables the collector to report its status and configuration to an OpAMP server.
 
