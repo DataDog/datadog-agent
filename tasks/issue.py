@@ -45,9 +45,7 @@ def ask_reviews(_, pr_id, action, team_slugs):
 
     slack_token = os.environ.get('SLACK_DATADOG_AGENT_BOT_TOKEN')
     if not slack_token:
-        # Secrets aren't available to workflows triggered by PRs from forks, so this is expected there.
-        print("SLACK_DATADOG_AGENT_BOT_TOKEN is not set, skipping Slack notification.")
-        return
+        raise RuntimeError("SLACK_DATADOG_AGENT_BOT_TOKEN is not set, cannot send Slack notification.")
 
     from slack_sdk import WebClient
 
