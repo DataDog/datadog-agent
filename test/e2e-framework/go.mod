@@ -30,14 +30,14 @@ require (
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
 	github.com/pkg/sftp v1.13.11
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.51.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.51.1
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.28.0
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.28.0
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.28.0
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.28.0
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.28.0
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.28.0
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.29.0
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.29.0
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.29.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0
@@ -46,7 +46,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.4
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.2
-	github.com/pulumi/pulumi/sdk/v3 v3.269.0
+	github.com/pulumi/pulumi/sdk/v3 v3.270.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -224,7 +224,7 @@ require (
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.29 // indirect

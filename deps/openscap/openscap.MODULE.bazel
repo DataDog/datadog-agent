@@ -2,36 +2,17 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "1.4.5"
+# Releases of the datadog branch of github.com/0intro/openscap: an upstream
+# OpenSCAP release plus the changes the Agent needs, each on a branch of its
+# own (.datadog/README.md there).
+VERSION = "1.4.6-dd.20261022.1"
 
 http_archive(
     name = "openscap",
     files = {
         "BUILD.bazel": "//deps:openscap/openscap.BUILD.bazel",
     },
-    patch_strip = 1,
-    patch_tool = "patch",
-    patches = [
-        "//deps:openscap/patches/fsdev-ignore-host.patch",
-        "//deps:openscap/patches/fsdev-proc-self-mounts.patch",
-        "//deps:openscap/patches/systemd-dbus-address.patch",
-        "//deps:openscap/patches/rpm-verbosity-err.patch",
-        "//deps:openscap/patches/session-print-syschar.patch",
-        "//deps:openscap/patches/memusage-cgroup.patch",
-        "//deps:openscap/patches/oval_probe_session_reset.patch",
-        "//deps:openscap/patches/probe-wait-workers.patch",
-        "//deps:openscap/patches/sysctl-probe-offline-skip.patch",
-        "//deps:openscap/patches/probes-no-procfs.patch",
-        "//deps:openscap/patches/oscap-io.patch",
-        "//deps:openscap/patches/dpkginfo-virtual-packages-revert.patch",
-        "//deps:openscap/patches/sce-noexec-interpreter.patch",
-        "//deps:openscap/patches/sce-probe-root.patch",
-        "//deps:openscap/patches/probe-root-paths.patch",
-        "//deps:openscap/patches/inetlisteningservers-probe-root.patch",
-        "//deps:openscap/patches/sce-default-operator.patch",
-        "//deps:openscap/patches/sce-stdin-null.patch",
-    ],
-    sha256 = "f4fc0a54b50441b3c6bb3527c292345cdb3bea16a9d23435292beb508eb96e47",
+    sha256 = "73504c16aae0aac27b6fe40060428b49d1c04fc5f3be6a03d911932fae956668",
     strip_prefix = "openscap-{}".format(VERSION),
-    url = "https://github.com/OpenSCAP/openscap/releases/download/{0}/openscap-{0}.tar.gz".format(VERSION),
+    url = "https://github.com/0intro/openscap/releases/download/v{0}/openscap-{0}.tar.gz".format(VERSION),
 )
