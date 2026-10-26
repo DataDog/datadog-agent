@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix the AppSec proxy injector removing the shared Istio EnvoyFilter when a
+    single Istio ``Gateway`` is opted out with the ``appsec.datadoghq.com/enabled: "false"``
+    label, when one of several Istio ``GatewayClasses`` is deleted, or at startup when
+    only one of the ``istio`` and ``istio-gateway`` proxy types is enabled.

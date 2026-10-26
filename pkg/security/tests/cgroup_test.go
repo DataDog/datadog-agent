@@ -820,7 +820,7 @@ func TestCGroupFailedWrite(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	// a cgroup with controllers enabled for its children can't contain processes, writing
+	// a cgroup with domain controllers enabled for its children can't contain processes, writing
 	// to its cgroup.procs file fails with EBUSY
 	parentCGroupPath := "/sys/fs/cgroup/cws-failed-write"
 	if err := os.Mkdir(parentCGroupPath, 0700); err != nil {
@@ -828,8 +828,8 @@ func TestCGroupFailedWrite(t *testing.T) {
 	}
 	defer os.Remove(parentCGroupPath)
 
-	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+pids"), 0700); err != nil {
-		t.Skipf("failed to enable the pids controller: %v", err)
+	if err := os.WriteFile(parentCGroupPath+"/cgroup.subtree_control", []byte("+memory"), 0700); err != nil {
+		t.Skipf("failed to enable the memory controller: %v", err)
 	}
 
 	childCGroupPath := parentCGroupPath + "/child"
