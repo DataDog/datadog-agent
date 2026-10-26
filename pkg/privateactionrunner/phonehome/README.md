@@ -92,6 +92,22 @@ established Go enrollment path still owns identity handling. A deliberate core r
 with stopped children also requires fresh AAA approval, even with a saved identity.
 No runtime revocation or core-owned recovery of ordinary child crashes is added.
 
+## Core Agent logs
+
+The gate uses the existing core Agent logger. INFO records permission-wait reason changes,
+actual supervisor Start requests and acknowledged handoffs, existing children left untouched,
+and fresh supervisor lifecycle detection before re-authorization. A handoff is not enrollment
+or action readiness; reconnecting to unchanged registrations does not log another Start or handoff.
+WARN identifies actionable configuration/policy blocks, retained legacy attempts and ambiguous
+Start outcomes requiring reconciliation. DEBUG covers intentional ungated modes (including
+split mode disabled), transient supervisor/discovery retries and cancellation. Disabled PAR is quiet.
+
+Unchanged state/reason pairs, including next-check-only changes, produce no repeated logs.
+Logs contain only fixed messages, allowlisted reasons and the fixed control-plane process name,
+never credentials, key hashes, identity material, endpoint URLs, raw errors/responses or registration
+IDs. Generic discovery HTTP failures use a fixed debug reason, without response details.
+Status reasons and COAT transitions remain unchanged, including the blocked status for ungated modes.
+
 ## COAT diagnostics
 
 The core component records `par_phone_home.state` (a gauge) and

@@ -10,6 +10,7 @@ package phonehome
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -198,6 +199,7 @@ func TestExistingChildrenReleaseDiscoveryThroughSourceInterface(t *testing.T) {
 func TestHTTPStackSupervisorReplacementRequiresFreshScope(t *testing.T) {
 	f := newScopeFixture(t)
 	c, pm := stackController(t, f)
+	output := captureLogs(t)
 	ctx := context.Background()
 	f.rc(true, true)
 	c.step(ctx)
@@ -223,4 +225,7 @@ func TestHTTPStackSupervisorReplacementRequiresFreshScope(t *testing.T) {
 	require.EqualValues(t, 2, f.aaaGETs.Load())
 	require.Equal(t, 2, pm.starts)
 	require.False(t, f.s.demand.Load())
+	require.Equal(t, 2, strings.Count(output.String(), "requesting supervisor Start"))
+	require.Equal(t, 2, strings.Count(output.String(), "Start acknowledged"))
+	require.Equal(t, 1, strings.Count(output.String(), "fresh supervisor lifecycle detected"))
 }

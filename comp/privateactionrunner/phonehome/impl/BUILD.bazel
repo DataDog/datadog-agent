@@ -33,6 +33,7 @@ dd_agent_go_test(
         "//comp/core/telemetry/mock",
         "//comp/def",
         "//comp/privateactionrunner/phonehome/def",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//require",
     ],
 )
