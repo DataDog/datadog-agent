@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -68,13 +69,13 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	}
 	buildFIPS, err := fips.Enabled()
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || buildFIPS || cfg.GetBool("fips.enabled") ||
-		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
-		publish(State{State: "blocked", Reason: "unsupported_poc_configuration"})
+		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+		publish(State{State: "blocked", Reason: "unsupported_configuration"})
 		return
 	}
-	socket := os.Getenv("DD_PM_SOCKET_PATH")
+	socket := supervisorSocketPath()
 	if !filepath.IsAbs(socket) {
-		publish(State{State: "blocked", Reason: "explicit_supervisor_socket_required"})
+		publish(State{State: "blocked", Reason: "invalid_supervisor_socket"})
 		return
 	}
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -85,6 +86,14 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	defer conn.Close()
 	c := controller{cfg: cfg, source: source, pm: pb.NewProcessManagerClient(conn), emit: publish, now: time.Now}
 	c.run(ctx)
+}
+
+func supervisorSocketPath() string {
+	if socket := os.Getenv("DD_PM_SOCKET_PATH"); socket != "" {
+		return socket
+	}
+	// Match dd-procmgrd's Unix default in pkg/procmgr/rust/client/src/lib.rs.
+	return "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 }
 
 type controller struct {
@@ -137,8 +146,10 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		if err != nil || p.GetDetail() == nil {
 			return set("waiting", "supervisor_unavailable", pollInterval)
 		}
-		if p.Detail.AutoStart || p.Detail.RestartPolicy != "never" {
-			return set("blocked", "supervisor_must_be_on_demand_no_restart", 0)
+		// The control plane may recover after a crash, but only core owns its initial launch.
+		restartAllowed := p.Detail.RestartPolicy == "never" || (name == controlProcess && p.Detail.RestartPolicy == "on-failure")
+		if p.Detail.AutoStart || !restartAllowed {
+			return set("blocked", "unsupported_supervisor_policy", 0)
 		}
 		switch p.Detail.State {
 		case pb.ProcessState_STARTING, pb.ProcessState_RUNNING, pb.ProcessState_STOPPING:
@@ -152,7 +163,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		}
 	}
 	// Old recovery experiments may hold credentials: require deliberate reconciliation before migration.
-	if _, err := os.Stat(c.cfg.GetString(par.IdentityFilePath) + ".phone-home"); !os.IsNotExist(err) {
+	if _, err := os.Stat(enrollment.GetIdentityFilePath(c.cfg) + ".phone-home"); !os.IsNotExist(err) {
 		return set("blocked", "legacy_attempt_requires_reconciliation", 0)
 	}
 	gate := c.source.Read(c.now())

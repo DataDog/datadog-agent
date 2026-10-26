@@ -63,7 +63,7 @@ func newFixture(t *testing.T) *fixture {
 		cfg.SetInTest(k, v)
 	}
 	f := &fixture{cfg: cfg, rc: &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}, pm: &supervisor{
-		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
+		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "on-failure"},
 		executor: &pb.ProcessDetail{Uuid: "executor", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 	}}
 	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: func(s State) { f.state = s }}
@@ -178,6 +178,54 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 	})
 }
 
+func TestSupervisorSocketUsesPackagedDefaultOrOverride(t *testing.T) {
+	t.Setenv("DD_PM_SOCKET_PATH", "")
+	require.Equal(t, "/var/run/datadog-procmgrd/dd-procmgrd.sock", supervisorSocketPath())
+	socket := filepath.Join(t.TempDir(), "procmgr.sock")
+	t.Setenv("DD_PM_SOCKET_PATH", socket)
+	require.Equal(t, socket, supervisorSocketPath())
+}
+
+func TestStartupSupervisorPolicies(t *testing.T) {
+	for _, tc := range []struct {
+		name, controlRestart, executorRestart string
+		controlAuto, executorAuto, allowed    bool
+	}{
+		{"packaged", "on-failure", "never", false, false, true},
+		{"no_recovery", "never", "never", false, false, true},
+		{"control_auto", "on-failure", "never", true, false, false},
+		{"executor_auto", "on-failure", "never", false, true, false},
+		{"executor_restart", "on-failure", "on-failure", false, false, false},
+		{"control_always", "always", "never", false, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.pm.control.AutoStart, f.pm.executor.AutoStart = tc.controlAuto, tc.executorAuto
+			f.pm.control.RestartPolicy, f.pm.executor.RestartPolicy = tc.controlRestart, tc.executorRestart
+			f.c.step(context.Background())
+			if tc.allowed {
+				require.Equal(t, 1, f.pm.starts)
+			} else {
+				require.Zero(t, f.pm.starts)
+				require.Equal(t, "unsupported_supervisor_policy", f.state.Reason)
+			}
+		})
+	}
+}
+
+func TestStartupPreservesLegacyJournalAtDefaultIdentityPath(t *testing.T) {
+	f := newFixture(t)
+	dir := t.TempDir()
+	f.cfg.SetConfigFile(filepath.Join(dir, "datadog.yaml"))
+	f.cfg.SetInTest(par.IdentityFilePath, "")
+	journal := filepath.Join(dir, "privateactionrunner_private_identity.json.phone-home")
+	require.NoError(t, os.Mkdir(journal, 0700))
+	f.c.step(context.Background())
+	require.Equal(t, "legacy_attempt_requires_reconciliation", f.state.Reason)
+	require.DirExists(t, journal)
+	require.Zero(t, f.pm.starts)
+}
+
 func TestStartupPreservesLegacyRecoveryAndRequiresOnDemandSupervisor(t *testing.T) {
 	f := newFixture(t)
 	journal := f.cfg.GetString(par.IdentityFilePath) + ".phone-home"
@@ -189,6 +237,6 @@ func TestStartupPreservesLegacyRecoveryAndRequiresOnDemandSupervisor(t *testing.
 	f = newFixture(t)
 	f.pm.control.AutoStart = true
 	f.c.step(context.Background())
-	require.Equal(t, "supervisor_must_be_on_demand_no_restart", f.state.Reason)
+	require.Equal(t, "unsupported_supervisor_policy", f.state.Reason)
 	require.Zero(t, f.pm.starts)
 }
