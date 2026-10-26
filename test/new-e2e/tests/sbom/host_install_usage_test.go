@@ -68,6 +68,14 @@ const hostInstallUsageWindow = 3 * time.Minute
 // runs. Its binary of the same name is a copy of true.
 const installedPackage = "sbom-installed-test"
 
+// interpreterPackage is the dpkg package the shebang subtest installs. Its
+// binary of the same name, a copy of true, is the interpreter of shebangScript
+// alone.
+const (
+	interpreterPackage = "sbom-interpreter-test"
+	shebangScript      = "/usr/local/bin/sbom-shebang-test"
+)
+
 // scannedPackage and readPackage are the dpkg packages the readers subtest
 // installs, each with a copy of libz in a directory of its own, and
 // ldconfigCopy is the copy of ldconfig it scans the second with.
@@ -102,7 +110,7 @@ type hostInstallUsageSuite struct {
 func TestSBOMHostInstallUsageSuite(t *testing.T) {
 	e2e.Run(t, &hostInstallUsageSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(
-			scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2204E2E)),
+			scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2204)),
 			scenec2.WithFakeIntakeOptions(fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenec2.WithPreAgentInstallHook(startCron),
 			scenec2.WithPreAgentInstallHook(startScriptDaemon),
@@ -317,8 +325,9 @@ func (s *hostInstallUsageSuite) Test00UpAndRunning() {
 
 // TestHostUsage checks the usage of the host packages: a daemon and two scripts
 // started before the Agent, one through its shebang and one as the operand of
-// python3, a daemon and its library replaced on disk before the Agent, a binary
-// and its library run by root, and a setuid binary.
+// python3, the interpreter of a script run by root, a daemon and its library
+// replaced on disk before the Agent, a binary and its library run by root, and
+// a setuid binary.
 func (s *hostInstallUsageSuite) TestHostUsage() {
 	host := s.Env().RemoteHost
 	defer func() {
@@ -430,6 +439,34 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 			assert.GreaterOrEqualf(c, ts, ranAt, "%s %s LastSeenRunning %d predates the run at %d", installedPackage, comp.GetVersion(), ts, ranAt)
 			assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, root ran it", installedPackage, propRunningAsRoot)
 		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s 2.0 in use", installedPackage)
+	})
+
+	// The kernel runs a script through the interpreter its #! line names, and
+	// the exec reports the script, which no package owns. Run by root, the
+	// script names the binary of interpreterPackage.
+	s.Run("shebang", func() {
+		s.T().Cleanup(func() {
+			_, _ = host.Execute("sudo dpkg --purge " + interpreterPackage + "; sudo rm -f " + shebangScript)
+		})
+		deb := strings.TrimSpace(host.MustExecute(buildDeb(interpreterPackage, "1.0", "/usr/bin/true", "/usr/bin/"+interpreterPackage)))
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			_, err := host.Execute("sudo dpkg -i " + deb)
+			require.NoErrorf(c, err, "dpkg -i %s", deb)
+		}, 10*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+		host.MustExecute(fmt.Sprintf(`sudo sh -c 'printf "#!/usr/bin/%[1]s\n" >%[2]s && chmod 755 %[2]s'`, interpreterPackage, shebangScript))
+		ranAt := s.hostInt("date +%s")
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			_, err := host.Execute("sudo " + shebangScript)
+			require.NoErrorf(c, err, "sudo %s", shebangScript)
+
+			comp := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), interpreterPackage)
+			require.NotNilf(c, comp, "no %s in the host SBOM", interpreterPackage)
+			ts, _ := lastSeenRunning(comp)
+			s.T().Logf("PKG-IN-USE[host] shebang: %s LastSeenRunning=%d, ranAt=%d", interpreterPackage, ts, ranAt)
+			assert.GreaterOrEqualf(c, ts, ranAt, "%s LastSeenRunning %d predates the run of %s at %d", interpreterPackage, ts, shebangScript, ranAt)
+			assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, root ran %s", interpreterPackage, propRunningAsRoot, shebangScript)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use", interpreterPackage)
 	})
 
 	// cron starts before the Agent, so its use comes from the processes the

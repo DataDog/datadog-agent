@@ -135,9 +135,6 @@ dd_pkg_deb(
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
     version = "1:" + make_version() + "-1",
-
-    # TODO: pull in target_cpu as arch.
-    # architecture = "$(COMPILATION_MODE)",
     # config = "config",
     # distribution = "trusty",
 )
