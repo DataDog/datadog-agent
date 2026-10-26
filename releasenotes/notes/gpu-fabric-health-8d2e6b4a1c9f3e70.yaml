@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    gpu: Add NVLink fabric registration and health metrics for GPUs attached to an NVLink fabric:
+    ``gpu.fabric.registered``, ``gpu.fabric.health.unhealthy`` and ``gpu.fabric.health.issue``
+    (tagged with ``fabric_issue``, only emitted while the issue is set).

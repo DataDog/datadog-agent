@@ -685,7 +685,7 @@ func (c *ntmConfig) maybeRebuild() {
 //
 // Must be called with the lock read-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	if c.isKnownKey(key) {
+	if c.isKnownKey(key) || c.allowDynamicSchema.Load() {
 		return
 	}
 
