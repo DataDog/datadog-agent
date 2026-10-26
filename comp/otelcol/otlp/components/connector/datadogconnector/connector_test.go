@@ -952,7 +952,7 @@ func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
 	assert.Equal(t, before, marshalTraces(t, shared))
 }
 
-// TestAgentIgnoreResources covers how the root filter of dropIgnoredTraces fits in ConsumeTraces;
+// TestAgentIgnoreResources covers how the span filter of ignoredRootsFilter fits in ConsumeTraces;
 // see root_filter_test.go for the root filter itself.
 func TestAgentIgnoreResources(t *testing.T) {
 	for _, tt := range []struct {
@@ -987,6 +987,24 @@ func TestAgentIgnoreResources(t *testing.T) {
 				{1, 1, 0, ptrace.SpanKindClient, map[string]string{"db.system": "redis", "db.statement": "SET key value"}},
 			}),
 			agentIgnore: []string{"^SET key value$"},
+		},
+		{
+			name: "resource with client-computed stats still gets no stats",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "_dd.stats_computed": "true"}},
+				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore: []string{"(GET|POST) /health"},
+		},
+		{
+			name: "false client-computed stats marker does not keep ignored traces",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "_dd.stats_computed": "false"}},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore:        []string{"(GET|POST) /health"},
+			wantStatsResources: []string{"GET /users"},
 		},
 		{
 			name: "no agent ignore_resources keeps every trace",

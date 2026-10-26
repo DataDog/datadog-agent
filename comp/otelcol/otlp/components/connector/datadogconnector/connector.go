@@ -205,10 +205,12 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// _sample_rate (head-based sampling weight) is injected during OTel→DD span
 	// conversion in pkg/trace/transform, so the Concentrator scales stats by the
 	// head-sampling weight without any connector-local logic.
+	var inputs []stats.Input
 	if c.rootFilter != nil {
-		traces = dropIgnoredTraces(traces, c.tcfg, c.rootFilter)
+		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator, ignoredRootsFilter(traces, c.tcfg, c.rootFilter))
+	} else {
+		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
 	}
-	inputs := otelstats.OTLPTracesToConcentratorInputsWithObfuscation(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator)
 	for _, input := range inputs {
 		c.concentrator.Add(input)
 	}

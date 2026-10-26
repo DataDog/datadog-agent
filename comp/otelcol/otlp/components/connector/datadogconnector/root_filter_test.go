@@ -68,7 +68,7 @@ func TestIgnoredTraces(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		traces      ptrace.Traces
-		wantIgnored []resourceTrace
+		wantIgnored []indexedTrace
 	}{
 		{
 			name: "matching root ignores its trace only",
@@ -77,7 +77,7 @@ func TestIgnoredTraces(t *testing.T) {
 				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
 				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
 			}),
-			wantIgnored: []resourceTrace{{0, 1}},
+			wantIgnored: []indexedTrace{{0, 1}},
 		},
 		{
 			name: "root is looked up per resource",
@@ -85,7 +85,7 @@ func TestIgnoredTraces(t *testing.T) {
 				[]testSpan{{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs}},
 				[]testSpan{{1, 2, 1, ptrace.SpanKindServer, pingAttrs}},
 			),
-			wantIgnored: []resourceTrace{{0, 1}},
+			wantIgnored: []indexedTrace{{0, 1}},
 		},
 		{
 			name: "span whose parent is not in its resource is a root",
@@ -93,7 +93,7 @@ func TestIgnoredTraces(t *testing.T) {
 				{1, 2, 1, ptrace.SpanKindServer, healthcheckAttrs},
 				{1, 3, 2, ptrace.SpanKindClient, dbAttrs},
 			}),
-			wantIgnored: []resourceTrace{{0, 1}},
+			wantIgnored: []indexedTrace{{0, 1}},
 		},
 		{
 			name: "matching child does not ignore its trace",
@@ -129,40 +129,26 @@ func TestIgnoredTraces(t *testing.T) {
 				{1, 2, 9, ptrace.SpanKindServer, healthcheckAttrs},
 				{1, 3, 9, ptrace.SpanKindServer, usersAttrs},
 			}),
-			wantIgnored: []resourceTrace{{0, 1}},
-		},
-		{
-			name: "resource with client-computed stats is skipped",
-			traces: newTestTraces([]testSpan{
-				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", keyStatsComputed: "true"}},
-				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
-			}),
-		},
-		{
-			name: "false client-computed stats marker does not skip the resource",
-			traces: newTestTraces([]testSpan{
-				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", keyStatsComputed: "false"}},
-			}),
-			wantIgnored: []resourceTrace{{0, 1}},
+			wantIgnored: []indexedTrace{{0, 1}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ignored := ignoredTraces(tt.traces, newTestRootFilterConf(t), rootFilter)
-			assert.ElementsMatch(t, tt.wantIgnored, mapKeys(ignored))
+			assert.ElementsMatch(t, tt.wantIgnored, indexedTraces(tt.traces, ignored))
 		})
 	}
 }
 
-func TestDropIgnoredTraces(t *testing.T) {
+func TestIgnoredRootsFilter(t *testing.T) {
 	conf := newTestRootFilterConf(t)
 	rootFilter := filters.NewBlacklister([]string{"(GET|POST) /health"})
 
-	t.Run("nothing ignored returns the input", func(t *testing.T) {
+	t.Run("nothing ignored returns no filter", func(t *testing.T) {
 		traces := newTestTraces([]testSpan{{1, 1, 0, ptrace.SpanKindServer, usersAttrs}})
-		assert.True(t, dropIgnoredTraces(traces, conf, rootFilter) == traces)
+		assert.Nil(t, ignoredRootsFilter(traces, conf, rootFilter))
 	})
 
-	t.Run("ignored traces are dropped from a copy", func(t *testing.T) {
+	t.Run("filter excludes the spans of ignored resource traces", func(t *testing.T) {
 		traces := newTestTraces(
 			[]testSpan{
 				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
@@ -171,27 +157,34 @@ func TestDropIgnoredTraces(t *testing.T) {
 			},
 			[]testSpan{{1, 4, 1, ptrace.SpanKindServer, pingAttrs}},
 		)
-		kept := dropIgnoredTraces(traces, conf, rootFilter)
+		spanFilter := ignoredRootsFilter(traces, conf, rootFilter)
+		require.NotNil(t, spanFilter)
 
-		assert.Equal(t, 4, traces.SpanCount(), "input must not be modified")
-		require.Equal(t, 2, kept.ResourceSpans().Len())
-		assert.Equal(t, []pcommon.SpanID{{7: 3}}, spanIDs(kept.ResourceSpans().At(0)))
-		assert.Equal(t, []pcommon.SpanID{{7: 4}}, spanIDs(kept.ResourceSpans().At(1)))
+		kept := map[pcommon.SpanID]bool{}
+		for i := 0; i < traces.ResourceSpans().Len(); i++ {
+			rspans := traces.ResourceSpans().At(i)
+			forEachSpan(rspans, func(span ptrace.Span, _ pcommon.InstrumentationScope) {
+				kept[span.SpanID()] = spanFilter(rspans.Resource(), span)
+			})
+		}
+		assert.Equal(t, map[pcommon.SpanID]bool{{7: 1}: false, {7: 2}: false, {7: 3}: true, {7: 4}: true}, kept)
 	})
 }
 
-func mapKeys(m map[resourceTrace]struct{}) []resourceTrace {
-	keys := make([]resourceTrace, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+// indexedTrace is a resourceTrace with the index of its resource, for readable test expectations.
+type indexedTrace struct {
+	resource int
+	traceID  uint64
+}
+
+func indexedTraces(traces ptrace.Traces, ignored map[resourceTrace]struct{}) []indexedTrace {
+	var indexed []indexedTrace
+	for i := 0; i < traces.ResourceSpans().Len(); i++ {
+		for rt := range ignored {
+			if rt.resource == traces.ResourceSpans().At(i).Resource() {
+				indexed = append(indexed, indexedTrace{i, rt.traceID})
+			}
+		}
 	}
-	return keys
-}
-
-func spanIDs(rspans ptrace.ResourceSpans) []pcommon.SpanID {
-	var ids []pcommon.SpanID
-	forEachSpan(rspans, func(span ptrace.Span, _ pcommon.InstrumentationScope) {
-		ids = append(ids, span.SpanID())
-	})
-	return ids
+	return indexed
 }
