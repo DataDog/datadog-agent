@@ -33,6 +33,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":phonehome"],
     deps = [
+        "//comp/privateactionrunner/phonehome/def",
         "//comp/remote-config/rcservice/def",
         "//pkg/config/mock",
         "//pkg/proto/pbgo/core",

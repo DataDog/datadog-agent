@@ -69,17 +69,17 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	buildFIPS, err := fips.Enabled()
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || buildFIPS || cfg.GetBool("fips.enabled") ||
 		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
-		publish(State{State: "blocked", Reason: "unsupported_configuration"})
+		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
 	socket := os.Getenv("DD_PM_SOCKET_PATH")
 	if !filepath.IsAbs(socket) {
-		publish(State{State: "blocked", Reason: "explicit_supervisor_socket_required"})
+		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonExplicitSupervisorSocketRequired})
 		return
 	}
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		publish(State{State: "blocked", Reason: "supervisor_connection_failed"})
+		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonSupervisorConnectionFailed})
 		return
 	}
 	defer conn.Close()
@@ -98,7 +98,7 @@ type controller struct {
 
 func (c *controller) run(ctx context.Context) {
 	delay := time.Duration(rand.Int64N(int64(pollInterval)))
-	c.emit(State{State: "waiting", Reason: "startup_jitter"})
+	c.emit(State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonStartupJitter})
 	for {
 		timer := time.NewTimer(delay)
 		select {
@@ -115,7 +115,7 @@ func (c *controller) run(ctx context.Context) {
 }
 
 func (c *controller) step(ctx context.Context) time.Duration {
-	set := func(state, reason string, delay time.Duration) time.Duration {
+	set := func(state phonehomedef.StateName, reason phonehomedef.Reason, delay time.Duration) time.Duration {
 		s := State{State: state, Reason: reason}
 		if delay > 0 {
 			s.NextCheck = c.now().Add(delay).UTC().Format(time.RFC3339)
@@ -135,17 +135,17 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	for _, name := range []string{controlProcess, executorProcess} {
 		p, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: name})
 		if err != nil || p.GetDetail() == nil {
-			return set("waiting", "supervisor_unavailable", pollInterval)
+			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorUnavailable, pollInterval)
 		}
 		if p.Detail.AutoStart || p.Detail.RestartPolicy != "never" {
-			return set("blocked", "supervisor_must_be_on_demand_no_restart", 0)
+			return set(phonehomedef.StateBlocked, phonehomedef.ReasonSupervisorMustBeOnDemandNoRestart, 0)
 		}
 		switch p.Detail.State {
 		case pb.ProcessState_STARTING, pb.ProcessState_RUNNING, pb.ProcessState_STOPPING:
-			return set("handed_off", "existing_process_left_untouched", 0)
+			return set(phonehomedef.StateHandedOff, phonehomedef.ReasonExistingProcessLeftUntouched, 0)
 		case pb.ProcessState_SKIPPED, pb.ProcessState_STOPPED, pb.ProcessState_CREATED:
 		default:
-			return set("blocked", "previous_process_exit_requires_review", 0)
+			return set(phonehomedef.StateBlocked, phonehomedef.ReasonPreviousProcessExitRequiresReview, 0)
 		}
 		if name == controlProcess {
 			control = p.Detail
@@ -153,24 +153,24 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	}
 	// Old recovery experiments may hold credentials: require deliberate reconciliation before migration.
 	if _, err := os.Stat(c.cfg.GetString(par.IdentityFilePath) + ".phone-home"); !os.IsNotExist(err) {
-		return set("blocked", "legacy_attempt_requires_reconciliation", 0)
+		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, 0)
 	}
 	gate := c.source.Read(c.now())
 	if !gate.Ready {
-		return set("waiting", gate.Reason, pollInterval)
+		return set(phonehomedef.StateWaiting, gate.Reason, pollInterval)
 	}
 	if ctx.Err() != nil || !Enabled(c.cfg) {
 		return 0
 	}
 	// Recheck after supervisor/config inspection, immediately before the only Start RPC.
 	if gate = c.source.Read(c.now()); !gate.Ready {
-		return set("waiting", gate.Reason, pollInterval)
+		return set(phonehomedef.StateWaiting, gate.Reason, pollInterval)
 	}
 	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer startCancel()
 	c.attempted = true
 	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: control.Uuid}); err != nil {
-		return set("blocked", "launch_outcome_unknown_requires_review", 0)
+		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview, 0)
 	}
-	return set("handed_off", "supervisor_start_acknowledged", 0)
+	return set(phonehomedef.StateHandedOff, phonehomedef.ReasonSupervisorStartAcknowledged, 0)
 }
