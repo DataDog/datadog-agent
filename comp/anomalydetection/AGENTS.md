@@ -65,10 +65,10 @@ creates them only when `anomaly_detection.recording.enabled` is true.
 The writers buffer observations until each flush and hold their locks during
 disk writes. Periodic flush errors are logged; failed batches are not retried.
 
-**Testbench** (`internal/anomalydetection/anomalydetection-testbench/`) wires
+**Testbench** (`internal/anomalydetection/testbench/`) wires
 `observer/fx`, `recorder/fx-noop`, and `reporter/fx-testbench`. It replays
 scenarios from `observer/scenarios/` and has its own parquet tooling under
-`internal/anomalydetection/anomalydetection-testbench/bench/`.
+`internal/anomalydetection/testbench/bench/`.
 
 ```bash
 # Build the testbench binary
@@ -78,7 +78,7 @@ dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 ```
 
-See `internal/anomalydetection/anomalydetection-testbench/README.md` for flags and
+See `internal/anomalydetection/testbench/README.md` for flags and
 headless/eval workflows.
 
 ## Production Safety and Review Invariants
@@ -87,7 +87,7 @@ The live Agent is the primary constraint; testbench convenience must not affect
 its behavior or cost.
 
 - Keep replay/UI code and heavyweight dependencies in the testbench module.
-  Live packages must not import `internal/anomalydetection/anomalydetection-testbench`,
+  Live packages must not import `internal/anomalydetection/testbench`,
   `reporter/impl-testbench`, or `reporter/fx-testbench`.
 - Shared code must use bounded production defaults. Unbounded history or
   retention is allowed only through explicit testbench configuration such as

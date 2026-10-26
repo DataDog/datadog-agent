@@ -87,8 +87,8 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
-	internal/anomalydetection/anomalydetection-scorer
-	internal/anomalydetection/anomalydetection-testbench
+	internal/anomalydetection/scorer
+	internal/anomalydetection/testbench
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint

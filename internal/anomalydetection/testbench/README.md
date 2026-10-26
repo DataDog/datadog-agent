@@ -29,7 +29,7 @@ dda inv -- anomalydetection.build-testbench
 ./bin/anomalydetection-testbench --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 # Start the UI (in a separate terminal)
-cd internal/anomalydetection/anomalydetection-testbench/ui
+cd internal/anomalydetection/testbench/ui
 npm install  # first time only
 npm run dev
 ```

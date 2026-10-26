@@ -283,7 +283,7 @@ dda inv anomalydetection.launch-testbench
 
 # The testbench has no Bazel targets yet; use the legacy task and include
 # the testbench reporter build tag through extra args.
-dda inv test-legacy --module=internal/anomalydetection/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
+dda inv test-legacy --module=internal/anomalydetection/testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.
@@ -296,4 +296,4 @@ bin/anomalydetection-testbench \
 ```
 
 Reads scenarios from `observer/scenarios/`. See
-`internal/anomalydetection/anomalydetection-testbench/README.md`.
+`internal/anomalydetection/testbench/README.md`.
