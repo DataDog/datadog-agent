@@ -71,6 +71,11 @@ func (n *NoopHealthPlatform) IssueDiscriminator(hostID string) string {
 	return hostID
 }
 
+// ResourceID returns an empty string when the health platform is disabled.
+func (n *NoopHealthPlatform) ResourceID() string {
+	return ""
+}
+
 // ResourceIdentity returns empty strings when the health platform is disabled.
 func (n *NoopHealthPlatform) ResourceIdentity(_ string) (string, string) {
 	return "", ""

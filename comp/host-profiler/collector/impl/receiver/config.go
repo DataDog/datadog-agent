@@ -91,6 +91,8 @@ func defaultConfig(profilerName string) component.Config {
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
 	cfg.SendErrorFrames = false
+	// 19Hz avoids lockstep sampling with periodic activity
+	cfg.SamplesPerSecond = 19
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{

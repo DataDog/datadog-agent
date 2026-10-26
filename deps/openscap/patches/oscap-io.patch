@@ -1,16 +1,16 @@
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -338,6 +338,7 @@ cmake_dependent_option(ENABLE_OSCAP_UTIL_SSH "enables the oscap-ssh utility, thi
- cmake_dependent_option(ENABLE_OSCAP_UTIL_VM "enables the oscap-vm utility, this lets you scan VMs and VM storage images" ON "NOT WIN32" OFF)
+@@ -347,6 +347,7 @@ cmake_dependent_option(ENABLE_OSCAP_UTIL_VM "enables the oscap-vm utility, this
  cmake_dependent_option(ENABLE_OSCAP_UTIL_PODMAN "enables the oscap-podman utility, this lets you scan Podman containers and container images" ON "NOT WIN32" OFF)
+ cmake_dependent_option(ENABLE_OSCAP_UTIL_IM "enables the oscap-im utility, this lets you build hardened bootable container images" ON "NOT WIN32" OFF)
  cmake_dependent_option(ENABLE_OSCAP_UTIL_CHROOT "enables the oscap-chroot utility, this lets you scan entire chroots using offline scanning" ON "NOT WIN32" OFF)
 +cmake_dependent_option(ENABLE_OSCAP_UTIL_IO "enables the oscap-io utility" ON "NOT WIN32" OFF)
  option(ENABLE_OSCAP_UTIL_AUTOTAILOR "enables the autotailor utility that is able to perform command-line tailoring" TRUE)
  option(ENABLE_OSCAP_REMEDIATE_SERVICE "enables the oscap-remediate service" FALSE)
  
-@@ -473,6 +474,7 @@ message(STATUS "oscap-ssh: ${ENABLE_OSCAP_UTIL_SSH}")
- message(STATUS "oscap-vm: ${ENABLE_OSCAP_UTIL_VM}")
+@@ -485,6 +486,7 @@ message(STATUS "oscap-vm: ${ENABLE_OSCAP_UTIL_VM}")
  message(STATUS "oscap-podman: ${ENABLE_OSCAP_UTIL_PODMAN}")
+ message(STATUS "oscap-im: ${ENABLE_OSCAP_UTIL_IM}")
  message(STATUS "oscap-chroot: ${ENABLE_OSCAP_UTIL_CHROOT}")
 +message(STATUS "oscap-io: ${ENABLE_OSCAP_UTIL_IO}")
  message(STATUS "autotailor: ${ENABLE_OSCAP_UTIL_AUTOTAILOR}")
@@ -18,7 +18,7 @@
  
 --- a/utils/CMakeLists.txt
 +++ b/utils/CMakeLists.txt
-@@ -147,3 +147,5 @@ if(ENABLE_OSCAP_UTIL_AS_RPM)
+@@ -155,3 +155,5 @@ if(ENABLE_OSCAP_UTIL_AS_RPM)
  		DESTINATION "${CMAKE_INSTALL_MANDIR}/man8"
  	)
  endif()
@@ -40,7 +40,8 @@
 +endif()
 --- /dev/null
 +++ b/utils/oscap-io/oscap-io.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,203 @@
++#include <stdarg.h>
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
@@ -48,172 +49,142 @@
 +#include <xccdf_session.h>
 +#include <oscap_error.h>
 +
-+#define nelem(x) (sizeof(x)/sizeof((x)[0]))
-+#define dprintf if(verbose)printf
++/*
++ * oscap-io evaluates the rules of an XCCDF document or a data stream on
++ * request. Each line of standard input holds a request, a profile and a
++ * rule separated by a space. For each request oscap-io prints a line per
++ * rule result, the rule and its xccdf_test_result_type_t, and a request
++ * it fails to evaluate, for an unknown profile or rule or an evaluation
++ * error, gets XCCDF_RESULT_ERROR. With -syschar, the answer is followed
++ * by one oval_system_characteristics document per OVAL file of the
++ * document. The output is flushed after each request, and diagnostics go
++ * to standard error.
++ */
 +
-+int verbose = 0;
-+int syschar = 0;
-+
++static int verbose;
++static int syschar;
 +static char *argv0;
++static struct xccdf_session *session;
++
++static void
++verbosef(const char *fmt, ...)
++{
++	va_list arg;
++
++	if (!verbose)
++		return;
++	va_start(arg, fmt);
++	vfprintf(stderr, fmt, arg);
++	va_end(arg);
++}
++
++/* print the queued OpenSCAP errors, which empties the queue */
++static void
++printerr(const char *what)
++{
++	char *err;
++
++	err = oscap_err_get_full_error();
++	if (err != NULL)
++		fprintf(stderr, "error: %s: %s\n", what, err);
++	else
++		fprintf(stderr, "error: %s\n", what);
++	free(err);
++}
 +
 +static struct xccdf_session*
 +session_new(char *file)
 +{
-+	struct xccdf_session *session;
-+	char *err;
-+	int n;
++	struct xccdf_session *s;
 +
-+	session = xccdf_session_new(file);
-+	if (session == NULL) {
-+		err = oscap_err_get_full_error();
-+		fprintf(stderr, "error: xccdf_session_new: %s\n", err);
-+		free(err);
++	s = xccdf_session_new(file);
++	if (s == NULL) {
++		printerr("xccdf_session_new");
 +		return NULL;
 +	}
 +
-+	xccdf_session_set_validation(session, false, false);
-+	xccdf_session_set_product_cpe(session, "cpe:/a:open-scap:oscap");
++	xccdf_session_set_validation(s, false, false);
++	xccdf_session_set_product_cpe(s, "cpe:/a:open-scap:oscap");
 +
-+	n = xccdf_session_load(session);
-+	if (n != 0) {
-+		err = oscap_err_get_full_error();
-+		fprintf(stderr, "error: xccdf_session_load: %s\n", err);
-+		free(err);
-+		xccdf_session_free(session);
++	if (xccdf_session_load(s) != 0) {
++		printerr("xccdf_session_load");
++		xccdf_session_free(s);
 +		return NULL;
 +	}
 +
-+	return session;
++	return s;
 +}
 +
 +static int
-+session_set_profile(struct xccdf_session *session, char *profile)
++session_set_profile(char *profile)
 +{
-+	int n;
++	if (xccdf_session_set_profile_id(session, profile) != 0)
++		return 0;
 +
-+	if (xccdf_session_set_profile_id(session, profile) == 0) {
-+		n = xccdf_session_set_profile_id_by_suffix(session, profile);
-+		switch (n) {
-+		case OSCAP_PROFILE_NO_MATCH:
-+			fprintf(stderr, "missing profile %s\n", profile);
-+			return 1;
-+		case OSCAP_PROFILE_MULTIPLE_MATCHES:
-+			fprintf(stderr, "%s matches multiple profiles\n", profile);
-+			return 1;
-+		default:
-+			return 0;
-+		}
++	switch (xccdf_session_set_profile_id_by_suffix(session, profile)) {
++	case OSCAP_PROFILE_NO_MATCH:
++		fprintf(stderr, "missing profile %s\n", profile);
++		return 1;
++	case OSCAP_PROFILE_MULTIPLE_MATCHES:
++		fprintf(stderr, "%s matches multiple profiles\n", profile);
++		return 1;
++	default:
++		return 0;
 +	}
-+
-+	return 0;
 +}
 +
 +static int
-+session_evaluate_rule(struct xccdf_session *session, char *rule)
++session_evaluate_rule(char *rule)
 +{
 +	struct xccdf_rule_result_iterator *resIt;
 +	struct xccdf_rule_result *res;
-+	int n, resultCode;
-+	char *result, *err;
++	int resultCode, printed;
 +	const char *ruleRef;
 +
-+	if (rule != NULL) {
-+		xccdf_session_add_rule(session, rule);
-+	}
++	xccdf_session_add_rule(session, rule);
 +
 +	if (xccdf_session_evaluate(session) != 0) {
-+		err = oscap_err_get_full_error();
-+		fprintf(stderr, "error: xccdf_session_evaluate: %s\n", err);
-+		free(err);
-+		xccdf_session_result_reset(session);
++		printerr("xccdf_session_evaluate");
 +		return 1;
 +	}
 +
 +	resIt = xccdf_session_get_rule_results(session);
-+
++	printed = 0;
 +	while (xccdf_rule_result_iterator_has_more(resIt)) {
 +		res = xccdf_rule_result_iterator_next(resIt);
 +		resultCode = (int)xccdf_rule_result_get_result(res);
++		if (resultCode == XCCDF_RESULT_NOT_SELECTED)
++			continue;
 +		ruleRef = xccdf_rule_result_get_idref(res);
-+		switch (resultCode) {
-+		case XCCDF_RESULT_NOT_SELECTED:
-+			break;
-+		default:
-+			printf("%s %d\n", ruleRef, resultCode);
-+		}
-+		if (verbose) {
-+			result = NULL;
-+			switch (resultCode) {
-+			case XCCDF_RESULT_PASS:
-+				result = "passed";
-+				break;
-+			case XCCDF_RESULT_FAIL:
-+				result = "failing";
-+				break;
-+			case XCCDF_RESULT_ERROR:
-+			case XCCDF_RESULT_UNKNOWN:
-+				result = "error";
-+				break;
-+			case XCCDF_RESULT_NOT_APPLICABLE:
-+			case XCCDF_RESULT_NOT_CHECKED:
-+			case XCCDF_RESULT_NOT_SELECTED:
-+				break;
-+			}
-+			if (result != NULL) {
-+				printf("-> %s [%s]\n", ruleRef, result);
-+			}
-+		}
++		printf("%s %d\n", ruleRef, resultCode);
++		printed++;
++		verbosef("-> %s [%s]\n", ruleRef, xccdf_test_result_type_get_text(resultCode));
 +	}
-+
 +	xccdf_rule_result_iterator_free(resIt);
 +
-+	n = xccdf_session_contains_fail_result(session);
-+	if (n != 0) {
-+		dprintf("rule %s returned failures or errors\n", rule);
-+	}
-+
-+	if (syschar)
-+		xccdf_session_print_syschar(session);
-+
-+	xccdf_session_result_reset(session);
++	/* the check engine itself may answer notselected, as an SCE script can */
++	if (printed == 0)
++		printf("%s %d\n", rule, XCCDF_RESULT_NOT_SELECTED);
 +
 +	return 0;
 +}
 +
-+static struct xccdf_session *global_session;
-+
 +static int
-+evaluate_rule(char *xccdf, char *profile, char *rule)
++evaluate(char *xccdf, char *profile, char *rule)
 +{
-+	static struct xccdf_session *session;
-+	int n;
-+
-+	if (global_session == NULL) {
-+		global_session = session_new(xccdf);
-+		if (global_session == NULL) {
-+			fprintf(stderr, "error: session_new\n");
-+			return 1;
-+		}
++	if (session == NULL) {
++		session = session_new(xccdf);
++		if (session == NULL)
++			exit(1);
 +	}
-+	session = global_session;
 +
-+	n = session_set_profile(session, profile);
-+	if (n != 0) {
-+		fprintf(stderr, "error: session_set_profile\n");
++	if (session_set_profile(profile) != 0)
 +		return 1;
-+	}
-+
-+	n = session_evaluate_rule(session, rule);
-+	if (n != 0) {
-+		fprintf(stderr, "error: session_evaluate_rule\n");
-+		return 1;
-+	}
-+
-+	return 0;
++	return session_evaluate_rule(rule);
 +}
 +
 +static void
-+usage()
++usage(void)
 +{
 +	fprintf(stderr, "usage: %s [ -v ] [ -syschar ] xccdf\n", argv0);
 +	exit(1);
@@ -222,19 +193,17 @@
 +int
 +main(int argc, char *argv[])
 +{
-+	int n;
 +	char *line, *s, *profile, *rule;
 +	size_t len;
-+	ssize_t nread;
 +
 +	argv0 = argv[0];
 +	argc--;
 +	argv++;
 +
 +	while (argc > 1) {
-+		if (strncmp(argv[0], "-v", 2) == 0)
++		if (strcmp(argv[0], "-v") == 0)
 +			verbose = 1;
-+		else if (strncmp(argv[0], "-syschar", 8) == 0)
++		else if (strcmp(argv[0], "-syschar") == 0)
 +			syschar = 1;
 +		else
 +			usage();
@@ -245,26 +214,202 @@
 +	if (argc != 1)
 +		usage();
 +
-+	rule = NULL;
 +	line = NULL;
 +	len = 0;
-+	while ((nread = getline(&line, &len, stdin)) != -1) {
-+		line[strcspn(line, "\n")] = 0;
++	while (getline(&line, &len, stdin) != -1) {
++		line[strcspn(line, "\n")] = '\0';
 +		profile = strtok_r(line, " ", &s);
 +		if (profile == NULL)
 +			continue;
-+		rule = strtok_r(s, " ", &s);
++		rule = strtok_r(NULL, " ", &s);
 +		if (rule == NULL)
 +			continue;
-+		dprintf("evaluate profile [%s] rule [%s]\n", profile, rule);
-+		n = evaluate_rule(argv[0], profile, rule);
-+		if (n != 0)
-+			fprintf(stderr, "error: evaluate_rule\n");
++		verbosef("evaluate profile [%s] rule [%s]\n", profile, rule);
++
++		if (evaluate(argv[0], profile, rule) != 0) {
++			if (oscap_err())
++				printerr("evaluate");
++			printf("%s %d\n", rule, XCCDF_RESULT_ERROR);
++		}
++		if (syschar && xccdf_session_print_syschar(session) != 0) {
++			printerr("xccdf_session_print_syschar");
++			exit(1);
++		}
++		xccdf_session_result_reset(session);
 +		fflush(stdout);
 +	}
 +	free(line);
 +
-+	xccdf_session_free(global_session);
++	xccdf_session_free(session);
 +
 +	return 0;
 +}
+--- a/tests/utils/CMakeLists.txt
++++ b/tests/utils/CMakeLists.txt
+@@ -2,6 +2,10 @@
+ add_oscap_test("test_utils_args.sh")
+ add_oscap_test("test_verbose_options.sh")
+ 
++if(ENABLE_OSCAP_UTIL_IO)
++    add_oscap_test("test_oscap_io.sh")
++endif()
++
+ if(PY_PYTEST)
+     add_oscap_ctest("autotailor-unit-tests"
+         COMMAND ${PYTHON_EXECUTABLE} -m pytest -v "${CMAKE_CURRENT_SOURCE_DIR}/test_autotailor.py"
+diff --git a/tests/utils/test_oscap_io.oval.xml b/tests/utils/test_oscap_io.oval.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/utils/test_oscap_io.oval.xml
+@@ -0,0 +1,55 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5" xmlns:oval="http://oval.mitre.org/XMLSchema/oval-common-5" xmlns:ind="http://oval.mitre.org/XMLSchema/oval-definitions-5#independent">
++  <generator>
++    <oval:schema_version>5.11.2</oval:schema_version>
++    <oval:timestamp>2026-10-20T00:00:00</oval:timestamp>
++  </generator>
++  <definitions>
++    <definition class="compliance" id="oval:x:def:1" version="1">
++      <metadata>
++        <title>The value is 100</title>
++        <description>The value is 100.</description>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:x:tst:1"/>
++      </criteria>
++    </definition>
++    <definition class="compliance" id="oval:x:def:2" version="1">
++      <metadata>
++        <title>The value is 0</title>
++        <description>The value is 0.</description>
++      </metadata>
++      <criteria>
++        <criterion test_ref="oval:x:tst:2"/>
++      </criteria>
++    </definition>
++  </definitions>
++  <tests>
++    <ind:variable_test id="oval:x:tst:1" check="all" comment="the value is 100" version="1">
++      <ind:object object_ref="oval:x:obj:1"/>
++      <ind:state state_ref="oval:x:ste:1"/>
++    </ind:variable_test>
++    <ind:variable_test id="oval:x:tst:2" check="all" comment="the value is 0" version="1">
++      <ind:object object_ref="oval:x:obj:1"/>
++      <ind:state state_ref="oval:x:ste:2"/>
++    </ind:variable_test>
++  </tests>
++  <objects>
++    <ind:variable_object id="oval:x:obj:1" version="1">
++      <ind:var_ref>oval:x:var:1</ind:var_ref>
++    </ind:variable_object>
++  </objects>
++  <states>
++    <ind:variable_state id="oval:x:ste:1" version="1">
++      <ind:value datatype="int">100</ind:value>
++    </ind:variable_state>
++    <ind:variable_state id="oval:x:ste:2" version="1">
++      <ind:value datatype="int">0</ind:value>
++    </ind:variable_state>
++  </states>
++  <variables>
++    <constant_variable id="oval:x:var:1" version="1" comment="the value" datatype="int">
++      <value>100</value>
++    </constant_variable>
++  </variables>
++</oval_definitions>
+diff --git a/tests/utils/test_oscap_io.sh b/tests/utils/test_oscap_io.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/utils/test_oscap_io.sh
+@@ -0,0 +1,64 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++if [[ -n "${CUSTOM_OSCAP+x}" ]] ; then
++	exit 255
++fi
++
++set -e -o pipefail
++
++name=$(basename "$0" .sh)
++oscap_io="bash $RUN_WRAPPER $builddir/utils/oscap-io/oscap-io"
++xccdf="$srcdir/$name.xccdf.xml"
++profile="xccdf_org.open-scap_profile_oscap_io"
++pass="xccdf_org.open-scap_rule_pass"
++fail="xccdf_org.open-scap_rule_fail"
++unknown="xccdf_org.open-scap_rule_unknown"
++stdout=$(mktemp -t "$name.out.XXXXXX")
++stderr=$(mktemp -t "$name.err.XXXXXX")
++result=$(mktemp -t "$name.xml.XXXXXX")
++echo "Stdout file = $stdout"
++echo "Result file = $result"
++
++# Each request gets a line with the rule and its xccdf_test_result_type_t:
++# 1 is pass, 2 fail, and 3 error, the answer to a request that fails.
++$oscap_io "$xccdf" >"$stdout" <<END
++$profile $pass
++$profile $fail
++$profile $unknown
++xccdf_org.open-scap_profile_unknown $pass
++$profile $pass
++END
++diff - "$stdout" <<END
++$pass 1
++$fail 2
++$unknown 3
++$pass 3
++$pass 1
++END
++
++# oscap-io loads the document at the first request and exits 1 if that fails.
++ret=0
++echo "$profile $pass" | $oscap_io "$srcdir/missing.xml" >"$stdout" || ret=$?
++[[ $ret -eq 1 ]]
++[[ ! -s "$stdout" ]]
++
++# With -syschar, one document follows every answer, a failed one included,
++# so that a reader stays in step.
++printf '%s\n' "$profile $unknown" "$profile $pass" | $oscap_io -syschar "$xccdf" >"$stdout"
++grep -E "^(xccdf_org|<\?xml)" "$stdout" | sed 's/^<?xml.*/xml/' | diff - <(printf '%s\n' "$unknown 3" xml "$pass 1" xml)
++awk '/^<\?xml/ { n++ } n == 2' "$stdout" >"$result"
++assert_exists 1 '/oval_system_characteristics/collected_objects/object[@id="oval:x:obj:1"]'
++assert_exists 1 '/oval_system_characteristics/system_data/ind-sys:variable_item[ind-sys:value="100"]'
++
++# -v writes its diagnostics to standard error, and options match exactly.
++echo "$profile $pass" | $oscap_io -v "$xccdf" >"$stdout" 2>"$stderr"
++diff - "$stdout" <<<"$pass 1"
++grep -q "evaluate profile" "$stderr"
++ret=0
++$oscap_io -syscharx "$xccdf" </dev/null >"$stdout" 2>"$stderr" || ret=$?
++[[ $ret -eq 1 ]]
++grep -q "^usage:" "$stderr"
++
++rm -f "$stdout" "$stderr" "$result"
+diff --git a/tests/utils/test_oscap_io.xccdf.xml b/tests/utils/test_oscap_io.xccdf.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/utils/test_oscap_io.xccdf.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.open-scap_benchmark_oscap_io" resolved="1" xml:lang="en-US">
++  <status>accepted</status>
++  <version>1.0</version>
++  <Profile id="xccdf_org.open-scap_profile_oscap_io">
++    <title>oscap-io</title>
++    <select idref="xccdf_org.open-scap_rule_pass" selected="true"/>
++    <select idref="xccdf_org.open-scap_rule_fail" selected="true"/>
++  </Profile>
++  <Rule id="xccdf_org.open-scap_rule_pass" selected="false">
++    <title>The value is 100</title>
++    <check system="http://oval.mitre.org/XMLSchema/oval-definitions-5">
++      <check-content-ref href="test_oscap_io.oval.xml" name="oval:x:def:1"/>
++    </check>
++  </Rule>
++  <Rule id="xccdf_org.open-scap_rule_fail" selected="false">
++    <title>The value is 0</title>
++    <check system="http://oval.mitre.org/XMLSchema/oval-definitions-5">
++      <check-content-ref href="test_oscap_io.oval.xml" name="oval:x:def:2"/>
++    </check>
++  </Rule>
++</Benchmark>
