@@ -1,0 +1,2129 @@
+cases:
+  # ---------------------------------------------------------------- grammar: literals
+  - name: grammar_int_literals
+    rules:
+      - 'open.flags == 0'
+      - 'open.flags == 1'
+      - 'open.flags == +2'
+      - 'open.flags == -1'
+      - 'open.flags >= 100 && open.flags < 200'
+      - 'open.flags <= 5 && open.flags > 3'
+      - 'open.flags != 7 && open.flags == 8'
+      - 'open.flags in [-5, 9, +11]'
+      - 'open.flags not in [1, 2, 3] && open.flags == 4'
+      - 'open.flags allin [1, 2]'
+    events:
+      - {type: open, fields: {open.flags: 0}}
+      - {type: open, fields: {open.flags: -1}}
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 4}}
+      - {type: open, fields: {open.flags: 5}}
+      - {type: open, fields: {open.flags: 8}}
+      - {type: open, fields: {open.flags: 9}}
+      - {type: open, fields: {open.flags: 99}}
+      - {type: open, fields: {open.flags: 100}}
+      - {type: open, fields: {open.flags: 199}}
+      - {type: open, fields: {open.flags: 200}}
+      - {type: open, fields: {open.flags: 11}}
+      - {type: open, fields: {open.flags: 16}}
+
+  - name: grammar_string_literals_and_escapes
+    rules:
+      - 'open.file.path == "/tmp/a"'
+      - 'open.file.path == ""'
+      - 'open.file.name == "a\"b"'
+      - 'open.file.name == "a\\b"'
+      - 'open.file.name == "tab	in"'
+      - 'open.file.name == "unicode-é-日本"'
+      - 'open.file.name == "  spaced  "'
+      - 'open.file.path != "/tmp/a" && open.file.name == "z"'
+      - 'open.file.path in ["/x", "/y", "/z"]'
+      - 'open.file.path not in ["/x", "/y"] && open.file.name == "q"'
+    events:
+      - {type: open, fields: {open.file.path: /tmp/a}}
+      - {type: open, fields: {open.file.path: ""}}
+      - {type: open, fields: {open.file.name: 'a"b'}}
+      - {type: open, fields: {open.file.name: 'a\b'}}
+      - {type: open, fields: {open.file.name: "tab\tin"}}
+      - {type: open, fields: {open.file.name: "unicode-é-日本"}}
+      - {type: open, fields: {open.file.name: "  spaced  "}}
+      - {type: open, fields: {open.file.name: 'a\"b'}}
+      - {type: open, fields: {open.file.name: 'a\\b'}}
+      - {type: open, fields: {open.file.name: "other"}}
+      - {type: open, fields: {open.file.path: /x}}
+      - {type: open, fields: {open.file.path: /w, open.file.name: q}}
+      - {type: open, fields: {open.file.path: /w, open.file.name: z}}
+
+  - name: grammar_pattern_and_regexp_literals
+    rules:
+      - 'open.file.path =~ "/tmp/*"'
+      - 'open.file.path == ~"/var/**"'
+      - 'open.file.path != ~"/etc/*" && open.file.name == "n"'
+      - 'open.file.name =~ r"^[a-z]+\.so$"'
+      - 'open.file.name == r"^re[0-9]+$"'
+      - 'open.file.path !~ "/home/*" && open.file.name == "m"'
+      - 'open.file.name in [~"usr*", r"^lib[0-9]$", "exact"]'
+      - 'open.file.path in [~"/a/*", ~"/b/*"] && open.file.name == "pp"'
+      - 'open.file.name in [r"^k$", r"^l$"] && open.flags == 77'
+      - 'open.file.name == ~"*.so" '
+      - 'open.file.name =~ "?x*"'
+    events:
+      - {type: open, fields: {open.file.path: /tmp/abc}}
+      - {type: open, fields: {open.file.path: /tmp/abc/def}}
+      - {type: open, fields: {open.file.path: /var/log/a/b}}
+      - {type: open, fields: {open.file.path: /etc/passwd, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /etc/a/b, open.file.name: n}}
+      - {type: open, fields: {open.file.name: foo.so}}
+      - {type: open, fields: {open.file.name: foo1.so}}
+      - {type: open, fields: {open.file.name: re123}}
+      - {type: open, fields: {open.file.name: reabc}}
+      - {type: open, fields: {open.file.path: /home/x, open.file.name: m}}
+      - {type: open, fields: {open.file.path: /root/x, open.file.name: m}}
+      - {type: open, fields: {open.file.name: usrbin}}
+      - {type: open, fields: {open.file.name: lib5}}
+      - {type: open, fields: {open.file.name: libx}}
+      - {type: open, fields: {open.file.name: exact}}
+      - {type: open, fields: {open.file.path: /b/c, open.file.name: pp}}
+      - {type: open, fields: {open.file.name: k, open.flags: 77}}
+      - {type: open, fields: {open.file.name: l, open.flags: 77}}
+      - {type: open, fields: {open.file.name: l, open.flags: 76}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: lib.so}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: axy}}
+
+  - name: grammar_duration_units
+    rules:
+      - 'open.file.name == "d0" && not (process.created_at > 1s)'
+      - 'open.file.name == "d1" && not (process.created_at > 1m)'
+      - 'open.file.name == "d2" && not (process.created_at > 1h)'
+      - 'open.file.name == "d3" && not (process.created_at > 1ms)'
+      - 'open.file.name == "d4" && not (process.created_at > 250ms)'
+      - 'open.file.name == "d5" && not (process.created_at > 90s)'
+      - 'open.file.name == "d6" && not (process.created_at > 2hs)'
+      - 'open.file.name == "d7" && not (process.created_at > 5ss)'
+      - 'open.file.name == "d8" && not (process.created_at > 3mss)'
+      - 'open.file.name == "d9" && not (process.created_at > 1hs)'
+      - 'open.file.name == "lt" && not (process.created_at < 1m)'
+      - 'open.file.name == "ge" && not (process.created_at >= 1m)'
+      - 'open.file.name == "le" && not (process.created_at <= 1m)'
+
+      - 'open.file.name == "arith" && not (process.created_at + 30s > 1m)'
+      - 'open.file.name == "arith2" && not (process.created_at - 30s < 1m)'
+      - 'open.file.name == "eq" && not (process.created_at == 1m)'
+    events:
+      - {type: open, fields: {open.file.name: d0, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d0, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: d1, process.created_at: now-30s}}
+      - {type: open, fields: {open.file.name: d1, process.created_at: now-2m}}
+      - {type: open, fields: {open.file.name: d2, process.created_at: now-30m}}
+      - {type: open, fields: {open.file.name: d2, process.created_at: now-2h}}
+      - {type: open, fields: {open.file.name: d3, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d3, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: d4, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d4, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: d5, process.created_at: now-30s}}
+      - {type: open, fields: {open.file.name: d5, process.created_at: now-2m}}
+      - {type: open, fields: {open.file.name: d6, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d6, process.created_at: now-5h}}
+      - {type: open, fields: {open.file.name: d7, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d7, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: d8, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d8, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: d9, process.created_at: now-0s}}
+      - {type: open, fields: {open.file.name: d9, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: lt, process.created_at: now-2m}}
+      - {type: open, fields: {open.file.name: lt, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: ge, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: ge, process.created_at: now-2m}}
+      - {type: open, fields: {open.file.name: le, process.created_at: now-2m}}
+      - {type: open, fields: {open.file.name: le, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: cmp, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: cmp, process.created_at: now-30m}}
+      - {type: open, fields: {open.file.name: arith, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: arith, process.created_at: now-2m}}
+      - {type: open, fields: {open.file.name: arith2, process.created_at: now-10m}}
+      - {type: open, fields: {open.file.name: arith2, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: eq, process.created_at: now-10s}}
+      - {type: open, fields: {open.file.name: eq, process.created_at: now-10s}}
+
+  - name: grammar_cidr_and_ip_literals
+    rules:
+      - 'connect.addr.ip == 10.0.0.1'
+      - 'connect.addr.ip in 10.0.0.0/8 && connect.addr.port == 1'
+      - 'connect.addr.ip in [192.168.0.0/16, 172.16.0.1] && connect.addr.port == 2'
+      - 'connect.addr.ip == 2001:db8::1'
+      - 'connect.addr.ip in 2001:db8::/32 && connect.addr.port == 3'
+      - 'connect.addr.ip in [::1, fe80::/10] && connect.addr.port == 4'
+      - 'connect.addr.ip not in [10.0.0.0/8, 172.16.0.0/12] && connect.addr.port == 5'
+      - 'connect.addr.ip allin [10.0.0.0/8] && connect.addr.port == 6'
+      - 'connect.addr.ip == 10.0.0.0/8 && connect.addr.port == 7'
+      - 'connect.addr.ip != 10.1.1.1 && connect.addr.port == 8'
+      - 'connect.addr.ip in [10.0.0.0/8, ::1] && connect.addr.port == 9'
+    events:
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 0}}
+      - {type: connect, fields: {connect.addr.ip: 10.9.9.9, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: 11.9.9.9, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.5.5, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.ip: 172.16.0.1, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.ip: 172.16.0.2, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db8::1", connect.addr.port: 0}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db8:1::1", connect.addr.port: 3}}
+      - {type: connect, fields: {connect.addr.ip: "2002::1", connect.addr.port: 3}}
+      - {type: connect, fields: {connect.addr.ip: "::1", connect.addr.port: 4}}
+      - {type: connect, fields: {connect.addr.ip: "fe80::5", connect.addr.port: 4}}
+      - {type: connect, fields: {connect.addr.ip: "fec0::5", connect.addr.port: 4}}
+      - {type: connect, fields: {connect.addr.ip: 8.8.8.8, connect.addr.port: 5}}
+      - {type: connect, fields: {connect.addr.ip: 172.20.0.1, connect.addr.port: 5}}
+      - {type: connect, fields: {connect.addr.ip: 10.2.2.2, connect.addr.port: 6}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.0/8, connect.addr.port: 7}}
+      - {type: connect, fields: {connect.addr.ip: 10.1.1.1, connect.addr.port: 8}}
+      - {type: connect, fields: {connect.addr.ip: 10.1.1.2, connect.addr.port: 8}}
+      - {type: connect, fields: {connect.addr.ip: "::1", connect.addr.port: 9}}
+
+  - name: grammar_operators_spelling
+    rules:
+      - 'open.file.name == "a" and open.flags == 1'
+      - 'open.file.name == "b" && open.flags == 2'
+      - 'open.file.name == "c" or open.flags == 3'
+      - 'open.file.name == "d" || open.flags == 4'
+      - 'not (open.file.name == "e") && open.flags == 5'
+      - '!(open.file.name == "f") && open.flags == 6'
+      - 'not (open.file.name == "g" or open.file.name == "h") && open.flags == 7'
+      - '!(open.file.name in ["i"]) && open.flags == 8'
+      - 'open.file.name not in ["j"] && open.flags == 9'
+      - 'open.file.name in ["k", "l"] and not (open.flags == 10)'
+      - '((open.file.name == "m")) && (((open.flags == 11)))'
+      - '(open.file.name == "n" || open.file.name == "o") && (open.flags == 12 || open.flags == 13)'
+      - 'open.file.name == "p" && open.flags == 14 || open.file.name == "q" && open.flags == 15'
+      - '(open.flags & 1) == 1 && open.file.name == "bit"'
+      - 'open.flags | 4 == 5 && open.file.name == "bor"'
+      - 'open.flags ^ 3 == 1 && open.file.name == "xor"'
+      - 'open.flags + 1 == 20 && open.file.name == "plus"'
+      - 'open.flags - 1 == 30 && open.file.name == "minus"'
+      - '-open.flags == -40 && open.file.name == "neg"'
+      - '^open.flags == -42 && open.file.name == "bnot"'
+      - '1 + 2 + 3 == open.flags && open.file.name == "arith"'
+      - '10 - 3 - 2 == open.flags && open.file.name == "arith2"'
+      - '1 | 2 == open.flags && open.file.name == "bit2"'
+      - '6 & 3 == open.flags && open.file.name == "bit3"'
+      - '(open.flags & 3) + 1 == 4 && open.file.name == "mix"'
+    events:
+      - {type: open, fields: {open.file.name: a, open.flags: 1}}
+      - {type: open, fields: {open.file.name: a, open.flags: 0}}
+      - {type: open, fields: {open.file.name: b, open.flags: 2}}
+      - {type: open, fields: {open.file.name: b, open.flags: 0}}
+      - {type: open, fields: {open.file.name: c, open.flags: 0}}
+      - {type: open, fields: {open.file.name: x, open.flags: 3}}
+      - {type: open, fields: {open.file.name: x, open.flags: 0}}
+      - {type: open, fields: {open.file.name: d, open.flags: 0}}
+      - {type: open, fields: {open.file.name: x, open.flags: 4}}
+      - {type: open, fields: {open.file.name: e, open.flags: 5}}
+      - {type: open, fields: {open.file.name: x, open.flags: 5}}
+      - {type: open, fields: {open.file.name: f, open.flags: 6}}
+      - {type: open, fields: {open.file.name: x, open.flags: 6}}
+      - {type: open, fields: {open.file.name: g, open.flags: 7}}
+      - {type: open, fields: {open.file.name: h, open.flags: 7}}
+      - {type: open, fields: {open.file.name: x, open.flags: 7}}
+      - {type: open, fields: {open.file.name: i, open.flags: 8}}
+      - {type: open, fields: {open.file.name: x, open.flags: 8}}
+      - {type: open, fields: {open.file.name: j, open.flags: 9}}
+      - {type: open, fields: {open.file.name: x, open.flags: 9}}
+      - {type: open, fields: {open.file.name: k, open.flags: 10}}
+      - {type: open, fields: {open.file.name: k, open.flags: 11}}
+      - {type: open, fields: {open.file.name: m, open.flags: 11}}
+      - {type: open, fields: {open.file.name: m, open.flags: 12}}
+      - {type: open, fields: {open.file.name: n, open.flags: 12}}
+      - {type: open, fields: {open.file.name: o, open.flags: 13}}
+      - {type: open, fields: {open.file.name: n, open.flags: 14}}
+      - {type: open, fields: {open.file.name: p, open.flags: 14}}
+      - {type: open, fields: {open.file.name: q, open.flags: 15}}
+      - {type: open, fields: {open.file.name: p, open.flags: 15}}
+      - {type: open, fields: {open.file.name: bit, open.flags: 3}}
+      - {type: open, fields: {open.file.name: bit, open.flags: 2}}
+      - {type: open, fields: {open.file.name: bor, open.flags: 1}}
+      - {type: open, fields: {open.file.name: bor, open.flags: 5}}
+      - {type: open, fields: {open.file.name: xor, open.flags: 2}}
+      - {type: open, fields: {open.file.name: xor, open.flags: 3}}
+      - {type: open, fields: {open.file.name: plus, open.flags: 19}}
+      - {type: open, fields: {open.file.name: plus, open.flags: 20}}
+      - {type: open, fields: {open.file.name: minus, open.flags: 31}}
+      - {type: open, fields: {open.file.name: minus, open.flags: 30}}
+      - {type: open, fields: {open.file.name: neg, open.flags: 40}}
+      - {type: open, fields: {open.file.name: neg, open.flags: 41}}
+      - {type: open, fields: {open.file.name: bnot, open.flags: 41}}
+      - {type: open, fields: {open.file.name: bnot, open.flags: 42}}
+      - {type: open, fields: {open.file.name: arith, open.flags: 6}}
+      - {type: open, fields: {open.file.name: arith2, open.flags: 5}}
+      - {type: open, fields: {open.file.name: bit2, open.flags: 3}}
+      - {type: open, fields: {open.file.name: bit3, open.flags: 2}}
+      - {type: open, fields: {open.file.name: mix, open.flags: 3}}
+      - {type: open, fields: {open.file.name: mix, open.flags: 2}}
+
+  - name: grammar_whitespace_comments_and_newlines
+    rules:
+      - "open.file.name   ==\t\"ws1\"   &&\n  open.flags==1"
+      - "open.file.name==\"ws2\"&&open.flags==2"
+      - "# leading comment\nopen.file.name == \"cm1\" && open.flags == 3"
+      - "open.file.name == \"cm2\" # trailing comment\n && open.flags == 4"
+      - "open.file.name == \"cm3\" // slash comment\n && open.flags == 5"
+      - "\n\n  open.file.name == \"nl\"\n\n  &&\n  open.flags == 6\n\n"
+      - "open.file.name == \"cm4\" # a \"quoted\" comment == 5"
+      - 'open.file.name in ["l1",
+          "l2",
+          "l3"] && open.flags == 7'
+    events:
+      - {type: open, fields: {open.file.name: ws1, open.flags: 1}}
+      - {type: open, fields: {open.file.name: ws1, open.flags: 2}}
+      - {type: open, fields: {open.file.name: ws2, open.flags: 2}}
+      - {type: open, fields: {open.file.name: cm1, open.flags: 3}}
+      - {type: open, fields: {open.file.name: cm2, open.flags: 4}}
+      - {type: open, fields: {open.file.name: cm3, open.flags: 5}}
+      - {type: open, fields: {open.file.name: nl, open.flags: 6}}
+      - {type: open, fields: {open.file.name: cm4, open.flags: 0}}
+      - {type: open, fields: {open.file.name: l2, open.flags: 7}}
+      - {type: open, fields: {open.file.name: l4, open.flags: 7}}
+
+  # ---------------------------------------------------------------- type errors
+  - name: type_errors_scalar_operands
+    rules:
+      - 'open.file.name == "ok" && open.flags == 1'
+      - 'open.flags == "abc"'
+      - 'open.file.name == 1'
+      - 'open.file.name == true'
+      - 'open.flags == true'
+      - 'connect.addr.is_public == 1'
+      - 'connect.addr.is_public == "x"'
+      - 'connect.addr.is_public == true'
+      - 'connect.addr.is_public != false && connect.addr.port == 80'
+      - 'connect.addr.is_public && connect.addr.port == 81'
+      - '!connect.addr.is_public && connect.addr.port == 82'
+      - 'connect.addr.is_public == connect.addr.is_public && connect.addr.port == 83'
+      - 'open.flags'
+      - 'open.file.name'
+      - 'open.flags > "a"'
+      - 'open.file.name > "a"'
+      - 'open.file.name >= 1'
+      - 'open.file.name < "a"'
+      - 'open.file.name <= "a"'
+      - 'connect.addr.is_public > true'
+      - 'connect.addr.is_public < false'
+      - 'open.flags =~ 1'
+      - 'open.flags =~ "abc"'
+      - 'open.flags !~ "a"'
+      - 'connect.addr.port =~ 5'
+      - 'connect.addr.is_public =~ true'
+      - 'open.flags && open.file.name == "a"'
+      - 'open.file.name == "a" || 1'
+      - '!1'
+      - 'not "a"'
+      - '-open.file.name == 1'
+      - '^open.file.name == 1'
+      - 'open.file.name + 1 == 2'
+      - 'open.flags & "a" == 1'
+      - 'open.flags | open.file.name == 1'
+      - '(open.flags + 1) == "a"'
+      - '-true == 1'
+      - 'open.flags - open.file.name == 1'
+      - 'open.flags ^ "a" == 1'
+      - 'open.file.name == "a" & open.flags == 1'
+      - 'open.file.name == open.flags'
+      - 'open.flags == open.file.name'
+      - 'open.flags == connect.addr.port'
+    events:
+      - {type: open, fields: {open.file.name: ok, open.flags: 1}}
+      - {type: open, fields: {open.file.name: ok, open.flags: 2}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.is_public: false, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 81}}
+      - {type: connect, fields: {connect.addr.is_public: false, connect.addr.port: 81}}
+      - {type: connect, fields: {connect.addr.is_public: false, connect.addr.port: 82}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 82}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 83}}
+
+  - name: type_errors_arrays_and_ips
+    rules:
+      - 'open.file.name in ["ok"] && open.flags == 1'
+      - 'open.flags in ["a", "b"]'
+      - 'open.file.name in [1, 2]'
+      - 'open.flags in [NOSUCH_CONST ]'
+      - 'open.flags in [O_CREAT, O_RDWR ] && open.file.name == "const"'
+      - 'open.flags in [O_CREAT, O_RDWR] && open.file.name == "const-nospace"'
+      - 'open.flags in [O_CREAT, O_RDWR ] && open.file.name == "const2" && connect.addr.port == 1'
+      - 'open.flags in [O_CREAT ] && open.file.name == "const-single"'
+      - 'open.flags in [ O_CREAT ,O_TRUNC , O_APPEND ] && open.file.name == "const3"'
+      - 'open.file.name in [ "a" , "b" ] && open.flags == 100'
+      - 'open.file.name in [ true ]'
+      - 'open.flags in [ O_CREAT, EACCES ] && open.file.name == "mixconst"'
+      - 'open.flags in [O_CREAT, EACCES ]'
+      - 'open.file.name in [O_CREAT ]'
+      - 'open.flags in [O_CREAT, true ]'
+      - 'open.flags in [true, false ]'
+      - 'open.flags in [O_CREAT, "x"]'
+      - 'open.flags in [1, "a"]'
+      - 'open.flags in [1, O_CREAT ]'
+      - 'open.flags in [O_CREAT, 1]'
+      - 'open.file.name in ["a", 1]'
+      - 'open.file.name in ["a", O_CREAT ]'
+      - 'open.file.name in [true ]'
+      - 'open.file.name in ["a", ~"b", r"c"] && open.flags == 3'
+      - 'open.file.name in [10.0.0.1]'
+      - 'open.file.name in 10.0.0.0/8'
+      - 'connect.addr.port in 10.0.0.0/8'
+      - 'connect.addr.ip in ["a"]'
+      - 'connect.addr.ip in [1]'
+      - 'connect.addr.ip in [10.0.0.1, "x"]'
+      - 'connect.addr.ip in [10.0.0.1, 5]'
+      - 'connect.addr.ip == "10.0.0.1"'
+      - 'connect.addr.ip == 10'
+      - 'connect.addr.ip == true'
+      - 'connect.addr.ip > 10.0.0.1'
+      - 'connect.addr.ip =~ 10.0.0.1'
+      - 'connect.addr.ip == connect.addr.ip && connect.addr.port == 1'
+      - 'connect.addr.ip in [10.0.0.0/33]'
+      - 'connect.addr.ip in 10.0.0.0/99'
+      - 'connect.addr.ip == 10.0.0.0/33'
+      - 'connect.addr.ip in [300.0.0.1]'
+      - 'connect.addr.ip == 999.1.1.1'
+      - 'connect.addr.ip in [10.0.0.0/8, "x"]'
+      - 'connect.addr.is_public in [true]'
+      - 'connect.addr.is_public in [1]'
+      - 'exec.argv in ["a"]'
+      - 'exec.argv == "a" && exec.file.name == "arr1"'
+      - 'exec.argv != "a" && exec.file.name == "arr2"'
+      - 'exec.argv in [1]'
+      - 'exec.argv == 1'
+      - 'exec.argv =~ "a*" && exec.file.name == "arr3"'
+      - 'exec.argv in exec.argv'
+      - 'exec.argv allin ["a", "b"] && exec.file.name == "arr4"'
+      - 'exec.argv not in ["a", "b"] && exec.file.name == "arr5"'
+      - 'open.flags allin [1, 2] && open.file.name == "scalar_allin"'
+      - 'bpf.prog.helpers in [1]'
+      - 'bpf.prog.helpers == "x"'
+      - 'bpf.prog.helpers == 3 && bpf.cmd == 1'
+      - 'bpf.prog.helpers allin [1, 2] && bpf.cmd == 2'
+      - 'dns.response.ips in 10.0.0.0/8'
+      - 'dns.response.ips == "x"'
+      - 'dns.response.ips == 10.1.1.1 && dns.question.name == "d1"'
+      - 'dns.response.ips in [10.0.0.0/8, ::1] && dns.question.name == "d2"'
+      - 'dns.response.ips allin [10.0.0.0/8] && dns.question.name == "d3"'
+      - 'dns.response.ips not in [10.0.0.0/8] && dns.question.name == "d4"'
+      - 'open.file.name in open.file.path'
+      - 'open.flags in open.flags'
+    events:
+      - {type: open, fields: {open.file.name: ok, open.flags: 1}}
+      - {type: open, fields: {open.file.name: ok, open.flags: 3}}
+      - {type: open, fields: {open.file.name: const, open.flags: 64}}
+      - {type: open, fields: {open.file.name: const, open.flags: 66}}
+      - {type: open, fields: {open.file.name: const, open.flags: 2}}
+      - {type: open, fields: {open.file.name: const, open.flags: 0}}
+      - {type: open, fields: {open.file.name: const-single, open.flags: 64}}
+      - {type: open, fields: {open.file.name: const-single, open.flags: 65}}
+      - {type: open, fields: {open.file.name: const3, open.flags: 1024}}
+      - {type: open, fields: {open.file.name: const3, open.flags: 512}}
+      - {type: open, fields: {open.file.name: const3, open.flags: 0}}
+      - {type: open, fields: {open.file.name: a, open.flags: 100}}
+      - {type: open, fields: {open.file.name: c, open.flags: 100}}
+      - {type: open, fields: {open.file.name: mixconst, open.flags: 64}}
+      - {type: open, fields: {open.file.name: b, open.flags: 3}}
+      - {type: open, fields: {open.file.name: scalar_allin, open.flags: 1}}
+      - {type: exec, fields: {exec.file.name: arr1, exec.argv: [a, c]}}
+      - {type: exec, fields: {exec.file.name: arr1, exec.argv: [c]}}
+      - {type: exec, fields: {exec.file.name: arr2, exec.argv: [c]}}
+      - {type: exec, fields: {exec.file.name: arr2, exec.argv: [a]}}
+      - {type: exec, fields: {exec.file.name: arr3, exec.argv: [abc]}}
+      - {type: exec, fields: {exec.file.name: arr4, exec.argv: [a, b]}}
+      - {type: exec, fields: {exec.file.name: arr4, exec.argv: [a, c]}}
+      - {type: exec, fields: {exec.file.name: arr5, exec.argv: [c, d]}}
+      - {type: exec, fields: {exec.file.name: arr5, exec.argv: [c, a]}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 1}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [3, 4]}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.prog.helpers: [1, 2, 3]}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.prog.helpers: [1, 3]}}
+      - {type: dns, fields: {dns.question.name: d1, dns.response.ips: [10.1.1.1, 11.1.1.1]}}
+      - {type: dns, fields: {dns.question.name: d1, dns.response.ips: [11.1.1.1]}}
+      - {type: dns, fields: {dns.question.name: d2, dns.response.ips: ["::1"]}}
+      - {type: dns, fields: {dns.question.name: d2, dns.response.ips: [12.1.1.1]}}
+      - {type: dns, fields: {dns.question.name: d3, dns.response.ips: [10.1.1.1, 10.2.2.2]}}
+      - {type: dns, fields: {dns.question.name: d3, dns.response.ips: [10.1.1.1, 11.2.2.2]}}
+      - {type: dns, fields: {dns.question.name: d4, dns.response.ips: [11.1.1.1, 12.2.2.2]}}
+      - {type: dns, fields: {dns.question.name: d4, dns.response.ips: [10.1.1.1, 12.2.2.2]}}
+
+  # ---------------------------------------------------------------- unknown names
+  - name: unknown_fields_constants_and_variables
+    rules:
+      - 'open.file.name == "ok"'
+      - 'open.nosuch == 1'
+      - 'nosuchevent.file.name == "a"'
+      - 'open.file.nosuch.name == "a"'
+      - 'open.file.name == NOSUCH'
+      - 'open.flags == NOSUCH_CONST'
+      - 'open.flags == O_CREAT && open.file.name == "const-eq"'
+      - 'open.flags & O_CREAT > 0 && open.file.name == "const-and"'
+      - 'open.flags & O_CREAT == O_CREAT && open.file.name == "const-and2"'
+      - 'open.flags == O_CREAT | O_TRUNC && open.file.name == "const-or"'
+      - 'open.file.name == ${nosuch}'
+      - 'open.file.name in ${nosuch}'
+      - 'open.file.name == %{nosuch}'
+      - 'open.file.name in %{nosuch.field}'
+      - 'open.file.name == "%{nosuch}"'
+      - 'open.file.name == "${nosuch}"'
+      - 'open.file.name == %{open.file.path} && open.flags == 1'
+      - 'open.file.name == "%{open.file.name}" && open.flags == 2'
+      - 'open.file.name == "%{open.flags}" && open.flags == 3'
+      - 'open.file.name == "pre-%{open.file.name}-post"'
+      - 'open.file.name == "%{open.file.name.length}" && open.flags == 5'
+      - 'open.file.name.length == 3 && open.flags == 6'
+      - '%{open.file.name.length} == 3 && open.flags == 7'
+      - '%{nosuch.length} == 3'
+      - '%{open.flags.length} == 3'
+      - 'open.flags.length == 3'
+      - '%{open.file.name} == "abc" && open.flags == 8'
+      - '%{open.flags} == 9 && open.file.name == "refint"'
+      - '%{connect.addr.ip} == 10.0.0.1'
+      - 'open.file.name in %{exec.argv}'
+      - 'open.file.name in %{open.file.name}'
+      - 'open.file.name == %{exec.argv}'
+      - 'open.file.name == ${}'
+      - 'open.file.name == %{}'
+      - 'open.file.name == ${a b}'
+      - 'open.file.name == ${1abc}'
+      - 'open.file.name == ${process.pid}'
+      - 'open.flags == ${process.pid} && open.file.name == "builtin"'
+      - 'open.file.name == "${process.pid}" && open.flags == 10'
+      - 'open.file.name == "a${process.pid}b%{open.flags}" && open.flags == 11'
+      - 'open.file.name == "${process.pid.length}"'
+      - 'open.flags == ${process.pid.length}'
+      - 'open.file.name == "$"'
+      - 'open.file.name == "${"'
+      - 'open.file.name == "%{"'
+      - 'open.file.name == "%"'
+    events:
+      - {type: open, fields: {open.file.name: ok}}
+      - {type: open, fields: {open.file.name: const-eq, open.flags: 64}}
+      - {type: open, fields: {open.file.name: const-eq, open.flags: 65}}
+      - {type: open, fields: {open.file.name: const-and, open.flags: 65}}
+      - {type: open, fields: {open.file.name: const-and, open.flags: 1}}
+      - {type: open, fields: {open.file.name: const-and2, open.flags: 66}}
+      - {type: open, fields: {open.file.name: const-and2, open.flags: 2}}
+      - {type: open, fields: {open.file.name: const-or, open.flags: 576}}
+      - {type: open, fields: {open.file.name: const-or, open.flags: 64}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 1}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 8}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 3}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 6}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 7}}
+      - {type: open, fields: {open.file.name: abcd, open.flags: 6}}
+      - {type: open, fields: {open.file.name: "3", open.flags: 5}}
+      - {type: open, fields: {open.file.name: "4", open.flags: 5}}
+      - {type: open, fields: {open.file.name: "9", open.flags: 3}}
+      - {type: open, fields: {open.file.name: refint, open.flags: 9}}
+      - {type: open, fields: {open.file.name: refint, open.flags: 10}}
+      - {type: open, fields: {open.file.name: pre-x-post, open.flags: 0}}
+      - {type: open, fields: {open.file.name: "0", open.flags: 10}}
+      - {type: open, fields: {open.file.name: builtin, open.flags: 0}}
+      - {type: open, fields: {open.file.name: a0b11, open.flags: 11}}
+
+  - name: multiple_event_types_and_no_event
+    rules:
+      - 'open.file.name == "ok"'
+      - 'open.file.name == "a" && exec.file.name == "b"'
+      - 'open.file.name == "a" || chmod.file.name == "b"'
+      - '(open.file.name == "a" && open.flags == 1) || (open.file.name == "b" && mkdir.file.name == "c")'
+      - 'open.file.name == "a" && process.file.name == "p" && open.flags == 1'
+      - 'process.file.name == "p"'
+      - 'process.uid == 1000'
+      - 'process.file.name == "p" && process.parent.file.name == "pp"'
+      - '"abc" == "abc"'
+      - '1 == 1'
+      - '1 == 2 || open.file.name == "const-folded"'
+      - '"a" == "a" && open.file.name == "const-folded2"'
+      - 'true && open.file.name == "bool-const"'
+      - 'false || open.file.name == "bool-const2"'
+      - '!false && open.file.name == "bool-const3"'
+      - 'true == true && open.file.name == "bool-const4"'
+      - '1 + 1 == 2 && open.file.name == "arith-const"'
+      - '"a" in ["a", "b"] && open.file.name == "in-const"'
+      - '1 in [1, 2] && open.file.name == "in-const2"'
+      - '"a" =~ "a*" && open.file.name == "pat-const"'
+      - '"a" == "b" && open.file.name == "const-false"'
+      - 'exec.file.name == "e" && exec.argv == "x"'
+      - 'exec.file.name == "e" && open.file.name == "o"'
+      - 'exec.file.name == "e" && process.file.name == "pp" && process.ancestors.file.name == "anc" && process.parent.pid == 5'
+      - 'exec.file.name == "e" && container.id == "c1"'
+      - 'container.id == "c1"'
+      - 'open.file.name == "a" && event.async == true'
+      - 'event.async == true'
+      - 'open.file.name == "a" && event.hostname == "h"'
+      - 'open.file.name == "a" && open.file.name == "a" && open.file.name == "a"'
+      - 'chmod.file.name == "c" && chmod.file.path == "/c"'
+      - 'chmod.file.name == "c" && chmod.file.destination.mode == 0 || chmod.file.name == "d"'
+    processes:
+      anc: {pid: 1, fields: {file.name: anc}}
+      p: {pid: 5, parent: anc, fields: {file.name: p, uid: 1000}}
+      leaf: {pid: 6, parent: p, fields: {file.name: pp}}
+    events:
+      - {type: open, fields: {open.file.name: ok}}
+      - {type: open, fields: {open.file.name: a, open.flags: 1}}
+      - {type: open, fields: {open.file.name: a, open.flags: 1, event.async: true, event.hostname: h}}
+      - {type: open, fields: {open.file.name: const-folded}}
+      - {type: open, fields: {open.file.name: const-folded2}}
+      - {type: open, fields: {open.file.name: bool-const}}
+      - {type: open, fields: {open.file.name: bool-const2}}
+      - {type: open, fields: {open.file.name: bool-const3}}
+      - {type: open, fields: {open.file.name: bool-const4}}
+      - {type: open, fields: {open.file.name: arith-const}}
+      - {type: open, fields: {open.file.name: in-const}}
+      - {type: open, fields: {open.file.name: in-const2}}
+      - {type: open, fields: {open.file.name: pat-const}}
+      - {type: open, fields: {open.file.name: const-false}}
+      - {type: open, process: p, fields: {open.file.name: a, open.flags: 1}}
+      - {type: open, process: p, fields: {open.file.name: a, open.flags: 2}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e}}
+      - {type: exec, process: p, fields: {exec.file.name: e}}
+      - {type: exec, fields: {exec.file.name: e, exec.argv: [x]}}
+      - {type: exec, fields: {exec.file.name: e, exec.argv: [y]}}
+      - {type: exec, fields: {exec.file.name: e, container.id: c1}}
+      - {type: chmod, fields: {chmod.file.name: c, chmod.file.path: /c}}
+      - {type: chmod, fields: {chmod.file.name: d}}
+
+  # ---------------------------------------------------------------- patterns and regexps
+  - name: pattern_and_regexp_errors
+    rules:
+      - 'open.file.name == "ok"'
+      - 'open.file.name =~ r"("'
+      - 'open.file.name == r"["'
+      - 'open.file.name in [r"("]'
+      - 'open.file.name in [r"a", r"(b"]'
+      - 'open.file.name =~ "["'
+      - 'open.file.name =~ "a[b"'
+      - 'open.file.name == ~"[a"'
+      - 'open.file.name =~ r"\\"'
+      - 'open.file.name =~ r"(?P<n>a)" && open.flags == 1'
+      - 'open.file.name =~ r"a{2,1}"'
+      - 'open.file.name =~ r"*a"'
+      - 'open.file.name =~ ""'
+      - 'open.file.name == ~""'
+      - 'open.file.name == r""'
+      - 'open.file.name =~ "*" && open.flags == 2'
+      - 'open.file.name =~ "**" && open.flags == 3'
+      - 'open.file.name == ~"**" && open.flags == 4'
+      - 'open.file.path =~ r"^/a$"'
+      - 'open.file.path == r"^/a$"'
+      - 'open.file.path in [r"^/a$"]'
+      - 'open.file.path =~ "relative"'
+      - 'open.file.path == "relative"'
+      - 'open.file.path in ["/ok", "relative"]'
+      - 'open.file.path =~ "/ok/*" && open.flags == 5'
+      - 'open.file.path == ~"/ok/**" && open.flags == 6'
+      - 'open.file.path == "/a/../b"'
+      - 'open.file.path == "/a/./b"'
+      - 'open.file.path == "//a"'
+      - 'open.file.path == "/a/" && open.flags == 7'
+      - 'open.file.path == "/" && open.flags == 8'
+      - 'open.file.path == ""'
+      - 'open.file.name =~ process.file.name'
+      - 'open.file.name == ~process.file.name'
+      - 'open.file.name =~ open.file.path'
+      - 'open.file.name =~ "${process.pid}"'
+      - 'open.file.name =~ "%{process.file.name}"'
+      - 'open.file.name =~ ${process.pid}'
+      - 'open.file.name !~ process.file.name'
+      - 'open.file.name in [process.file.name]'
+      - 'open.file.name =~ "a" + "b"'
+      - 'open.file.name =~ ("a*")'
+      - 'open.file.name =~ ("a*") && open.flags == 9'
+      - 'open.file.name =~ "a*" =~ "b"'
+      - 'open.file.name == "a" == "b"'
+      - 'open.flags == 1 == 1'
+      - 'open.flags == 1 == true'
+      - '(open.flags == 1) == (open.file.name == "b")'
+      - '(open.flags == 1) == (open.file.name == "b") && open.flags == 10'
+      - '(open.flags == 1) != (open.file.name == "b") && open.flags == 11'
+      - 'open.file.name == "case" && open.file.name == "CASE"'
+      - 'open.file.name =~ "CA*" && open.flags == 12'
+      - 'open.file.name == r"(?i)case" && open.flags == 13'
+    events:
+      - {type: open, fields: {open.file.name: ok}}
+      - {type: open, fields: {open.file.name: anything, open.flags: 2}}
+      - {type: open, fields: {open.file.name: anything, open.flags: 3}}
+      - {type: open, fields: {open.file.name: anything, open.flags: 4}}
+      - {type: open, fields: {open.file.name: ab, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /ok/x, open.flags: 5}}
+      - {type: open, fields: {open.file.path: /ok/x/y, open.flags: 5}}
+      - {type: open, fields: {open.file.path: /ok/x/y, open.flags: 6}}
+      - {type: open, fields: {open.file.path: /ok, open.flags: 6}}
+      - {type: open, fields: {open.file.path: /a/, open.flags: 7}}
+      - {type: open, fields: {open.file.path: /, open.flags: 8}}
+      - {type: open, fields: {open.file.name: a1, open.flags: 9}}
+      - {type: open, fields: {open.file.name: b, open.flags: 10}}
+      - {type: open, fields: {open.file.name: b, open.flags: 1}}
+      - {type: open, fields: {open.file.name: c, open.flags: 11}}
+      - {type: open, fields: {open.file.name: b, open.flags: 11}}
+      - {type: open, fields: {open.file.name: CASE, open.flags: 12}}
+      - {type: open, fields: {open.file.name: case, open.flags: 12}}
+      - {type: open, fields: {open.file.name: CaSe, open.flags: 13}}
+      - {type: open, fields: {open.file.name: case, open.flags: 13}}
+
+  # ---------------------------------------------------------------- parse errors
+  - name: parse_errors_positions
+    rules:
+      - 'open.file.name == "ok"'
+      - 'open.file.name =='
+      - '== "a"'
+      - 'open.file.name = "a"'
+      - 'open.file.name == "a" &&'
+      - '&& open.file.name == "a"'
+      - '(open.file.name == "a"'
+      - 'open.file.name == "a")'
+      - '()'
+      - '((open.file.name == "a")'
+      - 'open.file.name == "unterminated'
+      - 'open.file.name in ['
+      - 'open.file.name in ["a",]'
+      - 'open.file.name in [,"a"]'
+      - 'open.file.name in ["a" "b"]'
+      - 'open.file.name in []'
+      - 'open.file.name in'
+      - 'open.file.name == ''single'''
+      - 'open.file.name === "a"'
+      - 'open.file.name <> "a"'
+      - 'open.file.name == "a" +'
+      - 'open.file.name == "a" @'
+      - 'open.file.name == "a" $'
+      - 'open.file.name == #'
+      - 'open.file.nämé == "a"'
+      - 'open.file.name == "a" "b"'
+      - 'not'
+      - '!'
+      - 'open.flags == 1 2'
+      - 'open.flags == --1'
+      - 'open.flags == 1.5'
+      - 'open.flags in [1 2]'
+      - 'open.flags in [1,]'
+      - 'open.flags in [1, 2'
+      - 'open.flags == 99999999999999999999'
+      - 'open.flags == 0x1F'
+      - 'open.flags == 1e3'
+      - 'open.flags == 1_000'
+      - 'open.flags == 5 and'
+      - 'open.flags == 5 or or open.flags == 6'
+      - 'open.flags == 5 &|| open.flags == 6'
+      - 'open.flags == 5 | | open.flags == 6'
+      - 'open.flags == 5 & & open.flags == 6'
+      - 'open.flags == 5 &  & open.flags == 6'
+      - 'open.flags = = 5'
+      - 'open.flags ! = 5'
+      - 'open.flags > = 5'
+      - 'open.flags < = 5'
+      - 'open.flags =  ~ 5'
+      - 'open.file.name not  in ["a"] && open.flags == 20'
+      - 'open.file.name notin ["a"]'
+      - 'open.file.name not in'
+      - 'open.file.name allin ["a"]'
+      - 'open.file.name All in ["a"]'
+      - 'open.file.name IN ["a"]'
+      - 'open.file.name AND open.flags == 1'
+      - 'open.file.name == "a" OR open.flags == 1'
+      - 'NOT open.flags == 1'
+      - 'open.file.name == "a" and and open.flags == 1'
+      - 'open.file.name == "a" && (open.flags == 1) open.flags == 1'
+      - 'open.file.name == TRUE'
+      - 'open.file.name == "a" ; open.flags == 1'
+      - 'open.file.name == "a", open.flags == 1'
+      - 'open.file.name == {"a"}'
+      - 'open.file.name ~ "a"'
+      - 'open.file.name == ~a'
+      - 'open.file.name == ~"a" ~"b"'
+      - 'open.file.name == r"a" r"b"'
+      - 'open.file.name == r'
+      - 'open.file.name == r"unterminated'
+      - 'open.file.name == ~"unterminated'
+      - 'open.file.name == ${unterminated'
+      - 'open.file.name == %{unterminated'
+      - 'open.file.name == ${a.b.c.d.e}'
+      - 'open.flags == 1s'
+      - 'open.flags == 1 m'
+      - 'open.flags == 1d'
+      - 'open.flags == 1w'
+      - 'open.flags == 1us'
+      - 'open.flags == 1ns'
+      - 'open.flags == 99999999999999999999h'
+      - 'open.file.name == 10.0.0.1'
+      - 'open.file.name == 10.0.0.1/8'
+      - 'connect.addr.ip == 10.0.0'
+      - 'connect.addr.ip == 10.0.0.1.1'
+      - 'connect.addr.ip == ::'
+      - 'connect.addr.ip == 1::2::3'
+      - 'connect.addr.ip == fe80::1%eth0'
+      - 'connect.addr.ip in 10.0.0.0/'
+      - 'connect.addr.ip in 10.0.0.0/-1'
+      - 'connect.addr.ip == 2001:db8:0:0:0:0:0:1'
+      - 'connect.addr.ip == ::ffff:10.0.0.1'
+      - 'connect.addr.ip in [::ffff:10.0.0.0/104] && connect.addr.port == 1'
+      - 'connect.addr.ip == 1:2:3:4:5:6:7:8:9'
+      - 'connect.addr.ip == dead:beef::1/64'
+    events:
+      - {type: open, fields: {open.file.name: ok}}
+      - {type: open, fields: {open.file.name: a, open.flags: 20}}
+      - {type: open, fields: {open.file.name: b, open.flags: 20}}
+      - {type: connect, fields: {connect.addr.ip: "::ffff:10.0.0.1", connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: "::ffff:11.0.0.1", connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: "10.0.0.1", connect.addr.port: 1}}
+
+  # ---------------------------------------------------------------- macros
+  - name: macro_definitions_and_errors
+    macros:
+      - {id: m_values, values: ["/etc/passwd", "/etc/shadow", "relative", "*glob", ""]}
+      - {id: m_bool, expression: 'open.file.name == "x"'}
+      - {id: m_int_array, expression: '[1, 2, 3]'}
+      - {id: m_string_array, expression: '["a", "b", ~"p*", r"r[0-9]"]'}
+      - {id: m_ident_array, expression: '[O_CREAT, O_TRUNC ]'}
+      - {id: m_cidr_array, expression: '[10.0.0.0/8, 192.168.1.1]'}
+      - {id: m_primary_str, expression: '"abc"'}
+      - {id: m_primary_int, expression: '42'}
+      - {id: m_primary_ident, expression: 'O_CREAT'}
+      - {id: m_ref, expression: 'm_bool && open.flags == 1'}
+      - {id: m_ref_array, expression: 'm_string_array'}
+      - {id: m_ref_not, expression: '!m_bool'}
+      - {id: m_cycle_a, expression: 'm_cycle_b'}
+      - {id: m_cycle_b, expression: 'm_cycle_a'}
+      - {id: m_self, expression: 'm_self'}
+      - {id: m_forward, expression: 'm_later && open.flags == 2'}
+      - {id: m_later, expression: 'open.file.name == "later"'}
+      - {id: m_both, expression: 'open.file.name == "x"', values: ["a"]}
+      - {id: m_neither}
+      - {id: m_bad_syntax, expression: 'open.file.name =='}
+      - {id: m_bad_type, expression: 'open.flags == "a"'}
+      - {id: m_unknown_field, expression: 'open.nosuch == "a"'}
+      - {id: m_unknown_ident, expression: 'nosuch_macro'}
+      - {id: bad-macro-id, values: ["a"]}
+      - {id: m_fim, expression: 'fim.write.file.path == "/a"'}
+      - {id: m_multi_event, expression: 'open.file.name == "a" && exec.file.name == "b"'}
+      - {id: m_dup, values: ["first"]}
+      - {id: m_dup, values: ["second"]}
+      - {id: m_variable, expression: '${nosuch}'}
+      - {id: m_ip, expression: '10.0.0.1'}
+      - {id: m_cidr, expression: '10.0.0.0/8'}
+      - {id: m_dur, expression: '5s'}
+      - {id: m_regexp, expression: 'r"a.*"'}
+      - {id: m_pattern, expression: '~"a*"'}
+    rules:
+      - 'open.file.path in m_values'
+      - 'open.file.name in m_string_array && open.flags == 100'
+      - 'm_ref && open.flags == 3'
+      - 'open.flags in m_int_array && open.file.name == "ints"'
+      - 'open.flags in m_ident_array && open.file.name == "idents"'
+      - 'connect.addr.ip in m_cidr_array'
+      - 'open.file.name == m_primary_str'
+      - 'open.flags == m_primary_int'
+      - 'open.flags == m_primary_ident && open.file.name == "pident"'
+      - 'open.file.name in m_ref_array && open.flags == 101'
+      - 'm_ref_not && open.flags == 4'
+      - 'open.file.name in m_missing'
+      - 'm_missing_bool'
+      - 'm_cycle_a'
+      - 'm_self && open.flags == 5'
+      - 'm_forward'
+      - 'm_both'
+      - 'm_neither'
+      - 'm_bad_syntax'
+      - 'm_bad_type'
+      - 'open.file.path in m_dup'
+      - 'open.file.name in m_values && open.flags == 102'
+      - 'm_bool || m_bool'
+      - 'm_bool && m_bool && open.flags == 6'
+      - 'not (m_bool) && open.flags == 7'
+      - 'open.file.name in [m_primary_str]'
+      - 'open.file.name == "abc" && open.flags in m_int_array && open.flags == 3'
+      - 'open.file.name in m_primary_str'
+      - 'open.flags in m_primary_int'
+      - 'open.flags in m_bool'
+      - 'm_primary_str == "abc" && open.flags == 8'
+      - 'm_primary_int == 42 && open.flags == 9'
+      - 'm_ip == 10.0.0.1 && connect.addr.port == 1'
+      - 'connect.addr.ip == m_ip'
+      - 'connect.addr.ip in m_cidr'
+      - 'connect.addr.ip == m_cidr'
+      - 'open.flags > m_dur'
+      - 'open.file.name =~ m_regexp'
+      - 'open.file.name == m_pattern'
+      - 'open.file.name == m_regexp && open.flags == 10'
+      - 'open.file.name =~ m_pattern && open.flags == 11'
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.path: /etc/other}}
+      - {type: open, fields: {open.file.name: a, open.flags: 100}}
+      - {type: open, fields: {open.file.name: pxyz, open.flags: 100}}
+      - {type: open, fields: {open.file.name: r5, open.flags: 100}}
+      - {type: open, fields: {open.file.name: zz, open.flags: 100}}
+      - {type: open, fields: {open.file.name: a, open.flags: 101}}
+      - {type: open, fields: {open.file.name: x, open.flags: 1}}
+      - {type: open, fields: {open.file.name: x, open.flags: 3}}
+      - {type: open, fields: {open.file.name: y, open.flags: 3}}
+      - {type: open, fields: {open.file.name: y, open.flags: 4}}
+      - {type: open, fields: {open.file.name: x, open.flags: 4}}
+      - {type: open, fields: {open.file.name: ints, open.flags: 2}}
+      - {type: open, fields: {open.file.name: ints, open.flags: 4}}
+      - {type: open, fields: {open.file.name: idents, open.flags: 64}}
+      - {type: open, fields: {open.file.name: idents, open.flags: 512}}
+      - {type: open, fields: {open.file.name: idents, open.flags: 65}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 42}}
+      - {type: open, fields: {open.file.name: abc, open.flags: 3}}
+      - {type: open, fields: {open.file.name: pident, open.flags: 64}}
+      - {type: open, fields: {open.file.name: y, open.flags: 6}}
+      - {type: open, fields: {open.file.name: x, open.flags: 6}}
+      - {type: open, fields: {open.file.name: y, open.flags: 7}}
+      - {type: open, fields: {open.file.name: x, open.flags: 7}}
+      - {type: open, fields: {open.file.name: y, open.flags: 8}}
+      - {type: open, fields: {open.file.name: y, open.flags: 9}}
+      - {type: open, fields: {open.file.name: a1, open.flags: 10}}
+      - {type: open, fields: {open.file.name: a, open.flags: 11}}
+      - {type: open, fields: {open.file.name: b, open.flags: 11}}
+      - {type: open, fields: {open.file.name: "", open.flags: 102}}
+      - {type: open, fields: {open.file.name: relative, open.flags: 102}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: 10.2.3.4, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.1.1, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.1.2, connect.addr.port: 2}}
+
+  - name: macro_event_type_isolation_one_macro
+    macros:
+      - {id: m_exec, expression: 'exec.file.name == "e"'}
+    rules:
+      - 'open.file.name == "first"'
+      - 'm_exec && exec.argv == "x"'
+      - 'exec.file.name == "f"'
+      - 'open.file.name == "second"'
+    events:
+      - {type: open, fields: {open.file.name: first}}
+      - {type: open, fields: {open.file.name: second}}
+      - {type: exec, fields: {exec.file.name: e, exec.argv: [x]}}
+      - {type: exec, fields: {exec.file.name: e, exec.argv: [y]}}
+      - {type: exec, fields: {exec.file.name: f}}
+
+  - name: macro_event_type_isolation_two_macros
+    macros:
+      - {id: m_exec, expression: 'exec.file.name == "e"'}
+      - {id: m_open, expression: 'open.file.name == "o"'}
+      - {id: m_strs, values: ["s1", "s2"]}
+    rules:
+      - 'open.file.name == "first"'
+      - 'exec.file.name == "f"'
+      - 'm_open && open.flags == 1'
+      - 'm_exec && m_open'
+      - 'open.file.name in m_strs'
+      - 'chmod.file.name in m_strs'
+      - 'chmod.file.name == "c" && m_exec'
+    events:
+      - {type: open, fields: {open.file.name: first}}
+      - {type: open, fields: {open.file.name: o, open.flags: 1}}
+      - {type: open, fields: {open.file.name: s1}}
+      - {type: exec, fields: {exec.file.name: e}}
+      - {type: exec, fields: {exec.file.name: f}}
+      - {type: chmod, fields: {chmod.file.name: s2}}
+
+  # ---------------------------------------------------------------- invalid actions
+  - name: invalid_set_actions
+    rules:
+      - {id: set_ok_value, expression: 'open.file.name == "a"', actions: [{set: {name: v_ok, value: 1}}]}
+      - {id: set_no_name, expression: 'open.file.name == "a"', actions: [{set: {value: 1}}]}
+      - {id: set_nothing, expression: 'open.file.name == "a"', actions: [{set: {name: v_nothing}}]}
+      - {id: set_value_and_field, expression: 'open.file.name == "a"', actions: [{set: {name: v_vf, value: x, field: open.file.name}}]}
+      - {id: set_value_and_expr, expression: 'open.file.name == "a"', actions: [{set: {name: v_ve, value: x, expression: '"a"'}}]}
+      - {id: set_field_and_expr, expression: 'open.file.name == "a"', actions: [{set: {name: v_fe, field: open.file.name, expression: '"a"'}}]}
+      - {id: set_expr_no_default, expression: 'open.file.name == "a"', actions: [{set: {name: v_end, expression: 'open.flags + 1'}}]}
+      - {id: set_capture_no_field, expression: 'open.file.name == "a"', actions: [{set: {name: v_cnf, value: x, capture: '(.*)'}}]}
+      - {id: set_inherited_no_scope, expression: 'open.file.name == "a"', actions: [{set: {name: v_ins, value: 1, inherited: true}}]}
+      - {id: set_inherited_container, expression: 'open.file.name == "a"', actions: [{set: {name: v_inc, value: 1, inherited: true, scope: container}}]}
+      - {id: set_scope_field_no_scope, expression: 'open.file.name == "a"', actions: [{set: {name: v_sfn, value: 1, scope_field: process.pid}}]}
+      - {id: set_default_type_mismatch, expression: 'open.file.name == "a"', actions: [{set: {name: v_dtm, value: 1, default_value: x}}]}
+      - {id: set_bad_name, expression: 'open.file.name == "a"', actions: [{set: {name: bad-name, value: 1}}]}
+      - {id: set_conflict_field, expression: 'open.file.name == "a"', actions: [{set: {name: pid, value: 1, scope: process}}]}
+      - {id: set_conflict_field2, expression: 'open.file.name == "a"', actions: [{set: {name: file.name, value: 1, scope: process}}]}
+      - {id: set_conflict_constant, expression: 'open.file.name == "a"', actions: [{set: {name: O_CREAT, value: 1}}]}
+      - {id: set_invalid_scope, expression: 'open.file.name == "a"', actions: [{set: {name: v_is, value: 1, scope: nosuch}}]}
+      - {id: set_empty_array, expression: 'open.file.name == "a"', actions: [{set: {name: v_ea, value: []}}]}
+      - {id: set_bool_array, expression: 'open.file.name == "a"', actions: [{set: {name: v_ba, value: [true, false]}}]}
+      - {id: set_float_array, expression: 'open.file.name == "a"', actions: [{set: {name: v_fa, value: [1.5]}}]}
+      - {id: set_int_array, expression: 'open.file.name == "a"', actions: [{set: {name: v_ia, value: [1]}}]}
+      - {id: set_string_array, expression: 'open.file.name == "a"', actions: [{set: {name: v_sa, value: [x]}}]}
+      - {id: set_float_value, expression: 'open.file.name == "a"', actions: [{set: {name: v_fv, value: 1.5}}]}
+      - {id: set_append_int, expression: 'open.file.name == "a"', actions: [{set: {name: v_ai, value: 1, append: true}}]}
+      - {id: set_append_string, expression: 'open.file.name == "a"', actions: [{set: {name: v_as, value: x, append: true}}]}
+      - {id: set_append_bool, expression: 'open.file.name == "a"', actions: [{set: {name: v_ab, value: true, append: true}}]}
+      - {id: set_conflict_type_1, expression: 'open.file.name == "a"', actions: [{set: {name: v_ct, value: x}}]}
+      - {id: set_conflict_type_2, expression: 'open.file.name == "a"', actions: [{set: {name: v_ct, value: 1}}]}
+      - {id: set_conflict_private_1, expression: 'open.file.name == "a"', actions: [{set: {name: v_cp, value: x}}]}
+      - {id: set_conflict_private_2, expression: 'open.file.name == "a"', actions: [{set: {name: v_cp, value: y, private: true}}]}
+      - {id: set_same_name_same_type, expression: 'open.file.name == "a"', actions: [{set: {name: v_ok, value: 2}}]}
+      - {id: set_field_ok, expression: 'open.file.name == "a"', actions: [{set: {name: v_field, field: open.file.name}}]}
+      - {id: set_field_unknown, expression: 'open.file.name == "a"', actions: [{set: {name: v_fu, field: open.nosuch}}]}
+      - {id: set_field_array_no_append, expression: 'exec.file.name == "a"', actions: [{set: {name: v_fan, field: exec.argv}}]}
+      - {id: set_field_array_append, expression: 'exec.file.name == "a"', actions: [{set: {name: v_faa, field: exec.argv, append: true}}]}
+      - {id: set_field_array_index, expression: 'exec.file.name == "a"', actions: [{set: {name: v_fai, field: 'exec.argv[0]'}}]}
+      - {id: set_field_index_on_scalar, expression: 'open.file.name == "a"', actions: [{set: {name: v_fis, field: 'open.file.name[0]'}}]}
+      - {id: set_field_index_bad, expression: 'exec.file.name == "a"', actions: [{set: {name: v_fib, field: 'exec.argv[x]'}}]}
+      - {id: set_field_wrong_event, expression: 'open.file.name == "a"', actions: [{set: {name: v_fwe, field: exec.file.name}}]}
+      - {id: set_field_int, expression: 'open.file.name == "a"', actions: [{set: {name: v_fint, field: open.flags}}]}
+      - {id: set_field_int_append, expression: 'open.file.name == "a"', actions: [{set: {name: v_fintapp, field: open.flags, append: true}}]}
+      - {id: set_field_bool, expression: 'connect.addr.port == 80', actions: [{set: {name: v_fbool, field: connect.addr.is_public}}]}
+      - {id: set_field_ip, expression: 'connect.addr.port == 80', actions: [{set: {name: v_fip, field: connect.addr.ip}}]}
+      - {id: set_field_default_ok, expression: 'open.file.name == "a"', actions: [{set: {name: v_fdok, field: open.file.name, default_value: dflt}}]}
+      - {id: set_field_default_mismatch, expression: 'open.file.name == "a"', actions: [{set: {name: v_fdm, field: open.file.name, default_value: 1}}]}
+      - {id: set_capture_ok, expression: 'open.file.name == "a"', actions: [{set: {name: v_capok, field: open.file.name, capture: '(a)'}}]}
+      - {id: set_capture_bad_regexp, expression: 'open.file.name == "a"', actions: [{set: {name: v_capbr, field: open.file.name, capture: '('}}]}
+      - {id: set_capture_no_group, expression: 'open.file.name == "a"', actions: [{set: {name: v_capng, field: open.file.name, capture: 'a'}}]}
+      - {id: set_capture_two_groups, expression: 'open.file.name == "a"', actions: [{set: {name: v_cap2, field: open.file.name, capture: '(a)(b)'}}]}
+      - {id: set_capture_int_field, expression: 'open.file.name == "a"', actions: [{set: {name: v_capint, field: open.flags, capture: '(1)'}}]}
+      - {id: set_capture_unknown_field, expression: 'open.file.name == "a"', actions: [{set: {name: v_capuf, field: open.nosuch, capture: '(1)'}}]}
+      - {id: set_capture_array_field, expression: 'exec.file.name == "a"', actions: [{set: {name: v_caparr, field: exec.argv, capture: '(1)', append: true}}]}
+      - {id: set_capture_array_index, expression: 'exec.file.name == "a"', actions: [{set: {name: v_capidx, field: 'exec.argv[0]', capture: '(1)'}}]}
+      - {id: set_expr_ok, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprok, expression: 'open.flags + 1', default_value: 0}}]}
+      - {id: set_expr_bad_syntax, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprbs, expression: 'open.flags +', default_value: 0}}]}
+      - {id: set_expr_bad_field, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprbf, expression: 'open.nosuch + 1', default_value: 0}}]}
+      - {id: set_expr_wrong_event, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprwe, expression: 'exec.argv', default_value: x}}]}
+      - {id: set_expr_type_mismatch, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprtm, expression: 'open.flags + 1', default_value: x}}]}
+      - {id: set_expr_string, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprstr, expression: '"pre-%{open.file.name}"', default_value: x}}]}
+      - {id: set_expr_bool, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprbool, expression: 'open.flags == 1', default_value: false}}]}
+      - {id: set_expr_array_append, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprarr, expression: 'open.flags', default_value: 0, append: true}}]}
+      - {id: set_expr_string_append_mismatch, expression: 'open.file.name == "a"', actions: [{set: {name: v_exprsam, expression: 'open.file.name', default_value: 0, append: true}}]}
+      - {id: set_expr_array_no_append, expression: 'exec.file.name == "a"', actions: [{set: {name: v_exprana, expression: 'exec.argv', default_value: x}}]}
+      - {id: set_ttl_size, expression: 'open.file.name == "a"', actions: [{set: {name: v_ttl, value: 1, ttl: 10m, size: 5}}]}
+      - {id: set_scope_process, expression: 'open.file.name == "a"', actions: [{set: {name: v_proc, value: 1, scope: process}}]}
+      - {id: set_scope_container, expression: 'open.file.name == "a"', actions: [{set: {name: v_cont, value: 1, scope: container}}]}
+      - {id: set_scope_cgroup, expression: 'open.file.name == "a"', actions: [{set: {name: v_cg, value: 1, scope: cgroup}}]}
+      - {id: set_scope_field_bad, expression: 'open.file.name == "a"', actions: [{set: {name: v_sfb, value: 1, scope: process, scope_field: nosuch.field}}]}
+      - {id: set_scope_field_ok, expression: 'open.file.name == "a"', actions: [{set: {name: v_sfo, value: 1, scope: process, scope_field: process.pid}}]}
+      - {id: set_inherited_ok, expression: 'open.file.name == "a"', actions: [{set: {name: v_inh, value: 1, scope: process, inherited: true}}]}
+    processes:
+      p: {pid: 5, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.name: a, open.flags: 0}}
+      - {type: open, process: p, fields: {open.file.name: b}}
+      - {type: exec, process: p, fields: {exec.file.name: a, exec.argv: [first]}}
+      - {type: connect, process: p, fields: {connect.addr.port: 80, connect.addr.is_public: true, connect.addr.ip: 10.1.1.1}}
+
+  - name: invalid_other_actions
+    rules:
+      - {id: kill_ok, expression: 'open.file.name == "kill"', actions: [{kill: {signal: SIGKILL}}]}
+      - {id: kill_no_signal, expression: 'open.file.name == "a"', actions: [{kill: {scope: process}}]}
+      - {id: kill_bad_signal, expression: 'open.file.name == "a"', actions: [{kill: {signal: SIGNOPE}}]}
+      - {id: kill_all_options, expression: 'open.file.name == "kill2"', actions: [{kill: {signal: SIGTERM, scope: container, disable_container_disarmer: true, disable_executable_disarmer: true}}]}
+      - {id: log_ok, expression: 'open.file.name == "log"', actions: [{log: {level: info, message: hello}}]}
+      - {id: log_no_level, expression: 'open.file.name == "a"', actions: [{log: {message: hello}}]}
+      - {id: coredump_ok, expression: 'open.file.name == "dump"', actions: [{coredump: {process: true, mount: true, dentry: true, no_compression: true}}]}
+      - {id: hash_open_default, expression: 'open.file.name == "hash"', actions: [{hash: {}}]}
+      - {id: hash_open_field, expression: 'open.file.name == "hash2"', actions: [{hash: {field: open.file, max_file_size: 100}}]}
+      - {id: hash_exec_default, expression: 'exec.file.name == "hash"', actions: [{hash: {}}]}
+      - {id: hash_exec_process, expression: 'exec.file.name == "hash2"', actions: [{hash: {field: process.file}}]}
+      - {id: hash_chmod_no_field, expression: 'chmod.file.name == "a"', actions: [{hash: {}}]}
+      - {id: hash_chmod_field, expression: 'chmod.file.name == "hash"', actions: [{hash: {field: chmod.file}}]}
+      - {id: hash_wrong_event, expression: 'open.file.name == "a"', actions: [{hash: {field: exec.file}}]}
+      - {id: hash_unknown_field, expression: 'open.file.name == "a"', actions: [{hash: {field: nosuch.file}}]}
+      - {id: hash_not_a_file, expression: 'open.file.name == "a"', actions: [{hash: {field: open.flags}}]}
+      - {id: hash_dest_field, expression: 'chmod.file.name == "a"', actions: [{hash: {field: chmod.file.destination}}]}
+      - {id: nf_no_filter, expression: 'open.file.name == "a"', actions: [{network_filter: {policy: drop}}]}
+      - {id: nf_bad_scope, expression: 'open.file.name == "a"', actions: [{network_filter: {filter: 'tcp', scope: nosuch}}]}
+      - {id: nf_bad_policy, expression: 'open.file.name == "a"', actions: [{network_filter: {filter: 'tcp', policy: nosuch}}]}
+      - {id: nf_ok, expression: 'open.file.name == "nf"', actions: [{network_filter: {filter: 'tcp port 80', policy: drop, scope: cgroup}}]}
+      - {id: nf_defaults, expression: 'open.file.name == "nf2"', actions: [{network_filter: {filter: 'udp'}}]}
+      - {id: nf_allow, expression: 'open.file.name == "nf3"', actions: [{network_filter: {filter: 'udp', policy: allow, scope: process}}]}
+      - {id: two_actions_in_one, expression: 'open.file.name == "a"', actions: [{set: {name: v_two, value: 1}, log: {level: info}}]}
+      - {id: two_actions_in_one_b, expression: 'open.file.name == "a"', actions: [{kill: {signal: SIGKILL}, coredump: {process: true}}]}
+      - {id: null_action, expression: 'open.file.name == "a"', actions: [null]}
+      - {id: filter_ok, expression: 'open.file.name == "filter"', actions: [{filter: 'open.flags == 1', set: {name: v_filter, value: 1}}, {filter: 'open.flags == 2', set: {name: v_filter2, value: 2}}]}
+      - {id: filter_bad_syntax, expression: 'open.file.name == "a"', actions: [{filter: 'open.flags ==', set: {name: v_fbs, value: 1}}]}
+      - {id: filter_unknown_field, expression: 'open.file.name == "a"', actions: [{filter: 'open.nosuch == 1', set: {name: v_fuf, value: 1}}]}
+      - {id: filter_type_error, expression: 'open.file.name == "a"', actions: [{filter: 'open.flags == "x"', set: {name: v_fte, value: 1}}]}
+      - {id: filter_other_event, expression: 'open.file.name == "a"', actions: [{filter: 'exec.file.name == "x"', set: {name: v_foe, value: 1}}]}
+      - {id: filter_no_event, expression: 'open.file.name == "a"', actions: [{filter: 'process.uid == 1000', set: {name: v_fne, value: 1}}]}
+      - {id: filter_empty, expression: 'open.file.name == "filter_empty"', actions: [{filter: '', set: {name: v_fempty, value: 1}}]}
+      - {id: multi_actions_mixed, expression: 'open.file.name == "mixed"', actions: [{set: {name: v_mixed_ok, value: 1}}, {set: {value: 2}}, {log: {level: info}}, {kill: {signal: NOPE}}]}
+    events:
+      - {type: open, fields: {open.file.name: kill}}
+      - {type: open, fields: {open.file.name: kill2}}
+      - {type: open, fields: {open.file.name: log}}
+      - {type: open, fields: {open.file.name: dump}}
+      - {type: open, fields: {open.file.name: hash}}
+      - {type: open, fields: {open.file.name: hash2}}
+      - {type: open, fields: {open.file.name: nf}}
+      - {type: open, fields: {open.file.name: nf2}}
+      - {type: open, fields: {open.file.name: nf3}}
+      - {type: open, fields: {open.file.name: filter, open.flags: 1}}
+      - {type: open, fields: {open.file.name: filter, open.flags: 2}}
+      - {type: open, fields: {open.file.name: filter, open.flags: 3}}
+      - {type: open, fields: {open.file.name: filter_empty}}
+      - {type: open, fields: {open.file.name: mixed}}
+      - {type: exec, fields: {exec.file.name: hash}}
+      - {type: exec, fields: {exec.file.name: hash2}}
+      - {type: chmod, fields: {chmod.file.name: hash}}
+
+  # ---------------------------------------------------------------- policy documents
+  - name: policy_document_errors
+    rules:
+      - {id: main_rule, expression: 'open.file.name == "main"'}
+    policies:
+      - "rules: ["
+      - "rules: notalist"
+      - "rules:\n  - id: 5\n    expression: [1]\n"
+      - "{}"
+      - "rules: []"
+      - "macros: []\nrules: []\n"
+      - "version: 2\nrules:\n  - id: v2_rule\n    expression: 'open.file.name == \"v2\"'\n"
+      - "type: policy\nreplace_policy_id: other\nrules:\n  - id: typed_rule\n    expression: 'open.file.name == \"typed\"'\n"
+      - |
+        unknown_top_level: 1
+        rules:
+          - id: unknown_field_rule
+            expression: 'open.file.name == "unk"'
+            unknown_rule_field: 1
+      - |
+        rules:
+          - expression: 'open.file.name == "no_id"'
+          - id: bad-id
+            expression: 'open.file.name == "bad_id"'
+          - id: "bad id"
+            expression: 'open.file.name == "bad_id2"'
+          - id: group_bad
+            group_id: bad-group
+            expression: 'open.file.name == "group"'
+          - id: group_ok
+            group_id: grp_ok
+            expression: 'open.file.name == "group_ok"'
+          - id: no_expression
+          - id: no_expression_disabled
+            disabled: true
+          - id: disabled_valid
+            disabled: true
+            expression: 'open.file.name == "disabled"'
+          - id: disabled_garbage
+            disabled: true
+            expression: 'open.file.name == ('
+          - id: garbage
+            expression: 'open.file.name == ('
+          - id: digits_123
+            expression: 'open.file.name == "digits"'
+          - id: 123
+            expression: 'open.file.name == "numeric_id"'
+          - id: UPPER_lower_9
+            expression: 'open.file.name == "upper"'
+          - id: with_metadata
+            version: 1.2.3
+            description: some rule
+            tags: {a: b, c: d}
+            product_tags: [p1, p2]
+            silent: true
+            priority: 5
+            every: 10m
+            limiter_token: [open.file.name]
+            filters: ["os == \"linux\""]
+            expression: 'open.file.name == "meta"'
+      - |
+        macros:
+          - id: macro_only_policy
+            values: [a]
+    events:
+      - {type: open, fields: {open.file.name: main}}
+      - {type: open, fields: {open.file.name: v2}}
+      - {type: open, fields: {open.file.name: typed}}
+      - {type: open, fields: {open.file.name: unk}}
+      - {type: open, fields: {open.file.name: bad_id}}
+      - {type: open, fields: {open.file.name: group}}
+      - {type: open, fields: {open.file.name: group_ok}}
+      - {type: open, fields: {open.file.name: disabled}}
+      - {type: open, fields: {open.file.name: digits}}
+      - {type: open, fields: {open.file.name: numeric_id}}
+      - {type: open, fields: {open.file.name: upper}}
+      - {type: open, fields: {open.file.name: meta}}
+      - {type: open, fields: {open.file.name: no_id}}
+
+  - name: policy_document_action_yaml_errors
+    rules:
+      - {id: main_rule, expression: 'open.file.name == "main"'}
+    policies:
+      - |
+        rules:
+          - id: bad_ttl
+            expression: 'open.file.name == "ttl"'
+            actions:
+              - set: {name: v, value: 1, ttl: notaduration}
+      - |
+        rules:
+          - id: int_ttl
+            expression: 'open.file.name == "ttl2"'
+            actions:
+              - set: {name: v_int_ttl, value: 1, ttl: 1000000000}
+      - |
+        rules:
+          - id: seq_ttl
+            expression: 'open.file.name == "ttl3"'
+            actions:
+              - set: {name: v_seq_ttl, value: 1, ttl: [1]}
+      - |
+        rules:
+          - id: bad_every
+            expression: 'open.file.name == "every"'
+            every: nope
+      - |
+        rules:
+          - id: scope_override_bad
+            expression: 'open.file.name == "x"'
+            combine: bogus
+      - |
+        rules:
+          - id: empty_action_list
+            expression: 'open.file.name == "empty_actions"'
+            actions: []
+    events:
+      - {type: open, fields: {open.file.name: main}}
+      - {type: open, fields: {open.file.name: ttl2}}
+      - {type: open, fields: {open.file.name: empty_actions}}
+
+  # ---------------------------------------------------------------- agent versions
+  - name: agent_version_rule_constraints
+    agent_version: 7.60.1-rc.1+build5
+    rules:
+      - {id: av_0, expression: 'open.file.name == "av0"', agent_version: '>= 7.50'}
+      - {id: av_1, expression: 'open.file.name == "av1"', agent_version: '< 7.50'}
+      - {id: av_2, expression: 'open.file.name == "av2"', agent_version: '>= 7.60.1'}
+      - {id: av_3, expression: 'open.file.name == "av3"', agent_version: '> 7.60.1'}
+      - {id: av_4, expression: 'open.file.name == "av4"', agent_version: '7.60.1'}
+      - {id: av_5, expression: 'open.file.name == "av5"', agent_version: '= 7.60.1'}
+      - {id: av_6, expression: 'open.file.name == "av6"', agent_version: '~7.60'}
+      - {id: av_7, expression: 'open.file.name == "av7"', agent_version: '^7.0'}
+      - {id: av_8, expression: 'open.file.name == "av8"', agent_version: '>=7.0.0 <8.0.0'}
+      - {id: av_9, expression: 'open.file.name == "av9"', agent_version: '>= 7.50 || < 7.0'}
+      - {id: av_10, expression: 'open.file.name == "av10"', agent_version: 'invalid constraint'}
+      - {id: av_11, expression: 'open.file.name == "av11"', agent_version: '>='}
+      - {id: av_12, expression: 'open.file.name == "av12"', agent_version: 'garbage'}
+      - {id: av_13, expression: 'open.file.name == "av13"', agent_version: '7.x'}
+      - {id: av_14, expression: 'open.file.name == "av14"', agent_version: '*'}
+      - {id: av_15, expression: 'open.file.name == "av15"', agent_version: ''}
+      - {id: av_16, expression: 'open.file.name == "av16"', agent_version: '!=7.60.1'}
+      - {id: av_17, expression: 'open.file.name == "av17"', agent_version: ' >= 7.1 '}
+      - {id: av_18, expression: 'open.file.name == "av18"', agent_version: '>= 7.60.1-rc.1'}
+      - {id: av_19, expression: 'open.file.name == "av19"', agent_version: '< 7.60.1-rc.1'}
+      - {id: av_20, expression: 'open.file.name == "av20"', agent_version: '> 7.60.1-0'}
+      - {id: av_21, expression: 'open.file.name == "av21"', agent_version: '<= 7.60.1+meta'}
+      - {id: av_22, expression: 'open.file.name == "av22"', agent_version: '7.60'}
+      - {id: av_23, expression: 'open.file.name == "av23"', agent_version: '7'}
+      - {id: av_24, expression: 'open.file.name == "av24"', agent_version: '8'}
+      - {id: av_25, expression: 'open.file.name == "av25"', agent_version: '>= 7.60.2'}
+      - {id: av_26, expression: 'open.file.name == "av26"', agent_version: '<= 7.60.1'}
+      - {id: av_27, expression: 'open.file.name == "av27"', agent_version: '>= 7.60.1, < 7.60.2'}
+      - {id: av_28, expression: 'open.file.name == "av28"', agent_version: '>= 7.60.1 < 7.60.1'}
+      - {id: av_29, expression: 'open.file.name == "av29"', agent_version: '> 7.60 && < 8'}
+      - {id: av_none, expression: 'open.file.name == "avnone"'}
+      - {id: av_dup, expression: 'open.file.name == "avdup_old"', agent_version: '< 7.50'}
+      - {id: av_dup, expression: 'open.file.name == "avdup_new"', agent_version: '>= 7.50'}
+      - {id: av_dup_filtered_only, expression: 'open.file.name == "avdfo"', agent_version: '< 7.0'}
+      - {id: av_dup_filtered_only, expression: 'open.file.name == "avdfo2"', agent_version: '< 6.0'}
+      - {id: av_disabled, expression: 'open.file.name == "avdis"', agent_version: '>= 7.0', disabled: true}
+      - {id: av_bad_expr, expression: 'open.file.name ==', agent_version: '< 7.0'}
+      - {id: av_bad_expr_ok_version, expression: 'open.file.name ==', agent_version: '>= 7.0'}
+      - {id: av_no_expr_filtered, agent_version: '< 7.0'}
+      - {id: av_bad_id_filtered, expression: 'open.file.name == "x"', agent_version: '< 7.0'}
+      - {id: bad-av-id-filtered, expression: 'open.file.name == "x"', agent_version: '< 7.0'}
+    events:
+      - {type: open, fields: {open.file.name: av0}}
+      - {type: open, fields: {open.file.name: av1}}
+      - {type: open, fields: {open.file.name: av2}}
+      - {type: open, fields: {open.file.name: av3}}
+      - {type: open, fields: {open.file.name: av4}}
+      - {type: open, fields: {open.file.name: av5}}
+      - {type: open, fields: {open.file.name: av6}}
+      - {type: open, fields: {open.file.name: av7}}
+      - {type: open, fields: {open.file.name: av8}}
+      - {type: open, fields: {open.file.name: av9}}
+      - {type: open, fields: {open.file.name: av10}}
+      - {type: open, fields: {open.file.name: av11}}
+      - {type: open, fields: {open.file.name: av12}}
+      - {type: open, fields: {open.file.name: av13}}
+      - {type: open, fields: {open.file.name: av14}}
+      - {type: open, fields: {open.file.name: av15}}
+      - {type: open, fields: {open.file.name: av16}}
+      - {type: open, fields: {open.file.name: av17}}
+      - {type: open, fields: {open.file.name: av18}}
+      - {type: open, fields: {open.file.name: av19}}
+      - {type: open, fields: {open.file.name: av20}}
+      - {type: open, fields: {open.file.name: av21}}
+      - {type: open, fields: {open.file.name: av22}}
+      - {type: open, fields: {open.file.name: av23}}
+      - {type: open, fields: {open.file.name: av24}}
+      - {type: open, fields: {open.file.name: av25}}
+      - {type: open, fields: {open.file.name: av26}}
+      - {type: open, fields: {open.file.name: av27}}
+      - {type: open, fields: {open.file.name: av28}}
+      - {type: open, fields: {open.file.name: av29}}
+      - {type: open, fields: {open.file.name: avnone}}
+      - {type: open, fields: {open.file.name: avdup_old}}
+      - {type: open, fields: {open.file.name: avdup_new}}
+      - {type: open, fields: {open.file.name: avdfo}}
+      - {type: open, fields: {open.file.name: avdis}}
+
+  - name: agent_version_macro_constraints
+    agent_version: 7.60.1
+    macros:
+      - {id: mac_ok, values: [a, b], agent_version: '>= 7.0'}
+      - {id: mac_filtered, values: [c, d], agent_version: '< 7.0'}
+      - {id: mac_invalid, values: [e], agent_version: 'not a version'}
+      - {id: mac_expr_ok, expression: 'open.flags == 1', agent_version: '>= 7.60'}
+      - {id: mac_expr_filtered, expression: 'open.flags == 2', agent_version: '>= 7.61'}
+      - {id: mac_dup, values: [old], agent_version: '< 7.50'}
+      - {id: mac_dup, values: [new], agent_version: '>= 7.50'}
+      - {id: bad-mac-id-filtered, values: [x], agent_version: '< 7.0'}
+      - {id: mac_nover, values: [f]}
+    rules:
+      - 'open.file.name in mac_ok'
+      - 'open.file.name in mac_filtered'
+      - 'open.file.name in mac_invalid'
+      - 'mac_expr_ok && open.file.name == "mexpr"'
+      - 'mac_expr_filtered && open.file.name == "mexpr2"'
+      - 'open.file.name in mac_dup'
+      - 'open.file.name in mac_nover'
+      - {id: rule_with_filtered_macro, expression: 'open.file.name in mac_filtered', agent_version: '>= 7.0'}
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: open, fields: {open.file.name: e}}
+      - {type: open, fields: {open.file.name: mexpr, open.flags: 1}}
+      - {type: open, fields: {open.file.name: mexpr, open.flags: 2}}
+      - {type: open, fields: {open.file.name: mexpr2, open.flags: 2}}
+      - {type: open, fields: {open.file.name: old}}
+      - {type: open, fields: {open.file.name: new}}
+      - {type: open, fields: {open.file.name: f}}
+
+  - name: agent_version_ignored_without_filter
+    macros:
+      - {id: mac_filtered, values: [c, d], agent_version: '< 7.0'}
+      - {id: mac_invalid, values: [e], agent_version: 'not a version'}
+    rules:
+      - {id: r_filtered, expression: 'open.file.name == "rf"', agent_version: '< 7.0'}
+      - {id: r_invalid, expression: 'open.file.name == "ri"', agent_version: 'not a version'}
+      - 'open.file.name in mac_filtered'
+      - 'open.file.name in mac_invalid'
+    events:
+      - {type: open, fields: {open.file.name: rf}}
+      - {type: open, fields: {open.file.name: ri}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: open, fields: {open.file.name: e}}
+
+  # ---------------------------------------------------------------- merge / override
+  - name: rule_merge_and_override_across_policies
+    rules:
+      - {id: rule_a, expression: 'open.file.name == "a"'}
+      - {id: rule_b, expression: 'open.file.name == "b"', disabled: true, tags: {orig: tag}}
+      - {id: rule_c, expression: 'open.file.name == "c"', actions: [{set: {name: v_c, value: 1}}]}
+      - {id: rule_d, expression: 'open.file.name == "d"', tags: {orig: tag}}
+      - {id: rule_e, expression: 'open.file.name == "e"', actions: [{set: {name: v_e, value: 1}}]}
+      - {id: rule_f, expression: 'open.file.name == "f"', disabled: true}
+      - {id: rule_g, expression: 'open.file.name == "g"'}
+      - {id: rule_h, expression: 'open.file.name == "h"'}
+    policies:
+      - |
+        rules:
+          - id: rule_a
+            expression: 'open.file.name == "a_replaced"'
+          - id: rule_b
+            expression: 'open.file.name == "b_enabled"'
+          - id: rule_c
+            disabled: true
+            expression: 'open.file.name == "c"'
+          - id: rule_f
+            disabled: true
+            expression: 'open.file.name == "f2"'
+          - id: rule_new
+            expression: 'open.file.name == "new"'
+          - id: rule_g
+            combine: override
+            expression: 'open.file.name == "g_override"'
+          - id: rule_h
+            combine: merge
+            expression: 'open.file.name == "h_merge"'
+      - |
+        rules:
+          - id: rule_a
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: v_a, value: 1}
+          - id: rule_d
+            combine: override
+            override_options:
+              fields: [actions, every, tags, product_tags]
+            every: 5m
+            tags: {k: v}
+            product_tags: [pt]
+            actions:
+              - set: {name: v_d, value: x}
+          - id: rule_e
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: v_e, value: 1}
+              - set: {name: v_e2, value: 2}
+          - id: rule_g
+            combine: override
+            override_options:
+              fields: [all]
+            actions:
+              - set: {name: v_g, value: 1}
+          - id: rule_h
+            combine: override
+            actions:
+              - set: {name: v_h, value: 1}
+          - id: rule_missing
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: v_missing, value: 1}
+          - id: rule_missing_no_expression
+            combine: override
+          - id: rule_f
+            expression: 'open.file.name == "f3"'
+          - id: rule_b
+            disabled: true
+            combine: override
+            override_options:
+              fields: [every, tags]
+            tags: {x: y}
+    macros:
+      - {id: mm_merge, values: [m1]}
+      - {id: mm_expr, expression: 'open.flags == 1'}
+      - {id: mm_dup, values: [d1]}
+      - {id: mm_override, values: [o1, o2]}
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: a_replaced}}
+      - {type: open, fields: {open.file.name: b}}
+      - {type: open, fields: {open.file.name: b_enabled}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: open, fields: {open.file.name: d}}
+      - {type: open, fields: {open.file.name: e}}
+      - {type: open, fields: {open.file.name: f}}
+      - {type: open, fields: {open.file.name: f2}}
+      - {type: open, fields: {open.file.name: f3}}
+      - {type: open, fields: {open.file.name: g}}
+      - {type: open, fields: {open.file.name: g_override}}
+      - {type: open, fields: {open.file.name: h}}
+      - {type: open, fields: {open.file.name: h_merge}}
+      - {type: open, fields: {open.file.name: new}}
+
+  - name: macro_merge_and_override_across_policies
+    macros:
+      - {id: mm_merge, values: [m1]}
+      - {id: mm_expr, expression: 'open.flags == 1'}
+      - {id: mm_dup, values: [d1]}
+      - {id: mm_override, values: [o1, o2]}
+      - {id: mm_expr_values, expression: '["x"]'}
+      - {id: mm_values_expr, values: [v1]}
+      - {id: mm_bogus, values: [b1]}
+    rules:
+      - 'open.file.name in mm_merge && open.flags == 1'
+      - 'mm_expr && open.file.name == "expr"'
+      - 'open.file.name in mm_dup && open.flags == 2'
+      - 'open.file.name in mm_override && open.flags == 3'
+      - 'open.file.name in mm_expr_values && open.flags == 4'
+      - 'open.file.name in mm_values_expr && open.flags == 5'
+      - 'open.file.name in mm_bogus && open.flags == 6'
+      - 'open.file.name in mm_new && open.flags == 7'
+    policies:
+      - |
+        macros:
+          - id: mm_merge
+            combine: merge
+            values: [m2, m3]
+          - id: mm_expr
+            combine: merge
+            expression: 'open.flags == 2'
+          - id: mm_dup
+            values: [d2]
+          - id: mm_override
+            combine: override
+            values: [o3]
+          - id: mm_expr_values
+            combine: merge
+            values: [y]
+          - id: mm_values_expr
+            combine: merge
+            expression: '["z"]'
+          - id: mm_bogus
+            combine: bogus
+            values: [b2]
+          - id: mm_new
+            combine: merge
+            values: [n1]
+      - |
+        macros:
+          - id: mm_merge
+            combine: merge
+            values: [m4]
+          - id: mm_override
+            combine: merge
+            values: [o4]
+          - id: mm_new
+            combine: override
+            values: [n2]
+    events:
+      - {type: open, fields: {open.file.name: m1, open.flags: 1}}
+      - {type: open, fields: {open.file.name: m2, open.flags: 1}}
+      - {type: open, fields: {open.file.name: m3, open.flags: 1}}
+      - {type: open, fields: {open.file.name: m4, open.flags: 1}}
+      - {type: open, fields: {open.file.name: m9, open.flags: 1}}
+      - {type: open, fields: {open.file.name: expr, open.flags: 1}}
+      - {type: open, fields: {open.file.name: d1, open.flags: 2}}
+      - {type: open, fields: {open.file.name: d2, open.flags: 2}}
+      - {type: open, fields: {open.file.name: o1, open.flags: 3}}
+      - {type: open, fields: {open.file.name: o3, open.flags: 3}}
+      - {type: open, fields: {open.file.name: o4, open.flags: 3}}
+      - {type: open, fields: {open.file.name: x, open.flags: 4}}
+      - {type: open, fields: {open.file.name: y, open.flags: 4}}
+      - {type: open, fields: {open.file.name: v1, open.flags: 5}}
+      - {type: open, fields: {open.file.name: z, open.flags: 5}}
+      - {type: open, fields: {open.file.name: b1, open.flags: 6}}
+      - {type: open, fields: {open.file.name: b2, open.flags: 6}}
+      - {type: open, fields: {open.file.name: n1, open.flags: 7}}
+      - {type: open, fields: {open.file.name: n2, open.flags: 7}}
+
+  # ---------------------------------------------------------------- fim expansion
+  - name: fim_write_expansion_errors
+    rules:
+      - {id: plain_rule, expression: 'open.file.name == "plain"'}
+      - {id: fim_unknown, expression: 'fim.write.file.nosuch == "/p"'}
+      - {id: fim_type_error, expression: 'fim.write.file.path == 1'}
+      - {id: fim_syntax_error, expression: 'fim.write.file.path =='}
+      - {id: fim_wrong_field, expression: 'fim.write.file.path == "/p" && exec.file.name == "x"'}
+      - {id: fim_bad_group, group_id: bad-group, expression: 'fim.write.file.path == "/g"'}
+      - {id: fim_disabled_garbage, disabled: true, expression: 'fim.write.file.path =='}
+      - {id: fim_regexp_on_path, expression: 'fim.write.file.path =~ r"^/a$"'}
+      - {id: fim_relative_path, expression: 'fim.write.file.path == "relative"'}
+    events:
+      - {type: open, fields: {open.file.name: plain}}
+      - {type: open, fields: {open.file.name: other}}
+
+  - name: fim_macro_rejected
+    macros:
+      - {id: fim_macro, expression: 'fim.write.file.path == "/macro"'}
+      - {id: fim_values_ok, values: ["fim.write.file."]}
+    rules:
+      - 'open.file.name == "ok"'
+    events:
+      - {type: open, fields: {open.file.name: ok}}
+
+  # ---------------------------------------------------------------- array index / iterator register errors
+  - name: array_index_and_register_errors
+    rules:
+      - 'exec.argv[0] == "a" && exec.file.name == "idx1"'
+      - 'exec.argv[1] in ["b", "c"] && exec.file.name == "idx2"'
+      - 'exec.argv[5] == "" && exec.file.name == "idx3"'
+      - 'exec.argv[00] == "a" && exec.file.name == "idx4"'
+      - 'bpf.prog.helpers[0] == 3 && bpf.cmd == 1'
+      - 'bpf.prog.helpers[9] == 0 && bpf.cmd == 2'
+      - 'dns.response.ips[0] == 10.0.0.1 && dns.question.name == "idx"'
+      - 'dns.response.ips[1] in 10.0.0.0/8 && dns.question.name == "idx2"'
+      - 'dns.response.ips[7] == 10.0.0.1 && dns.question.name == "idx3"'
+      - 'process.ancestors[A].file.name == "anc" && process.ancestors[A].pid == 1 && exec.file.name == "it1"'
+      - 'process.ancestors[A].file.name == "mid" && process.ancestors[B].file.name == "anc" && exec.file.name == "it2"'
+      - 'exec.argv[99999999999999999999] == "a"'
+      - 'open.file.name[0] == "a"'
+      - 'open.flags[0] == 1'
+      - 'connect.addr.ip[0] == 10.0.0.1'
+      - 'exec.argv[-1] == "a"'
+      - 'exec.argv[] == "a"'
+      - 'exec.argv[A] == "a" && exec.file.name == "it3"'
+      - 'exec.argv[_] == "a"'
+      - 'process.ancestors[_].pid == 1'
+      - 'signal.target.ancestors[A].pid == 1 && process.ancestors[A].pid == 1'
+      - 'process.ancestors[A].pid == 1 && signal.target.ancestors[A].pid == 1'
+      - 'process.ancestors[A].file.name == "anc" && process.ancestors[A].file.name == "mid"'
+      - 'process.ancestors[A].nosuch == 1 && exec.file.name == "x"'
+      - 'nosuch.ancestors[A].pid == 1'
+      - 'exec.argv[0].length == 1'
+      - 'exec.argv.length == 2 && exec.file.name == "len1"'
+      - 'exec.file.name.length == 4 && exec.file.name == "len2"'
+      - 'exec.file.name.length == "a"'
+      - 'exec.file.name.length >= 5 && exec.file.name == "len3"'
+      - 'open.flags.length == 1'
+      - 'bpf.prog.helpers.length == 2 && bpf.cmd == 3'
+      - 'dns.response.ips.length == 2 && dns.question.name == "len4"'
+      - 'dns.question.name.root_domain == "example.com" && dns.question.name == "a.example.com"'
+      - 'dns.question.name.root_domain =~ "exa*"'
+      - '%{dns.question.name.root_domain} == "example.com"'
+      - '%{nosuch.root_domain} == "a"'
+      - '%{exec.argv.length} == 2 && exec.file.name == "len1"'
+      - '%{exec.file.name.length} == 4 && exec.file.name == "len2"'
+      - '%{bpf.prog.helpers.length} == 2 && bpf.cmd == 3'
+      - '%{dns.response.ips.length} == 2'
+      - '%{connect.addr.is_public.length} == 2'
+      - '%{connect.addr.ip.length} == 2'
+      - '%{exec.argv.length} == 1 && exec.file.name == "len5"'
+      - '"%{exec.argv.length}" == "1" && exec.file.name == "len6"'
+    processes:
+      anc: {pid: 1, fields: {file.name: anc}}
+      mid: {pid: 2, parent: anc, fields: {file.name: mid}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: leaf}}
+    events:
+      - {type: exec, process: leaf, fields: {exec.file.name: idx1, exec.argv: [a, b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: idx1, exec.argv: [b, a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: idx2, exec.argv: [a, c]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: idx2, exec.argv: [a, d]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: idx2, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: idx3, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: idx4, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: it1}}
+      - {type: exec, process: mid, fields: {exec.file.name: it1}}
+      - {type: exec, process: leaf, fields: {exec.file.name: it2}}
+      - {type: exec, process: anc, fields: {exec.file.name: it2}}
+      - {type: exec, process: leaf, fields: {exec.file.name: it3, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len1, exec.argv: [a, b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len1, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len2}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len5, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len5, exec.argv: [x, y]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len6, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len6, exec.argv: [x, y]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len3}}
+      - {type: exec, process: leaf, fields: {exec.file.name: len33}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [3, 4]}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.prog.helpers: [1]}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.prog.helpers: []}}
+      - {type: bpf, fields: {bpf.cmd: 3, bpf.prog.helpers: [1, 2]}}
+      - {type: bpf, fields: {bpf.cmd: 3, bpf.prog.helpers: [1]}}
+      - {type: dns, fields: {dns.question.name: idx, dns.response.ips: [10.0.0.1, 11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: idx, dns.response.ips: [11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: idx2, dns.response.ips: [11.0.0.1, 10.9.9.9]}}
+      - {type: dns, fields: {dns.question.name: idx2, dns.response.ips: [10.9.9.9, 11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: idx3, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: len4, dns.response.ips: [10.0.0.1, 10.0.0.2]}}
+      - {type: dns, fields: {dns.question.name: len4, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: a.example.com}}
+      - {type: dns, fields: {dns.question.name: a.other.org}}
+
+  - name: grammar_cidr_array_and_macro_operands
+    macros:
+      - {id: m_cidrs, expression: '[10.0.0.0/8, 192.168.0.0/16]'}
+      - {id: m_cidr_one, expression: '10.0.0.0/8'}
+      - {id: m_ip_one, expression: '10.1.2.3'}
+    rules:
+      - 'network.destination.ip in dns.response.ips && dns.question.name == "c1"'
+      - 'network.destination.ip not in dns.response.ips && dns.question.name == "c2"'
+      - 'network.destination.ip allin dns.response.ips && dns.question.name == "c3"'
+      - 'dns.response.ips in network.destination.ip'
+      - 'dns.response.ips in dns.response.ips'
+      - 'm_cidrs in network.destination.ip && dns.question.name == "c4"'
+      - 'm_cidrs not in network.destination.ip && dns.question.name == "c5"'
+      - 'm_cidrs allin network.destination.ip && dns.question.name == "c5b"'
+      - 'm_cidrs in dns.response.ips && dns.question.name == "c6"'
+      - 'm_cidrs allin dns.response.ips && dns.question.name == "c7"'
+      - 'm_cidrs not in dns.response.ips && dns.question.name == "c8"'
+      - 'm_cidrs in m_cidrs'
+      - 'm_cidrs in 10.0.0.0/8'
+      - 'm_cidrs in ["a"]'
+      - 'm_cidrs in [1]'
+      - 'dns.response.ips in m_cidrs && dns.question.name == "c9"'
+      - 'dns.response.ips allin m_cidrs && dns.question.name == "c10"'
+      - 'dns.response.ips not in m_cidrs && dns.question.name == "c11"'
+      - 'network.destination.ip in m_cidrs && dns.question.name == "c12"'
+      - 'network.destination.ip not in m_cidrs && dns.question.name == "c13"'
+      - 'network.destination.ip in m_cidr_one && dns.question.name == "c14"'
+      - 'network.destination.ip == m_cidr_one && dns.question.name == "c15"'
+      - 'network.destination.ip == m_ip_one && dns.question.name == "c16"'
+      - 'network.destination.ip in %{network.source.ip} && dns.question.name == "c17"'
+      - 'network.destination.ip not in %{network.source.ip} && dns.question.name == "c18"'
+      - 'network.destination.ip allin %{network.source.ip} && dns.question.name == "c19"'
+      - 'network.destination.ip == %{network.source.ip} && dns.question.name == "c20"'
+      - 'network.destination.ip != network.source.ip && dns.question.name == "c21"'
+      - 'network.destination.ip in network.source.ip && dns.question.name == "c22"'
+      - 'network.destination.ip in %{dns.response.ips} && dns.question.name == "c23"'
+      - 'network.destination.ip in [10.0.0.0/8, 192.168.0.1] && dns.question.name == "c24"'
+      - 'network.destination.ip in [192.168.0.1, 10.0.0.0/8] && dns.question.name == "c25"'
+      - 'network.destination.ip in 10.0.0.0/8 && network.source.ip in 192.168.0.0/16 && dns.question.name == "c26"'
+    processes: {}
+    events:
+      - {type: dns, fields: {dns.question.name: c1, network.destination.ip: 10.0.0.1, dns.response.ips: [10.0.0.1, 11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: c1, network.destination.ip: 10.0.0.2, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: c2, network.destination.ip: 10.0.0.2, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: c2, network.destination.ip: 10.0.0.1, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: c3, network.destination.ip: 10.0.0.1, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: c3, network.destination.ip: 10.0.0.1, dns.response.ips: [10.0.0.1, 10.0.0.9]}}
+      - {type: dns, fields: {dns.question.name: c4, network.destination.ip: 10.9.9.9}}
+      - {type: dns, fields: {dns.question.name: c4, network.destination.ip: 172.16.0.1}}
+      - {type: dns, fields: {dns.question.name: c5, network.destination.ip: 172.16.0.1}}
+      - {type: dns, fields: {dns.question.name: c5, network.destination.ip: 10.9.9.9}}
+      - {type: dns, fields: {dns.question.name: c5b, network.destination.ip: 10.9.9.9}}
+      - {type: dns, fields: {dns.question.name: c6, dns.response.ips: [172.16.0.1, 192.168.1.1]}}
+      - {type: dns, fields: {dns.question.name: c6, dns.response.ips: [172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c7, dns.response.ips: [10.1.1.1, 192.168.1.1]}}
+      - {type: dns, fields: {dns.question.name: c7, dns.response.ips: [10.1.1.1, 172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c8, dns.response.ips: [172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c8, dns.response.ips: [10.1.1.1]}}
+      - {type: dns, fields: {dns.question.name: c9, dns.response.ips: [10.1.1.1, 172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c9, dns.response.ips: [172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c10, dns.response.ips: [10.1.1.1, 192.168.1.1]}}
+      - {type: dns, fields: {dns.question.name: c10, dns.response.ips: [10.1.1.1, 172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c11, dns.response.ips: [172.16.0.1]}}
+      - {type: dns, fields: {dns.question.name: c11, dns.response.ips: [10.1.1.1]}}
+      - {type: dns, fields: {dns.question.name: c12, network.destination.ip: 192.168.7.7}}
+      - {type: dns, fields: {dns.question.name: c12, network.destination.ip: 8.8.8.8}}
+      - {type: dns, fields: {dns.question.name: c13, network.destination.ip: 8.8.8.8}}
+      - {type: dns, fields: {dns.question.name: c13, network.destination.ip: 10.8.8.8}}
+      - {type: dns, fields: {dns.question.name: c14, network.destination.ip: 10.8.8.8}}
+      - {type: dns, fields: {dns.question.name: c14, network.destination.ip: 11.8.8.8}}
+      - {type: dns, fields: {dns.question.name: c15, network.destination.ip: 10.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c15, network.destination.ip: 10.1.1.1}}
+      - {type: dns, fields: {dns.question.name: c16, network.destination.ip: 10.1.2.3}}
+      - {type: dns, fields: {dns.question.name: c16, network.destination.ip: 10.1.2.4}}
+      - {type: dns, fields: {dns.question.name: c17, network.destination.ip: 10.1.1.1, network.source.ip: 10.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c17, network.destination.ip: 10.1.1.1, network.source.ip: 11.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c18, network.destination.ip: 10.1.1.1, network.source.ip: 11.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c18, network.destination.ip: 10.1.1.1, network.source.ip: 10.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c19, network.destination.ip: 10.1.1.1, network.source.ip: 10.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c20, network.destination.ip: 10.1.1.1, network.source.ip: 10.1.1.1}}
+      - {type: dns, fields: {dns.question.name: c20, network.destination.ip: 10.1.1.1, network.source.ip: 10.1.1.2}}
+      - {type: dns, fields: {dns.question.name: c21, network.destination.ip: 10.1.1.1, network.source.ip: 10.1.1.2}}
+      - {type: dns, fields: {dns.question.name: c21, network.destination.ip: 10.1.1.1, network.source.ip: 10.1.1.1}}
+      - {type: dns, fields: {dns.question.name: c22, network.destination.ip: 10.1.1.1, network.source.ip: 10.0.0.0/8}}
+      - {type: dns, fields: {dns.question.name: c23, network.destination.ip: 10.1.1.1, dns.response.ips: [10.1.1.1]}}
+      - {type: dns, fields: {dns.question.name: c23, network.destination.ip: 10.1.1.1, dns.response.ips: [10.1.1.2]}}
+      - {type: dns, fields: {dns.question.name: c24, network.destination.ip: 192.168.0.1}}
+      - {type: dns, fields: {dns.question.name: c24, network.destination.ip: 192.168.0.2}}
+      - {type: dns, fields: {dns.question.name: c25, network.destination.ip: 10.2.2.2}}
+      - {type: dns, fields: {dns.question.name: c26, network.destination.ip: 10.2.2.2, network.source.ip: 192.168.9.9}}
+      - {type: dns, fields: {dns.question.name: c26, network.destination.ip: 10.2.2.2, network.source.ip: 172.16.9.9}}
+
+  # ---------------------------------------------------------------- model value validation through every operator
+  - name: field_value_validation_errors
+    rules:
+      - 'open.file.path == "rel"'
+      - '"rel" == open.file.path'
+      - 'open.file.path != "rel"'
+      - 'open.file.path in ["rel"]'
+      - 'open.file.path not in ["rel"]'
+      - 'open.file.path in ["/ok", "rel"]'
+      - 'open.file.path =~ "rel"'
+      - 'open.file.path !~ "rel"'
+      - 'open.file.path == ~"rel"'
+      - 'open.file.path in [~"rel*"]'
+      - 'open.file.path =~ "rel*"'
+      - 'open.file.path in [~"/ok/*", ~"rel"]'
+      - 'open.file.path == "/ok" || open.file.path == "rel"'
+      - 'open.file.path == "/ok" && open.file.path == "rel"'
+      - '!(open.file.path == "rel")'
+      - 'open.file.path == "/a/../b"'
+      - 'open.file.path == "~/x"'
+      - 'exec.file.path == "rel"'
+      - 'process.file.path == "rel"'
+      - 'open.file.path == "/ok" && process.file.path == "rel"'
+      - 'open.file.name == "ok" && open.file.path != "rel"'
+      - 'open.file.path == "/ok" && (open.file.name == "n" || open.file.path == "rel")'
+      - 'open.file.name == "ok" && open.file.path in ["/a/./b"]'
+      - 'open.file.path == "/ok" || open.file.path in ["//x"]'
+      - 'open.file.name == "v" && open.file.path =~ "*/rel"'
+      - 'open.file.path == "/ok" && open.file.name =~ "a*" && open.file.path =~ "rel*"'
+      - 'open.file.path in ["/ok" , "/ok2"] && open.file.name == "p1"'
+      - 'open.file.path =~ "/ok/*" && open.file.name == "p2"'
+      - 'open.file.path == "*" && open.file.name == "p3"'
+      - 'open.file.path == "*/etc" && open.file.name == "p4"'
+      - 'open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
+      - 'open.file.path == "/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a"'
+      - 'bpf.map.name == "this_name_is_way_too_long"'
+      - 'bpf.prog.name == "this_name_is_way_too_long"'
+      - 'bpf.map.name in ["ok", "this_name_is_way_too_long"]'
+      - 'bpf.prog.name != "this_name_is_way_too_long"'
+      - 'bpf.map.name =~ "this_name_is_way_too_long"'
+      - 'bpf.prog.name == "short" && bpf.cmd == 1'
+      - 'bpf.map.name == "exactly16chars_a" && bpf.cmd == 2'
+      - 'bpf.map.name == "seventeen_chars_ab" && bpf.cmd == 3'
+    events:
+      - {type: open, fields: {open.file.name: ok}}
+      - {type: open, fields: {open.file.name: p1, open.file.path: /ok}}
+      - {type: open, fields: {open.file.name: p1, open.file.path: /other}}
+      - {type: open, fields: {open.file.name: p2, open.file.path: /ok/x}}
+      - {type: open, fields: {open.file.name: p2, open.file.path: /ok}}
+      - {type: open, fields: {open.file.name: p3, open.file.path: "*"}}
+      - {type: open, fields: {open.file.name: p4, open.file.path: /x/etc}}
+      - {type: open, fields: {open.file.name: p4, open.file.path: /etc}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.name: short}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.name: other}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.map.name: exactly16chars_a}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.map.name: other}}
+
+  - name: scalar_versus_array_operands
+    rules:
+      - 'bpf.prog.helpers > 3 && bpf.cmd == 1'
+      - 'bpf.prog.helpers >= 3 && bpf.cmd == 2'
+      - 'bpf.prog.helpers < 3 && bpf.cmd == 3'
+      - 'bpf.prog.helpers <= 3 && bpf.cmd == 4'
+      - 'bpf.prog.helpers == 3 && bpf.cmd == 5'
+      - 'bpf.prog.helpers != 3 && bpf.cmd == 6'
+      - '3 < bpf.prog.helpers && bpf.cmd == 7'
+      - '3 <= bpf.prog.helpers && bpf.cmd == 8'
+      - '3 > bpf.prog.helpers && bpf.cmd == 9'
+      - '3 >= bpf.prog.helpers && bpf.cmd == 10'
+      - '3 == bpf.prog.helpers && bpf.cmd == 11'
+      - '3 != bpf.prog.helpers && bpf.cmd == 12'
+      - 'bpf.prog.helpers =~ 3'
+      - 'bpf.prog.helpers > "a"'
+      - 'bpf.prog.helpers > bpf.prog.helpers'
+      - 'bpf.prog.helpers in bpf.prog.helpers && bpf.cmd == 13'
+      - 'bpf.prog.helpers in [1, 2, 3] && bpf.cmd == 14'
+      - 'bpf.prog.helpers not in [1, 2, 3] && bpf.cmd == 15'
+      - 'bpf.prog.helpers allin [1, 2, 3] && bpf.cmd == 16'
+      - 'process.ancestors.is_thread == true && bpf.cmd == 17'
+      - 'process.ancestors.is_thread != true && bpf.cmd == 18'
+      - 'true == process.ancestors.is_thread && bpf.cmd == 19'
+      - 'process.ancestors.is_thread == 1 && bpf.cmd == 20'
+      - 'process.ancestors.is_thread == "a" && bpf.cmd == 21'
+      - 'process.ancestors.is_thread > true && bpf.cmd == 22'
+      - 'process.ancestors.is_thread in [true] && bpf.cmd == 23'
+      - 'process.ancestors.is_thread in [true, false ] && bpf.cmd == 24'
+      - 'true in process.ancestors.is_thread && bpf.cmd == 25'
+      - 'connect.addr.is_public in [true, false ] && connect.addr.port == 1'
+      - 'connect.addr.is_public not in [true ] && connect.addr.port == 2'
+      - 'connect.addr.is_public in [true, 1 ] && connect.addr.port == 3'
+      - 'connect.addr.is_public == connect.addr.is_public && connect.addr.port == 4'
+      - 'connect.addr.is_public != connect.addr.is_public && connect.addr.port == 5'
+      - 'dns.response.ips == 10.0.0.1 && dns.question.name == "s1"'
+      - 'dns.response.ips != 10.0.0.1 && dns.question.name == "s2"'
+      - 'dns.response.ips == 10.0.0.0/8 && dns.question.name == "s3"'
+      - 'dns.response.ips == "x" && dns.question.name == "s5"'
+      - 'dns.response.ips == 5 && dns.question.name == "s6"'
+      - 'exec.argv =~ "a*" && exec.file.name == "e1"'
+      - 'exec.argv !~ "a*" && exec.file.name == "e2"'
+      - 'exec.argv == ~"a*" && exec.file.name == "e3"'
+      - 'exec.argv != "a" && exec.file.name == "e4"'
+      - 'exec.argv > "a"'
+      - 'exec.argv =~ exec.file.name'
+      - 'exec.argv == exec.file.name && exec.file.name == "e5"'
+      - 'exec.file.name in exec.argv && exec.file.name == "e6"'
+      - 'exec.file.name not in exec.argv && exec.file.name == "e7"'
+      - 'exec.argv in ["a", "b"] && exec.file.name == "e8"'
+      - 'exec.argv not in ["a", "b"] && exec.file.name == "e9"'
+      - 'exec.argv in [~"a*", r"b.*"] && exec.file.name == "e10"'
+      - 'exec.argv in exec.envs && exec.file.name == "e11"'
+      - 'exec.argv allin exec.envs && exec.file.name == "e12"'
+      - 'exec.argv not in exec.envs && exec.file.name == "e13"'
+      - 'exec.envs in exec.argv && exec.file.name == "e14"'
+      - 'open.file.name in exec.argv'
+      - '"lit" in exec.argv && exec.file.name == "e15"'
+      - 'exec.file.name == "e16" && "lit" in ["lit", "other"]'
+      - 'exec.file.name == "e17" && exec.argv == "a" && exec.envs == "E"'
+      - 'exec.file.name == "e18" && (process.created_at + 1m > 2m)'
+      - 'exec.file.name == "e19" && not (process.created_at + 1m >= 2m)'
+      - 'exec.file.name == "e20" && not (process.created_at + 1m <= 2m)'
+      - 'exec.file.name == "e21" && not (process.created_at + 1m < 2m)'
+      - 'exec.file.name == "e22" && not (process.created_at + 1m == 2m)'
+      - 'exec.file.name == "e23" && not (process.created_at - 1m > 2m)'
+      - 'exec.file.name == "e24" && not (process.created_at - 1m >= 2m)'
+      - 'exec.file.name == "e25" && not (process.created_at - 1m <= 2m)'
+      - 'exec.file.name == "e26" && not (process.created_at - 1m == 2m)'
+      - 'exec.file.name == "e27" && not (process.created_at != 1m)'
+      - 'exec.file.name == "e28" && not (process.created_at =~ 1m)'
+      - 'exec.file.name == "e29" && not (process.ancestors.created_at > 1m)'
+      - 'exec.file.name == "e30" && not (process.ancestors.created_at < 1m)'
+      - 'exec.file.name == "e31" && not (process.ancestors.created_at >= 1m)'
+      - 'exec.file.name == "e32" && not (process.ancestors.created_at <= 1m)'
+      - 'exec.file.name == "e33" && not (process.ancestors.created_at == 1m)'
+      - 'exec.file.name == "e34" && not (1m < process.ancestors.created_at)'
+    processes:
+      anc: {pid: 1, fields: {file.name: anc, created_at: now-10s}}
+      leaf: {pid: 3, parent: anc, fields: {file.name: leaf, created_at: now-10s}}
+    events:
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [2]}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 2, bpf.prog.helpers: [2]}}
+      - {type: bpf, fields: {bpf.cmd: 3, bpf.prog.helpers: [2]}}
+      - {type: bpf, fields: {bpf.cmd: 3, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 4, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 4, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 5, bpf.prog.helpers: [3, 9]}}
+      - {type: bpf, fields: {bpf.cmd: 5, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 6, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 6, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 7, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 7, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 8, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 8, bpf.prog.helpers: [2]}}
+      - {type: bpf, fields: {bpf.cmd: 9, bpf.prog.helpers: [2]}}
+      - {type: bpf, fields: {bpf.cmd: 9, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 10, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 10, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 11, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 11, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 12, bpf.prog.helpers: [4]}}
+      - {type: bpf, fields: {bpf.cmd: 12, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 13, bpf.prog.helpers: [3]}}
+      - {type: bpf, fields: {bpf.cmd: 14, bpf.prog.helpers: [3, 7]}}
+      - {type: bpf, fields: {bpf.cmd: 14, bpf.prog.helpers: [7]}}
+      - {type: bpf, fields: {bpf.cmd: 15, bpf.prog.helpers: [7]}}
+      - {type: bpf, fields: {bpf.cmd: 15, bpf.prog.helpers: [1]}}
+      - {type: bpf, fields: {bpf.cmd: 16, bpf.prog.helpers: [1, 2]}}
+      - {type: bpf, fields: {bpf.cmd: 16, bpf.prog.helpers: [1, 9]}}
+      - {type: bpf, process: leaf, fields: {bpf.cmd: 17}}
+      - {type: bpf, fields: {bpf.cmd: 17}}
+      - {type: bpf, process: leaf, fields: {bpf.cmd: 18}}
+      - {type: bpf, process: leaf, fields: {bpf.cmd: 19}}
+      - {type: bpf, process: leaf, fields: {bpf.cmd: 23}}
+      - {type: bpf, process: leaf, fields: {bpf.cmd: 24}}
+      - {type: bpf, process: leaf, fields: {bpf.cmd: 25}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.is_public: false, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 3}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 4}}
+      - {type: connect, fields: {connect.addr.is_public: true, connect.addr.port: 5}}
+      - {type: dns, fields: {dns.question.name: s1, dns.response.ips: [10.0.0.1, 11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: s1, dns.response.ips: [11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: s2, dns.response.ips: [11.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: s2, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: s3, dns.response.ips: [10.0.0.0/8]}}
+      - {type: dns, fields: {dns.question.name: s3, dns.response.ips: [10.1.1.1]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e1, exec.argv: [abc, x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e1, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e2, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e2, exec.argv: [abc]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e3, exec.argv: [abc]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e4, exec.argv: [a, b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e4, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e5, exec.argv: [e5]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e5, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e6, exec.argv: [e6]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e6, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e7, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e7, exec.argv: [e7]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e8, exec.argv: [b, z]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e8, exec.argv: [z]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e9, exec.argv: [z]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e9, exec.argv: [a]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e10, exec.argv: [bcd]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e10, exec.argv: [zzz]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e11, exec.argv: [a, b], exec.envs: [b, c]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e11, exec.argv: [a], exec.envs: [b, c]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e12, exec.argv: [a, b], exec.envs: [a, b, c]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e12, exec.argv: [a, z], exec.envs: [a, b, c]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e13, exec.argv: [a, z], exec.envs: [b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e13, exec.argv: [a, b], exec.envs: [b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e14, exec.argv: [a, b], exec.envs: [b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e14, exec.argv: [a], exec.envs: [b]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e15, exec.argv: [lit]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e15, exec.argv: [x]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e16}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e17, exec.argv: [a], exec.envs: [E]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e17, exec.argv: [a], exec.envs: [F]}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e18}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e19}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e20}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e21}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e22}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e23}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e24}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e25}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e26}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e27}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e28}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e29}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e30}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e31}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e32}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e33}}
+      - {type: exec, process: leaf, fields: {exec.file.name: e34}}
+
+  - name: variable_reference_errors
+    rules:
+      - {id: setter_all, expression: 'open.file.name == "setter"', actions: [{set: {name: v_str, value: abc}}, {set: {name: v_int, value: 7}}, {set: {name: v_bool, value: true}}, {set: {name: v_strarr, value: [x, y], append: true}}, {set: {name: v_intarr, value: [1], append: true}}]}
+      - {id: setter_cidr, expression: 'connect.addr.port == 9', actions: [{set: {name: v_cidr, field: connect.addr.ip, append: true}}]}
+      - 'open.file.name == "${v_str}"'
+      - 'open.file.name == "${v_int}"'
+      - 'open.file.name == "${v_bool}"'
+      - 'open.file.name == "${v_strarr}"'
+      - 'open.file.name == "${v_intarr}"'
+      - 'open.file.name == "${v_cidr}"'
+      - 'open.file.name == "pre-${v_str}-${v_int}"'
+      - 'open.file.name == ${v_str}'
+      - 'open.flags == ${v_int}'
+      - 'open.file.name in ${v_strarr}'
+      - 'open.flags in ${v_intarr}'
+      - '${v_bool} && open.file.name == "bool-var"'
+      - '${v_bool} == true && open.file.name == "bool-var2"'
+      - '${v_str.length} == 3 && open.file.name == "len1"'
+      - '${v_int.length} == 3'
+      - '${v_bool.length} == 3'
+      - '${v_strarr.length} == 2 && open.file.name == "len2"'
+      - '${v_intarr.length} == 1 && open.file.name == "len3"'
+      - '${v_cidr.length} == 0 && open.file.name == "len4"'
+      - '${nosuch.length} == 3'
+      - '${v_str.length.length} == 3'
+      - 'open.file.name == "${v_str.length}"'
+      - 'open.file.name == "${v_strarr.length}"'
+      - 'open.file.name == "${v_bool.length}"'
+      - 'connect.addr.ip in ${v_cidr} && connect.addr.port == 1'
+      - 'connect.addr.ip == ${v_cidr} && connect.addr.port == 2'
+      - 'connect.addr.ip in ${v_str}'
+      - 'open.file.name in ${v_cidr}'
+      - 'open.flags == ${v_str}'
+      - 'open.file.name == ${v_int}'
+      - 'open.flags in ${v_strarr}'
+      - 'open.file.name in ${v_intarr}'
+      - 'open.file.name == "%{connect.addr.ip}"'
+      - 'exec.file.name == "%{exec.argv}"'
+      - 'exec.file.name == "%{exec.file.name}-%{exec.argv}" && exec.argv == "a"'
+      - 'bpf.cmd == 1 && "%{bpf.prog.helpers}" == "3,4"'
+      - '"%{connect.addr.is_public}" == "true"'
+      - 'open.file.name == "%{open.file.name.length}"'
+      - 'open.file.name =~ "${v_str}"'
+      - 'open.file.name =~ ${v_str}'
+      - '"${v_str}" == "abc" && open.file.name == "lit1"'
+      - '"${v_str}" in ["abc", "def"] && open.file.name == "lit2"'
+      - '"%{open.file.name}" in ["lit3"]'
+      - '"${v_str}" =~ "ab*" && open.file.name == "lit4"'
+      - '${v_str} == "abc" && open.file.name == "lit5"'
+      - '${v_int} == 7 && open.file.name == "lit6"'
+      - '${v_int} > 6 && open.file.name == "lit7"'
+      - '${v_int} + 1 == 8 && open.file.name == "lit8"'
+      - '${v_int} & 3 == 3 && open.file.name == "lit9"'
+      - '${v_str} == ${v_str} && open.file.name == "lit10"'
+      - '${v_str} == "${v_str}" && open.file.name == "lit11"'
+      - '${v_strarr} == "x" && open.file.name == "lit12"'
+      - '"x" in ${v_strarr} && open.file.name == "lit13"'
+      - '"z" in ${v_strarr} && open.file.name == "lit14"'
+      - '1 in ${v_intarr} && open.file.name == "lit15"'
+      - '${v_str} in ${v_strarr} && open.file.name == "lit16"'
+    events:
+      - {type: open, fields: {open.file.name: before_setter, open.flags: 7}}
+      - {type: open, fields: {open.file.name: setter}}
+      - {type: open, fields: {open.file.name: abc}}
+      - {type: open, fields: {open.file.name: "7", open.flags: 7}}
+      - {type: open, fields: {open.file.name: pre-abc-7}}
+      - {type: open, fields: {open.file.name: x}}
+      - {type: open, fields: {open.file.name: z, open.flags: 1}}
+      - {type: open, fields: {open.file.name: bool-var}}
+      - {type: open, fields: {open.file.name: bool-var2}}
+      - {type: open, fields: {open.file.name: len1}}
+      - {type: open, fields: {open.file.name: len2}}
+      - {type: open, fields: {open.file.name: len3}}
+      - {type: open, fields: {open.file.name: len4}}
+      - {type: open, fields: {open.file.name: lit1}}
+      - {type: open, fields: {open.file.name: lit2}}
+      - {type: open, fields: {open.file.name: lit3}}
+      - {type: open, fields: {open.file.name: lit4}}
+      - {type: open, fields: {open.file.name: lit5}}
+      - {type: open, fields: {open.file.name: lit6}}
+      - {type: open, fields: {open.file.name: lit7}}
+      - {type: open, fields: {open.file.name: lit8}}
+      - {type: open, fields: {open.file.name: lit9}}
+      - {type: open, fields: {open.file.name: lit10}}
+      - {type: open, fields: {open.file.name: lit11}}
+      - {type: open, fields: {open.file.name: lit12}}
+      - {type: open, fields: {open.file.name: lit13}}
+      - {type: open, fields: {open.file.name: lit14}}
+      - {type: open, fields: {open.file.name: lit15}}
+      - {type: open, fields: {open.file.name: lit16}}
+      - {type: exec, fields: {exec.file.name: "a,b", exec.argv: [a, b]}}
+      - {type: exec, fields: {exec.file.name: "a-a", exec.argv: [a]}}
+      - {type: bpf, fields: {bpf.cmd: 1, bpf.prog.helpers: [3, 4]}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 9}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.2, connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 2}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 9}}
+
+  # ---------------------------------------------------------------- lexer edge cases and size
+  - name: expression_shapes_and_sizes
+    rules:
+      - ''
+      - '   '
+      - "# only a comment"
+      - "// only a slash comment\n"
+      - '"just a string"'
+      - 'open.file.name == "a#b" && open.flags == 1'
+      - 'open.file.name == "http://x" && open.flags == 2'
+      - 'open.file.name == "a // b" # trailing'
+      - 'open.file.name == "multi
+line" && open.flags == 3'
+      - 'open.file.name == "multi
+line"'
+      - 'open.file.name == "n0" || open.file.name == "n1" || open.file.name == "n2" || open.file.name == "n3" || open.file.name == "n4" || open.file.name == "n5" || open.file.name == "n6" || open.file.name == "n7" || open.file.name == "n8" || open.file.name == "n9" || open.file.name == "n10" || open.file.name == "n11" || open.file.name == "n12" || open.file.name == "n13" || open.file.name == "n14" || open.file.name == "n15" || open.file.name == "n16" || open.file.name == "n17" || open.file.name == "n18" || open.file.name == "n19" || open.file.name == "n20" || open.file.name == "n21" || open.file.name == "n22" || open.file.name == "n23" || open.file.name == "n24" || open.file.name == "n25" || open.file.name == "n26" || open.file.name == "n27" || open.file.name == "n28" || open.file.name == "n29" || open.file.name == "n30" || open.file.name == "n31" || open.file.name == "n32" || open.file.name == "n33" || open.file.name == "n34" || open.file.name == "n35" || open.file.name == "n36" || open.file.name == "n37" || open.file.name == "n38" || open.file.name == "n39" || open.file.name == "n40" || open.file.name == "n41" || open.file.name == "n42" || open.file.name == "n43" || open.file.name == "n44" || open.file.name == "n45" || open.file.name == "n46" || open.file.name == "n47" || open.file.name == "n48" || open.file.name == "n49" || open.file.name == "n50" || open.file.name == "n51" || open.file.name == "n52" || open.file.name == "n53" || open.file.name == "n54" || open.file.name == "n55" || open.file.name == "n56" || open.file.name == "n57" || open.file.name == "n58" || open.file.name == "n59" || open.file.name == "n60" || open.file.name == "n61" || open.file.name == "n62" || open.file.name == "n63" || open.file.name == "n64" || open.file.name == "n65" || open.file.name == "n66" || open.file.name == "n67" || open.file.name == "n68" || open.file.name == "n69" || open.file.name == "n70" || open.file.name == "n71" || open.file.name == "n72" || open.file.name == "n73" || open.file.name == "n74" || open.file.name == "n75" || open.file.name == "n76" || open.file.name == "n77" || open.file.name == "n78" || open.file.name == "n79" || open.file.name == "n80" || open.file.name == "n81" || open.file.name == "n82" || open.file.name == "n83" || open.file.name == "n84" || open.file.name == "n85" || open.file.name == "n86" || open.file.name == "n87" || open.file.name == "n88" || open.file.name == "n89" || open.file.name == "n90" || open.file.name == "n91" || open.file.name == "n92" || open.file.name == "n93" || open.file.name == "n94" || open.file.name == "n95" || open.file.name == "n96" || open.file.name == "n97" || open.file.name == "n98" || open.file.name == "n99"'
+      - 'open.flags != 2 && open.flags != 3 && open.flags != 4 && open.flags != 5 && open.flags != 6 && open.flags != 7 && open.flags != 8 && open.flags != 9 && open.flags != 10 && open.flags != 11 && open.flags != 12 && open.flags != 13 && open.flags != 14 && open.flags != 15 && open.flags != 16 && open.flags != 17 && open.flags != 18 && open.flags != 19 && open.flags != 20 && open.flags != 21 && open.flags != 22 && open.flags != 23 && open.flags != 24 && open.flags != 25 && open.flags != 26 && open.flags != 27 && open.flags != 28 && open.flags != 29 && open.flags != 30 && open.flags != 31 && open.flags != 32 && open.flags != 33 && open.flags != 34 && open.flags != 35 && open.flags != 36 && open.flags != 37 && open.flags != 38 && open.flags != 39 && open.flags != 40 && open.flags != 41 && open.flags != 42 && open.flags != 43 && open.flags != 44 && open.flags != 45 && open.flags != 46 && open.flags != 47 && open.flags != 48 && open.flags != 49 && open.flags != 50 && open.flags != 51 && open.flags != 52 && open.flags != 53 && open.flags != 54 && open.flags != 55 && open.flags != 56 && open.flags != 57 && open.flags != 58 && open.flags != 59 && open.flags != 60 && open.flags != 61 && open.flags != 62 && open.flags != 63 && open.flags != 64 && open.flags != 65 && open.flags != 66 && open.flags != 67 && open.flags != 68 && open.flags != 69 && open.flags != 70 && open.flags != 71 && open.flags != 72 && open.flags != 73 && open.flags != 74 && open.flags != 75 && open.flags != 76 && open.flags != 77 && open.flags != 78 && open.flags != 79 && open.flags != 80 && open.flags != 81 && open.flags != 82 && open.flags != 83 && open.flags != 84 && open.flags != 85 && open.flags != 86 && open.flags != 87 && open.flags != 88 && open.flags != 89 && open.flags != 90 && open.flags != 91 && open.flags != 92 && open.flags != 93 && open.flags != 94 && open.flags != 95 && open.flags != 96 && open.flags != 97 && open.flags != 98 && open.flags != 99 && open.flags != 100 && open.flags != 101 && open.flags != 102 && open.flags != 103 && open.flags != 104 && open.flags != 105 && open.flags != 106 && open.flags != 107 && open.flags != 108 && open.flags != 109 && open.flags != 110 && open.flags != 111 && open.flags != 112 && open.flags != 113 && open.flags != 114 && open.flags != 115 && open.flags != 116 && open.flags != 117 && open.flags != 118 && open.flags != 119 && open.flags != 120 && open.flags != 121 && open.flags != 122 && open.flags != 123 && open.flags != 124 && open.flags != 125 && open.flags != 126 && open.flags != 127 && open.flags != 128 && open.flags != 129 && open.flags != 130 && open.flags != 131 && open.flags != 132 && open.flags != 133 && open.flags != 134 && open.flags != 135 && open.flags != 136 && open.flags != 137 && open.flags != 138 && open.flags != 139 && open.flags != 140 && open.flags != 141 && open.flags != 142 && open.flags != 143 && open.flags != 144 && open.flags != 145 && open.flags != 146 && open.flags != 147 && open.flags != 148 && open.flags != 149 && open.file.name == "andchain"'
+      - '((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((open.file.name == "deep")))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) && open.flags == 4'
+      - '((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((open.file.name == "deep")))))))))))))))))))))))))))))))))))))))))))))))))))))))))))'
+      - 'open.file.name in ["v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31", "v32", "v33", "v34", "v35", "v36", "v37", "v38", "v39", "v40", "v41", "v42", "v43", "v44", "v45", "v46", "v47", "v48", "v49", "v50", "v51", "v52", "v53", "v54", "v55", "v56", "v57", "v58", "v59", "v60", "v61", "v62", "v63", "v64", "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73", "v74", "v75", "v76", "v77", "v78", "v79", "v80", "v81", "v82", "v83", "v84", "v85", "v86", "v87", "v88", "v89", "v90", "v91", "v92", "v93", "v94", "v95", "v96", "v97", "v98", "v99", "v100", "v101", "v102", "v103", "v104", "v105", "v106", "v107", "v108", "v109", "v110", "v111", "v112", "v113", "v114", "v115", "v116", "v117", "v118", "v119"]'
+      - 'open.flags in [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024, 1025, 1026, 1027, 1028, 1029, 1030, 1031, 1032, 1033, 1034, 1035, 1036, 1037, 1038, 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, 1070, 1071, 1072, 1073, 1074, 1075, 1076, 1077, 1078, 1079, 1080, 1081, 1082, 1083, 1084, 1085, 1086, 1087, 1088, 1089, 1090, 1091, 1092, 1093, 1094, 1095, 1096, 1097, 1098, 1099]'
+      - 'not (not (not (not (open.file.name == "nn")))) && open.flags == 5'
+      - '!!(open.file.name == "bang")'
+      - 'not not (open.file.name == "notnot") && open.flags == 6'
+      - 'open.file.name == "a" and open.flags == 7 or open.file.name == "b" and open.flags == 8 or open.file.name == "c"'
+      - 'open.flags == 1 + 2 * 3'
+      - 'open.flags == (1 + 2) + 3 - 1 && open.file.name == "arith"'
+      - 'open.flags == 1 - -1 && open.file.name == "negneg"'
+      - 'open.flags == - - 2 && open.file.name == "negneg2"'
+      - 'open.flags == ^^3 && open.file.name == "bnotbnot"'
+      - 'open.flags == 1 + 1 + 1 + 1 + 1 && open.file.name == "plus5"'
+      - 'open.flags == 2 | 1 & 3 && open.file.name == "bitprec"'
+      - 'open.flags & 1 | 2 == 3 && open.file.name == "bitprec2"'
+      - 'open.flags == 8 ^ 1 | 2 && open.file.name == "bitprec3"'
+      - 'open.flags == (8 ^ 1) | 2 && open.file.name == "bitprec4"'
+      - 'open.flags & (1 | 2) == 3 && open.file.name == "bitprec5"'
+      - 'open.flags + 1 & 2 == 2 && open.file.name == "bitarith"'
+    events:
+      - {type: open, fields: {open.file.name: before}}
+      - {type: open, fields: {open.file.name: "a#b", open.flags: 1}}
+      - {type: open, fields: {open.file.name: "http://x", open.flags: 2}}
+      - {type: open, fields: {open.file.name: "a // b"}}
+      - {type: open, fields: {open.file.name: "multi\nline", open.flags: 3}}
+      - {type: open, fields: {open.file.name: n0}}
+      - {type: open, fields: {open.file.name: n99}}
+      - {type: open, fields: {open.file.name: n100}}
+      - {type: open, fields: {open.file.name: andchain, open.flags: 1}}
+      - {type: open, fields: {open.file.name: andchain, open.flags: 50}}
+      - {type: open, fields: {open.file.name: andchain, open.flags: 149}}
+      - {type: open, fields: {open.file.name: andchain, open.flags: 150}}
+      - {type: open, fields: {open.file.name: deep, open.flags: 4}}
+      - {type: open, fields: {open.file.name: v0}}
+      - {type: open, fields: {open.file.name: v119}}
+      - {type: open, fields: {open.file.name: v120}}
+      - {type: open, fields: {open.flags: 1000}}
+      - {type: open, fields: {open.flags: 1099}}
+      - {type: open, fields: {open.flags: 1100}}
+      - {type: open, fields: {open.file.name: nn, open.flags: 5}}
+      - {type: open, fields: {open.file.name: other, open.flags: 5}}
+      - {type: open, fields: {open.file.name: bang}}
+      - {type: open, fields: {open.file.name: notnot, open.flags: 6}}
+      - {type: open, fields: {open.file.name: a, open.flags: 7}}
+      - {type: open, fields: {open.file.name: a, open.flags: 8}}
+      - {type: open, fields: {open.file.name: b, open.flags: 8}}
+      - {type: open, fields: {open.file.name: c, open.flags: 0}}
+      - {type: open, fields: {open.file.name: x, open.flags: 7}}
+      - {type: open, fields: {open.file.name: arith, open.flags: 5}}
+      - {type: open, fields: {open.file.name: negneg, open.flags: 2}}
+      - {type: open, fields: {open.file.name: negneg2, open.flags: 2}}
+      - {type: open, fields: {open.file.name: bnotbnot, open.flags: 3}}
+      - {type: open, fields: {open.file.name: plus5, open.flags: 5}}
+      - {type: open, fields: {open.file.name: bitprec, open.flags: 2}}
+      - {type: open, fields: {open.file.name: bitprec, open.flags: 3}}
+      - {type: open, fields: {open.file.name: bitprec2, open.flags: 3}}
+      - {type: open, fields: {open.file.name: bitprec2, open.flags: 1}}
+      - {type: open, fields: {open.file.name: bitprec3, open.flags: 11}}
+      - {type: open, fields: {open.file.name: bitprec3, open.flags: 9}}
+      - {type: open, fields: {open.file.name: bitprec4, open.flags: 11}}
+      - {type: open, fields: {open.file.name: bitprec5, open.flags: 3}}
+      - {type: open, fields: {open.file.name: bitarith, open.flags: 1}}
+      - {type: open, fields: {open.file.name: bitarith, open.flags: 3}}
+
+  # ---------------------------------------------------------------- event field setter errors (eval error types)
+  - name: event_setter_error_types
+    rules:
+      - 'bind.addr.port == 80'
+      - 'open.file.name == "o"'
+    events:
+      - {type: bind, fields: {bind.addr.port: 80}}
+      - {type: bind, fields: {bind.addr.port: 70000}}
+      - {type: bind, fields: {bind.addr.port: -1}}
+      - {type: bind, fields: {bind.addr.port: "abc"}}
+      - {type: open, fields: {open.file.name.length: 3}}
+      - {type: open, fields: {open.file.name: o}}

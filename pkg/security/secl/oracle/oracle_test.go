@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -31,7 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var update = flag.Bool("update", false, "rewrite the golden files from the current implementation")
+var (
+	update     = flag.Bool("update", false, "rewrite the golden files from the current implementation")
+	caseFilter = flag.String("case", "", "only run the cases whose name matches this regexp, golden files are then only checked")
+)
 
 // corpusFile is the content of one testdata/corpus/*.yaml file
 type corpusFile struct {
@@ -50,6 +55,19 @@ type corpusCase struct {
 	Policies []string `yaml:"policies"`
 	// AgentVersion enables the agent version rule and macro filters
 	AgentVersion string `yaml:"agent_version"`
+	// RuleCache enables the parsing context rule cache
+	RuleCache bool `yaml:"rule_cache"`
+	// EventTypesEnabled replaces the default `*` enabled event types
+	EventTypesEnabled []string `yaml:"event_types_enabled"`
+	// AcceptBPFFilters makes network_filter BPF filters valid, the test
+	// build rejecting them all otherwise
+	AcceptBPFFilters bool `yaml:"accept_bpf_filters"`
+	// RejectMatches makes the first ruleset listener return false for these
+	// rules, so that the second listener is not notified of their matches
+	RejectMatches []string `yaml:"reject_matches"`
+	// Providers are extra policy providers, loaded after the one serving
+	// the main policy and Policies
+	Providers []providerEntry `yaml:"providers"`
 
 	// Caps are the approver field capabilities per event type. When empty, a
 	// capability accepting every value type is generated for every field of
@@ -62,6 +80,16 @@ type corpusCase struct {
 
 	Processes map[string]*processEntry `yaml:"processes"`
 	Events    []*eventEntry            `yaml:"events"`
+}
+
+type providerEntry struct {
+	// Type is the provider type, e.g. remote-config, file, bundled
+	Type     string `yaml:"type"`
+	Policies []struct {
+		Name         string `yaml:"name"`
+		InternalType string `yaml:"internal_type"`
+		Content      string `yaml:"content"`
+	} `yaml:"policies"`
 }
 
 type ruleEntry struct {
@@ -112,16 +140,38 @@ type eventEntry struct {
 	Sleep string `yaml:"sleep"`
 	// Cleanup runs CleanupExpiredVariables before the event is evaluated
 	Cleanup bool `yaml:"cleanup"`
+	// Reparent snapshots the inherited variables of a named process with
+	// CopyInheritedVariables, then moves it under another named process (or
+	// makes it an orphan when parent is empty), before the event is evaluated
+	Reparent *reparentEntry `yaml:"reparent"`
+}
+
+type reparentEntry struct {
+	Process string `yaml:"process"`
+	Parent  string `yaml:"parent"`
 }
 
 // observation is what the golden files record for one case
 type observation struct {
+	LoadPanic  string                          `yaml:"load_panic,omitempty"`
 	LoadErrors []string                        `yaml:"load_errors,omitempty"`
 	Filtered   []string                        `yaml:"filtered_rules,omitempty"`
 	Rules      map[string]*ruleObservation     `yaml:"rules,omitempty"`
 	Approvers  map[string]*approverObservation `yaml:"approvers,omitempty"`
 	Discarders map[string]string               `yaml:"discarders_report,omitempty"`
-	Steps      []*stepObservation              `yaml:"steps,omitempty"`
+	// RuleSet level accessors, which aggregate what is observed per rule
+	EventTypes   []string            `yaml:"event_types,omitempty"`
+	MacroIDs     []string            `yaml:"macro_ids,omitempty"`
+	FieldValues  map[string][]string `yaml:"field_values,omitempty"`
+	Policies     []string            `yaml:"policies,omitempty"`
+	OnDemandHook []string            `yaml:"on_demand_hook_points,omitempty"`
+	RuleIDs      []string            `yaml:"rule_ids,omitempty"`
+	// ApproversAll is what RuleSet.GetApprovers reports for all the event
+	// types at once, compared to the per event type results
+	ApproversAll []string `yaml:"approvers_all,omitempty"`
+	// PolicyRules is the merge state of every rule of every policy
+	PolicyRules []string           `yaml:"policy_rules,omitempty"`
+	Steps       []*stepObservation `yaml:"steps,omitempty"`
 }
 
 type ruleObservation struct {
@@ -139,18 +189,67 @@ type approverObservation struct {
 }
 
 type stepObservation struct {
-	EventError string                       `yaml:"event_error,omitempty"`
-	Result     bool                         `yaml:"result"`
-	Matched    []string                     `yaml:"matched,omitempty"`
-	Matching   map[string][]string          `yaml:"matching_values,omitempty"`
-	Partials   map[string]map[string]string `yaml:"partials,omitempty"`
-	Discarders []string                     `yaml:"discarders,omitempty"`
-	Variables  map[string]string            `yaml:"variables,omitempty"`
+	EventError string   `yaml:"event_error,omitempty"`
+	Panic      string   `yaml:"panic,omitempty"`
+	Result     bool     `yaml:"result"`
+	Matched    []string `yaml:"matched,omitempty"`
+	// SecondListener are the matches the second listener was notified of
+	SecondListener []string                     `yaml:"second_listener,omitempty"`
+	Matching       map[string][]string          `yaml:"matching_values,omitempty"`
+	Partials       map[string]map[string]string `yaml:"partials,omitempty"`
+	Discarders     []string                     `yaml:"discarders,omitempty"`
+	// Logs are the ruleset logger lines emitted while evaluating the event
+	Logs []string `yaml:"logs,omitempty"`
+	// ScopedCounts is, per scoped variable, the number of scopes holding a value
+	ScopedCounts map[string]int    `yaml:"scoped_counts,omitempty"`
+	Variables    map[string]string `yaml:"variables,omitempty"`
 }
+
+// recordingLogger records the ruleset logs, the target being switched per step
+type recordingLogger struct {
+	lines *[]string
+}
+
+func (l *recordingLogger) record(level, format string, params ...interface{}) {
+	if l.lines != nil {
+		*l.lines = append(*l.lines, level+": "+fmt.Sprintf(format, params...))
+	}
+}
+
+func (l *recordingLogger) Infof(format string, params ...interface{}) {
+	l.record("info", format, params...)
+}
+func (l *recordingLogger) Tracef(format string, params ...interface{}) {
+	l.record("trace", format, params...)
+}
+func (l *recordingLogger) Warnf(format string, params ...interface{}) {
+	l.record("warn", format, params...)
+}
+func (l *recordingLogger) Debugf(format string, params ...interface{}) {
+	l.record("debug", format, params...)
+}
+func (l *recordingLogger) Errorf(format string, params ...interface{}) {
+	l.record("error", format, params...)
+}
+func (l *recordingLogger) IsTracing() bool { return false }
 
 // listener records what the ruleset notifies for one event
 type listener struct {
-	step *stepObservation
+	step   *stepObservation
+	reject []string
+}
+
+// secondListener records the matches the first listener let through
+type secondListener struct {
+	first *listener
+}
+
+func (l *secondListener) RuleMatch(_ *eval.Context, rule *rules.Rule, _ eval.Event) bool {
+	l.first.step.SecondListener = append(l.first.step.SecondListener, rule.ID)
+	return true
+}
+
+func (l *secondListener) EventDiscarderFound(*rules.RuleSet, eval.Event, eval.Field, eval.EventType) {
 }
 
 func (l *listener) RuleMatch(ctx *eval.Context, rule *rules.Rule, _ eval.Event) bool {
@@ -162,7 +261,7 @@ func (l *listener) RuleMatch(ctx *eval.Context, rule *rules.Rule, _ eval.Event) 
 		}
 		l.step.Matching[rule.ID] = append(l.step.Matching[rule.ID], fmt.Sprintf("%s=%s@%d+%d", pos.Field, fmtValue(pos.Value), pos.Offset, pos.Length))
 	}
-	return true
+	return !slices.Contains(l.reject, rule.ID)
 }
 
 func (l *listener) EventDiscarderFound(_ *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
@@ -176,6 +275,8 @@ func (l *listener) EventDiscarderFound(_ *rules.RuleSet, event eval.Event, field
 // policyProvider serves in-memory policies
 type policyProvider struct {
 	policies []string
+	// entry, when set, replaces policies
+	entry *providerEntry
 }
 
 func (p *policyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
@@ -183,8 +284,7 @@ func (p *policyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilt
 		policies []*rules.Policy
 		errs     *multierror.Error
 	)
-	for i, content := range p.policies {
-		info := &rules.PolicyInfo{Name: fmt.Sprintf("policy%d", i), Source: "oracle"}
+	load := func(info *rules.PolicyInfo, content string) {
 		policy, err := rules.LoadPolicy(info, strings.NewReader(content), macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
@@ -193,13 +293,27 @@ func (p *policyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilt
 			policies = append(policies, policy)
 		}
 	}
+	if p.entry != nil {
+		for _, ep := range p.entry.Policies {
+			load(&rules.PolicyInfo{Name: ep.Name, Source: p.entry.Type, InternalType: rules.InternalPolicyType(ep.InternalType)}, ep.Content)
+		}
+		return policies, errs
+	}
+	for i, content := range p.policies {
+		load(&rules.PolicyInfo{Name: fmt.Sprintf("policy%d", i), Source: "oracle"}, content)
+	}
 	return policies, errs
 }
 
 func (p *policyProvider) SetOnNewPoliciesReadyCb(func(bool)) {}
 func (p *policyProvider) Start()                             {}
 func (p *policyProvider) Close() error                       { return nil }
-func (p *policyProvider) Type() string                       { return "oracle" }
+func (p *policyProvider) Type() string {
+	if p.entry != nil {
+		return p.entry.Type
+	}
+	return "oracle"
+}
 
 func TestOracle(t *testing.T) {
 	files, err := filepath.Glob("testdata/corpus/*.yaml")
@@ -218,7 +332,66 @@ func TestOracle(t *testing.T) {
 	}
 }
 
-func runCorpusFile(t *testing.T, corpusPath, goldenPath string) {
+// TestOracleOrderIndependence checks that no case depends on the cases run
+// before it, as compilation state leaking from one RuleSet to the next would
+// make the golden files depend on the order of the cases. Every corpus file is
+// replayed in reverse order in a fresh process and compared with a forward
+// run of the whole corpus in this process.
+func TestOracleOrderIndependence(t *testing.T) {
+	files, err := filepath.Glob("testdata/corpus/*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	forward := make(map[string]map[string]string)
+	for _, file := range files {
+		forward[file] = make(map[string]string)
+		for _, c := range loadCorpus(t, file).Cases {
+			forward[file][c.Name] = toYAML(t, runCase(t, c))
+		}
+	}
+
+	for _, file := range files {
+		out := filepath.Join(t.TempDir(), "observations.yaml")
+		cmd := exec.Command(os.Args[0], "-test.run", "^TestOracleReverseDump$")
+		cmd.Env = append(os.Environ(), "ORACLE_REVERSE_FILE="+file, "ORACLE_REVERSE_OUT="+out)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("reverse run of %s failed: %v\n%s", file, err, output)
+		}
+		content, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var backward map[string]string
+		if err := yaml.Unmarshal(content, &backward); err != nil {
+			t.Fatal(err)
+		}
+		for name, observed := range forward[file] {
+			if backward[name] != observed {
+				t.Errorf("case `%s` of %s depends on the cases run before it\n--- forward\n%s\n--- reverse, alone\n%s", name, file, observed, backward[name])
+			}
+		}
+	}
+}
+
+// TestOracleReverseDump is the helper process of TestOracleOrderIndependence
+func TestOracleReverseDump(t *testing.T) {
+	file, out := os.Getenv("ORACLE_REVERSE_FILE"), os.Getenv("ORACLE_REVERSE_OUT")
+	if file == "" || out == "" {
+		t.Skip("helper process of TestOracleOrderIndependence")
+	}
+
+	cases := loadCorpus(t, file).Cases
+	observations := make(map[string]string)
+	for i := len(cases) - 1; i >= 0; i-- {
+		observations[cases[i].Name] = toYAML(t, runCase(t, cases[i]))
+	}
+	if err := os.WriteFile(out, []byte(toYAML(t, observations)), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func loadCorpus(t *testing.T, corpusPath string) *corpusFile {
 	content, err := os.ReadFile(corpusPath)
 	if err != nil {
 		t.Fatal(err)
@@ -230,15 +403,32 @@ func runCorpusFile(t *testing.T, corpusPath, goldenPath string) {
 	if err := decoder.Decode(&corpus); err != nil {
 		t.Fatalf("invalid corpus %s: %v", corpusPath, err)
 	}
+	return &corpus
+}
+
+func runCorpusFile(t *testing.T, corpusPath, goldenPath string) {
+	corpus := loadCorpus(t, corpusPath)
 
 	names := make(map[string]bool)
 	observations := make(map[string]*observation)
+	var filterRe *regexp.Regexp
+	if *caseFilter != "" {
+		if *update {
+			t.Fatal("-case can't be used with -update")
+		}
+		filterRe = regexp.MustCompile(*caseFilter)
+	}
+
+	var cases []*corpusCase
 	for _, c := range corpus.Cases {
 		if c.Name == "" || names[c.Name] {
 			t.Fatalf("case names must be unique and non empty: `%s`", c.Name)
 		}
 		names[c.Name] = true
-		observations[c.Name] = runCase(t, c)
+		if filterRe == nil || filterRe.MatchString(c.Name) {
+			cases = append(cases, c)
+			observations[c.Name] = runCase(t, c)
+		}
 	}
 
 	if *update {
@@ -264,7 +454,7 @@ func runCorpusFile(t *testing.T, corpusPath, goldenPath string) {
 		t.Fatal(err)
 	}
 
-	for _, c := range corpus.Cases {
+	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
 			expected, ok := golden[c.Name]
 			if !ok {
@@ -277,7 +467,7 @@ func runCorpusFile(t *testing.T, corpusPath, goldenPath string) {
 		})
 	}
 	for name := range golden {
-		if !names[name] {
+		if filterRe == nil && !names[name] {
 			t.Errorf("golden case `%s` has no corpus case, run with -update", name)
 		}
 	}
@@ -321,21 +511,44 @@ func errorStrings(err error) []string {
 		}
 		return out
 	}
-	return []string{err.Error()}
+	// some error types panic when formatted (typed nil, missing fields)
+	var msg string
+	func() {
+		defer catch(&msg)
+		msg = err.Error()
+	}()
+	return []string{msg}
 }
 
 func runCase(t *testing.T, c *corpusCase) *observation {
 	obs := &observation{}
 
-	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	enabled := map[eval.EventType]bool{"*": true}
+	if len(c.EventTypesEnabled) > 0 {
+		enabled = make(map[eval.EventType]bool)
+		for _, eventType := range c.EventTypesEnabled {
+			enabled[eventType] = true
+		}
+	}
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+	ruleOpts.WithRuleCacheEnabled(c.RuleCache)
+	logger := &recordingLogger{}
+	ruleOpts.WithLogger(logger)
 	rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return model.NewFakeEvent() }, ruleOpts, evalOpts)
 
 	mainPolicy, err := c.mainPolicy()
 	if err != nil {
 		t.Fatal(err)
 	}
-	loader := rules.NewPolicyLoader(&policyProvider{policies: append([]string{mainPolicy}, c.Policies...)})
+	providers := []rules.PolicyProvider{&policyProvider{policies: append([]string{mainPolicy}, c.Policies...)}}
+	for i := range c.Providers {
+		providers = append(providers, &policyProvider{entry: &c.Providers[i]})
+	}
+	loader := rules.NewPolicyLoader(providers...)
 	var loaderOpts rules.PolicyLoaderOpts
+	if c.AcceptBPFFilters {
+		loaderOpts.ValidateBPFFilter = func(string) error { return nil }
+	}
 	if c.AgentVersion != "" {
 		version, err := semver.NewVersion(c.AgentVersion)
 		if err != nil {
@@ -348,7 +561,17 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 		loaderOpts.RuleFilters = []rules.RuleFilter{filter}
 		loaderOpts.MacroFilters = []rules.MacroFilter{filter}
 	}
-	filtered, errs := rs.LoadPolicies(loader, loaderOpts)
+	var (
+		filtered []*rules.PolicyRule
+		errs     *multierror.Error
+	)
+	func() {
+		defer catch(&obs.LoadPanic)
+		filtered, errs = rs.LoadPolicies(loader, loaderOpts)
+	}()
+	if obs.LoadPanic != "" {
+		return obs
+	}
 	for _, rule := range filtered {
 		obs.Filtered = append(obs.Filtered, rule.Def.ID)
 	}
@@ -357,10 +580,14 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 		sort.Strings(obs.LoadErrors)
 	}
 
-	var allRules []*rules.Rule
-	for _, id := range sortedRuleIDs(rs) {
-		allRules = append(allRules, rs.GetRuleByID(id))
-	}
+	// rules expanded from a single definition share its ID, sort them by expression too
+	allRules := rs.GetRules()
+	sort.SliceStable(allRules, func(i, j int) bool {
+		if allRules[i].ID != allRules[j].ID {
+			return allRules[i].ID < allRules[j].ID
+		}
+		return allRules[i].Expression < allRules[j].Expression
+	})
 
 	// supported discarders have to be set after the load as the opts are only read at evaluation time
 	discarders := c.Discarders
@@ -383,18 +610,24 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 	ruleOpts.WithSupportedMultiDiscarder(mdiscs)
 
 	obs.Rules = observeRules(allRules)
-	obs.Approvers = observeApprovers(t, rs, c)
+	observeRuleSet(t, rs, c, obs)
+	var noDiscarderRules map[eval.RuleID]bool
+	obs.Approvers, noDiscarderRules = observeApprovers(t, rs, c, obs)
+	// as done by kfilters, rules using approver only filters can't generate discarders
+	rs.WithExcludedRuleFromDiscarders(noDiscarderRules)
 	obs.Discarders = observeDiscardersReport(rs, ruleOpts, discarders)
 	ruleOpts.WithSupportedDiscarders(supported)
 
-	l := &listener{}
+	l := &listener{reject: c.RejectMatches}
 	rs.AddListener(l)
+	rs.AddListener(&secondListener{first: l})
 
 	buildProcesses(t, c)
 
 	for i, e := range c.Events {
 		step := &stepObservation{}
 		l.step = step
+		logger.lines = &step.Logs
 		obs.Steps = append(obs.Steps, step)
 
 		if e.Sleep != "" {
@@ -407,6 +640,9 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 		if e.Cleanup {
 			rs.CleanupExpiredVariables()
 		}
+		if e.Reparent != nil {
+			reparent(t, rs, c, e.Reparent)
+		}
 
 		event, err := buildEvent(t, c, e)
 		if err != nil {
@@ -414,13 +650,15 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 			continue
 		}
 
-		step.Result = rs.Evaluate(event)
-		if !step.Result {
-			rs.EvaluateDiscarders(event)
-		}
+		func() {
+			defer catch(&step.Panic)
+			step.Result = rs.Evaluate(event)
+			if !step.Result {
+				rs.EvaluateDiscarders(event)
+			}
+		}()
 		sort.Strings(step.Discarders)
 
-		ctx := eval.NewContext(event)
 		for _, rule := range allRules {
 			if rule.GetEvaluator() == nil {
 				continue
@@ -430,12 +668,17 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 			}
 			for _, field := range rule.GetFields() {
 				var result string
-				ok, err := rule.PartialEval(ctx, field)
-				if err != nil {
-					result = "error: " + err.Error()
-				} else {
-					result = fmt.Sprint(ok)
-				}
+				func() {
+					defer catch(&result)
+					// a context per partial evaluation, as registers and caches
+					// would otherwise leak between rules
+					ok, err := rule.PartialEval(eval.NewContext(event), field)
+					if err != nil {
+						result = "error: " + err.Error()
+					} else {
+						result = fmt.Sprint(ok)
+					}
+				}()
 				if step.Partials == nil {
 					step.Partials = make(map[string]map[string]string)
 				}
@@ -446,10 +689,132 @@ func runCase(t *testing.T, c *corpusCase) *observation {
 			}
 		}
 
-		step.Variables = observeVariables(rs, ctx)
+		func() {
+			var panicked string
+			defer func() {
+				if panicked != "" {
+					step.Variables = map[string]string{"panic": panicked}
+				}
+			}()
+			defer catch(&panicked)
+			step.Variables = observeVariables(rs, eval.NewContext(event))
+		}()
+		step.ScopedCounts = observeScopedCounts(rs)
+		logger.lines = nil
 	}
 
 	return obs
+}
+
+// observeRuleSet records the ruleset wide accessors
+func observeRuleSet(t *testing.T, rs *rules.RuleSet, c *corpusCase, obs *observation) {
+	for _, eventType := range rs.GetEventTypes() {
+		if !rs.HasRulesForEventType(eventType) {
+			t.Fatalf("event type `%s` listed without rules", eventType)
+		}
+		obs.EventTypes = append(obs.EventTypes, eventType)
+	}
+	sort.Strings(obs.EventTypes)
+	for _, e := range c.Events {
+		if !slices.Contains(obs.EventTypes, e.Type) && rs.HasRulesForEventType(e.Type) {
+			obs.EventTypes = append(obs.EventTypes, "unlisted:"+e.Type)
+		}
+	}
+
+	for _, id := range rs.ListMacroIDs() {
+		obs.MacroIDs = append(obs.MacroIDs, id)
+	}
+	sort.Strings(obs.MacroIDs)
+
+	for _, field := range rs.ListFields() {
+		var values []string
+		for _, fv := range rs.GetFieldValues(field) {
+			values = append(values, fmt.Sprintf("%s:%s", fv.Type, fmtValue(fv.Value)))
+		}
+		sort.Strings(values)
+		if len(values) > 0 {
+			if obs.FieldValues == nil {
+				obs.FieldValues = make(map[string][]string)
+			}
+			obs.FieldValues[field] = values
+		}
+	}
+
+	for _, policy := range rs.GetPolicies() {
+		var ids []string
+		for _, rule := range policy.GetAcceptedRules() {
+			ids = append(ids, rule.Def.ID)
+		}
+		sort.Strings(ids)
+		info := policy.Info
+		obs.Policies = append(obs.Policies, fmt.Sprintf("%s(%s) internal_type=%s type=%s version=%s replace=%s %v",
+			info.Name, info.Source, info.InternalType, info.Type, info.Version, info.ReplacePolicyID, ids))
+		for _, rule := range policy.Rules {
+			obs.PolicyRules = append(obs.PolicyRules, fmtPolicyRule(info.Name, rule))
+		}
+	}
+
+	for _, rule := range rs.GetRules() {
+		if byID := rs.GetRuleByID(rule.ID); byID == nil || rs.GetRuleMap()[rule.ID] != byID {
+			obs.Policies = append(obs.Policies, "inconsistent rule lookup: "+rule.ID)
+		}
+	}
+
+	for _, id := range rs.ListRuleIDs() {
+		obs.RuleIDs = append(obs.RuleIDs, id)
+	}
+	sort.Strings(obs.RuleIDs)
+
+	// hook points and their args come out of maps
+	hookPoints, err := rs.GetOnDemandHookPoints()
+	if err != nil {
+		obs.OnDemandHook = []string{"error: " + err.Error()}
+	}
+	for _, hp := range hookPoints {
+		args := slices.Clone(hp.Args)
+		sort.Slice(args, func(i, j int) bool { return args[i].N < args[j].N })
+		obs.OnDemandHook = append(obs.OnDemandHook, fmt.Sprintf("%s syscall=%v args=%v", hp.Name, hp.IsSyscall, args))
+	}
+	sort.Strings(obs.OnDemandHook)
+}
+
+func fmtPolicyRule(policyName string, rule *rules.PolicyRule) string {
+	names := func(infos []rules.PolicyInfo) []string {
+		var out []string
+		for _, info := range infos {
+			out = append(out, info.Name)
+		}
+		return out
+	}
+	def := rule.Def
+	var every string
+	if def.Every != nil {
+		every = def.Every.String()
+	}
+	var tags []string
+	for _, k := range sortedKeys(def.Tags) {
+		tags = append(tags, k+"="+def.Tags[k])
+	}
+	return fmt.Sprintf("%s/%s accepted=%v disabled=%v expression=%q tags=%v product_tags=%v every=%s actions=%d policy=%s modified_by=%v used_by=%v enable_count=%d",
+		policyName, def.ID, rule.Accepted, def.Disabled, def.Expression, tags, def.ProductTags, every, len(def.Actions),
+		rule.Policy.Name, names(rule.ModifiedBy), names(rule.UsedBy), rule.EnableCount)
+}
+
+func reparent(t *testing.T, rs *rules.RuleSet, c *corpusCase, r *reparentEntry) {
+	p := c.Processes[r.Process]
+	if p == nil {
+		t.Fatalf("unknown process `%s`", r.Process)
+	}
+	rs.CopyInheritedVariables(p.pce)
+	if r.Parent == "" {
+		p.pce.Ancestor, p.pce.Parent, p.pce.PPid = nil, nil, 0
+		return
+	}
+	parent := c.Processes[r.Parent]
+	if parent == nil {
+		t.Fatalf("unknown process `%s`", r.Parent)
+	}
+	p.pce.Ancestor, p.pce.Parent, p.pce.PPid = parent.pce, &parent.pce.Process, parent.pce.Pid
 }
 
 // observeDiscardersReport reports field by field so that a field that can't be
@@ -478,12 +843,6 @@ func observeDiscardersReport(rs *rules.RuleSet, ruleOpts *rules.Opts, fields []s
 		}()
 	}
 	return out
-}
-
-func sortedRuleIDs(rs *rules.RuleSet) []string {
-	ids := rs.ListRuleIDs()
-	sort.Strings(ids)
-	return ids
 }
 
 func parseEventType(t *testing.T, name string) model.EventType {
@@ -578,11 +937,14 @@ func (ce *capEntry) toCapability(t *testing.T) *rules.FieldCapability {
 	return fc
 }
 
-func observeApprovers(t *testing.T, rs *rules.RuleSet, c *corpusCase) map[string]*approverObservation {
+func observeApprovers(t *testing.T, rs *rules.RuleSet, c *corpusCase, obs *observation) (map[string]*approverObservation, map[eval.RuleID]bool) {
 	out := make(map[string]*approverObservation)
+	noDiscarders := make(map[eval.RuleID]bool)
 
 	eventTypes := rs.GetEventTypes()
 	sort.Strings(eventTypes)
+	allCaps := make(map[eval.EventType]rules.FieldCapabilities)
+	perType := make(map[eval.EventType]rules.Approvers)
 
 	for _, eventType := range eventTypes {
 		var caps rules.FieldCapabilities
@@ -608,10 +970,21 @@ func observeApprovers(t *testing.T, rs *rules.RuleSet, c *corpusCase) map[string
 			}
 		}
 
+		allCaps[eventType] = caps
 		ao := &approverObservation{}
 		out[eventType] = ao
 
-		approvers, stats, noDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		var (
+			approvers        rules.Approvers
+			stats            *rules.ApproverStats
+			noDiscarderRules []*rules.Rule
+			err              error
+		)
+		func() {
+			defer catch(&ao.Error)
+			approvers, stats, noDiscarderRules, err = rs.GetEventTypeApprovers(eventType, caps)
+		}()
+		perType[eventType] = approvers
 		if err != nil {
 			ao.Error = err.Error()
 		}
@@ -637,10 +1010,61 @@ func observeApprovers(t *testing.T, rs *rules.RuleSet, c *corpusCase) map[string
 		}
 		for _, rule := range noDiscarderRules {
 			ao.NoDiscard = append(ao.NoDiscard, rule.ID)
+			noDiscarders[rule.ID] = true
 		}
 	}
 
-	return out
+	observeAllApprovers(rs, allCaps, perType, obs)
+	return out, noDiscarders
+}
+
+func observeAllApprovers(rs *rules.RuleSet, caps map[eval.EventType]rules.FieldCapabilities, perType map[eval.EventType]rules.Approvers, obs *observation) {
+	var (
+		approvers        map[eval.EventType]rules.Approvers
+		stats            *rules.ApproverStats
+		noDiscarderRules []*rules.Rule
+		err              error
+		panicked         string
+	)
+	func() {
+		defer catch(&panicked)
+		approvers, stats, noDiscarderRules, err = rs.GetApprovers(caps)
+	}()
+	switch {
+	case panicked != "":
+		obs.ApproversAll = []string{panicked}
+		return
+	case err != nil:
+		obs.ApproversAll = []string{"error: " + err.Error()}
+		return
+	}
+	union := make(map[eval.EventType]bool)
+	for eventType := range approvers {
+		union[eventType] = true
+	}
+	for eventType := range perType {
+		union[eventType] = true
+	}
+	for _, eventType := range sortedKeys(union) {
+		a, b := approvers[eventType], perType[eventType]
+		if (len(a) != 0 || len(b) != 0) && !reflect.DeepEqual(a, b) {
+			obs.ApproversAll = append(obs.ApproversAll, "differs from per event type: "+eventType)
+		}
+	}
+	if stats != nil {
+		for _, eventType := range sortedKeys(stats.AcceptModeRules) {
+			obs.ApproversAll = append(obs.ApproversAll, fmt.Sprintf("accept_mode %s=%s", eventType, stats.AcceptModeRules[eventType].ID))
+		}
+		for _, field := range sortedKeys(stats.FieldStats) {
+			obs.ApproversAll = append(obs.ApproversAll, fmt.Sprintf("field_stats %s=%d", field, stats.FieldStats[field]))
+		}
+	}
+	var ids []string
+	for _, rule := range noDiscarderRules {
+		ids = append(ids, "no_discarder "+rule.ID)
+	}
+	sort.Strings(ids)
+	obs.ApproversAll = append(obs.ApproversAll, ids...)
 }
 
 func observeVariables(rs *rules.RuleSet, ctx *eval.Context) map[string]string {
@@ -653,9 +1077,11 @@ func observeVariables(rs *rules.RuleSet, ctx *eval.Context) map[string]string {
 		case eval.ScopedVariable:
 			value, ok := v.GetValue(ctx, false)
 			own, ownOk := v.GetValue(ctx, true)
+			value, own = sortedArray(value), sortedArray(own)
 			out[name] = fmt.Sprintf("%s(%v) own=%s(%v)", fmtValue(value), ok, fmtValue(own), ownOk)
 		case eval.Variable:
 			value, ok := v.GetValue()
+			value = sortedArray(value)
 			out[name] = fmt.Sprintf("%s(%v)", fmtValue(value), ok)
 		default:
 			out[name] = fmt.Sprintf("unknown variable type %T", variable)
@@ -664,7 +1090,27 @@ func observeVariables(rs *rules.RuleSet, ctx *eval.Context) map[string]string {
 	return out
 }
 
+func observeScopedCounts(rs *rules.RuleSet) map[string]int {
+	var out map[string]int
+	for name := range rs.GetVariables() {
+		for _, scope := range rules.VariableScopes {
+			if !strings.HasPrefix(name, scope+".") {
+				continue
+			}
+			if out == nil {
+				out = make(map[string]int)
+			}
+			out[name] = len(rs.GetScopedVariables(rules.Scope(scope), strings.TrimPrefix(name, scope+".")))
+		}
+	}
+	return out
+}
+
 func buildProcesses(t *testing.T, c *corpusCase) {
+	for _, p := range c.Processes {
+		p.pce = nil
+	}
+
 	var build func(name string, depth int) *model.ProcessCacheEntry
 	build = func(name string, depth int) *model.ProcessCacheEntry {
 		p := c.Processes[name]
@@ -858,11 +1304,45 @@ func fmtValue(v interface{}) string {
 			out = append(out, fmt.Sprintf("%q", s))
 		}
 		return "[" + strings.Join(out, " ") + "]"
+	case int:
+		// timestamps built from `now-<duration>` are printed relative to now,
+		// rounded to the minute
+		if now := int(time.Now().UnixNano()); v > now-int(1000*time.Hour) && v < now+int(time.Hour) {
+			return fmt.Sprintf("now-%dm", (now-v+int(30*time.Second))/int(time.Minute))
+		}
+		return fmt.Sprint(v)
 	case rules.RangeFilterValue:
 		return fmt.Sprintf("range(%d,%d)", v.Min, v.Max)
 	case fmt.Stringer:
 		return v.String()
 	default:
 		return fmt.Sprintf("%v", v)
+	}
+}
+
+// sortedArray returns a sorted copy of an array value: array variables are
+// backed by an LRU whose key order isn't deterministic
+func sortedArray(v interface{}) interface{} {
+	switch v := v.(type) {
+	case []string:
+		out := slices.Clone(v)
+		slices.Sort(out)
+		return out
+	case []int:
+		out := slices.Clone(v)
+		slices.Sort(out)
+		return out
+	case []net.IPNet:
+		out := slices.Clone(v)
+		slices.SortFunc(out, func(a, b net.IPNet) int { return strings.Compare(a.String(), b.String()) })
+		return out
+	}
+	return v
+}
+
+// catch turns a panic into a recorded result so that a case keeps going
+func catch(result *string) {
+	if r := recover(); r != nil {
+		*result = fmt.Sprintf("panic: %v", r)
 	}
 }

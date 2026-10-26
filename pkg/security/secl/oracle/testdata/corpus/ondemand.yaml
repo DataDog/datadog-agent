@@ -1,0 +1,145 @@
+cases:
+  - name: ondemand_kernel_function_hook
+    rules:
+      - id: hook
+        expression: ondemand.name == "vfs_read" && ondemand.arg2.uint == 1
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_read, ondemand.arg2.uint: 1}}
+      - {type: ondemand, fields: {ondemand.name: vfs_read, ondemand.arg2.uint: 2}}
+      - {type: ondemand, fields: {ondemand.name: vfs_write, ondemand.arg2.uint: 1}}
+
+  - name: ondemand_syscall_hook
+    rules:
+      - id: hook
+        expression: ondemand.name == "syscall:openat" && ondemand.arg1.str == "/etc/passwd"
+    events:
+      - {type: ondemand, fields: {ondemand.name: "syscall:openat", ondemand.arg1.str: /etc/passwd}}
+      - {type: ondemand, fields: {ondemand.name: "syscall:openat", ondemand.arg1.str: /etc/shadow}}
+      - {type: ondemand, fields: {ondemand.name: openat, ondemand.arg1.str: /etc/passwd}}
+
+  - name: ondemand_hook_without_args
+    rules:
+      - id: hook
+        expression: ondemand.name == "do_exit"
+    events:
+      - {type: ondemand, fields: {ondemand.name: do_exit}}
+      - {type: ondemand, fields: {ondemand.name: exit}}
+
+  - name: ondemand_same_hook_same_arg_merged
+    rules:
+      - id: first
+        expression: ondemand.name == "syscall:read" && ondemand.arg3.uint == 10
+      - id: second
+        expression: ondemand.name == "syscall:read" && ondemand.arg3.uint > 100
+    events:
+      - {type: ondemand, fields: {ondemand.name: "syscall:read", ondemand.arg3.uint: 10}}
+      - {type: ondemand, fields: {ondemand.name: "syscall:read", ondemand.arg3.uint: 101}}
+      - {type: ondemand, fields: {ondemand.name: "syscall:read", ondemand.arg3.uint: 50}}
+
+  - name: ondemand_conflicting_arg_kinds
+    rules:
+      - id: as_string
+        expression: ondemand.name == "vfs_open" && ondemand.arg1.str == "a"
+      - id: as_uint
+        expression: ondemand.name == "vfs_open" && ondemand.arg1.uint == 1
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_open, ondemand.arg1.str: a}}
+      - {type: ondemand, fields: {ondemand.name: vfs_open, ondemand.arg1.uint: 1}}
+
+  - name: ondemand_unknown_probe_type
+    rules:
+      - id: hook
+        expression: ondemand.name == "kprobe:vfs_read"
+    events:
+      - {type: ondemand, fields: {ondemand.name: "kprobe:vfs_read"}}
+      - {type: ondemand, fields: {ondemand.name: vfs_read}}
+
+  - name: ondemand_two_hooks_in_one_rule
+    rules:
+      - id: hook
+        expression: ondemand.name == "vfs_read" || ondemand.name == "vfs_write"
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_read}}
+      - {type: ondemand, fields: {ondemand.name: vfs_write}}
+      - {type: ondemand, fields: {ondemand.name: vfs_open}}
+
+  - name: ondemand_hook_name_in_list
+    rules:
+      - id: hook
+        expression: ondemand.name in ["vfs_read", "vfs_write"]
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_read}}
+      - {type: ondemand, fields: {ondemand.name: vfs_open}}
+
+  - name: ondemand_rule_without_hook_name
+    rules:
+      - id: hook
+        expression: ondemand.arg1.str == "/etc/passwd"
+    events:
+      - {type: ondemand, fields: {ondemand.arg1.str: /etc/passwd}}
+      - {type: ondemand, fields: {ondemand.arg1.str: /etc}}
+
+  - name: ondemand_hook_name_glob_not_scalar
+    rules:
+      - id: hook
+        expression: ondemand.name =~ "vfs_*"
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_read}}
+      - {type: ondemand, fields: {ondemand.name: sys_read}}
+
+  - name: ondemand_hook_name_pattern_not_scalar
+    rules:
+      - id: hook
+        expression: ondemand.name == ~"vfs_.*"
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_read}}
+      - {type: ondemand, fields: {ondemand.name: sys_read}}
+
+  - name: ondemand_rules_next_to_other_event_types
+    rules:
+      - id: hook
+        expression: ondemand.name == "do_unlinkat" && ondemand.arg2.str == "tmp"
+      - id: other
+        expression: open.file.path == "/etc/passwd"
+    events:
+      - {type: ondemand, fields: {ondemand.name: do_unlinkat, ondemand.arg2.str: tmp}}
+      - {type: ondemand, fields: {ondemand.name: do_unlinkat, ondemand.arg2.str: var}}
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.path: /etc}}
+
+  - name: no_ondemand_rule
+    rules:
+      - id: other
+        expression: open.file.path == "/etc/passwd"
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+
+  - name: ondemand_multi_hooks_multi_args
+    rules:
+      - id: read_hook
+        expression: ondemand.name == "vfs_read" && ondemand.arg1.str == "a" && ondemand.arg2.uint == 1
+      - id: kernel_openat
+        expression: ondemand.name == "openat" && ondemand.arg1.uint == 3
+      - id: syscall_openat
+        expression: ondemand.name == "syscall:openat" && ondemand.arg1.str == "p" && ondemand.arg4.uint == 9
+      - id: read_hook_dup
+        expression: ondemand.name == "vfs_read" && ondemand.arg2.uint == 5 && ondemand.arg6.str == "z"
+    events:
+      - {type: ondemand, fields: {ondemand.name: vfs_read, ondemand.arg1.str: a, ondemand.arg2.uint: 1}}
+      - {type: ondemand, fields: {ondemand.name: openat, ondemand.arg1.uint: 3}}
+      - {type: ondemand, fields: {ondemand.name: "syscall:openat", ondemand.arg1.str: p, ondemand.arg4.uint: 9}}
+      - {type: ondemand, fields: {ondemand.name: vfs_read, ondemand.arg2.uint: 6}}
+
+  - name: listener_reject_and_rule_ids
+    reject_matches: [first]
+    rules:
+      - id: first
+        expression: open.file.path == "/etc/passwd"
+      - id: second
+        expression: open.file.path == "/etc/passwd" || open.flags == 1
+      - id: chmod_rule
+        expression: chmod.file.path == "/tmp/x"
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /x, open.flags: 1}}
+      - {type: chmod, fields: {chmod.file.path: /tmp/x}}

@@ -1,0 +1,819 @@
+cases:
+  # ---------------------------------------------------------------- chains
+  - name: ancestors_string_any_semantics
+    rules:
+      - open.file.path == "/t" && process.ancestors.file.name == "sshd"
+      - open.file.path == "/t" && process.ancestors.file.name != "sshd"
+      - open.file.path == "/t" && process.ancestors.file.name in ["sshd", "nginx"]
+      - open.file.path == "/t" && process.ancestors.file.name not in ["sshd", "nginx"]
+      - open.file.path == "/t" && !(process.ancestors.file.name == "sshd")
+      - open.file.path == "/t" && process.ancestors.file.name =~ "ss*"
+      - open.file.path == "/t" && process.ancestors.file.name !~ "ss*"
+      - open.file.path == "/t" && process.ancestors.file.name =~ r"^s.hd$"
+      - open.file.path == "/t" && process.ancestors.file.name in [~"ss*"]
+      - open.file.path == "/t" && process.ancestors.file.name == ""
+      - open.file.path == "/t" && process.ancestors.file.name == "systemd" && process.ancestors.file.name == "sshd"
+      - open.file.path == "/t" && (process.ancestors.file.name == "systemd" || process.ancestors.file.name == "curl")
+    processes:
+      p0: {pid: 1, fields: {file.name: systemd, uid: 0}}
+      p1: {pid: 2, parent: p0, fields: {file.name: containerd, uid: 0}}
+      p2: {pid: 3, parent: p1, fields: {file.name: sshd, uid: 0}}
+      p3: {pid: 4, parent: p2, fields: {file.name: bash, uid: 1000}}
+      p4: {pid: 5, parent: p3, fields: {file.name: sudo, uid: 0}}
+      p5: {pid: 6, parent: p4, fields: {file.name: python, uid: 0}}
+      p6: {pid: 7, parent: p5, fields: {file.name: curl, uid: 1000}}
+      p7: {pid: 8, parent: p6, fields: {file.name: evil, uid: 1000}}
+      lone: {pid: 9, fields: {file.name: lone}}
+    events:
+      - {type: open, process: p7, fields: {open.file.path: /t}}
+      - {type: open, process: p6, fields: {open.file.path: /t}}
+      - {type: open, process: p3, fields: {open.file.path: /t}}
+      - {type: open, process: p2, fields: {open.file.path: /t}}
+      - {type: open, process: p1, fields: {open.file.path: /t}}
+      - {type: open, process: p0, fields: {open.file.path: /t}}
+      - {type: open, process: lone, fields: {open.file.path: /t}}
+      - {type: open, fields: {open.file.path: /t}}
+      - {type: open, process: p7, fields: {open.file.path: /other}}
+
+  - name: ancestors_int_and_bool
+    rules:
+      - open.file.path == "/t" && process.ancestors.uid == 0
+      - open.file.path == "/t" && process.ancestors.uid != 0
+      - open.file.path == "/t" && process.ancestors.uid > 500
+      - open.file.path == "/t" && process.ancestors.uid >= 1000
+      - open.file.path == "/t" && process.ancestors.uid != 1000
+      - open.file.path == "/t" && process.ancestors.uid not in [1000, 7]
+      - open.file.path == "/t" && process.ancestors.uid not in [1000, 5]
+      - open.file.path == "/t" && process.ancestors.uid < 1
+      - open.file.path == "/t" && process.ancestors.uid <= 0
+      - open.file.path == "/t" && process.ancestors.uid in [0, 1000]
+      - open.file.path == "/t" && process.ancestors.uid not in [0]
+      - open.file.path == "/t" && process.ancestors.uid not in [0, 1000, 7]
+      - open.file.path == "/t" && process.ancestors.gid == 42
+      - open.file.path == "/t" && process.ancestors.uid & 1024 != 0
+      - open.file.path == "/t" && process.ancestors.is_thread == true
+      - open.file.path == "/t" && process.ancestors.is_thread == false
+      - open.file.path == "/t" && process.ancestors.is_exec == true
+      - open.file.path == "/t" && process.ancestors.is_exec == false
+      - open.file.path == "/t" && process.ancestors.is_kworker == true
+      - open.file.path == "/t" && process.ancestors.pid == 3
+      - open.file.path == "/t" && process.ancestors.ppid == 2
+    processes:
+      a: {pid: 1, fields: {uid: 0, gid: 0, is_thread: false}}
+      b: {pid: 2, parent: a, fields: {uid: 1000, gid: 42, is_exec: true}}
+      c: {pid: 3, parent: b, fields: {uid: 7, is_thread: true}}
+      d: {pid: 4, parent: c, fields: {uid: 0}}
+      e: {pid: 5, parent: d, fields: {uid: 0}}
+      kw: {pid: 6, fields: {uid: 0, is_kworker: true}}
+      underkw: {pid: 7, parent: kw, fields: {uid: 5}}
+      nz1: {pid: 8, fields: {uid: 5}}
+      nz2: {pid: 9, parent: nz1, fields: {uid: 6}}
+      nz3: {pid: 10, parent: nz2, fields: {uid: 6}}
+    events:
+      - {type: open, process: e, fields: {open.file.path: /t}}
+      - {type: open, process: d, fields: {open.file.path: /t}}
+      - {type: open, process: c, fields: {open.file.path: /t}}
+      - {type: open, process: b, fields: {open.file.path: /t}}
+      - {type: open, process: a, fields: {open.file.path: /t}}
+      - {type: open, process: underkw, fields: {open.file.path: /t}}
+      - {type: open, process: nz3, fields: {open.file.path: /t}}
+      - {type: open, process: nz1, fields: {open.file.path: /t}}
+
+  - name: ancestors_length
+    rules:
+      - open.file.path == "/t" && process.ancestors.length == 0
+      - open.file.path == "/t" && process.ancestors.length == 1
+      - open.file.path == "/t" && process.ancestors.length > 2
+      - open.file.path == "/t" && process.ancestors.length >= 3
+      - open.file.path == "/t" && process.ancestors.length < 3
+      - open.file.path == "/t" && process.ancestors.length <= 6
+      - open.file.path == "/t" && process.ancestors.length in [0, 6]
+      - open.file.path == "/t" && process.ancestors.length != 3
+      - open.file.path == "/t" && process.ancestors.length >= 3 && process.ancestors.file.name == "root"
+      - open.file.path == "/t" && process.ancestors.file.name.length == 4
+      - open.file.path == "/t" && process.ancestors.file.name.length > 5
+      - open.file.path == "/t" && process.ancestors.file.path.length == 9
+    processes:
+      root: {pid: 1, fields: {file.name: root, file.path: /bin/root}}
+      a1: {pid: 2, parent: root, fields: {file.name: abcdefg, file.path: /bin/a1}}
+      a2: {pid: 3, parent: a1, fields: {file.name: x, file.path: /bin/a2}}
+      a3: {pid: 4, parent: a2, fields: {file.name: y, file.path: /bin/a3}}
+      a4: {pid: 5, parent: a3, fields: {file.name: z, file.path: /bin/a4}}
+      a5: {pid: 6, parent: a4, fields: {file.name: w, file.path: /bin/a5}}
+      a6: {pid: 7, parent: a5, fields: {file.name: v, file.path: /bin/a6}}
+    events:
+      - {type: open, process: a6, fields: {open.file.path: /t}}
+      - {type: open, process: a5, fields: {open.file.path: /t}}
+      - {type: open, process: a3, fields: {open.file.path: /t}}
+      - {type: open, process: a2, fields: {open.file.path: /t}}
+      - {type: open, process: a1, fields: {open.file.path: /t}}
+      - {type: open, process: root, fields: {open.file.path: /t}}
+      - {type: open, fields: {open.file.path: /t}}
+
+  - name: ancestors_array_fields
+    rules:
+      - open.file.path == "/t" && process.ancestors.argv in ["--flag"]
+      - open.file.path == "/t" && process.ancestors.argv not in ["--flag"]
+      - open.file.path == "/t" && process.ancestors.argv in ["a", "b"]
+      - open.file.path == "/t" && process.ancestors.argv =~ "--f*"
+      - open.file.path == "/t" && process.ancestors.envs in ["HOME"]
+      - open.file.path == "/t" && process.ancestors.argv == "--flag"
+      - open.file.path == "/t" && process.ancestors.args_flags in ["v"]
+      - open.file.path == "/t" && process.ancestors.argv in [~"--f*"]
+    processes:
+      g: {pid: 1, fields: {file.name: g, argv: ["a", "b"], envs: ["HOME", "PATH"]}}
+      h: {pid: 2, parent: g, fields: {file.name: h, argv: ["--flag", "-v"]}}
+      i: {pid: 3, parent: h, fields: {file.name: i, argv: []}}
+      j: {pid: 4, parent: i, fields: {file.name: j}}
+    events:
+      - {type: open, process: j, fields: {open.file.path: /t}}
+      - {type: open, process: i, fields: {open.file.path: /t}}
+      - {type: open, process: h, fields: {open.file.path: /t}}
+      - {type: open, process: g, fields: {open.file.path: /t}}
+
+  # ---------------------------------------------------------------- parent
+  - name: parent_fields
+    rules:
+      - open.file.path == "/t" && process.parent.file.name == "bash"
+      - open.file.path == "/t" && process.parent.file.name != "bash"
+      - open.file.path == "/t" && process.parent.uid == 0
+      - open.file.path == "/t" && process.parent.uid > 0
+      - open.file.path == "/t" && process.parent.file.name in ["bash", "zsh"]
+      - open.file.path == "/t" && process.parent.argv in ["-c"]
+      - open.file.path == "/t" && process.parent.is_exec == true
+      - open.file.path == "/t" && process.parent.pid == 2
+      - open.file.path == "/t" && process.parent.file.name == "bash" && process.ancestors.file.name == "init"
+      - open.file.path == "/t" && process.parent.file.name == "bash" && process.file.name == "child"
+      - open.file.path == "/t" && process.parent.file.name =~ "ba*"
+    processes:
+      init: {pid: 1, fields: {file.name: init, uid: 0}}
+      sh: {pid: 2, parent: init, fields: {file.name: bash, uid: 1000, argv: ["-c"], is_exec: true}}
+      child: {pid: 3, parent: sh, fields: {file.name: child, uid: 0}}
+      grand: {pid: 4, parent: child, fields: {file.name: grand, uid: 5}}
+      orphan: {pid: 5, fields: {file.name: orphan}}
+    events:
+      - {type: open, process: child, fields: {open.file.path: /t}}
+      - {type: open, process: sh, fields: {open.file.path: /t}}
+      - {type: open, process: grand, fields: {open.file.path: /t}}
+      - {type: open, process: init, fields: {open.file.path: /t}}
+      - {type: open, process: orphan, fields: {open.file.path: /t}}
+      - {type: open, fields: {open.file.path: /t}}
+
+  # ------------------------------------------------------------- registers
+  - name: register_same_ancestor
+    rules:
+      - open.file.path == "/t" && process.ancestors[A].file.name == "sshd" && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name == "bash" && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name == "bash" && process.ancestors[A].uid == 1000
+      - open.file.path == "/t" && process.ancestors[A].file.name == "sshd" && process.ancestors[A].uid != 0
+      - open.file.path == "/t" && process.ancestors[A].file.name != "sshd" && process.ancestors[A].uid == 1000
+      - open.file.path == "/t" && process.ancestors[A].file.name == "bash" || process.ancestors[A].uid == 7
+      - open.file.path == "/t" && (process.ancestors[A].file.name == "bash" || process.ancestors[A].file.name == "sudo") && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name in ["sshd", "sudo"] && process.ancestors[A].uid in [0] && process.ancestors[A].gid == 5
+      - open.file.path == "/t" && process.ancestors[A].file.name not in ["sshd", "sudo"] && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name =~ "s*" && process.ancestors[A].uid == 1000
+      - open.file.path == "/t" && !(process.ancestors[A].file.name == "sshd" && process.ancestors[A].uid == 0)
+      - open.file.path == "/t" && process.ancestors[A].is_exec == true && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name == "sshd" && process.file.name == "me"
+      - open.file.path == "/t" && process.ancestors[A].uid == 0 && process.ancestors[A].gid == 5 && process.ancestors[A].file.name == "sudo"
+      - open.file.path == "/t" && process.ancestors[A].file.name == "sudo"
+      - open.file.path == "/t" && process.ancestors[long_name_1].file.name == "sudo" && process.ancestors[long_name_1].uid == 0
+    processes:
+      p0: {pid: 1, fields: {file.name: systemd, uid: 0, gid: 0}}
+      p1: {pid: 2, parent: p0, fields: {file.name: sshd, uid: 0, gid: 0}}
+      p2: {pid: 3, parent: p1, fields: {file.name: bash, uid: 1000, gid: 1000}}
+      p3: {pid: 4, parent: p2, fields: {file.name: sudo, uid: 0, gid: 5, is_exec: true}}
+      p4: {pid: 5, parent: p3, fields: {file.name: me, uid: 7}}
+      p5: {pid: 6, parent: p4, fields: {file.name: leaf, uid: 8}}
+      bashonly: {pid: 10, fields: {file.name: root, uid: 0}}
+      bashchild: {pid: 11, parent: bashonly, fields: {file.name: x, uid: 1}}
+      sshdchild: {pid: 12, parent: p1, fields: {file.name: me, uid: 1}}
+    events:
+      - {type: open, process: p5, fields: {open.file.path: /t}}
+      - {type: open, process: p4, fields: {open.file.path: /t}}
+      - {type: open, process: p3, fields: {open.file.path: /t}}
+      - {type: open, process: p2, fields: {open.file.path: /t}}
+      - {type: open, process: p1, fields: {open.file.path: /t}}
+      - {type: open, process: p0, fields: {open.file.path: /t}}
+      - {type: open, process: bashchild, fields: {open.file.path: /t}}
+      - {type: open, process: sshdchild, fields: {open.file.path: /t}}
+      - {type: open, fields: {open.file.path: /t}}
+
+  - name: register_cross_field_split_vs_same
+    # the same constraints written with and without register: the register
+    # version requires one ancestor to satisfy both, the plain one does not
+    rules:
+      - open.file.path == "/t" && process.ancestors.file.name == "a" && process.ancestors.uid == 1
+      - open.file.path == "/t" && process.ancestors[X].file.name == "a" && process.ancestors[X].uid == 1
+      - open.file.path == "/t" && process.ancestors[X].file.name == "a" && process.ancestors.uid == 1
+      - open.file.path == "/t" && process.ancestors[Y].file.name == "b" || process.ancestors.uid == 99
+    processes:
+      top: {pid: 1, fields: {file.name: a, uid: 2}}
+      mid: {pid: 2, parent: top, fields: {file.name: b, uid: 1}}
+      low: {pid: 3, parent: mid, fields: {file.name: c, uid: 3}}
+      top2: {pid: 4, fields: {file.name: a, uid: 1}}
+      low2: {pid: 5, parent: top2, fields: {file.name: c, uid: 3}}
+    events:
+      - {type: open, process: low, fields: {open.file.path: /t}}
+      - {type: open, process: low2, fields: {open.file.path: /t}}
+
+  - name: register_register_names
+    rules:
+      - open.file.path == "/t" && process.ancestors[0].file.name == "a"
+      - open.file.path == "/t" && process.ancestors[-1].file.name == "a"
+      - open.file.path == "/t" && process.ancestors[1x].file.name == "b"
+      - open.file.path == "/t" && process.ancestors[ab_1].file.name == "c" && process.ancestors[ab_1].uid == 3
+      - open.file.path == "/t" && process.ancestors[A].uid == 3 && process.ancestors[A].file.name == "c"
+      - open.file.path == "/t" && process.ancestors[ ].file.name == "c"
+    processes:
+      top: {pid: 1, fields: {file.name: a, uid: 2}}
+      mid: {pid: 2, parent: top, fields: {file.name: b, uid: 1}}
+      low: {pid: 3, parent: mid, fields: {file.name: c, uid: 3}}
+      leaf: {pid: 4, parent: low, fields: {file.name: d, uid: 4}}
+    events:
+      - {type: open, process: leaf, fields: {open.file.path: /t}}
+      - {type: open, process: low, fields: {open.file.path: /t}}
+      - {type: open, process: top, fields: {open.file.path: /t}}
+
+  - name: register_load_errors
+    rules:
+      - id: wildcard
+        expression: open.file.path == "/t" && process.ancestors[_].file.name == "a"
+      - id: two_registers
+        expression: open.file.path == "/t" && process.ancestors[A].file.name == "a" && process.ancestors[B].uid == 1
+      - id: reg_on_two_fields
+        expression: open.file.path == "/t" && process.ancestors[A].file.name == "a" && ptrace.tracee.ancestors[A].file.name == "b"
+      - id: reg_on_non_iterator
+        expression: open.file.path == "/t" && process.file[A].name == "a"
+      - id: reg_on_non_iterator_argv
+        expression: open.file.path == "/t" && process.argv[A] == "a"
+      - id: index_after_register
+        expression: open.file.path == "/t" && process.ancestors[A].file.name[0] == "a"
+      - id: double_subscript
+        expression: open.file.path == "/t" && process.ancestors[A][B].file.name == "a"
+      - id: unknown_field_register
+        expression: open.file.path == "/t" && process.ancestors[A].nope == "a"
+      - id: reg_on_event_field
+        expression: open.file[A].path == "/t"
+      - id: reg_in_array_position
+        expression: open.file.path in process.ancestors[A].file.name
+      - id: ok_rule
+        expression: open.file.path == "/t" && process.ancestors[A].file.name == "a"
+      - id: no_event_type
+        expression: process.ancestors[A].file.name == "a"
+    processes:
+      top: {pid: 1, fields: {file.name: a, uid: 2}}
+      low: {pid: 3, parent: top, fields: {file.name: c, uid: 3}}
+    events:
+      - {type: open, process: low, fields: {open.file.path: /t}}
+      - {type: open, process: top, fields: {open.file.path: /t}}
+
+  - name: register_length_via_register
+    rules:
+      - open.file.path == "/t" && process.ancestors[A].length > 1 && process.ancestors[A].file.name == "a"
+      - open.file.path == "/t" && process.ancestors[A].file.name.length == 1 && process.ancestors[A].uid == 2
+      - open.file.path == "/t" && process.ancestors[A].file.name.length > 1
+      - open.file.path == "/t" && process.ancestors[A].file.path.length == 6
+    processes:
+      top: {pid: 1, fields: {file.name: a, uid: 2, file.path: /bin/a}}
+      mid: {pid: 2, parent: top, fields: {file.name: bb, uid: 1, file.path: /bin/bb}}
+      low: {pid: 3, parent: mid, fields: {file.name: c, uid: 3}}
+    events:
+      - {type: open, process: low, fields: {open.file.path: /t}}
+      - {type: open, process: mid, fields: {open.file.path: /t}}
+      - {type: open, process: top, fields: {open.file.path: /t}}
+
+  - name: register_kworker_ancestor
+    rules:
+      - open.file.path == "/t" && process.ancestors[A].file.name == "" && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name == "real"
+      - open.file.path == "/t" && process.ancestors.file.name == ""
+      - open.file.path == "/t" && process.ancestors.file.name == "real"
+      - open.file.path == "/t" && process.ancestors[A].is_kworker == true
+    processes:
+      real: {pid: 1, fields: {file.name: real, uid: 5}}
+      kw: {pid: 2, parent: real, fields: {file.name: kthreadd, uid: 0, is_kworker: true}}
+      user: {pid: 3, parent: kw, fields: {file.name: user, uid: 5}}
+      user2: {pid: 4, parent: real, fields: {file.name: user, uid: 5}}
+    events:
+      - {type: open, process: user, fields: {open.file.path: /t}}
+      - {type: open, process: user2, fields: {open.file.path: /t}}
+      - {type: open, process: kw, fields: {open.file.path: /t}}
+
+  # ------------------------------------------------------- array index access
+  - name: array_index_argv
+    rules:
+      - open.file.path == "/t" && process.argv[0] == "-c"
+      - open.file.path == "/t" && process.argv[1] == "ls"
+      - open.file.path == "/t" && process.argv[2] == "ls"
+      - open.file.path == "/t" && process.argv[5] == ""
+      - open.file.path == "/t" && process.argv[0] != "-c"
+      - open.file.path == "/t" && process.argv[0] in ["-c", "-x"]
+      - open.file.path == "/t" && process.argv[0] not in ["-c"]
+      - open.file.path == "/t" && process.argv[1] =~ "l*"
+      - open.file.path == "/t" && process.argv[10] == ""
+      - open.file.path == "/t" && process.argv[00] == "-c"
+      - open.file.path == "/t" && process.argv[0] == process.argv[1]
+      - open.file.path == "/t" && process.argv[0] == "-c" && process.argv[1] == "ls"
+      - open.file.path == "/t" && process.argv[0] == "-c" || process.argv[1] == "nope"
+      - open.file.path == "/t" && process.parent.argv[0] == "-p"
+      - open.file.path == "/t" && process.parent.argv[1] == ""
+      - open.file.path == "/t" && process.envs[0] == "HOME=/root"
+      - open.file.path == "/t" && process.envs[1] == "PATH=/bin"
+      - open.file.path == "/t" && process.argv[0] == process.parent.argv[0]
+    processes:
+      par: {pid: 1, fields: {file.name: par, argv: ["-p"]}}
+      full: {pid: 2, parent: par, fields: {file.name: full, argv: ["-c", "ls"], envs: ["HOME=/root", "PATH=/bin"]}}
+      same: {pid: 3, parent: par, fields: {file.name: same, argv: ["-p", "-p"]}}
+      empty: {pid: 4, parent: par, fields: {file.name: empty, argv: []}}
+      noargv: {pid: 5, fields: {file.name: noargv}}
+    events:
+      - {type: open, process: full, fields: {open.file.path: /t}}
+      - {type: open, process: same, fields: {open.file.path: /t}}
+      - {type: open, process: empty, fields: {open.file.path: /t}}
+      - {type: open, process: noargv, fields: {open.file.path: /t}}
+
+  - name: array_index_on_iterator_fields
+    rules:
+      - open.file.path == "/t" && process.ancestors.file.name[0] == "bash"
+      - open.file.path == "/t" && process.ancestors.file.name[1] == "sshd"
+      - open.file.path == "/t" && process.ancestors.file.name[2] == "systemd"
+      - open.file.path == "/t" && process.ancestors.file.name[3] == ""
+      - open.file.path == "/t" && process.ancestors.file.name[1] != "sshd"
+      - open.file.path == "/t" && process.ancestors.file.name[1] in ["sshd", "x"]
+      - open.file.path == "/t" && process.ancestors.file.name[0] == process.parent.file.name
+      - open.file.path == "/t" && process.ancestors.uid[0] == 1000
+      - open.file.path == "/t" && process.ancestors.uid[1] == 0
+      - open.file.path == "/t" && process.ancestors.uid[2] >= 0 && process.ancestors.uid[0] > 0
+      - open.file.path == "/t" && process.ancestors.uid[50] == 0
+      - open.file.path == "/t" && process.ancestors.uid[0] in [1000, 1001]
+      - open.file.path == "/t" && process.ancestors.is_exec[0] == true
+      - open.file.path == "/t" && process.ancestors.is_exec[1] == false
+      - open.file.path == "/t" && process.ancestors.is_exec[7] == true
+      - open.file.path == "/t" && process.ancestors.argv[0] == "x"
+    processes:
+      sysd: {pid: 1, fields: {file.name: systemd, uid: 0}}
+      sshd: {pid: 2, parent: sysd, fields: {file.name: sshd, uid: 0}}
+      bash: {pid: 3, parent: sshd, fields: {file.name: bash, uid: 1000, is_exec: true}}
+      cmd: {pid: 4, parent: bash, fields: {file.name: cmd, uid: 1000}}
+    events:
+      - {type: open, process: cmd, fields: {open.file.path: /t}}
+      - {type: open, process: bash, fields: {open.file.path: /t}}
+      - {type: open, process: sshd, fields: {open.file.path: /t}}
+      - {type: open, process: sysd, fields: {open.file.path: /t}}
+
+  - name: array_index_event_fields
+    rules:
+      - dns.question.name == "a.com" && dns.question.name == "a.com"
+      - exec.argv[0] == "-x"
+      - exec.argv[1] == "-y"
+      - exec.argv[1] == ""
+      - exec.argv[0] == "-x" && exec.argv[1] == "-y"
+      - exec.envs[0] == "A=1"
+      - exec.envs[2] == "C=3"
+    processes: {}
+    events:
+      - {type: exec, fields: {exec.argv: ["-x", "-y"], exec.envs: ["A=1", "B=2"]}}
+      - {type: exec, fields: {exec.argv: ["-x"], exec.envs: ["C=3"]}}
+      - {type: exec, fields: {exec.argv: ["-z", "-y"], exec.envs: ["A=2", "B=2", "C=3"]}}
+      - {type: dns, fields: {dns.question.name: a.com}}
+
+  - name: array_index_errors
+    rules:
+      - id: not_array
+        expression: open.file.path == "/t" && process.uid[0] == 1
+      - id: not_array_string
+        expression: open.file.path == "/t" && process.file.name[0] == "a"
+      - id: unknown_base
+        expression: open.file.path == "/t" && process.nope[0] == "a"
+      - id: type_mismatch
+        expression: open.file.path == "/t" && process.argv[0] == 1
+      - id: int_vs_string
+        expression: open.file.path == "/t" && process.ancestors.uid[0] == "a"
+      - id: huge_index
+        expression: open.file.path == "/t" && process.argv[99999999999999999999] == "a"
+      - id: negative
+        expression: open.file.path == "/t" && process.argv[-1] == "a"
+      - id: index_on_event_type_only
+        expression: open.file.path[0] == "/t"
+      - id: ok
+        expression: open.file.path == "/t" && process.argv[0] == "a"
+    processes:
+      a: {pid: 1, fields: {file.name: a, argv: ["a"]}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /t}}
+
+  # --------------------------------------------------------- other iterators
+  - name: ptrace_tracee_ancestors
+    caps: {open: []}
+    rules:
+      - ptrace.request == 16 && ptrace.tracee.ancestors.file.name == "init"
+      - ptrace.request == 16 && ptrace.tracee.ancestors.file.name != "init"
+      - ptrace.request == 16 && ptrace.tracee.ancestors[A].file.name == "init" && ptrace.tracee.ancestors[A].uid == 0
+      - ptrace.request == 16 && ptrace.tracee.ancestors[A].file.name == "init" && ptrace.tracee.ancestors[A].uid == 1
+      - ptrace.request == 16 && ptrace.tracee.ancestors.length == 1
+      - ptrace.request == 16 && ptrace.tracee.ancestors.length == 0
+      - ptrace.request == 16 && ptrace.tracee.ancestors.file.name[0] == "init"
+      - ptrace.request == 16 && ptrace.tracee.ancestors.uid in [0]
+      - ptrace.request == 16 && process.ancestors.file.name == "anc" && ptrace.tracee.ancestors.file.name == "init"
+      - ptrace.request == 16 && process.ancestors[B].file.name == "anc" && ptrace.tracee.ancestors[A].file.name == "init"
+      - ptrace.request == 16 && ptrace.tracee.file.name == "tracee" && ptrace.tracee.parent.file.name == "tp"
+    processes:
+      anc: {pid: 1, fields: {file.name: anc}}
+      me: {pid: 2, parent: anc, fields: {file.name: me}}
+    events:
+      - {type: ptrace, process: me, fields: {ptrace.request: 16, ptrace.tracee.ancestors.file.name: init, ptrace.tracee.ancestors.uid: 0, ptrace.tracee.file.name: tracee}}
+      - {type: ptrace, process: me, fields: {ptrace.request: 16, ptrace.tracee.ancestors.file.name: other, ptrace.tracee.ancestors.uid: 1}}
+      - {type: ptrace, process: me, fields: {ptrace.request: 16, ptrace.tracee.file.name: tracee}}
+      - {type: ptrace, process: anc, fields: {ptrace.request: 16, ptrace.tracee.ancestors.file.name: init, ptrace.tracee.ancestors.uid: 1}}
+
+  - name: signal_target_ancestors
+    caps: {open: []}
+    rules:
+      - signal.type == 9 && signal.target.ancestors.file.name == "init"
+      - signal.type == 9 && signal.target.ancestors.file.name not in ["init"]
+      - signal.type == 9 && signal.target.ancestors[A].file.name == "init" && signal.target.ancestors[A].uid == 0
+      - signal.type == 9 && signal.target.ancestors[A].file.name == "init" && signal.target.ancestors[A].uid == 5
+      - signal.type == 9 && signal.target.ancestors.length >= 1
+      - signal.type == 9 && signal.target.ancestors.length == 0
+      - signal.type == 9 && signal.target.ancestors.file.name[0] == "init"
+      - signal.type == 9 && signal.target.ancestors.is_exec == true
+      - signal.type == 9 && signal.target.file.name == "tgt" && process.ancestors.file.name == "anc"
+    processes:
+      anc: {pid: 1, fields: {file.name: anc}}
+      me: {pid: 2, parent: anc, fields: {file.name: me}}
+    events:
+      - {type: signal, process: me, fields: {signal.type: 9, signal.target.ancestors.file.name: init, signal.target.ancestors.uid: 0, signal.target.file.name: tgt}}
+      - {type: signal, process: me, fields: {signal.type: 9, signal.target.ancestors.file.name: other, signal.target.ancestors.uid: 5, signal.target.ancestors.is_exec: true}}
+      - {type: signal, process: me, fields: {signal.type: 9, signal.target.file.name: tgt}}
+      - {type: signal, process: me, fields: {signal.type: 15, signal.target.ancestors.file.name: init}}
+
+  - name: exec_event_iterators
+    # exec has its own process context whose ancestors are the exec'ing process ones
+    rules:
+      - exec.file.name == "ls" && process.ancestors.file.name == "bash"
+      - exec.file.name == "ls" && process.ancestors[A].file.name == "bash" && process.ancestors[A].uid == 0
+      - exec.file.name == "ls" && process.parent.file.name == "bash"
+      - exec.file.name == "ls" && exec.aws_security_credentials.type == "iam"
+      - exec.file.name == "ls" && exec.aws_security_credentials[K].type == "iam" && exec.aws_security_credentials[K].access_key_id == "AKIA"
+      - exec.file.name == "ls" && exec.aws_security_credentials[K].type == "iam" && exec.aws_security_credentials[K].access_key_id == "OTHER"
+      - exec.file.name == "ls" && exec.aws_security_credentials.length == 1
+      - exec.file.name == "ls" && exec.aws_security_credentials.length == 0
+      - exec.file.name == "ls" && exec.aws_security_credentials.access_key_id[0] == "AKIA"
+      - exec.file.name == "ls" && exec.aws_security_credentials.access_key_id[1] == ""
+    processes:
+      sh: {pid: 1, fields: {file.name: bash, uid: 0}}
+      c: {pid: 2, parent: sh, fields: {file.name: ls}}
+    events:
+      - {type: exec, process: c, fields: {exec.file.name: ls, exec.aws_security_credentials.type: iam, exec.aws_security_credentials.access_key_id: AKIA}}
+      - {type: exec, process: c, fields: {exec.file.name: ls}}
+      - {type: exec, process: sh, fields: {exec.file.name: ls}}
+      - {type: exec, process: c, fields: {exec.file.name: cat, exec.aws_security_credentials.type: iam}}
+
+  - name: network_flows_iterator
+    rules:
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.l4_protocol == 6
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.l4_protocol != 6
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.destination.port == 443
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.destination.port in [80, 443]
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows[A].destination.port == 443 && network_flow_monitor.flows[A].l4_protocol == 6
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows[A].destination.port == 443 && network_flow_monitor.flows[A].l4_protocol == 17
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.length == 1
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.length == 0
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.length > 1
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.source.ip == 10.0.0.1
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.destination.ip in 10.0.0.0/8
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows[A].source.ip == 10.0.0.1 && network_flow_monitor.flows[A].source.port == 1000
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.destination.is_public == true
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.destination.port[0] == 443
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.l4_protocol[0] == 6
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.l4_protocol[1] == 0
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.source.ip[0] == 10.0.0.1
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.source.ip[1] == 10.0.0.1
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows.destination.is_public[0] == false
+      - network_flow_monitor.device.ifname == "eth0" && network_flow_monitor.flows[A].ingress.data_size > 100 && network_flow_monitor.flows[A].egress.packet_count == 3
+    events:
+      - type: network_flow_monitor
+        fields:
+          network_flow_monitor.device.ifname: eth0
+          network_flow_monitor.flows.l4_protocol: 6
+          network_flow_monitor.flows.destination.port: 443
+          network_flow_monitor.flows.destination.ip: 10.1.2.3
+          network_flow_monitor.flows.source.ip: 10.0.0.1
+          network_flow_monitor.flows.source.port: 1000
+          network_flow_monitor.flows.destination.is_public: false
+          network_flow_monitor.flows.ingress.data_size: 500
+          network_flow_monitor.flows.egress.packet_count: 3
+      - type: network_flow_monitor
+        fields:
+          network_flow_monitor.device.ifname: eth0
+          network_flow_monitor.flows.l4_protocol: 17
+          network_flow_monitor.flows.destination.port: 53
+          network_flow_monitor.flows.destination.ip: 8.8.8.8
+          network_flow_monitor.flows.source.ip: 10.0.0.2
+          network_flow_monitor.flows.source.port: 2000
+          network_flow_monitor.flows.destination.is_public: true
+          network_flow_monitor.flows.ingress.data_size: 5
+          network_flow_monitor.flows.egress.packet_count: 1
+      - type: network_flow_monitor
+        fields:
+          network_flow_monitor.device.ifname: eth0
+      - type: network_flow_monitor
+        fields:
+          network_flow_monitor.device.ifname: eth1
+          network_flow_monitor.flows.l4_protocol: 6
+
+  # ------------------------------------------------- shared caches and rules
+  - name: shared_caches_many_rules
+    rules:
+      - open.file.path == "/t" && process.ancestors.file.name == "a"
+      - open.file.path == "/t" && process.ancestors.file.name == "b"
+      - open.file.path == "/t" && process.ancestors.file.name in ["c", "d"]
+      - open.file.path == "/t" && process.ancestors.uid == 1
+      - open.file.path == "/t" && process.ancestors.uid == 2
+      - open.file.path == "/t" && process.ancestors.length == 3
+      - open.file.path == "/t" && process.ancestors[A].file.name == "a" && process.ancestors[A].uid == 1
+      - open.file.path == "/t" && process.ancestors[B].file.name == "b" && process.ancestors[B].uid == 2
+      - open.file.path == "/t" && process.ancestors[C].file.name == "a" && process.ancestors[C].uid == 2
+      - open.file.path == "/t" && process.ancestors.file.name[1] == "b"
+      - open.file.path == "/t" && process.ancestors.is_exec == false
+      - open.file.path == "/t" && process.parent.uid == 3
+      - open.file.path == "/u" && process.ancestors[A].file.name == "b"
+      - open.file.path == "/u" && process.ancestors.file.name == "b"
+    processes:
+      a: {pid: 1, fields: {file.name: a, uid: 1}}
+      b: {pid: 2, parent: a, fields: {file.name: b, uid: 2}}
+      c: {pid: 3, parent: b, fields: {file.name: c, uid: 3}}
+      d: {pid: 4, parent: c, fields: {file.name: d, uid: 4}}
+    events:
+      - {type: open, process: d, fields: {open.file.path: /t}}
+      - {type: open, process: d, fields: {open.file.path: /u}}
+      - {type: open, process: c, fields: {open.file.path: /t}}
+      - {type: open, process: b, fields: {open.file.path: /u}}
+      - {type: open, process: a, fields: {open.file.path: /t}}
+      - {type: open, process: d, fields: {open.file.path: /t}}
+
+  - name: shared_caches_across_event_types
+    rules:
+      - open.file.path == "/t" && process.ancestors[A].file.name == "a" && process.ancestors[A].uid == 1
+      - exec.file.name == "x" && process.ancestors[A].file.name == "a" && process.ancestors[A].uid == 1
+      - exec.file.name == "x" && process.ancestors.file.name == "a"
+      - chmod.file.path == "/t" && process.ancestors.file.name == "b"
+      - chmod.file.path == "/t" && process.ancestors[A].file.name == "b" && process.ancestors[A].uid == 9
+      - mkdir.file.path == "/t" && process.ancestors.length > 1
+      - unlink.file.path == "/t" && process.parent.file.name == "b"
+    processes:
+      a: {pid: 1, fields: {file.name: a, uid: 1}}
+      b: {pid: 2, parent: a, fields: {file.name: b, uid: 2}}
+      c: {pid: 3, parent: b, fields: {file.name: c, uid: 3}}
+    events:
+      - {type: open, process: c, fields: {open.file.path: /t}}
+      - {type: exec, process: c, fields: {exec.file.name: x}}
+      - {type: chmod, process: c, fields: {chmod.file.path: /t}}
+      - {type: mkdir, process: c, fields: {mkdir.file.path: /t}}
+      - {type: unlink, process: c, fields: {unlink.file.path: /t}}
+      - {type: open, process: b, fields: {open.file.path: /t}}
+      - {type: chmod, process: b, fields: {chmod.file.path: /t}}
+
+  # ----------------------------------------------------- iterators and macros
+  - name: iterator_in_macros
+    macros:
+      - id: is_sshd_ancestor
+        expression: process.ancestors.file.name == "sshd"
+      - id: is_root_sshd
+        expression: process.ancestors[A].file.name == "sshd" && process.ancestors[A].uid == 0
+      - id: shells
+        values: ["bash", "zsh"]
+      - id: shell_ancestor
+        expression: process.ancestors.file.name in shells
+      - id: deep
+        expression: process.ancestors.length >= 3
+      - id: nested
+        expression: is_sshd_ancestor && deep
+      - id: parent_is_shell
+        expression: process.parent.file.name in shells
+    rules:
+      - open.file.path == "/t" && is_sshd_ancestor
+      - open.file.path == "/t" && !is_sshd_ancestor
+      - open.file.path == "/t" && is_root_sshd
+      - open.file.path == "/t" && shell_ancestor
+      - open.file.path == "/t" && !shell_ancestor
+      - open.file.path == "/t" && deep
+      - open.file.path == "/t" && nested
+      - open.file.path == "/t" && parent_is_shell
+      - open.file.path == "/t" && is_sshd_ancestor && shell_ancestor
+      - open.file.path == "/t" && (is_sshd_ancestor || deep)
+      - open.file.path == "/t" && process.ancestors.file.name in shells && process.ancestors.uid == 1000
+      - open.file.path == "/t" && process.ancestors[A].file.name in shells && process.ancestors[A].uid == 1000
+      - open.file.path == "/t" && process.ancestors[A].file.name in shells && process.ancestors[A].uid == 0
+      - open.file.path == "/t" && process.ancestors[A].file.name not in shells && process.ancestors[A].uid == 1000
+    processes:
+      p0: {pid: 1, fields: {file.name: systemd, uid: 0}}
+      p1: {pid: 2, parent: p0, fields: {file.name: sshd, uid: 0}}
+      p2: {pid: 3, parent: p1, fields: {file.name: zsh, uid: 1000}}
+      p3: {pid: 4, parent: p2, fields: {file.name: bash, uid: 0}}
+      p4: {pid: 5, parent: p3, fields: {file.name: cat, uid: 1000}}
+      q1: {pid: 6, parent: p0, fields: {file.name: nginx, uid: 33}}
+      q2: {pid: 7, parent: q1, fields: {file.name: worker, uid: 33}}
+    events:
+      - {type: open, process: p4, fields: {open.file.path: /t}}
+      - {type: open, process: p3, fields: {open.file.path: /t}}
+      - {type: open, process: p2, fields: {open.file.path: /t}}
+      - {type: open, process: p1, fields: {open.file.path: /t}}
+      - {type: open, process: q2, fields: {open.file.path: /t}}
+      - {type: open, process: q1, fields: {open.file.path: /t}}
+      - {type: open, process: p0, fields: {open.file.path: /t}}
+
+  - name: iterator_macro_with_registers_error_and_ok
+    macros:
+      - id: reg_a_macro
+        expression: process.ancestors[A].file.name == "a"
+      - id: reg_b_macro
+        expression: process.ancestors[B].uid == 2
+    rules:
+      - id: one_macro_register
+        expression: open.file.path == "/t" && reg_a_macro
+      - id: two_macro_registers
+        expression: open.file.path == "/t" && reg_a_macro && reg_b_macro
+      - id: macro_and_inline_register
+        expression: open.file.path == "/t" && reg_a_macro && process.ancestors[A].uid == 1
+      - id: macro_and_inline_other_register
+        expression: open.file.path == "/t" && reg_a_macro && process.ancestors[C].uid == 1
+    processes:
+      a: {pid: 1, fields: {file.name: a, uid: 1}}
+      b: {pid: 2, parent: a, fields: {file.name: b, uid: 2}}
+      c: {pid: 3, parent: b, fields: {file.name: c, uid: 3}}
+    events:
+      - {type: open, process: c, fields: {open.file.path: /t}}
+      - {type: open, process: b, fields: {open.file.path: /t}}
+      - {type: open, process: a, fields: {open.file.path: /t}}
+
+  # ------------------------------------------------- iterators with variables
+  - name: iterators_with_variables_and_actions
+    rules:
+      - id: setter
+        expression: exec.file.name == "go" && process.ancestors[A].file.name == "sshd" && process.ancestors[A].uid == 0
+        actions:
+          - set: {name: via_ssh, value: true, scope: process}
+      - id: setter_len
+        expression: exec.file.name == "go" && process.ancestors.length > 2
+        actions:
+          - set: {name: depth, value: 1}
+      - id: reader
+        expression: open.file.path == "/t" && ${process.via_ssh} && process.ancestors.file.name == "sshd"
+      - id: reader2
+        expression: open.file.path == "/t" && ${depth} == 1 && process.ancestors[A].file.name == "systemd"
+    processes:
+      p0: {pid: 1, fields: {file.name: systemd, uid: 0}}
+      p1: {pid: 2, parent: p0, fields: {file.name: sshd, uid: 0}}
+      p2: {pid: 3, parent: p1, fields: {file.name: bash, uid: 1000}}
+      p3: {pid: 4, parent: p2, fields: {file.name: tool, uid: 1000}}
+    events:
+      - {type: open, process: p3, fields: {open.file.path: /t}}
+      - {type: exec, process: p3, fields: {exec.file.name: go}}
+      - {type: open, process: p3, fields: {open.file.path: /t}}
+      - {type: open, process: p2, fields: {open.file.path: /t}}
+
+  # ------------------------------------------------- approvers / discarders
+  - name: iterator_rules_approvers
+    rules:
+      - open.file.path == "/t" && process.ancestors.file.name == "sshd"
+      - open.file.path == "/u" && process.ancestors[A].file.name == "sshd" && process.ancestors[A].uid == 0
+      - open.file.path == "/v" && process.ancestors.length > 2
+      - open.file.path in ["/w", "/x"] && process.parent.file.name == "bash"
+      - open.file.path == "/y" && process.argv[0] == "-c"
+    processes:
+      p1: {pid: 2, fields: {file.name: sshd, uid: 0}}
+      p2: {pid: 3, parent: p1, fields: {file.name: bash, uid: 1000, argv: ["-c"]}}
+      p3: {pid: 4, parent: p2, fields: {file.name: cat}}
+    events:
+      - {type: open, process: p3, fields: {open.file.path: /w}}
+      - {type: open, process: p2, fields: {open.file.path: /t}}
+      - {type: open, process: p2, fields: {open.file.path: /u}}
+      - {type: open, process: p2, fields: {open.file.path: /v}}
+      - {type: open, process: p2, fields: {open.file.path: /w}}
+      - {type: open, process: p2, fields: {open.file.path: /y}}
+      - {type: open, process: p1, fields: {open.file.path: /y}}
+      - {type: open, process: p2, fields: {open.file.path: /nomatch}}
+
+  # --------------------------------------------------- register iteration cap
+  - name: register_iteration_cap_100
+    rules:
+      - open.file.path == "/t" && process.ancestors[A].file.name == "n50"
+      - open.file.path == "/t" && process.ancestors[A].file.name == "n99"
+      - open.file.path == "/t" && process.ancestors[A].file.name == "n100"
+      - open.file.path == "/t" && process.ancestors[A].file.name == "n103"
+      - open.file.path == "/t" && process.ancestors.file.name == "n103"
+      - open.file.path == "/t" && process.ancestors.file.name[103] == "n0"
+      - open.file.path == "/t" && process.ancestors.length > 100
+      - open.file.path == "/t" && process.ancestors[A].file.name == "n3" && process.ancestors[A].uid == 3
+    processes:
+      n0: {pid: 1, fields: {file.name: n0, uid: 0}}
+      n1: {pid: 2, parent: n0, fields: {file.name: n1, uid: 1}}
+      n2: {pid: 3, parent: n1, fields: {file.name: n2, uid: 2}}
+      n3: {pid: 4, parent: n2, fields: {file.name: n3, uid: 3}}
+      n4: {pid: 5, parent: n3, fields: {file.name: n4, uid: 4}}
+      n5: {pid: 6, parent: n4, fields: {file.name: n5, uid: 5}}
+      n6: {pid: 7, parent: n5, fields: {file.name: n6, uid: 6}}
+      n7: {pid: 8, parent: n6, fields: {file.name: n7, uid: 7}}
+      n8: {pid: 9, parent: n7, fields: {file.name: n8, uid: 8}}
+      n9: {pid: 10, parent: n8, fields: {file.name: n9, uid: 9}}
+      n10: {pid: 11, parent: n9, fields: {file.name: n10, uid: 10}}
+      n11: {pid: 12, parent: n10, fields: {file.name: n11, uid: 11}}
+      n12: {pid: 13, parent: n11, fields: {file.name: n12, uid: 12}}
+      n13: {pid: 14, parent: n12, fields: {file.name: n13, uid: 13}}
+      n14: {pid: 15, parent: n13, fields: {file.name: n14, uid: 14}}
+      n15: {pid: 16, parent: n14, fields: {file.name: n15, uid: 15}}
+      n16: {pid: 17, parent: n15, fields: {file.name: n16, uid: 16}}
+      n17: {pid: 18, parent: n16, fields: {file.name: n17, uid: 17}}
+      n18: {pid: 19, parent: n17, fields: {file.name: n18, uid: 18}}
+      n19: {pid: 20, parent: n18, fields: {file.name: n19, uid: 19}}
+      n20: {pid: 21, parent: n19, fields: {file.name: n20, uid: 20}}
+      n21: {pid: 22, parent: n20, fields: {file.name: n21, uid: 21}}
+      n22: {pid: 23, parent: n21, fields: {file.name: n22, uid: 22}}
+      n23: {pid: 24, parent: n22, fields: {file.name: n23, uid: 23}}
+      n24: {pid: 25, parent: n23, fields: {file.name: n24, uid: 24}}
+      n25: {pid: 26, parent: n24, fields: {file.name: n25, uid: 25}}
+      n26: {pid: 27, parent: n25, fields: {file.name: n26, uid: 26}}
+      n27: {pid: 28, parent: n26, fields: {file.name: n27, uid: 27}}
+      n28: {pid: 29, parent: n27, fields: {file.name: n28, uid: 28}}
+      n29: {pid: 30, parent: n28, fields: {file.name: n29, uid: 29}}
+      n30: {pid: 31, parent: n29, fields: {file.name: n30, uid: 30}}
+      n31: {pid: 32, parent: n30, fields: {file.name: n31, uid: 31}}
+      n32: {pid: 33, parent: n31, fields: {file.name: n32, uid: 32}}
+      n33: {pid: 34, parent: n32, fields: {file.name: n33, uid: 33}}
+      n34: {pid: 35, parent: n33, fields: {file.name: n34, uid: 34}}
+      n35: {pid: 36, parent: n34, fields: {file.name: n35, uid: 35}}
+      n36: {pid: 37, parent: n35, fields: {file.name: n36, uid: 36}}
+      n37: {pid: 38, parent: n36, fields: {file.name: n37, uid: 37}}
+      n38: {pid: 39, parent: n37, fields: {file.name: n38, uid: 38}}
+      n39: {pid: 40, parent: n38, fields: {file.name: n39, uid: 39}}
+      n40: {pid: 41, parent: n39, fields: {file.name: n40, uid: 40}}
+      n41: {pid: 42, parent: n40, fields: {file.name: n41, uid: 41}}
+      n42: {pid: 43, parent: n41, fields: {file.name: n42, uid: 42}}
+      n43: {pid: 44, parent: n42, fields: {file.name: n43, uid: 43}}
+      n44: {pid: 45, parent: n43, fields: {file.name: n44, uid: 44}}
+      n45: {pid: 46, parent: n44, fields: {file.name: n45, uid: 45}}
+      n46: {pid: 47, parent: n45, fields: {file.name: n46, uid: 46}}
+      n47: {pid: 48, parent: n46, fields: {file.name: n47, uid: 47}}
+      n48: {pid: 49, parent: n47, fields: {file.name: n48, uid: 48}}
+      n49: {pid: 50, parent: n48, fields: {file.name: n49, uid: 49}}
+      n50: {pid: 51, parent: n49, fields: {file.name: n50, uid: 50}}
+      n51: {pid: 52, parent: n50, fields: {file.name: n51, uid: 51}}
+      n52: {pid: 53, parent: n51, fields: {file.name: n52, uid: 52}}
+      n53: {pid: 54, parent: n52, fields: {file.name: n53, uid: 53}}
+      n54: {pid: 55, parent: n53, fields: {file.name: n54, uid: 54}}
+      n55: {pid: 56, parent: n54, fields: {file.name: n55, uid: 55}}
+      n56: {pid: 57, parent: n55, fields: {file.name: n56, uid: 56}}
+      n57: {pid: 58, parent: n56, fields: {file.name: n57, uid: 57}}
+      n58: {pid: 59, parent: n57, fields: {file.name: n58, uid: 58}}
+      n59: {pid: 60, parent: n58, fields: {file.name: n59, uid: 59}}
+      n60: {pid: 61, parent: n59, fields: {file.name: n60, uid: 60}}
+      n61: {pid: 62, parent: n60, fields: {file.name: n61, uid: 61}}
+      n62: {pid: 63, parent: n61, fields: {file.name: n62, uid: 62}}
+      n63: {pid: 64, parent: n62, fields: {file.name: n63, uid: 63}}
+      n64: {pid: 65, parent: n63, fields: {file.name: n64, uid: 64}}
+      n65: {pid: 66, parent: n64, fields: {file.name: n65, uid: 65}}
+      n66: {pid: 67, parent: n65, fields: {file.name: n66, uid: 66}}
+      n67: {pid: 68, parent: n66, fields: {file.name: n67, uid: 67}}
+      n68: {pid: 69, parent: n67, fields: {file.name: n68, uid: 68}}
+      n69: {pid: 70, parent: n68, fields: {file.name: n69, uid: 69}}
+      n70: {pid: 71, parent: n69, fields: {file.name: n70, uid: 70}}
+      n71: {pid: 72, parent: n70, fields: {file.name: n71, uid: 71}}
+      n72: {pid: 73, parent: n71, fields: {file.name: n72, uid: 72}}
+      n73: {pid: 74, parent: n72, fields: {file.name: n73, uid: 73}}
+      n74: {pid: 75, parent: n73, fields: {file.name: n74, uid: 74}}
+      n75: {pid: 76, parent: n74, fields: {file.name: n75, uid: 75}}
+      n76: {pid: 77, parent: n75, fields: {file.name: n76, uid: 76}}
+      n77: {pid: 78, parent: n76, fields: {file.name: n77, uid: 77}}
+      n78: {pid: 79, parent: n77, fields: {file.name: n78, uid: 78}}
+      n79: {pid: 80, parent: n78, fields: {file.name: n79, uid: 79}}
+      n80: {pid: 81, parent: n79, fields: {file.name: n80, uid: 80}}
+      n81: {pid: 82, parent: n80, fields: {file.name: n81, uid: 81}}
+      n82: {pid: 83, parent: n81, fields: {file.name: n82, uid: 82}}
+      n83: {pid: 84, parent: n82, fields: {file.name: n83, uid: 83}}
+      n84: {pid: 85, parent: n83, fields: {file.name: n84, uid: 84}}
+      n85: {pid: 86, parent: n84, fields: {file.name: n85, uid: 85}}
+      n86: {pid: 87, parent: n85, fields: {file.name: n86, uid: 86}}
+      n87: {pid: 88, parent: n86, fields: {file.name: n87, uid: 87}}
+      n88: {pid: 89, parent: n87, fields: {file.name: n88, uid: 88}}
+      n89: {pid: 90, parent: n88, fields: {file.name: n89, uid: 89}}
+      n90: {pid: 91, parent: n89, fields: {file.name: n90, uid: 90}}
+      n91: {pid: 92, parent: n90, fields: {file.name: n91, uid: 91}}
+      n92: {pid: 93, parent: n91, fields: {file.name: n92, uid: 92}}
+      n93: {pid: 94, parent: n92, fields: {file.name: n93, uid: 93}}
+      n94: {pid: 95, parent: n93, fields: {file.name: n94, uid: 94}}
+      n95: {pid: 96, parent: n94, fields: {file.name: n95, uid: 95}}
+      n96: {pid: 97, parent: n95, fields: {file.name: n96, uid: 96}}
+      n97: {pid: 98, parent: n96, fields: {file.name: n97, uid: 97}}
+      n98: {pid: 99, parent: n97, fields: {file.name: n98, uid: 98}}
+      n99: {pid: 100, parent: n98, fields: {file.name: n99, uid: 99}}
+      n100: {pid: 101, parent: n99, fields: {file.name: n100, uid: 100}}
+      n101: {pid: 102, parent: n100, fields: {file.name: n101, uid: 101}}
+      n102: {pid: 103, parent: n101, fields: {file.name: n102, uid: 102}}
+      n103: {pid: 104, parent: n102, fields: {file.name: n103, uid: 103}}
+      n104: {pid: 105, parent: n103, fields: {file.name: n104, uid: 104}}
+    events:
+      - {type: open, process: n104, fields: {open.file.path: /t}}
+      - {type: open, process: n60, fields: {open.file.path: /t}}
+      - {type: open, process: n10, fields: {open.file.path: /t}}

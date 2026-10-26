@@ -1,0 +1,4498 @@
+expression_macro_bool:
+    rules:
+        either:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+                - process.uid
+        not_root:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:""
+                    - scalar:""
+        root_tmp:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:""
+                    - scalar:""
+        write_not_tmp:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+                - process.uid
+    approvers:
+        open:
+            accept_mode: root_tmp
+    discarders_report:
+        open.file.path: supported
+    event_types:
+        - open
+    macro_ids:
+        - is_root
+        - tmp_file
+        - write_flag
+    field_values:
+        open.file.path:
+            - scalar:""
+            - scalar:""
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [either not_root root_tmp write_not_tmp]
+    rule_ids:
+        - either
+        - not_root
+        - root_tmp
+        - write_not_tmp
+    approvers_all:
+        - accept_mode open=root_tmp
+    policy_rules:
+        - policy0/root_tmp accepted=true disabled=false expression="open.file.path != \"\" && is_root && tmp_file" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/not_root accepted=true disabled=false expression="open.file.path != \"\" && !is_root" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/write_not_tmp accepted=true disabled=false expression="write_flag && !tmp_file" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/either accepted=true disabled=false expression="is_root || write_flag" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - root_tmp
+            - either
+          second_listener:
+            - root_tmp
+            - either
+          matching_values:
+            root_tmp:
+                - open.file.path="/tmp/a"@0+14
+          partials:
+            either:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            not_root:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "false"
+            root_tmp:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            write_not_tmp:
+                open.file.path: "false"
+                open.flags: "false"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - not_root
+          second_listener:
+            - not_root
+          partials:
+            either:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            not_root:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            root_tmp:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "false"
+            write_not_tmp:
+                open.file.path: "false"
+                open.flags: "false"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 20(true) own=20(true)
+        - result: true
+          matched:
+            - not_root
+            - write_not_tmp
+            - either
+          second_listener:
+            - not_root
+            - write_not_tmp
+            - either
+          partials:
+            either:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            not_root:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            root_tmp:
+                open.file.path: "false"
+                open.flags: "true"
+                process.uid: "false"
+            write_not_tmp:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 20(true) own=20(true)
+        - result: true
+          matched:
+            - not_root
+            - either
+          second_listener:
+            - not_root
+            - either
+          partials:
+            either:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            not_root:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            root_tmp:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "false"
+            write_not_tmp:
+                open.file.path: "false"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 20(true) own=20(true)
+        - result: true
+          matched:
+            - write_not_tmp
+            - either
+          second_listener:
+            - write_not_tmp
+            - either
+          partials:
+            either:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            not_root:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "false"
+            root_tmp:
+                open.file.path: "false"
+                open.flags: "true"
+                process.uid: "true"
+            write_not_tmp:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - not_root
+          second_listener:
+            - not_root
+          partials:
+            either:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            not_root:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            root_tmp:
+                open.file.path: "false"
+                open.flags: "true"
+                process.uid: "false"
+            write_not_tmp:
+                open.file.path: "true"
+                open.flags: "false"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 20(true) own=20(true)
+macro_agent_version_alternative_definitions:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"old"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"old"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"old"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="new"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="old"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_agent_version_invalid_constraint:
+    load_errors:
+        - 'macro `names` definition error: error when evaluating one of the macro filters: failed to parse agent version constraint: improper constraint: "not a constraint"'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"b"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"b"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names2
+    field_values:
+        open.file.name:
+            - scalar:"b"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names2" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="b"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_agent_version_rules_filtered:
+    load_errors:
+        - 'rule `bad_ver_rule` error: failed to parse agent version constraint: improper constraint: "garbage"'
+    filtered_rules:
+        - new_rule
+    rules:
+        ok_rule:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - m
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [ok_rule]
+    rule_ids:
+        - ok_rule
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/new_rule accepted=false disabled=false expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ok_rule accepted=true disabled=false expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/bad_ver_rule accepted=false disabled=false expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - ok_rule
+          second_listener:
+            - ok_rule
+          matching_values:
+            ok_rule:
+                - open.file.name="a"@0+14
+          partials:
+            ok_rule:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_agent_version_values:
+    load_errors:
+        - 'rule `r_names_new` error: rule compilation error: field `names_new` not found'
+        - 'rule `r_old` error: rule compilation error: field `expr_old` not found'
+    rules:
+        r_names:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"a"
+        r_ok:
+            event_type: open
+            fields:
+                - open.file.name
+    approvers:
+        open:
+            accept_mode: r_ok
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - expr_ok
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r_names r_names_new r_ok r_old]
+    rule_ids:
+        - r_names
+        - r_ok
+    approvers_all:
+        - accept_mode open=r_ok
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r_names accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r_names_new accepted=true disabled=false expression="open.file.name in names_new" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r_old accepted=true disabled=false expression="expr_old" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r_ok accepted=true disabled=false expression="expr_ok" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r_names
+          second_listener:
+            - r_names
+          matching_values:
+            r_names:
+                - open.file.name="a"@0+14
+          partials:
+            r_names:
+                open.file.name: "true"
+            r_ok:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r_names:
+                open.file.name: "false"
+            r_ok:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r_names:
+                open.file.name: "false"
+            r_ok:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="old"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r_ok
+          second_listener:
+            - r_ok
+          partials:
+            r_names:
+                open.file.name: "false"
+            r_ok:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_bare_rules_two_event_types:
+    load_errors:
+        - 'rule `ok2` error: expression with multiple event types is not supported'
+        - 'rule `ok3` error: expression with multiple event types is not supported'
+        - 'rule `ok4` error: expression with multiple event types is not supported'
+        - 'rule `ok` error: expression with multiple event types is not supported'
+        - 'rule `plain` error: expression with multiple event types is not supported'
+    macro_ids:
+        - exec_macro
+        - open_macro
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [ok ok2 ok3 ok4 plain]
+    policy_rules:
+        - policy0/ok accepted=true disabled=false expression="exec_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ok2 accepted=true disabled=false expression="open_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ok3 accepted=true disabled=false expression="exec_macro && exec.file.name != \"\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ok4 accepted=true disabled=false expression="open.file.path != \"\" && open_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/plain accepted=true disabled=false expression="exec.file.name == \"y\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_boolean_expressions:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - open.flags
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - open.flags
+        c:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.name
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"q"
+                    - scalar:"q"
+        d:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - open.flags
+            field_values:
+                open.file.path:
+                    - scalar:"/i"
+                    - scalar:"/i"
+                    - scalar:"/i"
+                    - scalar:"/i"
+                    - scalar:"/i"
+        e:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - open.flags
+        f:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - open.flags
+    approvers:
+        open:
+            accept_mode: a
+    discarders_report:
+        open.file.name: supported
+        open.file.path: supported
+    event_types:
+        - open
+    macro_ids:
+        - paren_or
+        - with_and
+        - with_int
+        - with_not
+        - with_re
+        - with_regex
+    field_values:
+        open.file.name:
+            - scalar:"q"
+        open.file.path:
+            - scalar:"/i"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b c d e f]
+    rule_ids:
+        - a
+        - b
+        - c
+        - d
+        - e
+        - f
+    approvers_all:
+        - accept_mode open=a
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="paren_or" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/b accepted=true disabled=false expression="with_and" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/c accepted=true disabled=false expression="with_not && open.file.name == \"q\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/d accepted=true disabled=false expression="with_int && open.file.path == \"/i\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/e accepted=true disabled=false expression="with_re" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/f accepted=true disabled=false expression="with_regex" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - b
+          second_listener:
+            - b
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          discarders:
+            - open:open.file.path="/d"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - c
+          second_listener:
+            - c
+          matching_values:
+            c:
+                - open.file.name="q"@12+14
+                - ="q"@30+3
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - d
+          second_listener:
+            - d
+          matching_values:
+            d:
+                - open.file.path="/i"@12+14
+                - ="/i"@30+4
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - e
+          second_listener:
+            - e
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - f
+          second_listener:
+            - f
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "true"
+                open.file.path: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.file.path: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "false"
+            e:
+                open.file.name: "true"
+                open.file.path: "false"
+                open.flags: "true"
+            f:
+                open.file.name: "false"
+                open.file.path: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_both_expression_and_values:
+    load_errors:
+        - 'macro `bad` definition error: only one of ''expression'' and ''values'' can be defined'
+        - 'rule `uses_bad` error: rule compilation error: field `bad` not found'
+    rules:
+        uses_good:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/y"
+    approvers:
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/y"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        open.file.path: supported
+    event_types:
+        - open
+    macro_ids:
+        - good
+    field_values:
+        open.file.path:
+            - scalar:"/y"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [uses_bad uses_good]
+    rule_ids:
+        - uses_good
+    approvers_all:
+        - field_stats open.file.path=1
+    policy_rules:
+        - policy0/uses_bad accepted=true disabled=false expression="bad" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/uses_good accepted=true disabled=false expression="open.file.path in good" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            uses_good:
+                open.file.path: "false"
+          discarders:
+            - open:open.file.path="/x"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - uses_good
+          second_listener:
+            - uses_good
+          matching_values:
+            uses_good:
+                - open.file.path="/y"@0+14
+          partials:
+            uses_good:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_cidr_and_ip:
+    rules:
+        ext:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+                - connect.addr.ip
+                - connect.addr.ip
+                - connect.addr.port
+            field_values:
+                connect.addr.ip:
+                    - ip:0.0.0.0/32
+                    - ip:0.0.0.0/32
+                    - ip:0.0.0.0/32
+        loc:
+            event_type: connect
+            fields:
+                - connect.addr.ip
+                - connect.addr.ip
+                - connect.addr.port
+    approvers:
+        connect:
+            accept_mode: ext
+    discarders_report:
+        connect.addr.ip: supported
+    event_types:
+        - connect
+    macro_ids:
+        - internal
+        - localhost
+        - ports
+    field_values:
+        connect.addr.ip:
+            - ip:0.0.0.0/32
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [ext loc]
+    rule_ids:
+        - ext
+        - loc
+    approvers_all:
+        - accept_mode connect=ext
+    policy_rules:
+        - policy0/ext accepted=true disabled=false expression="connect.addr.ip != 0.0.0.0/32 && !internal && ports" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/loc accepted=true disabled=false expression="localhost || internal" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - loc
+          second_listener:
+            - loc
+          partials:
+            ext:
+                connect.addr.ip: "false"
+                connect.addr.port: "true"
+            loc:
+                connect.addr.ip: "true"
+                connect.addr.port: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - ext
+          second_listener:
+            - ext
+          partials:
+            ext:
+                connect.addr.ip: "true"
+                connect.addr.port: "true"
+            loc:
+                connect.addr.ip: "false"
+                connect.addr.port: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            ext:
+                connect.addr.ip: "true"
+                connect.addr.port: "false"
+            loc:
+                connect.addr.ip: "false"
+                connect.addr.port: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - ext
+            - loc
+          second_listener:
+            - ext
+            - loc
+          partials:
+            ext:
+                connect.addr.ip: "true"
+                connect.addr.port: "true"
+            loc:
+                connect.addr.ip: "true"
+                connect.addr.port: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - loc
+          second_listener:
+            - loc
+          partials:
+            ext:
+                connect.addr.ip: "false"
+                connect.addr.port: "false"
+            loc:
+                connect.addr.ip: "true"
+                connect.addr.port: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_defined_only_in_second_policy:
+    rules:
+        first:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+        uses_late:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"z"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"z"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - late
+        - late_expr
+    field_values:
+        open.file.name:
+            - scalar:"a"
+            - scalar:"z"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [first]
+        - policy1(oracle) internal_type= type= version= replace= [uses_late]
+    rule_ids:
+        - first
+        - uses_late
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/first accepted=true disabled=false expression="open.file.name == \"a\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy1/uses_late accepted=true disabled=false expression="open.file.name in late && late_expr" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - uses_late
+          second_listener:
+            - uses_late
+          matching_values:
+            uses_late:
+                - open.file.name="z"@0+14
+          partials:
+            first:
+                open.file.name: "false"
+                open.flags: "false"
+            uses_late:
+                open.file.name: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            first:
+                open.file.name: "false"
+                open.flags: "false"
+            uses_late:
+                open.file.name: "true"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - first
+          second_listener:
+            - first
+          matching_values:
+            first:
+                - open.file.name="a"@0+14
+                - ="a"@18+3
+          partials:
+            first:
+                open.file.name: "true"
+                open.flags: "true"
+            uses_late:
+                open.file.name: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_disabled_rule_uses_macro:
+    rules:
+        active:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - m
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [active off]
+    rule_ids:
+        - active
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/active accepted=true disabled=false expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/off accepted=true disabled=true expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - active
+          second_listener:
+            - active
+          matching_values:
+            active:
+                - open.file.name="a"@0+14
+          partials:
+            active:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_empty_policy_and_unknown_combine:
+    load_errors:
+        - 'error loading policy `policy1` from source `oracle`: the policy is empty'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+        - policy2(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="z"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_expression_redefined_in_policy:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+    approvers:
+        open:
+            accept_mode: r
+    event_types:
+        - open
+    macro_ids:
+        - m
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+        - policy2(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - accept_mode open=r
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_fim_write_rejected:
+    load_errors:
+        - 'macro `fimmacro` definition error: macro expression cannot contain ''fim.write.file.'' event types'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.path
+    approvers:
+        open:
+            accept_mode: r
+    event_types:
+        - open
+    macro_ids:
+        - okmacro
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - accept_mode open=r
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="okmacro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          partials:
+            r:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_in_mixed_array:
+    load_errors:
+        - 'rule `mixed` error: syntax error `1:25: unexpected token "," (expected "]")`'
+    rules:
+        nested:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"foo"
+                    - scalar:"bar"
+                    - scalar:"baz"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"foo"
+                    - scalar:"bar"
+                    - scalar:"baz"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"bar"
+            - scalar:"baz"
+            - scalar:"foo"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [mixed nested]
+    rule_ids:
+        - nested
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/mixed accepted=true disabled=false expression="open.file.name in [names, \"baz\"]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nested accepted=true disabled=false expression="open.file.name in names || open.file.name == \"baz\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - nested
+          second_listener:
+            - nested
+          matching_values:
+            nested:
+                - open.file.name="foo"@0+14
+          partials:
+            nested:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - nested
+          second_listener:
+            - nested
+          matching_values:
+            nested:
+                - open.file.name="baz"@27+14
+                - ="baz"@45+5
+          partials:
+            nested:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            nested:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="nope"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_int_array_and_primary:
+    rules:
+        int_arr:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:4
+        int_prim:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:3
+        no_rule:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/n"
+        str_arr:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/a"
+                    - scalar:"/b"
+        str_prim:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/a"
+        yes_rule:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/y"
+    approvers:
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/y"
+                    - scalar:"/n"
+                    - scalar:"/a"
+                    - scalar:"/b"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:4
+                    - scalar:3
+            field_stats:
+                open.file.path: 4
+                open.flags: 2
+    discarders_report:
+        open.file.path: 'invalid: int_arr'
+        open.flags: 'invalid: yes_rule'
+    event_types:
+        - open
+    macro_ids:
+        - flags
+        - "no"
+        - num
+        - one_str
+        - strs
+        - "yes"
+    field_values:
+        open.file.path:
+            - scalar:"/a"
+            - scalar:"/a"
+            - scalar:"/b"
+            - scalar:"/n"
+            - scalar:"/y"
+        open.flags:
+            - scalar:1
+            - scalar:2
+            - scalar:3
+            - scalar:4
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [int_arr int_prim no_rule str_arr str_prim yes_rule]
+    rule_ids:
+        - int_arr
+        - int_prim
+        - no_rule
+        - str_arr
+        - str_prim
+        - yes_rule
+    approvers_all:
+        - field_stats open.file.path=4
+        - field_stats open.flags=2
+    policy_rules:
+        - policy0/int_arr accepted=true disabled=false expression="open.flags in flags" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/yes_rule accepted=true disabled=false expression="yes && open.file.path == \"/y\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/no_rule accepted=true disabled=false expression="no || open.file.path == \"/n\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/str_arr accepted=true disabled=false expression="open.file.path in strs" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/str_prim accepted=true disabled=false expression="open.file.path == one_str" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/int_prim accepted=true disabled=false expression="open.flags == num" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - int_arr
+            - yes_rule
+          second_listener:
+            - int_arr
+            - yes_rule
+          matching_values:
+            int_arr:
+                - open.flags=1@0+10
+            yes_rule:
+                - open.file.path="/y"@7+14
+                - ="/y"@25+4
+          partials:
+            int_arr:
+                open.flags: "true"
+            int_prim:
+                open.flags: "false"
+            no_rule:
+                open.file.path: "false"
+            str_arr:
+                open.file.path: "false"
+            str_prim:
+                open.file.path: "false"
+            yes_rule:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - no_rule
+            - int_prim
+          second_listener:
+            - no_rule
+            - int_prim
+          matching_values:
+            int_prim:
+                - open.flags=3@0+10
+            no_rule:
+                - open.file.path="/n"@6+14
+                - ="/n"@24+4
+          partials:
+            int_arr:
+                open.flags: "false"
+            int_prim:
+                open.flags: "true"
+            no_rule:
+                open.file.path: "true"
+            str_arr:
+                open.file.path: "false"
+            str_prim:
+                open.file.path: "false"
+            yes_rule:
+                open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - str_arr
+          second_listener:
+            - str_arr
+          matching_values:
+            str_arr:
+                - open.file.path="/b"@0+14
+          partials:
+            int_arr:
+                open.flags: "false"
+            int_prim:
+                open.flags: "false"
+            no_rule:
+                open.file.path: "false"
+            str_arr:
+                open.file.path: "true"
+            str_prim:
+                open.file.path: "false"
+            yes_rule:
+                open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - int_arr
+            - str_arr
+            - str_prim
+          second_listener:
+            - int_arr
+            - str_arr
+            - str_prim
+          matching_values:
+            int_arr:
+                - open.flags=4@0+10
+            str_arr:
+                - open.file.path="/a"@0+14
+            str_prim:
+                - open.file.path="/a"@0+14
+          partials:
+            int_arr:
+                open.flags: "true"
+            int_prim:
+                open.flags: "false"
+            no_rule:
+                open.file.path: "false"
+            str_arr:
+                open.file.path: "true"
+            str_prim:
+                open.file.path: "true"
+            yes_rule:
+                open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            int_arr:
+                open.flags: "false"
+            int_prim:
+                open.flags: "false"
+            no_rule:
+                open.file.path: "false"
+            str_arr:
+                open.file.path: "false"
+            str_prim:
+                open.file.path: "false"
+            yes_rule:
+                open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_invalid_id:
+    load_errors:
+        - 'macro `bad id!` definition error: ID does not match pattern `^[a-zA-Z0-9_]*$`'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - good_one
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in good_one" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_merge_expression_error:
+    load_errors:
+        - 'macro `m` definition error: cannot merge expression'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+    approvers:
+        open:
+            accept_mode: r
+    event_types:
+        - open
+    macro_ids:
+        - m
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - accept_mode open=r
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_merge_into_expression_error:
+    load_errors:
+        - 'macro `m` definition error: cannot merge expression'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - m
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_merge_three_policies:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"d"
+        r2:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"q"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"d"
+                    - scalar:"q"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+        - other
+    field_values:
+        open.file.name:
+            - scalar:"d"
+            - scalar:"q"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+        - policy2(oracle) internal_type= type= version= replace= [r2]
+        - policy3(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+        - r2
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy2/r2 accepted=true disabled=false expression="open.file.name in other" tags=[] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+    steps:
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+            r2:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="a"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+            r2:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+            r2:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="c"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="d"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+            r2:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r2
+          second_listener:
+            - r2
+          matching_values:
+            r2:
+                - open.file.name="q"@0+14
+          partials:
+            r:
+                open.file.name: "false"
+            r2:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_merge_values:
+    rules:
+        extra:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"zzz"
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+                    - scalar:"c"
+                    - scalar:"d"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+                    - scalar:"c"
+                    - scalar:"d"
+                    - scalar:"zzz"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"a"
+            - scalar:"b"
+            - scalar:"c"
+            - scalar:"d"
+            - scalar:"zzz"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= [extra]
+    rule_ids:
+        - extra
+        - r
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy1/extra accepted=true disabled=false expression="open.file.name == \"zzz\"" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            extra:
+                open.file.name: "false"
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="c"@0+14
+          partials:
+            extra:
+                open.file.name: "false"
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="d"@0+14
+          partials:
+            extra:
+                open.file.name: "false"
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            extra:
+                open.file.name: "false"
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="e"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_mixed_event_types_in_expression:
+    load_errors:
+        - 'macro `bad` definition error: compilation error: macro compilation error: expression with multiple event types is not supported'
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.path
+        r2:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            accept_mode: r
+    discarders_report:
+        open.flags: 'invalid: r'
+    event_types:
+        - open
+    macro_ids:
+        - good
+    field_values:
+        open.flags:
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r r2]
+    rule_ids:
+        - r
+        - r2
+    approvers_all:
+        - accept_mode open=r
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="good" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r2 accepted=true disabled=false expression="good && open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+            - r2
+          second_listener:
+            - r
+            - r2
+          matching_values:
+            r2:
+                - open.flags=1@8+10
+                - =1@22+1
+          partials:
+            r:
+                open.file.path: "true"
+            r2:
+                open.file.path: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          partials:
+            r:
+                open.file.path: "true"
+            r2:
+                open.file.path: "true"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_multi_event_type_error:
+    load_errors:
+        - 'rule `mixed_types` error: expression with multiple event types is not supported'
+        - 'rule `ok` error: expression with multiple event types is not supported'
+    macro_ids:
+        - exec_macro
+        - open_macro
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [mixed_types ok]
+    policy_rules:
+        - policy0/mixed_types accepted=true disabled=false expression="open_macro && exec_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ok accepted=true disabled=false expression="exec_macro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_name_collisions:
+    load_errors:
+        - 'rule `coll2` error: no event in the rule definition'
+    rules:
+        coll:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - open
+        - process
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [coll coll2]
+    rule_ids:
+        - coll
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/coll accepted=true disabled=false expression="open.file.name in open" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/coll2 accepted=true disabled=false expression="process.file.name in process" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - coll
+          second_listener:
+            - coll
+          matching_values:
+            coll:
+                - open.file.name="a"@0+14
+          partials:
+            coll:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: false
+          partials:
+            coll:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+macro_override_rule_with_macro:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - m1
+        - m2
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in m1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/r accepted=true disabled=false expression="open.file.name in m2" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_override_then_merge:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"x"
+                    - scalar:"y"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"x"
+                    - scalar:"y"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"x"
+            - scalar:"y"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+        - policy2(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="a"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="x"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="y"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_override_values:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"x"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"x"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"x"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="a"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="x"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_prerelease_agent_version:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - m
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_redefined_without_combine:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"a"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+        - policy1(oracle) internal_type= type= version= replace= []
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="b"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_references_macro:
+    rules:
+        l1:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+                - process.uid
+        l2:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+                - process.uid
+        l3:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+                - process.uid
+        l3b:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.file.path
+                - open.flags
+                - process.uid
+            field_values:
+                open.file.path:
+                    - scalar:"/x"
+                    - scalar:"/x"
+    approvers:
+        open:
+            accept_mode: l1
+    discarders_report:
+        open.file.path: supported
+    event_types:
+        - open
+    macro_ids:
+        - base_dirs
+        - is_sensitive
+        - is_sensitive_root_write
+        - is_sensitive_write
+    field_values:
+        open.file.path:
+            - scalar:"/x"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [l1 l2 l3 l3b]
+    rule_ids:
+        - l1
+        - l2
+        - l3
+        - l3b
+    approvers_all:
+        - accept_mode open=l1
+    policy_rules:
+        - policy0/l1 accepted=true disabled=false expression="is_sensitive" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/l2 accepted=true disabled=false expression="is_sensitive_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/l3 accepted=true disabled=false expression="is_sensitive_root_write" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/l3b accepted=true disabled=false expression="is_sensitive_root_write || open.file.path == \"/x\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - l1
+          second_listener:
+            - l1
+          partials:
+            l1:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l2:
+                open.file.path: "true"
+                open.flags: "false"
+                process.uid: "true"
+            l3:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l3b:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - l1
+            - l2
+            - l3
+            - l3b
+          second_listener:
+            - l1
+            - l2
+            - l3
+            - l3b
+          matching_values:
+            l3b:
+                - open.file.path="/etc/passwd"@27+14
+          partials:
+            l1:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l2:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l3:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l3b:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - l1
+            - l2
+          second_listener:
+            - l1
+            - l2
+          partials:
+            l1:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l2:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l3:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "false"
+            l3b:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 2(true) own=2(true)
+        - result: false
+          partials:
+            l1:
+                open.file.path: "false"
+                open.flags: "true"
+                process.uid: "true"
+            l2:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l3:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "false"
+            l3b:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 2(true) own=2(true)
+        - result: true
+          matched:
+            - l3b
+          second_listener:
+            - l3b
+          matching_values:
+            l3b:
+                - open.file.path="/x"@27+14
+                - ="/x"@45+4
+          partials:
+            l1:
+                open.file.path: "false"
+                open.flags: "true"
+                process.uid: "true"
+            l2:
+                open.file.path: "true"
+                open.flags: "false"
+                process.uid: "true"
+            l3:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+            l3b:
+                open.file.path: "true"
+                open.flags: "true"
+                process.uid: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+macro_shared_between_rules:
+    rules:
+        s1:
+            event_type: open
+            fields:
+                - open.file.name
+                - process.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+        s2:
+            event_type: open
+            fields:
+                - open.file.name
+                - process.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+        s3:
+            event_type: mkdir
+            fields:
+                - mkdir.file.name
+                - process.file.name
+            field_values:
+                mkdir.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+        s4:
+            event_type: open
+            fields:
+                - open.file.name
+                - process.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+        s5:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.path
+                - process.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+                open.file.path:
+                    - scalar:"/tmp/b"
+    approvers:
+        mkdir:
+            approvers:
+                mkdir.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+            field_stats:
+                mkdir.file.name: 1
+        open:
+            accept_mode: s4
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        mkdir.file.name: supported
+        open.file.name: supported
+        open.file.path: 'invalid: s1'
+    event_types:
+        - mkdir
+        - open
+    macro_ids:
+        - m_bash
+        - m_list
+    field_values:
+        mkdir.file.name:
+            - scalar:"a"
+            - scalar:"b"
+        open.file.name:
+            - scalar:"a"
+            - scalar:"a"
+            - scalar:"a"
+            - scalar:"a"
+            - scalar:"b"
+            - scalar:"b"
+            - scalar:"b"
+            - scalar:"b"
+        open.file.path:
+            - scalar:"/tmp/b"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [s1 s2 s3 s4 s5]
+    rule_ids:
+        - s1
+        - s2
+        - s3
+        - s4
+        - s5
+    approvers_all:
+        - accept_mode open=s4
+        - field_stats mkdir.file.name=1
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/s1 accepted=true disabled=false expression="open.file.name in m_list && m_bash" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/s2 accepted=true disabled=false expression="open.file.name in m_list && !m_bash" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/s3 accepted=true disabled=false expression="mkdir.file.name in m_list && m_bash" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/s4 accepted=true disabled=false expression="m_bash && open.file.name not in m_list" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/s5 accepted=true disabled=false expression="m_bash && open.file.name in m_list && open.file.path != \"/tmp/b\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - s1
+            - s5
+          second_listener:
+            - s1
+            - s5
+          matching_values:
+            s1:
+                - open.file.name="a"@0+14
+            s5:
+                - open.file.name="a"@10+14
+          partials:
+            s1:
+                open.file.name: "true"
+                process.file.name: "true"
+            s2:
+                open.file.name: "true"
+                process.file.name: "false"
+            s4:
+                open.file.name: "false"
+                process.file.name: "true"
+            s5:
+                open.file.name: "true"
+                open.file.path: "true"
+                process.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - s2
+          second_listener:
+            - s2
+          matching_values:
+            s2:
+                - open.file.name="a"@0+14
+          partials:
+            s1:
+                open.file.name: "true"
+                process.file.name: "false"
+            s2:
+                open.file.name: "true"
+                process.file.name: "true"
+            s4:
+                open.file.name: "false"
+                process.file.name: "false"
+            s5:
+                open.file.name: "true"
+                open.file.path: "true"
+                process.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 2(true) own=2(true)
+        - result: true
+          matched:
+            - s1
+          second_listener:
+            - s1
+          matching_values:
+            s1:
+                - open.file.name="b"@0+14
+          partials:
+            s1:
+                open.file.name: "true"
+                process.file.name: "true"
+            s2:
+                open.file.name: "true"
+                process.file.name: "false"
+            s4:
+                open.file.name: "false"
+                process.file.name: "true"
+            s5:
+                open.file.name: "true"
+                open.file.path: "false"
+                process.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - s4
+          second_listener:
+            - s4
+          partials:
+            s1:
+                open.file.name: "false"
+                process.file.name: "true"
+            s2:
+                open.file.name: "false"
+                process.file.name: "false"
+            s4:
+                open.file.name: "true"
+                process.file.name: "true"
+            s5:
+                open.file.name: "false"
+                open.file.path: "true"
+                process.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: true
+          matched:
+            - s3
+          second_listener:
+            - s3
+          matching_values:
+            s3:
+                - mkdir.file.name="a"@0+15
+          partials:
+            s3:
+                mkdir.file.name: "true"
+                process.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+        - result: false
+          partials:
+            s3:
+                mkdir.file.name: "true"
+                process.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 2(true) own=2(true)
+        - result: false
+          partials:
+            s3:
+                mkdir.file.name: "false"
+                process.file.name: "true"
+          discarders:
+            - mkdir:mkdir.file.name="z"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 1(true) own=1(true)
+macro_syntax_error:
+    load_errors:
+        - 'macro `broken_field` definition error: compilation error: macro compilation error: field `open.nonexistent` not found'
+        - |-
+          macro `broken_type` definition error: compilation error: macro syntax error: open.file.path == 1
+                            ^
+        - 'macro `broken` definition error: syntax error: 1:18: unexpected token "<EOF>" (expected Comparison)'
+        - 'rule `r_broken` error: rule compilation error: field `broken` not found'
+    rules:
+        r_fine:
+            event_type: open
+            fields:
+                - open.file.path
+    approvers:
+        open:
+            accept_mode: r_fine
+    event_types:
+        - open
+    macro_ids:
+        - fine
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r_broken r_fine]
+    rule_ids:
+        - r_fine
+    approvers_all:
+        - accept_mode open=r_fine
+    policy_rules:
+        - policy0/r_fine accepted=true disabled=false expression="fine" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r_broken accepted=true disabled=false expression="broken" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r_fine
+          second_listener:
+            - r_fine
+          partials:
+            r_fine:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_unknown_reference:
+    load_errors:
+        - 'rule `unknown_bare` error: rule compilation error: field `nomacro` not found'
+        - 'rule `unknown` error: rule compilation error: field `nomacro` not found'
+    rules:
+        fine:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/x"
+    approvers:
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/x"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        open.file.path: supported
+    event_types:
+        - open
+    field_values:
+        open.file.path:
+            - scalar:"/x"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [fine unknown unknown_bare]
+    rule_ids:
+        - fine
+    approvers_all:
+        - field_stats open.file.path=1
+    policy_rules:
+        - policy0/unknown accepted=true disabled=false expression="open.file.path in nomacro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/unknown_bare accepted=true disabled=false expression="nomacro" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/fine accepted=true disabled=false expression="open.file.path == \"/x\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - fine
+          second_listener:
+            - fine
+          matching_values:
+            fine:
+                - open.file.path="/x"@0+14
+                - ="/x"@18+4
+          partials:
+            fine:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_unused_and_dangling:
+    rules:
+        only_used:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.file.path
+    approvers:
+        open:
+            accept_mode: only_used
+    event_types:
+        - open
+    macro_ids:
+        - unused_expr
+        - unused_values
+        - used
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [only_used]
+    rule_ids:
+        - only_used
+    approvers_all:
+        - accept_mode open=only_used
+    policy_rules:
+        - policy0/only_used accepted=true disabled=false expression="used" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - only_used
+          second_listener:
+            - only_used
+          partials:
+            only_used:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            only_used:
+                open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_used_twice_in_rule:
+    rules:
+        twice:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.file.name
+                - process.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"x"
+                    - scalar:"y"
+                    - scalar:"x"
+                    - scalar:"y"
+                process.file.name:
+                    - scalar:"x"
+                    - scalar:"y"
+        twice_expr:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+    approvers:
+        open:
+            accept_mode: twice_expr
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+        open.flags: 'invalid: twice'
+        process.file.name: none
+    event_types:
+        - open
+    macro_ids:
+        - is_x
+        - names
+    field_values:
+        open.file.name:
+            - scalar:"x"
+            - scalar:"y"
+        open.flags:
+            - scalar:1
+            - scalar:2
+        process.file.name:
+            - scalar:"x"
+            - scalar:"y"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [twice twice_expr]
+    rule_ids:
+        - twice
+        - twice_expr
+    approvers_all:
+        - accept_mode open=twice_expr
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/twice accepted=true disabled=false expression="open.file.name in names && process.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/twice_expr accepted=true disabled=false expression="is_x && (is_x || open.flags == 1) && !(is_x && open.flags == 2)" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - twice
+            - twice_expr
+          second_listener:
+            - twice
+            - twice_expr
+          matching_values:
+            twice:
+                - open.file.name="x"@0+14
+                - process.file.name="y"@27+17
+          partials:
+            twice:
+                open.file.name: "true"
+                process.file.name: "true"
+            twice_expr:
+                open.file.name: "false"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 4(true) own=4(true)
+        - result: false
+          partials:
+            twice:
+                open.file.name: "true"
+                process.file.name: "false"
+            twice_expr:
+                open.file.name: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 5(true) own=5(true)
+        - result: false
+          partials:
+            twice:
+                open.file.name: "false"
+                process.file.name: "true"
+            twice_expr:
+                open.file.name: "false"
+                open.flags: "true"
+          discarders:
+            - open:open.file.name="z"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 4(true) own=4(true)
+        - result: true
+          matched:
+            - twice
+          second_listener:
+            - twice
+          matching_values:
+            twice:
+                - open.file.name="x"@0+14
+                - process.file.name="y"@27+17
+          partials:
+            twice:
+                open.file.name: "true"
+                process.file.name: "true"
+            twice_expr:
+                open.file.name: "false"
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 4(true) own=4(true)
+        - result: true
+          matched:
+            - twice
+            - twice_expr
+          second_listener:
+            - twice
+            - twice_expr
+          matching_values:
+            twice:
+                - open.file.name="x"@0+14
+                - process.file.name="y"@27+17
+            twice_expr:
+                - open.flags=1@17+10
+                - =1@31+1
+          partials:
+            twice:
+                open.file.name: "true"
+                process.file.name: "true"
+            twice_expr:
+                open.file.name: "false"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 4(true) own=4(true)
+macro_value_with_special_chars:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a\"b"
+                    - scalar:"with space"
+                    - scalar:"star*"
+                    - scalar:"back\\slash"
+                    - scalar:"/path/with/slash"
+                    - scalar:""
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:""
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - odd
+    field_values:
+        open.file.name:
+            - scalar:""
+            - scalar:"/path/with/slash"
+            - scalar:"a\"b"
+            - scalar:"back\\slash"
+            - scalar:"star*"
+            - scalar:"with space"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in odd" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="a\"b"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="with space"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="star*"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="starX"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name="back\\slash"@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - r
+          second_listener:
+            - r
+          matching_values:
+            r:
+                - open.file.name=""@0+14
+          partials:
+            r:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="nope"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_values_empty:
+    rules:
+        r:
+            event_type: open
+            fields:
+                - open.file.name
+    approvers:
+        open:
+            accept_mode: r
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    macro_ids:
+        - also_nothing
+        - nothing
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r]
+    rule_ids:
+        - r
+    approvers_all:
+        - accept_mode open=r
+    policy_rules:
+        - policy0/r accepted=true disabled=false expression="open.file.name in nothing" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            r:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="a"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+macro_values_macro_in_variable_rule:
+    rules:
+        reader:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - variable:""
+        reader_in:
+            event_type: exec
+            fields:
+                - exec.file.name
+            field_values:
+                exec.file.name:
+                    - scalar:"zzz"
+        setter:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+    approvers:
+        exec:
+            accept_mode: reader
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"a"
+                    - scalar:"b"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        exec.file.name: supported
+        open.file.name: supported
+    event_types:
+        - exec
+        - open
+    macro_ids:
+        - names
+    field_values:
+        exec.file.name:
+            - scalar:"zzz"
+            - variable:""
+        open.file.name:
+            - scalar:"a"
+            - scalar:"b"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [reader reader_in setter]
+    rule_ids:
+        - reader
+        - reader_in
+        - setter
+    approvers_all:
+        - accept_mode exec=reader
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/setter accepted=true disabled=false expression="open.file.name in names" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/reader accepted=true disabled=false expression="exec.file.name == ${last}" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/reader_in accepted=true disabled=false expression="${last} in names && exec.file.name == \"zzz\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            reader:
+                exec.file.name: "false"
+            reader_in:
+                exec.file.name: "false"
+          discarders:
+            - exec:exec.file.name="a"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            last: '""(false)'
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - setter
+          second_listener:
+            - setter
+          matching_values:
+            setter:
+                - open.file.name="a"@0+14
+          partials:
+            setter:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            last: '"a"(true)'
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - reader
+          second_listener:
+            - reader
+          matching_values:
+            reader:
+                - exec.file.name="a"@0+14
+          partials:
+            reader:
+                exec.file.name: "true"
+            reader_in:
+                exec.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            last: '"a"(true)'
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            setter:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="c"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            last: '"a"(true)'
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - reader_in
+          second_listener:
+            - reader_in
+          matching_values:
+            reader_in:
+                - exec.file.name="zzz"@20+14
+                - ="zzz"@38+5
+          partials:
+            reader:
+                exec.file.name: "false"
+            reader_in:
+                exec.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            last: '"a"(true)'
+            process.pid: 0(true) own=0(true)
+macro_with_ancestor_and_array_fields:
+    rules:
+        anc:
+            event_type: exec
+            fields:
+                - exec.argv
+                - exec.file.name
+                - process.ancestors.file.name
+                - process.container.id
+            field_values:
+                exec.file.name:
+                    - scalar:"curl"
+        arg:
+            event_type: exec
+            fields:
+                - exec.argv
+                - process.ancestors.file.name
+                - process.container.id
+        cont:
+            event_type: exec
+            fields:
+                - exec.argv
+                - exec.file.name
+                - process.ancestors.file.name
+                - process.container.id
+            field_values:
+                exec.file.name:
+                    - scalar:"curl"
+    approvers:
+        exec:
+            accept_mode: arg
+            field_stats:
+                exec.file.name: 1
+    discarders_report:
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+    event_types:
+        - exec
+    macro_ids:
+        - container
+        - has_arg
+        - shell_ancestor
+    field_values:
+        exec.file.name:
+            - scalar:"curl"
+            - scalar:"curl"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [anc arg cont]
+    rule_ids:
+        - anc
+        - arg
+        - cont
+    approvers_all:
+        - accept_mode exec=arg
+        - field_stats exec.file.name=1
+    policy_rules:
+        - policy0/anc accepted=true disabled=false expression="exec.file.name == \"curl\" && shell_ancestor" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/arg accepted=true disabled=false expression="has_arg && !container" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/cont accepted=true disabled=false expression="exec.file.name == \"curl\" && container" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - anc
+            - arg
+          second_listener:
+            - anc
+            - arg
+          matching_values:
+            anc:
+                - exec.file.name="curl"@0+14
+                - ="curl"@18+6
+          partials:
+            anc:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "true"
+            arg:
+                exec.argv: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "true"
+            cont:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 3(true) own=3(true)
+        - result: true
+          matched:
+            - arg
+          second_listener:
+            - arg
+          partials:
+            anc:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "false"
+                process.container.id: "true"
+            arg:
+                exec.argv: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "true"
+            cont:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 9(true) own=9(true)
+        - result: true
+          matched:
+            - arg
+          second_listener:
+            - arg
+          partials:
+            anc:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "false"
+                process.container.id: "true"
+            arg:
+                exec.argv: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "true"
+            cont:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 9(true) own=9(true)
+        - result: true
+          matched:
+            - anc
+            - cont
+          second_listener:
+            - anc
+            - cont
+          matching_values:
+            anc:
+                - exec.file.name="curl"@0+14
+                - ="curl"@18+6
+            cont:
+                - exec.file.name="curl"@0+14
+                - ="curl"@18+6
+          partials:
+            anc:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "true"
+            arg:
+                exec.argv: "false"
+                process.ancestors.file.name: "true"
+                process.container.id: "false"
+            cont:
+                exec.argv: "true"
+                exec.file.name: "true"
+                process.ancestors.file.name: "true"
+                process.container.id: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 2(true) own=2(true)
+values_macro_in_notin:
+    rules:
+        allin_rule:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/root/.ssh/id_rsa"
+                open.flags:
+                    - bitmask:64
+                    - scalar:0
+        in_rule:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/root/.ssh/id_rsa"
+        not_op_rule:
+            event_type: mkdir
+            fields:
+                - mkdir.file.destination.mode
+                - mkdir.file.path
+            field_values:
+                mkdir.file.destination.mode:
+                    - scalar:493
+                mkdir.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/root/.ssh/id_rsa"
+        notin_rule:
+            event_type: exec
+            fields:
+                - exec.file.name
+                - exec.file.path
+            field_values:
+                exec.file.name:
+                    - scalar:"cat"
+                exec.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/root/.ssh/id_rsa"
+    approvers:
+        exec:
+            approvers:
+                exec.file.name:
+                    - scalar:"cat"
+            field_stats:
+                exec.file.name: 1
+        mkdir:
+            accept_mode: not_op_rule
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                    - scalar:"/etc/shadow"
+                    - scalar:"/root/.ssh/id_rsa"
+            field_stats:
+                open.file.path: 2
+    discarders_report:
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        exec.file.path: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        mkdir.file.destination.mode: supported
+        mkdir.file.path: supported
+        open.file.path: supported
+        open.flags: 'invalid: in_rule'
+    event_types:
+        - exec
+        - mkdir
+        - open
+    macro_ids:
+        - sensitive
+    field_values:
+        exec.file.name:
+            - scalar:"cat"
+        exec.file.path:
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/shadow"
+            - scalar:"/root/.ssh/id_rsa"
+        mkdir.file.destination.mode:
+            - scalar:493
+        mkdir.file.path:
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/shadow"
+            - scalar:"/root/.ssh/id_rsa"
+        open.file.path:
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/shadow"
+            - scalar:"/etc/shadow"
+            - scalar:"/root/.ssh/id_rsa"
+            - scalar:"/root/.ssh/id_rsa"
+        open.flags:
+            - bitmask:64
+            - scalar:0
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [allin_rule in_rule not_op_rule notin_rule]
+    rule_ids:
+        - allin_rule
+        - in_rule
+        - not_op_rule
+        - notin_rule
+    approvers_all:
+        - accept_mode mkdir=not_op_rule
+        - field_stats exec.file.name=1
+        - field_stats open.file.path=2
+    policy_rules:
+        - policy0/in_rule accepted=true disabled=false expression="open.file.path in sensitive" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/notin_rule accepted=true disabled=false expression="exec.file.path not in sensitive && exec.file.name == \"cat\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/allin_rule accepted=true disabled=false expression="open.file.path in sensitive && open.flags & O_CREAT == 0" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/not_op_rule accepted=true disabled=false expression="mkdir.file.path in sensitive || !(mkdir.file.path in sensitive) && mkdir.mode == 0755" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - in_rule
+            - allin_rule
+          second_listener:
+            - in_rule
+            - allin_rule
+          matching_values:
+            allin_rule:
+                - open.file.path="/etc/passwd"@0+14
+            in_rule:
+                - open.file.path="/etc/passwd"@0+14
+          partials:
+            allin_rule:
+                open.file.path: "true"
+                open.flags: "true"
+            in_rule:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - in_rule
+          second_listener:
+            - in_rule
+          matching_values:
+            in_rule:
+                - open.file.path="/etc/shadow"@0+14
+          partials:
+            allin_rule:
+                open.file.path: "true"
+                open.flags: "false"
+            in_rule:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            allin_rule:
+                open.file.path: "false"
+                open.flags: "true"
+            in_rule:
+                open.file.path: "false"
+          discarders:
+            - open:open.file.path="/etc/passwd2"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            allin_rule:
+                open.file.path: "false"
+                open.flags: "true"
+            in_rule:
+                open.file.path: "false"
+          discarders:
+            - open:open.file.path=""
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - in_rule
+            - allin_rule
+          second_listener:
+            - in_rule
+            - allin_rule
+          matching_values:
+            allin_rule:
+                - open.file.path="/root/.ssh/id_rsa"@0+14
+            in_rule:
+                - open.file.path="/root/.ssh/id_rsa"@0+14
+          partials:
+            allin_rule:
+                open.file.path: "true"
+                open.flags: "true"
+            in_rule:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - notin_rule
+          second_listener:
+            - notin_rule
+          matching_values:
+            notin_rule:
+                - exec.file.name="cat"@35+14
+                - ="cat"@53+5
+          partials:
+            notin_rule:
+                exec.file.name: "true"
+                exec.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            notin_rule:
+                exec.file.name: "true"
+                exec.file.path: "false"
+          discarders:
+            - exec:exec.file.path="/etc/passwd"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - not_op_rule
+          second_listener:
+            - not_op_rule
+          matching_values:
+            not_op_rule:
+                - mkdir.file.path="/etc/shadow"@0+15
+          partials:
+            not_op_rule:
+                mkdir.file.destination.mode: "true"
+                mkdir.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - not_op_rule
+          second_listener:
+            - not_op_rule
+          partials:
+            not_op_rule:
+                mkdir.file.destination.mode: "true"
+                mkdir.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            not_op_rule:
+                mkdir.file.destination.mode: "true"
+                mkdir.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+values_macro_prefix_in_array:
+    rules:
+        allin:
+            event_type: exec
+            fields:
+                - exec.argv
+            field_values:
+                exec.argv:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+        anc:
+            event_type: open
+            fields:
+                - open.file.name
+                - process.ancestors.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+                process.ancestors.file.name:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+        argv_in:
+            event_type: exec
+            fields:
+                - exec.argv
+                - exec.file.name
+            field_values:
+                exec.argv:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+                exec.file.name:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+        notall:
+            event_type: exec
+            fields:
+                - exec.argv
+                - exec.file.name
+            field_values:
+                exec.argv:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+                exec.file.name:
+                    - scalar:"x"
+    approvers:
+        exec:
+            accept_mode: allin
+            field_stats:
+                exec.file.name: 1
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"bash"
+                    - scalar:"sh"
+                    - scalar:"zsh"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        exec.argv: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
+        open.file.name: supported
+        process.ancestors.file.name: none
+    event_types:
+        - exec
+        - open
+    macro_ids:
+        - names
+    field_values:
+        exec.argv:
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"bash"
+            - scalar:"sh"
+            - scalar:"sh"
+            - scalar:"sh"
+            - scalar:"zsh"
+            - scalar:"zsh"
+            - scalar:"zsh"
+        exec.file.name:
+            - scalar:"bash"
+            - scalar:"sh"
+            - scalar:"x"
+            - scalar:"zsh"
+        open.file.name:
+            - scalar:"bash"
+            - scalar:"sh"
+            - scalar:"zsh"
+        process.ancestors.file.name:
+            - scalar:"bash"
+            - scalar:"sh"
+            - scalar:"zsh"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [allin anc argv_in notall]
+    rule_ids:
+        - allin
+        - anc
+        - argv_in
+        - notall
+    approvers_all:
+        - accept_mode exec=allin
+        - field_stats exec.file.name=1
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/argv_in accepted=true disabled=false expression="exec.file.name in names && exec.argv in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/anc accepted=true disabled=false expression="open.file.name in names && process.ancestors.file.name in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/allin accepted=true disabled=false expression="exec.argv in names" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/notall accepted=true disabled=false expression="exec.argv not in names && exec.file.name == \"x\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - argv_in
+            - allin
+          second_listener:
+            - argv_in
+            - allin
+          matching_values:
+            allin:
+                - exec.argv=["bash" "sh"]@0+9
+            argv_in:
+                - exec.file.name="bash"@0+14
+                - exec.argv=["bash" "sh"]@27+9
+          partials:
+            allin:
+                exec.argv: "true"
+            argv_in:
+                exec.argv: "true"
+                exec.file.name: "true"
+            notall:
+                exec.argv: "false"
+                exec.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 10(true) own=10(true)
+        - result: true
+          matched:
+            - argv_in
+            - allin
+          second_listener:
+            - argv_in
+            - allin
+          matching_values:
+            allin:
+                - exec.argv=["bash" "sh" "bash" "other"]@0+9
+            argv_in:
+                - exec.file.name="bash"@0+14
+                - exec.argv=["bash" "sh" "bash" "other"]@27+9
+          partials:
+            allin:
+                exec.argv: "true"
+            argv_in:
+                exec.argv: "true"
+                exec.file.name: "true"
+            notall:
+                exec.argv: "false"
+                exec.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 10(true) own=10(true)
+        - result: true
+          matched:
+            - allin
+          second_listener:
+            - allin
+          matching_values:
+            allin:
+                - exec.argv=["bash" "sh" "bash" "other" "bash"]@0+9
+          partials:
+            allin:
+                exec.argv: "true"
+            argv_in:
+                exec.argv: "true"
+                exec.file.name: "false"
+            notall:
+                exec.argv: "false"
+                exec.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 10(true) own=10(true)
+        - result: true
+          matched:
+            - allin
+          second_listener:
+            - allin
+          matching_values:
+            allin:
+                - exec.argv=["bash" "sh" "bash" "other" "bash" "bash" "other"]@0+9
+          partials:
+            allin:
+                exec.argv: "true"
+            argv_in:
+                exec.argv: "true"
+                exec.file.name: "false"
+            notall:
+                exec.argv: "false"
+                exec.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 10(true) own=10(true)
+        - result: true
+          matched:
+            - allin
+          second_listener:
+            - allin
+          matching_values:
+            allin:
+                - exec.argv=["bash" "sh" "bash" "other" "bash" "bash" "other" "bash" "zsh"]@0+9
+          partials:
+            allin:
+                exec.argv: "true"
+            argv_in:
+                exec.argv: "true"
+                exec.file.name: "false"
+            notall:
+                exec.argv: "false"
+                exec.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 10(true) own=10(true)
+        - result: true
+          matched:
+            - anc
+          second_listener:
+            - anc
+          matching_values:
+            anc:
+                - open.file.name="bash"@0+14
+                - process.ancestors.file.name=["weird" "sh" ""]@27+27
+          partials:
+            anc:
+                open.file.name: "true"
+                process.ancestors.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 10(true) own=10(true)
+        - result: true
+          matched:
+            - anc
+          second_listener:
+            - anc
+          matching_values:
+            anc:
+                - open.file.name="bash"@0+14
+                - process.ancestors.file.name=["sh" ""]@27+27
+          partials:
+            anc:
+                open.file.name: "true"
+                process.ancestors.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 5(true) own=5(true)
+        - result: false
+          partials:
+            anc:
+                open.file.name: "false"
+                process.ancestors.file.name: "true"
+          discarders:
+            - open:open.file.name="other"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 5(true) own=5(true)

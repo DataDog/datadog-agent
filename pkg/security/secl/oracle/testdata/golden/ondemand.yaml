@@ -1,0 +1,1293 @@
+listener_reject_and_rule_ids:
+    rules:
+        chmod_rule:
+            event_type: chmod
+            fields:
+                - chmod.file.path
+            field_values:
+                chmod.file.path:
+                    - scalar:"/tmp/x"
+        first:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+        second:
+            event_type: open
+            fields:
+                - open.file.path
+                - open.flags
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+                open.flags:
+                    - scalar:1
+    approvers:
+        chmod:
+            approvers:
+                chmod.file.path:
+                    - scalar:"/tmp/x"
+            field_stats:
+                chmod.file.path: 1
+        open:
+            accept_mode: second
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        chmod.file.path: supported
+        open.file.path: supported
+        open.flags: 'invalid: first'
+    event_types:
+        - chmod
+        - open
+    field_values:
+        chmod.file.path:
+            - scalar:"/tmp/x"
+        open.file.path:
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/passwd"
+        open.flags:
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [chmod_rule first second]
+    rule_ids:
+        - chmod_rule
+        - first
+        - second
+    approvers_all:
+        - accept_mode open=second
+        - field_stats chmod.file.path=1
+        - field_stats open.file.path=1
+    policy_rules:
+        - policy0/first accepted=true disabled=false expression="open.file.path == \"/etc/passwd\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/second accepted=true disabled=false expression="open.file.path == \"/etc/passwd\" || open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/chmod_rule accepted=true disabled=false expression="chmod.file.path == \"/tmp/x\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - first
+            - second
+          second_listener:
+            - second
+          matching_values:
+            first:
+                - open.file.path="/etc/passwd"@0+14
+                - ="/etc/passwd"@18+13
+            second:
+                - open.file.path="/etc/passwd"@0+14
+                - ="/etc/passwd"@18+13
+          partials:
+            first:
+                open.file.path: "true"
+            second:
+                open.file.path: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - second
+          second_listener:
+            - second
+          matching_values:
+            second:
+                - open.flags=1@35+10
+                - =1@49+1
+          partials:
+            first:
+                open.file.path: "false"
+            second:
+                open.file.path: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - chmod_rule
+          second_listener:
+            - chmod_rule
+          matching_values:
+            chmod_rule:
+                - chmod.file.path="/tmp/x"@0+15
+                - ="/tmp/x"@19+8
+          partials:
+            chmod_rule:
+                chmod.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+no_ondemand_rule:
+    rules:
+        other:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+    approvers:
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        open.file.path: supported
+    event_types:
+        - open
+    field_values:
+        open.file.path:
+            - scalar:"/etc/passwd"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [other]
+    rule_ids:
+        - other
+    approvers_all:
+        - field_stats open.file.path=1
+    policy_rules:
+        - policy0/other accepted=true disabled=false expression="open.file.path == \"/etc/passwd\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - other
+          second_listener:
+            - other
+          matching_values:
+            other:
+                - open.file.path="/etc/passwd"@0+14
+                - ="/etc/passwd"@18+13
+          partials:
+            other:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_conflicting_arg_kinds:
+    rules:
+        as_string:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.str
+                - ondemand.name
+            field_values:
+                ondemand.arg1.str:
+                    - scalar:"a"
+                ondemand.name:
+                    - scalar:"vfs_open"
+        as_uint:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg1.uint:
+                    - scalar:1
+                ondemand.name:
+                    - scalar:"vfs_open"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg1.str:
+                    - scalar:"a"
+                ondemand.arg1.uint:
+                    - scalar:1
+            field_stats:
+                ondemand.arg1.str: 1
+                ondemand.arg1.uint: 1
+    discarders_report:
+        ondemand.arg1.str: 'invalid: as_uint'
+        ondemand.arg1.uint: 'invalid: as_string'
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.arg1.str:
+            - scalar:"a"
+        ondemand.arg1.uint:
+            - scalar:1
+        ondemand.name:
+            - scalar:"vfs_open"
+            - scalar:"vfs_open"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [as_string as_uint]
+    on_demand_hook_points:
+        - 'error: conflicting argument 1 for hook vfs_open: null-terminated-string != uint'
+    rule_ids:
+        - as_string
+        - as_uint
+    approvers_all:
+        - field_stats ondemand.arg1.str=1
+        - field_stats ondemand.arg1.uint=1
+    policy_rules:
+        - policy0/as_string accepted=true disabled=false expression="ondemand.name == \"vfs_open\" && ondemand.arg1.str == \"a\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/as_uint accepted=true disabled=false expression="ondemand.name == \"vfs_open\" && ondemand.arg1.uint == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - as_string
+          second_listener:
+            - as_string
+          matching_values:
+            as_string:
+                - ondemand.name="vfs_open"@0+13
+                - ="vfs_open"@17+10
+                - ondemand.arg1.str="a"@31+17
+                - ="a"@52+3
+          partials:
+            as_string:
+                ondemand.arg1.str: "true"
+                ondemand.name: "true"
+            as_uint:
+                ondemand.arg1.uint: "false"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - as_uint
+          second_listener:
+            - as_uint
+          matching_values:
+            as_uint:
+                - ondemand.name="vfs_open"@0+13
+                - ="vfs_open"@17+10
+                - ondemand.arg1.uint=1@31+18
+                - =1@53+1
+          partials:
+            as_string:
+                ondemand.arg1.str: "false"
+                ondemand.name: "true"
+            as_uint:
+                ondemand.arg1.uint: "true"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_hook_name_glob_not_scalar:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.name
+            field_values:
+                ondemand.name:
+                    - pattern:"vfs_*"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.name:
+                    - pattern:"vfs_*"
+            field_stats:
+                ondemand.name: 1
+    discarders_report:
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.name:
+            - pattern:"vfs_*"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - 'error: invalid hook type for rule hook: pattern, expected scalar'
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.name=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name =~ \"vfs_*\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="vfs_read"@0+13
+                - ="vfs_*"@17+7
+          partials:
+            hook:
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="sys_read"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_hook_name_in_list:
+    load_errors:
+        - 'rule `hook` error: rule compilation error: on-demand operator is not supported'
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name in [\"vfs_read\", \"vfs_write\"]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_hook_name_pattern_not_scalar:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.name
+            field_values:
+                ondemand.name:
+                    - pattern:"vfs_.*"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.name:
+                    - pattern:"vfs_.*"
+            field_stats:
+                ondemand.name: 1
+    discarders_report:
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.name:
+            - pattern:"vfs_.*"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - 'error: invalid hook type for rule hook: pattern, expected scalar'
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.name=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == ~\"vfs_.*\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: false
+          partials:
+            hook:
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="vfs_read"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="sys_read"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_hook_without_args:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.name
+            field_values:
+                ondemand.name:
+                    - scalar:"do_exit"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.name:
+                    - scalar:"do_exit"
+            field_stats:
+                ondemand.name: 1
+    discarders_report:
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.name:
+            - scalar:"do_exit"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - do_exit syscall=false args=[]
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.name=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == \"do_exit\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="do_exit"@0+13
+                - ="do_exit"@17+9
+          partials:
+            hook:
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="exit"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_kernel_function_hook:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.arg2.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg2.uint:
+                    - scalar:1
+                ondemand.name:
+                    - scalar:"vfs_read"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg2.uint:
+                    - scalar:1
+            field_stats:
+                ondemand.arg2.uint: 1
+    discarders_report:
+        ondemand.arg2.uint: supported
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.arg2.uint:
+            - scalar:1
+        ondemand.name:
+            - scalar:"vfs_read"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - vfs_read syscall=false args=[{2 uint}]
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.arg2.uint=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == \"vfs_read\" && ondemand.arg2.uint == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="vfs_read"@0+13
+                - ="vfs_read"@17+10
+                - ondemand.arg2.uint=1@31+18
+                - =1@53+1
+          partials:
+            hook:
+                ondemand.arg2.uint: "true"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.arg2.uint: "false"
+                ondemand.name: "true"
+          discarders:
+            - ondemand:ondemand.arg2.uint=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.arg2.uint: "true"
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="vfs_write"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_multi_hooks_multi_args:
+    rules:
+        kernel_openat:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg1.uint:
+                    - scalar:3
+                ondemand.name:
+                    - scalar:"openat"
+        read_hook:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.str
+                - ondemand.arg2.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg1.str:
+                    - scalar:"a"
+                ondemand.arg2.uint:
+                    - scalar:1
+                ondemand.name:
+                    - scalar:"vfs_read"
+        read_hook_dup:
+            event_type: ondemand
+            fields:
+                - ondemand.arg2.uint
+                - ondemand.arg6.str
+                - ondemand.name
+            field_values:
+                ondemand.arg2.uint:
+                    - scalar:5
+                ondemand.arg6.str:
+                    - scalar:"z"
+                ondemand.name:
+                    - scalar:"vfs_read"
+        syscall_openat:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.str
+                - ondemand.arg4.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg1.str:
+                    - scalar:"p"
+                ondemand.arg4.uint:
+                    - scalar:9
+                ondemand.name:
+                    - scalar:"syscall:openat"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg1.str:
+                    - scalar:"a"
+                    - scalar:"p"
+                ondemand.arg1.uint:
+                    - scalar:3
+                ondemand.arg2.uint:
+                    - scalar:5
+            field_stats:
+                ondemand.arg1.str: 2
+                ondemand.arg1.uint: 1
+                ondemand.arg2.uint: 1
+    discarders_report:
+        ondemand.arg1.str: 'invalid: kernel_openat'
+        ondemand.arg1.uint: 'invalid: read_hook'
+        ondemand.arg2.uint: 'invalid: kernel_openat'
+        ondemand.arg4.uint: 'invalid: read_hook'
+        ondemand.arg6.str: 'invalid: read_hook'
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.arg1.str:
+            - scalar:"a"
+            - scalar:"p"
+        ondemand.arg1.uint:
+            - scalar:3
+        ondemand.arg2.uint:
+            - scalar:1
+            - scalar:5
+        ondemand.arg4.uint:
+            - scalar:9
+        ondemand.arg6.str:
+            - scalar:"z"
+        ondemand.name:
+            - scalar:"openat"
+            - scalar:"syscall:openat"
+            - scalar:"vfs_read"
+            - scalar:"vfs_read"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [kernel_openat read_hook read_hook_dup syscall_openat]
+    on_demand_hook_points:
+        - openat syscall=false args=[{1 uint}]
+        - openat syscall=true args=[{1 null-terminated-string} {4 uint}]
+        - vfs_read syscall=false args=[{1 null-terminated-string} {2 uint} {6 null-terminated-string}]
+    rule_ids:
+        - kernel_openat
+        - read_hook
+        - read_hook_dup
+        - syscall_openat
+    approvers_all:
+        - field_stats ondemand.arg1.str=2
+        - field_stats ondemand.arg1.uint=1
+        - field_stats ondemand.arg2.uint=1
+    policy_rules:
+        - policy0/read_hook accepted=true disabled=false expression="ondemand.name == \"vfs_read\" && ondemand.arg1.str == \"a\" && ondemand.arg2.uint == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/kernel_openat accepted=true disabled=false expression="ondemand.name == \"openat\" && ondemand.arg1.uint == 3" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/syscall_openat accepted=true disabled=false expression="ondemand.name == \"syscall:openat\" && ondemand.arg1.str == \"p\" && ondemand.arg4.uint == 9" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/read_hook_dup accepted=true disabled=false expression="ondemand.name == \"vfs_read\" && ondemand.arg2.uint == 5 && ondemand.arg6.str == \"z\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - read_hook
+          second_listener:
+            - read_hook
+          matching_values:
+            read_hook:
+                - ondemand.name="vfs_read"@0+13
+                - ="vfs_read"@17+10
+                - ondemand.arg1.str="a"@31+17
+                - ="a"@52+3
+                - ondemand.arg2.uint=1@59+18
+                - =1@81+1
+          partials:
+            kernel_openat:
+                ondemand.arg1.uint: "false"
+                ondemand.name: "false"
+            read_hook:
+                ondemand.arg1.str: "true"
+                ondemand.arg2.uint: "true"
+                ondemand.name: "true"
+            read_hook_dup:
+                ondemand.arg2.uint: "false"
+                ondemand.arg6.str: "false"
+                ondemand.name: "true"
+            syscall_openat:
+                ondemand.arg1.str: "false"
+                ondemand.arg4.uint: "false"
+                ondemand.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - kernel_openat
+          second_listener:
+            - kernel_openat
+          matching_values:
+            kernel_openat:
+                - ondemand.name="openat"@0+13
+                - ="openat"@17+8
+                - ondemand.arg1.uint=3@29+18
+                - =3@51+1
+          partials:
+            kernel_openat:
+                ondemand.arg1.uint: "true"
+                ondemand.name: "true"
+            read_hook:
+                ondemand.arg1.str: "false"
+                ondemand.arg2.uint: "false"
+                ondemand.name: "false"
+            read_hook_dup:
+                ondemand.arg2.uint: "false"
+                ondemand.arg6.str: "false"
+                ondemand.name: "false"
+            syscall_openat:
+                ondemand.arg1.str: "false"
+                ondemand.arg4.uint: "false"
+                ondemand.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - syscall_openat
+          second_listener:
+            - syscall_openat
+          matching_values:
+            syscall_openat:
+                - ondemand.name="syscall:openat"@0+13
+                - ="syscall:openat"@17+16
+                - ondemand.arg1.str="p"@37+17
+                - ="p"@58+3
+                - ondemand.arg4.uint=9@65+18
+                - =9@87+1
+          partials:
+            kernel_openat:
+                ondemand.arg1.uint: "false"
+                ondemand.name: "false"
+            read_hook:
+                ondemand.arg1.str: "false"
+                ondemand.arg2.uint: "false"
+                ondemand.name: "false"
+            read_hook_dup:
+                ondemand.arg2.uint: "false"
+                ondemand.arg6.str: "false"
+                ondemand.name: "false"
+            syscall_openat:
+                ondemand.arg1.str: "true"
+                ondemand.arg4.uint: "true"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            kernel_openat:
+                ondemand.arg1.uint: "false"
+                ondemand.name: "false"
+            read_hook:
+                ondemand.arg1.str: "false"
+                ondemand.arg2.uint: "false"
+                ondemand.name: "true"
+            read_hook_dup:
+                ondemand.arg2.uint: "false"
+                ondemand.arg6.str: "false"
+                ondemand.name: "true"
+            syscall_openat:
+                ondemand.arg1.str: "false"
+                ondemand.arg4.uint: "false"
+                ondemand.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_rule_without_hook_name:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.str
+            field_values:
+                ondemand.arg1.str:
+                    - scalar:"/etc/passwd"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg1.str:
+                    - scalar:"/etc/passwd"
+            field_stats:
+                ondemand.arg1.str: 1
+    discarders_report:
+        ondemand.arg1.str: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.arg1.str:
+            - scalar:"/etc/passwd"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - 'error: invalid number of hooks for rule hook: 0'
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.arg1.str=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.arg1.str == \"/etc/passwd\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.arg1.str="/etc/passwd"@0+17
+                - ="/etc/passwd"@21+13
+          partials:
+            hook:
+                ondemand.arg1.str: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.arg1.str: "false"
+          discarders:
+            - ondemand:ondemand.arg1.str="/etc"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_rules_next_to_other_event_types:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.arg2.str
+                - ondemand.name
+            field_values:
+                ondemand.arg2.str:
+                    - scalar:"tmp"
+                ondemand.name:
+                    - scalar:"do_unlinkat"
+        other:
+            event_type: open
+            fields:
+                - open.file.path
+            field_values:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg2.str:
+                    - scalar:"tmp"
+            field_stats:
+                ondemand.arg2.str: 1
+        open:
+            approvers:
+                open.file.path:
+                    - scalar:"/etc/passwd"
+            field_stats:
+                open.file.path: 1
+    discarders_report:
+        ondemand.arg2.str: supported
+        ondemand.name: supported
+        open.file.path: supported
+    event_types:
+        - ondemand
+        - open
+    field_values:
+        ondemand.arg2.str:
+            - scalar:"tmp"
+        ondemand.name:
+            - scalar:"do_unlinkat"
+        open.file.path:
+            - scalar:"/etc/passwd"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook other]
+    on_demand_hook_points:
+        - do_unlinkat syscall=false args=[{2 null-terminated-string}]
+    rule_ids:
+        - hook
+        - other
+    approvers_all:
+        - field_stats ondemand.arg2.str=1
+        - field_stats open.file.path=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == \"do_unlinkat\" && ondemand.arg2.str == \"tmp\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/other accepted=true disabled=false expression="open.file.path == \"/etc/passwd\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="do_unlinkat"@0+13
+                - ="do_unlinkat"@17+13
+                - ondemand.arg2.str="tmp"@34+17
+                - ="tmp"@55+5
+          partials:
+            hook:
+                ondemand.arg2.str: "true"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.arg2.str: "false"
+                ondemand.name: "true"
+          discarders:
+            - ondemand:ondemand.arg2.str="var"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - other
+          second_listener:
+            - other
+          matching_values:
+            other:
+                - open.file.path="/etc/passwd"@0+14
+                - ="/etc/passwd"@18+13
+          partials:
+            other:
+                open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            other:
+                open.file.path: "false"
+          discarders:
+            - open:open.file.path="/etc"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_same_hook_same_arg_merged:
+    rules:
+        first:
+            event_type: ondemand
+            fields:
+                - ondemand.arg3.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg3.uint:
+                    - scalar:10
+                ondemand.name:
+                    - scalar:"syscall:read"
+        second:
+            event_type: ondemand
+            fields:
+                - ondemand.arg3.uint
+                - ondemand.name
+            field_values:
+                ondemand.arg3.uint:
+                    - range:100
+                ondemand.name:
+                    - scalar:"syscall:read"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg3.uint:
+                    - scalar:10
+                ondemand.name:
+                    - scalar:"syscall:read"
+            field_stats:
+                ondemand.arg3.uint: 1
+                ondemand.name: 1
+    discarders_report:
+        ondemand.arg3.uint: supported
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.arg3.uint:
+            - range:100
+            - scalar:10
+        ondemand.name:
+            - scalar:"syscall:read"
+            - scalar:"syscall:read"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [first second]
+    on_demand_hook_points:
+        - read syscall=true args=[{3 uint}]
+    rule_ids:
+        - first
+        - second
+    approvers_all:
+        - field_stats ondemand.arg3.uint=1
+        - field_stats ondemand.name=1
+    policy_rules:
+        - policy0/first accepted=true disabled=false expression="ondemand.name == \"syscall:read\" && ondemand.arg3.uint == 10" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/second accepted=true disabled=false expression="ondemand.name == \"syscall:read\" && ondemand.arg3.uint > 100" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - first
+          second_listener:
+            - first
+          matching_values:
+            first:
+                - ondemand.name="syscall:read"@0+13
+                - ="syscall:read"@17+14
+                - ondemand.arg3.uint=10@35+18
+                - =10@57+2
+          partials:
+            first:
+                ondemand.arg3.uint: "true"
+                ondemand.name: "true"
+            second:
+                ondemand.arg3.uint: "false"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - second
+          second_listener:
+            - second
+          matching_values:
+            second:
+                - ondemand.name="syscall:read"@0+13
+                - ="syscall:read"@17+14
+                - ondemand.arg3.uint=101@35+18
+                - =100@56+3
+          partials:
+            first:
+                ondemand.arg3.uint: "false"
+                ondemand.name: "true"
+            second:
+                ondemand.arg3.uint: "true"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            first:
+                ondemand.arg3.uint: "false"
+                ondemand.name: "true"
+            second:
+                ondemand.arg3.uint: "false"
+                ondemand.name: "true"
+          discarders:
+            - ondemand:ondemand.arg3.uint=50
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_syscall_hook:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.arg1.str
+                - ondemand.name
+            field_values:
+                ondemand.arg1.str:
+                    - scalar:"/etc/passwd"
+                ondemand.name:
+                    - scalar:"syscall:openat"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.arg1.str:
+                    - scalar:"/etc/passwd"
+            field_stats:
+                ondemand.arg1.str: 1
+    discarders_report:
+        ondemand.arg1.str: supported
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.arg1.str:
+            - scalar:"/etc/passwd"
+        ondemand.name:
+            - scalar:"syscall:openat"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - openat syscall=true args=[{1 null-terminated-string}]
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.arg1.str=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == \"syscall:openat\" && ondemand.arg1.str == \"/etc/passwd\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="syscall:openat"@0+13
+                - ="syscall:openat"@17+16
+                - ondemand.arg1.str="/etc/passwd"@37+17
+                - ="/etc/passwd"@58+13
+          partials:
+            hook:
+                ondemand.arg1.str: "true"
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.arg1.str: "false"
+                ondemand.name: "true"
+          discarders:
+            - ondemand:ondemand.arg1.str="/etc/shadow"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.arg1.str: "true"
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="openat"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_two_hooks_in_one_rule:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.name
+            field_values:
+                ondemand.name:
+                    - scalar:"vfs_read"
+                    - scalar:"vfs_write"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.name:
+                    - scalar:"vfs_read"
+                    - scalar:"vfs_write"
+            field_stats:
+                ondemand.name: 1
+    discarders_report:
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.name:
+            - scalar:"vfs_read"
+            - scalar:"vfs_write"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - 'error: invalid number of hooks for rule hook: 2'
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.name=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == \"vfs_read\" || ondemand.name == \"vfs_write\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="vfs_read"@0+13
+                - ="vfs_read"@17+10
+          partials:
+            hook:
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="vfs_write"@31+13
+                - ="vfs_write"@48+11
+          partials:
+            hook:
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="vfs_open"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+ondemand_unknown_probe_type:
+    rules:
+        hook:
+            event_type: ondemand
+            fields:
+                - ondemand.name
+            field_values:
+                ondemand.name:
+                    - scalar:"kprobe:vfs_read"
+    approvers:
+        ondemand:
+            approvers:
+                ondemand.name:
+                    - scalar:"kprobe:vfs_read"
+            field_stats:
+                ondemand.name: 1
+    discarders_report:
+        ondemand.name: supported
+    event_types:
+        - ondemand
+    field_values:
+        ondemand.name:
+            - scalar:"kprobe:vfs_read"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [hook]
+    on_demand_hook_points:
+        - 'error: invalid hook type for rule hook: kprobe, expected syscall or nothing'
+    rule_ids:
+        - hook
+    approvers_all:
+        - field_stats ondemand.name=1
+    policy_rules:
+        - policy0/hook accepted=true disabled=false expression="ondemand.name == \"kprobe:vfs_read\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - hook
+          second_listener:
+            - hook
+          matching_values:
+            hook:
+                - ondemand.name="kprobe:vfs_read"@0+13
+                - ="kprobe:vfs_read"@17+17
+          partials:
+            hook:
+                ondemand.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            hook:
+                ondemand.name: "false"
+          discarders:
+            - ondemand:ondemand.name="vfs_read"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)

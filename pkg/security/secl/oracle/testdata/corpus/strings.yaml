@@ -1,0 +1,1040 @@
+cases:
+  # ---------------------------------------------------------------- scalars
+  - name: string_equals_scalar
+    rules:
+      - open.file.name == "passwd"
+      - open.file.name != "passwd"
+      - open.file.path == "/etc/passwd"
+      - '"passwd" == open.file.name'
+      - '"passwd" != open.file.name'
+      - open.file.name == ""
+      - open.file.name != ""
+      - open.file.name == "é.txt"
+      - open.file.name == "日本語"
+      - open.file.name == "  passwd  "
+      - open.file.name == " "
+      - '!(open.file.name == "passwd")'
+      - not open.file.name == "passwd"
+      - '!(open.file.name != "passwd")'
+    events:
+      - {type: open, fields: {open.file.name: passwd, open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.name: shadow, open.file.path: /etc/shadow}}
+      - {type: open, fields: {open.file.name: PASSWD, open.file.path: /etc/PASSWD}}
+      - {type: open, fields: {open.file.name: "passwd ", open.file.path: "/etc/passwd "}}
+      - {type: open, fields: {open.file.name: "", open.file.path: ""}}
+      - {type: open, fields: {open.file.name: "é.txt", open.file.path: "/tmp/é.txt"}}
+      - {type: open, fields: {open.file.name: "日本語", open.file.path: "/tmp/日本語"}}
+      - {type: open, fields: {open.file.name: "  passwd  ", open.file.path: "/etc/  passwd  "}}
+      - {type: open, fields: {open.file.name: " ", open.file.path: "/ "}}
+      - {type: open, fields: {open.file.name: "É.txt", open.file.path: "/tmp/É.txt"}}
+      - {type: open, fields: {open.file.path: /only/path}}
+
+  - name: string_equals_special_chars
+    rules:
+      - 'open.file.name == "a\"b"'
+      - 'open.file.name == "a\\b"'
+      - 'open.file.name == "a b"'
+      - 'open.file.name == "tab\there"'
+      - 'open.file.name == "a.b"'
+      - 'open.file.name == "a+b(c)[d]{e}$f^g|h"'
+      - 'open.file.name =~ "a+b(c)[d]{e}$f^g|h"'
+      - 'open.file.path == "/a/b//c/d/"'
+      - 'open.file.path == "a/relative"'
+      - 'open.file.name == "a\tb"'
+      - 'open.file.name == "a\nb"'
+      - 'open.file.name == "é\u00e9"'
+      - 'open.file.name == "-n"'
+      - 'open.file.name == "123"'
+      - 'open.file.name == "true"'
+    events:
+      - {type: open, fields: {open.file.name: 'a\"b'}}
+      - {type: open, fields: {open.file.name: 'a"b'}}
+      - {type: open, fields: {open.file.name: 'a\b'}}
+      - {type: open, fields: {open.file.name: 'a\\b'}}
+      - {type: open, fields: {open.file.name: 'a b'}}
+      - {type: open, fields: {open.file.name: 'tab\there'}}
+      - {type: open, fields: {open.file.name: "tab\there"}}
+      - {type: open, fields: {open.file.name: 'a\tb'}}
+      - {type: open, fields: {open.file.name: "a\tb"}}
+      - {type: open, fields: {open.file.name: 'a\nb'}}
+      - {type: open, fields: {open.file.name: "a\nb"}}
+      - {type: open, fields: {open.file.name: 'é\u00e9'}}
+      - {type: open, fields: {open.file.name: 'éé'}}
+      - {type: open, fields: {open.file.name: 'a.b'}}
+      - {type: open, fields: {open.file.name: 'axb'}}
+      - {type: open, fields: {open.file.name: 'a+b(c)[d]{e}$f^g|h'}}
+      - {type: open, fields: {open.file.path: '/a/b//c/d/'}}
+      - {type: open, fields: {open.file.path: '/a/b/c/d'}}
+      - {type: open, fields: {open.file.path: 'a/relative'}}
+      - {type: open, fields: {open.file.name: '-n'}}
+      - {type: open, fields: {open.file.name: '123'}}
+      - {type: open, fields: {open.file.name: 'true'}}
+      - {type: open, fields: {open.file.name: 'other'}}
+
+  - name: string_const_comparisons
+    rules:
+      - '"a" == "a" && open.file.name == "x"'
+      - '"a" == "b" || open.file.name == "x"'
+      - '"a" != "b" && open.file.name == "x"'
+      - '"a" != "a" || open.file.name == "x"'
+      - '"abc" =~ "a*" && open.file.name == "x"'
+      - '"abc" =~ "b*" || open.file.name == "x"'
+      - '"abc" !~ "b*" && open.file.name == "x"'
+      - '"abc" =~ r"^a.c$" && open.file.name == "x"'
+      - '"abc" =~ ~"a*c" && open.file.name == "x"'
+      - '"abc" in ["abc", "d"] && open.file.name == "x"'
+      - '"abc" in ["z", "d"] || open.file.name == "x"'
+      - '"abc" not in ["z", "d"] && open.file.name == "x"'
+      - '"abc" in ["z*", ~"a*"] && open.file.name == "x"'
+      - '"abc" in [r"^z", r"c$"] && open.file.name == "x"'
+      - '"abc" in ["z*"] || open.file.name == "x"'
+      - '"x" in ["x"] && "y" == "y" && open.file.name == "x"'
+    events:
+      - {type: open, fields: {open.file.name: x}}
+      - {type: open, fields: {open.file.name: y}}
+
+  # --------------------------------------------------------------- patterns
+  - name: string_patterns_name
+    rules:
+      - open.file.name =~ "pass*"
+      - open.file.name !~ "pass*"
+      - open.file.name =~ "*wd"
+      - open.file.name =~ "*ss*"
+      - open.file.name =~ "p*d"
+      - open.file.name =~ "p*s*d"
+      - open.file.name =~ "*"
+      - open.file.name =~ "pass"
+      - open.file.name =~ "pa?swd"
+      - open.file.name =~ ~"pass*"
+      - open.file.name !~ ~"*wd"
+      - open.file.name == "pass*"
+      - open.file.name != "*wd"
+      - open.file.name == ~"pa*wd"
+      - open.file.name =~ "PASS*"
+      - open.file.name =~ ""
+      - open.file.name =~ "é*"
+      - open.file.name =~ "**"
+      - open.file.name =~ "pass**"
+    events:
+      - {type: open, fields: {open.file.name: passwd}}
+      - {type: open, fields: {open.file.name: pass}}
+      - {type: open, fields: {open.file.name: wd}}
+      - {type: open, fields: {open.file.name: passwdwd}}
+      - {type: open, fields: {open.file.name: pasxwd}}
+      - {type: open, fields: {open.file.name: PASSWD}}
+      - {type: open, fields: {open.file.name: shadow}}
+      - {type: open, fields: {open.file.name: ""}}
+      - {type: open, fields: {open.file.name: "é.txt"}}
+      - {type: open, fields: {open.file.name: "pass*"}}
+      - {type: open, fields: {open.file.name: "xpassx"}}
+
+  - name: string_patterns_args
+    rules:
+      - exec.args =~ "* -F * http*"
+      - exec.args =~ "-sV*"
+      - exec.args !~ "-sV*"
+      - exec.args =~ "*http"
+      - exec.args == "-sV -p 22"
+      - exec.args =~ "* -p *"
+      - exec.args =~ "*"
+    events:
+      - {type: exec, fields: {exec.args: "-sV -p 22"}}
+      - {type: exec, fields: {exec.args: "-x -F foo http://x"}}
+      - {type: exec, fields: {exec.args: "-F http"}}
+      - {type: exec, fields: {exec.args: "run http"}}
+      - {type: exec, fields: {exec.args: ""}}
+      - {type: exec, fields: {exec.args: "a  -p  b"}}
+
+  - name: string_globs_path
+    rules:
+      - open.file.path =~ "/tmp/*"
+      - open.file.path =~ "/tmp/**"
+      - open.file.path !~ "/tmp/**"
+      - open.file.path =~ "/etc/**/shadow"
+      - open.file.path =~ "/*/passwd"
+      - open.file.path =~ "**/passwd"
+      - open.file.path =~ "*/passwd"
+      - open.file.path =~ "/var/log/*.log"
+      - open.file.path =~ "/var/*/*.log"
+      - open.file.path =~ "/var/**/*.log"
+      - open.file.path =~ "**"
+      - open.file.path =~ "/"
+      - open.file.path =~ "/*"
+      - open.file.path =~ "*"
+      - open.file.path =~ "/usr/*/bin/*"
+      - open.file.path =~ "/home/*/.ssh/**"
+      - open.file.path =~ "/opt/app**"
+      - open.file.path =~ ~"/tmp/*"
+      - open.file.path == "/tmp/*"
+      - open.file.path == "/tmp/**"
+      - open.file.path =~ "/TMP/*"
+      - open.file.path =~ "/tmp/a?c"
+      - open.file.path =~ "/a/b/c"
+      - open.file.path in [~"/etc/**/passwd", ~"/var/*/log"]
+      - open.file.path in [~"/etc/**/shadow"]
+      - '~"/etc/*" == open.file.path'
+    events:
+      - {type: open, fields: {open.file.path: /etc/x/passwd}}
+      - {type: open, fields: {open.file.path: /etc/x/y/z}}
+      - {type: open, fields: {open.file.path: /var/x/log}}
+      - {type: open, fields: {open.file.path: /tmp/x}}
+      - {type: open, fields: {open.file.path: /tmp/x/y/z}}
+      - {type: open, fields: {open.file.path: /tmp/}}
+      - {type: open, fields: {open.file.path: /tmp}}
+      - {type: open, fields: {open.file.path: /etc/shadow}}
+      - {type: open, fields: {open.file.path: /etc/a/shadow}}
+      - {type: open, fields: {open.file.path: /etc/a/b/shadow}}
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.path: /passwd}}
+      - {type: open, fields: {open.file.path: /x/y/passwd}}
+      - {type: open, fields: {open.file.path: /var/log/syslog.log}}
+      - {type: open, fields: {open.file.path: /var/log/x/syslog.log}}
+      - {type: open, fields: {open.file.path: /var/log/syslog}}
+      - {type: open, fields: {open.file.path: /usr/local/bin/tool}}
+      - {type: open, fields: {open.file.path: /usr/local/sbin/tool}}
+      - {type: open, fields: {open.file.path: /home/bob/.ssh/id_rsa}}
+      - {type: open, fields: {open.file.path: /home/bob/.ssh}}
+      - {type: open, fields: {open.file.path: /home/bob/.ssh/}}
+      - {type: open, fields: {open.file.path: /opt/app/x}}
+      - {type: open, fields: {open.file.path: /opt/application}}
+      - {type: open, fields: {open.file.path: /TMP/x}}
+      - {type: open, fields: {open.file.path: /tmp/abc}}
+      - {type: open, fields: {open.file.path: /tmp/ac}}
+      - {type: open, fields: {open.file.path: /a/b/c}}
+      - {type: open, fields: {open.file.path: "/tmp/*"}}
+      - {type: open, fields: {open.file.path: "/tmp/**"}}
+      - {type: open, fields: {open.file.path: "/tmp/a?c"}}
+      - {type: open, fields: {open.file.path: /}}
+      - {type: open, fields: {open.file.path: ""}}
+      - {type: open, fields: {open.file.path: "relative/passwd"}}
+
+  - name: string_globs_edge
+    rules:
+      - open.file.path =~ "/a/**/b/**/c"
+      - open.file.path =~ "/a/*/b"
+      - open.file.path =~ "/a/b*"
+      - open.file.path =~ "/a/*b"
+      - open.file.path =~ "/a/*b*"
+      - open.file.path =~ "*/b/c"
+      - open.file.path =~ "**/b/c"
+      - open.file.path =~ "/**/c"
+      - open.file.path =~ "/**"
+      - open.file.path =~ "*/*"
+      - open.file.path =~ "a*"
+      - open.file.path =~ "/a**b/c"
+      - open.file.path =~ "/a/**b"
+      - open.file.path =~ "/é*/*"
+      - open.file.path !~ "/a/*/b"
+      - '~"/a/*/b" == open.file.path'
+      - '~"/a/**" != open.file.path'
+      - 'open.file.path =~ "/a/**/b"'
+    events:
+      - {type: open, fields: {open.file.path: x/y/b/c}}
+      - {type: open, fields: {open.file.path: b/c}}
+      - {type: open, fields: {open.file.path: /a/x/y/zzz}}
+      - {type: open, fields: {open.file.path: /a/b}}
+      - {type: open, fields: {open.file.path: /a/x/b/y/c}}
+      - {type: open, fields: {open.file.path: /a/b/c}}
+      - {type: open, fields: {open.file.path: /a/x/b}}
+      - {type: open, fields: {open.file.path: /a/x/y/b}}
+      - {type: open, fields: {open.file.path: /a/bcd}}
+      - {type: open, fields: {open.file.path: /a/ab}}
+      - {type: open, fields: {open.file.path: /a/abc}}
+      - {type: open, fields: {open.file.path: /x/b/c}}
+      - {type: open, fields: {open.file.path: /x/y/b/c}}
+      - {type: open, fields: {open.file.path: /c}}
+      - {type: open, fields: {open.file.path: /x/y/c}}
+      - {type: open, fields: {open.file.path: /x}}
+      - {type: open, fields: {open.file.path: x/y}}
+      - {type: open, fields: {open.file.path: abc}}
+      - {type: open, fields: {open.file.path: /axb/c}}
+      - {type: open, fields: {open.file.path: /ab/c}}
+      - {type: open, fields: {open.file.path: /é/x}}
+      - {type: open, fields: {open.file.path: /ébc/x}}
+
+  # ----------------------------------------------------------------- regexp
+  - name: string_regexps
+    rules:
+      - open.file.name =~ r"^pass.*$"
+      - open.file.name !~ r"^pass.*$"
+      - open.file.name =~ r"[0-9]+"
+      - open.file.name =~ r"^[a-z]+\.log$"
+      - open.file.name =~ r"(foo|bar)$"
+      - open.file.name =~ r"^$"
+      - open.file.name =~ r"é"
+      - open.file.name =~ r"(?i)^pass"
+      - open.file.name =~ r"^pass"
+      - open.file.name == r"^x.*"
+      - open.file.name != r"^x.*"
+      - open.file.name in [r"^a", r"b$"]
+      - open.file.name not in [r"^a", r"b$"]
+      - open.file.name in ["lit", r"^a", ~"z*"]
+      - open.file.name =~ r"\\"
+      - open.file.name =~ r"a\"b"
+    events:
+      - {type: open, fields: {open.file.name: passwd}}
+      - {type: open, fields: {open.file.name: xpass}}
+      - {type: open, fields: {open.file.name: PASSWD}}
+      - {type: open, fields: {open.file.name: file123}}
+      - {type: open, fields: {open.file.name: abc.log}}
+      - {type: open, fields: {open.file.name: abc1.log}}
+      - {type: open, fields: {open.file.name: xfoo}}
+      - {type: open, fields: {open.file.name: barx}}
+      - {type: open, fields: {open.file.name: ""}}
+      - {type: open, fields: {open.file.name: "café"}}
+      - {type: open, fields: {open.file.name: xyz}}
+      - {type: open, fields: {open.file.name: lit}}
+      - {type: open, fields: {open.file.name: zzz}}
+      - {type: open, fields: {open.file.name: 'a\b'}}
+      - {type: open, fields: {open.file.name: 'a"b'}}
+      - {type: open, fields: {open.file.name: ab}}
+
+  # ------------------------------------------------------------- in / allin
+  - name: string_in_lists
+    macros:
+      - id: sensitive
+        values: ["/etc/passwd", "/etc/shadow", "/root/*", "/var/secret/**"]
+      - id: names
+        values: ["passwd", "shadow"]
+      - id: mixed
+        values: ["a.txt", "b*", "d.log"]
+      - id: mixed_patterns
+        expression: '["a.txt", "b*", ~"c*", r"^d\\.", "é.txt"]'
+      - id: path_patterns
+        expression: '["/etc/passwd", ~"/var/**", ~"/root/*"]'
+      - id: empty_after
+        expression: open.file.name in names
+    rules:
+      - open.file.path in ["/etc/passwd", "/etc/shadow"]
+      - open.file.path not in ["/etc/passwd", "/etc/shadow"]
+      - open.file.path in ["/etc/passwd"]
+      - open.file.path in ["/tmp/*", "/var/**", "/etc/passwd"]
+      - open.file.path in [~"/tmp/*", "/var/**"]
+      - open.file.path not in ["/tmp/*", "/var/**"]
+      - open.file.path in sensitive
+      - open.file.path not in sensitive
+      - open.file.name in names
+      - open.file.name not in names
+      - open.file.name in mixed
+      - open.file.name not in mixed
+      - open.file.name in ["", "x"]
+      - open.file.name not in ["", "x"]
+      - open.file.name in ["é.txt", "日本語"]
+      - open.file.name in ["a", "a", "a"]
+      - open.file.name in ["a.txt", r"^b.*", ~"c*", "d*"]
+      - open.file.name in mixed_patterns
+      - open.file.name not in mixed_patterns
+      - open.file.path in path_patterns
+      - open.file.path not in path_patterns
+      - open.file.path in ["/etc/passwd", ~"/var/**", ~"/root/*"]
+      - '!(open.file.name in ["a"])'
+      - empty_after && open.file.path =~ "/etc/*"
+      - '"passwd" in ["passwd", "x"] && open.file.name == "passwd"'
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd, open.file.name: passwd}}
+      - {type: open, fields: {open.file.path: /etc/shadow, open.file.name: shadow}}
+      - {type: open, fields: {open.file.path: /etc/hosts, open.file.name: hosts}}
+      - {type: open, fields: {open.file.path: /tmp/x, open.file.name: x}}
+      - {type: open, fields: {open.file.path: /var/a/b, open.file.name: b}}
+      - {type: open, fields: {open.file.path: /root/.bashrc, open.file.name: .bashrc}}
+      - {type: open, fields: {open.file.path: /root/a/b, open.file.name: b}}
+      - {type: open, fields: {open.file.path: /var/secret/k/e/y, open.file.name: y}}
+      - {type: open, fields: {open.file.path: /x/a.txt, open.file.name: a.txt}}
+      - {type: open, fields: {open.file.path: /x/bcd, open.file.name: bcd}}
+      - {type: open, fields: {open.file.path: /x/cde, open.file.name: cde}}
+      - {type: open, fields: {open.file.path: /x/d.log, open.file.name: d.log}}
+      - {type: open, fields: {open.file.path: /x/d.txt, open.file.name: d.txt}}
+      - {type: open, fields: {open.file.path: /x/zzz, open.file.name: zzz}}
+      - {type: open, fields: {open.file.path: "", open.file.name: ""}}
+      - {type: open, fields: {open.file.path: /x/é.txt, open.file.name: é.txt}}
+      - {type: open, fields: {open.file.path: /x/日本語, open.file.name: 日本語}}
+      - {type: open, fields: {open.file.path: /x/a, open.file.name: a}}
+
+  - name: string_in_discriminated_fields
+    rules:
+      - open.file.user in ["root", "daemon"] && open.file.name not in ["x", "y"]
+      - open.file.user == "root" || open.file.group == "wheel"
+      - open.file.user != "root" && open.file.group in [~"a*", ~"b*"]
+      - open.file.user =~ "r*" && open.file.group !~ "w*"
+      - open.file.user in [r"^r", ~"d*"] || open.file.group in ["g1", "g2"]
+    events:
+      - {type: open, fields: {open.file.user: root, open.file.group: wheel, open.file.name: z}}
+      - {type: open, fields: {open.file.user: root, open.file.group: root, open.file.name: x}}
+      - {type: open, fields: {open.file.user: daemon, open.file.group: adm, open.file.name: y}}
+      - {type: open, fields: {open.file.user: bob, open.file.group: bobs, open.file.name: q}}
+      - {type: open, fields: {open.file.user: bob, open.file.group: ccc, open.file.name: q}}
+      - {type: open, fields: {open.file.user: dave, open.file.group: g2, open.file.name: q}}
+      - {type: open, fields: {open.file.user: "", open.file.group: "", open.file.name: ""}}
+
+  # ----------------------------------------------------------- string arrays
+  - name: string_array_scalar_ops
+    rules:
+      - '"-v" in exec.argv'
+      - '"-v" not in exec.argv'
+      - '~"-v*" in exec.argv'
+      - '"-v*" in exec.argv'
+      - 'r"^-v.*" in exec.argv'
+      - '"x" in exec.envs'
+      - '"" in exec.argv'
+      - exec.argv in ["-v", "-q"]
+      - exec.argv not in ["-v", "-q"]
+      - exec.argv in ["-v*", "-z"]
+      - exec.argv in [~"-q*", r"^--"]
+      - exec.argv allin ["-v", "-q", "-x"]
+      - exec.argv allin ["-*"]
+      - exec.argv allin [r"^-", "x"]
+      - exec.argv =~ "-v*"
+      - exec.argv !~ "-v*"
+      - exec.argv =~ r"^--.*"
+      - exec.argv == "-v"
+      - exec.argv != "-v"
+      - exec.envs in ["PATH", "HOME"]
+      - exec.envs allin ["PATH", "HOME", "USER"]
+      - exec.envs not in ["PATH"]
+      - exec.argv allin [~"-*"]
+      - exec.argv in [~"-q*", "-x"] && exec.envs in [~"U*"]
+      - exec.argv not in [~"-v*"]
+    events:
+      - {type: exec, fields: {exec.argv: ["-v"], exec.envs: [PATH]}}
+      - {type: exec, fields: {exec.argv: ["-v", "-q"], exec.envs: [PATH, HOME]}}
+      - {type: exec, fields: {exec.argv: ["-v", "-z"], exec.envs: [HOME, USER, PATH]}}
+      - {type: exec, fields: {exec.argv: ["-q", "-x"], exec.envs: [USER]}}
+      - {type: exec, fields: {exec.argv: ["--long", "-vv"], exec.envs: [x]}}
+      - {type: exec, fields: {exec.argv: ["--long"], exec.envs: []}}
+      - {type: exec, fields: {exec.argv: [""], exec.envs: [""]}}
+      - {type: exec, fields: {exec.argv: [], exec.envs: []}}
+      - {type: exec, fields: {exec.argv: ["a", "b", "c"], exec.envs: [x, y]}}
+      - {type: exec, fields: {exec.argv: ["-p", "22", "-v"], exec.envs: [x]}}
+      - {type: exec, fields: {exec.argv: ["-p=22", "-q"], exec.envs: [x]}}
+
+  - name: string_array_vs_array
+    rules:
+      - exec.argv in exec.envs
+      - exec.argv not in exec.envs
+      - exec.argv allin exec.envs
+      - exec.envs allin exec.argv
+      - exec.file.name in exec.argv
+      - exec.file.name not in exec.argv
+      - exec.file.name in exec.envs
+      - exec.argv == exec.envs
+      - exec.argv =~ exec.envs
+    events:
+      - {type: exec, fields: {exec.argv: [a, b], exec.envs: [b, c], exec.file.name: a}}
+      - {type: exec, fields: {exec.argv: [a], exec.envs: [a, b], exec.file.name: b}}
+      - {type: exec, fields: {exec.argv: [a, b], exec.envs: [a, b], exec.file.name: z}}
+      - {type: exec, fields: {exec.argv: [a], exec.envs: [x], exec.file.name: x}}
+      - {type: exec, fields: {exec.argv: [], exec.envs: [x], exec.file.name: ""}}
+      - {type: exec, fields: {exec.argv: [x], exec.envs: [], exec.file.name: ""}}
+      - {type: exec, fields: {exec.argv: [], exec.envs: [], exec.file.name: ""}}
+
+  - name: string_array_ancestors
+    rules:
+      - 'exec.file.name != "zzz" && process.ancestors.file.name == "bash"'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name != "bash"'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name in ["bash", "sshd"]'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name not in ["bash", "sshd"]'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name allin ["bash", "sshd", "systemd"]'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name =~ "ba*"'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name !~ "ba*"'
+      - 'exec.file.name != "zzz" && process.ancestors.file.path =~ "/usr/**"'
+      - 'exec.file.name != "zzz" && process.ancestors.file.path in ["/usr/bin/bash", "/sbin/*"]'
+      - 'exec.file.name != "zzz" && "bash" in process.ancestors.file.name'
+      - 'exec.file.name != "zzz" && r"^ss" in process.ancestors.file.name'
+      - 'exec.file.name != "zzz" && process.ancestors.argv in ["-l"]'
+      - 'exec.file.name != "zzz" && process.ancestors.argv allin ["-l", "--x"]'
+      - 'exec.file.name != "zzz" && process.ancestors.envs in ["TERM"]'
+      - 'exec.file.name != "zzz" && process.parent.argv in ["-c"]'
+      - 'exec.file.name != "zzz" && process.parent.file.name == "bash" && process.file.name == "ls"'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name.length > 4'
+      - 'exec.file.name != "zzz" && process.ancestors.file.path.length == 13'
+      - 'exec.file.name != "zzz" && process.ancestors.file.name == process.file.name'
+    processes:
+      init: {pid: 1, fields: {file.name: systemd, file.path: /sbin/systemd, argv: ["--system"], envs: ["TERM"]}}
+      sshd: {pid: 5, parent: init, fields: {file.name: sshd, file.path: /usr/sbin/sshd, argv: ["-D"]}}
+      sh: {pid: 10, parent: sshd, fields: {file.name: bash, file.path: /usr/bin/bash, argv: ["-l"], envs: ["HOME"]}}
+      child: {pid: 11, parent: sh, fields: {file.name: ls, file.path: /usr/bin/ls, argv: ["-c", "x"]}}
+      loner: {pid: 20, fields: {file.name: ls, file.path: /bin/ls}}
+      twin: {pid: 30, parent: child, fields: {file.name: sshd, file.path: /usr/sbin/sshd}}
+    events:
+      - {type: exec, process: child, fields: {exec.file.name: ls}}
+      - {type: exec, process: sh, fields: {exec.file.name: bash}}
+      - {type: exec, process: sshd, fields: {exec.file.name: sshd}}
+      - {type: exec, process: init, fields: {exec.file.name: systemd}}
+      - {type: exec, process: loner, fields: {exec.file.name: ls}}
+      - {type: exec, process: twin, fields: {exec.file.name: sshd}}
+
+  # --------------------------------------------------------------- lengths
+  - name: string_length
+    rules:
+      - open.file.path.length > 10
+      - open.file.path.length == 0
+      - open.file.path.length != 4
+      - open.file.path.length <= 4
+      - open.file.path.length >= 4
+      - open.file.path.length < 4
+      - open.file.name.length == 6
+      - open.file.name.length > open.file.path.length
+      - open.file.path.length - open.file.name.length == 5
+      - open.file.name.length in [3, 6]
+      - open.file.name.length not in [3, 6]
+      - 0 == open.file.name.length
+      - 6 == open.file.name.length
+      - open.file.name.length == %{open.file.name.length}
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd, open.file.name: passwd}}
+      - {type: open, fields: {open.file.path: /a/b, open.file.name: b}}
+      - {type: open, fields: {open.file.path: /tmp, open.file.name: tmp}}
+      - {type: open, fields: {open.file.path: "", open.file.name: ""}}
+      - {type: open, fields: {open.file.path: /tmp/é, open.file.name: é}}
+      - {type: open, fields: {open.file.path: /very/long/path/to/a/file.txt, open.file.name: file.txt}}
+      - {type: open, fields: {open.file.path: /abcd, open.file.name: abcd}}
+      - {type: open, fields: {open.file.path: /abc, open.file.name: abc}}
+      - {type: open, fields: {open.file.path: /abcde, open.file.name: abcde}}
+
+  # ------------------------------------------------------- field vs field
+  - name: string_field_vs_field
+    rules:
+      - rename.file.name == rename.file.destination.name
+      - rename.file.name != rename.file.destination.name
+      - rename.file.path == rename.file.destination.path
+      - rename.file.destination.path == rename.file.path
+      - rename.file.path != rename.file.destination.path
+      - rename.file.name =~ rename.file.destination.name
+      - rename.file.user == rename.file.group
+      - rename.file.name in [rename.file.destination.name]
+      - process.file.name == rename.file.name
+      - rename.file.name != process.file.name
+      - rename.file.path =~ rename.file.destination.path
+      - rename.file.path !~ rename.file.destination.path
+    events:
+      - {type: rename, fields: {rename.file.name: a, rename.file.destination.name: a, rename.file.path: /x/a, rename.file.destination.path: /x/a, rename.file.user: root, rename.file.group: root, process.file.name: a}}
+      - {type: rename, fields: {rename.file.name: a, rename.file.destination.name: b, rename.file.path: /x/a, rename.file.destination.path: /y/b, rename.file.user: root, rename.file.group: wheel, process.file.name: b}}
+      - {type: rename, fields: {rename.file.name: "", rename.file.destination.name: "", rename.file.path: "", rename.file.destination.path: "", process.file.name: ""}}
+      - {type: rename, fields: {rename.file.name: A, rename.file.destination.name: a, rename.file.path: /x/A, rename.file.destination.path: /x/a, process.file.name: x}}
+      - {type: rename, fields: {rename.file.name: a, rename.file.destination.name: "", rename.file.path: /x/a, rename.file.destination.path: "", process.file.name: a}}
+      - {type: rename, fields: {rename.file.name: "", rename.file.destination.name: b, rename.file.path: "", rename.file.destination.path: /b, process.file.name: ""}}
+      - {type: rename, fields: {rename.file.path: "/x/*", rename.file.destination.path: "/x/y"}}
+
+  - name: string_field_vs_field_link_open
+    rules:
+      - link.file.path == link.file.destination.path
+      - link.file.path != link.file.destination.path
+      - link.file.name == link.file.destination.name && link.file.user == process.file.user
+      - open.file.name == process.file.name
+      - open.file.path != process.file.path
+      - open.file.name in [process.file.name, "z"]
+      - process.file.name == open.file.name && open.file.user == open.file.group
+    events:
+      - {type: link, fields: {link.file.path: /a, link.file.destination.path: /a, link.file.name: a, link.file.destination.name: a, link.file.user: u, process.file.user: u}}
+      - {type: link, fields: {link.file.path: /a, link.file.destination.path: /b, link.file.name: a, link.file.destination.name: b, link.file.user: u, process.file.user: v}}
+      - {type: open, fields: {open.file.name: sh, open.file.path: /bin/sh, process.file.name: sh, process.file.path: /bin/sh, open.file.user: u, open.file.group: u}}
+      - {type: open, fields: {open.file.name: z, open.file.path: /bin/z, process.file.name: sh, process.file.path: /bin/sh, open.file.user: u, open.file.group: g}}
+      - {type: open, fields: {open.file.name: "", open.file.path: "", process.file.name: "", process.file.path: ""}}
+
+  - name: string_field_references
+    rules:
+      - open.file.name == %{process.file.name}
+      - open.file.name != %{process.file.name}
+      - '%{process.file.name} == open.file.name'
+      - 'open.file.path == "/bin/%{process.file.name}"'
+      - 'open.file.path == "%{process.file.path}"'
+      - 'open.file.path == "/x/%{process.file.name}/%{open.file.name}"'
+      - 'open.file.path =~ "/%{process.file.name}/*"'
+      - 'open.file.path in ["/bin/%{process.file.name}", "/sbin/%{process.file.name}"]'
+      - 'open.file.path in [~"/bin/*", "/sbin/sh"]'
+      - 'open.file.name == "%{process.uid}"'
+      - 'open.file.name == "%{process.argv}"'
+      - 'open.file.name == "pre-%{process.file.name}-post"'
+      - 'open.file.name == "%{process.file.name}%{process.file.name}"'
+      - '%{open.file.name.length} == 2 && open.file.name != "q"'
+      - 'open.file.name == "%{process.ancestors.file.name}"'
+      - 'open.file.name == "%{process.gid}"'
+    processes:
+      sh: {pid: 10, fields: {file.name: sh, file.path: /bin/sh, uid: 1000, gid: 2000, argv: [a, b]}}
+    events:
+      - {type: open, process: sh, fields: {open.file.name: sh, open.file.path: /bin/sh}}
+      - {type: open, process: sh, fields: {open.file.name: other, open.file.path: /sbin/sh}}
+      - {type: open, process: sh, fields: {open.file.name: "1000", open.file.path: /x/sh/1000}}
+      - {type: open, process: sh, fields: {open.file.name: "a,b", open.file.path: /sh/zzz}}
+      - {type: open, process: sh, fields: {open.file.name: "pre-sh-post", open.file.path: /sh/pre-sh-post}}
+      - {type: open, process: sh, fields: {open.file.name: shsh, open.file.path: /zzz}}
+      - {type: open, process: sh, fields: {open.file.name: "2000", open.file.path: /zzz}}
+      - {type: open, process: sh, fields: {open.file.name: ab, open.file.path: /zzz}}
+      - {type: open, process: sh, fields: {open.file.name: "", open.file.path: ""}}
+
+  # --------------------------------------------------------- case insensitive
+  - name: string_case_insensitive_dns
+    rules:
+      - dns.question.name == "example.com"
+      - dns.question.name != "example.com"
+      - dns.question.name == "EXAMPLE.COM"
+      - '"Example.Com" == dns.question.name'
+      - dns.question.name in ["Example.com", "foo.org"]
+      - dns.question.name not in ["Example.com", "foo.org"]
+      - dns.question.name =~ "*.EXAMPLE.com"
+      - dns.question.name !~ "*.EXAMPLE.com"
+      - dns.question.name =~ ~"*.Example.com"
+      - dns.question.name =~ r"^WWW\.example"
+      - dns.question.name in [r"^WWW\.", "*.ORG"]
+      - dns.question.name.root_domain == "Example.com"
+      - dns.question.name.root_domain in ["EXAMPLE.COM"]
+      - dns.question.name.root_domain =~ "EXAMPLE*"
+      - dns.question.name.length == 11
+      - dns.question.name == dns.question.name.root_domain
+      - dns.question.name != dns.question.name.root_domain
+      - dns.response.cnames in ["CDN.example.net"]
+      - dns.response.cnames not in ["CDN.example.net"]
+      - dns.response.cnames allin ["CDN.example.net", "B.example.net"]
+      - dns.response.cnames =~ "*.EXAMPLE.net"
+      - dns.response.cnames !~ "*.EXAMPLE.net"
+      - dns.response.cnames =~ r"^cdn"
+      - '"cdn.EXAMPLE.net" in dns.response.cnames'
+      - '"CDN.*" in dns.response.cnames'
+      - '~"cdn*" in dns.response.cnames'
+      - dns.response.cnames == "cdn.example.net"
+      - dns.response.cnames in [r"^b\.", "zzz"]
+    events:
+      - {type: dns, fields: {dns.question.name: example.com, dns.response.cnames: [cdn.example.net]}}
+      - {type: dns, fields: {dns.question.name: EXAMPLE.COM, dns.response.cnames: [CDN.EXAMPLE.NET, b.example.net]}}
+      - {type: dns, fields: {dns.question.name: www.example.com, dns.response.cnames: []}}
+      - {type: dns, fields: {dns.question.name: WWW.Example.Com, dns.response.cnames: [x.other.net]}}
+      - {type: dns, fields: {dns.question.name: foo.org, dns.response.cnames: [b.example.net, c.example.net]}}
+      - {type: dns, fields: {dns.question.name: sub.FOO.ORG, dns.response.cnames: [""]}}
+      - {type: dns, fields: {dns.question.name: other.net, dns.response.cnames: [CDN.example.net, B.example.net]}}
+      - {type: dns, fields: {dns.question.name: "", dns.response.cnames: []}}
+      - {type: dns, fields: {dns.question.name: "ÉCOLE.fr"}}
+
+  - name: string_case_sensitive_vs_insensitive
+    rules:
+      - dns.question.name == "Example.com" && dns.question.type == 1
+      - dns.question.name == dns.question.name.root_domain && dns.question.type == 1
+    events:
+      - {type: dns, fields: {dns.question.name: Example.com, dns.question.type: 1}}
+      - {type: dns, fields: {dns.question.name: example.COM, dns.question.type: 1}}
+      - {type: dns, fields: {dns.question.name: example.COM, dns.question.type: 28}}
+
+  # ----------------------------------------------- operator overrides (file)
+  - name: string_overrides_exec_file_path
+    rules:
+      - exec.file.path == "/usr/bin/bash"
+      - exec.file.path != "/usr/bin/bash"
+      - '"/usr/bin/bash" == exec.file.path'
+      - exec.file.path =~ "/usr/*/bash"
+      - exec.file.path in ["/usr/bin/bash", "/bin/sh"]
+      - exec.file.path not in ["/usr/bin/bash", "/bin/sh"]
+      - exec.file.path in ["/usr/**"]
+      - exec.file.path in [~"/usr/**"]
+      - exec.file.path in [~"/opt/*", ~"/usr/*/bash"]
+      - exec.file.path in exec.argv
+      - exec.file.path not in exec.argv
+      - exec.file.name in exec.argv
+      - exec.file.name not in exec.argv
+      - exec.file.path == exec.argv0
+      - exec.file.path == process.file.path
+      - process.file.path == "/usr/bin/bash" && exec.file.name != "zzz"
+      - process.file.path != "/usr/bin/bash" && exec.file.name != "zzz"
+      - process.file.path in ["/usr/bin/bash"] && exec.file.name != "zzz"
+      - process.file.path in exec.argv && exec.file.name != "zzz"
+      - process.file.name == "bash" && exec.file.name != "zzz"
+      - process.file.name != "bash" && exec.file.name != "zzz"
+      - '"bash" == process.file.name && exec.file.name != "zzz"'
+      - process.file.name in ["bash", "sh"] && exec.file.name != "zzz"
+      - process.file.name not in ["bash", "sh"] && exec.file.name != "zzz"
+      - process.file.name in exec.argv && exec.file.name != "zzz"
+      - exec.file.name == "bash"
+      - exec.file.name != "bash"
+      - '"bash" != exec.file.name'
+      - exec.file.name in ["bash", "sh"]
+      - exec.file.name not in ["bash", "sh"]
+      - exec.file.name == exec.argv0
+      - exec.file.name == process.file.name
+      - exec.file.name =~ "ba*"
+      - exec.file.name =~ r"^b"
+      - exec.file.path == "/usr/bin/*"
+      - exec.interpreter.file.path == "/usr/bin/python3"
+      - exec.interpreter.file.name == "python3"
+      - exec.file.extension == "sh"
+      - exec.file.extension == ".sh"
+      - exec.file.extension in ["sh", ".py"]
+      - exec.file.extension in exec.argv
+      - exec.file.extension =~ "s*"
+      - exec.file.extension =~ r"^\.s"
+      - exec.file.extension != "sh"
+      - '"sh" == exec.file.extension'
+      - '".sh" != exec.file.extension'
+      - '~"/usr/*" in process.ancestors.file.path && exec.file.name != "zzz"'
+      - '~"/usr/*" in exec.argv'
+      - '"/usr/bin/bash" in exec.argv'
+    processes:
+      parent: {pid: 1, fields: {file.name: bash, file.path: /usr/bin/bash}}
+    events:
+      - {type: exec, process: parent, fields: {exec.file.path: /usr/bin/bash, exec.file.name: bash, exec.argv: [/usr/bin/bash, bash], exec.argv0: /usr/bin/bash, exec.file.extension: .sh}}
+      - {type: exec, fields: {exec.file.path: /bin/sh, exec.file.name: sh, exec.argv: [sh, /bin/sh], exec.argv0: sh, process.file.path: /bin/sh, process.file.name: sh, exec.file.extension: .py}}
+      - {type: exec, fields: {exec.file.path: /usr/local/bash, exec.file.name: bash, exec.argv: [zzz], exec.argv0: zzz, process.file.path: /usr/bin/bash, process.file.name: bash, exec.file.extension: ""}}
+      - {type: exec, fields: {exec.file.path: /opt/x, exec.file.name: x, exec.argv: [".sh", sh, x, /opt/x], exec.argv0: x, process.file.path: /opt/x, process.file.name: x, exec.file.extension: .sh}}
+      - {type: exec, fields: {exec.file.path: /opt/x, exec.file.name: x, exec.argv: [".sh"], exec.argv0: x, process.file.path: /opt/x, process.file.name: x, exec.file.extension: .SH}}
+      - {type: exec, fields: {exec.file.path: /usr/bin/bash, exec.file.name: bash, exec.interpreter.file.path: /usr/bin/python3, exec.interpreter.file.name: python3, process.file.path: /usr/bin/bash, process.file.name: bash, exec.argv: [], exec.argv0: ""}}
+
+  - name: string_overrides_overlay_symlink_other_events
+    rules:
+      - open.file.path == "/etc/passwd"
+      - open.file.path in ["/etc/passwd", "/etc/*"]
+      - open.file.path in open.file.user
+      - open.file.name == "passwd"
+      - open.file.name in ["passwd"]
+      - open.file.path == open.file.name
+      - open.file.filesystem == "overlay" && open.file.path == "/etc/passwd"
+      - open.file.filesystem != "overlay" && open.file.path =~ "/etc/*"
+      - open.file.filesystem in ["overlay", "ext4"]
+      - open.file.filesystem not in ["overlay", "ext4"]
+      - open.file.extension == "txt"
+      - open.file.extension in ["txt", "log"]
+      - open.file.extension =~ "t*"
+      - open.file.extension != "txt"
+      - open.file.extension == ".TXT"
+      - open.file.extension == ""
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd, open.file.name: passwd, open.file.filesystem: overlay, open.file.extension: ""}}
+      - {type: open, fields: {open.file.path: /etc/passwd, open.file.name: passwd, open.file.filesystem: ext4, open.file.extension: .txt}}
+      - {type: open, fields: {open.file.path: /etc/hosts, open.file.name: hosts, open.file.filesystem: xfs, open.file.extension: .log}}
+      - {type: open, fields: {open.file.path: /etc/x.txt, open.file.name: x.txt, open.file.filesystem: overlay, open.file.extension: txt}}
+      - {type: open, fields: {open.file.path: /etc/x.TXT, open.file.name: x.TXT, open.file.filesystem: tmpfs, open.file.extension: .TXT}}
+      - {type: open, fields: {open.file.path: /etc/x.md, open.file.name: x.md, open.file.filesystem: tmpfs, open.file.extension: .md}}
+      - {type: open, fields: {open.file.path: passwd, open.file.name: passwd, open.file.filesystem: "", open.file.user: passwd}}
+
+  # ------------------------------------------------------------- variables
+  - name: string_variable_interpolation
+    rules:
+      - id: set_name
+        expression: exec.file.name == "setter"
+        actions:
+          - set: {name: sname, value: "hello", scope: process}
+          - set: {name: gname, value: "world"}
+          - set: {name: slist, value: ["aa"], scope: process}
+          - set: {name: ilist, value: [7], scope: process}
+          - set: {name: inum, value: 42}
+      - id: use_scalar
+        expression: open.file.name == "${process.sname}"
+      - id: use_global
+        expression: open.file.name == "${gname}"
+      - id: use_both
+        expression: 'open.file.name == "${process.sname}-${gname}"'
+      - id: use_mix
+        expression: 'open.file.path == "/${process.sname}/%{process.file.name}/${gname}"'
+      - id: use_list
+        expression: 'open.file.name == "${process.slist}"'
+      - id: use_ilist
+        expression: 'open.file.name == "${process.ilist}"'
+      - id: use_int
+        expression: 'open.file.name == "n${inum}"'
+      - id: use_in
+        expression: open.file.name in ${process.slist}
+      - id: use_not_in
+        expression: open.file.name not in ${process.slist}
+      - id: use_eq_var
+        expression: open.file.name == ${process.sname}
+      - id: use_neq_var
+        expression: open.file.name != ${gname}
+      - id: use_pattern_var
+        expression: open.file.name =~ "${process.sname}*"
+      - id: use_length
+        expression: ${process.sname.length} == 5 && open.file.name == "x"
+      - id: use_list_length
+        expression: ${process.slist.length} == 1 && open.file.name == "x"
+      - id: use_ilist_length
+        expression: ${process.ilist.length} == 1 && open.file.name == "x"
+      - id: use_missing
+        expression: 'open.file.name == "${nothere}"'
+    processes:
+      sh: {pid: 10, fields: {file.name: sh}}
+    events:
+      - {type: open, process: sh, fields: {open.file.name: hello}}
+      - {type: exec, process: sh, fields: {exec.file.name: setter}}
+      - {type: open, process: sh, fields: {open.file.name: hello}}
+      - {type: open, process: sh, fields: {open.file.name: world}}
+      - {type: open, process: sh, fields: {open.file.name: hello-world}}
+      - {type: open, process: sh, fields: {open.file.path: /hello/sh/world, open.file.name: zz}}
+      - {type: open, process: sh, fields: {open.file.name: "aa"}}
+      - {type: open, process: sh, fields: {open.file.name: "7"}}
+      - {type: open, process: sh, fields: {open.file.name: n42}}
+      - {type: open, process: sh, fields: {open.file.name: aa}}
+      - {type: open, process: sh, fields: {open.file.name: bb}}
+      - {type: open, process: sh, fields: {open.file.name: cc}}
+      - {type: open, process: sh, fields: {open.file.name: helloworld}}
+      - {type: open, process: sh, fields: {open.file.name: x}}
+
+  # ------------------------------------------------------------- load errors
+  - name: string_load_errors
+    rules:
+      - open.file.name == 1
+      - open.file.name > "a"
+      - open.file.name =~ 1
+      - open.file.path =~ r"^/etc"
+      - open.file.path in [r"^/etc"]
+      - open.file.name =~ r"("
+      - open.file.name in ["a", 1]
+      - open.file.name in [1, 2]
+      - open.file.name =~ open.file.path
+      - open.file.name in open.file.path
+      - open.file.name in [open.file.path]
+      - open.file.name allin ["a"]
+      - open.file.name.length == "a"
+      - open.file.name.length =~ "a"
+      - '"a" =~ open.file.name'
+      - open.file.name == %{no.such.field}
+      - 'open.file.name == "%{no.such.field}"'
+      - open.file.name == 'a'
+      - open.file.name + "a" == "b"
+      - open.file.name & "a"
+      - open.file.name
+      - open.file.name == true
+      - open.file.name == open.flags
+      - open.file.name == ~"a*"
+      - open.file.name =~ ~"a*" + 1
+      - open.file.name =~ r"a" + r"b"
+      - open.file.path in [~"/a/*", r"b"]
+      - exec.argv in [1]
+      - exec.argv allin [1]
+      - exec.argv == 1
+      - exec.argv.length == 1
+      - exec.argv in "a"
+      - exec.argv in open.file.path
+      - exec.envs in exec.args_flags
+      - exec.file.name == %{exec.argv}
+      - ok_rule_after_errors
+      - open.file.name == "fine"
+    events:
+      - {type: open, fields: {open.file.name: fine}}
+
+  # ----------------------------------------------- partials / discarder shapes
+  - name: string_partials_and_discarders
+    rules:
+      - open.file.path =~ "/tmp/**" && open.file.name in ["a", "b*"]
+      - open.file.path in [~"/etc/*", ~"/var/**"] && process.file.name == "bash"
+      - open.file.name == "x" || open.file.path =~ "/opt/**"
+      - open.file.path !~ "/proc/**" && open.file.name != "skip"
+      - open.file.path not in ["/proc/*"] && open.file.name =~ r"^[a-z]+$"
+      - open.file.name == process.file.name && open.file.path =~ "/h/**"
+    events:
+      - {type: open, fields: {open.file.path: /tmp/a/b, open.file.name: a, process.file.name: bash}}
+      - {type: open, fields: {open.file.path: /tmp/a/b, open.file.name: bcd, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /etc/x, open.file.name: zzz, process.file.name: bash}}
+      - {type: open, fields: {open.file.path: /var/a/b, open.file.name: zzz, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /opt/a, open.file.name: y, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /proc/1/maps, open.file.name: maps, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /proc/x, open.file.name: skip, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /h/x, open.file.name: sh, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /h/x, open.file.name: Z9, process.file.name: sh}}
+      - {type: open, fields: {open.file.path: /nowhere, open.file.name: nothing, process.file.name: sh}}
+
+  - name: string_regexp_big_or
+    rules:
+      - open.file.name =~ r"(foo|bar)"
+      - open.file.name !~ r"(foo|bar)"
+      - open.file.name =~ r".*(foo|bar).*"
+      - open.file.name =~ r"^(foo|bar)$"
+      - open.file.name in [r"(foo|bar)", "zzz"]
+      - open.file.name not in [r"(a_b|c)"]
+      - dns.question.name =~ r"(foo|bar)"
+      - dns.question.name in [r"(foo|bar)"]
+      - dns.question.name !~ r"(foo|bar)"
+    events:
+      - {type: open, fields: {open.file.name: foo}}
+      - {type: open, fields: {open.file.name: xbarx}}
+      - {type: open, fields: {open.file.name: FOO}}
+      - {type: open, fields: {open.file.name: baz}}
+      - {type: open, fields: {open.file.name: a_b}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: open, fields: {open.file.name: ""}}
+      - {type: dns, fields: {dns.question.name: foo.com}}
+      - {type: dns, fields: {dns.question.name: FOO.com}}
+      - {type: dns, fields: {dns.question.name: BAR}}
+      - {type: dns, fields: {dns.question.name: baz.com}}
+
+  - name: string_array_literal_on_left
+    macros:
+      - id: two
+        values: ["-v", "-q"]
+      - id: one
+        values: ["-v"]
+      - id: pats
+        expression: '[~"-v*", r"^--x"]'
+      - id: envs
+        values: ["PATH"]
+      - id: cn
+        values: ["a"]
+      - id: none
+        values: []
+    rules:
+      - two in exec.argv
+      - two not in exec.argv
+      - pats in exec.argv
+      - envs in exec.envs && one in exec.argv
+      - one allin exec.argv
+      - one in exec.argv || envs in exec.argv
+      - none in exec.argv
+      - cn in dns.response.cnames
+      - cn not in dns.response.cnames
+    events:
+      - {type: exec, fields: {exec.argv: ["-v"], exec.envs: [PATH]}}
+      - {type: exec, fields: {exec.argv: ["-q", "-z"], exec.envs: [x]}}
+      - {type: exec, fields: {exec.argv: ["--xlong", "-vv"], exec.envs: []}}
+      - {type: exec, fields: {exec.argv: [], exec.envs: []}}
+      - {type: exec, fields: {exec.argv: ["other"], exec.envs: [PATH]}}
+      - {type: dns, fields: {dns.response.cnames: [a]}}
+      - {type: dns, fields: {dns.response.cnames: [A]}}
+      - {type: dns, fields: {dns.response.cnames: [b]}}
+
+  - name: string_variable_arrays_vs_fields
+    rules:
+      - id: setter
+        expression: exec.file.name == "setter"
+        actions:
+          - set: {name: garr, value: ["a.com"]}
+          - set: {name: gstr, value: "A.com"}
+          - set: {name: garr2, value: ["-v"]}
+      - id: q_in_var
+        expression: dns.question.name in ${garr}
+      - id: q_not_in_var
+        expression: dns.question.name not in ${garr}
+      - id: cnames_in_var
+        expression: dns.response.cnames in ${garr}
+      - id: var_in_cnames
+        expression: ${garr} in dns.response.cnames
+      - id: str_in_cnames
+        expression: ${gstr} in dns.response.cnames
+      - id: str_in_var
+        expression: 'dns.question.name != "" && "a.com" in ${garr}'
+      - id: q_eq_var
+        expression: dns.question.name == ${gstr}
+      - id: q_eq_interp
+        expression: 'dns.question.name == "${gstr}"'
+      - id: argv_in_var
+        expression: exec.argv in ${garr2}
+      - id: file_in_var
+        expression: exec.file.name in ${garr2}
+      - id: var_in_argv
+        expression: ${garr2} in exec.argv
+      - id: str_in_argv
+        expression: '"-v" in ${garr2} && exec.argv in ["-v"]'
+      - id: path_in_var
+        expression: open.file.name in ${garr2}
+      - id: path_pattern_var
+        expression: open.file.path in ${garr2}
+    events:
+      - {type: dns, fields: {dns.question.name: a.com, dns.response.cnames: [A.COM]}}
+      - {type: exec, fields: {exec.file.name: setter, exec.argv: [x]}}
+      - {type: dns, fields: {dns.question.name: A.COM, dns.response.cnames: [A.com, b]}}
+      - {type: dns, fields: {dns.question.name: b.com, dns.response.cnames: [b]}}
+      - {type: dns, fields: {dns.question.name: a.com, dns.response.cnames: []}}
+      - {type: exec, fields: {exec.file.name: "-v", exec.argv: ["-v"]}}
+      - {type: exec, fields: {exec.file.name: x, exec.argv: ["-q", "-v"]}}
+      - {type: exec, fields: {exec.file.name: x, exec.argv: ["-q"]}}
+      - {type: open, fields: {open.file.name: "-v", open.file.path: "-v"}}
+      - {type: open, fields: {open.file.name: "x", open.file.path: "/x"}}
+
+  # ------------------------------------------- glob matching on path fields
+  # Linux never normalizes path separators and never sets the case-insensitive
+  # glob flag, but a scalar glob (no `*`) still goes through Glob.Matches.
+  - name: string_glob_path_scalar_and_separators
+    rules:
+      - open.file.path =~ "/etc/passwd"
+      - open.file.path !~ "/etc/passwd"
+      - open.file.path =~ ~"/etc/passwd"
+      - open.file.path =~ "/ETC/passwd"
+      - open.file.path =~ "/etc/passwd/"
+      - open.file.path =~ "/tmp/*"
+      - open.file.path =~ "/tmp/**"
+      - open.file.path =~ "/tmp/x*"
+      - open.file.path =~ "/tmp/*/x"
+      - open.file.path =~ "/a\\b/*"
+      - open.file.path =~ "/a/b/*"
+      - open.file.path == "/a\\b/x"
+      - open.file.path in ["/etc/passwd", "/x"]
+      - open.file.path not in ["/etc/passwd", "/x"]
+      - open.file.path in ["/tmp/*"]
+      - open.file.path in ["/tmp/**"]
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.path: /ETC/passwd}}
+      - {type: open, fields: {open.file.path: /ETC/PASSWD}}
+      - {type: open, fields: {open.file.path: /etc/passwdx}}
+      - {type: open, fields: {open.file.path: /etc/passwd/}}
+      - {type: open, fields: {open.file.path: "/etc\\passwd"}}
+      - {type: open, fields: {open.file.path: "\\etc\\passwd"}}
+      - {type: open, fields: {open.file.path: /tmp/x}}
+      - {type: open, fields: {open.file.path: /tmp/x/y}}
+      - {type: open, fields: {open.file.path: /tmp/xy}}
+      - {type: open, fields: {open.file.path: /tmp}}
+      - {type: open, fields: {open.file.path: "/tmp\\x"}}
+      - {type: open, fields: {open.file.path: "/tmp/a\\x"}}
+      - {type: open, fields: {open.file.path: "/a\\b/x"}}
+      - {type: open, fields: {open.file.path: "/a/b/x"}}
+      - {type: open, fields: {open.file.path: "/a/b"}}
+      - {type: open, fields: {open.file.path: "/tmp/"}}
+      - {type: open, fields: {open.file.path: "/"}}
+      - {type: open, fields: {open.file.path: ""}}
+      - {type: open, fields: {open.file.name: x}}
+
+  - name: string_glob_name_vs_path_normalization
+    rules:
+      - open.file.name =~ "x\\y*"
+      - open.file.name == "x\\y"
+      - open.file.name =~ "x*"
+      - open.file.name =~ ~"X*"
+      - open.file.path =~ "*\\x"
+    events:
+      - {type: open, fields: {open.file.name: "x\\y", open.file.path: "/d/x\\y"}}
+      - {type: open, fields: {open.file.name: "x\\yz", open.file.path: "/d/x\\yz"}}
+      - {type: open, fields: {open.file.name: "X", open.file.path: "/X"}}
+      - {type: open, fields: {open.file.name: "xy", open.file.path: "a\\x"}}
+      - {type: open, fields: {open.file.name: "", open.file.path: "\\x"}}
+
+  # ------------------------------------------------- file extension operators
+  - name: string_extension_values_and_arrays
+    rules:
+      - exec.file.extension in ["sh", ".py"]
+      - exec.file.extension not in ["sh", ".py"]
+      - exec.file.extension in [".sh"]
+      - exec.file.extension in ["sh"] && exec.file.name == "x"
+      - exec.file.extension in ["", "py"]
+      - exec.file.extension in [~"s*", "py"]
+      - exec.file.extension in [r"^\.s", "py"]
+      - exec.file.extension == "sh" && exec.file.name == "x"
+      - '"sh" in exec.argv'
+      - '"sh" in exec.argv && exec.file.extension == "sh"'
+      - exec.file.extension in exec.argv
+      - exec.file.extension not in exec.argv
+      - exec.file.extension == exec.argv0
+    events:
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: sh, exec.argv: [sh]}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: .sh, exec.argv: [".sh", x]}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: py, exec.argv: [py, "sh"]}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: .py, exec.argv: [.py]}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: "", exec.argv: []}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: .SH, exec.argv: [SH]}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: rb, exec.argv: [rb, sh]}}
+      - {type: exec, fields: {exec.file.name: x, exec.file.extension: ".sh.bak", exec.argv: []}}
+
+  # %{field} references with the .length and .root_domain suffixes, on scalar
+  # and array fields, interpolated into set action values and expressions
+  - name: field_reference_length_and_root_domain
+    rules:
+      - id: refs
+        expression: open.flags == 1
+        actions:
+          - set: {name: argv_len, value: "n=%{process.argv.length}"}
+          - set: {name: name_len, value: "n=%{process.file.name.length}"}
+          - set: {name: anc_len, value: "n=%{process.ancestors.pid.length}"}
+          - set: {name: anc_names_root, value: "d=%{process.ancestors.file.name.root_domain}"}
+          - set: {name: name_root, value: "d=%{process.file.name.root_domain}"}
+      - open.flags == 2 && open.file.path == "/n/%{process.argv.length}"
+      - open.flags == 2 && open.file.path == "/d/%{process.file.name.root_domain}"
+    processes:
+      parent: {pid: 10, fields: {file.name: a.example.com}}
+      child: {pid: 11, parent: parent, fields: {file.name: www.datadoghq.co.uk, argv: [x, y, z]}}
+    events:
+      - {type: open, process: child, fields: {open.flags: 1}}
+      - {type: open, process: child, fields: {open.flags: 2, open.file.path: /n/3}}
+      - {type: open, process: child, fields: {open.flags: 2, open.file.path: /d/datadoghq.co.uk}}
+      - {type: open, process: child, fields: {open.flags: 2, open.file.path: /n/4}}
