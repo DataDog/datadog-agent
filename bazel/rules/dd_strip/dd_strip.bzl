@@ -42,6 +42,7 @@ def _dd_strip_symbols_impl(ctx):
         debug_name = basename + ".dSYM"
         debug = ctx.actions.declare_directory("{}/{}".format(subdir, debug_name))
     else:
+        # TODO: We might need to use a different extension for windows.
         debug_name = basename + ".dbg"
         debug = ctx.actions.declare_file("{}/{}".format(subdir, debug_name))
 
