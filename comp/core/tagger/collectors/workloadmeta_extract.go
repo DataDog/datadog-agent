@@ -134,7 +134,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		entityID := entity.GetID()
 
 		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-			entityID.Kind == workloadmeta.KindKubelet {
+			entityID.Kind == workloadmeta.KindKubelet ||
+			entityID.Kind == workloadmeta.KindKubernetesAutoscaler {
 			// No tags. Ignore
 			continue
 		}
