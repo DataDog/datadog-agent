@@ -108,7 +108,7 @@ profiles:
           - reason
       - name: serializer.metadata_payload_dropped_bytes
         preserve_tags:
-          - encoding
+          - compressed
       - name: transactions.input_count
         preserve_tags:
           - domain

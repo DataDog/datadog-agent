@@ -11,10 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 )
 
-// Values of the "encoding" tag of the dropped metadata payload size histogram.
+// Values of the "compressed" tag of the dropped metadata payload size histogram.
 const (
-	encodingCompressed   = "compressed"
-	encodingUncompressed = "uncompressed"
+	compressedTrue  = "true"
+	compressedFalse = "false"
 )
 
 // metadataDropMetrics holds the telemetry of the metadata payloads dropped by the serializer for exceeding the
@@ -32,7 +32,7 @@ func newMetadataDropMetrics(tel telemetry.Component) *metadataDropMetrics {
 			[]string{"reason"},
 			"Metadata payloads dropped because they exceed the payload size limits, by limits exceeded (compressed, uncompressed or both)"),
 		bytes: tel.NewHistogram("serializer", "metadata_payload_dropped_bytes",
-			[]string{"encoding"},
+			[]string{"compressed"},
 			"Size, in bytes, of the metadata payloads dropped because they exceed the payload size limits",
 			[]float64{2 << 20, 3 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20, 64 << 20, 128 << 20, 256 << 20}),
 	}
@@ -43,6 +43,6 @@ var defaultMetadataDropMetrics = newMetadataDropMetrics(telemetryimpl.GetCompatC
 // record counts a dropped metadata payload and observes both its compressed and uncompressed sizes.
 func (m *metadataDropMetrics) record(exceeded split.SizeLimit, compressedSize, uncompressedSize int) {
 	m.payloads.Inc(exceeded.String())
-	m.bytes.Observe(float64(compressedSize), encodingCompressed)
-	m.bytes.Observe(float64(uncompressedSize), encodingUncompressed)
+	m.bytes.Observe(float64(compressedSize), compressedTrue)
+	m.bytes.Observe(float64(uncompressedSize), compressedFalse)
 }
