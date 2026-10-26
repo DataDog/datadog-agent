@@ -100,9 +100,9 @@ tags:
   unavailable_reason:
     regex: "^(lost|unschedulable)$"
   unschedulable_reason:
-    # cordoned, or <label key>:<value> / <condition type>:<status> of a matching
-    # gpu.unschedulable_nodes rule, lowercased.
-    regex: "^(cordoned|[a-z0-9._/-]+:[a-z0-9._-]+)$"
+    # cordoned, not_ready, or <label key>:<value> / <condition type>:<status> of a
+    # matching gpu.unschedulable_nodes rule, lowercased.
+    regex: "^(cordoned|not_ready|[a-z0-9._/-]+:[a-z0-9._-]+)$"
     optional: true
 
 tagsets:

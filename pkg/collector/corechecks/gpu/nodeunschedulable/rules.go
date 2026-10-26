@@ -27,6 +27,9 @@ const (
 
 	// CordonReason is the reason of a cordoned node, always checked.
 	CordonReason = "cordoned"
+	// NotReadyReason is the reason of a node whose Ready condition is False or Unknown,
+	// always checked: Kubernetes taints such nodes NoSchedule.
+	NotReadyReason = "not_ready"
 
 	// maxReasonLen keeps the whole tag, unschedulable_reason:<reason>, within the
 	// 200-character tag limit.
@@ -185,7 +188,7 @@ func operand(v any) (string, error) {
 	}
 }
 
-// Evaluate returns the sorted reasons (cordoned, <key>:<value>, <type>:<status>) that
+// Evaluate returns the sorted reasons (cordoned, not_ready, <key>:<value>, <type>:<status>) that
 // make the node unschedulable; an empty list means it is schedulable.
 func (r *Rules) Evaluate(labels map[string]string, conditions []Condition, unschedulable bool) []string {
 	reasons := []string{}
@@ -200,6 +203,9 @@ func (r *Rules) Evaluate(labels map[string]string, conditions []Condition, unsch
 	}
 	for _, c := range conditions {
 		t, s := strings.ToLower(c.Type), strings.ToLower(c.Status)
+		if t == "ready" && s != "true" {
+			reasons = append(reasons, NotReadyReason)
+		}
 		if slices.Contains(r.conditions[t], s) {
 			reasons = append(reasons, canonical(t+":"+s))
 		}

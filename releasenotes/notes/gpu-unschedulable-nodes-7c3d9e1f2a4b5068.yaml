@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    The GPU check can report GPUs on cordoned or otherwise unschedulable
+    The GPU check can report GPUs on cordoned, not Ready or otherwise unschedulable
     Kubernetes nodes as ``gpu.device.unavailable`` with
     ``unavailable_reason:unschedulable``. Requires the Cluster Agent. Enable it
     with ``gpu.unschedulable_nodes.enabled``.

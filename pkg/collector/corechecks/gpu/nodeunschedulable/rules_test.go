@@ -184,6 +184,17 @@ gpu:
 	assert.Error(t, err)
 }
 
+// A Ready condition that is not True is always reported, like a cordon.
+func TestEvaluateNotReadyWithoutRules(t *testing.T) {
+	rules, err := Compile(nil, nil)
+	require.NoError(t, err)
+	for _, status := range []string{"False", "Unknown"} {
+		assert.Equal(t, []string{"not_ready"}, rules.Evaluate(nil, []Condition{{Type: "Ready", Status: status}}, false), status)
+	}
+	assert.Empty(t, rules.Evaluate(nil, []Condition{{Type: "Ready", Status: "True"}}, false))
+	assert.Equal(t, []string{"cordoned", "not_ready"}, rules.Evaluate(nil, []Condition{{Type: "Ready", Status: "Unknown"}}, true))
+}
+
 // Invalid rules are ignored: only a cordoned node is still reported.
 func TestLoadRulesFallsBackToCordon(t *testing.T) {
 	cfg := configmock.New(t)
