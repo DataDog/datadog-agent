@@ -6,10 +6,7 @@ go_library(
     srcs = ["endpoint.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/process/util/api/config",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/config/utils",
-        "//pkg/util/log",
-    ],
+    deps = ["//pkg/config/utils"],
 )
 
 dd_agent_go_test(

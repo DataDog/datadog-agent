@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"golang.org/x/net/idna"
@@ -168,6 +169,8 @@ type EndpointDescriptor struct {
 
 	// ConfigName is the endpoint URL as it appears in the configuration, if it differs from BaseURL.
 	ConfigName string
+	// AdditionalConfigNames lists other exact config keys contributing credentials to this endpoint.
+	AdditionalConfigNames []string
 
 	// HasPendingDelegatedAuth is true when this domain has no real API keys yet but is known to
 	// be waiting on one from the delegatedauth component (a DELA[...] directive in
@@ -192,10 +195,11 @@ func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescript
 }
 
 // NewEndpointDescriptorWithConfigName creates an EndpointDescriptor whose resolver tracks
-// configuration updates under configName rather than baseURL.
-func NewEndpointDescriptorWithConfigName(configName, baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
+// configuration updates under configName and any additionalConfigNames rather than baseURL.
+func NewEndpointDescriptorWithConfigName(configName, baseURL string, apiKeySet []APIKeys, additionalConfigNames ...string) EndpointDescriptor {
 	descriptor := newEndpointDescriptor(baseURL, apiKeySet)
 	descriptor.ConfigName = configName
+	descriptor.AdditionalConfigNames = slices.Clone(additionalConfigNames)
 	return descriptor
 }
 

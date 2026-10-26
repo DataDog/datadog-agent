@@ -144,7 +144,8 @@ func TestEndpointDescriptorsConfigName(t *testing.T) {
 	assert.Equal(t, "//relative.com", eds["https://relative.com"].ConfigName)
 	assert.Equal(t, "https://pending.com/v1", eds["https://pending.com"].ConfigName)
 	assert.True(t, eds["https://pending.com"].HasPendingDelegatedAuth)
-	assert.Empty(t, eds["https://two.com"].ConfigName, "two config keys can't share one config name")
+	assert.Empty(t, eds["https://two.com"].ConfigName, "the first config key already is the domain")
+	assert.Equal(t, []string{"https://two.com/"}, eds["https://two.com"].AdditionalConfigNames)
 	assert.Len(t, eds["https://two.com"].APIKeySet, 2)
 }
 

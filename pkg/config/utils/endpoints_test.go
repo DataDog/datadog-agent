@@ -50,10 +50,13 @@ func TestNewEndpointDescriptorWithConfigName(t *testing.T) {
 		ConfigSettingPath:       "process_config.additional_endpoints",
 		HasPendingDelegatedAuth: true,
 	}}
-	descriptor := NewEndpointDescriptorWithConfigName("https://process.example/some/path", "https://process.example", apiKeys)
+	aliases := []string{"https://process.example/"}
+	descriptor := NewEndpointDescriptorWithConfigName("https://process.example/some/path", "https://process.example", apiKeys, aliases...)
+	aliases[0] = "https://unrelated.example"
 
 	assert.Equal(t, "https://process.example/some/path", descriptor.ConfigName)
 	assert.Equal(t, "https://process.example", descriptor.BaseURL)
+	assert.Equal(t, []string{"https://process.example/"}, descriptor.AdditionalConfigNames)
 	assert.Equal(t, apiKeys, descriptor.APIKeySet)
 	assert.True(t, descriptor.HasPendingDelegatedAuth)
 }
