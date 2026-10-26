@@ -30,6 +30,40 @@ func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
 		"the policy directory must not be below the dd-agent-owned config directory")
 }
 
+// TestAgentPackagePermissionsRootOwnRootRunPaths encodes the VULN-4673
+// invariant: every binary a root context executes, and every directory that
+// contains one, must be root-owned so dd-agent cannot replace it and have root
+// run its code. The tree still defaults to dd-agent ownership, applied before
+// the root carve-outs.
+func TestAgentPackagePermissionsRootOwnRootRunPaths(t *testing.T) {
+	ddAgentDefaultIndex := -1
+	rootOwned := map[string]bool{}
+	for i, p := range agentPackagePermissions {
+		if p.Path == "." && p.Owner == "dd-agent" && p.Recursive {
+			ddAgentDefaultIndex = i
+		}
+		if p.Owner == "root" && p.Group == "root" {
+			rootOwned[p.Path] = true
+			assert.Greater(t, i, ddAgentDefaultIndex,
+				"root pin %q must be applied after the recursive dd-agent default", p.Path)
+		}
+	}
+	require.GreaterOrEqual(t, ddAgentDefaultIndex, 0, "the package tree must default to dd-agent ownership")
+
+	// Directories that contain root-run binaries (rename/replace vector) and the
+	// root-run binaries themselves.
+	for _, path := range []string{
+		".",
+		"embedded",
+		"embedded/bin",
+		"embedded/bin/installer",
+		"embedded/bin/system-probe",
+		"embedded/bin/security-agent",
+	} {
+		assert.Truef(t, rootOwned[path], "%q is run by or contains a root binary and must be root-owned", path)
+	}
+}
+
 func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T) {
 	assert.Equal(t, installerFile.Permissions{
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},

@@ -94,9 +94,36 @@ var (
 		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
-	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
+	// agentPackagePermissions are the ownerships and modes that are enforced on
+	// the agent package files.
+	//
+	// The agent daemon runs as dd-agent, so the tree defaults to dd-agent
+	// ownership. The security invariant is that nothing a *root* context executes
+	// — nor any directory that contains it — may be writable by dd-agent:
+	// otherwise dd-agent could replace it and have root run its code, which is a
+	// local privilege escalation (VULN-4673). The daemon only needs read+execute
+	// on these binaries, never ownership, so re-pinning them to root does not
+	// affect normal operation.
+	//
+	// Entries are applied in order: the recursive dd-agent default first, then
+	// the root carve-outs that re-pin the privileged paths on top of it. The
+	// paths dd-agent genuinely writes at runtime stay dd-agent-owned and are not
+	// re-pinned here: run/ (created separately), embedded/lib (restored by
+	// integrationRestorePermissions), logs and /var/log.
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		// Directories that hold binaries root executes. dd-agent owning these
+		// would let it rename or replace the whole directory — and thus the
+		// binaries inside — even when the files themselves are root-owned, so the
+		// directories must be root-owned too.
+		{Path: ".", Owner: "root", Group: "root"},
+		{Path: "embedded", Owner: "root", Group: "root"},
+		{Path: "embedded/bin", Owner: "root", Group: "root"},
+		// Binaries executed as root. system-probe and security-agent run as root
+		// services; installer is executed as root by
+		// datadog-agent-installer.service (no User=) and by the deb/rpm postinst,
+		// so it must be root-owned as well.
+		{Path: "embedded/bin/installer", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
