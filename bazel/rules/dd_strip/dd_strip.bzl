@@ -36,13 +36,14 @@ def _dd_strip_symbols_impl(ctx):
         ]
 
     basename = original.basename
-    stripped = ctx.actions.declare_file("strip_symbols/" + basename)
+    subdir = "strip_symbols/" + ctx.label.name
+    stripped = ctx.actions.declare_file("{}/{}".format(subdir, basename))
     if toolchain.debug_is_directory:
         debug_name = basename + ".dSYM"
-        debug = ctx.actions.declare_directory("strip_symbols/" + debug_name)
+        debug = ctx.actions.declare_directory("{}/{}".format(subdir, debug_name))
     else:
         debug_name = basename + ".dbg"
-        debug = ctx.actions.declare_file("strip_symbols/" + debug_name)
+        debug = ctx.actions.declare_file("{}/{}".format(subdir, debug_name))
 
     args = ctx.actions.args()
     args.add(original.path)
