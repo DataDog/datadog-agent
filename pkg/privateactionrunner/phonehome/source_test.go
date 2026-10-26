@@ -9,6 +9,7 @@ package phonehome
 
 import (
 	"fmt"
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestReaderRetainsLastSuccessfulRCStatus(t *testing.T) {
 	}
 	rc := &statusService{}
 	source := NewSource(cfg, rc)
-	require.Equal(t, "rc_unchecked", source.Read(time.Now()).Reason)
+	require.Equal(t, phonehomedef.ReasonRCUnchecked, source.Read(time.Now()).Reason)
 	rc.rc = &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}
 	require.True(t, source.Read(time.Now().Add(time.Hour)).Ready, "RC last success has no expiry")
 	for _, setting := range []string{"api_key", "remote_configuration.api_key", "remote_configuration.key", "remote_configuration.rc_dd_url"} {
@@ -49,9 +50,9 @@ func TestReaderRetainsLastSuccessfulRCStatus(t *testing.T) {
 		cfg.SetInTest(setting, old)
 	}
 	cfg.SetInTest("remote_configuration.enabled", false)
-	require.Equal(t, "rc_locally_disabled", source.Read(time.Now()).Reason)
+	require.Equal(t, phonehomedef.ReasonRCLocallyDisabled, source.Read(time.Now()).Reason)
 	cfg.SetInTest("remote_configuration.enabled", true)
-	require.Equal(t, "rc_service_unavailable", NewSource(cfg, nil).Read(time.Now()).Reason)
+	require.Equal(t, phonehomedef.ReasonRCServiceUnavailable, NewSource(cfg, nil).Read(time.Now()).Reason)
 }
 
 func TestReaderRCEndpointFQDN(t *testing.T) {
@@ -72,7 +73,7 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 				}
 				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					require.Equal(t, "rc_credential_or_endpoint_mismatch", NewSource(cfg, rc).Read(time.Now()).Reason, endpoint)
+					require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, NewSource(cfg, rc).Read(time.Now()).Reason, endpoint)
 				}
 			})
 		}
@@ -88,5 +89,5 @@ func TestReaderFreezesLoopbackEndpoints(t *testing.T) {
 	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}})
 	require.True(t, source.Read(time.Now()).Ready)
 	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
-	require.Equal(t, "rc_credential_or_endpoint_mismatch", source.Read(time.Now()).Reason)
+	require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, source.Read(time.Now()).Reason)
 }

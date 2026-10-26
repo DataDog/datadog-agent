@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -18,7 +19,7 @@ import (
 
 type Observation struct {
 	Ready  bool
-	Reason string
+	Reason phonehomedef.Reason
 }
 
 // Source observes startup prerequisites and releases discovery demand after handoff.
@@ -43,10 +44,10 @@ func (*rcSource) Release() {}
 
 func (r *rcSource) Read(_ time.Time) Observation {
 	if !configutils.IsRemoteConfigEnabled(r.cfg) {
-		return Observation{Reason: "rc_locally_disabled"}
+		return Observation{Reason: phonehomedef.ReasonRCLocallyDisabled}
 	}
 	if r.service == nil {
-		return Observation{Reason: "rc_service_unavailable"}
+		return Observation{Reason: phonehomedef.ReasonRCServiceUnavailable}
 	}
 	key := r.cfg.GetString("api_key")
 	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", "remote_configuration.rc_dd_url")
@@ -55,19 +56,19 @@ func (r *rcSource) Read(_ time.Time) Observation {
 	rcKey := r.cfg.GetString("remote_configuration.api_key")
 	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
 		(strings.TrimSuffix(rcURL, ".") != "https://config."+enrollmentSite(r.cfg) && !mockPair) || (os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
-		return Observation{Reason: "rc_credential_or_endpoint_mismatch"}
+		return Observation{Reason: phonehomedef.ReasonRCCredentialOrEndpointMismatch}
 	}
 	rc := r.service.GetOrgStatus()
 	if rc == nil {
-		return Observation{Reason: "rc_unchecked"}
+		return Observation{Reason: phonehomedef.ReasonRCUnchecked}
 	}
 	if !rc.Enabled {
-		return Observation{Reason: "rc_org_disabled"}
+		return Observation{Reason: phonehomedef.ReasonRCOrgDisabled}
 	}
 	if !rc.Authorized {
-		return Observation{Reason: "rc_key_unauthorized"}
+		return Observation{Reason: phonehomedef.ReasonRCKeyUnauthorized}
 	}
-	return Observation{Ready: true, Reason: "rc_ready"}
+	return Observation{Ready: true, Reason: phonehomedef.ReasonRCReady}
 }
 
 func enrollmentSite(cfg model.Reader) string {

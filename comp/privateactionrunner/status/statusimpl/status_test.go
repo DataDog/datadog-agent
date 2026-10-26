@@ -106,12 +106,16 @@ type phoneHomeStub struct{ state *phonehome.State }
 func (s phoneHomeStub) Status() *phonehome.State { return s.state }
 
 func TestPhoneHomeStartupStatus(t *testing.T) {
-	for _, state := range []phonehome.State{
-		{State: "waiting", Reason: "missing_enrollment_scope", NextCheck: "2026-10-23T10:01:00Z"},
-		{State: "blocked", Reason: "launch_outcome_unknown_requires_review"},
-		{State: "handed_off", Reason: "supervisor_start_acknowledged"},
+	for _, tc := range []struct {
+		state                 phonehome.State
+		wireState, wireReason string
+	}{
+		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonMissingEnrollmentScope, NextCheck: "2026-10-23T10:01:00Z"}, "waiting", "missing_enrollment_scope"},
+		{phonehome.State{State: phonehome.StateBlocked, Reason: phonehome.ReasonLaunchOutcomeUnknownRequiresReview}, "blocked", "launch_outcome_unknown_requires_review"},
+		{phonehome.State{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged}, "handed_off", "supervisor_start_acknowledged"},
 	} {
-		t.Run(state.State, func(t *testing.T) {
+		t.Run(tc.wireState, func(t *testing.T) {
+			state := tc.state
 			provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &state}}
 			stats := make(map[string]interface{})
 			require.NoError(t, provider.JSON(false, stats))
@@ -119,7 +123,7 @@ func TestPhoneHomeStartupStatus(t *testing.T) {
 			require.NoError(t, err)
 			var fields map[string]interface{}
 			require.NoError(t, json.Unmarshal(encoded, &fields))
-			expected := map[string]interface{}{"state": state.State, "reason": state.Reason}
+			expected := map[string]interface{}{"state": tc.wireState, "reason": tc.wireReason}
 			if state.NextCheck != "" {
 				expected["next_check"] = state.NextCheck
 			}
@@ -128,7 +132,7 @@ func TestPhoneHomeStartupStatus(t *testing.T) {
 			require.NoError(t, provider.Text(false, &text))
 			require.NoError(t, provider.HTML(false, &html))
 			for _, output := range []string{text.String(), html.String()} {
-				require.Contains(t, output, "Startup gate: "+state.State+" ("+state.Reason+")")
+				require.Contains(t, output, "Startup gate: "+tc.wireState+" ("+tc.wireReason+")")
 				require.NotContains(t, output, "RC prerequisite")
 				require.NotContains(t, output, "Enrollment outcome")
 				require.NotContains(t, output, "retention")

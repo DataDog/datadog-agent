@@ -82,17 +82,17 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
 	if bypass || err != nil || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
-		emit(State{State: "blocked", Reason: "unsupported_configuration"})
+		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
 	socket := supervisorSocketPath()
 	if !filepath.IsAbs(socket) {
-		emit(State{State: "blocked", Reason: "invalid_supervisor_socket"})
+		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonInvalidSupervisorSocket})
 		return
 	}
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		emit(State{State: "blocked", Reason: "supervisor_connection_failed"})
+		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonSupervisorConnectionFailed})
 		return
 	}
 	defer conn.Close()
@@ -116,7 +116,7 @@ type controller struct {
 	now           func() time.Time
 	attempted     bool
 	generation    [2]string
-	handoffReason string
+	handoffReason phonehomedef.Reason
 }
 
 func (c *controller) run(ctx context.Context) {
@@ -126,7 +126,7 @@ func (c *controller) run(ctx context.Context) {
 		}
 	}()
 	delay := time.Duration(rand.Int64N(int64(pollInterval)))
-	c.emit(State{State: "waiting", Reason: "startup_jitter"})
+	c.emit(State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonStartupJitter})
 	for {
 		timer := time.NewTimer(delay)
 		select {
@@ -143,7 +143,7 @@ func (c *controller) run(ctx context.Context) {
 }
 
 func (c *controller) step(ctx context.Context) time.Duration {
-	set := func(state, reason string, delay time.Duration) time.Duration {
+	set := func(state phonehomedef.StateName, reason phonehomedef.Reason, delay time.Duration) time.Duration {
 		s := State{State: state, Reason: reason}
 		if delay > 0 {
 			s.NextCheck = c.now().Add(delay).UTC().Format(time.RFC3339)
@@ -163,26 +163,26 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	for i, name := range []string{controlProcess, executorProcess} {
 		p, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: name})
 		if err != nil || p.GetDetail() == nil {
-			return set("waiting", "supervisor_unavailable", pollInterval)
+			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorUnavailable, pollInterval)
 		}
 		children[i] = p.Detail
 	}
 	generation := [2]string{children[0].Uuid, children[1].Uuid}
 	if generation[0] == "" || generation[1] == "" {
-		return set("waiting", "supervisor_registration_unavailable", pollInterval)
+		return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationUnavailable, pollInterval)
 	}
 	// A restart between the two Describe calls must not become a mixed baseline.
 	confirmed, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: generation[0]})
 	if err != nil || confirmed.GetDetail().GetUuid() != generation[0] {
-		return set("waiting", "supervisor_registration_change_pending", pollInterval)
+		return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
 	}
 	if c.generation != [2]string{} {
 		if generation == c.generation {
-			c.emit(State{State: "handed_off", Reason: c.handoffReason})
+			c.emit(State{State: phonehomedef.StateHandedOff, Reason: c.handoffReason})
 			return pollInterval // Child crashes/restarts belong to the existing supervisor lifecycle.
 		}
 		if generation[0] == c.generation[0] || generation[1] == c.generation[1] {
-			return set("waiting", "supervisor_registration_change_pending", pollInterval)
+			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
 		}
 		log.Info("PAR startup gate: fresh supervisor lifecycle detected; new startup requires RC and fresh AAA authorization")
 		c.attempted = false
@@ -192,36 +192,36 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		// The control plane may recover after a crash, but only core owns its initial launch.
 		restartAllowed := child.RestartPolicy == "never" || (i == 0 && child.RestartPolicy == "on-failure")
 		if child.AutoStart || !restartAllowed {
-			return set("blocked", "unsupported_supervisor_policy", 0)
+			return set(phonehomedef.StateBlocked, phonehomedef.ReasonUnsupportedSupervisorPolicy, 0)
 		}
 	}
 	for _, child := range children {
 		switch child.State {
 		case pb.ProcessState_STARTING, pb.ProcessState_RUNNING, pb.ProcessState_STOPPING:
-			return c.handoff(generation, "existing_process_left_untouched")
+			return c.handoff(generation, phonehomedef.ReasonExistingProcessLeftUntouched)
 		}
 	}
 	for _, child := range children {
 		switch child.State {
 		case pb.ProcessState_SKIPPED, pb.ProcessState_STOPPED, pb.ProcessState_CREATED:
 		default:
-			return set("blocked", "previous_process_exit_requires_review", 0)
+			return set(phonehomedef.StateBlocked, phonehomedef.ReasonPreviousProcessExitRequiresReview, 0)
 		}
 	}
 	// Old recovery experiments may hold credentials: require deliberate reconciliation before migration.
 	if _, err := os.Stat(enrollment.GetIdentityFilePath(c.cfg) + ".phone-home"); !os.IsNotExist(err) {
-		return set("blocked", "legacy_attempt_requires_reconciliation", 0)
+		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, 0)
 	}
 	gate := c.source.Read(c.now())
 	if !gate.Ready {
-		return set("waiting", gate.Reason, pollInterval)
+		return set(phonehomedef.StateWaiting, gate.Reason, pollInterval)
 	}
 	if ctx.Err() != nil || !Enabled(c.cfg) {
 		return 0
 	}
 	// Recheck after supervisor/config inspection, immediately before Start.
 	if gate = c.source.Read(c.now()); !gate.Ready {
-		return set("waiting", gate.Reason, pollInterval)
+		return set(phonehomedef.StateWaiting, gate.Reason, pollInterval)
 	}
 	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer startCancel()
@@ -231,21 +231,21 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		if grpcstatus.Code(err) == codes.NotFound {
 			// The supervisor resolves the UUID before spawning: this response proves no start.
 			c.attempted = false
-			return set("waiting", "supervisor_registration_change_pending", pollInterval)
+			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
 		}
-		return set("blocked", "launch_outcome_unknown_requires_review", 0)
+		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview, 0)
 	}
-	return c.handoff(generation, "supervisor_start_acknowledged")
+	return c.handoff(generation, phonehomedef.ReasonSupervisorStartAcknowledged)
 }
 
-func (c *controller) handoff(generation [2]string, reason string) time.Duration {
+func (c *controller) handoff(generation [2]string, reason phonehomedef.Reason) time.Duration {
 	c.generation, c.handoffReason = generation, reason
 	c.source.Release()
-	if reason == "supervisor_start_acknowledged" {
+	if reason == phonehomedef.ReasonSupervisorStartAcknowledged {
 		log.Info("PAR startup gate: supervisor Start acknowledged; handoff is not enrollment or readiness")
 	} else {
 		log.Info("PAR startup gate: existing children left untouched; supervisor retains ownership")
 	}
-	c.emit(State{State: "handed_off", Reason: reason})
+	c.emit(State{State: phonehomedef.StateHandedOff, Reason: reason})
 	return pollInterval
 }

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 )
 
 func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
@@ -36,8 +38,8 @@ func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
 	state := tel.NewGauge("par_phone_home", "state", labels, "")
 	transitions := tel.NewCounter("par_phone_home", "transitions", labels, "")
 	const unwanted = "must-not-export-this-label"
-	state.Set(1, "waiting", "rc_key_unauthorized", unwanted)
-	transitions.Inc("waiting", "rc_key_unauthorized", unwanted)
+	state.Set(1, string(phonehome.StateWaiting), string(phonehome.ReasonRCKeyUnauthorized), unwanted)
+	transitions.Inc(string(phonehome.StateWaiting), string(phonehome.ReasonRCKeyUnauthorized), unwanted)
 
 	collect := func() map[string]map[string]float64 {
 		t.Helper()
@@ -82,12 +84,12 @@ func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
 	require.Equal(t, map[string]float64{"waiting/rc_key_unauthorized": 1}, first["par_phone_home.transitions"])
 
 	// The intermediate state disappears before collection, but its entry is counted.
-	state.Set(0, "waiting", "rc_key_unauthorized", unwanted)
-	state.Set(1, "waiting", "missing_enrollment_scope", unwanted)
-	transitions.Inc("waiting", "missing_enrollment_scope", unwanted)
-	state.Set(0, "waiting", "missing_enrollment_scope", unwanted)
-	state.Set(1, "handed_off", "supervisor_start_acknowledged", unwanted)
-	transitions.Inc("handed_off", "supervisor_start_acknowledged", unwanted)
+	state.Set(0, string(phonehome.StateWaiting), string(phonehome.ReasonRCKeyUnauthorized), unwanted)
+	state.Set(1, string(phonehome.StateWaiting), string(phonehome.ReasonMissingEnrollmentScope), unwanted)
+	transitions.Inc(string(phonehome.StateWaiting), string(phonehome.ReasonMissingEnrollmentScope), unwanted)
+	state.Set(0, string(phonehome.StateWaiting), string(phonehome.ReasonMissingEnrollmentScope), unwanted)
+	state.Set(1, string(phonehome.StateHandedOff), string(phonehome.ReasonSupervisorStartAcknowledged), unwanted)
+	transitions.Inc(string(phonehome.StateHandedOff), string(phonehome.ReasonSupervisorStartAcknowledged), unwanted)
 	second := collect()
 	require.Equal(t, map[string]float64{"handed_off/supervisor_start_acknowledged": 1}, second["par_phone_home.state"])
 	require.Equal(t, map[string]float64{

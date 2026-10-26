@@ -25,16 +25,16 @@ func TestTelemetryTracksStateEntriesNotPolls(t *testing.T) {
 		state phonehome.State
 		entry bool
 	}{
-		{phonehome.State{State: "waiting", Reason: "startup_jitter"}, true},
-		{phonehome.State{State: "waiting", Reason: "rc_key_unauthorized"}, true},
-		{phonehome.State{State: "waiting", Reason: "rc_key_unauthorized", NextCheck: "not-a-metric-label"}, false},
-		{phonehome.State{State: "waiting", Reason: "missing_enrollment_scope"}, true},
-		{phonehome.State{State: "waiting", Reason: "rc_key_unauthorized"}, true},
-		{phonehome.State{State: "blocked", Reason: "legacy_attempt_requires_reconciliation"}, true},
-		{phonehome.State{State: "handed_off", Reason: "supervisor_start_acknowledged"}, true},
+		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonStartupJitter}, true},
+		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized}, true},
+		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized, NextCheck: "not-a-metric-label"}, false},
+		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonMissingEnrollmentScope}, true},
+		{phonehome.State{State: phonehome.StateWaiting, Reason: phonehome.ReasonRCKeyUnauthorized}, true},
+		{phonehome.State{State: phonehome.StateBlocked, Reason: phonehome.ReasonLegacyAttemptRequiresReconciliation}, true},
+		{phonehome.State{State: phonehome.StateHandedOff, Reason: phonehome.ReasonSupervisorStartAcknowledged}, true},
 	} {
 		report(step.state)
-		current := step.state.State + "/" + step.state.Reason
+		current := string(step.state.State) + "/" + string(step.state.Reason)
 		if step.entry {
 			counts[current]++
 		}

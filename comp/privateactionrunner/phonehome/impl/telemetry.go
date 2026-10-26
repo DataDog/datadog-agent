@@ -22,10 +22,10 @@ func newTelemetryReporter(tel telemetry.Component) func(phonehome.State) {
 			return
 		}
 		if previous.State != "" {
-			state.Set(0, previous.State, previous.Reason)
+			state.Set(0, string(previous.State), string(previous.Reason))
 		}
-		state.Set(1, s.State, s.Reason)
-		transitions.Inc(s.State, s.Reason)
+		state.Set(1, string(s.State), string(s.Reason))
+		transitions.Inc(string(s.State), string(s.Reason))
 		previous = s
 	}
 }

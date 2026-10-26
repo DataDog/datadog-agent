@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/stretchr/testify/require"
@@ -82,14 +84,14 @@ func TestDiscovery(t *testing.T) {
 		body, retry string
 		want        discovery
 	}{
-		{"scope", 200, `{"data":{"attributes":{"valid":true,"api_key_scopes":["private_action_runner_enroll"]}}}`, "", discovery{eligible: true, reason: "scope_present", delay: pollInterval}},
-		{"rc_not_par", 200, `{"data":{"attributes":{"valid":true,"api_key_scopes":["remote_config_read"]}}}`, "", discovery{reason: "missing_enrollment_scope", delay: pollInterval}},
-		{"invalid", 200, `{"data":{"attributes":{"valid":false,"api_key_scopes":["private_action_runner_enroll"]}}}`, "", discovery{reason: "invalid_credentials", delay: slowRetry}},
-		{"unauthorized", 401, "secret body", "", discovery{reason: "invalid_credentials", delay: slowRetry}},
+		{"scope", 200, `{"data":{"attributes":{"valid":true,"api_key_scopes":["private_action_runner_enroll"]}}}`, "", discovery{eligible: true, reason: phonehomedef.ReasonScopePresent, delay: pollInterval}},
+		{"rc_not_par", 200, `{"data":{"attributes":{"valid":true,"api_key_scopes":["remote_config_read"]}}}`, "", discovery{reason: phonehomedef.ReasonMissingEnrollmentScope, delay: pollInterval}},
+		{"invalid", 200, `{"data":{"attributes":{"valid":false,"api_key_scopes":["private_action_runner_enroll"]}}}`, "", discovery{reason: phonehomedef.ReasonInvalidCredentials, delay: slowRetry}},
+		{"unauthorized", 401, "secret body", "", discovery{reason: phonehomedef.ReasonInvalidCredentials, delay: slowRetry}},
 		{"forbidden_not_missing_scope", 403, "secret body", "", discovery{reason: "discovery_http_403", delay: slowRetry}},
-		{"outage", 503, "", "", discovery{reason: "discovery_unavailable", transient: true}},
-		{"throttled", 429, "", "3600", discovery{reason: "discovery_rate_limited", delay: time.Hour}},
-		{"malformed", 200, `{}`, "", discovery{reason: "invalid_discovery_response", transient: true}},
+		{"outage", 503, "", "", discovery{reason: phonehomedef.ReasonDiscoveryUnavailable, transient: true}},
+		{"throttled", 429, "", "3600", discovery{reason: phonehomedef.ReasonDiscoveryRateLimited, delay: time.Hour}},
+		{"malformed", 200, `{}`, "", discovery{reason: phonehomedef.ReasonInvalidDiscoveryResponse, transient: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -121,5 +123,5 @@ func TestDiscoveryRefusesRedirect(t *testing.T) {
 	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	result := validate(context.Background(), client, srv.URL, "secret", time.Now())
 	require.False(t, result.eligible)
-	require.Equal(t, "discovery_http_302", result.reason)
+	require.Equal(t, "discovery_http_302", string(result.reason))
 }

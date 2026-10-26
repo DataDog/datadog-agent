@@ -17,6 +17,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
@@ -107,7 +109,7 @@ func TestRCOnlyStartupProductionSource(t *testing.T) {
 					f.c.step(context.Background())
 					require.Equal(t, 1, f.pm.starts, "later RC enablement needs no restart")
 				}
-				require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+				require.Equal(t, phonehomedef.ReasonSupervisorStartAcknowledged, f.state.Reason)
 				require.NoFileExists(t, f.cfg.GetString(par.IdentityFilePath), "the gate does not enroll")
 				f.c.step(context.Background())
 				require.Equal(t, 1, f.pm.starts)
@@ -147,7 +149,7 @@ func TestStartupDoesNotReplayOrStopChildren(t *testing.T) {
 	f := newFixture(t)
 	f.pm.startErr = errors.New("response lost")
 	require.Zero(t, f.c.step(context.Background()))
-	require.Equal(t, "launch_outcome_unknown_requires_review", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview, f.state.Reason)
 	f.c.step(context.Background())
 	require.Equal(t, 1, f.pm.starts)
 }
@@ -163,7 +165,7 @@ func TestStartupRechecksRCAndCancellation(t *testing.T) {
 	}
 	f.c.step(context.Background())
 	require.Zero(t, f.pm.starts)
-	require.Equal(t, "rc_key_unauthorized", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonRCKeyUnauthorized, f.state.Reason)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.Zero(t, f.c.step(ctx))
@@ -195,7 +197,7 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 		require.Equal(t, pollInterval, f.c.step(context.Background()))
 		require.NoError(t, pm.startContextErr, "Start must not inherit an exhausted preflight deadline")
 		require.Equal(t, 1, pm.starts)
-		require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+		require.Equal(t, phonehomedef.ReasonSupervisorStartAcknowledged, f.state.Reason)
 		f.c.step(context.Background())
 		require.Equal(t, 1, pm.starts)
 	})
@@ -230,7 +232,7 @@ func TestStartupSupervisorPolicies(t *testing.T) {
 				require.Equal(t, 1, f.pm.starts)
 			} else {
 				require.Zero(t, f.pm.starts)
-				require.Equal(t, "unsupported_supervisor_policy", f.state.Reason)
+				require.Equal(t, phonehomedef.ReasonUnsupportedSupervisorPolicy, f.state.Reason)
 			}
 		})
 	}
@@ -244,7 +246,7 @@ func TestStartupPreservesLegacyJournalAtDefaultIdentityPath(t *testing.T) {
 	journal := filepath.Join(dir, "privateactionrunner_private_identity.json.phone-home")
 	require.NoError(t, os.Mkdir(journal, 0700))
 	f.c.step(context.Background())
-	require.Equal(t, "legacy_attempt_requires_reconciliation", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, f.state.Reason)
 	require.DirExists(t, journal)
 	require.Zero(t, f.pm.starts)
 }
@@ -254,12 +256,12 @@ func TestStartupPreservesLegacyRecoveryAndRequiresOnDemandSupervisor(t *testing.
 	journal := f.cfg.GetString(par.IdentityFilePath) + ".phone-home"
 	require.NoError(t, os.Mkdir(journal, 0700))
 	f.c.step(context.Background())
-	require.Equal(t, "legacy_attempt_requires_reconciliation", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, f.state.Reason)
 	require.DirExists(t, journal)
 	require.Zero(t, f.pm.starts)
 	f = newFixture(t)
 	f.pm.control.AutoStart = true
 	f.c.step(context.Background())
-	require.Equal(t, "unsupported_supervisor_policy", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonUnsupportedSupervisorPolicy, f.state.Reason)
 	require.Zero(t, f.pm.starts)
 }

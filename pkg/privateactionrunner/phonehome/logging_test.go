@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,39 +35,42 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 }
 
 func TestStateLoggingLevelsAndDeduplication(t *testing.T) {
-	for _, tc := range []struct{ reason, level string }{
-		{"unsupported_configuration", "WARN"},
-		{"invalid_supervisor_socket", "WARN"},
-		{"supervisor_connection_failed", "WARN"},
-		{"unsupported_supervisor_policy", "WARN"},
-		{"previous_process_exit_requires_review", "WARN"},
-		{"legacy_attempt_requires_reconciliation", "WARN"},
-		{"launch_outcome_unknown_requires_review", "WARN"},
-		{"rc_credential_or_endpoint_mismatch", "WARN"},
-		{"invalid_credentials", "WARN"},
-		{"invalid_endpoint", "WARN"},
-		{"rc_locally_disabled", "INFO"},
-		{"rc_unchecked", "INFO"},
-		{"rc_org_disabled", "INFO"},
-		{"rc_key_unauthorized", "INFO"},
-		{"par_scope_unchecked", "INFO"},
-		{"par_scope_waiting_for_rc_or_demand", "INFO"},
-		{"par_scope_expired", "INFO"},
-		{"missing_enrollment_scope", "INFO"},
-		{"startup_jitter", "DEBUG"},
-		{"supervisor_unavailable", "DEBUG"},
-		{"supervisor_registration_unavailable", "DEBUG"},
-		{"supervisor_registration_change_pending", "DEBUG"},
-		{"rc_service_unavailable", "DEBUG"},
-		{"discovery_unavailable", "DEBUG"},
-		{"discovery_rate_limited", "DEBUG"},
-		{"invalid_discovery_response", "DEBUG"},
-		{"discovery_http_403", "DEBUG"},
+	for _, tc := range []struct {
+		reason phonehomedef.Reason
+		level  string
+	}{
+		{phonehomedef.ReasonUnsupportedConfiguration, "WARN"},
+		{phonehomedef.ReasonInvalidSupervisorSocket, "WARN"},
+		{phonehomedef.ReasonSupervisorConnectionFailed, "WARN"},
+		{phonehomedef.ReasonUnsupportedSupervisorPolicy, "WARN"},
+		{phonehomedef.ReasonPreviousProcessExitRequiresReview, "WARN"},
+		{phonehomedef.ReasonLegacyAttemptRequiresReconciliation, "WARN"},
+		{phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview, "WARN"},
+		{phonehomedef.ReasonRCCredentialOrEndpointMismatch, "WARN"},
+		{phonehomedef.ReasonInvalidCredentials, "WARN"},
+		{phonehomedef.ReasonInvalidEndpoint, "WARN"},
+		{phonehomedef.ReasonRCLocallyDisabled, "INFO"},
+		{phonehomedef.ReasonRCUnchecked, "INFO"},
+		{phonehomedef.ReasonRCOrgDisabled, "INFO"},
+		{phonehomedef.ReasonRCKeyUnauthorized, "INFO"},
+		{phonehomedef.ReasonPARScopeUnchecked, "INFO"},
+		{phonehomedef.ReasonPARScopeWaitingForRCOrDemand, "INFO"},
+		{phonehomedef.ReasonPARScopeExpired, "INFO"},
+		{phonehomedef.ReasonMissingEnrollmentScope, "INFO"},
+		{phonehomedef.ReasonStartupJitter, "DEBUG"},
+		{phonehomedef.ReasonSupervisorUnavailable, "DEBUG"},
+		{phonehomedef.ReasonSupervisorRegistrationUnavailable, "DEBUG"},
+		{phonehomedef.ReasonSupervisorRegistrationChangePending, "DEBUG"},
+		{phonehomedef.ReasonRCServiceUnavailable, "DEBUG"},
+		{phonehomedef.ReasonDiscoveryUnavailable, "DEBUG"},
+		{phonehomedef.ReasonDiscoveryRateLimited, "DEBUG"},
+		{phonehomedef.ReasonInvalidDiscoveryResponse, "DEBUG"},
+		{phonehomedef.DiscoveryHTTPReason(403), "DEBUG"},
 	} {
-		t.Run(tc.reason, func(t *testing.T) {
+		t.Run(string(tc.reason), func(t *testing.T) {
 			output := captureLogs(t)
 			report := newStateLogger(false)
-			s := State{State: "waiting", Reason: tc.reason}
+			s := State{State: phonehomedef.StateWaiting, Reason: tc.reason}
 			report(s)
 			first := output.String()
 			require.Contains(t, first, "["+tc.level+"] PAR startup gate:")
@@ -75,10 +79,10 @@ func TestStateLoggingLevelsAndDeduplication(t *testing.T) {
 			s.NextCheck = "timestamp-must-not-be-logged"
 			report(s)
 			require.Equal(t, first, output.String(), "polls and NextCheck changes are silent")
-			s.State = "blocked"
+			s.State = phonehomedef.StateBlocked
 			report(s)
 			require.Equal(t, first+first, output.String(), "state is part of the deduplication key")
-			report(State{State: "waiting", Reason: "rc_key_unauthorized"})
+			report(State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonRCKeyUnauthorized})
 			before := output.String()
 			report(s)
 			require.Equal(t, before+first, output.String(), "re-entry is logged")
@@ -89,7 +93,7 @@ func TestStateLoggingLevelsAndDeduplication(t *testing.T) {
 func TestStateLoggingExcludesUnexpectedData(t *testing.T) {
 	output := captureLogs(t)
 	report := newStateLogger(false)
-	for _, reason := range []string{"api-key-private-key-urn", "discovery_http_https://user:password@private.example"} {
+	for _, reason := range []phonehomedef.Reason{"api-key-private-key-urn", "discovery_http_https://user:password@private.example"} {
 		report(State{State: "secret-state", Reason: reason, NextCheck: "secret-next-check"})
 	}
 	require.Equal(t, "[DEBUG] PAR startup gate: waiting to retry: reason=unrecognized_observation\n"+
@@ -99,7 +103,7 @@ func TestStateLoggingExcludesUnexpectedData(t *testing.T) {
 func TestStateLoggingIntentionalBypass(t *testing.T) {
 	output := captureLogs(t)
 	report := newStateLogger(true)
-	report(State{State: "blocked", Reason: "unsupported_configuration"})
+	report(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 	require.Equal(t, "[DEBUG] PAR startup gate: bypassed in an intentionally ungated mode: reason=unsupported_configuration\n", output.String())
 }
 

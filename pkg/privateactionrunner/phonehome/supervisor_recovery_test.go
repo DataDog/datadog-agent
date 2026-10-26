@@ -15,6 +15,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -32,21 +34,21 @@ func TestSupervisorReplacementRequiresBothNewIDsAndRC(t *testing.T) {
 	require.Equal(t, 1, f.pm.starts, "process crash recovery belongs to the supervisor")
 	f.pm.describeErr = errors.New("supervisor disconnected")
 	require.Equal(t, pollInterval, f.c.step(ctx))
-	require.Equal(t, "supervisor_unavailable", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonSupervisorUnavailable, f.state.Reason)
 	f.pm.describeErr = nil
 	f.c.step(ctx)
-	require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonSupervisorStartAcknowledged, f.state.Reason)
 
 	f.pm.control.Uuid = "new-control"
 	f.pm.control.State = pb.ProcessState_SKIPPED
 	f.c.step(ctx)
-	require.Equal(t, "supervisor_registration_change_pending", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonSupervisorRegistrationChangePending, f.state.Reason)
 	require.Equal(t, 1, f.pm.starts)
 	f.pm.executor.Uuid = "new-executor"
 	f.rc.onRead = nil
 	f.rc.rc.Authorized = false
 	f.c.step(ctx)
-	require.Equal(t, "rc_key_unauthorized", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonRCKeyUnauthorized, f.state.Reason)
 	require.Equal(t, 1, f.pm.starts)
 	f.rc.rc.Authorized = true
 	f.c.step(ctx)
@@ -61,7 +63,7 @@ func TestInvalidConfigInHandedOffLifecycleDoesNotStopWatching(t *testing.T) {
 	f.pm.control.State = pb.ProcessState_INVALID_CONFIG
 	f.pm.control.RestartPolicy = ""
 	require.Equal(t, pollInterval, f.c.step(context.Background()))
-	require.Equal(t, "handed_off", f.state.State)
+	require.Equal(t, phonehomedef.StateHandedOff, f.state.State)
 	require.Equal(t, 1, f.pm.starts)
 	f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
 	f.pm.control.State = pb.ProcessState_SKIPPED
@@ -74,7 +76,7 @@ func TestAmbiguousStartIsNotRetriedAfterSupervisorReplacement(t *testing.T) {
 	f := newFixture(t)
 	f.pm.startErr = errors.New("response lost")
 	require.Zero(t, f.c.step(context.Background()))
-	require.Equal(t, "launch_outcome_unknown_requires_review", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview, f.state.Reason)
 	f.pm.startErr = nil
 	f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
 	f.rc.onRead = func() { t.Fatal("ambiguous handoff must not re-arm") }
@@ -87,7 +89,7 @@ func TestExistingChildrenAreWatchedWithoutTakingOverTheirLifecycle(t *testing.T)
 	f.pm.control.State = pb.ProcessState_RUNNING
 	f.c.step(context.Background())
 	require.Zero(t, f.pm.starts)
-	require.Equal(t, "existing_process_left_untouched", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonExistingProcessLeftUntouched, f.state.Reason)
 	f.pm.control.State = pb.ProcessState_STOPPED
 	f.c.step(context.Background())
 	require.Zero(t, f.pm.starts, "a stopped child is not a new registration")
@@ -102,7 +104,7 @@ func TestSupervisorWatchLoopRecoversAndCancels(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*pollInterval)
 		defer cancel()
 		f.c.emit = func(s State) {
-			if s.State == "handed_off" {
+			if s.State == phonehomedef.StateHandedOff {
 				if f.pm.starts == 1 {
 					f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
 				} else {
@@ -126,7 +128,7 @@ func TestMissingRegistrationIDDoesNotIssueEmptyLookup(t *testing.T) {
 		}
 		f.pm.onDescribe = func(r *pb.DescribeRequest) { require.NotEmpty(t, r.NameOrUuid) }
 		require.Equal(t, pollInterval, f.c.step(context.Background()))
-		require.Equal(t, "supervisor_registration_unavailable", f.state.Reason)
+		require.Equal(t, phonehomedef.ReasonSupervisorRegistrationUnavailable, f.state.Reason)
 		require.Zero(t, f.pm.starts)
 	}
 }
@@ -145,7 +147,7 @@ func TestRestartBetweenDescribeCallsDoesNotCaptureMixedIDs(t *testing.T) {
 			}
 		}
 		f.c.step(context.Background())
-		require.Equal(t, "supervisor_registration_change_pending", f.state.Reason)
+		require.Equal(t, phonehomedef.ReasonSupervisorRegistrationChangePending, f.state.Reason)
 		require.Empty(t, f.c.generation)
 		require.Zero(t, f.pm.starts)
 		f.c.step(context.Background())
@@ -162,7 +164,7 @@ func TestMissingRegistrationAtStartCanBeReobserved(t *testing.T) {
 	f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
 	f.c.step(context.Background())
 	require.Equal(t, 2, f.pm.starts)
-	require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+	require.Equal(t, phonehomedef.ReasonSupervisorStartAcknowledged, f.state.Reason)
 }
 
 func TestAmbiguousStartAfterRearmingStopsRecovery(t *testing.T) {

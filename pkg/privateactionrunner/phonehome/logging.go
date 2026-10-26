@@ -8,6 +8,7 @@ package phonehome
 import (
 	"strings"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,30 +21,30 @@ func newStateLogger(bypass bool) func(State) {
 		}
 		previous = s
 		// Log handoffs at the operation, not when connectivity restores the same status.
-		if s.State == "handed_off" {
+		if s.State == phonehomedef.StateHandedOff {
 			return
 		}
 		reason := s.Reason
 		// Only allowlisted reasons reach logs, even if a source returns unexpected data.
 		switch reason {
-		case "unsupported_configuration":
+		case phonehomedef.ReasonUnsupportedConfiguration:
 			if bypass {
-				log.Debug("PAR startup gate: bypassed in an intentionally ungated mode: reason=unsupported_configuration")
+				log.Debugf("PAR startup gate: bypassed in an intentionally ungated mode: reason=%s", reason)
 				return
 			}
 			fallthrough
-		case "invalid_supervisor_socket", "supervisor_connection_failed", "unsupported_supervisor_policy",
-			"previous_process_exit_requires_review", "legacy_attempt_requires_reconciliation", "launch_outcome_unknown_requires_review",
-			"rc_credential_or_endpoint_mismatch", "invalid_credentials", "invalid_endpoint":
+		case phonehomedef.ReasonInvalidSupervisorSocket, phonehomedef.ReasonSupervisorConnectionFailed, phonehomedef.ReasonUnsupportedSupervisorPolicy,
+			phonehomedef.ReasonPreviousProcessExitRequiresReview, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, phonehomedef.ReasonLaunchOutcomeUnknownRequiresReview,
+			phonehomedef.ReasonRCCredentialOrEndpointMismatch, phonehomedef.ReasonInvalidCredentials, phonehomedef.ReasonInvalidEndpoint:
 			log.Warnf("PAR startup gate: startup requires operator review: reason=%s", reason)
-		case "rc_locally_disabled", "rc_unchecked", "rc_org_disabled", "rc_key_unauthorized",
-			"par_scope_unchecked", "par_scope_waiting_for_rc_or_demand", "par_scope_expired", "missing_enrollment_scope":
+		case phonehomedef.ReasonRCLocallyDisabled, phonehomedef.ReasonRCUnchecked, phonehomedef.ReasonRCOrgDisabled, phonehomedef.ReasonRCKeyUnauthorized,
+			phonehomedef.ReasonPARScopeUnchecked, phonehomedef.ReasonPARScopeWaitingForRCOrDemand, phonehomedef.ReasonPARScopeExpired, phonehomedef.ReasonMissingEnrollmentScope:
 			log.Infof("PAR startup gate: waiting for permission: reason=%s", reason)
-		case "startup_jitter", "supervisor_unavailable", "supervisor_registration_unavailable", "supervisor_registration_change_pending",
-			"rc_service_unavailable", "discovery_unavailable", "discovery_rate_limited", "invalid_discovery_response":
+		case phonehomedef.ReasonStartupJitter, phonehomedef.ReasonSupervisorUnavailable, phonehomedef.ReasonSupervisorRegistrationUnavailable, phonehomedef.ReasonSupervisorRegistrationChangePending,
+			phonehomedef.ReasonRCServiceUnavailable, phonehomedef.ReasonDiscoveryUnavailable, phonehomedef.ReasonDiscoveryRateLimited, phonehomedef.ReasonInvalidDiscoveryResponse:
 			log.Debugf("PAR startup gate: waiting to retry: reason=%s", reason)
 		default:
-			if strings.HasPrefix(reason, "discovery_http_") {
+			if strings.HasPrefix(string(reason), "discovery_http_") {
 				log.Debug("PAR startup gate: waiting to retry: reason=discovery_http_error")
 			} else {
 				log.Debug("PAR startup gate: waiting to retry: reason=unrecognized_observation")

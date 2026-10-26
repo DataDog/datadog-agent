@@ -12,40 +12,42 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 )
 
 type discovery struct {
 	eligible  bool
-	reason    string
+	reason    phonehomedef.Reason
 	delay     time.Duration
 	transient bool
 }
 
 func validate(ctx context.Context, client *http.Client, endpoint, apiKey string, now time.Time) discovery {
 	if apiKey == "" {
-		return discovery{reason: "invalid_credentials", delay: slowRetry}
+		return discovery{reason: phonehomedef.ReasonInvalidCredentials, delay: slowRetry}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/api/v2/validate", nil)
 	if err != nil {
-		return discovery{reason: "invalid_endpoint", delay: slowRetry}
+		return discovery{reason: phonehomedef.ReasonInvalidEndpoint, delay: slowRetry}
 	}
 	req.Header.Set("DD-API-KEY", apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
 		// Neither transport errors (which can contain proxy credentials) nor
 		// response bodies belong in status/logs.
-		return discovery{reason: "discovery_unavailable", transient: true}
+		return discovery{reason: phonehomedef.ReasonDiscoveryUnavailable, transient: true}
 	}
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return discovery{reason: "discovery_rate_limited", delay: max(pollInterval, retryAfter(resp.Header.Get("Retry-After"), now))}
+		return discovery{reason: phonehomedef.ReasonDiscoveryRateLimited, delay: max(pollInterval, retryAfter(resp.Header.Get("Retry-After"), now))}
 	case resp.StatusCode == http.StatusUnauthorized:
-		return discovery{reason: "invalid_credentials", delay: slowRetry}
+		return discovery{reason: phonehomedef.ReasonInvalidCredentials, delay: slowRetry}
 	case resp.StatusCode >= 500:
-		return discovery{reason: "discovery_unavailable", transient: true}
+		return discovery{reason: phonehomedef.ReasonDiscoveryUnavailable, transient: true}
 	case resp.StatusCode != http.StatusOK:
-		return discovery{reason: "discovery_http_" + strconv.Itoa(resp.StatusCode), delay: slowRetry}
+		return discovery{reason: phonehomedef.DiscoveryHTTPReason(resp.StatusCode), delay: slowRetry}
 	}
 	var result struct {
 		Data struct {
@@ -57,17 +59,17 @@ func validate(ctx context.Context, client *http.Client, endpoint, apiKey string,
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(body) > 1<<20 || json.Unmarshal(body, &result) != nil || result.Data.Attributes.Valid == nil {
-		return discovery{reason: "invalid_discovery_response", transient: true}
+		return discovery{reason: phonehomedef.ReasonInvalidDiscoveryResponse, transient: true}
 	}
 	if !*result.Data.Attributes.Valid {
-		return discovery{reason: "invalid_credentials", delay: slowRetry}
+		return discovery{reason: phonehomedef.ReasonInvalidCredentials, delay: slowRetry}
 	}
 	for _, scope := range result.Data.Attributes.Scopes {
 		if scope == "private_action_runner_enroll" {
-			return discovery{eligible: true, reason: "scope_present", delay: pollInterval}
+			return discovery{eligible: true, reason: phonehomedef.ReasonScopePresent, delay: pollInterval}
 		}
 	}
-	return discovery{reason: "missing_enrollment_scope", delay: pollInterval}
+	return discovery{reason: phonehomedef.ReasonMissingEnrollmentScope, delay: pollInterval}
 }
 
 func retryAfter(value string, now time.Time) time.Duration {
