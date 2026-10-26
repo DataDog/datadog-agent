@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Agent performance telemetry now includes a ``container_name`` tag on container
+    restart, termination, memory, and CPU metrics, so each container in an Agent
+    pod can be analyzed separately. Container termination telemetry also includes
+    an ``exit_code`` tag to help identify failures.
