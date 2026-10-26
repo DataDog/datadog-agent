@@ -9,7 +9,7 @@ load("//packages/rules:package_naming.bzl", "package_name_variables")
 
 # kwargs is mandatory for macros, even if you don't use it.
 # buildifier: disable=unused-variable
-def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, version, **kwargs):
+def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, data, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, version, **kwargs):
     variables_name = "%s_vars_" % name
     package_name_variables(
         name = variables_name,
@@ -27,6 +27,7 @@ def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, ho
 
     pkg_deb_impl(
         name = name,
+        architecture = architecture or "{arch_deb}",
         conflicts = conflicts,
         data = data,
         depends = depends,

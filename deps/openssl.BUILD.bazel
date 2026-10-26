@@ -143,10 +143,7 @@ configure_make(
         "//conditions:default": {},
     }),
     lib_source = ":all_srcs",
-    # For whatever reason rules_foreign_cc does not respect
-    # out_dll_dir parameter and tries to find Windows DLLs in
-    # lib instead of bin. Technically, those are binaries,
-    # hence, we can treat them as such.
+    # DLLs are listed as binaries because rules_foreign_cc expects libssl.dll for libssl.lib, not libssl-3-x64.dll.
     out_binaries = select({
         "@platforms//os:windows": [
             WIN_LIBSSL,
@@ -199,8 +196,9 @@ configure_make(
         mv $$INSTALLDIR/lib/libssl.dll.a $$INSTALLDIR/lib/libssl.lib
         """,
         # Flatten the DESTDIR-staged install (see `args`) into $INSTALLDIR, the
-        # flat layout rules_foreign_cc collects outputs from.
-        "//conditions:default": 'cp -a "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
+        # flat layout rules_foreign_cc collects outputs from. Not `cp -a`: preserving timestamps
+        # fails with EPERM on the output directories pre-created by remote executors (Buildbarn).
+        "//conditions:default": 'cp -R "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
     }),
     resource_size = "enormous",
     targets = [

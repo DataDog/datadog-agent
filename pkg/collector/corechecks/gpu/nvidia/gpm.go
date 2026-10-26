@@ -127,6 +127,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	for i := 0; i < sampleBufferSize; i++ {
 		sample, err := collector.lib.GpmSampleAlloc()
 		if err != nil {
+			// the driver does not support GPM, retrying cannot help
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				return nil, errUnsupportedDevice
+			}
 			return nil, fmt.Errorf("failed to allocate GPM sample: %w", err)
 		}
 		collector.samples[i] = sample
@@ -134,7 +138,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 
 	err = collector.removeUnsupportedMetrics()
 	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+		// The error is a join of per-metric errors, which can mix unsupported metrics with permission
+		// failures; errors.As stops at the first NVML error, so a permission error would be hidden and
+		// the collector marked as unsupported. Permissions can be recovered, so return them instead.
+		if !ddnvml.IsNoPermission(err) && ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			return nil, errUnsupportedDevice
 		}
 		return nil, fmt.Errorf("failed to remove unsupported metrics: %w", err)
@@ -152,7 +159,6 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 	for i := 0; i < 2; i++ {
 		err := c.collectSample()
 		if err != nil {
-			fmt.Printf("failed to collect GPM sample: %s\n", err)
 			return err
 		}
 	}
@@ -162,11 +168,18 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 		return err
 	}
 
+	permissionDenied := false
 	for i := uint32(0); i < metrics.NumMetrics; i++ {
 		if metrics.Metrics[i].NvmlReturn != uint32(nvml.SUCCESS) {
 			log.Warnf("failed to get GPM metric %d on device %s: %s\n", metrics.Metrics[i].MetricId, c.device.GetDeviceInfo().UUID, nvml.ErrorString(nvml.Return(metrics.Metrics[i].NvmlReturn)))
 			delete(c.metricsToCollect, nvml.GpmMetricId(metrics.Metrics[i].MetricId))
+			permissionDenied = permissionDenied || metrics.Metrics[i].NvmlReturn == uint32(nvml.ERROR_NO_PERMISSION)
 		}
+	}
+
+	// permissions can be recovered, so the collector is not reported as unsupported
+	if len(c.metricsToCollect) == 0 && permissionDenied {
+		return &ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION}
 	}
 
 	return nil

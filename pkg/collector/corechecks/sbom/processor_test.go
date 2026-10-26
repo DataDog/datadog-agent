@@ -10,6 +10,7 @@ package sbom
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -1230,6 +1231,63 @@ func TestProcessHostUsage(t *testing.T) {
 		require.NotNil(t, entity.GetCyclonedx())
 		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
 	})
+}
+
+// TestProcessProcfsScanGoesOutInFull checks that a container scan listing the
+// packages of the host SBOM sent last goes out in full, not as a heartbeat.
+func TestProcessProcfsScanGoesOutInFull(t *testing.T) {
+	scanned := time.Unix(1700000000, 0)
+	p := &processor{
+		queue:                 make(chan *model.SBOMEntity, 4),
+		hostname:              "host",
+		hostHeartbeatValidity: time.Hour,
+	}
+
+	p.processHostScanResult(newHostScan(scanned))
+	require.NotNil(t, (<-p.queue).GetCyclonedx())
+
+	scan := newHostScan(scanned.Add(time.Minute))
+	scan.RequestID = "container"
+	p.processProcfsScanResult(scan)
+	entity := <-p.queue
+	assert.Equal(t, "container", entity.GetId())
+	assert.False(t, entity.GetHeartbeat())
+	assert.NotNil(t, entity.GetCyclonedx())
+}
+
+// TestProcfsScansRunningContainers checks that the check requests procfs
+// scans of running containers alone.
+func TestProcfsScansRunningContainers(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("procfs.IsAgentContainer reads the cgroup of the Agent, which needs Linux")
+	}
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	scanner := &fakeScanner{}
+	p := &processor{
+		workloadmetaStore: store,
+		containerFilter:   workloadfilterfxmock.SetupMockFilter(t).GetContainerSBOMFilters(),
+		sbomScanner:       scanner,
+		procfsSBOM:        true,
+	}
+
+	var events []workloadmeta.Event
+	for id, running := range map[string]bool{"running": true, "stopped": false} {
+		ctr := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+			State:    workloadmeta.ContainerState{Running: running},
+		}
+		store.Set(ctr)
+		events = append(events, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: ctr})
+	}
+	p.processContainerImagesEvents(workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})})
+
+	require.Len(t, scanner.requests, 1)
+	assert.Equal(t, "running", scanner.requests[0].ID())
 }
 
 // fakeScanner records the scan requests it receives.

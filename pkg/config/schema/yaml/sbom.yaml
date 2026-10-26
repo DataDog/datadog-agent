@@ -33,6 +33,8 @@ properties:
         node_type: setting
         type: array
         default: []
+        deprecated: true
+        comment: deprecated and ignored, SBOM scans read the files their analyzers need
         items:
           type: string
       analyzers:
@@ -66,6 +68,8 @@ properties:
         node_type: setting
         type: array
         default: []
+        deprecated: true
+        comment: deprecated and ignored, SBOM scans read the files their analyzers need
         items:
           type: string
       allow_missing_repodigest:
