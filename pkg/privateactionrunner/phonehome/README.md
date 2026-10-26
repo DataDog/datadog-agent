@@ -41,28 +41,35 @@ RC nil/false waits without starting PAR or calling AAA. A later positive RC resp
 allows AAA discovery without a core restart; a PAR-scope grant then permits startup. Failed RC polls retain the last successful response indefinitely;
 the gate adds no RC freshness framework. The gate checks RC again immediately before Start.
 
-There is **at most one Start RPC per core process lifetime**. Acknowledgement means only
-that startup was handed to the supervisor, not that enrollment or action readiness succeeded.
-After a successful or ambiguous Start, this controller does not retry or monitor enrollment.
-Already-active children are left untouched. After handoff, the supervisor owns
-control-plane crash recovery, without rechecking RC/AAA. Rust owns subsequent executor
-starts. Core never stops an action-serving PAR or a process that might hold credentials.
-A failed/exited child observed before handoff requires operator review.
+After a successful handoff or observing existing active children, core watches both
+supervisor registration UUIDs once a minute. A supervisor restart recreates both
+registrations; only then does core re-arm startup and require RC plus a fresh AAA grant.
+Replacing only one registration waits without starting anything. Losing connectivity
+alone does not re-arm the gate, and a recovered connection restores the handoff state.
 
-The existing enrollment implementation retains its own retry/persistence behavior and its
-existing limitations on ambiguous network failures. The gate adds no new enrollment POST
-retry, journal, idempotency promise or credential-recovery policy. An operator restart can
-re-arm the gate: reconcile any possibly committed enrollment before manually retrying. The
-control-plane on-failure policy can re-enter the existing bootstrap/enrollment path;
-this is unchanged crash-recovery behavior, not an enrollment idempotency guarantee.
-Restart core after a supervisor daemon restart: the one-shot gate
-does not monitor or re-arm itself for recreated supervisor registrations.
+There is at most one accepted or ambiguous core Start request for the same observed
+registration lifecycle. A definitive `NotFound` before spawn allows re-observation;
+other Start errors stop the controller and require operator review, even if the
+supervisor later restarts. Acknowledgement is not proof of enrollment or action readiness.
+Ordinary child-process crashes/restarts keep their registration IDs: core does not
+re-authorize, relaunch or stop them. The supervisor retains control-plane on-failure
+recovery; Rust owns subsequent executor starts. A failed/exited child observed before
+handoff requires operator review. Already-active children and potential credential
+holders are left alone.
+
+The existing enrollment implementation retains its retry/persistence behavior and limits
+on ambiguous network failures. Re-authorizing after supervisor replacement re-enters the
+existing bootstrap, potentially including self-enrollment if an identity was not persisted.
+Neither a Start acknowledgement nor new registration IDs establish the outcome of a prior
+enrollment POST. This recovery policy adds no enrollment idempotency or exactly-once guarantee.
+An ambiguous Start RPC still stops automatic recovery; reconcile possibly committed enrollment
+before deliberately restarting core to override that block.
 
 Old POC `.phone-home` attempt journals block new startup rather than silently discarding
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
 
 Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
-No new `datadog-agent status` fields are added by this startup controller.
+This controller does not add status-command presentation.
 
 ## AAA discovery
 
@@ -73,10 +80,12 @@ backoff and Retry-After handling; cancellation and gate rechecks prevent late gr
 AAA grants expire after two minutes, independently of RC's retained-last-success policy.
 Nil discovery fails closed, rather than restoring the RC-only behavior accidentally.
 
-Discovery ends when core hands startup to the supervisor, not when enrollment is
-confirmed. The established Go enrollment path owns everything after that handoff.
-A subsequent deliberate core restart with stopped children requires fresh AAA approval,
-even with a saved identity. No post-enrollment revocation or core-owned automatic relaunch is added.
+Discovery demand is released at supervisor handoff, not confirmed enrollment. Registration
+watching makes no AAA requests and does not recheck RC for an unchanged lifecycle. Fresh
+registrations re-enable discovery; the previous lifecycle's grant is not reused. The
+established Go enrollment path still owns identity handling. A deliberate core restart
+with stopped children also requires fresh AAA approval, even with a saved identity.
+No runtime revocation or core-owned recovery of ordinary child crashes is added.
 
 ## Validation
 
@@ -85,5 +94,7 @@ even with a saved identity. No post-enrollment revocation or core-owned automati
 Tests retain RC-only source coverage and add real loopback RC/AAA requests for all eight
 permission combinations, each with and without an existing identity file. They cover delayed
 grants, dispatch/launch gate loss, expired/late grants, cancellation, backoff/Retry-After,
-strict parsing and redirects. Supervisor calls are mocked; these are not Linux process or
-live enrollment tests.
+strict parsing and redirects. Recovery tests cover fresh/partial registration replacement,
+connectivity loss, unchanged child IDs, ambiguous Start, fresh AAA after replacement, and
+watch-loop cancellation. Supervisor calls are mocked; these are not Linux process or live
+enrollment tests.
