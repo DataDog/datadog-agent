@@ -22,7 +22,8 @@ TOOL_BASENAME_MAPPING = {
     "gcc": "gcc",
     "g++": "g++",
     "ld": "ld",
-    "cc_wrapper.sh": "clang",
+    "clang": "clang",
+    "clang++": "clang++",
     "llvm-ar": "ar",
 }
 

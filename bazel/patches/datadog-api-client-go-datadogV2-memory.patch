@@ -1,0 +1,8 @@
+--- a/api/datadogV2/BUILD.bazel
++++ b/api/datadogV2/BUILD.bazel
+@@ -2,4 +2,5 @@
+ 
+ go_library(
+     name = "datadogV2",
++    exec_properties = {"resources:memory": "6144"},
+     srcs = [

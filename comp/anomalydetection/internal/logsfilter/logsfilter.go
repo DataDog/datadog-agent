@@ -187,6 +187,13 @@ type RateWindow struct {
 // Allow returns true if the message should be forwarded.
 // maxRatePerSec == -1 means unlimited; 0 drops everything.
 func (w *RateWindow) Allow(maxRatePerSec float64) bool {
+	return w.AllowAt(maxRatePerSec, time.Now())
+}
+
+// AllowAt returns true if the message should be forwarded at the given admission time.
+// maxRatePerSec == -1 means unlimited; 0 drops everything.
+// Non-advancing timestamps remain in the current window rather than resetting it.
+func (w *RateWindow) AllowAt(maxRatePerSec float64, now time.Time) bool {
 	if maxRatePerSec < 0 {
 		return true
 	}
@@ -196,7 +203,9 @@ func (w *RateWindow) Allow(maxRatePerSec float64) bool {
 	// Kept as float64 to avoid silent truncation for sub-0.1/s rates.
 	maxPerWindow := maxRatePerSec * RateWindowDuration.Seconds()
 
-	now := time.Now()
+	if now.IsZero() {
+		now = time.Now()
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 

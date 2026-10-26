@@ -50,13 +50,23 @@ import (
 // team: fleet-remediation
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
-		telemetrymock.Module(),
-		hostnameinterface.MockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
+	for _, test := range []struct {
+		name    string
+		options []Option
+	}{
+		{name: "no-op remote restoration"},
+		{name: "remote restoration", options: []Option{WithRemoteIssueRestoration()}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fxutil.TestBundle(t, Bundle(test.options...),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+				telemetrymock.Module(),
+				hostnameinterface.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+		})
+	}
 }
 
 // TestBundleStartLifecycle exercises the full bundle through fx start/stop and

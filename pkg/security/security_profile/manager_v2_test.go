@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -404,6 +406,85 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		m.HandleSampleRefresh(3)
 		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
+}
+
+// monotonicFieldHandlers mimics the eBPF field handler: Timestamp stays zero until
+// ResolveEventTime converts TimestampRaw, an offset from boot.
+type monotonicFieldHandlers struct {
+	model.FakeFieldHandlers
+	boot time.Time
+}
+
+func (fh *monotonicFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = fh.boot.Add(time.Duration(ev.TimestampRaw))
+	}
+	return ev.Timestamp
+}
+
+// distributionRecorder records the values sent through Distribution.
+type distributionRecorder struct {
+	statsd.NoOpClient
+	values map[string][]float64
+}
+
+func (r *distributionRecorder) Distribution(name string, value float64, _ []string, _ float64) error {
+	r.values[name] = append(r.values[name], value)
+	return nil
+}
+
+func TestManagerV2_queueEventForTagResolution_resolvesTimestampFirst(t *testing.T) {
+	recorder := &distributionRecorder{values: map[string][]float64{}}
+	m := &ManagerV2{
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+			SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
+		}},
+		statsdClient:              recorder,
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
+	}
+
+	const cgroupID = containerutils.CGroupID("test-cgroup")
+	// Boot 5s ago, so the first event is about 5s old when its tags resolve.
+	fh := &monotonicFieldHandlers{boot: time.Now().Add(-5 * time.Second)}
+	newEvent := func(raw time.Duration) *model.Event {
+		event := model.NewFakeEvent()
+		event.FieldHandlers = fh
+		event.TimestampRaw = uint64(raw)
+		event.ProcessContext.Process.CGroup.CGroupID = cgroupID
+		return event
+	}
+
+	first := newEvent(time.Millisecond)
+	require.True(t, first.Timestamp.IsZero())
+	m.queueEventForTagResolution(first, nil)
+
+	pending := m.profilePendingEvents[cgroupID]
+	require.NotNil(t, pending)
+	assert.False(t, pending.firstSeen.IsZero(), "firstSeen must come from the resolved event time")
+	assert.Equal(t, first.Timestamp, pending.firstSeen)
+	assert.Equal(t, 1, pending.events.Len())
+	assert.EqualValues(t, 1, m.queueSize.Load())
+
+	// A second event for the same cgroup within 10s is queued, not dropped.
+	m.queueEventForTagResolution(newEvent(2*time.Second), nil)
+	assert.Equal(t, 2, pending.events.Len())
+	assert.EqualValues(t, 2, m.queueSize.Load())
+
+	// Resolving the tags dequeues everything and reports the latency since the first event.
+	m.processEventWithResolvedTags(newEvent(3 * time.Second))
+	assert.Empty(t, m.profilePendingEvents)
+	assert.EqualValues(t, 0, m.queueSize.Load())
+
+	latencies := recorder.values[metrics.MetricSecurityProfileV2TagResolutionLatency]
+	require.Len(t, latencies, 1)
+	assert.Greater(t, latencies[0], 4.0)
+	assert.Less(t, latencies[0], 60.0)
 }
 
 const (
@@ -805,4 +886,80 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 	assert.Empty(t, m.profilePendingEvents)
 	assert.Empty(t, m.resolvedCgroups)
+}
+
+// newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the
+// containers its tagger doesn't know.
+func newTagResolutionTestManagerV2(t *testing.T, maxPendingPerCgroup, maxPending int) *ManagerV2 {
+	t.Helper()
+
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup = maxPendingPerCgroup
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents = maxPending
+	m.profilePendingEvents = make(map[containerutils.CGroupID]*pendingProfile)
+	m.resolvedCgroups = make(map[containerutils.CGroupID]struct{})
+	m.queueSize = atomic.NewUint64(0)
+	m.pendingProfiles = atomic.NewUint64(0)
+	m.tagResolutionCappedCgroup = atomic.NewUint64(0)
+	m.tagResolutionCappedTotal = atomic.NewUint64(0)
+	m.initEventMetrics()
+	return m
+}
+
+func untaggedTestCGroupID(i int) containerutils.CGroupID {
+	return containerutils.CGroupID(fmt.Sprintf("/docker/%064x", i+1))
+}
+
+// newUntaggedTestEventV2 forges an open event in a container whose tags never resolve, like the
+// containers started by a Docker-in-Docker daemon.
+func newUntaggedTestEventV2(i int) *model.Event {
+	event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+	cgroupID := untaggedTestCGroupID(i)
+	event.ProcessContext.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupID)
+	event.ProcessContext.Process.ContainerContext.Tags = nil
+	event.ProcessContext.Process.CGroup.CGroupID = cgroupID
+	return event
+}
+
+func TestManagerV2_ProcessEvent_capsPendingEventsPerCgroup(t *testing.T) {
+	const maxPendingPerCgroup = 4
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, 100)
+
+	for i := 0; i < maxPendingPerCgroup+10; i++ {
+		m.ProcessEvent(newUntaggedTestEventV2(0))
+	}
+	m.ProcessEvent(newUntaggedTestEventV2(1))
+
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(1))
+	assert.Equal(t, maxPendingPerCgroup, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+	assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(1)].events.Len(), "a full cgroup shouldn't keep the others from queueing")
+	assert.EqualValues(t, maxPendingPerCgroup+1, m.queueSize.Load())
+	assert.EqualValues(t, 10, m.tagResolutionCappedCgroup.Load())
+	assert.Zero(t, m.tagResolutionCappedTotal.Load())
+}
+
+func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
+	const (
+		maxPendingPerCgroup = 4
+		maxPending          = 8
+	)
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, maxPending)
+
+	fullCgroups := maxPending / maxPendingPerCgroup
+	for c := 0; c < fullCgroups; c++ {
+		for i := 0; i < maxPendingPerCgroup; i++ {
+			m.ProcessEvent(newUntaggedTestEventV2(c))
+		}
+	}
+	require.EqualValues(t, maxPending, m.queueSize.Load())
+
+	m.ProcessEvent(newUntaggedTestEventV2(fullCgroups))
+
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(fullCgroups))
+	assert.Zero(t, m.profilePendingEvents[untaggedTestCGroupID(fullCgroups)].events.Len())
+	assert.EqualValues(t, maxPending, m.queueSize.Load())
+	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
+	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
 }
