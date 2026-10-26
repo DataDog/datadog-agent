@@ -1,3 +1,5 @@
+use std::time::{Instant, SystemTime};
+
 use anyhow::{Context, Result, anyhow};
 use shlib_core::*;
 
@@ -5,7 +7,7 @@ use crate::backend;
 use crate::config::{CheckConfig, SubTask};
 use crate::constants::SDS_RESULT_EVENT_TYPE;
 use crate::proto::{self, Status as ScanStatus};
-use crate::result::{ScanOutcome, build_sds_result};
+use crate::result::{ScanOutcome, ScanTiming, build_sds_result};
 use crate::scanning::Scanner;
 
 /// Check entrypoint.
@@ -53,7 +55,8 @@ fn run_sub_task(
         ),
     );
 
-    // TODO(DSEC-180): time the scan and populate task metadata started_at / ended_at
+    let started_at = SystemTime::now();
+    let started = Instant::now();
     // A sub task failure is reported inside the payload (status=ERROR) rather
     // than aborting the check, so every sub task produces exactly one event.
     let (status, failure_reason, outcome) = match run_scan(scanner, sub_task) {
@@ -81,7 +84,17 @@ fn run_sub_task(
     };
 
     // Build the SDS result protobuf for this sub task.
-    let payload = build_sds_result(config, sub_task, status, &failure_reason, outcome);
+    let payload = build_sds_result(
+        config,
+        sub_task,
+        status,
+        &failure_reason,
+        outcome,
+        ScanTiming {
+            started_at,
+            duration: started.elapsed(),
+        },
+    );
 
     // Emit the protobuf on the `sds-result` event platform track.
     check.event_platform_event_bytes(&proto::encode(&payload), SDS_RESULT_EVENT_TYPE)?;
@@ -111,11 +124,25 @@ mod tests {
     use crate::constants::SDS_RESULT_EVENT_TYPE;
     use crate::proto::{
         PostgresScannedColumn, PostgresTable, Resource, ScanLocation, ScanMetadata, ScanResult,
-        ScanTaskMetadata, ScanningSource, SdsResultPayload, Status, TableMatch, scan_location,
-        scanning_source,
+        ScanTaskMetadata, ScanningSource, SdsResultPayload, Status, TableMatch, Timestamp,
+        scan_location, scanning_source,
     };
 
     use super::check;
+
+    /// Whole milliseconds from `started_at` to `ended_at`, which must both be set.
+    fn scan_millis(metadata: &ScanTaskMetadata) -> i64 {
+        millis_between(
+            metadata.started_at.as_ref().expect("started_at missing"),
+            metadata.ended_at.as_ref().expect("ended_at missing"),
+        )
+    }
+
+    /// Whole milliseconds from `start` to `end`.
+    fn millis_between(start: &Timestamp, end: &Timestamp) -> i64 {
+        let nanos = |t: &Timestamp| t.seconds * 1_000_000_000 + i64::from(t.nanos);
+        (nanos(end) - nanos(start)) / 1_000_000
+    }
 
     const INSTANCE: &str = r#"
 task_id: task-1
@@ -174,6 +201,11 @@ scan_data:
         let payload =
             SdsResultPayload::decode(events[0].raw_event.as_slice()).expect("payload decodes");
         assert!(payload.timestamp > 0, "timestamp should be populated");
+        let metadata = payload.scan_results[0]
+            .scan_metadata
+            .as_ref()
+            .and_then(|m| m.scan_task_metadata.as_ref())
+            .expect("task metadata");
 
         assert_eq!(
             payload,
@@ -226,10 +258,13 @@ scan_data:
                         scan_task_metadata: Some(ScanTaskMetadata {
                             task_id: "task-1".to_string(),
                             sub_task_id: "sub-1".to_string(),
+                            started_at: metadata.started_at.clone(),
+                            ended_at: metadata.ended_at.clone(),
                             status: Status::Success as i32,
                             ..Default::default()
                         }),
                     }),
+                    duration: scan_millis(metadata),
                     ..Default::default()
                 }],
                 ..Default::default()
