@@ -208,7 +208,8 @@ properties:
     - DD_PROCESS_CONFIG_QUEUE_SIZE
     - DD_PROCESS_AGENT_QUEUE_SIZE
     visibility: public
-    description: The number of check results to buffer in memory when a POST fails.
+    description: Maximum queued check results waiting to reach the forwarder. This
+      does not limit requests already awaiting endpoint responses.
   process_queue_bytes:
     node_type: setting
     type: integer
@@ -226,8 +227,8 @@ properties:
     - DD_PROCESS_CONFIG_RT_QUEUE_SIZE
     - DD_PROCESS_AGENT_RT_QUEUE_SIZE
     visibility: public
-    description: The number of realtime check results to buffer in memory when a POST
-      fails.
+    description: Maximum queued realtime check results waiting to reach the forwarder.
+      This does not limit requests already awaiting endpoint responses.
   max_per_message:
     node_type: setting
     type: integer

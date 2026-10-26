@@ -2134,7 +2134,7 @@ api_key:
 
 #   # @param queue_size - integer - optional - default: 256
 #   # @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 256
-#   # The number of check results to buffer in memory when a POST fails.
+#   # Maximum queued check results waiting to reach the forwarder. This does not limit requests already awaiting endpoint responses.
 #
 #   queue_size: 256
 
@@ -2146,7 +2146,7 @@ api_key:
 
 #   # @param rt_queue_size - integer - optional - default: 5
 #   # @env DD_PROCESS_CONFIG_RT_QUEUE_SIZE - integer - optional - default: 5
-#   # The number of realtime check results to buffer in memory when a POST fails.
+#   # Maximum queued realtime check results waiting to reach the forwarder. This does not limit requests already awaiting endpoint responses.
 #
 #   rt_queue_size: 5
 

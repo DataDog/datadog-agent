@@ -48,12 +48,8 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
-// The forwarder times out response channels after 30 seconds of silence; each
-// response restarts that timer. Bound submissions while waiting for closure.
-const maxPendingResponseDrains = 256
-
-// Ignore short network blips without retaining a failed endpoint's RT vote forever.
-const maxConsecutiveRTFailures = 3
+// Preserve RT decisions through short outages, but not prolonged silence.
+const rtStatusFailureGracePeriod = 30 * time.Second
 
 type rtEndpointKey struct {
 	domain      string
@@ -61,9 +57,10 @@ type rtEndpointKey struct {
 }
 
 type rtEndpointStatus struct {
-	sequence uint64
-	status   *model.CollectorStatus
-	failures uint8
+	sequence    uint64
+	keyVersion  int
+	status      *model.CollectorStatus
+	lastSuccess time.Time
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -297,9 +294,6 @@ func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
 }
 
 func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
-	// A stuck connection or RT response cannot consume process check slots.
-	inFlight := make(chan struct{}, maxPendingResponseDrains)
-	limitWarned := false
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -317,20 +311,10 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			if s.shouldDropPayload(result.name) {
 				continue
 			}
-			if len(inFlight) == maxPendingResponseDrains {
-				// Backpressure before submitting: abandoning a response reader
-				// would not cancel the forwarder's in-flight transaction.
-				if !limitWarned {
-					s.log.Warnf("Process response limit reached (%d); waiting for in-flight submissions", maxPendingResponseDrains)
-					limitWarned = true
-				}
-			} else {
-				limitWarned = false
-			}
 			select {
-			case inFlight <- struct{}{}:
 			case <-s.exit:
 				return
+			default:
 			}
 
 			updateRTStatus := s.realtimeUpdate[result.name]
@@ -348,11 +332,9 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			if err != nil {
 				s.log.Errorf("Unable to submit payload: %s", err)
 				status.AddSubmissionErrorCount(1)
-				<-inFlight
 				continue
 			}
 			if responses == nil {
-				<-inFlight
 				continue
 			}
 
@@ -360,10 +342,11 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			if updateRTStatus {
 				sequence = s.rtSequence.Add(1)
 			}
+			// Never gate a new submission on old response channels: an unreachable
+			// endpoint must not delay the next payload to a healthy endpoint.
 			s.wg.Add(1)
 			go func() {
 				defer s.wg.Done()
-				defer func() { <-inFlight }()
 				s.drainResponses(result.name, responses, updateRTStatus, sequence, submissionGeneration)
 			}()
 		}
@@ -414,48 +397,36 @@ func (s *CheckSubmitter) publishRTStatus(sequence uint64, domain string, apiKeyI
 	if known && apiKeyVersion < knownVersion {
 		return // A delayed response from before an API-key update.
 	}
-	rotatedStatus := false
 	if known && apiKeyVersion > knownVersion {
 		s.rtGeneration.Add(1)
-		for endpoint, previous := range s.rtEndpoints {
-			if endpoint.domain == domain {
-				rotatedStatus = rotatedStatus || previous.status != nil
-				delete(s.rtEndpoints, endpoint)
-			}
-		}
 	}
 	s.rtDomainVersions[domain] = apiKeyVersion
 	key := rtEndpointKey{domain: domain, apiKeyIndex: apiKeyIndex}
 	previous := s.rtEndpoints[key]
-	if sequence < previous.sequence {
-		return // Only a newer response from this credential can supersede it.
+	if apiKeyVersion == previous.keyVersion && sequence < previous.sequence {
+		return // Only a newer response from this credential set can supersede it.
 	}
 	previous.sequence = sequence
+	previous.keyVersion = apiKeyVersion
 	if collectorStatus == nil {
-		if previous.failures < maxConsecutiveRTFailures {
-			previous.failures++
-		}
-		if previous.failures == maxConsecutiveRTFailures && previous.status != nil {
+		if previous.status != nil && time.Since(previous.lastSuccess) >= rtStatusFailureGracePeriod {
 			previous.status = nil
 			s.rtEndpoints[key] = previous
 			s.notifyRTStatus()
 			return
 		}
 		s.rtEndpoints[key] = previous
-		if rotatedStatus {
-			s.notifyRTStatus()
-		}
 		return
 	}
 	previous.status = collectorStatus
-	previous.failures = 0
+	previous.lastSuccess = time.Now()
 	s.rtEndpoints[key] = previous
 	s.notifyRTStatus()
 }
 
-// A closed response channel counts once against endpoints that did not answer
-// this payload. Closures from before a credential rotation cannot invalidate
-// decisions made with the new credential set.
+// A closed response channel checks endpoints that did not answer this payload.
+// Expire their decisions only after prolonged silence; closures from before a
+// credential rotation cannot invalidate newer decisions.
 func (s *CheckSubmitter) completeRTStatus(sequence, submissionGeneration uint64) {
 	s.rtMu.Lock()
 	defer s.rtMu.Unlock()
@@ -468,13 +439,11 @@ func (s *CheckSubmitter) completeRTStatus(sequence, submissionGeneration uint64)
 		return
 	}
 	changed := false
+	now := time.Now()
 	for key, previous := range s.rtEndpoints {
 		if previous.sequence < sequence {
 			previous.sequence = sequence
-			if previous.failures < maxConsecutiveRTFailures {
-				previous.failures++
-			}
-			if previous.failures == maxConsecutiveRTFailures && previous.status != nil {
+			if previous.status != nil && now.Sub(previous.lastSuccess) >= rtStatusFailureGracePeriod {
 				previous.status = nil
 				changed = true
 			}

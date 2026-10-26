@@ -539,7 +539,8 @@ func TestSubmitterExpiresUnansweredRTEndpoint(t *testing.T) {
 		runner, err := NewRunnerWithChecks(deps.Config, nil, nil, nil, true, nil)
 		require.NoError(t, err)
 
-		channels := make([]chan forwarder.Response, maxConsecutiveRTFailures+1)
+		const rapidFailures = 4
+		channels := make([]chan forwarder.Response, rapidFailures+2)
 		channels[0] = make(chan forwarder.Response, 1)
 		channels[0] <- forwarder.Response{Domain: "https://healthy.example.com", StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 2)}
 		close(channels[0])
@@ -559,13 +560,16 @@ func TestSubmitterExpiresUnansweredRTEndpoint(t *testing.T) {
 		runner.UpdateRTStatus(rtStatuses(t, s))
 		assert.True(t, runner.IsRealTimeEnabled())
 
-		for i := 1; i <= maxConsecutiveRTFailures; i++ {
+		for i := 1; i < len(channels); i++ {
+			if i == rapidFailures+1 {
+				time.Sleep(rtStatusFailureGracePeriod + time.Nanosecond)
+			}
 			submitProcessPayload(s)
 			synctest.Wait()
-			if i < maxConsecutiveRTFailures {
+			if i <= rapidFailures {
 				select {
 				case <-s.GetRTNotifierChan():
-					t.Fatal("one missing response disabled real-time collection")
+					t.Fatal("a short gap in responses disabled real-time collection")
 				default:
 				}
 				assert.True(t, runner.IsRealTimeEnabled())
@@ -586,7 +590,8 @@ func TestSubmitterExpiresRepeatedRTFailures(t *testing.T) {
 		t.Cleanup(s.Stop)
 		runner, err := NewRunnerWithChecks(deps.Config, nil, nil, nil, true, nil)
 		require.NoError(t, err)
-		channels := make([]chan forwarder.Response, maxConsecutiveRTFailures+1)
+		const rapidFailures = 4
+		channels := make([]chan forwarder.Response, rapidFailures+2)
 		for i := range channels {
 			channels[i] = make(chan forwarder.Response, 2)
 		}
@@ -609,20 +614,23 @@ func TestSubmitterExpiresRepeatedRTFailures(t *testing.T) {
 		assert.True(t, runner.IsRealTimeEnabled())
 		assert.Equal(t, 10*time.Second, runner.realTimeInterval)
 
-		for i := 1; i <= maxConsecutiveRTFailures; i++ {
+		for i := 1; i < len(channels); i++ {
+			if i == rapidFailures+1 {
+				time.Sleep(rtStatusFailureGracePeriod + time.Nanosecond)
+			}
 			channels[i] <- fast
 			channels[i] <- forwarder.Response{Domain: slow.Domain, Err: errors.New("persistent failure")}
 			close(channels[i])
 			submitProcessPayload(s)
 			synctest.Wait()
 			runner.UpdateRTStatus(rtStatuses(t, s))
-			assert.Equal(t, i < maxConsecutiveRTFailures, runner.IsRealTimeEnabled())
+			assert.Equal(t, i <= rapidFailures, runner.IsRealTimeEnabled())
 		}
 		assert.Equal(t, 2*time.Second, runner.realTimeInterval)
 	})
 }
 
-func TestSubmitterInvalidatesRTOnKeyRotation(t *testing.T) {
+func TestSubmitterKeepsOtherKeyVoteDuringRotation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		deps := getSubmitterDeps(t, nil, nil)
 		status.InitExpvars(deps.Config, testHostName, false, false, nil)
@@ -633,7 +641,7 @@ func TestSubmitterInvalidatesRTOnKeyRotation(t *testing.T) {
 		require.NoError(t, err)
 
 		first := make(chan forwarder.Response, 2)
-		second := make(chan forwarder.Response, 1)
+		second := make(chan forwarder.Response, 2)
 		calls := 0
 		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
 			calls++
@@ -650,20 +658,25 @@ func TestSubmitterInvalidatesRTOnKeyRotation(t *testing.T) {
 		runner.UpdateRTStatus(rtStatuses(t, s))
 		assert.True(t, runner.IsRealTimeEnabled())
 
-		second <- forwarder.Response{Domain: domain, APIKeyIndex: 0, APIKeyVersion: 1, Err: errors.New("rotated key failed")}
-		close(second)
+		second <- forwarder.Response{Domain: domain, APIKeyIndex: 0, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
 		submitProcessPayload(s)
 		synctest.Wait()
 		runner.UpdateRTStatus(rtStatuses(t, s))
-		assert.False(t, runner.IsRealTimeEnabled(), "the old credential must not retain its RT vote")
+		assert.True(t, runner.IsRealTimeEnabled(), "rotating a different key must not discard this key's vote")
+		assert.Equal(t, 10*time.Second, runner.realTimeInterval)
 
-		first <- forwarder.Response{Domain: domain, APIKeyIndex: 1, APIKeyVersion: 0, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 10)}
+		first <- forwarder.Response{Domain: domain, APIKeyIndex: 1, APIKeyVersion: 0, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
 		synctest.Wait()
 		select {
 		case <-s.GetRTNotifierChan():
-			t.Fatal("a delayed pre-rotation response restored RT")
+			t.Fatal("a delayed pre-rotation response changed RT")
 		default:
 		}
+		second <- forwarder.Response{Domain: domain, APIKeyIndex: 1, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 10)}
+		close(second)
+		synctest.Wait()
+		assert.Len(t, rtStatuses(t, s), 2)
+		assert.True(t, runner.IsRealTimeEnabled())
 	})
 }
 
@@ -700,7 +713,7 @@ func TestSubmitterDoesNotCountOldChannelCloseAfterRotation(t *testing.T) {
 			return oldResponse, nil
 		}
 
-		rotated := make([]chan forwarder.Response, maxConsecutiveRTFailures)
+		rotated := make([]chan forwarder.Response, 2)
 		rotated[0] = make(chan forwarder.Response, 1)
 		rotated[0] <- forwarder.Response{Domain: domain, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 2)}
 		close(rotated[0])
@@ -733,6 +746,7 @@ func TestSubmitterDoesNotCountOldChannelCloseAfterRotation(t *testing.T) {
 				assert.Equal(t, int32(1), rtStatuses(t, s)[0].ActiveClients)
 			}
 		}
+		time.Sleep(rtStatusFailureGracePeriod + time.Nanosecond)
 		close(releaseOldSubmission)
 		synctest.Wait()
 		select {
@@ -782,16 +796,17 @@ func TestSubmitterCountsImmediateSubmissionErrors(t *testing.T) {
 			return make(chan forwarder.Response), errors.New("forwarder stopped")
 		}
 		require.NoError(t, s.Start())
-		for range maxPendingResponseDrains + 1 {
+		const failedSubmissions = 3
+		for range failedSubmissions {
 			submitProcessPayload(s)
 			synctest.Wait()
 		}
-		assert.EqualValues(t, maxPendingResponseDrains+1, calls.Load(), "failed submissions must not consume response slots")
-		assert.Equal(t, before+int64(maxPendingResponseDrains+1), submissionErrorCount(t))
+		assert.EqualValues(t, failedSubmissions, calls.Load())
+		assert.Equal(t, before+int64(failedSubmissions), submissionErrorCount(t))
 	})
 }
 
-func TestSubmitterBoundsPendingDrainsAndStopsWithUnclosedResponses(t *testing.T) {
+func TestSubmitterContinuesPast256PendingResponsesAndStops(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		deps := getSubmitterDeps(t, nil, nil)
 		status.InitExpvars(deps.Config, testHostName, false, false, nil)
@@ -800,30 +815,28 @@ func TestSubmitterBoundsPendingDrainsAndStopsWithUnclosedResponses(t *testing.T)
 		require.NoError(t, err)
 		stopOnce := sync.OnceFunc(s.Stop)
 		t.Cleanup(stopOnce)
+		const pending = 257
 		var calls atomic.Int32
-		responseChannels := make(chan chan forwarder.Response, maxPendingResponseDrains+3)
-		healthyBody := encodeCollectorResponse(t, 1, 2)
+		inactiveBody := encodeCollectorResponse(t, 0, 2)
+		activeBody := encodeCollectorResponse(t, 1, 2)
 		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
-			calls.Add(1)
+			call := calls.Add(1)
+			body := inactiveBody
+			if call == pending {
+				body = activeBody
+			}
 			responses := make(chan forwarder.Response, 1)
-			responses <- forwarder.Response{Domain: "https://healthy.example.com", StatusCode: http.StatusAccepted, Body: healthyBody}
-			responseChannels <- responses
-			return responses, nil // Never closes until the test releases it.
+			responses <- forwarder.Response{Domain: "https://healthy.example.com", StatusCode: http.StatusAccepted, Body: body}
+			return responses, nil // The unreachable endpoint never closes this channel.
 		}
 		require.NoError(t, s.Start())
-		for range maxPendingResponseDrains + 3 {
+		for range pending {
 			submitProcessPayload(s)
 			synctest.Wait()
 		}
-		require.EqualValues(t, maxPendingResponseDrains, calls.Load(), "forwarder work must remain bounded")
-		assert.Equal(t, int32(1), rtStatuses(t, s)[0].ActiveClients)
-		<-responseChannels // Keep the oldest drain blocked; a later completion must release a slot.
-		for i := range 3 {
-			close(<-responseChannels)
-			synctest.Wait()
-			require.EqualValues(t, maxPendingResponseDrains+i+1, calls.Load())
-		}
-		assert.Equal(t, before, submissionErrorCount(t), "backpressure is not a delivery failure")
+		require.EqualValues(t, pending, calls.Load(), "unreachable endpoint blocked healthy submissions")
+		assert.Equal(t, int32(1), rtStatuses(t, s)[0].ActiveClients, "latest healthy response must still update RT")
+		assert.Equal(t, before, submissionErrorCount(t))
 
 		// Stop must join all drains without waiting for a forwarder channel to close.
 		stopOnce()

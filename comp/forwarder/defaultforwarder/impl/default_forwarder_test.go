@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,11 +117,10 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 
 func TestProcessTransactionReportsSentCredentialAfterRotation(t *testing.T) {
 	requestKeys := make(chan string, 2)
-	requests := 0
+	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests++
 		requestKeys <- r.Header.Get("DD-Api-Key")
-		if requests == 1 {
+		if requests.Add(1) == 1 {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
 			w.WriteHeader(http.StatusAccepted)

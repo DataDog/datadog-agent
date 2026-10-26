@@ -4,3 +4,5 @@ fixes:
     Fix Process Agent submissions to additional endpoints so that a slow endpoint
     no longer delays subsequent process payloads or real-time status updates
     from healthy endpoints.
+    If every endpoint stops responding, real-time mode is disabled after 30
+    seconds without a successful response instead of retaining stale status.
