@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Prevent queued receive errors from retired Foldspace streams from closing
+    replacement streams and delaying log delivery until the next stream rotation.

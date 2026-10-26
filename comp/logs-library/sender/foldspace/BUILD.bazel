@@ -43,6 +43,7 @@ dd_agent_go_test(
         "destinations_test.go",
         "driver_test.go",
         "grpc_test.go",
+        "stale_stream_test.go",
     ],
     embed = [":foldspace"],
     deps = [

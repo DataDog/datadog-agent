@@ -494,13 +494,20 @@ func (d *Driver) senderLoop(sender SenderID) {
 	defer stopRecv()
 
 	handleAck := func(a streamAck) {
+		// Send and Recv may report the same disconnect. Send can already have
+		// opened a replacement before the old Recv error is drained. The core
+		// ignores stale generations, but stopRecv would close the replacement
+		// and leave the core planning sends onto a transport that no longer exists.
+		if current == nil || a.stream != currentID {
+			return
+		}
 		if a.err != nil {
 			progress := d.core.HandleStreamError(sender, a.stream, a.err.Error())
 			d.dispatch(progress)
 			stopRecv()
 			return
 		}
-		if current != nil && a.stream == currentID && outstanding > 0 {
+		if outstanding > 0 {
 			outstanding--
 			ackCount++
 		}
