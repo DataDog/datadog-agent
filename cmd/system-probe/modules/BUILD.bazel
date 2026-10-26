@@ -269,6 +269,7 @@ dd_agent_go_test(
             "bpf",
             "nvml",
         ],
+        ["npm"],
     ],
     deps = select({
         "@rules_go//go/platform:android": [

@@ -38,6 +38,7 @@ properties:
       As of agent version 7.70.0, proxy paths are supported. To forward logs to a
       specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
     example: <ENDPOINT>:<PORT>
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   logs_no_ssl:
     node_type: setting
     type: boolean
@@ -130,6 +131,8 @@ properties:
       The compression_level parameter accepts values from 0 (no compression)
       to 9 (maximum compression but higher resource usage). Only takes effect if
       `use_compression` is set to `true`.
+    minimum: 0
+    maximum: 9
   batch_wait:
     node_type: setting
     type: number
@@ -165,6 +168,8 @@ properties:
 
       There is no effective limit for windows due to use of CreateFile win32 API
       The OS default for most linux distributions is 1024
+    minimum: 0
+    maximum: 1000000
   file_wildcard_selection_mode:
     node_type: setting
     type: string
@@ -195,6 +200,10 @@ properties:
 
       WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
       more disk I/O at the wildcard log paths
+    enum:
+    - by_name
+    - by_modification_time
+    - null
   max_message_size_bytes:
     node_type: setting
     type: integer
@@ -389,6 +398,9 @@ properties:
     default: 1000
     tags:
     - generate_const:DefaultBatchMaxSize
+    minimum: 1
+    maximum: 10000
+    description: Maximum number of log events per HTTP batch.
   compression_kind:
     node_type: setting
     type: string
@@ -399,6 +411,9 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    minimum: 0
+    description: Interval in seconds after which the logs forwarder connection to Datadog
+      is reset. 0 disables the reset.
   container_runtime_waiting_timeout:
     node_type: setting
     type: string
@@ -499,6 +514,8 @@ properties:
     type: boolean
     default: false
     comment: Opt-in recursive glob for file log paths (supports **). Default false
+      to preserve current behavior.
+    description: Opt-in recursive glob for file log paths (supports **). Default false
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
@@ -690,6 +707,9 @@ properties:
     type: integer
     default: 9000
     comment: 'increase the read buffer size of the UDP sockets:'
+    minimum: 1024
+    maximum: 2097152
+    description: Maximum size in bytes for log frames.
   http_connectivity_retry_interval_max:
     node_type: setting
     type: string
@@ -899,6 +919,7 @@ properties:
     type: boolean
     default: false
     comment: DEPRECATED in favor of `logs_config.force_use_http`.
+    description: DEPRECATED in favor of `logs_config.force_use_http`.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -917,6 +938,8 @@ properties:
     type: boolean
     default: true
     comment: If true, then a source_host tag (IP Address) will be added to TCP/UDP
+      logs.
+    description: If true, then a source_host tag (IP Address) will be added to TCP/UDP
       logs.
   use_tcp:
     node_type: setting
