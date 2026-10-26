@@ -186,6 +186,9 @@ impl ProcessManager {
         }
         info!("dd-procmgrd shutting down");
 
+        // Unblock mutating RPCs awaiting oneshot replies before graceful gRPC stop.
+        drop(cmd_rx);
+
         let _ = grpc_shutdown_tx.send(());
         match grpc_handle.await {
             Ok(Err(e)) => warn!("gRPC server error: {e}"),
