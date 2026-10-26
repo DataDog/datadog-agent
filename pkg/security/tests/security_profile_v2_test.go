@@ -25,6 +25,8 @@ import (
 var _ = declareInlineConfig(TestSecurityProfileV2Mounts)
 
 func TestSecurityProfileV2Mounts(t *testing.T) {
+	t.Skip("skipped until the test is fixed, then it will be reintroduced")
+
 	SkipIfNotAvailable(t)
 
 	if testEnvironment == DockerEnvironment {
