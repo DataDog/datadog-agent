@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"net"
+	"slices"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -25,6 +26,28 @@ func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivit
 	}
 	for _, node := range nodes {
 		dest.ProcessNodes = append(dest.ProcessNodes, protoDecodeProcessActivityNode(dest, node, getIDFromTag))
+	}
+}
+
+// ProtoDecodeMounts decodes the workload's deduplicated mount table from its protobuf representation
+func ProtoDecodeMounts(dest *ActivityTree, nodes []*adproto.MountNode) {
+	getIDFromTag := func(imageTag string) uint64 {
+		return dest.GetOrInsertImageTag(imageTag)
+	}
+	for _, m := range nodes {
+		if m == nil {
+			continue
+		}
+		mn := NewMountNode(m.MountPoint, m.MountRoot, m.Filesystem, m.MountFlags, Runtime, 0, time.Time{})
+		mn.InBaseNamespace = m.BaseNamespace
+		if m.NodeBase != nil {
+			for tag, imageTagTimes := range m.NodeBase.Seen {
+				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+				lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+				mn.RecordWithTimestamps(getIDFromTag(tag), firstSeen, lastSeen)
+			}
+		}
+		dest.indexMount(mountNodeKey{mountPoint: m.MountPoint, filesystem: m.Filesystem, mountFlags: m.MountFlags}, mn)
 	}
 }
 
@@ -73,7 +96,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	for _, dns := range pan.DnsNames {
 		protoDecodedDNS := protoDecodeDNSNode(dns, getIDFromImageTag)
 		if len(protoDecodedDNS.Requests) != 0 {
-			name := protoDecodedDNS.Requests[0].Name
+			name := protoDecodedDNS.Requests[0].Question.Name
 			ppan.DNSNames[name] = protoDecodedDNS
 		}
 	}
@@ -293,7 +316,7 @@ func protoDecodeDNSNode(dn *adproto.DNSNode, getIDFromImageTag func(string) uint
 
 	pdn := &DNSNode{
 		MatchedRules: make([]*model.MatchedRule, 0, len(dn.MatchedRules)),
-		Requests:     make([]model.DNSQuestion, 0, len(dn.Requests)),
+		Requests:     make([]DNSRequestNode, 0, len(dn.Requests)),
 		NodeBase:     NewNodeBase(),
 	}
 
@@ -410,18 +433,46 @@ func protoDecodeIMDSNode(in *adproto.IMDSNode, getIDFromImageTag func(string) ui
 	return node
 }
 
-func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSQuestion {
+func protoDecodeDNSInfo(ev *adproto.DNSInfo) DNSRequestNode {
 	if ev == nil {
-		return model.DNSQuestion{}
+		return DNSRequestNode{}
 	}
 
-	return model.DNSQuestion{
-		Name:  ev.Name,
-		Type:  uint16(ev.Type),
-		Class: uint16(ev.Class),
-		Size:  uint16(ev.Size),
-		Count: uint16(ev.Count),
+	return DNSRequestNode{
+		Question: model.DNSQuestion{
+			Name:  ev.Name,
+			Type:  uint16(ev.Type),
+			Class: uint16(ev.Class),
+			Size:  uint16(ev.Size),
+			Count: uint16(ev.Count),
+		},
+		Response: protoDecodeDNSResponse(ev.Response),
 	}
+}
+
+func protoDecodeDNSResponse(resp *adproto.DNSResponseInfo) *DNSResponseAggregate {
+	if resp == nil {
+		return nil
+	}
+
+	dresp := &DNSResponseAggregate{
+		CNames: slices.Clone(resp.Cnames),
+	}
+
+	for _, raw := range resp.Ips {
+		ip := net.ParseIP(raw)
+		if ip == nil {
+			// skip malformed entries rather than failing the whole dump
+			continue
+		}
+		if ipv4 := ip.To4(); ipv4 != nil {
+			dresp.IPs = append(dresp.IPs, net.IPNet{IP: ipv4, Mask: net.CIDRMask(32, 32)})
+		} else {
+			dresp.IPs = append(dresp.IPs, net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)})
+		}
+	}
+
+	return dresp
 }
 
 func protoDecodeIMDSEvent(ie *adproto.IMDSEvent) IMDSInfo {

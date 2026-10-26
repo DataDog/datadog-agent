@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,16 +14,45 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 )
 
+// authError is a failed authentication request. It keeps the response status and headers
+// so transient failures can be retried with backoff.
+type authError struct {
+	statusCode int // 0 for network errors
+	header     http.Header
+	err        error
+}
+
+func (e *authError) Error() string { return e.err.Error() }
+
+func (e *authError) Unwrap() error { return e.err }
+
+// transient reports whether the failure is worth retrying with backoff: network errors,
+// rate-limiting (429) and server errors (5xx). Other statuses, like invalid credentials, are not.
+func (e *authError) transient() bool {
+	return e.statusCode == 0 || isRetryable(e.statusCode, nil)
+}
+
+// newRequestAuthError wraps the error of an authentication request that could not be sent.
+// Rate limiter timeouts are returned as is so they are not retried like network errors.
+func newRequestAuthError(err error) error {
+	if errors.Is(err, middleware.ErrRateLimitTimeout) {
+		return err
+	}
+	return &authError{err: err}
+}
+
 // Login logs in to the Cisco SDWAN API and gets a CSRF prevention token
-func (client *Client) login() error {
+func (client *Client) login(ctx context.Context) error {
 	authPayload := url.Values{}
 	authPayload.Set("j_username", client.username)
 	authPayload.Set("j_password", client.password)
 
 	// Request to /j_security_check to obtain session cookie
-	req, err := client.newRequest("POST", "/j_security_check", strings.NewReader(authPayload.Encode()))
+	req, err := client.newRequest(ctx, "POST", "/j_security_check", strings.NewReader(authPayload.Encode()))
 	if err != nil {
 		return err
 	}
@@ -30,13 +60,17 @@ func (client *Client) login() error {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	sessionRes, err := client.httpClient.Do(req)
 	if err != nil {
-		return err
+		return newRequestAuthError(err)
 	}
 
 	defer sessionRes.Body.Close()
 
 	if sessionRes.StatusCode != 200 {
-		return fmt.Errorf("authentication failed, status code: %v", sessionRes.StatusCode)
+		return &authError{
+			statusCode: sessionRes.StatusCode,
+			header:     sessionRes.Header,
+			err:        fmt.Errorf("authentication failed, status code: %v", sessionRes.StatusCode),
+		}
 	}
 
 	bodyBytes, err := io.ReadAll(sessionRes.Body)
@@ -49,19 +83,23 @@ func (client *Client) login() error {
 	}
 
 	// Request to /dataservice/client/token to obtain csrf prevention token
-	req, err = client.newRequest("GET", "/dataservice/client/token", nil)
+	req, err = client.newRequest(ctx, "GET", "/dataservice/client/token", nil)
 	if err != nil {
 		return err
 	}
 	tokenRes, err := client.httpClient.Do(req)
 	if err != nil {
-		return err
+		return newRequestAuthError(err)
 	}
 
 	defer tokenRes.Body.Close()
 
 	if tokenRes.StatusCode != 200 {
-		return fmt.Errorf("failed to retrieve csrf prevention token, status code: %v", tokenRes.StatusCode)
+		return &authError{
+			statusCode: tokenRes.StatusCode,
+			header:     tokenRes.Header,
+			err:        fmt.Errorf("failed to retrieve csrf prevention token, status code: %v", tokenRes.StatusCode),
+		}
 	}
 
 	token, _ := io.ReadAll(tokenRes.Body)
@@ -75,14 +113,14 @@ func (client *Client) login() error {
 }
 
 // authenticate logins if no token or token is expired
-func (client *Client) authenticate() error {
+func (client *Client) authenticate(ctx context.Context) error {
 	now := timeNow()
 
 	client.authenticationMutex.Lock()
 	defer client.authenticationMutex.Unlock()
 
 	if client.token == "" || client.tokenExpiry.Before(now) {
-		return client.login()
+		return client.login(ctx)
 	}
 	return nil
 }

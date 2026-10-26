@@ -40,10 +40,11 @@ comp/anomalydetection/
     reporter.allium      ← behavioral spec for reporter payloads
   recorder/
     def/                 ← component, data, and writer contracts
-    fx/                  ← tagged Agent wiring; no provider registered yet
+    fx/                  ← tagged Agent wiring with Parquet writer provider
     fx-noop/             ← explicit testbench no-op module
-    impl/                ← tagged middleware, configuration, lifecycle
+    impl/                ← requires anomalydetection_recorder: middleware, configuration, lifecycle
     impl-noop/           ← explicit testbench no-op component
+    impl/parquet/        ← requires anomalydetection_recorder: Parquet v1 metric and log writers
 ```
 
 ## Agent Wiring
@@ -55,13 +56,14 @@ Wired in `cmd/agent/subcommands/run/command.go`:
 | Observer | `observer/fx` | Analysis pipeline (`python` build tag) |
 | Log source | `logssource/fx` | Container + kubelet logs (`python` tag) |
 | Reporter | `reporter/fx` | Stdout reporter + optional event reporter |
-| Recorder | `recorder/fx` | Tagged middleware when enabled and a writer provider is registered; currently no provider |
+| Recorder | `recorder/fx` | Tagged middleware and Parquet writer provider, active when recording is enabled |
 
 **IoT / `!python` builds** use no-op `observer/fx` and `logssource/fx` modules.
 The Agent's `recorder/fx` module is also no-op without both `python` and
-`anomalydetection_recorder`. With both tags it supplies no writer provider in
-this PR, so enabling recording alone creates no writer resources. A later PR
-registers the Parquet writer provider.
+`anomalydetection_recorder`. With both tags it provides Parquet writers, but
+creates them only when `anomaly_detection.recording.enabled` is true.
+The writers buffer observations until each flush and hold their locks during
+disk writes. Periodic flush errors are logged; failed batches are not retried.
 
 **Testbench** (`internal/qbranch/anomalydetection-testbench/`) wires
 `observer/fx`, `recorder/fx-noop`, and `reporter/fx-testbench`. It replays
@@ -124,11 +126,15 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Container + kubelet logs** → `logssource` component
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
-Both paths share filtering primitives from `internal/logsfilter/`.
-The agent-internal logger callback performs only self/severity gates and a
-bounded non-blocking enqueue. Processing rules, rate limiting, tag construction,
-and Observer ingestion run on the `agent_logs` worker; never add that work back
-under `pkg/util/log`'s global logger lock.
+Both paths use shared filtering primitives from `internal/logsfilter/` inside
+the observer. Producer handles perform only cheap `MayAllowSource` and
+`min_severity` gates before copying the log snapshot and enqueueing to the
+observer channel; full `processing_rules` evaluation, priority rate limiting,
+and optional Parquet log recording happen asynchronously on the observer
+dispatch goroutine. The agent-internal logger callback performs only
+self/severity gates and a bounded non-blocking enqueue; tag construction and
+JSON formatting run on the `agent_logs` worker outside `pkg/util/log`'s global
+logger lock.
 
 ### Logging convention
 
@@ -210,7 +216,7 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys are declared in the config schema (`pkg/config/schema/yaml/`).
+Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|
@@ -218,8 +224,10 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
+| `anomaly_detection.metrics.allowed_types` | `[]` | Allowed metric types for external and log-derived metrics (`[]` = all) |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
-| `anomaly_detection.recording.enabled` | `false` | Enables recording when a writer provider is registered; none is registered in this PR |
+| `anomaly_detection.recording.enabled` | `false` | Enables Parquet recording in tagged Agent builds |
+| `anomaly_detection.recording.only` | `true` | With an active recorder, record metrics and logs without analysis |
 | `anomaly_detection.recording.flush_interval` | `60s` | Duration passed to the writer backend; `0s` uses `60s` |
 | `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |

@@ -72,8 +72,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		cfg.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	ddcfg := pkgconfigsetup.Datadog()
-	err := pkgconfigsetup.LoadSystemProbe(cfg, ddcfg.GetEnvVars())
+	err := pkgconfigsetup.LoadSystemProbe(cfg)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -141,7 +140,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
 		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
 	}
-	if cfg.GetBool(spNS("enable_oom_kill")) {
+	if cfg.GetBool(oomKillNS("enabled")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
 	if csmEnabled ||

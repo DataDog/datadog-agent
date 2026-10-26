@@ -7,6 +7,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 from io import StringIO
 from typing import Any
@@ -296,7 +297,8 @@ def run_pulumi(
         env=pulumi_env(config_path=config_path, ci=ci, skip_update_check=skip_update_check, overrides=env),
         # A pty is only ever useful for the commands whose progress the user watches, and
         # invoke can't allocate one on Windows.
-        pty=pty and not is_windows(),
+        # It is also not useful when output is redirected to a file or a pipe.
+        pty=pty and not is_windows() and sys.stdout.isatty(),
         hide=hide,
         warn=warn,
     )

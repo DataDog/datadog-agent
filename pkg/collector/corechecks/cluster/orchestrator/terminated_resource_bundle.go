@@ -95,6 +95,13 @@ func (tb *TerminatedResourceBundle) Disable() {
 	tb.enabled = false
 }
 
+// withLock runs fn while no terminated resource flush is in progress.
+func (tb *TerminatedResourceBundle) withLock(fn func()) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	fn()
+}
+
 // flush processes and sends all buffered terminated resources.
 // Must be called with tb.mu held.
 // When useBuffer is true, manifest messages for collectors that support

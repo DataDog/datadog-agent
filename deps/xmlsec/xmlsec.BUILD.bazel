@@ -181,7 +181,6 @@ cc_shared_library(
     dynamic_deps = [
         "@libxslt//:xslt_pkg",
         "@libxml2//:xml2_pkg",
-        "@openssl//:openssl_shared",
         ":xmlsec1_pkg",
     ],
     user_link_flags = select({
@@ -210,18 +209,18 @@ pkg_files(
 
 dd_cc_packaged(
     name = "xmlsec1_pkg",
+    data = [":headers_files"],
     dest_dir = "embedded/lib",
     input = ":xmlsec1",
-    installed_files = [":headers_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
     name = "xmlsec1-openssl_pkg",
+    data = [":openssl_headers_files"],
     dest_dir = "embedded/lib",
     input = ":xmlsec1-openssl",
-    installed_files = [":openssl_headers_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
 )

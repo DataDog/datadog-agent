@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -49,13 +50,14 @@ type collectorConfigs struct {
 	sourceProduct                   payload.SourceProduct
 }
 
-func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
+func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Component, logger log.Component) *collectorConfigs {
 	var filterConfigs []connfilter.Config
 	err := structure.UnmarshalKey(agentConfig, "network_path.collector.filters", &filterConfigs)
 	if err != nil {
 		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
+	cnm := sysprobeConfig.GetBool("network_config.enabled")
 	infraMode := agentConfig.GetString("infrastructure_mode")
 	isEUDM := infraMode == "end_user_device"
 	eudmBasicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
@@ -70,8 +72,8 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		selectionLimit = eudmBasicSelectionsPerWindow
 	}
 	return &collectorConfigs{
-		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		basicTestsEnabled:            !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled"),
+		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled") && cnm,
+		basicTestsEnabled:            !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm,
 		eudmBasicTestsEnabled:        eudmBasicTestsEnabled,
 		basicCandidateLimit:          candidateLimit,
 		basicSelectionLimit:          selectionLimit,

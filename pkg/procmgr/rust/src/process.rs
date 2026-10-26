@@ -111,12 +111,24 @@ enum RestartBlock {
     AlreadyAccounted,
 }
 
+/// Whether evaluating start holds logs the operator-facing detail (the path,
+/// the gated settings). Only the paths that decide a spawn log: the ones that
+/// merely refresh labels run on every reload and would repeat themselves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HoldLog {
+    Emit,
+    Silent,
+}
+
 /// What it takes to force-kill a child, held apart from [`ManagedProcess`] so a
 /// stop can escalate after the manager has released it.
 struct ProcessKiller {
+    #[cfg(not(windows))]
     pid: Option<u32>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
+    #[cfg(windows)]
+    identity: Option<crate::handle::RetainedProcessHandle>,
 }
 
 impl ProcessKiller {
@@ -126,11 +138,20 @@ impl ProcessKiller {
             if let Err(e) = job.terminate() {
                 warn!("[{name}] job object terminate failed: {e}");
             } else {
+                info!("[{name}] force-terminated workload job");
                 self.job_object = None;
                 return;
             }
         }
+        #[cfg(windows)]
+        if let Some(identity) = &self.identity {
+            warn!("[{name}] falling back to retained-handle termination");
+            if let Err(e) = identity.terminate() {
+                warn!("[{name}] retained-handle termination failed: {e}");
+            }
+        }
 
+        #[cfg(not(windows))]
         if let Some(pid) = self.pid
             && let Err(e) = platform::send_force_kill(pid)
         {
@@ -152,6 +173,8 @@ pub(crate) struct StopWait {
     /// asked to, so there is nothing for a full `stop_timeout` to wait for.
     timeout: Option<Duration>,
     killer: ProcessKiller,
+    #[cfg(windows)]
+    helper: Option<platform::SignalingHelper>,
 }
 
 impl StopWait {
@@ -161,11 +184,40 @@ impl StopWait {
             handle,
             timeout,
             mut killer,
+            #[cfg(windows)]
+            helper,
         } = self;
         tokio::pin!(handle);
+        let started = Instant::now();
 
+        // On Linux, request_stop() already knows whether SIGTERM was sent.
+        // On Windows, creating the helper does not establish that CTRL_BREAK
+        // was generated; we must read the helper's report to find out.
+        #[cfg(windows)]
+        let timeout = if let Some(mut helper) = helper {
+            let delivered = tokio::select! {
+                // If both branches are ready, prefer the completed watcher:
+                // once the child has exited, the delivery report is irrelevant.
+                biased;
+                _ = &mut handle => return,
+                delivered = platform::wait_for_graceful_stop(
+                    &mut helper, &name, timeout.unwrap_or(ManagedProcess::UNDELIVERED_STOP_GRACE),
+                ) => delivered,
+            };
+            // Confirmed generation gets the configured graceful-exit allowance.
+            // Failure or an unconfirmed report gets the short allowance below.
+            if delivered { timeout } else { None }
+        } else {
+            timeout
+        };
+
+        // Even when signaling fails, allow 2 seconds for an already-exited
+        // child's watcher to finish before attempting force termination.
         let grace = timeout.unwrap_or(ManagedProcess::UNDELIVERED_STOP_GRACE);
-        if time::timeout(grace, &mut handle).await.is_ok() {
+        if time::timeout(grace.saturating_sub(started.elapsed()), &mut handle)
+            .await
+            .is_ok()
+        {
             return;
         }
 
@@ -178,7 +230,7 @@ impl StopWait {
         }
 
         killer.force_kill(&name);
-        if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, handle)
+        if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, &mut handle)
             .await
             .is_err()
         {
@@ -198,18 +250,24 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
-    /// Set by `request_stop` when the stop signal never reached the child, so
-    /// `wait_for_stop` knows waiting out `stop_timeout` would change nothing.
+    /// Set by `request_stop` when signaling fails immediately. On Windows this
+    /// records native creation failure; `StopWait` resolves actual delivery
+    /// from the helper's report.
     graceful_stop_failed: bool,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
+    skip_reasons: Vec<String>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
+    shutdown_identity: Option<crate::handle::RetainedProcessHandle>,
+    #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
+    #[cfg(windows)]
+    signal_helper: Option<platform::SignalingHelper>,
     #[cfg(windows)]
     agent_credential: Option<platform::SpawnCredential>,
 }
@@ -258,10 +316,15 @@ impl ManagedProcess {
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
+            skip_reasons: Vec::new(),
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
+            shutdown_identity: None,
+            #[cfg(windows)]
             user_profile: None,
+            #[cfg(windows)]
+            signal_helper: None,
             #[cfg(windows)]
             agent_credential,
         }
@@ -304,7 +367,9 @@ impl ManagedProcess {
     #[cfg(windows)]
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
+        self.shutdown_identity = None;
         self.user_profile = None;
+        self.signal_helper = None;
     }
 
     pub(crate) fn profile(&self) -> SpawnProfile {
@@ -338,6 +403,10 @@ impl ManagedProcess {
             .and_then(|s| platform::last_signal(&s))
     }
 
+    pub fn skip_reasons(&self) -> &[String] {
+        &self.skip_reasons
+    }
+
     pub fn set_config(&mut self, config: ProcessConfig) {
         self.restarts = RestartTracker::new(config.restart_delay());
         self.config = config;
@@ -367,51 +436,17 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Running);
     }
 
-    #[must_use]
-    fn condition_path_exists_met(&self) -> bool {
-        let Some(raw) = &self.config.condition_path_exists else {
-            return true;
-        };
-        let path = expand_env_vars(raw);
-        if std::path::Path::new(&path).exists() {
-            return true;
-        }
-        info!("[{}] condition_path_exists not met: {path}", self.name);
-        false
-    }
-
-    #[must_use]
-    fn config_gate_met(&self) -> bool {
-        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            info!(
-                "[{}] condition_config_any not met: {}",
-                self.name,
-                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-            );
-            return false;
-        }
-        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
-            info!(
-                "[{}] condition_config_none vetoed: {}",
-                self.name,
-                crate::config_gate::condition_config_summary(&self.config.condition_config_none)
-            );
-            return false;
-        }
-        true
-    }
-
-    #[must_use]
-    fn start_conditions_met(&self) -> bool {
-        self.condition_path_exists_met() && self.config_gate_met()
-    }
-
     /// Conditions only, deliberately ignoring `auto_start`: a process that was
     /// started once should keep its restart policy even though `auto_start`
     /// only governs boot.
+    ///
+    /// For a path that declines a respawn, use `evaluate_respawn` instead and
+    /// record what it returns: the labels then describe the same evaluation
+    /// that refused the spawn.
     #[must_use]
     pub(crate) fn may_respawn(&self) -> bool {
-        self.start_conditions_met()
+        self.collect_condition_skip_reasons(HoldLog::Emit)
+            .is_empty()
     }
 
     /// Whether any start condition is declared. Reload re-evaluates conditions
@@ -478,13 +513,123 @@ impl ManagedProcess {
             .record(self.config.restart_delay(), self.config.runtime_success());
     }
 
+    pub const SKIP_REASON_AUTO_START_FALSE: &str = "auto_start_false";
+    pub const SKIP_REASON_PATH_MISSING: &str = "path_missing";
+    pub const SKIP_REASON_CONFIG_GATE: &str = "config_gate";
+    pub const SKIP_REASON_CONFIG_VETO: &str = "config_veto";
+    pub const SKIP_REASON_ORDERING: &str = "ordering";
+
+    /// Runtime start-hold labels (`path_missing`, `config_gate`, `config_veto`).
+    /// `auto_start` is not included: it only governs the boot / reload start
+    /// pass, and `may_respawn` ignores it.
     #[must_use]
-    pub fn should_start(&self) -> bool {
-        if !self.config.auto_start {
-            info!("[{}] auto_start=false, skipping", self.name);
-            return false;
+    fn collect_condition_skip_reasons(&self, log: HoldLog) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if let Some(raw) = &self.config.condition_path_exists {
+            let path = expand_env_vars(raw);
+            if !std::path::Path::new(&path).exists() {
+                if log == HoldLog::Emit {
+                    info!("[{}] condition_path_exists not met: {path}", self.name);
+                }
+                reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
+            }
         }
-        self.start_conditions_met()
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            if log == HoldLog::Emit {
+                info!(
+                    "[{}] condition_config_any not met: {}",
+                    self.name,
+                    crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+                );
+            }
+            reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
+        }
+        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
+            if log == HoldLog::Emit {
+                let vetoed = crate::config_gate::condition_config_summary(
+                    &self.config.condition_config_none,
+                );
+                info!("[{}] condition_config_none vetoed: {vetoed}", self.name);
+            }
+            reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
+        }
+        reasons
+    }
+
+    #[must_use]
+    fn collect_start_pass_skip_reasons(&self, log: HoldLog) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.config.auto_start {
+            if log == HoldLog::Emit {
+                info!("[{}] auto_start=false, skipping", self.name);
+            }
+            reasons.push(Self::SKIP_REASON_AUTO_START_FALSE.to_string());
+        }
+        reasons.extend(self.collect_condition_skip_reasons(log));
+        reasons
+    }
+
+    /// Every currently applying start-hold label for a never-spawned row, not
+    /// first-wins. Silent, for the paths that only refresh labels.
+    #[must_use]
+    pub(crate) fn collect_skip_reasons(&self) -> Vec<String> {
+        self.collect_start_pass_skip_reasons(HoldLog::Silent)
+    }
+
+    /// The boot / reload start-pass decision: empty means spawn, and otherwise
+    /// every hold that denied it, logged once here where the decision is made.
+    ///
+    /// Hand the result straight to `record_start_hold`. Deciding here and
+    /// deriving the labels from a second evaluation lets a hold that opens in
+    /// between leave a declined row resting with no reason for the skip.
+    #[must_use]
+    pub(crate) fn evaluate_start_pass(&self) -> Vec<String> {
+        self.collect_start_pass_skip_reasons(HoldLog::Emit)
+    }
+
+    /// The respawn decision, with the same single-evaluation contract as
+    /// `evaluate_start_pass`. Conditions only, since `auto_start` governs the
+    /// start pass alone.
+    #[must_use]
+    pub(crate) fn evaluate_respawn(&self) -> Vec<String> {
+        self.collect_condition_skip_reasons(HoldLog::Emit)
+    }
+
+    /// Whether the boot / reload start pass would spawn this row, ignoring
+    /// dependency-cycle exclusion (`ordering`).
+    #[must_use]
+    pub(crate) fn start_pass_would_spawn(&self) -> bool {
+        self.collect_skip_reasons().is_empty()
+    }
+
+    /// Record the holds that denied a spawn, plus any `extra` label the caller
+    /// owns (`ordering`). `reasons` must come from the evaluation that made the
+    /// decision, so the row cannot rest without the reason that stopped it.
+    ///
+    /// Never-spawned rows move `Created -> Skipped`. After a child has existed,
+    /// the process stays where it is and only carries the labels, because
+    /// `auto_start` did not decide the respawn.
+    pub(crate) fn record_start_hold(&mut self, mut reasons: Vec<String>, extra: &[&str]) {
+        for reason in extra {
+            if !reasons.iter().any(|existing| existing == reason) {
+                reasons.push((*reason).to_string());
+            }
+        }
+        self.skip_reasons = reasons;
+        if self.state == ProcessState::Created && !self.skip_reasons.is_empty() {
+            self.transition_to(ProcessState::Skipped);
+        }
+    }
+
+    /// Rebuild the labels of a row that is already held, for the paths that
+    /// refresh rather than decide: a stale reason must not outlive the hold
+    /// that produced it.
+    pub(crate) fn apply_start_hold(&mut self, extra: &[&str]) {
+        let reasons = match self.state {
+            ProcessState::Created | ProcessState::Skipped => self.collect_skip_reasons(),
+            _ => self.collect_condition_skip_reasons(HoldLog::Silent),
+        };
+        self.record_start_hold(reasons, extra);
     }
 
     pub(crate) fn spawn(&mut self, exit_tx: mpsc::Sender<ExitEvent>) -> Result<()> {
@@ -496,6 +641,7 @@ impl ManagedProcess {
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
         self.restart_block = RestartBlock::None;
+        self.skip_reasons.clear();
         self.transition_to(ProcessState::Starting);
         match self.try_spawn() {
             Ok(handle) => {
@@ -534,10 +680,17 @@ impl ManagedProcess {
     }
 
     fn try_spawn(&mut self) -> Result<ProcessHandle> {
-        #[cfg(windows)]
-        let _console_guard = platform::console_lock();
-
         let handle = self.spawn_child_handle()?;
+        #[cfg(windows)]
+        {
+            // Retention must succeed before the watcher owns the child. Dropping
+            // the job on failure kills the entire newly created workload.
+            self.shutdown_identity = Some(handle.retain_for_shutdown().inspect_err(|_| {
+                if let Some(job) = &self.job_object {
+                    let _ = job.terminate();
+                }
+            })?);
+        }
 
         self.pid = handle.id();
         info!(
@@ -560,6 +713,8 @@ impl ManagedProcess {
         self.last_exit_status = Some(status);
         self.pid = None;
         self.watcher_handle = None;
+        // Main-process exit is permission to close the whole job. A detached
+        // StopWait owns any resources it still needs until its watcher completes.
         #[cfg(windows)]
         self.clear_windows_spawn_resources();
         // Order matters, first match wins. `stop_requested` stays first because
@@ -591,9 +746,9 @@ impl ManagedProcess {
     }
 
     /// Record that a stop is under way, without signalling the child. Returns
-    /// false when there is nothing running to stop.
+    /// false when there is nothing running to stop or a stop is already under way.
     fn mark_stop_requested(&mut self) -> bool {
-        if !self.is_running() {
+        if !self.is_running() || self.stop_requested {
             return false;
         }
         self.stop_requested = true;
@@ -608,6 +763,7 @@ impl ManagedProcess {
     }
 
     /// Ask the child to exit. Returns whether the request reached it.
+    #[cfg(not(windows))]
     fn graceful_stop(&self) -> bool {
         let Some(pid) = self.pid else {
             warn!("[{}] no pid to send a graceful stop to", self.name);
@@ -618,6 +774,29 @@ impl ManagedProcess {
             return false;
         }
         true
+    }
+
+    /// Ask the child to exit. Returns whether the helper was created,
+    /// not whether the console signal was delivered. `StopWait` reads the report.
+    #[cfg(windows)]
+    fn graceful_stop(&mut self) -> bool {
+        let (Some(target), Some(job)) = (&self.shutdown_identity, &self.job_object) else {
+            warn!(
+                "[{}] cannot launch signaling helper: missing retained identity or job",
+                self.name
+            );
+            return false;
+        };
+        match platform::send_graceful_stop(target, job) {
+            Ok(helper) => {
+                self.signal_helper = Some(helper);
+                true
+            }
+            Err(error) => {
+                warn!("[{}] graceful stop launch failed: {error:#}", self.name);
+                false
+            }
+        }
     }
 
     #[cfg(unix)]
@@ -665,10 +844,15 @@ impl ManagedProcess {
             // the timeout would pass with the process untouched.
             timeout: (!self.graceful_stop_failed).then(|| self.stop_timeout()),
             killer: ProcessKiller {
+                #[cfg(not(windows))]
                 pid: self.pid,
                 #[cfg(windows)]
                 job_object: self.job_object.take(),
+                #[cfg(windows)]
+                identity: self.shutdown_identity.take(),
             },
+            #[cfg(windows)]
+            helper: self.signal_helper.take(),
         })
     }
 
@@ -732,9 +916,11 @@ impl ManagedProcess {
 
         // Checked before the burst limit so a closed gate neither consumes
         // burst budget nor advances the backoff.
-        if !self.may_respawn() {
+        let holds = self.evaluate_respawn();
+        if !holds.is_empty() {
             info!("[{}] start conditions not met, not restarting", self.name);
             self.restart_block = RestartBlock::AccountingOwed;
+            self.record_start_hold(holds, &[]);
             return None;
         }
 
@@ -773,6 +959,289 @@ pub mod tests {
         let (tx, rx) = test_exit_channel();
         proc.spawn(tx).unwrap();
         rx
+    }
+
+    #[cfg(windows)]
+    fn injected_stop(
+        job: platform::JobObject,
+        outcome: platform::SignalOutcome,
+        timeout: Duration,
+    ) -> StopWait {
+        let faults = job.faults.clone();
+        let handle = tokio::spawn(async move {
+            while faults
+                .terminate_calls
+                .load(std::sync::atomic::Ordering::SeqCst)
+                == 0
+            {
+                time::sleep(Duration::from_millis(5)).await;
+            }
+        });
+        StopWait {
+            name: "injected-stop".into(),
+            handle,
+            timeout: Some(timeout),
+            killer: ProcessKiller {
+                job_object: Some(job),
+                identity: None,
+            },
+            helper: Some(platform::SignalingHelper::test_report(outcome)),
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn normal_exit_closes_job_and_kills_remaining_descendants() {
+        use crate::handle::OwnedProcessHandle;
+        use std::sync::Arc;
+        use windows_sys::Win32::System::JobObjects::{
+            JobObjectBasicProcessIdList, QueryInformationJobObject,
+        };
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+        };
+
+        let mut config = test_helpers::make_config(
+            "cmd.exe",
+            vec![
+                "/C".into(),
+                "ping -n 3 127.0.0.1 >nul & start /b ping -n 301 127.0.0.1 >nul".into(),
+            ],
+        );
+        config.restart = RestartPolicy::Never;
+        let mut proc =
+            ManagedProcess::new_config("normal-exit".into(), test_helpers::test_uuid(), config);
+        let mut exit_rx = spawn_ok(&mut proc);
+        let event = time::timeout(Duration::from_secs(10), exit_rx.recv())
+            .await
+            .unwrap()
+            .expect("main-process exit event");
+        assert!(event.status.success());
+
+        // Inspect the still-open job only in the test. Holding process handles
+        // does not keep the job open, so its final close must kill these members.
+        #[repr(C)]
+        struct ProcessIds {
+            assigned: u32,
+            count: u32,
+            ids: [usize; 64],
+        }
+        let job = proc.job_object.as_ref().unwrap();
+        let weak_faults = Arc::downgrade(&job.faults);
+        let mut ids: ProcessIds = unsafe { std::mem::zeroed() };
+        assert_ne!(
+            unsafe {
+                QueryInformationJobObject(
+                    job.raw_handle(),
+                    JobObjectBasicProcessIdList,
+                    (&mut ids as *mut ProcessIds).cast(),
+                    std::mem::size_of_val(&ids) as u32,
+                    std::ptr::null_mut(),
+                )
+            },
+            0
+        );
+        assert!(
+            ids.count > 0 && ids.count as usize <= ids.ids.len(),
+            "expected surviving descendants"
+        );
+        let descendants: Vec<_> = ids.ids[..ids.count as usize]
+            .iter()
+            .filter(|&&pid| pid as u32 != event.pid)
+            .map(|&pid| {
+                let handle = unsafe {
+                    OpenProcess(
+                        PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+                        0,
+                        pid as u32,
+                    )
+                };
+                assert!(!handle.is_null());
+                let handle = unsafe { OwnedProcessHandle::from_raw(handle) };
+                assert!(matches!(
+                    platform::wait_for_process_exit_ms(handle.get(), 0).unwrap(),
+                    platform::ProcessWaitOutcome::TimedOut
+                ));
+                handle
+            })
+            .collect();
+        assert!(!descendants.is_empty());
+
+        proc.set_last_status(event.status);
+        assert_eq!(proc.state(), ProcessState::Exited);
+        assert!(proc.pid().is_none());
+        assert!(proc.job_object.is_none());
+        assert!(proc.shutdown_identity.is_none());
+        assert!(
+            weak_faults.upgrade().is_none(),
+            "normal exit must drop the owned job"
+        );
+        assert!(proc.handle_restart().is_none());
+        let deadline = Instant::now() + Duration::from_secs(5);
+        for descendant in descendants {
+            while matches!(
+                platform::wait_for_process_exit_ms(descendant.get(), 0).unwrap(),
+                platform::ProcessWaitOutcome::TimedOut
+            ) {
+                assert!(
+                    Instant::now() < deadline,
+                    "job close did not terminate descendant"
+                );
+                time::sleep(Duration::from_millis(10)).await;
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn graceful_stop_creates_helper_before_wait_stage() {
+        let mut proc = ManagedProcess::new_config(
+            "schedule-graceful-stop".into(),
+            test_helpers::test_uuid(),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
+        );
+        let _exit_rx = spawn_ok(&mut proc);
+        let timeout = proc.stop_timeout();
+        proc.request_stop();
+        assert_eq!(proc.state(), ProcessState::Stopping);
+        assert!(
+            proc.signal_helper.is_some(),
+            "graceful stop must create the helper synchronously"
+        );
+        assert!(
+            !proc.graceful_stop_failed,
+            "successful creation is not a delivery result"
+        );
+        let wait = proc.take_stop_wait().unwrap();
+        assert_eq!(wait.timeout, Some(timeout));
+        assert!(
+            proc.signal_helper.is_none(),
+            "the waiting stage owns the helper report"
+        );
+        wait.run().await;
+        proc.finish_stop();
+        assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[test]
+    fn repeated_stop_request_preserves_original_delivery_result() {
+        for failed in [false, true] {
+            let mut proc = ManagedProcess::new_config(
+                "repeated-stop".into(),
+                test_helpers::test_uuid(),
+                test_helpers::graceful_stop_test_config(),
+            );
+            proc.force_running_for_test();
+            assert!(proc.mark_stop_requested());
+            proc.graceful_stop_failed = failed;
+            assert!(
+                !proc.mark_stop_requested(),
+                "a second request must be rejected on every platform"
+            );
+            // With no PID/Windows resources, retrying would overwrite a
+            // successful first delivery with failure instead of preserving it.
+            proc.request_stop();
+            assert_eq!(proc.graceful_stop_failed, failed);
+            assert_eq!(proc.state(), ProcessState::Stopping);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn graceful_stop_rejects_missing_resources() {
+        let mut proc = ManagedProcess::new_config(
+            "missing-graceful-stop-resources".into(),
+            test_helpers::test_uuid(),
+            test_helpers::graceful_stop_test_config(),
+        );
+        assert!(!proc.graceful_stop());
+        assert!(proc.signal_helper.is_none());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn shared_wait_generated_report_uses_configured_timeout() {
+        use std::sync::{Arc, atomic::Ordering};
+        let job = platform::JobObject::new().unwrap();
+        let faults = Arc::clone(&job.faults);
+        let grace = Duration::from_millis(30);
+        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        // An earlier workload may be awaited first. This wait still receives
+        // its existing relative allowance when its own waiting pass starts.
+        time::sleep(Duration::from_millis(50)).await;
+        let started = Instant::now();
+        stop.run().await;
+        assert!(started.elapsed() >= grace);
+        assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn shared_wait_delivery_failure_uses_existing_undelivered_allowance() {
+        use std::sync::{Arc, atomic::Ordering};
+        for outcome in [
+            platform::SignalOutcome::Failed,
+            platform::SignalOutcome::AlreadyExited,
+        ] {
+            let job = platform::JobObject::new().unwrap();
+            let faults = Arc::clone(&job.faults);
+            let stop = injected_stop(job, outcome, Duration::from_millis(30));
+            let started = Instant::now();
+            stop.run().await;
+            assert!(started.elapsed() >= ManagedProcess::UNDELIVERED_STOP_GRACE);
+            assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn shared_wait_main_exit_does_not_wait_for_helper() {
+        use std::sync::{Arc, atomic::Ordering};
+        let job = platform::JobObject::new().unwrap();
+        let faults = Arc::clone(&job.faults);
+        let stop = StopWait {
+            name: "main-exit".into(),
+            handle: tokio::spawn(async {}),
+            timeout: Some(Duration::from_secs(90)),
+            killer: ProcessKiller {
+                job_object: Some(job),
+                identity: None,
+            },
+            helper: Some(platform::SignalingHelper::test_unreported()),
+        };
+        time::timeout(Duration::from_secs(1), stop.run())
+            .await
+            .unwrap();
+        assert_eq!(
+            faults.terminate_calls.load(Ordering::SeqCst),
+            0,
+            "main exit must rely on kill-on-close without explicit job termination"
+        );
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn main_exit_during_stop_keeps_existing_exit_classification() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "main-exit-stop".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        let mut exit_rx = spawn_ok(&mut proc);
+        proc.request_stop();
+        let wait = proc.take_stop_wait().unwrap();
+        let event = time::timeout(Duration::from_secs(5), exit_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        proc.set_last_status(event.status);
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(proc.pid().is_none());
+        assert!(proc.handle_restart().is_none());
+        wait.run().await;
+        proc.finish_stop();
+        assert!(proc.job_object.is_none());
     }
 
     #[test]
@@ -962,39 +1431,58 @@ pub mod tests {
     }
 
     #[test]
-    fn test_should_start_auto_start_true_no_condition() {
+    fn test_start_pass_spawns_auto_start_true_no_condition() {
         let (cmd, args) = test_helpers::true_cmd();
         let proc = ManagedProcess::new_config(
             "test".into(),
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        assert!(proc.should_start());
+        assert!(proc.evaluate_start_pass().is_empty());
     }
 
     #[test]
-    fn test_should_start_auto_start_false() {
+    fn test_start_pass_declines_auto_start_false() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.auto_start = false;
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
+        assert_eq!(
+            proc.evaluate_start_pass(),
+            vec![ManagedProcess::SKIP_REASON_AUTO_START_FALSE]
+        );
     }
 
     #[test]
-    fn test_should_start_condition_path_exists_met() {
+    fn test_skip_reasons_combine_auto_start_and_path() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.auto_start = false;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+        assert_eq!(
+            proc.collect_skip_reasons(),
+            vec![
+                ManagedProcess::SKIP_REASON_AUTO_START_FALSE,
+                ManagedProcess::SKIP_REASON_PATH_MISSING,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_start_pass_spawns_when_condition_path_exists_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         let exe = std::env::current_exe().unwrap();
         cfg.condition_path_exists = Some(exe.to_str().unwrap().to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(proc.should_start());
+        assert!(proc.evaluate_start_pass().is_empty());
     }
 
     /// The veto has to be consulted by the start path, not merely parsed. The pair also
     /// pins the direction: only the true value blocks.
     #[test]
-    fn test_should_start_honours_condition_config_none() {
+    fn test_start_pass_honours_condition_config_none() {
         for (body, expected_start) in [
             ("system_probe_config:\n  external: true\n", false),
             ("system_probe_config:\n  external: false\n", true),
@@ -1012,17 +1500,48 @@ pub mod tests {
             }];
             let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
 
-            assert_eq!(proc.should_start(), expected_start, "for {body:?}");
+            assert_eq!(
+                proc.evaluate_start_pass().is_empty(),
+                expected_start,
+                "for {body:?}"
+            );
         }
     }
 
     #[test]
-    fn test_should_start_condition_path_exists_not_met() {
+    fn test_start_pass_declines_when_condition_path_exists_not_met() {
         let (cmd, args) = test_helpers::true_cmd();
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
-        assert!(!proc.should_start());
+        assert_eq!(
+            proc.evaluate_start_pass(),
+            vec![ManagedProcess::SKIP_REASON_PATH_MISSING]
+        );
+    }
+
+    /// A hold that opens after the start pass declined the spawn, but before
+    /// the decline is recorded, must not erase the reason: the row rests in
+    /// `Skipped` with the labels that denied it, not unlabelled in `Created`.
+    #[test]
+    fn test_record_start_hold_keeps_the_reasons_of_the_decision() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("ready");
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        let mut proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+        let holds = proc.evaluate_start_pass();
+        assert_eq!(holds, vec![ManagedProcess::SKIP_REASON_PATH_MISSING]);
+        std::fs::write(&gate, b"").unwrap();
+        proc.record_start_hold(holds, &[]);
+
+        assert_eq!(proc.state(), ProcessState::Skipped);
+        assert_eq!(
+            proc.skip_reasons(),
+            &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()]
+        );
     }
 
     #[tokio::test]
@@ -1041,6 +1560,34 @@ pub mod tests {
         proc.wait_for_stop().await;
         let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_spawn_writes_stdout_to_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("workload.out");
+        let mut config = test_helpers::make_config(
+            "cmd.exe",
+            vec!["/C".into(), "echo procmgr_file_output".into()],
+        );
+        config.stdout = output.to_string_lossy().into_owned();
+        config.stderr = "null".into();
+        config.restart = RestartPolicy::Never;
+        let mut proc =
+            ManagedProcess::new_config("file-output".into(), test_helpers::test_uuid(), config);
+        let mut exit_rx = spawn_ok(&mut proc);
+        let event = time::timeout(Duration::from_secs(5), exit_rx.recv())
+            .await
+            .unwrap()
+            .expect("workload exit event");
+        assert!(event.status.success());
+        proc.set_last_status(event.status);
+        assert!(
+            std::fs::read_to_string(&output)
+                .unwrap()
+                .contains("procmgr_file_output")
+        );
     }
 
     #[tokio::test]
@@ -1571,6 +2118,27 @@ runtime_success_sec: 5
         assert!(
             proc.restart_blocked_by_conditions(),
             "the skip reason must be recorded so reload can recover the process"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_restart_hold_omits_auto_start_false() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.auto_start = false;
+        cfg.restart = RestartPolicy::Always;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+        proc.set_last_status(status);
+
+        assert!(proc.handle_restart().is_none());
+        assert_eq!(
+            proc.skip_reasons(),
+            &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()],
+            "auto_start did not decline the respawn, so it must not appear on the hold"
         );
     }
 

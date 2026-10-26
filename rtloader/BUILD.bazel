@@ -67,7 +67,7 @@ cc_library(
         "common",
         "include",
     ],
-    visibility = [":__subpackages__"],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -84,9 +84,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "rtloader_pkg",
+    data = [":rtloader_header_embedded_files"],
     dest_dir = "embedded/lib",
     input = ":datadog-agent-rtloader",
-    installed_files = [":rtloader_header_embedded_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
 )

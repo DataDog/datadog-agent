@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths/testutil"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -145,8 +146,12 @@ type testCmd struct {
 }
 
 // newTestingCmd creates a cmd via newCmd and exposes its env through Test.GetEnv.
-func newTestingCmd() *testCmd {
-	c := newCmd("unit_test", withQuiet())
+func newTestingCmd(t *testing.T) *testCmd {
+	t.Helper()
+	c, err := newCmd("unit_test", withQuiet())
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &testCmd{cmd: c, Test: testEnvAccessor{e: c.env}}
 }
 
@@ -238,7 +243,7 @@ installer:
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := testutil.TrustedDir(t)
 			agentConfigDir = dir
 			t.Cleanup(func() { agentConfigDir = paths.AgentConfigDir })
 
@@ -250,7 +255,7 @@ installer:
 				t.Setenv(k, v)
 			}
 
-			cmd := newTestingCmd()
+			cmd := newTestingCmd(t)
 			defer cmd.stop(nil)
 
 			for field, want := range tc.checks {
@@ -258,6 +263,21 @@ installer:
 			}
 		})
 	}
+}
+
+func TestTelemetryConfigUsesAgentConfigDir(t *testing.T) {
+	originalConfigDir := agentConfigDir
+	t.Cleanup(func() { agentConfigDir = originalConfigDir })
+	agentConfigDir = testutil.TrustedDir(t)
+	if err := os.WriteFile(filepath.Join(agentConfigDir, "datadog.yaml"),
+		[]byte("api_key: synthetic-key\nsite: custom.example\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := telemetryConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, telemetryConfigFields{APIKey: "synthetic-key", Site: "custom.example"}, config)
 }
 
 func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {

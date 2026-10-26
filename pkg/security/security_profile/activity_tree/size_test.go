@@ -245,7 +245,7 @@ func TestSizeBytes_EvictUnusedNodes_RecomputesToZero(t *testing.T) {
 	populateRichTree(t, tree, tagID)
 	require.Greater(t, tree.Stats.SizeBytes, int64(0))
 
-	tree.EvictUnusedNodes(time.Now().Add(24*time.Hour), nil, "test-image", "v1")
+	tree.EvictUnusedNodes(time.Now().Add(24*time.Hour), nil, "test-image")
 
 	assert.Empty(t, tree.ProcessNodes, "every process node should have been evicted")
 	tree.recomputeSizeBytes()

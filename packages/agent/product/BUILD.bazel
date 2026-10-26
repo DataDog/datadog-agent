@@ -74,6 +74,7 @@ pkg_filegroup(
         "@platforms//os:macos": [
             "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
+            "//pkg/procmgr/rust:all_files_macos",
             # TODO: systray
         ],
         "@platforms//os:windows": [

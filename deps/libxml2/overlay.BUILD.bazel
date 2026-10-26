@@ -163,9 +163,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "xml2_pkg",
+    data = [":headers"],
     dest_dir = "embedded/lib",
     input = ":xml2",
-    installed_files = [":headers"],
     version = "16.1.3",
     visibility = ["//visibility:public"],
 )

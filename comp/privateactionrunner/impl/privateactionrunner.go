@@ -360,6 +360,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
 
+	// The executor has its own span buffer; start its sender only after setup succeeds.
+	if cfg != nil {
+		p.startTelemetry(cfg)
+	}
+
 	go func() {
 		defer close(p.executorDone)
 		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
@@ -386,7 +391,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -405,7 +410,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -456,6 +461,10 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		}
 	}
 
+	// Flush completed spans after draining, or best-effort if the stop deadline expired.
+	// Actions still running after the deadline may finish after the sender stops.
+	p.stopTelemetry()
+
 	var stopErr error
 	if p.encryptionStore != nil {
 		p.encryptionStore.Stop()
@@ -477,7 +486,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		if p.shutdowner != nil {
 			go func() {
@@ -504,12 +513,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// runner_id is only finalized after enrollment.
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
-	p.telemetry = telemetry.NewTelemetry(
-		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
-		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
-		observability.ParService,
-	)
+	p.startTelemetry(cfg)
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -521,7 +525,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}
@@ -562,9 +566,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 		stopErr = errors.Join(stopErr, err)
 	}
-	if p.telemetry != nil {
-		p.telemetry.Stop()
-	}
+	p.stopTelemetry()
 	if p.ownsMetricsClient && p.metricsClient != nil {
 		if err := p.metricsClient.Flush(); err != nil {
 			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
@@ -574,6 +576,22 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 	}
 	return stopErr
+}
+
+func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+	p.telemetry = telemetry.NewTelemetry(
+		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		cfg.DatadogSite,
+		observability.ParService,
+	)
+}
+
+func (p *PrivateActionRunner) stopTelemetry() {
+	if p.telemetry != nil {
+		p.telemetry.Stop()
+		p.telemetry = nil
+	}
 }
 
 func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {

@@ -29,6 +29,7 @@ const (
 	DefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 	ExecutorSocketPath    = "private_action_runner.executor.socket_path"
 	SplitEnabled          = "private_action_runner.split_enabled"
+	CredentialsValues     = "private_action_runner.credentials.values"
 
 	// HTTP Action related
 	HTTPTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
@@ -55,3 +56,8 @@ const (
 	// Meant for internal usage
 	OPMSExtraHeaders = "private_action_runner.opms_extra_headers"
 )
+
+// CredentialConfig defines a named credential and its usage configuration.
+type CredentialConfig struct {
+	Value string `mapstructure:"value"`
+}

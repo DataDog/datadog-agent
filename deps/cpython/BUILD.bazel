@@ -1,5 +1,6 @@
 """Package delimiter."""
 
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
@@ -15,4 +16,35 @@ py_test(
     name = "fix_sysconfigdata_test",
     srcs = ["fix_sysconfigdata_test.py"],
     deps = [":fix_sysconfigdata_lib"],
+)
+
+# The python_win outputs in one real directory, so python.exe finds its Lib
+# through the runfiles junction.
+copy_to_directory(
+    name = "python_home_win",
+    srcs = ["@cpython//:python_win"],
+    out = "python_home_win",
+    include_external_repositories = ["*"],
+    root_paths = ["build"],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+py_test(
+    name = "distrusted_spki_test",
+    srcs = ["distrusted_spki_test.py"],
+    data = [
+        "distrusted_spki_check.py",
+        "@cpython_distrusted_spki_zip//file",
+    ] + select({
+        "@platforms//os:windows": [":python_home_win"],
+        "//conditions:default": ["@cpython//:python_unix_runnable"],
+    }),
+    env = {
+        "CHECK_SCRIPT": "$(rlocationpath distrusted_spki_check.py)",
+        "DISTRUSTED_ZIP": "$(rlocationpath @cpython_distrusted_spki_zip//file)",
+    } | select({
+        "@platforms//os:windows": {"PYTHON": "$(rlocationpath :python_home_win)/python.exe"},
+        "//conditions:default": {"PYTHON": "$(rlocationpath @cpython//:python_unix_runnable)"},
+    }),
+    deps = ["@rules_python//python/runfiles"],
 )
