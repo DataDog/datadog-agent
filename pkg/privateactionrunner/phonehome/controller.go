@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -71,13 +72,13 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	}
 	mode, err := deployment.Resolve(cfg)
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || mode != deployment.Split ||
-		!filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+		!filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
-	socket := os.Getenv("DD_PM_SOCKET_PATH")
+	socket := supervisorSocketPath()
 	if !filepath.IsAbs(socket) {
-		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonExplicitSupervisorSocketRequired})
+		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonInvalidSupervisorSocket})
 		return
 	}
 	conn, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -88,6 +89,14 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	defer conn.Close()
 	c := controller{cfg: cfg, source: source, pm: pb.NewProcessManagerClient(conn), emit: publish, now: time.Now}
 	c.run(ctx)
+}
+
+func supervisorSocketPath() string {
+	if socket := os.Getenv("DD_PM_SOCKET_PATH"); socket != "" {
+		return socket
+	}
+	// Match dd-procmgrd's Unix default in pkg/procmgr/rust/client/src/lib.rs.
+	return "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 }
 
 type controller struct {
@@ -164,9 +173,11 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		c.attempted = false
 		c.generation = [2]string{}
 	}
-	for _, child := range children {
-		if child.AutoStart || child.RestartPolicy != "never" {
-			return set(phonehomedef.StateBlocked, phonehomedef.ReasonSupervisorMustBeOnDemandNoRestart, 0)
+	for i, child := range children {
+		// The control plane may recover after a crash, but only core owns its initial launch.
+		restartAllowed := child.RestartPolicy == "never" || (i == 0 && child.RestartPolicy == "on-failure")
+		if child.AutoStart || !restartAllowed {
+			return set(phonehomedef.StateBlocked, phonehomedef.ReasonUnsupportedSupervisorPolicy, 0)
 		}
 	}
 	for _, child := range children {
@@ -183,7 +194,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		}
 	}
 	// Old recovery experiments may hold credentials: require deliberate reconciliation before migration.
-	if _, err := os.Stat(c.cfg.GetString(par.IdentityFilePath) + ".phone-home"); !os.IsNotExist(err) {
+	if _, err := os.Stat(enrollment.GetIdentityFilePath(c.cfg) + ".phone-home"); !os.IsNotExist(err) {
 		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, 0)
 	}
 	gate := c.source.Read(c.now())
