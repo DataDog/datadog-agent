@@ -24,6 +24,7 @@ import (
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -53,6 +54,7 @@ const (
 	KindKubernetesKueueQueue          Kind = "kubernetes_kueue_queue"
 	KindKubernetesKueueResourceFlavor Kind = "kubernetes_kueue_resource_flavor"
 	KindKubernetesKueueWorkload       Kind = "kubernetes_kueue_workload"
+	KindKubernetesAutoscaler          Kind = "kubernetes_autoscaler"
 	KindECSTask                       Kind = "ecs_task"
 	KindContainerImageMetadata        Kind = "container_image_metadata"
 	KindProcess                       Kind = "process"
@@ -892,6 +894,10 @@ type KubernetesPod struct {
 	Volumes                    []KubernetesPodVolume       `proto:"ignore"`
 	Tolerations                []KubernetesPodToleration   `proto:"ignore"`
 	Reason                     string                      `proto:"ignore"`
+
+	// AutoscalerKinds are the kinds of the autoscalers that target the pod's
+	// workload. Only set on node agents, by the kubemetadata collector.
+	AutoscalerKinds []AutoscalerKind `proto:"ignore"`
 }
 
 // GetID implements Entity#GetID.
@@ -964,6 +970,7 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
+		_, _ = fmt.Fprintln(&sb, "Autoscaler Kinds:", p.AutoscalerKinds)
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
 		_, _ = fmt.Fprintln(&sb, "Namespace Annotations:", mapToString(p.NamespaceAnnotations))
 
@@ -1042,6 +1049,31 @@ func (p KubernetesPod) String(verbose bool) string {
 // GetAllContainers returns all containers, including init containers and ephemeral containers.
 func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
 	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
+}
+
+// AutoscalerTarget is a workload that autoscalers can target.
+type AutoscalerTarget struct {
+	Kind      AutoscalerTargetKind
+	Namespace string
+	Name      string
+}
+
+// AutoscalerTarget returns the workload of the pod that an autoscaler can
+// target (Deployment, StatefulSet or Argo Rollout), found from the pod owners.
+// It returns false if the pod doesn't belong to such a workload.
+func (p *KubernetesPod) AutoscalerTarget() (AutoscalerTarget, bool) {
+	for _, owner := range p.Owners {
+		kind, name := kubernetes.ResolvePodRootOwner(owner.Kind, owner.Name, p.Labels)
+		switch kind {
+		case kubernetes.DeploymentKind:
+			return AutoscalerTarget{Namespace: p.Namespace, Kind: AutoscalerTargetDeployment, Name: name}, true
+		case kubernetes.StatefulSetKind:
+			return AutoscalerTarget{Namespace: p.Namespace, Kind: AutoscalerTargetStatefulSet, Name: name}, true
+		case kubernetes.RolloutKind:
+			return AutoscalerTarget{Namespace: p.Namespace, Kind: AutoscalerTargetArgoRollout, Name: name}, true
+		}
+	}
+	return AutoscalerTarget{}, false
 }
 
 var _ Entity = &KubernetesPod{}
@@ -1716,6 +1748,106 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesKueueWorkload{}
+
+// AutoscalerKind is the kind of autoscaler that targets a workload.
+type AutoscalerKind string
+
+const (
+	// AutoscalerKindHPA is a HorizontalPodAutoscaler.
+	AutoscalerKindHPA AutoscalerKind = "horizontalpodautoscaler"
+	// AutoscalerKindVPA is a VerticalPodAutoscaler.
+	AutoscalerKindVPA AutoscalerKind = "verticalpodautoscaler"
+	// AutoscalerKindWPA is a WatermarkPodAutoscaler.
+	AutoscalerKindWPA AutoscalerKind = "watermarkpodautoscaler"
+	// AutoscalerKindDPA is a DatadogPodAutoscaler.
+	AutoscalerKindDPA AutoscalerKind = "datadogpodautoscaler"
+	// AutoscalerKindKEDA is a HorizontalPodAutoscaler managed by a KEDA
+	// ScaledObject.
+	AutoscalerKindKEDA AutoscalerKind = "keda"
+)
+
+// AutoscalerTargetKind is the kind of workload targeted by an autoscaler.
+type AutoscalerTargetKind string
+
+const (
+	// AutoscalerTargetDeployment is a Deployment.
+	AutoscalerTargetDeployment AutoscalerTargetKind = "deployment"
+	// AutoscalerTargetStatefulSet is a StatefulSet.
+	AutoscalerTargetStatefulSet AutoscalerTargetKind = "statefulset"
+	// AutoscalerTargetArgoRollout is an Argo Rollout.
+	AutoscalerTargetArgoRollout AutoscalerTargetKind = "argo_rollout"
+)
+
+// GenerateKubernetesAutoscalerEntityID returns the workloadmeta entity ID for
+// an autoscaler. KEDA autoscalers are HPAs owned by a ScaledObject, so their
+// resource is horizontalpodautoscaler.
+func GenerateKubernetesAutoscalerEntityID(kind AutoscalerKind, namespace, name string) EntityID {
+	resource := string(kind)
+	if kind == AutoscalerKindKEDA {
+		resource = string(AutoscalerKindHPA)
+	}
+	return EntityID{
+		Kind: KindKubernetesAutoscaler,
+		ID:   resource + "/" + namespace + "/" + name,
+	}
+}
+
+// KubernetesAutoscaler is an Entity representing an autoscaler and the workload
+// it targets.
+type KubernetesAutoscaler struct {
+	EntityID
+	EntityMeta
+	AutoscalerKind AutoscalerKind
+	TargetKind     AutoscalerTargetKind
+	TargetName     string
+}
+
+// GetID implements Entity#GetID.
+func (a *KubernetesAutoscaler) GetID() EntityID {
+	return a.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (a *KubernetesAutoscaler) Merge(e Entity) error {
+	aa, ok := e.(*KubernetesAutoscaler)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesAutoscaler with different kind %T", e)
+	}
+
+	return merge(a, aa)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (a KubernetesAutoscaler) DeepCopy() Entity {
+	ca := deepcopy.Copy(a).(KubernetesAutoscaler)
+	return &ca
+}
+
+// String implements Entity#String.
+func (a KubernetesAutoscaler) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, a.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, a.EntityMeta.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Autoscaler -----------")
+	_, _ = fmt.Fprintln(&sb, "Autoscaler Kind:", a.AutoscalerKind)
+	_, _ = fmt.Fprintln(&sb, "Target Kind:", a.TargetKind)
+	_, _ = fmt.Fprintln(&sb, "Target Name:", a.TargetName)
+	return sb.String()
+}
+
+// Target returns the workload targeted by the autoscaler. Autoscalers can only
+// target workloads in their namespace.
+func (a *KubernetesAutoscaler) Target() AutoscalerTarget {
+	return AutoscalerTarget{
+		Kind:      a.TargetKind,
+		Namespace: a.Namespace,
+		Name:      a.TargetName,
+	}
+}
+
+var _ Entity = &KubernetesAutoscaler{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
