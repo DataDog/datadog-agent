@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CWS: policy reloads no longer fail with ``couldn't find program``
+    when containers exit during the reload, which kept the previous
+    policies in effect. Containers started during a reload also no
+    longer lose network monitoring.
