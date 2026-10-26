@@ -1,0 +1,15 @@
+{
+  "default": "unknown_requires_manifest_review",
+  "rules": [
+    {
+      "pattern": "(^|:)trace\\.",
+      "classification": "excluded_trace_stat",
+      "reason": "APM trace statistics are independently aggregated and excluded from Agent-owned one-second qualification"
+    },
+    {
+      "pattern": "(^|:)notification_router\\.job\\.enqueue\\.hits\\{",
+      "classification": "eligible_agent_owned",
+      "reason": "Episode 2483 Agent-owned count series qualified for the global one-second experiment"
+    }
+  ]
+}

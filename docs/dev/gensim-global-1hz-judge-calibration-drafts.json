@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "status": "draft_pending_scenario_curator_and_judge_owner_approval",
+  "documentation": {
+    "role": "source-grounded drafts for current-panel cases missing from the active calibration library",
+    "governing_corpus": "docs/dev/gensim-global-1hz-corpus-freeze.json",
+    "active_library": "docs/dev/gensim-global-1hz-judge-calibration-cases.json",
+    "treatment_outcomes_used": false,
+    "approval_rule": "Do not merge into the active calibration library or mark judge calibration complete until a scenario curator and judge owner approve every case.",
+    "source_rule": "Ground truth and variants are derived only from the exact current canonical episode YAML identified by source_identity."
+  },
+  "cases": [
+    {
+      "episode_id": 2574,
+      "scenario_uuid": "gs-admin-episode-2574",
+      "scenario_name": "fts-segment-corruption",
+      "app_name": "log-search-platform",
+      "source_identity": {
+        "app_bundle_version": 4,
+        "archive_key": "schema-v1/gensim/episodes/husky-fts-segment-corruption--fts-segment-corruption/app-bundles/4/archive.tar",
+        "manifest_sha256": "ba4b609e37f60997257361c2c69ea8c79302b6f6aae1a50e6fc1a5581a83f64c",
+        "canonical_episode_sha256": "49dc88c89fa3e45e35c10b8c41a47192dc7deb9481fdafc96f7a35b1387752a3"
+      },
+      "monitor_title": "Full-text search result accuracy below 80% on query-engine over the last 5 minutes.",
+      "ground_truth": "A routed-index-writer deployment introduced a regression in inverted-index segment generation. With SEGMENT_INDEX_BUG enabled, segment index bucket hashing used a reversed digest, producing structurally valid segments that mapped search terms to incorrect event buckets. object-blob-store remained healthy, but query-engine consumed the corrupted segments and returned incomplete full-text-search results while fragment reads stayed healthy. parity-validator reported ShadowQueryMismatch and search-portal exposed incorrect customer results. Rolling back the writer and allowing query-engine to skip bad segments restored accuracy with higher fallback-scan latency.",
+      "variants": {
+        "canonical_correct": "A routed-index-writer regression reversed the segment-index bucket digest, corrupting term-to-event mappings and causing query-engine to return inaccurate full-text-search results.",
+        "symptom_only": "Full-text-search result accuracy fell below the expected threshold and parity mismatches increased.",
+        "wrong_mechanism": "Object-blob-store corrupted segment contents during writes, causing query-engine to read invalid storage objects.",
+        "distractor": "A parity-validator rollout independently generated false mismatch reports while the full-text indexes remained correct."
+      },
+      "approval": {
+        "scenario_curator": "pending",
+        "judge_owner": "pending"
+      }
+    },
+    {
+      "episode_id": 2497,
+      "scenario_uuid": "gs-admin-episode-2497",
+      "scenario_name": "pool-routing-exhaustion",
+      "app_name": "analytics-platform-db",
+      "source_identity": {
+        "app_bundle_version": 1,
+        "archive_key": "schema-v1/gensim/episodes/dogweb-pgbouncer-misconfig-us3--misconfig-extract-on-active-replica/app-bundles/1/archive.tar",
+        "manifest_sha256": "223ea53b772ebd8a403af5cedefd90ba3e0ad584fe449aeec0724c2f01953b3d",
+        "canonical_episode_sha256": "1c4aaeca8b3e9ac3ab5089011687048a6b523e66ccf26650a958c8d832ec7c37"
+      },
+      "monitor_title": "Portal API connection pool rejections exceeded threshold in the last 5 minutes.",
+      "ground_truth": "A pool-router profile change pointed the extract pool at the production read replica while the web pool already used that replica. During peak extract activity, long-running extract queries held production-replica server connections while web services continued transactional reads through the shared backend. The production replica approached max_connections, PgBouncer queues grew, and portal-api plus billing-console returned ConnectionPoolExhausted errors. The analytics replica remained underutilized. The root cause is the pool routing profile, not network failure, primary overload, or analytics-replica saturation.",
+      "variants": {
+        "canonical_correct": "A pool-router profile misdirected extract traffic to the production read replica, where long-running extracts exhausted the connections shared with web services.",
+        "symptom_only": "portal-api and billing-console are returning ConnectionPoolExhausted and HTTP 503 errors.",
+        "wrong_mechanism": "A network failure between PgBouncer and the database caused healthy connection pools to become unreachable.",
+        "distractor": "The analytics read replica reached max_connections and rejected extract traffic while the production replica remained healthy."
+      },
+      "approval": {
+        "scenario_curator": "pending",
+        "judge_owner": "pending"
+      }
+    },
+    {
+      "episode_id": 2500,
+      "scenario_uuid": "gs-admin-episode-2500",
+      "scenario_name": "flask-migration-console-errors",
+      "app_name": "alert-console-platform",
+      "source_identity": {
+        "app_bundle_version": 1,
+        "archive_key": "schema-v1/gensim/episodes/mcnulty-flask-migration-500-errors--main/app-bundles/1/archive.tar",
+        "manifest_sha256": "ae2b6fcbd7b828c9a985c0b26ee85463927e7b76c20114876d981bef84e32a14",
+        "canonical_episode_sha256": "641003729f0105d8c1d6d064d16ba0395630f9205e24604dc8bfa7516f403891"
+      },
+      "monitor_title": "Flask error count elevated on alert-console-api in the last 5 minutes.",
+      "ground_truth": "A production migration moved the rules-console SPA route from a legacy WSGI dispatcher to strict Flask dispatch. The route handler retained request and response parameters that the legacy stack ignored, but Flask invoked the view without injecting those arguments. When the migration flag activated, GET /rules/console raised TypeError and returned HTTP 500 through alert-console-wsgi and edge-gateway, while unrelated routes stayed healthy. edge-gateway errors and availability-probe failures were downstream symptoms. Concurrent notification-delivery-api timeouts were unrelated. Rolling back to pylons_compat dispatch removed the TypeError.",
+      "variants": {
+        "canonical_correct": "The Flask migration exposed an invalid rules-console view signature: strict Flask dispatch did not inject the handler's retained request and response arguments, causing TypeError and HTTP 500 responses.",
+        "symptom_only": "alert-console-api is logging TypeError and the rules-console route is returning HTTP 500.",
+        "wrong_mechanism": "An edge-gateway upstream-routing outage prevented otherwise healthy rules-console requests from reaching alert-console-api.",
+        "distractor": "notification-delivery-api session-prefetch timeouts caused the rules-console regression."
+      },
+      "approval": {
+        "scenario_curator": "pending",
+        "judge_owner": "pending"
+      }
+    },
+    {
+      "episode_id": 2601,
+      "scenario_uuid": "gs-admin-episode-2601",
+      "scenario_name": "cloud-control-cascade",
+      "app_name": "edge-observability-stack",
+      "source_identity": {
+        "app_bundle_version": 3,
+        "archive_key": "schema-v1/gensim/episodes/azure-arm-outage-cascading-failure-24761--control-plane-circuit-outage/app-bundles/3/archive.tar",
+        "manifest_sha256": "12c16f2360bfc25c4cc9044dd88ee793c980a052958ddb13590b90df8d0e1d1b",
+        "canonical_episode_sha256": "d7463aedc558837f6fcf16d969fb57c89b924a0380ff28e8fd03c28c24e792a8"
+      },
+      "monitor_title": "Probe scheduler schedule failures exceeded threshold in the last 5 minutes.",
+      "ground_truth": "A regional cloud-control-plane API gateway outage returned elevated 503 responses and timeouts for infrastructure API calls. IP allocation, node-pool reconciliation, and capacity scaling failed. The control-plane authentication path made the message broker and configuration store unreachable, reducing probe scheduling and idling probe runners. Delayed results caused skipped alert evaluations. The archive writer also lost object-storage access, filled its in-memory buffer, and stopped consuming the event stream. Queue depth and Kafka lag were downstream symptoms; the external control-plane gateway was the root cause.",
+      "variants": {
+        "canonical_correct": "A regional cloud-control-plane API gateway outage broke infrastructure and authentication dependencies, cascading into failed probe scheduling, delayed evaluations, and stalled archive uploads.",
+        "symptom_only": "Probe scheduling and log archive uploads are failing while queues and Kafka lag are increasing.",
+        "wrong_mechanism": "Expired archive-writer object-storage credentials independently caused the incident while the regional control plane remained healthy.",
+        "distractor": "Kafka consumer lag in the archive writer caused an otherwise healthy cloud control plane to stop allocating nodes and scheduling probes."
+      },
+      "approval": {
+        "scenario_curator": "pending",
+        "judge_owner": "pending"
+      }
+    }
+  ]
+}

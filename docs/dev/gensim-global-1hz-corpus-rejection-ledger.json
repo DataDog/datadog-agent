@@ -1,0 +1,1361 @@
+{
+  "decision_count": 96,
+  "decision_counts": {
+    "admitted_not_selected": 70,
+    "blocked_source_defect": 8,
+    "selected_reserve": 3,
+    "selected_score_panel": 15
+  },
+  "decisions": [
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 1972,
+      "reason": "source_screening_defect",
+      "scenario_name": "merle-koutris-deployment-failure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/merle-koutris-deployment-failure--merle-koutris-deployment-failure/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "1557ebb5208be997086533b228854b17152f179b770ba33b3c030b54ced01653",
+        "manifest_sha256": "71636de90d9f7577710db30a445bf4262f1a52718d45ff049a5cab8be1c8c197"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 1980,
+      "reason": "source_screening_defect",
+      "scenario_name": "premature-cache-invalidation",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-14362-dashboard-blank-graphs--premature-cache-invalidation/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "da44bc814dc7384b9f69fa7a93eb783e7b0dfe98b02d83dc8d028c19ab9f45b8",
+        "manifest_sha256": "aa5694eaa7fcec8bd9812b2c207b4bf967946670e44004ff7968ca003c0fa07c"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 1988,
+      "reason": "source_screening_defect",
+      "scenario_name": "stale-grpc-connections",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/sdp-dgraph-stale-connections-14724--stale-grpc-connections/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "7d9d1061a3605cc2001a5e355c22901b4fbe472a5bc61c7adb6b9c52ecfe36fe",
+        "manifest_sha256": "5e3c5ac9fb86aaeb831f6be6e7000322fd0139e13718706cb8d688cddc8a4e81"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 2029,
+      "reason": "source_screening_defect",
+      "scenario_name": "mortar-lock-race-condition",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/mortar-lock-race-condition-contexts-corruption--mortar-lock-race-condition/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "9d5479b08083897ceb511e450773af337a853aa8548e07fed6321229140e6a21",
+        "manifest_sha256": "9f8ca779b2344ba51ef4fea405f5f6ad33c6bf213135d8b7959ebad3ece48a84"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 2033,
+      "reason": "source_screening_defect",
+      "scenario_name": "catalog-snapshot-overrun",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-17680-indexing-context-size-limit--catalog-snapshot-overrun/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "0b5b4d34f48b0014ca43b8a651ef650a8c86c05ceafc9141ec3419df257957b8",
+        "manifest_sha256": "37c6ace1aa79969ca2ae420f47f87f9ef55a87024fb2bf0ad2b9257f345fddca"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 2078,
+      "reason": "source_screening_defect",
+      "scenario_name": "quantile-merge-cardinality",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/sketch-querier-overload-us3--quantile-merge-cardinality/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "80211b412a1b3488ceaae8653ab34b6b7c37566968ae1f64b5ed9f4d8f038681",
+        "manifest_sha256": "30c70ab9f4ad4359a3c251e37a63603b9425b0719b5c7bdbcaed5d60952f2e2d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2100,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "order-policy-flag-deletion",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-25832-feature-flag-auth-outage--order-policy-flag-deletion/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "e84a45af0cc2fe870de565b5ec597468c0c4d847a0c10bd48a073a757e364b5c",
+        "manifest_sha256": "0d92395d4324f4d7b6e78070a8d3070c4726344e3c52ad2c3947d2ca186c8d0d"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 1,
+      "decision": "blocked_source_defect",
+      "episode_id": 2156,
+      "reason": "source_screening_defect",
+      "scenario_name": "delete-order-race",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-32721-reference-tables-delete-race-condition--delete-order-race/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "dccddd33b3e2746bec27c8a67407040fc661114c70a18cbfc74421a477231573",
+        "manifest_sha256": "f36fe3fa31738bfd5175275fdd3ea161cadcd4eacb84a65edab55e93b5bda6c8"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2455,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "lookup-miss-spike",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/logs-enrichment-lookup-failures-11811--main/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "c301d732c2c97420824fd79fa72c7f4ccc6ff62aa3b7092a045906c510d00576",
+        "manifest_sha256": "ff4467c7c8a9219ff28ef2d9ddb5dde37b22648f865e2a680c7260f72d0042f4"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2465,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "edge-pipeline-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/edge-platform-pipeline-outage--edge-outage-recovery-burst/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "d7dbcdcf1a437c0c5690824c61efeddd7ce764ba8fd4047b4428fda7f8db6f32",
+        "manifest_sha256": "e92884bf808999273c8676bb3051b46014d879f26c1103cc9c2571f282b31045"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "selected_score_panel",
+      "episode_id": 2467,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "cold-cache-stampede",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/pylae-cold-cache-stampede-eu--cold-cache-stampede/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "d1b6738e6fe0a6e3e12d67fb405929d3b68f778d3586860e146dd025d6e391db",
+        "manifest_sha256": "d79abf0b7d850ebe4d76c19806593ad8254ed00435703d39ccfdcf80405f2e86"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "selected_reserve",
+      "episode_id": 2473,
+      "reason": "next deterministic resolution-irrelevant reserve",
+      "scenario_name": "flag-schema-migration",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/aws-missing-tags-feature-flag-rename--feature-flag-rename/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "746c1f4eeaf2f79241c2ad57afa2fdb10c5f7d5b62152276d6419d5e61a991d4",
+        "manifest_sha256": "aa3d0fe2563a609ae42ae7baec6474692b60fd631eb3911ac616f04bc7740bdc"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "selected_reserve",
+      "episode_id": 2479,
+      "reason": "next deterministic resolution-irrelevant reserve",
+      "scenario_name": "workspace-init-stall",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/spinnaker-clouddriver-rw-restart-tls-failure--spinnaker-clouddriver-rw-tls-failure/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "1ce435d993d16caaa01af079023339d28c8ec06bb7e7dce1d1aec25d90a9284b",
+        "manifest_sha256": "def11f9ac2c1c2e75752f9dbb41145389a4941875e55191db9be4133e72dd05a"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "selected_score_panel",
+      "episode_id": 2481,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "stack-parser-backtracking",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/rum-processing-lag-regex-backtracking--regex-backtracking/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "54910e2ae2a2b3734edb7f48b8991f02e8af8f94a6ff130f29d79d639a1b97c5",
+        "manifest_sha256": "86b9400b48f53fd1cde8e8f03a1f6ceb6c370ce61c8b60c0cb2628eca0727b63"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "selected_score_panel",
+      "episode_id": 2483,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "serialization-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/events-pipeline-serialization-fault-ir14582--main/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "5a53ecc5cd31e6604ff7513598b99ab81ea7ad15ad405d4f024916268828e165",
+        "manifest_sha256": "4a56299a42aaacda175660d24c6b4b291f2de941f3c3b37dc69921468d891083"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_reserve",
+      "episode_id": 2487,
+      "reason": "next deterministic resolution-irrelevant reserve",
+      "scenario_name": "transition-consumer-lag",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/asn-log-lag-eu1-14904--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "f9a7b8325322080a6eea93a9168d6054df8a32ac67ec2f56a93edfaf5724c481",
+        "manifest_sha256": "f23b08f070bd8457c37c4e074f96fc39d0eb3daeb5dd51d90be386282263e0d7"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2492,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "feature-flag-rollout-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/mcnulty-web-feature-flag-typeerror-us5--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "57e2ead7295688b18ed4b852364fff4975b2d19c20e3230299b0e5721347d4b0",
+        "manifest_sha256": "cc73634088845748e01e0efb5d442d44ac35b6f48121e54b34ba38d07fec1537"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2495,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "quota-lock-cascade",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/logs-analytics-rate-limiting-cascade--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "5d96a11332aa82f6de08d182616c9b39f5206bedb12c991f23bb2d9874d76674",
+        "manifest_sha256": "4d1c02892216c690523c12c7d7130886556efe2cb22b5fe944394ca8a5148595"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_score_panel",
+      "episode_id": 2497,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "pool-routing-exhaustion",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dogweb-pgbouncer-misconfig-us3--misconfig-extract-on-active-replica/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "1c4aaeca8b3e9ac3ab5089011687048a6b523e66ccf26650a958c8d832ec7c37",
+        "manifest_sha256": "223ea53b772ebd8a403af5cedefd90ba3e0ad584fe449aeec0724c2f01953b3d"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_score_panel",
+      "episode_id": 2498,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "nla-drain-rebalance-storm",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ctx-rewriter-nla-drain-sticky-assignor--nla-drain-sticky-assignor/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "3b667824f2647828cde10d6b9eb778ab6a83b68c42dbe071a909b3a55f20631b",
+        "manifest_sha256": "a2389a2260b04d14674294cabda6b52c3b940296b0a4be2fe07542153b2a96ba"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2499,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "route-exclusion-mismatch",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/flowmap-query-result--ip-allowlist-route-mismatch/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "16c6ee29c1aec60d6d162c21ceecc1a398f6a608a54328342217c513a1d3c798",
+        "manifest_sha256": "1bce73ef5b025fa5f36e13dd2876ba2f6c768f16238aeef40c42b5ab4b6154fd"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_score_panel",
+      "episode_id": 2500,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "flask-migration-console-errors",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/mcnulty-flask-migration-500-errors--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "641003729f0105d8c1d6d064d16ba0395630f9205e24604dc8bfa7516f403891",
+        "manifest_sha256": "ae2b6fcbd7b828c9a985c0b26ee85463927e7b76c20114876d981bef84e32a14"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2501,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "shard-partitioner-oom-cell",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/tsp-librdkafka-oom-instacart-cell--tsp-librdkafka-oom/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "7a9952d0647a8eaa5bf5bb7db235a92a5e57e21fceccfafe13489fdc5ec5df9f",
+        "manifest_sha256": "cf1d47fd6fb4aab2b2643926f7177a1f918718aa563ed8db7d880d308fef8b72"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_score_panel",
+      "episode_id": 2502,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "workflow-history-stall",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/codesync-temporal-history-overflow--temporal-history-overflow/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "ee4f116c368f5f08f82109422e73089777b7720da9fc05ee2c217e22d90229e2",
+        "manifest_sha256": "85a1268f69ef443531d031395d4be3e3323a03fd85e5294b8a25a7a7c63374f5"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2505,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "replay-clock-drift",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/session-replay-404-wrong-local-time--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "dda85f1d4f19f282c7796afe6cfd5b5584462709b9458877d393a4e72ed9cf2e",
+        "manifest_sha256": "aebc328219771a38e758001b126b04e454732009e9b1ed77803b0217774f361c"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2506,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "deserialization-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/mcnulty-deserialization-failure-16641--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "7e161a9b63f0ec6d10aea782749bb1290634786ed91b5f19fbed9f91086e1578",
+        "manifest_sha256": "f39ae43d8aea6376ab0c32378d0e5b1f849cfd54e3e258b73930a67785bedea2"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2507,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "metadata-memory-pressure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-16868-resource-sql-querier-oom--oom-crash-loop/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "aac47b2e68db149608c1a58baa3fecea0cabcc823b12a2c47a0538915793f3c7",
+        "manifest_sha256": "333453560da3f33f091dc1e31d904f986db353bc9262997b3b5ed50ba45a3030"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2512,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "tls-library-fleet-exposure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/openssl-vuln-dd-17207--openssl-vuln-cve-2022-3602/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "ddefde68d829ec9253ed694e60aa8d3e30c702a14801b091907f06c6d226fce1",
+        "manifest_sha256": "7bc744071f6bcda2bad4abd8e15a1f0f79ac6612a002a02dfe4e505b4f354930"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2513,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "silence-pipeline-cascade",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-17210-alerting-down-us1--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "090fde1d433868fab20d4cce08c2f334cc9d804c5597a9f562b4ddf50e6f6efa",
+        "manifest_sha256": "649b0b89d1b36861eff616223dda776cc720a297917678ef99d0ad38698e5bcb"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2519,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "catalog-replica-staleness",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/sc-dd-17685-wal-replication-lag--wal-replication-lag/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "8c8902974486a03b4b0fb35de7fcc61f1686d55a87e3e0ac328a5ef9f05eb2db",
+        "manifest_sha256": "b2505ab26e187ca0b682f5f0ad7af67b7a2fc0215d677992fd15dfb0f79384b7"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2522,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "onboarding-access-redirect",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-17814-apm-onboarding-redirect--apm-onboarding-redirect/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "8424c1e5974f2ffb61c71b70dd05b01a109a795a20ea0229e025c5adc78e68cf",
+        "manifest_sha256": "4b7d2c4eb1acb7b6c296d4b7bc90d3841720646dab3d5a8061a5f4071bf12ffc"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2523,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "false-credential-warning-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-17893-api-key-ui-regression--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "e191b808184dad851098bb5fa1aa833569c636dee1ea651a1011e1c8871304e3",
+        "manifest_sha256": "b5ce60a8c7ef07537cb77b66265f6a6deaf20f9f192d74b060c830be7f14928c"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2525,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "metadata-growth-timeout",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-17988-outliers-timeout--outliers-timeout/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "f291dcd8cde278220f3f9907a644cbd34855105e5476646588173000e43f90f5",
+        "manifest_sha256": "7c318cb758d23da034439c6a016179b46e03f3e7f9f0ac3978d07e4bdf78a8e5"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2527,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "cnab-runtime-incompatibility",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/sdm-api-base-image-cnab-incompatibility--base-image-cnab-incompatibility/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "196a1b3e5d19d22d192d729d88809c7909062ee8e27b6dcc54af91088b45615a",
+        "manifest_sha256": "f5c14d84e4fbe06e02f8bad6c200435757888a7731700bf80ccd24624c48f6c4"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2528,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "cassandra-connectivity-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/synthetics-cassandra-gocql-connectivity-failure--cassandra-gocql-connectivity-failure/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "f5b9c6b9682e07d34b1fd0b2c020336e5e1ef36950980565368abac763604ed3",
+        "manifest_sha256": "1c339b5ec6bbb42ac5a739cc0a04294e58b00b8bc6409a9664f4fe8964764d9d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2530,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "handle-normalization-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/terry-createuser-case-regression-18184--createuser-case-regression/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "1eeac79a11872832cf627f96ef936263e9afaa2135a5770b3b38d3fe995bbfe3",
+        "manifest_sha256": "193c38c78acb9a0c1054070d6a26503feab5de43cf8c84442c89b89f3082d31b"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2533,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "unicode-metadata-scheduler-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/consul-bad-unicode-scheduler-crash--consul-bad-unicode/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "342d306a317626b3e4376bb3094532f98a7902474b209d3229296fb4b8a5b692",
+        "manifest_sha256": "eede834f28ba8be8ad812d29aab7d0b31f7e40e557c893ef705b876d29c80474"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2536,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "null-offset-corruption",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/husky-event-store-corrupted-fragments--null-offset-corruption/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "78e7dca53cad7335dcef29bbd1741ec26a082954211fbffc32dd585cda6d0739",
+        "manifest_sha256": "89d2a0d7aab1ab1f81965d06dcfcabf05ba6dd5b4d78ba537ce913366b7ce0b2"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2541,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "shard-pool-collapse",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ccm-tagdex-shard-resolution-failure--shard-resolution-failure/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "0cf8844185d9b72c30f391d78ac3052d6db4eb9cd21663498c39c034ca9f4831",
+        "manifest_sha256": "722f6698af4d3baeee88615f21327a0638b1c8028f7fdfaa09ccb1034d806159"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2542,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "protobuf-field-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-18835-mcnulty-protobuf-error--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "4062ca8eb5b0e270a245697bd995de3c227d024a22802bfe3fc538757ebd9ab0",
+        "manifest_sha256": "b834b964230893b0078a4fc804295c760b49270e61ca1500d56fdd860a496dec"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2546,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "client-callback-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/oauth-redirect-uri-validation-bypass-19019--oauth-redirect-uri-bypass/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "80307875c81d62da20ad8ca27fc32b6e19f19d3ed6833042303b6ab8d4fbc724",
+        "manifest_sha256": "2a5084243447b45cc93425041c0b16576043ccd9846ab40bddf2e89ff618e02a"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2548,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "credential-repo-sync-flood",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-19106-api-keys-bill-repo--api-key-exposure/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "cd8cab2ceb3be874dbf428b79c9b6f650be6f46662a0b80c37b6b6d8ff676577",
+        "manifest_sha256": "2745b10a99aefcfb816334378b2887c1b1f62f47a771d5ddc2edb61f2e77c004"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2549,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "vitals-ingestor-segfault",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/gcp-crawler-segfault-crashloop--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "b75029bb7d17a01069080f7601472b91ca5ccdb3900a4b09bdda2634c5b48fd1",
+        "manifest_sha256": "d89c9c53926ac3d49b160027f19789a2b4a0931936ad2353444d6c112eac2aaa"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2550,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "cross-region-tag-join",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-19165-usage-attribution-data-corruption--duplicate-legacy-id-bug/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "a364fc8906becd39469de8059304e8346e5cd91138d274a938bc1bfb751c7640",
+        "manifest_sha256": "3b7733d4c91f4e0912c39abadf4a0785439beea854a8a2d58d66b6ae64c47335"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2551,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "controller-backup-disconnect",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/appgate-controller-backup-reboot--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "b74b4f7226150e8814eb437dbc87b499aa92cc4f269691856b16777b5f6b1819",
+        "manifest_sha256": "0cb9cc4cfd3fcc54c0449f38ebbfba6305e9196922303df0995c4c33fab45216"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_score_panel",
+      "episode_id": 2563,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "broker-replication-overload",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/kafka-apm-spans-3949-overload-ap1--main/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "2328d2ead6c6209e7c6659483a86864cf8b16b853026fb2305a54e74f34330b6",
+        "manifest_sha256": "5caf0a85f6930ab7a0b0209b2e3126a145a0ca78a681fc7aed6a0df62b63e7a9"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2564,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "cross-store-segment-merge",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-20137-cache-data-gaps--segment-merge-bug/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "e26a8750ca4ae260be20aa59caf97bf28960680bf9b967778671ed22e79e9359",
+        "manifest_sha256": "d2186c7adc968079fcaa379eaceda6434d4e89cecb4ca5384799dac63939dafc"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2565,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "replica-connection-saturation",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dogweb-backend-azure-connection-blocking-us3--azure-lb-connection-blocking/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "de9022d99833cb611f10561dbd98ec40beb8b325248d45213b2ce5d045d3d10c",
+        "manifest_sha256": "8b81b0309f60f3e4affb77e42f39c5db252615b3e96124d41864686519bac013"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2566,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "entity-pipeline-stall",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/redapl-resource-deduper-down-ir20208--netty-buffer-exhaustion/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "91010b34b4afd42c340556b6f49238a7d900aace6dc4bc92f2b028158c3ac003",
+        "manifest_sha256": "6a3bb6c186f49cd685651e7c13dc6da6b7375d8948582659490ea2e16e1d16f6"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2569,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "policy-rules-update-failure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/asm-detection-rules-update-failure--asm-detection-rules-update-failure/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "81a5306d27dd1ee7791f94862fdbde689ff9eddb098cfc9e21432e6fee6eaa17",
+        "manifest_sha256": "55e8cb76bfaa8dc15ffab256a076cdab86f4618a3fe921926998dff62e799563"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2573,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "privatelink-evaluation-delay",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-20752--azure-privatelink-dns-migration/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "ec1872f46905ca93ed9455a25d3971b5bce95d8e4d6f372ef5499fc5f3d138a6",
+        "manifest_sha256": "eff124e1094eaf99acd0e7d0b19715f3a94b482ea310d72bece1a45a8bbf3637"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "admission_status": "admitted",
+      "app_bundle_version": 4,
+      "decision": "selected_score_panel",
+      "episode_id": 2574,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "fts-segment-corruption",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/husky-fts-segment-corruption--fts-segment-corruption/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "49dc88c89fa3e45e35c10b8c41a47192dc7deb9481fdafc96f7a35b1387752a3",
+        "manifest_sha256": "ba4b609e37f60997257361c2c69ea8c79302b6f6aae1a50e6fc1a5581a83f64c"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 4,
+      "decision": "admitted_not_selected",
+      "episode_id": 2575,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "catalog-state-lag",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/1c120581-e7fb-5d4a-8103-ea86d19bd1f3--disk-io-causes-adm-timeout/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "7d73606c38f78689cb273fe96fd0a59c6b43c689df930256ec0a68d31a0b3a17",
+        "manifest_sha256": "317599afa646e3591c01aa64f66057c85a20c3541e77558a712188353578ce49"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2576,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "webhook-routing-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-21019-webhook-routing-failure--main/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "d2c1277ea9746744a328a4197eb6bfca86ec8549bd92f14e146a3545c2f034fd",
+        "manifest_sha256": "29ff3d769ff90dc4a46461c6dda0da12d171429a5c70fdc258cdd2493a5578ce"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2577,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "interval-alignment-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-21161--sketch-db-interval-alignment-bug/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "77e385821bffa48b4c5283073bb76db0676b5162a145c01e2a462500662fe0b2",
+        "manifest_sha256": "6de343cc4bb7f9ea8fe56bc5bec1b24ef2ffc318e041bbfa6636115a097557e3"
+      }
+    },
+    {
+      "admission_class": "source_defect",
+      "admission_status": "blocked",
+      "app_bundle_version": 4,
+      "decision": "blocked_source_defect",
+      "episode_id": 2578,
+      "reason": "source_screening_defect",
+      "scenario_name": "shard-query-saturation",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/hms-resolver-cpu-saturation-us5--sql-query-cpu-saturation/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "ef73f0bfc995360318d5f2e2cfe39785e55e995f766b6971ca27da4cafb176ab",
+        "manifest_sha256": "7c29d9345c3e771f5c3ccddc9a5e965d9578375a74450187e614a3bce9a842f3"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2580,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "workflow-cancellation",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/atlas-workflow-cancellation-ir21219--main/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "aef44568d3b883fb7a789b402d237d2e670f6ebd1433d025c47006ae5ed68517",
+        "manifest_sha256": "798c5853429b4a9537ce8bdaf07d174a1958c6ae3da8e427ed0f02041bbf0d7f"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2586,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "trace-sampling-drift",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-21957-rapid-trace-sampling--trace-sampling-misconfiguration/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "e3a2c2fe42817c902112a7ff01a927a99728bbad2f24c678b80c65a39f4fcedb",
+        "manifest_sha256": "eef87d95ada4ee537354d72d97ac42368424b809bf3e95e5719140cf8eb472f1"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 6,
+      "decision": "admitted_not_selected",
+      "episode_id": 2587,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "worker-inline-migration-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/sdp-parameterized-deployment-append-bug--parameterized-batch-bug/app-bundles/6/archive.tar",
+        "canonical_episode_sha256": "f569c0cd9e268c3761179f911658feb67b102bb82a0a2ec46919de24a8d26d16",
+        "manifest_sha256": "fe1c258b952a9af2cf4d5c74c682e603b7039303819dfaf5b21f02410343c416"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2588,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "legacy-ring-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/stale-dns-cassandra-migration-22265--inventory-history-store-outage/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "aebed0cea5f19a212d0d9a77ac8a5607dc6dedbd4561a0c06ed83a84dc144374",
+        "manifest_sha256": "8c43ab0e40cad5534061820e71aa2ba89a214561a70d2c60c7d8f043c9395157"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2589,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "trial-signup-csrf",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/signup-csrf-token-mismatch-ir22748--csrf-query-promotion-regression/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "7342266750c1b7051e746cf0bb7cc04f91979a31299cedd6ccb7e881bfdb9699",
+        "manifest_sha256": "8f81eea68c63f1acb19ee34d5299506293096e2295aecfb79530b9943f5b147d"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "selected_score_panel",
+      "episode_id": 2590,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "empty-metric-zero-fill",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/azure-metric-discrepancy-ir22837--empty-feed-zero-fill/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "45d1c4566de2401d8e32ee3cc743f2563c9e042f83af1b7927ceca123c72cf98",
+        "manifest_sha256": "fcab0819b7d1fe4be01336f8176956c4dc1cabaaba4beba7e82a14513e767bb0"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2591,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "dict-index-corruption",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/husky-incorrect-query-results-ir22843--stale-block-summary/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "dca8916dda4c2ee79421a3f3c03d9484411add449db2cc7c99b5f9ab21b6ae43",
+        "manifest_sha256": "49fdfd49fa31054d94c20d562a45d540cb8f9ced2e63146d641ac54573461eb0"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "selected_score_panel",
+      "episode_id": 2592,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "audit-logger-config-gap",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/91c154e8-74f3-5994-9d04-0810c521e5be--activity-tracker-singleton-bootstrap-failure/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "8861b89e441e7618621ef0362e6bb08d525819f0e318fbf84f2e61f2e93d4024",
+        "manifest_sha256": "9e6648daa60a21defea2381fc06e635d89ab2aadc2a469b9d270e8c9cc3b6f8d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2594,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "invalid-push-credential",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/gcp-pubsub-security-logs-broken-forwarding--fleet-telemetry-push-token-misconfiguration/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "c97a82ba0f4b39b1fa05a9513f74a72bab94aaa5328bdd76234dc84df2b64d3f",
+        "manifest_sha256": "e33d15088490733ed27f8212397508c52c99416c13ef91f161eee08fcae2dc7d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 4,
+      "decision": "admitted_not_selected",
+      "episode_id": 2596,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "sds-scrubbing-silent-failure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/c570933e-84ff-5a3e-be8a-e1f8530568a8--silent-redaction-failure/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "0a98f1017bca8a82865a915402ba9dd8f44bae513161d9a96cd5c1925d0d5f35",
+        "manifest_sha256": "e195700f6230d3742c71c283e1716a3d5f261c7ffe930d78484427a1bd545f2c"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "selected_score_panel",
+      "episode_id": 2597,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "distributed-login-failures",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/credential-stuffing-login-attack-us1--credential-stuffing-spike/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "d04a5494193b33881ab79ad4f1b473640cddae2060af3dc23c37b4ba4916f559",
+        "manifest_sha256": "9801957c6b3e5b34cb3b60e85e89329434c88fe29b73d9e67dc8f0b928fb334d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2599,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "legacy-merge-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/billing-usage-legacy-data-merge-regression--usage-merge-regression/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "d05fbc1aa7f27b8fc1d80b38c8f08053aef25ca2549b64737e6501afa77f301f",
+        "manifest_sha256": "cc4b2fbd5065daf3c3347d6ac9926e853f3b402b6bb5e9d67afb9cffcae96fd2"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2600,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "scope-reconciliation-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/npm-scope-reconciliation-failure--deprecated-channel-reconciliation/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "df45891297757f891ef334bee917f360609a140a480fee7558f39c667ebe9aeb",
+        "manifest_sha256": "d1a1a4452f54f3dcaf8343009943c40f9b50b0b04004214666addbb63d31c11d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "selected_score_panel",
+      "episode_id": 2601,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "cloud-control-cascade",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/azure-arm-outage-cascading-failure-24761--control-plane-circuit-outage/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "d7463aedc558837f6fcf16d969fb57c89b924a0380ff28e8fd03c28c24e792a8",
+        "manifest_sha256": "12c16f2360bfc25c4cc9044dd88ee793c980a052958ddb13590b90df8d0e1d1b"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2609,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "retention-shard-gap",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/f8d364b8-e310-54ae-858b-470e7c46eaf6--event-buffer-retention-gap/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "bc1b28da2f44cf5ac03a5c474ad16f98a1b0eaf66b7c6c17be39d0ecc08e5919",
+        "manifest_sha256": "481c34a8efa838b9acb3cc3eead5d44ff2dc12d7a926b73ef2d19c9632e27163"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2610,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "stats-consumer-lag",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/apm-stats-pipeline-lag-us5-ir25571--order-pipeline-traffic-surge/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "83e9b574b5ecc38fed27bea8708360227f18438fe9f44a660f7eba4b7d726cee",
+        "manifest_sha256": "24a6fcd06c8dd9836c14b6f7509e2c19910a2d829dae17190d45a9cf6c7f4249"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 4,
+      "decision": "admitted_not_selected",
+      "episode_id": 2611,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "calendar-rollup-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ccm-rollup-migration-corruption--migration-v2-rollout/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "ad994be9b8d739f6cc44a0c8bdbaba235e26fc6787685caabf6d345415bee95f",
+        "manifest_sha256": "299335e6e9709863b1d40b50d2053b05e85eb1ef3ea0a55893b2fb6a623cd14a"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 5,
+      "decision": "admitted_not_selected",
+      "episode_id": 2612,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "auth-tag-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ae47ad8e-8d35-57f1-ac0b-09cedf30e060--clip-analyzer-tag-mismatch/app-bundles/5/archive.tar",
+        "canonical_episode_sha256": "ef4de178f7a440f876aad08ffa61ddb408ce60055442be9420004661790dd7b8",
+        "manifest_sha256": "3378bc399d10458959598e9e8fd71bbb9ba9dedf78e628980b9080bbfa0db055"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 4,
+      "decision": "admitted_not_selected",
+      "episode_id": 2618,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "metric-tag-suffix-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ccm-tagdex-context-file-suffix-26502--catalog-bundle-suffix-rollout/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "502ae5ce9a7e01c833742afaa1a566253c9e838b7792846176f89fb7ceb4d62d",
+        "manifest_sha256": "bc88d332d1579a76f56116bd370ce076eddf4fa828faac59467672fd517fb677"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2620,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "usage-intake-gap",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/flex-logs-metering-usage-gap--metered-events-data-gap/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "2c2007cf2bdf2f2d265b8a79ac8f2052f4e5b5ed11d3abe197698d3932366da1",
+        "manifest_sha256": "c9c27c51622e536bf607fd1c45cf6324aa1a10f006db885256344c1bd9e3de40"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2621,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "host-handle-leak",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/win-process-agent-handle-leak-26981--inventory-enrichment-rollout/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "0af0c023409f8e5af811f8f872a301ffd0164a76e9029d3808a1e89f237f8ce7",
+        "manifest_sha256": "5541ee08cc2044726b813b57587abdff48f5c0614244786b4fa7b0cf053debc5"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2625,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "training-artifact-leak",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/8f957ca3-cd9d-5cf5-a8d5-23ac3945c534--model-revision-rollout-readiness-stall/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "b47d6f88667a57f70cdd274ce0ce9a119b30bc93125328cf4bf9d33ba2b5f603",
+        "manifest_sha256": "c1edf061b69118129497ee328f0dbe97d1b2f9ef26650a6756d51877d9589e5f"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2626,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "metadata-cleanup-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ref-tables-cleanup-cron-ir-27586--manifest-cleanup-orphan-check-rollout/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "4f35f49849d72f06975da3e9b45422c2c3234f694996c90b311079d3335fd522",
+        "manifest_sha256": "1ec892da6b339fb58383493aa0a60a12cdc24d0289e6d280a0cb1ae394ab5d59"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2629,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "redirect-validation-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/a97efc21-0e77-51ee-bebf-92217ff41f90--main/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "33b5189c76ed4d795f89475b94cb0fffe07001f6d0c95d251f8467aa70124063",
+        "manifest_sha256": "fa00c4aa9e4b4b54e216730c8edce934db4532a065ef5905093d6bc78196696e"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 4,
+      "decision": "admitted_not_selected",
+      "episode_id": 2631,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "sdk-session-leak",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ir-28473-zoltron-client-memory-leak--shared-sdk-evaluator-client-leak/app-bundles/4/archive.tar",
+        "canonical_episode_sha256": "a4385f66218190ba1b335a3c28094dbe717ad2793baadf6b51a83bd69473d7fe",
+        "manifest_sha256": "aec5e867ab306390f5ae34e459f348dd899a500395f32eb81d14b839cffddc8d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2633,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "source-type-collision",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-28816-host-tags-source-type-collision--source-type-collision/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "8e3c0842eac3713544be03ae0a9052239611ab00e526688b2848b5cd6e305895",
+        "manifest_sha256": "54c8b1f112387dfe1607a50298e545d5e7d5782fc8bfe2c9b8018e76d1da4909"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2634,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "document-renderer-cert-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/report-printer-cert-failure-28841--trust-bundle-path-rotation/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "83770e6e05e9606cb8e9a949960914bea788f3b2f3ca26334c1da4448910b4f5",
+        "manifest_sha256": "559d732030da90e87e6c19bf053e5da93567e6a2244b74bb1b37347a3b761078"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "selected_score_panel",
+      "episode_id": 2643,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "scanner-native-memory-oom",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/native-memory-oom-sds-scanner-proliferation--tenant-rollout-saturation/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "d7055aa908da79ff9b6f2bc6aa135b747daddeef07455f45902bdce5abaffdf1",
+        "manifest_sha256": "e9cf09ea4bd83171bb518fbd45299d11fec42e5434988e4ee92ebf6e00e67bfb"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 3,
+      "decision": "admitted_not_selected",
+      "episode_id": 2655,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "schema-privilege-failure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dogweb-backend-schema-migration-privilege-failure--migration-causes-portal-degradation/app-bundles/3/archive.tar",
+        "canonical_episode_sha256": "aa859be79864f8903fd2b8c8ca14be4bc9cd43079e2d5740276451d5d814c6e9",
+        "manifest_sha256": "c9e4b0cb98bbf4e4bb5a81b9782fd096c4b4427d6645229bf964c03940b86849"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2657,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "sketch-double-count",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/trace-metrics-sketch-double-count--channel-aggregation-rollout/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "915b8396a940b5ea157d30d6294e993dd2d2afb1a66303b8dc60f81ccaf4071e",
+        "manifest_sha256": "3c1ba09aeb460ece340429801fc20336fb0c32fdd99fd02ba339ab0107c1cd28"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "admitted_not_selected",
+      "episode_id": 2659,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "narrative-status-mismatch",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/watchdog-anomaly-status-rendering-failure--card-status-mismatch/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "4fd36b05b587ac71bb8c3bc19c9479dcf318de5b19328f0d92d7c1f818a9f0fb",
+        "manifest_sha256": "c212ec201193c6702f138c752117fcc4eca08939e4bb427ba5b46f69c3f18574"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2662,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "tls-cert-fqdn-mismatch",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/pci-tls-cert-fqdn-mismatch-33770--vault-tier-tls-san-mismatch/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "acab85211e0cdd0912c349c23dc014ab4b00405e8dba52078be886b61f65625a",
+        "manifest_sha256": "d5a7c8a409c9b1759aa1cfe602824ff2c7b3ea37825c6e23b399a3475038d40b"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "admitted_not_selected",
+      "episode_id": 2665,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "producer-config-build-failure",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/ukcl-librdkafka-build-failure-34117--multibatch-config-rollout/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "8cc8605abeed8a7aa2b666f7bd20d14ea84ef2373881313e6ef248129ba6619c",
+        "manifest_sha256": "dd5c1a30f432f70af28691e8b0e3fba7ec4a0ee0497070c6a0560c5f3c365ec2"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "selected_score_panel",
+      "episode_id": 2666,
+      "reason": "outcome-blind deterministic panel membership",
+      "scenario_name": "compliance-query-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/9b26409f-5cff-5c09-9e14-97f3a6965824--segment-compactor-overload/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "c782b6c342973f1c62ce030cd9ecda43ee6425efba56a0017b7be0295d81e757",
+        "manifest_sha256": "954d9b836b5a4ce032b6d437c1aa6b73fb1a404019c5c58fc46580657ff9e890"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "admitted_not_selected",
+      "episode_id": 2672,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "replica-routing-drift",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dbm-inflated-query-metrics-ir-34888--inventory-stats-baseline-pollution/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "08901c7fd83ad13732c23f8a52855ffe024cbe8c2d206fc7b6c95f3bc2cb2d55",
+        "manifest_sha256": "d957abf8efa2222493688f309a4d2e1f65b2c19be8e627559bc47eaa4969d254"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "admitted_not_selected",
+      "episode_id": 2674,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "iceberg-runtime-regression",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/spark-jvm-crash-iceberg-incompatibility--worker-version-rollout/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "46bd63d9b2af7f0cbefde9678d53476de4ccc474a42bac88875de9e41e7c9760",
+        "manifest_sha256": "76066969ccf25ab664e977882eb5b6c1da4982af3338ba40a676e905ec7d641c"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "admitted_not_selected",
+      "episode_id": 2680,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "route-mismatch-outage",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/dd-incident-35626-ip-allowlist-route-mismatch--edge-gateway-route-mismatch/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "cbb2336e2a1ba78acc6cbfe864174dde6253a29d119a072e43de8e1399866f9d",
+        "manifest_sha256": "141f157512f2db5ad157e11c220e52c6f2d58e5afd0200f7dc3004c0712ca3c8"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 2,
+      "decision": "admitted_not_selected",
+      "episode_id": 2681,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "access-policy-bypass",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/logs-access-control-bypass-ir35705--datasets-flag-rollout-bypass/app-bundles/2/archive.tar",
+        "canonical_episode_sha256": "4ce54ec7df07e955b179ef08aba33e4e87ae34398bd2aef2a63e762c57fdd005",
+        "manifest_sha256": "43379a546d135875991c989e0ca2352c1df8258062b272f6b397173cf4fb0459"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2683,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "activation-store-divergence",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/csm-billing-activation-inconsistency--inconsistency/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "022358914dc434bb3b1db335df614cd1e91129dd6a2046d813914e5e2935ae86",
+        "manifest_sha256": "c5aefd8b8d4e600bf58aaf2a9ce124dbcb69ed7e5c0cc7f9362ab54d0dea1edb"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "admission_status": "admitted",
+      "app_bundle_version": 1,
+      "decision": "admitted_not_selected",
+      "episode_id": 2684,
+      "reason": "source-admitted; not required by preregistered panel composition",
+      "scenario_name": "archive-credential-expiry",
+      "source_identity": {
+        "archive_key": "schema-v1/gensim/episodes/opw-gcs-auth-token-expiry--archive-auth-token-expiry/app-bundles/1/archive.tar",
+        "canonical_episode_sha256": "ef73227427910552d11f1ceb15812f1c2dfa7ba074a6d58c7bdaf4452aa7d5df",
+        "manifest_sha256": "0f6bed002b5a080eddaa8e2c785244faeced3c43e32909bbd98d1fb273adc03e"
+      }
+    }
+  ],
+  "documentation": {
+    "archived_predecessor": "docs/dev/archive/gensim-global-1hz/2026-08-25/gensim-global-1hz-corpus-rejection-ledger.json",
+    "role": "active_outcome_blind_selection_provenance"
+  },
+  "schema_version": 2,
+  "snapshot_sha256": "97177cddd5d3c66721eec5ae14d0648207f661287f326492226cb48f9b354539"
+}

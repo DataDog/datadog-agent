@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "documentation": {
+    "role": "historical_nonconfirmatory_source_derivation",
+    "execution_eligibility": "not_eligible_for_remote_campaign_execution",
+    "superseded_by": "docs/dev/gensim-global-1hz-episode-ctl-campaign-plan.md",
+    "reason": "Retains the earlier local-GKE pilot source pins; it is not a durable remote-controller launch manifest."
+  },
+  "purpose": "nonconfirmatory_local_gke_design_pilot",
+  "agent_image": "datadog/agent-dev@sha256:bcab32ebb2e768d89a0584b5a35c1043d8d8cb660df8861cd7dd3fccea392414",
+  "source_manifest": "/Users/ella.taira/episode-bundles/global-1hz-corpus-freeze-sources/source-manifest.json",
+  "scenarios": [
+    {
+      "episode_id": 2483,
+      "app_bundle_version": 3,
+      "role": "exposed_count",
+      "source_directory": "/Users/ella.taira/episode-bundles/global-1hz-corpus-freeze-sources/episode-2483-v3",
+      "source_tar_sha256": "43f6bd6df078626704d6e8922dbd11eba5c77163121f058d90bea999ae26481d",
+      "canonical_episode_file": "episodes/serialization-regression.yaml",
+      "canonical_episode_sha256": "5a53ecc5cd31e6604ff7513598b99ab81ea7ad15ad405d4f024916268828e165"
+    },
+    {
+      "episode_id": 2481,
+      "app_bundle_version": 3,
+      "role": "exposed_recurring_check",
+      "source_directory": "/Users/ella.taira/episode-bundles/global-1hz-corpus-freeze-sources/episode-2481-v3",
+      "source_tar_sha256": "24537e723a24271437f03317032433d6429d4b3ac94182204eaa24e18131880c",
+      "canonical_episode_file": "episodes/stack-parser-backtracking.yaml",
+      "canonical_episode_sha256": "54910e2ae2a2b3734edb7f48b8991f02e8af8f94a6ff130f29d79d639a1b97c5"
+    },
+    {
+      "episode_id": 2643,
+      "app_bundle_version": 2,
+      "role": "metric_neutral",
+      "source_directory": "/Users/ella.taira/episode-bundles/global-1hz-corpus-freeze-sources/episode-2643-v2",
+      "source_tar_sha256": "1c73e2cc7048f5d98c087d8bc1ef7ec6ae2b623e60cd67223c71aaa933d39acc",
+      "canonical_episode_file": "episodes/scanner-native-memory-oom.yaml",
+      "canonical_episode_sha256": "d7055aa908da79ff9b6f2bc6aa135b747daddeef07455f45902bdce5abaffdf1"
+    },
+    {
+      "episode_id": 2674,
+      "app_bundle_version": 2,
+      "role": "log_trace_led",
+      "source_directory": "/Users/ella.taira/episode-bundles/global-1hz-corpus-freeze-sources/episode-2674-v2",
+      "source_tar_sha256": "be17e96fcb2f5701d9d572132382e89176ecb0f118d78ea1a291a041236e8a27",
+      "canonical_episode_file": "episodes/iceberg-runtime-regression.yaml",
+      "canonical_episode_sha256": "46bd63d9b2af7f0cbefde9678d53476de4ccc474a42bac88875de9e41e7c9760"
+    }
+  ]
+}

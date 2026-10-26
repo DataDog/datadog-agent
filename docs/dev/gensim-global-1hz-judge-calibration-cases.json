@@ -1,0 +1,319 @@
+{
+  "documentation": {
+    "role": "calibration_library_pending_outcome_blind_panel_refresh",
+    "execution_eligibility": "not_eligible_for_scored_execution",
+    "governing_design": "docs/dev/gensim-global-1hz-scaled-experiment-plan.md",
+    "governing_corpus": "docs/dev/gensim-global-1hz-corpus-freeze.json",
+    "reason": "The retained calibration library overlaps the refreshed panel but is not itself an admission gate. Cases for the current panel must be completed and approved before confirmatory judging."
+  },
+  "acceptance": "Every scenario must repeatedly accept canonical and reject symptom-only, wrong-mechanism, and explicit-distractor conclusions.",
+  "source_identity_bindings": {
+    "2467": {
+      "app_bundle_version": 3,
+      "archive_key": "schema-v1/gensim/episodes/pylae-cold-cache-stampede-eu--cold-cache-stampede/app-bundles/3/archive.tar",
+      "canonical_episode_sha256": "d1b6738e6fe0a6e3e12d67fb405929d3b68f778d3586860e146dd025d6e391db",
+      "manifest_sha256": "d79abf0b7d850ebe4d76c19806593ad8254ed00435703d39ccfdcf80405f2e86"
+    },
+    "2481": {
+      "app_bundle_version": 3,
+      "archive_key": "schema-v1/gensim/episodes/rum-processing-lag-regex-backtracking--regex-backtracking/app-bundles/3/archive.tar",
+      "canonical_episode_sha256": "54910e2ae2a2b3734edb7f48b8991f02e8af8f94a6ff130f29d79d639a1b97c5",
+      "manifest_sha256": "86b9400b48f53fd1cde8e8f03a1f6ceb6c370ce61c8b60c0cb2628eca0727b63"
+    },
+    "2483": {
+      "app_bundle_version": 3,
+      "archive_key": "schema-v1/gensim/episodes/events-pipeline-serialization-fault-ir14582--main/app-bundles/3/archive.tar",
+      "canonical_episode_sha256": "5a53ecc5cd31e6604ff7513598b99ab81ea7ad15ad405d4f024916268828e165",
+      "manifest_sha256": "4a56299a42aaacda175660d24c6b4b291f2de941f3c3b37dc69921468d891083"
+    },
+    "2498": {
+      "app_bundle_version": 1,
+      "archive_key": "schema-v1/gensim/episodes/ctx-rewriter-nla-drain-sticky-assignor--nla-drain-sticky-assignor/app-bundles/1/archive.tar",
+      "canonical_episode_sha256": "3b667824f2647828cde10d6b9eb778ab6a83b68c42dbe071a909b3a55f20631b",
+      "manifest_sha256": "a2389a2260b04d14674294cabda6b52c3b940296b0a4be2fe07542153b2a96ba"
+    },
+    "2502": {
+      "app_bundle_version": 1,
+      "archive_key": "schema-v1/gensim/episodes/codesync-temporal-history-overflow--temporal-history-overflow/app-bundles/1/archive.tar",
+      "canonical_episode_sha256": "ee4f116c368f5f08f82109422e73089777b7720da9fc05ee2c217e22d90229e2",
+      "manifest_sha256": "85a1268f69ef443531d031395d4be3e3323a03fd85e5294b8a25a7a7c63374f5"
+    },
+    "2528": {
+      "app_bundle_version": 1,
+      "archive_key": "schema-v1/gensim/episodes/synthetics-cassandra-gocql-connectivity-failure--cassandra-gocql-connectivity-failure/app-bundles/1/archive.tar",
+      "canonical_episode_sha256": "f5b9c6b9682e07d34b1fd0b2c020336e5e1ef36950980565368abac763604ed3",
+      "manifest_sha256": "1c339b5ec6bbb42ac5a739cc0a04294e58b00b8bc6409a9664f4fe8964764d9d"
+    },
+    "2563": {
+      "app_bundle_version": 1,
+      "archive_key": "schema-v1/gensim/episodes/kafka-apm-spans-3949-overload-ap1--main/app-bundles/1/archive.tar",
+      "canonical_episode_sha256": "2328d2ead6c6209e7c6659483a86864cf8b16b853026fb2305a54e74f34330b6",
+      "manifest_sha256": "5caf0a85f6930ab7a0b0209b2e3126a145a0ca78a681fc7aed6a0df62b63e7a9"
+    },
+    "2589": {
+      "app_bundle_version": 5,
+      "archive_key": "schema-v1/gensim/episodes/signup-csrf-token-mismatch-ir22748--csrf-query-promotion-regression/app-bundles/5/archive.tar",
+      "canonical_episode_sha256": "7342266750c1b7051e746cf0bb7cc04f91979a31299cedd6ccb7e881bfdb9699",
+      "manifest_sha256": "8f81eea68c63f1acb19ee34d5299506293096e2295aecfb79530b9943f5b147d"
+    },
+    "2590": {
+      "app_bundle_version": 5,
+      "archive_key": "schema-v1/gensim/episodes/azure-metric-discrepancy-ir22837--empty-feed-zero-fill/app-bundles/5/archive.tar",
+      "canonical_episode_sha256": "45d1c4566de2401d8e32ee3cc743f2563c9e042f83af1b7927ceca123c72cf98",
+      "manifest_sha256": "fcab0819b7d1fe4be01336f8176956c4dc1cabaaba4beba7e82a14513e767bb0"
+    },
+    "2592": {
+      "app_bundle_version": 5,
+      "archive_key": "schema-v1/gensim/episodes/91c154e8-74f3-5994-9d04-0810c521e5be--activity-tracker-singleton-bootstrap-failure/app-bundles/5/archive.tar",
+      "canonical_episode_sha256": "8861b89e441e7618621ef0362e6bb08d525819f0e318fbf84f2e61f2e93d4024",
+      "manifest_sha256": "9e6648daa60a21defea2381fc06e635d89ab2aadc2a469b9d270e8c9cc3b6f8d"
+    },
+    "2597": {
+      "app_bundle_version": 5,
+      "archive_key": "schema-v1/gensim/episodes/credential-stuffing-login-attack-us1--credential-stuffing-spike/app-bundles/5/archive.tar",
+      "canonical_episode_sha256": "d04a5494193b33881ab79ad4f1b473640cddae2060af3dc23c37b4ba4916f559",
+      "manifest_sha256": "9801957c6b3e5b34cb3b60e85e89329434c88fe29b73d9e67dc8f0b928fb334d"
+    },
+    "2643": {
+      "app_bundle_version": 2,
+      "archive_key": "schema-v1/gensim/episodes/native-memory-oom-sds-scanner-proliferation--tenant-rollout-saturation/app-bundles/2/archive.tar",
+      "canonical_episode_sha256": "d7055aa908da79ff9b6f2bc6aa135b747daddeef07455f45902bdce5abaffdf1",
+      "manifest_sha256": "e9cf09ea4bd83171bb518fbd45299d11fec42e5434988e4ee92ebf6e00e67bfb"
+    },
+    "2666": {
+      "app_bundle_version": 1,
+      "archive_key": "schema-v1/gensim/episodes/9b26409f-5cff-5c09-9e14-97f3a6965824--segment-compactor-overload/app-bundles/1/archive.tar",
+      "canonical_episode_sha256": "c782b6c342973f1c62ce030cd9ecda43ee6425efba56a0017b7be0295d81e757",
+      "manifest_sha256": "954d9b836b5a4ce032b6d437c1aa6b73fb1a404019c5c58fc46580657ff9e890"
+    },
+    "2674": {
+      "app_bundle_version": 2,
+      "archive_key": "schema-v1/gensim/episodes/spark-jvm-crash-iceberg-incompatibility--worker-version-rollout/app-bundles/2/archive.tar",
+      "canonical_episode_sha256": "46bd63d9b2af7f0cbefde9678d53476de4ccc474a42bac88875de9e41e7c9760",
+      "manifest_sha256": "76066969ccf25ab664e977882eb5b6c1da4982af3338ba40a676e905ec7d641c"
+    },
+    "2684": {
+      "app_bundle_version": 1,
+      "archive_key": "schema-v1/gensim/episodes/opw-gcs-auth-token-expiry--archive-auth-token-expiry/app-bundles/1/archive.tar",
+      "canonical_episode_sha256": "ef73227427910552d11f1ceb15812f1c2dfa7ba074a6d58c7bdaf4452aa7d5df",
+      "manifest_sha256": "0f6bed002b5a080eddaa8e2c785244faeced3c43e32909bbd98d1fb273adc03e"
+    }
+  },
+  "cases": [
+    {
+      "app_name": "events-notification-pipeline",
+      "episode_id": 2483,
+      "ground_truth": "A latency-tracking change introduced a new ingress_timestamp datetime field across the events pipeline. The pipeline-normalizer correctly adds this field when writing normalized events to Kafka. When event-transformer processes events that include email @-mentions, it serializes the full event payload before enqueueing a notification job to notification-router. The Event.to_dict path was not updated to encode datetime values, so json.dumps raises TypeError for affected events. The transformer's defensive handler skips the entire event on serialization failure, which prevents both the notification job enqueue and the downstream Kafka write to delivery-writer. Observable symptoms include elevated event_transformer.payload.encode.exceptions, reduced notification_router.job.enqueue.hits for email-channel jobs, and reduced event_delivery_sink.event.deliver.hits proportional to email-handle traffic. Upstream ingress-gateway and pipeline-normalizer throughput remain stable, and Kafka broker metrics stay healthy because the failure is application-level in event-transformer before downstream writes complete.",
+      "monitor_title": "Notification router email job enqueue volume is below expected levels over the last 5 minutes.",
+      "scenario_name": "serialization-regression",
+      "scenario_uuid": "gs-admin-episode-2483",
+      "variants": {
+        "canonical_correct": "Email-handle event notifications drop after a datetime field serialization regression in the event transformer",
+        "distractor": "The delivery sink was independently dropping successfully transformed events.",
+        "symptom_only": "The notification-router enqueue rate dropped.",
+        "wrong_mechanism": "Notification-router queue saturation prevented workers from accepting otherwise valid jobs."
+      }
+    },
+    {
+      "app_name": "mobile-analytics-pipeline",
+      "episode_id": 2481,
+      "ground_truth": "Mobile analytics events from Android clients arrive at event-gateway and are published to the event-stream Redis queue. The stack-frame-processor JVM service consumes these events and parses stack traces using a frame-matching regex. When unsafe parser mode is enabled alongside long customer-provided stack traces, the nested-quantifier regex exhibits catastrophic backtracking. CPU saturation in stack-frame-processor stalls the queue consumer loop, increasing per-message processing duration and consumer lag. Throughput to event-store drops, leaving query-api with stale or empty recent windows and elevated StaleDataWindow errors. Root cause is traceable from query-api symptoms through reduced event-store write rate to elevated redis.command BRPOP duration and jvm.cpu load on stack-frame-processor where the frame parser regex dominates processing time. audit-indexer shows elevated IndexBackpressure errors during the same window but is causally isolated \u2014 its failures stem from config-snapshot-api latency during entitlement-cache buffer flushes, not from the event-stream processing path.",
+      "monitor_title": "Elevated consumer lag events on stack-frame-processor.",
+      "scenario_name": "stack-parser-backtracking",
+      "scenario_uuid": "gs-admin-episode-2481",
+      "variants": {
+        "canonical_correct": "JVM stack frame parser regex backtracking causes Kafka consumer stall, reducing downstream event store writes and query-api freshness.",
+        "distractor": "Audit-indexer backlog exhausted shared Kafka capacity and stalled the parser.",
+        "symptom_only": "Recent mobile analytics results became stale because consumer lag increased.",
+        "wrong_mechanism": "The event store could not persist normally processed events."
+      }
+    },
+    {
+      "app_name": "metric-context-pipeline",
+      "episode_id": 2498,
+      "ground_truth": "Node lifecycle automation drained a single Kubernetes worker that co-located two active context-rewriter pods (cache and primary flavors). The simultaneous eviction removed redundancy across both active tag-resolution pipelines, triggering a Kafka sticky-assignor partition reassignment storm lasting several minutes. With both rewriter flavors lagging on the context-tags topic, tag-resolution-api served stale or missing bhandle-to-tagset mappings as Redis cache entries expired without refresh. Downstream metric-intake-processor accumulated unresolved contexts across pods until reaching the 10,000 per-pod hard limit, blocking further metric point processing. The blocked intake starved metric-persistence-writer of resolved data, pushing storage lag above 60 seconds. Alert-evaluation-engine detected persistence lag and suppressed metric monitor evaluations to prevent false positives, producing elevated EvaluationSuppressed errors across the fleet. Root cause: co-located rewriter pods on a single node combined with consumer rebalance fragility after coordinated eviction \u2014 not shadow rewriter lag, Redis eviction pressure, or minute-window-aggregator resolution errors.",
+      "monitor_title": "Kafka consumer lag above 120s on context-rewriter-cache. Check consumer group rebalance activity and recent pod evictions. Runbook: https://wiki.example.com/kafka-consumer-lag",
+      "scenario_name": "nla-drain-rebalance-storm",
+      "scenario_uuid": "gs-admin-episode-2498",
+      "variants": {
+        "canonical_correct": "Node drain evicts co-located context rewriters, triggering consumer rebalance storm and monitor evaluation suppression",
+        "distractor": "Monitor evaluation infrastructure stopped evaluating healthy context-rewriter metrics.",
+        "symptom_only": "Kafka consumers repeatedly rebalanced and monitor evaluations were suppressed.",
+        "wrong_mechanism": "A Kafka broker outage directly disconnected otherwise healthy consumers."
+      }
+    },
+    {
+      "app_name": "regional-metrics-pipeline",
+      "episode_id": 2467,
+      "ground_truth": "Two new catalog-indexer clusters were deployed in the EU regional metrics pipeline with completely empty internal context caches. Every context lookup missed the in-process cache and hit route-metadata-cache (Redis), which was already operating near its memory limit. The surge pushed route-metadata-cache into repeated eviction pressure and OOM rejections, causing all catalog-indexer queries to fall through to entity-resolver. Entity-resolver, not sized for this volume of direct lookups, saw queue depth grow and p95 latency rise from roughly 25ms to over 500ms. Stream-processor depends on entity-resolver during Kafka message enrichment; processing slowed and kafka.estimated_consumer_lag climbed above two minutes. Waypoint-router traffic to entity-resolver remained stable, ruling it out as the stampede source. Entity-resolver error rates stayed moderate\u2014latency degradation rather than total outage. Root cause: cold cache stampede from new catalog-indexer deployments overwhelming route-metadata-cache memory, cascading through entity-resolver to stream-processor consumer lag.",
+      "monitor_title": "Stream processor Kafka consumer lag is above 120 seconds. Check upstream context resolution latency and cache tier health.",
+      "scenario_name": "cold-cache-stampede",
+      "scenario_uuid": "gs-admin-episode-2467",
+      "variants": {
+        "canonical_correct": "Cold cache stampede from new catalog indexer clusters overwhelms shared context resolution and delays stream processing",
+        "distractor": "A broad entity-resolver error-rate regression, rather than cache-miss load, caused the incident.",
+        "symptom_only": "Entity resolution latency and stream consumer lag increased.",
+        "wrong_mechanism": "Waypoint-router generated the lookup surge that overloaded entity-resolver."
+      }
+    },
+    {
+      "app_name": "cloud-metric-pipeline",
+      "episode_id": 2590,
+      "ground_truth": "A vendor-side deployment regression changed resource filter query parameters on the vendor-metrics-gateway Insights batch API, causing HTTP 200 responses with increased empty metric series instead of hard errors. The cloud-metrics-collector crawlers continued polling on schedule and applied zero-fill logic for missing values, incrementing dd.crawler.vendor_insights.batch_api.metrics.empty while dd.crawler.vendor_insights.batch_api.request.duration and dd.crawler.vendor_insights.batch_api.errors remained normal. Zero-filled points were submitted to metrics-ingestion-gateway at non-normalized crawl timestamps; subsequent backfill cycles wrote to different granularity slots, emitting metrics.ingest.timestamp_conflict without overriding the zeros. Persistent zero-valued points reached metrics-query-store, where min aggregation on cloud.vm.resource_availability_preview and cloud.database.storage_utilization_percent showed intermittent dips. Recovery required reverting the vendor gateway strict resource filter configuration so batch responses again included datapoints.",
+      "monitor_title": "Zero-fill operations elevated on cloud-metrics-collector over the last 5 minutes.",
+      "scenario_name": "empty-metric-zero-fill",
+      "scenario_uuid": "gs-admin-episode-2590",
+      "variants": {
+        "canonical_correct": "Vendor deployment regression increases empty metric batch responses; collector zero-fill at off-grid timestamps prevents backfill override, causing customer metric dips.",
+        "distractor": "Metrics-query-store aggregation converted valid nonzero points to zero.",
+        "symptom_only": "Customer cloud metrics contained persistent zero-valued dips.",
+        "wrong_mechanism": "The vendor API returned hard errors that stopped collector crawls."
+      }
+    },
+    {
+      "app_name": "portal-logistics-platform",
+      "episode_id": 2592,
+      "ground_truth": "A production deployment replaced the portal-gateway audit logger with an exported implementation that calls Features.instance().is_enabled() during audit event enqueue. The Features singleton is provided by a runtime configuration client undergoing a staggered regional rollout \u2014 active in region-lyra and region-cygnus but not yet deployed to region-helix, region-orion, and region-vega. In regions without the initialized client, every queue_event() invocation raises ValueError, which the audit logger catches and discards silently. Because audit logging runs asynchronously after HTTP responses complete, portal-gateway request error rates and latency remain unchanged. With audit transmissions failing in the affected regions, audit-stream-hub receives no events and security-alert-engine stops generating login and shipment security notifications. The flag-config-registry service itself remains healthy throughout \u2014 the failure is a client-side singleton initialization gap, not a configuration server outage. Investigators must distinguish elevated carrier-webhook-relay UpstreamStaleCache and UpstreamTimeout errors (from order cache expiry on an unrelated fulfillment peer) from the audit pipeline ValueError failures, correlate the timing with the portal-gateway deployment version change, and trace the causal chain from notification drop through audit-stream-hub intake to portal-gateway audit queue failures in regions lacking the config client.",
+      "monitor_title": "Portal gateway audit queue failures elevated in the last 5 minutes.",
+      "scenario_name": "audit-logger-config-gap",
+      "scenario_uuid": "gs-admin-episode-2592",
+      "variants": {
+        "canonical_correct": "Exported audit logger depends on uninitialized config client in partial regional rollout, silently dropping audit events and security notifications",
+        "distractor": "Portal request failures prevented successful requests from generating audit events.",
+        "symptom_only": "Audit events and security notifications disappeared in several regions.",
+        "wrong_mechanism": "The flag-config-registry service was unavailable in all regions."
+      }
+    },
+    {
+      "app_name": "span-ingest-pipeline",
+      "episode_id": 2563,
+      "ground_truth": "The span-ingest-cluster-7k2 message broker cluster in region-east runs on compact c5.xlarge instances (half the CPU and disk throughput of the standard c5.2xlarge footprint used in the primary region). The node-lifecycle-controller rotates a broker node for compliance uptime limits. The replacement broker begins replicating partition data from the remaining brokers. On compact instances, replication traffic saturates broker CPU and exhausts the Kafka request handler thread pool (handler idle percentage drops below 10%). Under-replicated partitions accumulate across apm-spans topics. Downstream span pipeline consumers cannot complete fetch requests: telemetry-ingest-fetcher reports ConsumerLagHigh with elevated dd.kafka.fetcher_lag, span-retention-indexer delays indexed spans for retention filters, retention-diversity-engine delays sampling decisions, and trace-assembly-worker falls behind on trace assembly. Operators may observe replication-governor throttle adjustments and partition-orchestrator reassignment queue activity, but these are mitigation or orchestration signals\u2014not the saturation root cause. billing-meter-aggregator may show elevated UpstreamTimeout errors from quota-enforcement-proxy load during the same window; temporal correlation without broker fetch span errors indicates a non-causal misleader. Root cause: message-broker-core CPU saturation from replication storm on undersized instances after node-lifecycle-controller broker rotation.",
+      "monitor_title": "Span ingest consumer lag elevated on telemetry-ingest-fetcher. Count {{value}} ConsumerLagHigh events in 5m (threshold {{threshold}}). Check broker handler idle and under-replicated partitions.",
+      "scenario_name": "broker-replication-overload",
+      "scenario_uuid": "gs-admin-episode-2563",
+      "variants": {
+        "canonical_correct": "Broker node rotation on compact instances triggers replication overload, handler thread exhaustion, and span consumer lag",
+        "distractor": "The traffic source increased span volume enough to overload an otherwise unchanged broker fleet.",
+        "symptom_only": "Kafka handler idle capacity fell and span consumer lag increased.",
+        "wrong_mechanism": "A downstream span consumer code regression reduced consumption despite healthy brokers."
+      }
+    },
+    {
+      "app_name": "reposync-platform",
+      "episode_id": 2502,
+      "ground_truth": "RepoSync replicates upstream VCS commits to mirror-destination using long-lived workflows on workflow-coordinator. Each platform-config master branch workflow accumulates event history from continuous push signals delivered through event-bus and vcs-intake-processor. During normal operation mirror-worker replays a bounded history and executes git sync activities that trigger mirror_destination.pipeline.trigger.count on the destination. When the worker pod is reassigned, the replacement must replay the full accumulated history before executing new activities. With history exceeding the replay capacity (4500+ events), replay cannot complete within the task deadline, entering a deadlock where mirror_worker.activity.count spikes on replay attempts while temporal.workflow.task.schedule_to_start_latency grows and successful sync activities stop. vcs-intake-processor continues forwarding signals and kafka.consumer_group.lag on event-bus stays healthy, but mirror-destination receives no commits and pipeline triggers drop to zero. Recovery requires truncating workflow history via continue-as-new on workflow-coordinator, after which mirror-worker resumes sync and pipelines recover.",
+      "monitor_title": "Mirror destination master pipeline trigger rate below threshold ({{value}} triggers in 1m).",
+      "scenario_name": "workflow-history-stall",
+      "scenario_uuid": "gs-admin-episode-2502",
+      "variants": {
+        "canonical_correct": "Long-lived RepoSync workflow history prevents replay after worker reassignment, stalling mirror pipelines",
+        "distractor": "The mirror destination rejected correctly scheduled synchronization activities.",
+        "symptom_only": "Mirror pipeline triggers stopped after worker reassignment.",
+        "wrong_mechanism": "VCS intake stopped forwarding new push signals to the workflow."
+      }
+    },
+    {
+      "app_name": "stream-processing-platform",
+      "episode_id": 2643,
+      "ground_truth": "A scheduled policy job began enabling freemium sensitive-data scanners for tenant organizations at a steady rollout pace, writing configuration into the tenant config store. The config relay propagated each batch of scanner definitions to stream-processor pods, which lazily instantiated per-tenant scanner objects backed by large off-heap regex scratch buffers. Native memory climbed while JVM heap metrics stayed flat, pods hit memory limits and restarted worker threads, active consumers in the stream-shard group dropped, and event-bus consumer lag grew to multi-minute backlog. Recovery required disabling the freemium rollout and letting scanner caches drain after pods stabilized.",
+      "monitor_title": "Stream-shard consumer lag exceeded 40 messages over the last 5 minutes.",
+      "scenario_name": "scanner-native-memory-oom",
+      "scenario_uuid": "gs-admin-episode-2643",
+      "variants": {
+        "canonical_correct": "Freemium scanner rollout causes native memory growth, processing instability, and stream-shard consumer lag",
+        "distractor": "The stream-shard broker failed and disconnected healthy scanner workers.",
+        "symptom_only": "Stream consumers restarted and accumulated multi-minute lag.",
+        "wrong_mechanism": "JVM heap growth exhausted the stream-processor heap."
+      }
+    },
+    {
+      "app_name": "uptime-probe-platform",
+      "episode_id": 2528,
+      "ground_truth": "The uptime probe platform ingests synthetic check results through a Kafka-backed result stream into an availability-store Cassandra cluster. A ring-admin maintenance action drains an availability peer gateway endpoint after its rotation window expires. Result-persist-worker and threshold-evaluator share a gocql session initializer that pins the original dual-seed host list; when the peer gateway stops accepting CQL connections the client library treats the entire pool as unavailable and does not fail over to the remaining healthy seed. Result-persist-worker exhausts five write retries and emits UnprocessableEvent records while Kafka consumer lag climbs. Threshold-evaluator loses read access for roughly forty percent of scheduled evaluations, producing EvaluationFailed errors and elevated evaluation error ratios. Status-portal-api continues serving UI reads through a single-seed pool configuration. Result-stream-bus throughput stays nominal. Notification-dispatcher shows unrelated upstream timeout spikes that can be ruled out by trace depth and timing. Recovery requires restoring the peer gateway and refreshing worker sessions via the admin API.",
+      "monitor_title": "Threshold evaluator evaluation failures exceeded threshold in the last 5 minutes. Check Cassandra read connectivity and evaluation worker pool health.",
+      "scenario_name": "cassandra-connectivity-regression",
+      "scenario_uuid": "gs-admin-episode-2528",
+      "variants": {
+        "canonical_correct": "Automated ring maintenance drains an availability peer; stale gocql host pools in persistence and evaluation workers block writes and reads while the portal path stays healthy.",
+        "distractor": "Consumer lag alone caused healthy Cassandra client pools to discard connections.",
+        "symptom_only": "Persistence workers logged Cassandra connectivity failures.",
+        "wrong_mechanism": "The Cassandra ring was unavailable because all database nodes crashed."
+      }
+    },
+    {
+      "app_name": "trial-signup-platform",
+      "episode_id": 2589,
+      "ground_truth": "The trial signup platform routes browser submissions from signup-portal through edge-auth-gateway into registration-api, with visitor sessions stored in visitor-session-cache. A release to registration-api enabled append_session_query mode for the signup_process route as part of migrating CSRF validation toward the edge layer. For unauthenticated prospects the visitor session record holds an empty CSRF value. edge-auth-gateway began copying that empty value into the csrf_token query parameter where it takes precedence over the valid token in the POST body. edge-auth-gateway logs csrf_not_found and registration-api returns csrf_mismatch for the majority of anonymous signups while other routes remain healthy. identity-token-broker shows elevated SessionRefreshTimeout errors during the same window but serves a different auth surface and does not receive signup traffic. Recovery requires reverting registration-api to body_only CSRF policy and rolling back the edge migration configuration.",
+      "monitor_title": "Elevated csrf_not_found events on edge-auth-gateway signup_process route in the last 5 minutes.",
+      "scenario_name": "trial-signup-csrf",
+      "scenario_uuid": "gs-admin-episode-2589",
+      "variants": {
+        "canonical_correct": "Anonymous trial signup failures after edge CSRF migration publishes empty session tokens in query parameters",
+        "distractor": "Identity-token-broker session refresh timeouts caused the signup failures.",
+        "symptom_only": "Anonymous trial registrations failed CSRF validation.",
+        "wrong_mechanism": "Registration clients omitted the valid CSRF token from the request body."
+      }
+    },
+    {
+      "app_name": "batch-analytics-platform",
+      "episode_id": 2674,
+      "ground_truth": "The cluster image controller rolled out batch runtime 3.5.4 as a routine minor upgrade. Batch workers executing table-format scan and write paths against the table metadata service began terminating with native abort exit code 52 when the new runtime interacted with the existing table-format client libraries. Each abort instantly removed a worker from the pool; the batch coordinator logged ExecutorLost events and could not keep enough workers online for iceberg-dependent task stages. Metrics query pipelines and the analytics unified datasets pipeline failed when underlying batch jobs could not complete. The JVM health monitor independently reported elevated crash detections. Non-table-format jobs continued to succeed, and the metadata service itself remained healthy. Rollback to runtime 3.5.3 removed the incompatibility and restored pipeline success rates.",
+      "monitor_title": "Unified datasets pipeline failures exceeded threshold in the last 5 minutes.",
+      "scenario_name": "iceberg-runtime-regression",
+      "scenario_uuid": "gs-admin-episode-2674",
+      "variants": {
+        "canonical_correct": "Routine batch runtime upgrade triggers JVM aborts on table-format operations, cascading into dataset pipeline failures",
+        "distractor": "A general cluster capacity shortage killed both table-format and non-table-format jobs.",
+        "symptom_only": "Batch executors exited and dependent analytics pipelines failed.",
+        "wrong_mechanism": "The table metadata service became unavailable to healthy workers."
+      }
+    },
+    {
+      "app_name": "identity-platform",
+      "episode_id": 2597,
+      "ground_truth": "An external client pool began a distributed credential stuffing campaign against the production login path. Attack traffic entered through edge-gateway, was routed by portal-web to auth-login, and produced a sharp increase in authentication failures (bad_password, unknown_user, and bad_captcha outcomes) while successful logins and request latency remained near baseline. bot-challenge continued blocking automated captcha failures at higher volume. identity-enrichment performed additional threat-reputation lookups via threat-reputation-api and flagged many attacker IPs as suspicious or malicious. A subset of stuffing attempts used valid credentials from an external breach dump, producing security-signals events for new-country and new-device sign-ins. Infrastructure services including edge-gateway showed higher throughput but no error-rate or latency regression, confirming credential-level abuse rather than platform failure. The primary symptom is auth-login login failure rate; root cause is the coordinated stuffing profile enabled on the uninstrumented regional-clients pool sending stolen username/password pairs from many distinct source IPs.",
+      "monitor_title": "Login failure volume on auth-login exceeded threshold in the last 5 minutes. Check authentication failure breakdown by reason and compare successful login rate against baseline.",
+      "scenario_name": "distributed-login-failures",
+      "scenario_uuid": "gs-admin-episode-2597",
+      "variants": {
+        "canonical_correct": "Distributed credential stuffing against the identity login endpoint causes elevated authentication failures while infrastructure remains healthy.",
+        "distractor": "Infrastructure saturation caused healthy authentication workers to time out.",
+        "symptom_only": "Authentication failures increased across the login endpoint.",
+        "wrong_mechanism": "An identity database outage rejected otherwise valid credentials."
+      }
+    },
+    {
+      "app_name": "compliance-platform",
+      "episode_id": 2666,
+      "ground_truth": "A configuration regression in the segment-writer caused auditfinding track fragments to be written using the default table layout (12-minute width) instead of the custom track layout (1-minute width). Each fragment contained roughly twelve times more rows than the compactor was sized to scan per cycle. The segment-compactor could not keep pace with the amplified scan workload and uncompacted fragments accumulated in segment-store. When pending fragment count exceeded the segment-reader fetch limit, read queries failed with fragment assembly errors. These failures propagated to compliance-api, which returned HTTP 500 responses on posture, identity-exposure, and alert-inbox endpoints. Writer throughput remained normal\u2014the defect was fragment width, not ingestion volume. segment-store disk utilization stayed healthy; the failure was fragment organization, not capacity exhaustion. Root cause is traceable from compliance-api django request errors through segment-reader read failures, segment-compactor pending fragment growth, to elevated segment.writer.fragment_width_minutes on segment-writer after a deployment reverted to default table configuration.",
+      "monitor_title": "Compaction backlog above threshold on auditfinding track (segment-compactor). See runbook: https://wiki.internal/segment-compactor-backlog",
+      "scenario_name": "compliance-query-outage",
+      "scenario_uuid": "gs-admin-episode-2666",
+      "variants": {
+        "canonical_correct": "Segment writer default table config produces oversized auditfinding fragments, overwhelming compaction and causing compliance API HTTP 500 errors",
+        "distractor": "The compliance query database became unavailable to otherwise healthy services.",
+        "symptom_only": "Compliance API requests returned HTTP 500 errors while compaction fell behind.",
+        "wrong_mechanism": "A compactor deployment regression made healthy fragments impossible to merge."
+      }
+    },
+    {
+      "app_name": "stream-pipeline-platform",
+      "episode_id": 2684,
+      "ground_truth": "The stream ingestion platform routes a fraction of processed events through an object archive writer that authenticates via a cloud credential broker before writing to the blob storage gateway. During a configuration rollout the archive sink initialization path omitted the call that spawns a background credential renewal loop. The initial OAuth-style bearer token remains valid for its configured TTL (approximately three minutes in this environment), after which storage writes begin returning HTTP 403 responses. The archive writer enters a retry loop logging \"retrying after response\" with reason unauthorized, elevated sink error and retry counts appear in traces, and a fraction of pipeline events fail on the archive path while ingestion itself continues normally. A secondary integer underflow in the broker's refresh deadline calculation can extend sleep intervals when the metadata TTL is shorter than the configured safety margin, delaying recovery even when synchronous refresh is attempted. Root cause lies in the cloud credential broker / archive sink initialization contract, not storage availability or ingest saturation.",
+      "monitor_title": "Archive sink unauthorized write rate elevated in env:{{env.name}}.\nValue: {{value}} (threshold {{threshold}} in last 5m).\nCheck object-archive-writer error logs and storage auth responses.\n",
+      "scenario_name": "archive-credential-expiry",
+      "scenario_uuid": "gs-admin-episode-2684",
+      "variants": {
+        "canonical_correct": "Archive sink write failures after cloud credential TTL when background renewal is not initialized",
+        "distractor": "A network partition prevented valid refreshed credentials from reaching the archive service.",
+        "symptom_only": "Archive sink writes began failing during a long-running process.",
+        "wrong_mechanism": "The archive destination ran out of storage capacity."
+      }
+    }
+  ],
+  "current_panel_episode_ids": [2467, 2481, 2483, 2498, 2563, 2590, 2592, 2502, 2643, 2666, 2574, 2597, 2497, 2500, 2601],
+  "missing_current_panel_cases": [2574, 2497, 2500, 2601],
+  "required_repetitions": "judge_owner_to_freeze_before_execution",
+  "schema_version": 1,
+  "status": "partial_library_pending_current_panel_cases"
+}

@@ -1,0 +1,685 @@
+{
+  "documentation": {
+    "role": "historical_selection_provenance",
+    "execution_eligibility": "not_a_launch_manifest",
+    "governing_design": "docs/dev/gensim-global-1hz-scaled-experiment-plan.md",
+    "reason": "Retains source-screening decisions so exclusions and selections remain auditable."
+  },
+  "candidate_catalog_sha256": "06cb5e69e05aff6746733ea29b0492c5b3661219e6088427bd215fb1e8616935",
+  "decision_count": 96,
+  "decisions": [
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2483,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "serialization-regression"
+    },
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2481,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "stack-parser-backtracking"
+    },
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2498,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "nla-drain-rebalance-storm"
+    },
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2467,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "cold-cache-stampede"
+    },
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2590,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "empty-metric-zero-fill"
+    },
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2592,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "audit-logger-config-gap"
+    },
+    {
+      "catalog_section": "High-confidence resolution-exposed candidates",
+      "decision": "selected_core",
+      "episode_id": 2563,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "broker-replication-overload"
+    },
+    {
+      "catalog_section": "High-confidence metric-neutral controls",
+      "decision": "selected_core",
+      "episode_id": 2502,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "workflow-history-stall"
+    },
+    {
+      "catalog_section": "High-confidence metric-neutral controls",
+      "decision": "selected_core",
+      "episode_id": 2643,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "scanner-native-memory-oom"
+    },
+    {
+      "catalog_section": "High-confidence metric-neutral controls",
+      "decision": "selected_reserve",
+      "episode_id": 2666,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "compliance-query-outage"
+    },
+    {
+      "catalog_section": "Source-eligible mixed secondary candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2574,
+      "reason": "retained in source-screened catalog; not selected from source-eligible mixed secondary candidates",
+      "scenario_name": "fts-segment-corruption"
+    },
+    {
+      "catalog_section": "Source-eligible mixed secondary candidates",
+      "decision": "selected_reserve",
+      "episode_id": 2597,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "distributed-login-failures"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "selected_reserve",
+      "episode_id": 2684,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "archive-credential-expiry"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2683,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "activation-store-divergence"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2681,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "access-policy-bypass"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2680,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "route-mismatch-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "selected_core",
+      "episode_id": 2674,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "iceberg-runtime-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2672,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "replica-routing-drift"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2665,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "producer-config-build-failure"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2662,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "tls-cert-fqdn-mismatch"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2659,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "narrative-status-mismatch"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2655,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "schema-privilege-failure"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2634,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "document-renderer-cert-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2633,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "source-type-collision"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2631,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "sdk-session-leak"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2629,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "redirect-validation-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2626,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "metadata-cleanup-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2625,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "training-artifact-leak"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2621,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "host-handle-leak"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2620,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "usage-intake-gap"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2618,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "metric-tag-suffix-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2612,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "auth-tag-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2611,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "calendar-rollup-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2610,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "stats-consumer-lag"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2609,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "retention-shard-gap"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2601,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "cloud-control-cascade"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2600,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "scope-reconciliation-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2599,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "legacy-merge-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2596,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "sds-scrubbing-silent-failure"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2594,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "invalid-push-credential"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2591,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "dict-index-corruption"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "selected_core",
+      "episode_id": 2589,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "trial-signup-csrf"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2588,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "legacy-ring-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2587,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "worker-inline-migration-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2580,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "workflow-cancellation"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2577,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "interval-alignment-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2576,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "webhook-routing-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2575,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "catalog-state-lag"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2573,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "privatelink-evaluation-delay"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2569,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "policy-rules-update-failure"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2566,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "entity-pipeline-stall"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2565,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "replica-connection-saturation"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2564,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "cross-store-segment-merge"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2551,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "controller-backup-disconnect"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2550,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "cross-region-tag-join"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2549,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "vitals-ingestor-segfault"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2548,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "credential-repo-sync-flood"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2546,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "client-callback-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2542,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "protobuf-field-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2541,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "shard-pool-collapse"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2536,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "null-offset-corruption"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2533,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "unicode-metadata-scheduler-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2530,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "handle-normalization-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "selected_core",
+      "episode_id": 2528,
+      "reason": "selected by frozen initial corpus",
+      "scenario_name": "cassandra-connectivity-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2527,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "cnab-runtime-incompatibility"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2525,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "metadata-growth-timeout"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2523,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "false-credential-warning-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2522,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "onboarding-access-redirect"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2519,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "catalog-replica-staleness"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2513,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "silence-pipeline-cascade"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2512,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "tls-library-fleet-exposure"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2507,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "metadata-memory-pressure"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2506,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "deserialization-regression"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2505,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "replay-clock-drift"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2501,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "shard-partitioner-oom-cell"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2500,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "flask-migration-console-errors"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2499,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "route-exclusion-mismatch"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2497,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "pool-routing-exhaustion"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2495,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "quota-lock-cascade"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2492,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "feature-flag-rollout-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2487,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "transition-consumer-lag"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2479,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "workspace-init-stall"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2473,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "flag-schema-migration"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2465,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "edge-pipeline-outage"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2455,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "lookup-miss-spike"
+    },
+    {
+      "catalog_section": "Log/trace-led future candidates",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2100,
+      "reason": "retained in source-screened catalog; not selected from log/trace-led future candidates",
+      "scenario_name": "order-policy-flag-deletion"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2578,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "shard-query-saturation"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2586,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "trace-sampling-drift"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2657,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "sketch-double-count"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2156,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "delete-order-race"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2078,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "quantile-merge-cardinality"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2033,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "catalog-snapshot-overrun"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 2029,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "mortar-lock-race-condition"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 1988,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "stale-grpc-connections"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 1980,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "premature-cache-invalidation"
+    },
+    {
+      "catalog_section": "Excluded or repair-required",
+      "decision": "not_selected_initial_corpus",
+      "episode_id": 1972,
+      "reason": "retained in source-screened catalog; not selected from excluded or repair-required",
+      "scenario_name": "merle-koutris-deployment-failure"
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,364 @@
+{
+  "dataset": {
+    "membership_hash": "fbfdb027aecf3ba98b05eb5df0830a2b383b8c70d9045ab5c5be6bdee0477dd5",
+    "name": "global_1hz_outcome_blind_v1",
+    "scenario_store_dataset_id": null,
+    "status": "membership_selected_not_executed"
+  },
+  "derivative_corpus": {
+    "compiler_config_sha256": "4bd0f0eee962fac3d36ebf7c6b4c588ffcf4210a00cf0c49d6715e619b21c942",
+    "compiler_module_sha256": "181409367423deb00ca678d38883ceacbd835a152a4a60ac82edf4371f60e94f",
+    "compiler_revision": "3958ecab98ec3ca4672488d6fd00c02b129cbf65+working-tree-derivative-v2",
+    "compiler_version": "global-1hz-execution-derivative-v1",
+    "local_path": "/Users/ella.taira/episode-bundles/global-1hz-execution-derivatives-v2",
+    "manifest_sha256": "bf6a2e852e09abe047324e77f0cf3b93093e29c1d503f71acc9e62d81837b2b5",
+    "pair_count": 15,
+    "pair_validation": "all_normalized_pairs_differ_only_at_resolution_toggle",
+    "per_scenario_change_notes": "episodes/<episode-id>/change-notes.json",
+    "human_change_ledger": "src/controller/campaigns/global-1hz-derivative-change-ledger-v2.md",
+    "one_pair_preflight_manifest": "src/controller/campaigns/global-1hz-one-pair-preflight.yaml",
+    "one_pair_preflight_status": "workspace_preflight_passed_41_checks_zero_attempts_no_extraction",
+    "one_pair_runtime_manifest": "src/controller/campaigns/global-1hz-one-pair-runtime.yaml",
+    "one_pair_runtime_manifest_sha256": "105edf12648d59bf6a2e8cf5553b341ea50b6a3484cdc123d77065ec69aed96e",
+    "one_pair_runtime_status": "workspace_preflight_passed_41_checks_zero_attempts_ready_for_plan_freeze_not_executed",
+    "one_pair_runtime_preflight_evidence": {
+      "campaign_sha256": "ad9c62547d9cb3444efdad4f8243094017e287fcfaf78e76d1ad434b64cda9b6",
+      "controller_commit": "ef6049d6cbe7ac96fa85eff7fd22cfec924037d9",
+      "corpus_sha256": "bf6a2e852e09abe047324e77f0cf3b93093e29c1d503f71acc9e62d81837b2b5",
+      "local_path": "/Users/ella.taira/episode-campaign-evidence/runtime-preflight-2483-20260826T192942Z",
+      "manifest_sha256": "105edf12648d59bf6a2e8cf5553b341ea50b6a3484cdc123d77065ec69aed96e",
+      "preflight_sha256": "01ee69a9a8c62e6750c7b537558baae9ce9293c3de742e617d4670310693ebd4",
+      "workspace_path": "/home/bits/episode-campaign-evidence/runtime-preflight-2483-20260826T192942Z"
+    },
+    "one_pair_preflight_evidence": {
+      "campaign_sha256": "d6dd9d89832305fb2a5b3a423461abb42a3f70606985b453d71c395bf09c91b2",
+      "corpus_sha256": "bf6a2e852e09abe047324e77f0cf3b93093e29c1d503f71acc9e62d81837b2b5",
+      "local_path": "/Users/ella.taira/episode-campaign-evidence/preflight-2483-20260826T181650Z",
+      "manifest_sha256": "0ad11e65a33911e6f89f3dee2b067b42cb23701cedcdd562a3b29e4220e45d2b",
+      "preflight_sha256": "60bf6bdfec0312a9695b112efa080d7bc388adcef35a8df7175bbea273d540bc",
+      "workspace_path": "/home/bits/episode-campaign-evidence/preflight-2483-20260826T181650Z"
+    },
+    "two_scenario_runtime_manifest": "src/controller/campaigns/global-1hz-two-scenario-runtime.yaml",
+    "two_scenario_runtime_manifest_sha256": "d3e01e6658d260775cf35d9512315d9923335a208ce9a2f0263bea2cbc6fa2d2",
+    "two_scenario_runtime_order": [
+      "2483/arm-a",
+      "2483/arm-b",
+      "2563/arm-a",
+      "2563/arm-b"
+    ],
+    "two_scenario_runtime_status": "workspace_preflight_passed_41_checks_zero_attempts_ready_for_plan_freeze_not_executed",
+    "two_scenario_runtime_preflight_evidence": {
+      "campaign_sha256": "57ee2e48206be9e18446f5ced6e74b784f74ee64d60ab5ff49421309ee72a1aa",
+      "controller_commit": "909322e1168462f7d0293031d7bcd5df2d5240bb",
+      "corpus_sha256": "bf6a2e852e09abe047324e77f0cf3b93093e29c1d503f71acc9e62d81837b2b5",
+      "local_path": "/Users/ella.taira/episode-campaign-evidence/runtime-preflight-2483-2563-20260826T194402Z",
+      "manifest_sha256": "d3e01e6658d260775cf35d9512315d9923335a208ce9a2f0263bea2cbc6fa2d2",
+      "preflight_sha256": "0d6d14d35c1f72b861f3fcf0b1ca852512043c50ce6b0b61b7965471432416a4",
+      "workspace_path": "/home/bits/episode-campaign-evidence/runtime-preflight-2483-2563-20260826T194402Z"
+    },
+    "repository_change_ledger": "src/controller/campaigns/global-1hz-derivative-change-ledger-v2.json",
+    "private_arm_map": "stored_separately_mode_0600",
+    "protected_inputs": "services/**, episodes/**, and scenario.yaml byte-and-mode identical",
+    "source_manifest_sha256": "dec5db3cc2ce8ab69bcd1e7819f678d98c7894b2a58a4b630cecb7734c15c3cb",
+    "status": "two_scenario_logged_pilot_workspace_preflight_passed_not_executed"
+  },
+  "documentation": {
+    "archived_predecessor": "docs/dev/archive/gensim-global-1hz/2026-08-25/gensim-global-1hz-dataset-manifest.json",
+    "role": "active_outcome_blind_dataset_plan"
+  },
+  "scenarios": [
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "not_run",
+      "episode_id": 2467,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "cold-cache-stampede",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 7229440,
+        "archive_key": "schema-v1/gensim/episodes/pylae-cold-cache-stampede-eu--cold-cache-stampede/app-bundles/3/archive.tar",
+        "archive_sha256": "fb92013fae5f88708cea0885a92177c8fbf8b4d0eceb727e204fa05ade74b5e1",
+        "canonical_episode_path": "episodes/cold-cache-stampede.yaml",
+        "canonical_episode_sha256": "d1b6738e6fe0a6e3e12d67fb405929d3b68f778d3586860e146dd025d6e391db",
+        "episode_id": 2467,
+        "manifest_sha256": "d79abf0b7d850ebe4d76c19806593ad8254ed00435703d39ccfdcf80405f2e86"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "not_run",
+      "episode_id": 2481,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "stack-parser-backtracking",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 7761920,
+        "archive_key": "schema-v1/gensim/episodes/rum-processing-lag-regex-backtracking--regex-backtracking/app-bundles/3/archive.tar",
+        "archive_sha256": "24537e723a24271437f03317032433d6429d4b3ac94182204eaa24e18131880c",
+        "canonical_episode_path": "episodes/stack-parser-backtracking.yaml",
+        "canonical_episode_sha256": "54910e2ae2a2b3734edb7f48b8991f02e8af8f94a6ff130f29d79d639a1b97c5",
+        "episode_id": 2481,
+        "manifest_sha256": "86b9400b48f53fd1cde8e8f03a1f6ceb6c370ce61c8b60c0cb2628eca0727b63"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "passed_nonconfirmatory_mandatory_1hz_capability",
+      "episode_id": 2483,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "serialization-regression",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 6338560,
+        "archive_key": "schema-v1/gensim/episodes/events-pipeline-serialization-fault-ir14582--main/app-bundles/3/archive.tar",
+        "archive_sha256": "43f6bd6df078626704d6e8922dbd11eba5c77163121f058d90bea999ae26481d",
+        "canonical_episode_path": "episodes/serialization-regression.yaml",
+        "canonical_episode_sha256": "5a53ecc5cd31e6604ff7513598b99ab81ea7ad15ad405d4f024916268828e165",
+        "episode_id": 2483,
+        "manifest_sha256": "4a56299a42aaacda175660d24c6b4b291f2de941f3c3b37dc69921468d891083"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "not_run",
+      "episode_id": 2498,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "nla-drain-rebalance-storm",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2437120,
+        "archive_key": "schema-v1/gensim/episodes/ctx-rewriter-nla-drain-sticky-assignor--nla-drain-sticky-assignor/app-bundles/1/archive.tar",
+        "archive_sha256": "f9bfbb47511302ae2a27480e29ed82d354e82f9caf30284d2069a2b16abddc09",
+        "canonical_episode_path": "episodes/nla-drain-rebalance-storm.yaml",
+        "canonical_episode_sha256": "3b667824f2647828cde10d6b9eb778ab6a83b68c42dbe071a909b3a55f20631b",
+        "episode_id": 2498,
+        "manifest_sha256": "a2389a2260b04d14674294cabda6b52c3b940296b0a4be2fe07542153b2a96ba"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "not_run",
+      "episode_id": 2563,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "broker-replication-overload",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 3399680,
+        "archive_key": "schema-v1/gensim/episodes/kafka-apm-spans-3949-overload-ap1--main/app-bundles/1/archive.tar",
+        "archive_sha256": "575042fe624e8efcf4b03900f78233d124d864f41faabdcd69d27b5ada9d4453",
+        "canonical_episode_path": "episodes/broker-replication-overload.yaml",
+        "canonical_episode_sha256": "2328d2ead6c6209e7c6659483a86864cf8b16b853026fb2305a54e74f34330b6",
+        "episode_id": 2563,
+        "manifest_sha256": "5caf0a85f6930ab7a0b0209b2e3126a145a0ca78a681fc7aed6a0df62b63e7a9"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "not_run",
+      "episode_id": 2590,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "empty-metric-zero-fill",
+      "source_pin": {
+        "app_bundle_version": 5,
+        "archive_bytes": 2324480,
+        "archive_key": "schema-v1/gensim/episodes/azure-metric-discrepancy-ir22837--empty-feed-zero-fill/app-bundles/5/archive.tar",
+        "archive_sha256": "b1615aa3fdf01fd8e257c476a8dd8450e98db2fe3118c50fe961fb662c2e589f",
+        "canonical_episode_path": "episodes/empty-metric-zero-fill.yaml",
+        "canonical_episode_sha256": "45d1c4566de2401d8e32ee3cc743f2563c9e042f83af1b7927ceca123c72cf98",
+        "episode_id": 2590,
+        "manifest_sha256": "fcab0819b7d1fe4be01336f8176956c4dc1cabaaba4beba7e82a14513e767bb0"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "capability_status": "not_run",
+      "episode_id": 2592,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "audit-logger-config-gap",
+      "source_pin": {
+        "app_bundle_version": 5,
+        "archive_bytes": 2621440,
+        "archive_key": "schema-v1/gensim/episodes/91c154e8-74f3-5994-9d04-0810c521e5be--activity-tracker-singleton-bootstrap-failure/app-bundles/5/archive.tar",
+        "archive_sha256": "9336b9a12e30b97b7da434db97447ee046fbb1d609e2af95c0b72969dd7b31c6",
+        "canonical_episode_path": "episodes/audit-logger-config-gap.yaml",
+        "canonical_episode_sha256": "8861b89e441e7618621ef0362e6bb08d525819f0e318fbf84f2e61f2e93d4024",
+        "episode_id": 2592,
+        "manifest_sha256": "9e6648daa60a21defea2381fc06e635d89ab2aadc2a469b9d270e8c9cc3b6f8d"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "capability_status": "not_run",
+      "episode_id": 2502,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "workflow-history-stall",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2201600,
+        "archive_key": "schema-v1/gensim/episodes/codesync-temporal-history-overflow--temporal-history-overflow/app-bundles/1/archive.tar",
+        "archive_sha256": "de471e1e17f97bada54e82461a3d39d1d5ade43136106ad582155591f9ebd497",
+        "canonical_episode_path": "episodes/workflow-history-stall.yaml",
+        "canonical_episode_sha256": "ee4f116c368f5f08f82109422e73089777b7720da9fc05ee2c217e22d90229e2",
+        "episode_id": 2502,
+        "manifest_sha256": "85a1268f69ef443531d031395d4be3e3323a03fd85e5294b8a25a7a7c63374f5"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "capability_status": "not_run",
+      "episode_id": 2643,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "scanner-native-memory-oom",
+      "source_pin": {
+        "app_bundle_version": 2,
+        "archive_bytes": 3143680,
+        "archive_key": "schema-v1/gensim/episodes/native-memory-oom-sds-scanner-proliferation--tenant-rollout-saturation/app-bundles/2/archive.tar",
+        "archive_sha256": "1c73e2cc7048f5d98c087d8bc1ef7ec6ae2b623e60cd67223c71aaa933d39acc",
+        "canonical_episode_path": "episodes/scanner-native-memory-oom.yaml",
+        "canonical_episode_sha256": "d7055aa908da79ff9b6f2bc6aa135b747daddeef07455f45902bdce5abaffdf1",
+        "episode_id": 2643,
+        "manifest_sha256": "e9cf09ea4bd83171bb518fbd45299d11fec42e5434988e4ee92ebf6e00e67bfb"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "capability_status": "not_run",
+      "episode_id": 2666,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "compliance-query-outage",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2375680,
+        "archive_key": "schema-v1/gensim/episodes/9b26409f-5cff-5c09-9e14-97f3a6965824--segment-compactor-overload/app-bundles/1/archive.tar",
+        "archive_sha256": "333aeacea76c380c71fa912886e56b33dfb6ad8ffd2734605e92cc2d82e14256",
+        "canonical_episode_path": "episodes/compliance-query-outage.yaml",
+        "canonical_episode_sha256": "c782b6c342973f1c62ce030cd9ecda43ee6425efba56a0017b7be0295d81e757",
+        "episode_id": 2666,
+        "manifest_sha256": "954d9b836b5a4ce032b6d437c1aa6b73fb1a404019c5c58fc46580657ff9e890"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "capability_status": "not_run",
+      "episode_id": 2574,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "fts-segment-corruption",
+      "source_pin": {
+        "app_bundle_version": 4,
+        "archive_bytes": 3061760,
+        "archive_key": "schema-v1/gensim/episodes/husky-fts-segment-corruption--fts-segment-corruption/app-bundles/4/archive.tar",
+        "archive_sha256": "c34b8426f9c54645220b3ad61a3018de5327723b3b39ee277ec34a1ae7998baa",
+        "canonical_episode_path": "episodes/fts-segment-corruption.yaml",
+        "canonical_episode_sha256": "49dc88c89fa3e45e35c10b8c41a47192dc7deb9481fdafc96f7a35b1387752a3",
+        "episode_id": 2574,
+        "manifest_sha256": "ba4b609e37f60997257361c2c69ea8c79302b6f6aae1a50e6fc1a5581a83f64c"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "capability_status": "not_run",
+      "episode_id": 2597,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "distributed-login-failures",
+      "source_pin": {
+        "app_bundle_version": 5,
+        "archive_bytes": 2437120,
+        "archive_key": "schema-v1/gensim/episodes/credential-stuffing-login-attack-us1--credential-stuffing-spike/app-bundles/5/archive.tar",
+        "archive_sha256": "bb5a7ad9e41e1ae9e0712ba5afa1115ff7b62632253eb92462748cba978a6b56",
+        "canonical_episode_path": "episodes/distributed-login-failures.yaml",
+        "canonical_episode_sha256": "d04a5494193b33881ab79ad4f1b473640cddae2060af3dc23c37b4ba4916f559",
+        "episode_id": 2597,
+        "manifest_sha256": "9801957c6b3e5b34cb3b60e85e89329434c88fe29b73d9e67dc8f0b928fb334d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "capability_status": "not_run",
+      "episode_id": 2497,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "pool-routing-exhaustion",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2846720,
+        "archive_key": "schema-v1/gensim/episodes/dogweb-pgbouncer-misconfig-us3--misconfig-extract-on-active-replica/app-bundles/1/archive.tar",
+        "archive_sha256": "a4504a5dd48a4709296134dc0107cf217a4d6b74c46aae021523ee56d8a89f1f",
+        "canonical_episode_path": "episodes/pool-routing-exhaustion.yaml",
+        "canonical_episode_sha256": "1c4aaeca8b3e9ac3ab5089011687048a6b523e66ccf26650a958c8d832ec7c37",
+        "episode_id": 2497,
+        "manifest_sha256": "223ea53b772ebd8a403af5cedefd90ba3e0ad584fe449aeec0724c2f01953b3d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "capability_status": "not_run",
+      "episode_id": 2500,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "flask-migration-console-errors",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2099200,
+        "archive_key": "schema-v1/gensim/episodes/mcnulty-flask-migration-500-errors--main/app-bundles/1/archive.tar",
+        "archive_sha256": "7b1b5f70d33adfe683d8ba5a4a75a9c78c003f2de2087e37df7c52d971eb011d",
+        "canonical_episode_path": "episodes/flask-migration-console-errors.yaml",
+        "canonical_episode_sha256": "641003729f0105d8c1d6d064d16ba0395630f9205e24604dc8bfa7516f403891",
+        "episode_id": 2500,
+        "manifest_sha256": "ae2b6fcbd7b828c9a985c0b26ee85463927e7b76c20114876d981bef84e32a14"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "capability_status": "not_run",
+      "episode_id": 2601,
+      "execution_status": "not_run",
+      "observed_outcome": null,
+      "scenario_name": "cloud-control-cascade",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 3256320,
+        "archive_key": "schema-v1/gensim/episodes/azure-arm-outage-cascading-failure-24761--control-plane-circuit-outage/app-bundles/3/archive.tar",
+        "archive_sha256": "b05994e4eb575f78be8877831d79871e8a60ac0e91ed6247313442414f908dc7",
+        "canonical_episode_path": "episodes/cloud-control-cascade.yaml",
+        "canonical_episode_sha256": "d7463aedc558837f6fcf16d969fb57c89b924a0380ff28e8fd03c28c24e792a8",
+        "episode_id": 2601,
+        "manifest_sha256": "12c16f2360bfc25c4cc9044dd88ee793c980a052958ddb13590b90df8d0e1d1b"
+      }
+    }
+  ],
+  "schema_version": 2,
+  "score_policy": {
+    "duration_cohort": "assigned_from_observed_decisive_metric_trajectory_not_selection_expectation",
+    "membership_frozen_before_treatment_outcomes": true,
+    "report_separately": [
+      "resolution_exposed_effectiveness",
+      "complete_panel_operational_utility",
+      "neutral_mixed_and_irrelevant_safety"
+    ],
+    "same_event_15_second_counterfactual": "post_capture_analysis_not_admission"
+  },
+  "selection": {
+    "admitted_population": 88,
+    "composition": {
+      "metric_neutral": 3,
+      "mixed_secondary": 2,
+      "resolution_exposed": 7,
+      "resolution_irrelevant": 3
+    },
+    "score_panel_count": 15,
+    "selection_uses_observed_outcomes": false,
+    "source_population": 96
+  }
+}

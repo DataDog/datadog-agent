@@ -1,0 +1,618 @@
+{
+  "admission_policy": {
+    "explicit_non_gates": [
+      "observed positive 1 Hz effect",
+      "pre-existing one-second versus fifteen-second counterfactual",
+      "pre-existing RCA score improvement",
+      "short or fleeting incident duration",
+      "scenario.yaml.rca_causal_chain compatibility with the separate campaign archiver"
+    ],
+    "required": [
+      "archived GS Admin episode with latest causalgen.gates=passed bundle",
+      "not tagged causalgen.do-not-use=true",
+      "runnable canonical episode YAML and objective ground truth",
+      "source-screened telemetry class"
+    ]
+  },
+  "capability_reference": {
+    "eligible_agent_owned_calls": 2,
+    "episode_id": 2483,
+    "evidence": "/Users/ella.taira/episode-bundles/1hz-runs/episode-2483-1hz-20260816-164841-derivatives/bits-capability-e2e-v2-verification.json",
+    "points_per_eligible_call": 900,
+    "scope": "plumbing_and_retrieval_capability_not_treatment_effect",
+    "spacing_ms": 1000,
+    "status": "passed_nonconfirmatory_mandatory_1hz_capability",
+    "structural_gaps": 0
+  },
+  "composition": {
+    "metric_neutral": 4,
+    "mixed_secondary": 3,
+    "resolution_exposed": 5,
+    "resolution_irrelevant": 3
+  },
+  "documentation": {
+    "archived_predecessor": "docs/dev/archive/gensim-global-1hz/2026-08-25/gensim-global-1hz-corpus-freeze.json",
+    "classification_baseline": "docs/dev/gensim-global-1hz-classification-baseline.json",
+    "classification_baseline_sha256": "d0f297f5a6ebb364cd764cc03715a97d52262408cc055f085f89cb8c98bd4524",
+    "governing_campaign_contract": "docs/dev/gensim-global-1hz-episode-ctl-campaign-plan.md",
+    "governing_design": "docs/dev/gensim-global-1hz-scaled-experiment-plan.md",
+    "role": "active_outcome_blind_readiness_input"
+  },
+  "experiment_version": "global_1hz_outcome_blind_v1",
+  "freeze": {
+    "content_sha256": "ca74de0a531389c5ad0ee051ab1222a40b6cf922bd7eaee7c4dbfbbe3185b59c",
+    "owner_approval_status": "pending"
+  },
+  "inventory": {
+    "admitted_class_counts": {
+      "metric_neutral": 3,
+      "mixed_secondary": 2,
+      "resolution_exposed": 7,
+      "resolution_irrelevant": 76
+    },
+    "admitted_count": 88,
+    "archived_episode_count": 241,
+    "blocked_count": 8,
+    "do_not_use_latest_bundle_count": 1,
+    "gs_admin": "https://gs-admin.us1.staging.dog",
+    "latest_bundle_count": 241,
+    "other_latest_bundle_count": 2,
+    "passed_latest_bundle_count": 96,
+    "query": "causalgen.state=archived",
+    "snapshot_sha256": "97177cddd5d3c66721eec5ae14d0648207f661287f326492226cb48f9b354539",
+    "soft_pass_latest_bundle_count": 142,
+    "source_screened_count": 96
+  },
+  "judge_calibration": {
+    "admission_impact": "none_source_admission_is_outcome_blind",
+    "artifact": "docs/dev/gensim-global-1hz-judge-calibration-cases.json",
+    "cases_complete": false,
+    "evidence_sha256": null,
+    "execution_readiness_impact": "blocking",
+    "missing_episode_ids": [
+      2574,
+      2497,
+      2500,
+      2601
+    ],
+    "status": "pending_current_panel_cases"
+  },
+  "replacement_policy": {
+    "allowed_failure_classes": [
+      "pre_disruption_infrastructure_failure",
+      "capture_invalid_due_to_preregistered_platform_or_telemetry_failure"
+    ],
+    "arm_blind_decision_required": true,
+    "completed_semantic_results_are_replaceable": false,
+    "null_negative_or_regressive_results_are_retained": true
+  },
+  "reserves": [
+    {
+      "admission_class": "resolution_irrelevant",
+      "episode_id": 2473,
+      "scenario_name": "flag-schema-migration",
+      "selection": "next_sha256_ranked_resolution_irrelevant_source"
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "episode_id": 2479,
+      "scenario_name": "workspace-init-stall",
+      "selection": "next_sha256_ranked_resolution_irrelevant_source"
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "episode_id": 2487,
+      "scenario_name": "transition-consumer-lag",
+      "selection": "next_sha256_ranked_resolution_irrelevant_source"
+    }
+  ],
+  "schema_version": 2,
+  "score_panel": [
+    {
+      "admission_class": "resolution_exposed",
+      "app_name": "mobile-analytics-pipeline",
+      "capability_status": "not_run",
+      "classification_evidence": "Agent-owned recurring `container.cpu.user` metric.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2481,
+      "ground_truth_summary": "JVM stack frame parser regex backtracking causes Kafka consumer stall, reducing downstream event store writes and query-api freshness.",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER consumer_lag\").index(\"*\").rollup(\"count\").last(\"5m\") > 3",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):avg:container.cpu.user{service:stack-frame-processor,env:ENV_PLACEHOLDER} > 250000000",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):avg:container.cpu.user{service:stack-frame-processor,env:ENV_PLACEHOLDER} > 900000000",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "stack-parser-backtracking",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 7761920,
+        "archive_key": "schema-v1/gensim/episodes/rum-processing-lag-regex-backtracking--regex-backtracking/app-bundles/3/archive.tar",
+        "archive_sha256": "24537e723a24271437f03317032433d6429d4b3ac94182204eaa24e18131880c",
+        "canonical_episode_path": "episodes/stack-parser-backtracking.yaml",
+        "canonical_episode_sha256": "54910e2ae2a2b3734edb7f48b8991f02e8af8f94a6ff130f29d79d639a1b97c5",
+        "episode_id": 2481,
+        "manifest_sha256": "86b9400b48f53fd1cde8e8f03a1f6ceb6c370ce61c8b60c0cb2628eca0727b63"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "app_name": "events-notification-pipeline",
+      "capability_status": "passed_nonconfirmatory_mandatory_1hz_capability",
+      "classification_evidence": "Non-timestamped DogStatsD counts in event-transformer and notification-router.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2483,
+      "ground_truth_summary": "Email-handle event notifications drop after a datetime field serialization regression in the event transformer",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "sum(last_1m):sum:notification_router.job.enqueue.hits{service:notification-router,channel:email,env:ENV_PLACEHOLDER}.as_count() < 3",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "sum(last_1m):sum:event_transformer.payload.encode.exceptions{service:event-transformer,env:ENV_PLACEHOLDER}.as_count() > 2",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "serialization-regression",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 6338560,
+        "archive_key": "schema-v1/gensim/episodes/events-pipeline-serialization-fault-ir14582--main/app-bundles/3/archive.tar",
+        "archive_sha256": "43f6bd6df078626704d6e8922dbd11eba5c77163121f058d90bea999ae26481d",
+        "canonical_episode_path": "episodes/serialization-regression.yaml",
+        "canonical_episode_sha256": "5a53ecc5cd31e6604ff7513598b99ab81ea7ad15ad405d4f024916268828e165",
+        "episode_id": 2483,
+        "manifest_sha256": "4a56299a42aaacda175660d24c6b4b291f2de941f3c3b37dc69921468d891083"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "app_name": "metric-context-pipeline",
+      "capability_status": "not_run",
+      "classification_evidence": "Non-timestamped DogStatsD gauges in context-rewriter services.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2498,
+      "ground_truth_summary": "Node drain evicts co-located context rewriters, triggering consumer rebalance storm and monitor evaluation suppression",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "avg(last_5m):max:kafka.consumer.lag_seconds{consumer_group:context-rewriter-cache,env:ENV_PLACEHOLDER} > 120",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):avg:mork.intake.unresolved_contexts{env:ENV_PLACEHOLDER} > 1200",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "nla-drain-rebalance-storm",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2437120,
+        "archive_key": "schema-v1/gensim/episodes/ctx-rewriter-nla-drain-sticky-assignor--nla-drain-sticky-assignor/app-bundles/1/archive.tar",
+        "archive_sha256": "f9bfbb47511302ae2a27480e29ed82d354e82f9caf30284d2069a2b16abddc09",
+        "canonical_episode_path": "episodes/nla-drain-rebalance-storm.yaml",
+        "canonical_episode_sha256": "3b667824f2647828cde10d6b9eb778ab6a83b68c42dbe071a909b3a55f20631b",
+        "episode_id": 2498,
+        "manifest_sha256": "a2389a2260b04d14674294cabda6b52c3b940296b0a4be2fe07542153b2a96ba"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "app_name": "cloud-metric-pipeline",
+      "capability_status": "not_run",
+      "classification_evidence": "Each empty series emits a non-timestamped DogStatsD count; one-second aggregation preserves the burst as a one-second pulse instead of a 10-second rate bucket.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2590,
+      "ground_truth_summary": "Vendor deployment regression increases empty metric batch responses; collector zero-fill at off-grid timestamps prevents backfill override, causing customer metric dips.",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:cloud-metrics-collector zero_fill_applied\").index(\"*\").rollup(\"count\").last(\"5m\") > 1",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "sum(last_5m):sum:dd.crawler.vendor_insights.batch_api.metrics.empty{env:ENV_PLACEHOLDER}.as_count() > 2",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "empty-metric-zero-fill",
+      "source_pin": {
+        "app_bundle_version": 5,
+        "archive_bytes": 2324480,
+        "archive_key": "schema-v1/gensim/episodes/azure-metric-discrepancy-ir22837--empty-feed-zero-fill/app-bundles/5/archive.tar",
+        "archive_sha256": "b1615aa3fdf01fd8e257c476a8dd8450e98db2fe3118c50fe961fb662c2e589f",
+        "canonical_episode_path": "episodes/empty-metric-zero-fill.yaml",
+        "canonical_episode_sha256": "45d1c4566de2401d8e32ee3cc743f2563c9e042f83af1b7927ceca123c72cf98",
+        "episode_id": 2590,
+        "manifest_sha256": "fcab0819b7d1fe4be01336f8176956c4dc1cabaaba4beba7e82a14513e767bb0"
+      }
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "app_name": "portal-logistics-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "Failed audit enqueues and generated notifications are event-driven DogStatsD counters whose timing gap can be preserved in one-second buckets.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2592,
+      "ground_truth_summary": "Exported audit logger depends on uninitialized config client in partial regional rollout, silently dropping audit events and security notifications",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "sum(last_5m):sum:portal_gateway.audit.queue_event.fail{env:ENV_PLACEHOLDER}.as_count() > 3",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": null,
+          "query": "sum(last_5m):sum:security_alert_engine.notifications.generated{env:ENV_PLACEHOLDER}.as_count() < 8",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "audit-logger-config-gap",
+      "source_pin": {
+        "app_bundle_version": 5,
+        "archive_bytes": 2621440,
+        "archive_key": "schema-v1/gensim/episodes/91c154e8-74f3-5994-9d04-0810c521e5be--activity-tracker-singleton-bootstrap-failure/app-bundles/5/archive.tar",
+        "archive_sha256": "9336b9a12e30b97b7da434db97447ee046fbb1d609e2af95c0b72969dd7b31c6",
+        "canonical_episode_path": "episodes/audit-logger-config-gap.yaml",
+        "canonical_episode_sha256": "8861b89e441e7618621ef0362e6bb08d525819f0e318fbf84f2e61f2e93d4024",
+        "episode_id": 2592,
+        "manifest_sha256": "9e6648daa60a21defea2381fc06e635d89ab2aadc2a469b9d270e8c9cc3b6f8d"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "app_name": "reposync-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "Non-timestamped DogStatsD count; durable workflow stall makes it neutral.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2502,
+      "ground_truth_summary": "Long-lived RepoSync workflow history prevents replay after worker reassignment, stalling mirror pipelines",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "sum(last_1m):sum:mirror_destination.pipeline.trigger.count{env:ENV_PLACEHOLDER}.as_count() < 2",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "workflow-history-stall",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2201600,
+        "archive_key": "schema-v1/gensim/episodes/codesync-temporal-history-overflow--temporal-history-overflow/app-bundles/1/archive.tar",
+        "archive_sha256": "de471e1e17f97bada54e82461a3d39d1d5ade43136106ad582155591f9ebd497",
+        "canonical_episode_path": "episodes/workflow-history-stall.yaml",
+        "canonical_episode_sha256": "ee4f116c368f5f08f82109422e73089777b7720da9fc05ee2c217e22d90229e2",
+        "episode_id": 2502,
+        "manifest_sha256": "85a1268f69ef443531d031395d4be3e3323a03fd85e5294b8a25a7a7c63374f5"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "app_name": "span-ingest-pipeline",
+      "capability_status": "not_run",
+      "classification_evidence": "Causal broker gauges are emitted together every 10 seconds; 1 Hz improves timestamp precision but adds no source samples or ordering evidence.",
+      "disruption_duration_seconds": 720.0,
+      "episode_id": 2563,
+      "ground_truth_summary": "Broker node rotation on compact instances triggers replication overload, handler thread exhaustion, and span consumer lag",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:telemetry-ingest-fetcher ConsumerLagHigh\").index(\"*\").rollup(\"count\").last(\"5m\") > 2",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):avg:kafka.request.handler.avg.idle.pct.rate{service:message-broker-core,env:ENV_PLACEHOLDER} < 15",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "broker-replication-overload",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 3399680,
+        "archive_key": "schema-v1/gensim/episodes/kafka-apm-spans-3949-overload-ap1--main/app-bundles/1/archive.tar",
+        "archive_sha256": "575042fe624e8efcf4b03900f78233d124d864f41faabdcd69d27b5ada9d4453",
+        "canonical_episode_path": "episodes/broker-replication-overload.yaml",
+        "canonical_episode_sha256": "2328d2ead6c6209e7c6659483a86864cf8b16b853026fb2305a54e74f34330b6",
+        "episode_id": 2563,
+        "manifest_sha256": "5caf0a85f6930ab7a0b0209b2e3126a145a0ca78a681fc7aed6a0df62b63e7a9"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "app_name": "stream-processing-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "Producer emits a DogStatsD gauge on a fixed 10-second ticker; neutral only.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2643,
+      "ground_truth_summary": "Freemium scanner rollout causes native memory growth, processing instability, and stream-shard consumer lag",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "avg(last_1m):avg:kafka.consumer_lag{env:ENV_PLACEHOLDER,consumer_group:stream-shard} > 40",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "scanner-native-memory-oom",
+      "source_pin": {
+        "app_bundle_version": 2,
+        "archive_bytes": 3143680,
+        "archive_key": "schema-v1/gensim/episodes/native-memory-oom-sds-scanner-proliferation--tenant-rollout-saturation/app-bundles/2/archive.tar",
+        "archive_sha256": "1c73e2cc7048f5d98c087d8bc1ef7ec6ae2b623e60cd67223c71aaa933d39acc",
+        "canonical_episode_path": "episodes/scanner-native-memory-oom.yaml",
+        "canonical_episode_sha256": "d7055aa908da79ff9b6f2bc6aa135b747daddeef07455f45902bdce5abaffdf1",
+        "episode_id": 2643,
+        "manifest_sha256": "e9cf09ea4bd83171bb518fbd45299d11fec42e5434988e4ee92ebf6e00e67bfb"
+      }
+    },
+    {
+      "admission_class": "metric_neutral",
+      "app_name": "compliance-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "Compactor gauge is emitted on a fixed 30-second ticker; neutral only.",
+      "disruption_duration_seconds": 720.0,
+      "episode_id": 2666,
+      "ground_truth_summary": "Segment writer default table config produces oversized auditfinding fragments, overwhelming compaction and causing compliance API HTTP 500 errors",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "avg(last_5m):avg:segment.compactor.pending_fragments{service:segment-compactor,env:ENV_PLACEHOLDER,track:auditfinding} > 8",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:compliance-api compliance_query_failed\").index(\"*\").rollup(\"count\").last(\"5m\") > 3",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):avg:segment.writer.fragment_width_minutes{service:segment-writer,env:ENV_PLACEHOLDER,track:auditfinding} > 5",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):avg:segment.compactor.pending_fragments{service:segment-compactor,env:ENV_PLACEHOLDER,track:auditfinding} > 25",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "compliance-query-outage",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2375680,
+        "archive_key": "schema-v1/gensim/episodes/9b26409f-5cff-5c09-9e14-97f3a6965824--segment-compactor-overload/app-bundles/1/archive.tar",
+        "archive_sha256": "333aeacea76c380c71fa912886e56b33dfb6ad8ffd2734605e92cc2d82e14256",
+        "canonical_episode_path": "episodes/compliance-query-outage.yaml",
+        "canonical_episode_sha256": "c782b6c342973f1c62ce030cd9ecda43ee6425efba56a0017b7be0295d81e757",
+        "episode_id": 2666,
+        "manifest_sha256": "954d9b836b5a4ce032b6d437c1aa6b73fb1a404019c5c58fc46580657ff9e890"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "app_name": "regional-metrics-pipeline",
+      "capability_status": "not_run",
+      "classification_evidence": "Per-request resolver counters can gain finer DogStatsD buckets, but the monitored consumer-lag gauge is emitted every 15 seconds and no cache-miss/load metric is established.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2467,
+      "ground_truth_summary": "Cold cache stampede from new catalog indexer clusters overwhelms shared context resolution and delays stream processing",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "avg(last_5m):avg:kafka.estimated_consumer_lag{service:stream-processor,env:ENV_PLACEHOLDER} > 120",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "avg(last_5m):p95:trace.http.request{service:entity-resolver,env:ENV_PLACEHOLDER} > 0.35",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "cold-cache-stampede",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 7229440,
+        "archive_key": "schema-v1/gensim/episodes/pylae-cold-cache-stampede-eu--cold-cache-stampede/app-bundles/3/archive.tar",
+        "archive_sha256": "fb92013fae5f88708cea0885a92177c8fbf8b4d0eceb727e204fa05ade74b5e1",
+        "canonical_episode_path": "episodes/cold-cache-stampede.yaml",
+        "canonical_episode_sha256": "d1b6738e6fe0a6e3e12d67fb405929d3b68f778d3586860e146dd025d6e391db",
+        "episode_id": 2467,
+        "manifest_sha256": "d79abf0b7d850ebe4d76c19806593ad8254ed00435703d39ccfdcf80405f2e86"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "app_name": "log-search-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "Non-timestamped DogStatsD accuracy gauge, but logs and persistent corruption dominate.",
+      "disruption_duration_seconds": 720.0,
+      "episode_id": 2574,
+      "ground_truth_summary": "Corrupted full-text search segment indexes cause inaccurate query results across the log search platform",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "avg(last_5m):avg:query_engine.fts.result_accuracy{service:query-engine,env:ENV_PLACEHOLDER} < 80",
+          "type": "metric alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:parity-validator ShadowQueryMismatch\").index(\"*\").rollup(\"count\").last(\"5m\") > 25",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:routed-index-writer segment_index_mapping_invalid\").index(\"*\").rollup(\"count\").last(\"5m\") > 20",
+          "type": "log alert"
+        }
+      ],
+      "scenario_name": "fts-segment-corruption",
+      "source_pin": {
+        "app_bundle_version": 4,
+        "archive_bytes": 3061760,
+        "archive_key": "schema-v1/gensim/episodes/husky-fts-segment-corruption--fts-segment-corruption/app-bundles/4/archive.tar",
+        "archive_sha256": "c34b8426f9c54645220b3ad61a3018de5327723b3b39ee277ec34a1ae7998baa",
+        "canonical_episode_path": "episodes/fts-segment-corruption.yaml",
+        "canonical_episode_sha256": "49dc88c89fa3e45e35c10b8c41a47192dc7deb9481fdafc96f7a35b1387752a3",
+        "episode_id": 2574,
+        "manifest_sha256": "ba4b609e37f60997257361c2c69ea8c79302b6f6aae1a50e6fc1a5581a83f64c"
+      }
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "app_name": "identity-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "Non-timestamped DogStatsD count, but authentication logs dominate the investigation.",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2597,
+      "ground_truth_summary": "Distributed credential stuffing against the identity login endpoint causes elevated authentication failures while infrastructure remains healthy.",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:auth-login bad_password\").index(\"*\").rollup(\"count\").last(\"5m\") > 8",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "sum(last_5m):sum:bot.challenge.validation.count{service:bot-challenge,env:ENV_PLACEHOLDER}.as_count() > 450",
+          "type": "metric alert"
+        }
+      ],
+      "scenario_name": "distributed-login-failures",
+      "source_pin": {
+        "app_bundle_version": 5,
+        "archive_bytes": 2437120,
+        "archive_key": "schema-v1/gensim/episodes/credential-stuffing-login-attack-us1--credential-stuffing-spike/app-bundles/5/archive.tar",
+        "archive_sha256": "bb5a7ad9e41e1ae9e0712ba5afa1115ff7b62632253eb92462748cba978a6b56",
+        "canonical_episode_path": "episodes/distributed-login-failures.yaml",
+        "canonical_episode_sha256": "d04a5494193b33881ab79ad4f1b473640cddae2060af3dc23c37b4ba4916f559",
+        "episode_id": 2597,
+        "manifest_sha256": "9801957c6b3e5b34cb3b60e85e89329434c88fe29b73d9e67dc8f0b928fb334d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "app_name": "analytics-platform-db",
+      "capability_status": "not_run",
+      "classification_evidence": "logs",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2497,
+      "ground_truth_summary": "Connection pool routing misconfiguration saturates production replica during extract peak",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:portal-api ConnectionPoolExhausted\").index(\"*\").rollup(\"count\").last(\"5m\") > 8",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": null,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:pool-router pool_pressure_elevated\").index(\"*\").rollup(\"count\").last(\"5m\") > 3",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": null,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:billing-console ConnectionPoolExhausted\").index(\"*\").rollup(\"count\").last(\"5m\") > 5",
+          "type": "log alert"
+        }
+      ],
+      "scenario_name": "pool-routing-exhaustion",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2846720,
+        "archive_key": "schema-v1/gensim/episodes/dogweb-pgbouncer-misconfig-us3--misconfig-extract-on-active-replica/app-bundles/1/archive.tar",
+        "archive_sha256": "a4504a5dd48a4709296134dc0107cf217a4d6b74c46aae021523ee56d8a89f1f",
+        "canonical_episode_path": "episodes/pool-routing-exhaustion.yaml",
+        "canonical_episode_sha256": "1c4aaeca8b3e9ac3ab5089011687048a6b523e66ccf26650a958c8d832ec7c37",
+        "episode_id": 2497,
+        "manifest_sha256": "223ea53b772ebd8a403af5cedefd90ba3e0ad584fe449aeec0724c2f01953b3d"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "app_name": "alert-console-platform",
+      "capability_status": "not_run",
+      "classification_evidence": "logs",
+      "disruption_duration_seconds": 600.0,
+      "episode_id": 2500,
+      "ground_truth_summary": "Framework migration exposes invalid SPA route signature causing TypeError on rules console page",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:alert-console-api TypeError\").index(\"*\").rollup(\"count\").last(\"5m\") > 5",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": false,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:edge-gateway upstream\").index(\"*\").rollup(\"count\").last(\"5m\") > 20",
+          "type": "log alert"
+        }
+      ],
+      "scenario_name": "flask-migration-console-errors",
+      "source_pin": {
+        "app_bundle_version": 1,
+        "archive_bytes": 2099200,
+        "archive_key": "schema-v1/gensim/episodes/mcnulty-flask-migration-500-errors--main/app-bundles/1/archive.tar",
+        "archive_sha256": "7b1b5f70d33adfe683d8ba5a4a75a9c78c003f2de2087e37df7c52d971eb011d",
+        "canonical_episode_path": "episodes/flask-migration-console-errors.yaml",
+        "canonical_episode_sha256": "641003729f0105d8c1d6d064d16ba0395630f9205e24604dc8bfa7516f403891",
+        "episode_id": 2500,
+        "manifest_sha256": "ae2b6fcbd7b828c9a985c0b26ee85463927e7b76c20114876d981bef84e32a14"
+      }
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "app_name": "edge-observability-stack",
+      "capability_status": "not_run",
+      "classification_evidence": "logs",
+      "disruption_duration_seconds": 720.0,
+      "episode_id": 2601,
+      "ground_truth_summary": "Regional cloud control plane outage cascades through probe scheduling and archive uploads",
+      "monitors": [
+        {
+          "is_symptom": true,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:probe-scheduler ScheduleFailure\").index(\"*\").rollup(\"count\").last(\"5m\") > 3",
+          "type": "log alert"
+        },
+        {
+          "is_symptom": null,
+          "query": "logs(\"env:ENV_PLACEHOLDER service:log-archive-writer ArchiveUploadFailure\").index(\"*\").rollup(\"count\").last(\"5m\") > 2",
+          "type": "log alert"
+        }
+      ],
+      "scenario_name": "cloud-control-cascade",
+      "source_pin": {
+        "app_bundle_version": 3,
+        "archive_bytes": 3256320,
+        "archive_key": "schema-v1/gensim/episodes/azure-arm-outage-cascading-failure-24761--control-plane-circuit-outage/app-bundles/3/archive.tar",
+        "archive_sha256": "b05994e4eb575f78be8877831d79871e8a60ac0e91ed6247313442414f908dc7",
+        "canonical_episode_path": "episodes/cloud-control-cascade.yaml",
+        "canonical_episode_sha256": "d7463aedc558837f6fcf16d969fb57c89b924a0380ff28e8fd03c28c24e792a8",
+        "episode_id": 2601,
+        "manifest_sha256": "12c16f2360bfc25c4cc9044dd88ee793c980a052958ddb13590b90df8d0e1d1b"
+      }
+    }
+  ],
+  "score_policy": {
+    "duration_cohort": "assigned_from_observed_decisive_metric_trajectory_not_selection_expectation",
+    "membership_frozen_before_treatment_outcomes": true,
+    "report_separately": [
+      "resolution_exposed_effectiveness",
+      "complete_panel_operational_utility",
+      "neutral_mixed_and_irrelevant_safety"
+    ],
+    "same_event_15_second_counterfactual": "post_capture_analysis_not_admission"
+  },
+  "status": "source_selected_pending_capability_smokes"
+}
