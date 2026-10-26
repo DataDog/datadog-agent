@@ -92,6 +92,30 @@ established Go enrollment path still owns identity handling. A deliberate core r
 with stopped children also requires fresh AAA approval, even with a saved identity.
 No runtime revocation or core-owned recovery of ordinary child crashes is added.
 
+## COAT diagnostics
+
+The core component records `par_phone_home.state` (a gauge) and
+`par_phone_home.transitions` (a counter), with only `state` and `reason` labels.
+The gauge is one-hot: the previous pair is set to zero. The counter counts entries,
+including the initial observation and re-entry, not repeated polls or next-check changes.
+These describe startup gating only; `handed_off` is not enrollment or runtime health.
+
+The default COAT profile collects after 30 seconds and every 15 minutes while Agent
+telemetry is enabled. It sends the current gauge snapshot and counter increments since
+collection, not a time-averaged gauge or an ordered transition log. Zero gauge rows are
+excluded. Intermediate states can disappear from the snapshot but remain in the counter.
+The handoff snapshot remains available while core watches supervisor registrations.
+Supervisor replacement can produce new waiting/startup transitions; unchanged IDs do not.
+
+COAT adds `emitter` and existing host/OS metadata; version and org attribution use its
+existing transport/backend path. No new host, org, credential, URL or raw-error labels
+are added. Diagnostics use the existing Instrumentation Telemetry intake and dedicated
+COAT org, not customer DogStatsD metrics or a new org2 destination. They are best-effort:
+collection advances counter baselines before successful delivery and there is no new
+shutdown flush, retry queue or network client here. Query the latest fresh snapshot per
+host rather than summing repeated reports as distinct hosts. Custom COAT profiles must
+select these metrics explicitly; the new selection is in the default profiles only.
+
 ## Validation
 
 `dda inv test --targets=./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl,./comp/privateactionrunner/impl`
