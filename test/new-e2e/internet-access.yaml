@@ -4,6 +4,26 @@
 #         untriaged (reason not documented yet).
 # Policy: see "Avoiding external dependencies" in test/new-e2e/codereview_guideline.md.
 entries:
+- file: test/new-e2e/tests/agent-devx/pre-test/kind_test.go
+  function: TestMyKindSuite
+  status: debt
+  reason: The CI pre-test fails Helm readiness with internet disabled; retain access until its public dependencies support restricted networking.
+- file: test/new-e2e/tests/otel/otel-agent/native_histograms_test.go
+  function: TestOTelAgentNativeHistograms
+  status: debt
+  reason: Pulls public Kubernetes component and calendar workload images, like the other OTel Kind suites; mirror them internally.
+- file: test/new-e2e/tests/otel/otel-agent/infraattributes_eks_test.go
+  function: TestOTelAgentIAEKS
+  status: debt
+  reason: Restricted EKS workers fail to join and this suite uses public calendar workload images; retain access pending restricted-bootstrap and dependency fixes.
+- file: test/new-e2e/tests/otel/otel-agent/infraattributes_eks_test.go
+  function: TestOTelAgentIAUSTEKS
+  status: debt
+  reason: Restricted EKS workers fail to join and this suite uses public calendar workload images; retain access pending restricted-bootstrap and dependency fixes.
+- file: test/new-e2e/tests/ssi/provisioner.go
+  function: eksProvisioner
+  status: debt
+  reason: Restricted EKS bootstrap fails and SSI pulls public injector-dev, Operator and CSI images; retain access pending bootstrap fixes and internal mirrors.
 - file: test/new-e2e/tests/agent-health/admission_probe_test.go
   function: TestAdmissionProbeSuite
   status: debt

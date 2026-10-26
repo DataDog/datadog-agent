@@ -183,8 +183,8 @@ func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envi
 func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var runOpts []scenarioeks.RunOption
 
-	// Add a Linux node group by default.
-	runOpts = append(runOpts, scenarioeks.WithEKSOptions(scenarioeks.WithLinuxNodeGroup()))
+	// SSI requires public injector, Operator and CSI images; retain internet access until mirrored.
+	runOpts = append(runOpts, scenarioeks.WithEKSOptions(scenarioeks.WithLinuxNodeGroup(), scenarioeks.WithInternetAccess()))
 
 	if len(opts.AgentOptions) > 0 {
 		runOpts = append(runOpts, scenarioeks.WithAgentOptions(opts.AgentOptions...))
