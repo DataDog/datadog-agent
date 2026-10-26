@@ -148,6 +148,9 @@ include:
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
+      # Temporary: keep the Linux-only jemalloc test PR below the include limit.
+      - if: $CI_COMMIT_BRANCH == "me/jemalloc-pagesize"
+        when: never
       - if: $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch
@@ -542,6 +545,10 @@ variables:
 #
 workflow:
   rules:
+    # Temporary: match the Windows include exclusion for the jemalloc test PR.
+    - if: $CI_COMMIT_BRANCH == "me/jemalloc-pagesize"
+      variables:
+        SKIP_WINDOWS: "true"
     - <<: *if_scheduled_main
       variables:
         WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
