@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package phonehome implements an opt-in startup gate, not an enrollment controller.
+// Package phonehome implements a startup gate, not an enrollment controller.
 package phonehome
 
 import (
@@ -55,7 +55,7 @@ func Status() *State {
 func publish(s State) { status.Lock(); defer status.Unlock(); status.value = &s }
 
 func Enabled(cfg model.Reader) bool {
-	return runtime.GOOS != "windows" && os.Getenv("DD_PAR_PHONE_HOME_POC") == "true" && cfg.GetBool(par.Enabled)
+	return runtime.GOOS != "windows" && cfg.GetBool(par.Enabled)
 }
 
 // Run hands off at most once to the existing PAR startup path. It never retries enrollment or stops a child.

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package phonehome defines the opt-in core-owned PAR startup gate.
+// Package phonehome defines the core-owned PAR startup gate.
 package phonehome
 
 // team: action-platform
