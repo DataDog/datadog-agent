@@ -80,8 +80,10 @@ new-e2e-windows-systemprobe:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - tests_windows_sysprobe_x64
     - windows_msi_and_bosh_zip_x64-a7
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - bazel run //test/new-e2e/tests/sysprobe-functional:install_windows_testsuites -- --destdir="$CI_PROJECT_DIR/test/new-e2e/tests/sysprobe-functional/artifacts"
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-products
@@ -98,7 +100,9 @@ new-e2e-windows-security-agent:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - tests_windows_secagent_x64
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - bazel run //test/new-e2e/tests/security-agent-functional:install_windows_testsuites -- --destdir="$CI_PROJECT_DIR/test/new-e2e/tests/security-agent-functional/artifacts"
   variables:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-products

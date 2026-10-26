@@ -24,3 +24,21 @@ sh_binary(
 )
 
 template_test_suite(name = "_dd_agent_expand_template_tests")
+
+# Message compilers for windows_resources.bzl, selected on the exec platform
+alias(
+    name = "windows_message_compiler",
+    actual = select({
+        "@platforms//os:linux": "@wine_linux_x86_64//:wmc",
+        "@platforms//os:windows": "@winlibs_mingw64//:windmc",
+    }),
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "windows_message_compiler_codepages",
+    srcs = select({
+        "@platforms//os:linux": ["@wine_linux_x86_64//:nls"],
+        "//conditions:default": [],
+    }),
+)
