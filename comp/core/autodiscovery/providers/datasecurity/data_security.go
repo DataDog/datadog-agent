@@ -208,24 +208,9 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 	c.configChanges <- changes
 }
 
-// failedSubTasks lists the sub tasks that could not be built, in scan task order.
-type failedSubTasks []subTaskFailure
-
-type subTaskFailure struct {
-	SubTaskID string
-	Err       error
-}
-
-func (f failedSubTasks) Error() string {
-	parts := make([]string, 0, len(f))
-	for _, sf := range f {
-		parts = append(parts, fmt.Sprintf("failed to build sub task %q: %v", sf.SubTaskID, sf.Err))
-	}
-	return strings.Join(parts, "; ")
-}
-
-// buildCheckInstance marshals the datasecurity check instance of the sub tasks whose local connection
-// resolves; the others are returned in failed. It errors only if no sub task can run.
+// buildCheckInstance resolves the local connection for every sub task and marshals the
+// datasecurity check instance. Sub tasks whose connection cannot be resolved are returned in failed
+// rather than aborting the build; it errors only if no sub task can run.
 func (c *controller) buildCheckInstance(payload scanTaskPayload) (instance []byte, failed failedSubTasks, err error) {
 	inst := checkInstance{
 		// min_collection_interval: 0 runs the check once.
@@ -358,4 +343,20 @@ func instancePort(instance map[string]any) (int, bool) {
 		return int(v), true
 	}
 	return 0, false
+}
+
+// failedSubTasks lists the sub tasks that could not be built, in scan task order.
+type failedSubTasks []subTaskFailure
+
+type subTaskFailure struct {
+	SubTaskID string
+	Err       error
+}
+
+func (f failedSubTasks) Error() string {
+	parts := make([]string, 0, len(f))
+	for _, sf := range f {
+		parts = append(parts, fmt.Sprintf("failed to build sub task %q: %v", sf.SubTaskID, sf.Err))
+	}
+	return strings.Join(parts, "; ")
 }
