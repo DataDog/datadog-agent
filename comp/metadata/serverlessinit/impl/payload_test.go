@@ -18,7 +18,6 @@ import (
 )
 
 func TestBuildFieldsMissingValues(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "", model.SourceAgentRuntime)
 	inv := serverlessdef.CloudServiceMetadata{
@@ -45,8 +44,15 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 	assert.NotContains(t, fields, "tags")
 }
 
+func TestBuildFieldsRuntimeSettingOverridesDetection(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.metadata_runtime", "Go", model.SourceAgentRuntime)
+	inv := serverlessdef.CloudServiceMetadata{ResourceID: "test-resource", RuntimeCandidates: []string{"python"}}
+	fields := buildFields(inv, serverlessdef.Params{WrappedCommand: []string{"node", "app.js"}}, conf)
+	assert.Equal(t, "Go", fields["runtime"])
+}
+
 func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
 	inv := serverlessdef.CloudServiceMetadata{
@@ -130,7 +136,7 @@ func TestBuildFieldsRuntime(t *testing.T) {
 		{name: "invalid override still detects", override: "null", command: []string{"ruby"}, want: "Ruby"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", tt.override)
+			conf.Set("serverless.metadata_runtime", tt.override, model.SourceAgentRuntime)
 			inv := serverlessdef.CloudServiceMetadata{RuntimeCandidates: []string{tt.metadata}}
 			fields := buildFields(inv, serverlessdef.Params{
 				Sidecar:        tt.sidecar,
@@ -144,7 +150,6 @@ func TestBuildFieldsRuntime(t *testing.T) {
 
 func TestBuildFieldsWrappedCommand(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED", "")
-	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 
 	for _, scenario := range []struct {
 		name    string

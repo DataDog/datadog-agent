@@ -33,6 +33,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/util/flavor",
         "//pkg/util/installinfo",
+        "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
     ],

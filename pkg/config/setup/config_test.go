@@ -1591,12 +1591,13 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 
-	// metadata collection is available in serverless-init, gated by
-	// the serverless-only serverless.metadata_enabled ramp key
+	// serverless-init collects metadata only when the serverless-only
+	// serverless.metadata_enabled key is true.
 	assert.True(t, conf.IsKnown("inventories_enabled"))
 	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
 	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
 	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_runtime"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.

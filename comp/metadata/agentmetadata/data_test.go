@@ -20,6 +20,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -151,6 +152,21 @@ func TestDataInitErrorInstallInfo(t *testing.T) {
 	assert.Equal(t, "test_tool", d.data["install_method_tool"])
 	assert.Equal(t, "1.2.3", d.data["install_method_tool_version"])
 	assert.Equal(t, "4.5.6", d.data["install_method_installer_version"])
+}
+
+func TestDataGetPayloadScrubsKeysStrippedAtRuntime(t *testing.T) {
+	const secret = "stripped-at-runtime-value"
+	hostname, _ := hostnamemock.NewMock("data-hostname")
+	d := NewData(config.NewMockWithOverrides(t, map[string]any{
+		"inventories_configuration_enabled": true,
+		"cluster_name":                      secret,
+	}), logmock.New(t), hostname)
+	d.GetPayload(nil, "id")
+
+	scrubber.AddStrippedKeys([]string{"cluster_name"})
+
+	payload := d.GetPayload(nil, "id")
+	assert.NotContains(t, payload.Metadata["full_configuration"], secret)
 }
 
 func TestDataGetConfigs(t *testing.T) {

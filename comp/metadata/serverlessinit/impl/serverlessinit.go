@@ -51,6 +51,8 @@ type serverlessinitComp struct {
 	uuid                     string
 	lastResourceID           string
 	submittedCurrentIdentity bool
+	// pendingReason is the report_reason of the payload being sent.
+	pendingReason string
 
 	// slot is a one-element semaphore that collect, ReportNow, and stop hold
 	// while they work. It guards the mutable fields above; waiters give up when
@@ -58,10 +60,11 @@ type serverlessinitComp struct {
 	slot chan struct{}
 	// identityWake makes a waiting identity poll read the provider again at once.
 	identityWake chan struct{}
-	// submissions counts successful sends. ReportNow reads it before it waits
-	// for the slot, to detect a payload that collection sent during the wait.
-	submissions atomic.Uint64
-	stopped     atomic.Bool
+	// startupSubmissions counts successful startup sends. ReportNow reads it
+	// before it waits for the slot, to detect a startup payload that collection
+	// sent during the wait.
+	startupSubmissions atomic.Uint64
+	stopped            atomic.Bool
 }
 
 // Requires defines the dependencies for the serverlessinit component.
@@ -132,10 +135,10 @@ func eligible(conf model.Reader, provider serverlessdef.CloudServiceMetadataProv
 }
 
 // ReportNow applies the provider's current metadata and enqueues a startup
-// payload at once. It does not repeat a payload for the current identity that
-// collection sent while this call waited for the slot.
+// payload at once. It does not repeat a startup payload for the current
+// identity that collection sent while this call waited for the slot.
 func (c *serverlessinitComp) ReportNow() {
-	submissionsBeforeWait := c.submissions.Load()
+	startupSubmissionsBeforeWait := c.startupSubmissions.Load()
 	select {
 	case c.identityWake <- struct{}{}:
 	default:
@@ -155,7 +158,7 @@ func (c *serverlessinitComp) ReportNow() {
 		return
 	}
 	c.applyMetadata(data)
-	if c.submittedCurrentIdentity && c.submissions.Load() != submissionsBeforeWait {
+	if c.submittedCurrentIdentity && c.startupSubmissions.Load() != startupSubmissionsBeforeWait {
 		return
 	}
 	// Report as startup even when this identity was already sent.
@@ -239,7 +242,9 @@ func (c *serverlessinitComp) identityReady() bool {
 
 func (c *serverlessinitComp) recordSubmission() {
 	c.submittedCurrentIdentity = true
-	c.submissions.Add(1)
+	if c.pendingReason == reportReasonStartup {
+		c.startupSubmissions.Add(1)
+	}
 }
 
 // getPayload stamps the submission state as the report reason: the first
@@ -251,6 +256,7 @@ func (c *serverlessinitComp) getPayload() marshaler.JSONMarshaler {
 		reason = reportReasonPeriodic
 	}
 	fields["report_reason"] = reason
+	c.pendingReason = reason
 	return c.data.GetPayload(fields, c.uuid)
 }
 

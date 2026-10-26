@@ -109,10 +109,11 @@ func (m *MicroVM) GetTags() map[string]string {
 func (m *MicroVM) CanCollectMetadata() bool { return true }
 
 // GetMetadata derives the parent, region, account, and name from the image
-// ARN. ResourceID is empty until MetadataReporter stores an instance ID.
+// ARN, only when it is a complete MicroVM image ARN. ResourceID is empty until
+// MetadataReporter stores an instance ID.
 func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
 	metadata := serverlessdef.CloudServiceMetadata{WorkloadType: workloadTypeAWSMicroVM}
-	if arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar); arn != "" {
+	if arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar); isMicroVMImageARN(arn) {
 		metadata.ParentResourceID = arn
 		metadata.Region, metadata.AWSAccountID, metadata.ResourceName = parseMicroVMARN(arn)
 	}
@@ -287,6 +288,15 @@ func (m *MicroVM) AddStartMetric(_ *serverlessMetrics.ServerlessMetricAgent) {}
 func isMicroVM() bool {
 	_, exists := os.LookupEnv(serverlessenv.MicroVMImageARNEnvVar)
 	return exists
+}
+
+// isMicroVMImageARN reports whether arn has the form
+// arn:<partition>:lambda:<region>:<account>:microvm-image:<name> with every
+// field present.
+func isMicroVMImageARN(arn string) bool {
+	parts := strings.Split(arn, ":")
+	return len(parts) >= 7 && parts[0] == "arn" && parts[1] != "" && parts[2] == "lambda" &&
+		parts[3] != "" && parts[4] != "" && parts[5] == "microvm-image" && parts[6] != ""
 }
 
 // parseMicroVMARN extracts region, accountID, and imageName from an ARN of the

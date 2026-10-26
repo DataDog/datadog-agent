@@ -49,14 +49,12 @@ func TestResolveRuntimePrecedence(t *testing.T) {
 		{name: "no evidence"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", tt.override)
-			assert.Equal(t, tt.want, resolveRuntime(tt.metadata, tt.command))
+			assert.Equal(t, tt.want, resolveRuntime(tt.override, tt.metadata, tt.command))
 		})
 	}
 }
 
 func TestResolveRuntimeLauncher(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	for _, tt := range []struct {
 		name    string
 		command []string
@@ -104,13 +102,12 @@ func TestResolveRuntimeLauncher(t *testing.T) {
 		{name: "nested launchers not parsed", command: []string{"ddtrace-run", "bundle", "exec", "ruby", "app.rb"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, resolveRuntime(nil, tt.command))
+			assert.Equal(t, tt.want, resolveRuntime("", nil, tt.command))
 		})
 	}
 }
 
 func TestResolveRuntimeWrappedExecutable(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	for _, tt := range []struct {
 		executable string
 		want       string
@@ -164,12 +161,12 @@ func TestResolveRuntimeWrappedExecutable(t *testing.T) {
 		t.Run(tt.executable, func(t *testing.T) {
 			// Later arguments, including shell expressions, must not affect detection.
 			command := []string{tt.executable, "-c", "node app.js"}
-			assert.Equal(t, tt.want, resolveRuntime(nil, command))
+			assert.Equal(t, tt.want, resolveRuntime("", nil, command))
 			switch tt.want {
 			case "Python":
-				assert.Equal(t, tt.want, resolveRuntime(nil, append([]string{"ddtrace-run"}, command...)))
+				assert.Equal(t, tt.want, resolveRuntime("", nil, append([]string{"ddtrace-run"}, command...)))
 			case "Ruby":
-				assert.Equal(t, tt.want, resolveRuntime(nil, append([]string{"bundle", "exec"}, command...)))
+				assert.Equal(t, tt.want, resolveRuntime("", nil, append([]string{"bundle", "exec"}, command...)))
 			}
 		})
 	}

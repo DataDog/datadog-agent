@@ -207,12 +207,22 @@ func TestMicroVMGetMetadataMissingARN(t *testing.T) {
 }
 
 func TestMicroVMGetMetadataMalformedARN(t *testing.T) {
+	for _, arn := range []string{
+		"arn:aws:lambda",
+		"not-an-arn",
+		"arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		"arn:aws:lambda::123456789012:microvm-image:my-image",
+		"arn:aws:lambda:us-east-1::microvm-image:my-image",
+		"arn:aws:lambda:us-east-1:123456789012:microvm-image:",
+	} {
+		t.Run(arn, func(t *testing.T) {
+			t.Setenv(serverlessenv.MicroVMImageARNEnvVar, arn)
+			assert.Equal(t, serverlessdef.CloudServiceMetadata{WorkloadType: "aws_lambda_microvm"}, (&MicroVM{}).GetMetadata(),
+				"a malformed ARN supplies no metadata")
+		})
+	}
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda")
 	m := &MicroVM{}
-	assert.Equal(t, serverlessdef.CloudServiceMetadata{
-		WorkloadType:     "aws_lambda_microvm",
-		ParentResourceID: "arn:aws:lambda",
-	}, m.GetMetadata(), "unparsable fields are unavailable, not \"unknown\"")
 	tags := m.GetTags()
 	assert.Equal(t, "unknown", tags["region"])
 	assert.Equal(t, "unknown", tags["account_id"])

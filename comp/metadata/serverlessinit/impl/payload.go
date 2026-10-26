@@ -51,7 +51,7 @@ func buildFields(inv serverlessdef.CloudServiceMetadata, params serverlessdef.Pa
 		"azure_resource_group":  inv.AzureResourceGroup,
 
 		"deployment_model": deploymentModel(params.Sidecar),
-		"runtime":          resolveRuntime(inv.RuntimeCandidates, wrappedCommand),
+		"runtime":          resolveRuntime(conf.GetString("serverless.metadata_runtime"), inv.RuntimeCandidates, wrappedCommand),
 
 		"dd_env":     params.Tags["env"],
 		"dd_site":    conf.GetString("site"),

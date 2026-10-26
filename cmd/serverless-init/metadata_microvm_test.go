@@ -144,27 +144,37 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 					require.Equal(t, status, resp.StatusCode)
 					require.Eventually(t, func() bool { return len(serial.sent()) == expected }, 5*time.Second, time.Millisecond)
 				}
-				post("ready", "", 0)
-				post("validate", "", 0)
-				post("resume", "", 0)
-				for _, body := range []string{"", "{}", `{"microvmId":""}`, `{"microvmId":42}`, `{"microvmId":"bad","microvmId":42}`} {
-					post("run", body, 0)
+				// uuid labels the steps whose payloads share one UUID.
+				steps := []struct {
+					name, hook, body string
+					payloads         int
+					id, uuid         string
+				}{
+					{name: "ready before run", hook: "ready"},
+					{name: "validate before run", hook: "validate"},
+					{name: "resume before run", hook: "resume"},
+					{name: "run without body", hook: "run"},
+					{name: "run with empty object", hook: "run", body: "{}"},
+					{name: "run with empty ID", hook: "run", body: `{"microvmId":""}`},
+					{name: "run with numeric ID", hook: "run", body: `{"microvmId":42}`},
+					{name: "run with conflicting IDs", hook: "run", body: `{"microvmId":"bad","microvmId":42}`},
+					{name: "first run", hook: "run", body: `{"microvmId":"vm-A"}`, payloads: 1, id: "vm-A", uuid: "A"},
+					{name: "suspend", hook: "suspend", payloads: 1},
+					{name: "resume", hook: "resume", payloads: 2, id: "vm-A", uuid: "A"},
+					{name: "repeated run", hook: "run", body: `{"microvmId":"vm-A"}`, payloads: 3, id: "vm-A", uuid: "A"},
+					{name: "new instance", hook: "run", body: `{"microvmId":"vm-B"}`, payloads: 4, id: "vm-B", uuid: "B"},
+					{name: "resume new instance", hook: "resume", payloads: 5, id: "vm-B", uuid: "B"},
 				}
-				assert.Empty(t, service.GetMetadata().ResourceID)
-
-				var instanceAUUID string
-				for index, step := range []struct{ hook, body, id string }{
-					{"run", `{"microvmId":"vm-A"}`, "vm-A"},
-					{"resume", "", "vm-A"},
-					{"run", `{"microvmId":"vm-A"}`, "vm-A"},
-					{"run", `{"microvmId":"vm-B"}`, "vm-B"},
-					{"resume", "", "vm-B"},
-				} {
-					if index == 1 {
-						post("suspend", "", 1)
+				uuids := map[string]string{}
+				for _, step := range steps {
+					post(step.hook, step.body, step.payloads)
+					if step.payloads == 0 {
+						assert.Empty(t, service.GetMetadata().ResourceID, "%s: no identity before a valid run", step.name)
 					}
-					post(step.hook, step.body, index+1)
-					if index == 0 {
+					if step.id == "" {
+						continue
+					}
+					if step.name == "first run" {
 						select {
 						case <-collected:
 						case <-time.After(5 * time.Second):
@@ -173,17 +183,14 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 					}
 					p.Provider.Callback(context.Background())
 					payloads := serial.sent()
-					require.Len(t, payloads, index+1, "collection must not repeat a lifecycle report")
-					payload := payloads[index]
-					require.NotEmpty(t, payload.UUID)
-					if index == 0 {
-						instanceAUUID = payload.UUID
-					}
-					if step.id == "vm-A" {
-						assert.Equal(t, instanceAUUID, payload.UUID)
+					require.Len(t, payloads, step.payloads, "%s: collection must not repeat a lifecycle report", step.name)
+					payload := payloads[step.payloads-1]
+					require.NotEmpty(t, payload.UUID, step.name)
+					if want, seen := uuids[step.uuid]; seen {
+						assert.Equal(t, want, payload.UUID, step.name)
 					} else {
-						assert.NotEqual(t, instanceAUUID, payload.UUID)
-						assert.Equal(t, payloads[3].UUID, payload.UUID)
+						assert.NotContains(t, uuids, payload.UUID, step.name)
+						uuids[step.uuid] = payload.UUID
 					}
 					for key, expected := range map[string]string{
 						"resource_id": step.id, "parent_resource_id": imageARN, "resource_name": "my-image",
@@ -192,9 +199,9 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 						"dd_service": "test-service", "dd_env": "test-env", "dd_version": "test-version", "dd_site": "datadoghq.eu",
 						"report_reason": "startup",
 					} {
-						assert.Equal(t, expected, payload.Metadata[key], key)
+						assert.Equal(t, expected, payload.Metadata[key], "%s: %s", step.name, key)
 					}
-					assert.Equal(t, step.id, srv.InstanceID())
+					assert.Equal(t, step.id, srv.InstanceID(), step.name)
 				}
 				require.Len(t, lc.hooks, 1)
 				require.NoError(t, lc.hooks[0].OnStop(context.Background()))

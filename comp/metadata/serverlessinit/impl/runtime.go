@@ -8,7 +8,6 @@
 package serverlessinitimpl
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,8 +23,8 @@ var pythonExecutable = regexp.MustCompile(`^python([0-9]+(\.[0-9]+)*)?$`)
 
 // resolveRuntime reports the application runtime, never the Agent or container
 // runtime.
-func resolveRuntime(metadata []string, wrappedCommand []string) string {
-	candidates := append([]string{os.Getenv("DD_SERVERLESS_METADATA_RUNTIME")}, metadata...)
+func resolveRuntime(override string, metadata []string, wrappedCommand []string) string {
+	candidates := append([]string{override}, metadata...)
 	candidates = append(candidates, commandRuntime(wrappedCommand))
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)

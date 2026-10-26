@@ -206,7 +206,6 @@ func TestAppServiceMetadataPreservesTelemetry(t *testing.T) {
 			}, enhanced.Base)
 			assert.Equal(t, "Test-Instance", enhanced.Usage["instance"])
 
-			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "MetadataOnly")
 			service.GetMetadata()
 			assert.Equal(t, tags, service.GetTags())
 			assert.Equal(t, enhanced, service.GetEnhancedMetricTags(service.GetTags()))
@@ -252,15 +251,12 @@ func TestAppServiceMetadataRuntimeCandidates(t *testing.T) {
 			t.Setenv("DOCKER_SERVER_VERSION", "24.0.0")
 			t.Setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
 			t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "")
-			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 			service := &AppService{}
 			originalTags := service.GetTags()
 
 			expected := []string{tt.worker, tt.want}
 			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "candidates retain raw values and precedence")
-			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "MetadataOnly")
-			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "override belongs to the metadata builder")
-			assert.Equal(t, originalTags, service.GetTags(), "metadata derivation and override must not change tracing tags")
+			assert.Equal(t, originalTags, service.GetTags(), "metadata derivation must not change tracing tags")
 			if tt.worker != "" {
 				assert.Equal(t, tt.worker, service.GetTags()["aas.environment.runtime"], "tracing retains unmodified worker metadata")
 			}

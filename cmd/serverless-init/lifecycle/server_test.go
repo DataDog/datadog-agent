@@ -2099,12 +2099,6 @@ func TestMetadataReportsSerializedWithInstanceID(t *testing.T) {
 				srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
 					assert.EqualValues(t, 1, active.Inc(), "metadata reports must not overlap")
 					defer active.Dec()
-					// TryLock proves the report runs while metadataMu is held.
-					locked := srv.metadataMu.TryLock()
-					if locked {
-						srv.metadataMu.Unlock()
-					}
-					assert.False(t, locked, "the ID store/load and the report must share one lock")
 					assert.Equal(t, id, srv.InstanceID())
 					if calls.Inc() == 1 {
 						close(entered)

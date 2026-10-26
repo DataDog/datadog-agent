@@ -113,9 +113,7 @@ func scrub(s string) string {
 	return scrubString
 }
 
-func (ia *Data) marshalAndScrub(data interface{}) (string, error) {
-	flareScrubber := scrubber.NewWithDefaults()
-
+func (ia *Data) marshalAndScrub(flareScrubber *scrubber.Scrubber, data interface{}) (string, error) {
 	provided, err := yaml.Marshal(data)
 	if err != nil {
 		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
@@ -131,6 +129,8 @@ func (ia *Data) marshalAndScrub(data interface{}) (string, error) {
 
 func (ia *Data) getConfigs(data agentMetadata) {
 	if ia.conf.GetBool("inventories_configuration_enabled") {
+		// A new scrubber picks up the replacers added at runtime since the last payload.
+		flareScrubber := scrubber.NewWithDefaults()
 		layers := ia.conf.AllSettingsBySource()
 		layersName := map[model.Source]string{
 			model.SourceFile:               "file_configuration",
@@ -145,12 +145,12 @@ func (ia *Data) getConfigs(data agentMetadata) {
 
 		for source, conf := range layers {
 			if layer, ok := layersName[source]; ok {
-				if yaml, err := ia.marshalAndScrub(conf); err == nil {
+				if yaml, err := ia.marshalAndScrub(flareScrubber, conf); err == nil {
 					data[layer] = yaml
 				}
 			}
 		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutSecrets()); err == nil {
+		if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
 			data["full_configuration"] = yaml
 		}
 	}
@@ -159,8 +159,8 @@ func (ia *Data) getConfigs(data agentMetadata) {
 // GetPayload snapshots the common fields, overlays fields, and includes the configured scrubbed configuration.
 func (ia *Data) GetPayload(fields map[string]interface{}, id string) *Payload {
 	ia.mu.Lock()
-	defer ia.mu.Unlock()
 	data := maps.Clone(ia.data)
+	ia.mu.Unlock()
 	maps.Copy(data, fields)
 	ia.getConfigs(data)
 	return &Payload{Hostname: ia.hostname, Timestamp: time.Now().UnixNano(), Metadata: data, UUID: id}

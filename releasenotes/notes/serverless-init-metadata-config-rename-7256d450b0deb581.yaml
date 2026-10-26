@@ -9,5 +9,10 @@ upgrade:
     (``serverless.metadata_wrapped_command_enabled``). The previous names had
     no effect and are no longer recognized.
   - |
+    The new ``DD_SERVERLESS_INIT_METADATA_RUNTIME`` setting
+    (``serverless.metadata_runtime``) sets the application runtime that
+    serverless-init reports in its metadata. It takes priority over the
+    detected runtime.
+  - |
     serverless-init sends its first metadata payload as soon as the resource
     identity is known, and ignores ``inventories_first_run_delay``.
