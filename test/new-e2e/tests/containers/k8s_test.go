@@ -1804,7 +1804,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile("^image_name:.*/apps-nginx-server$"),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
-				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
+				regexp.MustCompile(`^scan_method:(tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)

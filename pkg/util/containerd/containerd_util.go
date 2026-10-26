@@ -78,8 +78,6 @@ type ContainerdItf interface {
 	Status(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error)
 	CallWithClientContext(namespace string, f func(context.Context) error) error
 	IsSandbox(namespace string, ctn containerd.Container) (bool, error)
-	MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
-	Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error)
 	MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error)
 }
 
@@ -408,12 +406,6 @@ func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (
 	return labels["io.cri-containerd.kind"] == "sandbox", nil
 }
 
-// Mounts retrieves mounts and returns a function to clean the snapshot and release the lease. The lease is already released in error cases.
-func (c *ContainerdUtil) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
-	mounts, _, cleanup, err := c.MountsWithSnapshotter(ctx, expiration, namespace, img)
-	return mounts, cleanup, err
-}
-
 // cleanupTimeout bounds the calls that release a view snapshot and its lease.
 const cleanupTimeout = 30 * time.Second
 
@@ -444,9 +436,10 @@ func unpackedSnapshotter(ctx context.Context, img containerd.Image) (string, err
 	return defaults.DefaultSnapshotter, nil
 }
 
-// MountsWithSnapshotter is like Mounts but also returns the snapshotter name
-// backing the mounts, so callers that need to talk to the same SnapshotService
-// (e.g. to verify the snapshot's parent chain) don't have to re-probe.
+// MountsWithSnapshotter returns the mounts of a view of img, the name of the
+// snapshotter holding the view, and a function that removes the view and
+// releases its lease. The lease expires after expiration. On error, the lease
+// is already released.
 func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error) {
 	ctx = namespaces.WithNamespace(ctx, namespace)
 
@@ -543,26 +536,5 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
 		}
 		return nil
-	}, nil
-}
-
-// MountImage mounts an image to a directory
-func (c *ContainerdUtil) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
-	mounts, clean, err := c.Mounts(ctx, expiration, namespace, img)
-	if err != nil {
-		return nil, err
-	}
-	if err := mount.All(mounts, targetDir); err != nil {
-		if err := clean(ctx); err != nil {
-			log.Warnf("Unable to clean snapshot, err: %v", err)
-		}
-		return nil, fmt.Errorf("unable to mount image %s to dir %s, err: %w", img.Name(), targetDir, err)
-	}
-	return func(ctx context.Context) error {
-		ctx = namespaces.WithNamespace(ctx, namespace)
-		if err := mount.UnmountAll(targetDir, 0); err != nil {
-			return fmt.Errorf("unable to unmount directory: %s for image: %s, err: %w", targetDir, img.Name(), err)
-		}
-		return clean(ctx)
 	}, nil
 }
