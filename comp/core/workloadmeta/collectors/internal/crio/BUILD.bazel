@@ -38,15 +38,20 @@ dd_agent_go_test(
     name = "crio_test",
     srcs = [
         "crio_test.go",
+        "image_sbom_trivy_test.go",
         "image_test.go",
     ],
     embed = [":crio"],
-    gotags_sets = [["crio"]],
+    gotags_sets = [[
+        "crio",
+        "trivy",
+    ]],
     include_default = False,
     target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/config/mock",
+        "//pkg/sbom",
         "//pkg/util/pointer",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_stretchr_testify//assert",

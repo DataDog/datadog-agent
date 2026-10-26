@@ -19,6 +19,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -451,7 +452,36 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
 
-	// log_level will be mapped to lowercase by code and set accordingly
+	lvl, err := types.ValidateLogLevel(c.GetString("log_level"))
+	require.NoError(t, err)
+	assert.Equal(t, types.InfoLvl, lvl)
+}
+
+func (suite *ConfigTestSuite) TestLogLevelSpec() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a specification whose default level is at least as verbose as the
+	// collector telemetry level is kept as configured
+	assert.Equal(t, "debug,./pkg/...=error", c.Get("log_level"))
+}
+
+func (suite *ConfigTestSuite) TestLogLevelSpecReplacedByTelemetryLevel() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec_low_default.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a specification whose default level is less verbose than the
+	// collector telemetry level is replaced by it, like a plain level would
 	assert.Equal(t, "info", c.Get("log_level"))
 }
 

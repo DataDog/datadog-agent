@@ -74,6 +74,7 @@ service:
         - "prometheus/dd-autoconfigured"
       processors:
         - "filter/drop-prometheus-internal-metrics/dd-autoconfigured"
+        - "cumulativetodelta/dd-autoconfigured"
       exporters:
         - "datadog"
     traces:

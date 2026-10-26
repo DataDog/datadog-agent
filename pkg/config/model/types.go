@@ -20,6 +20,18 @@ func NewConfigFileNotFoundError(err error) error {
 	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
 
+// SchemaID identifies the configuration schema a config follows. The schemas themselves and their validation
+// live in pkg/config/schema, which is kept out of this package so binaries that don't validate their
+// configuration don't link the JSON schema library.
+type SchemaID string
+
+const (
+	// CoreSchema identifies the core schema (ie the schema for datadog.yaml)
+	CoreSchema SchemaID = "core"
+	// SystemProbeSchema identifies the system probe schema (ie the schema for system_probe.yaml)
+	SystemProbeSchema SchemaID = "system_probe"
+)
+
 // Source stores what edits a setting as a string
 type Source string
 
@@ -324,6 +336,7 @@ type Compound interface {
 	// NOTE: This method should not be used by any new callsites, it is needed
 	// currently because of the unique requirements of OTel's configuration.
 	RevertFinishedBackToBuilder() BuildableConfig
+	Validate()
 }
 
 // Config is an interface that can read/write the config after it has been

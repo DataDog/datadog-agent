@@ -2452,6 +2452,97 @@ func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	}
 }
 
+func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		partOf          string
+		workload        string
+		component       string
+		dynamoWorkload  string
+		dynamoComponent string
+		wantWorkload    string
+		wantComponent   string
+	}{
+		{name: "aggregated", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-workload", wantWorkload: "my-model", wantComponent: "llminferenceservice-workload"},
+		{name: "prefill", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-workload-prefill", wantWorkload: "my-model", wantComponent: "llminferenceservice-workload-prefill"},
+		{name: "router", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-router", wantWorkload: "my-model", wantComponent: "llminferenceservice-router"},
+		{name: "scheduler", partOf: "llminferenceservice", workload: "my-model", component: "llminferenceservice-router-scheduler", wantWorkload: "my-model", wantComponent: "llminferenceservice-router-scheduler"},
+		{name: "missing component", partOf: "llminferenceservice", workload: "my-model", wantWorkload: "my-model"},
+		{name: "missing name", partOf: "llminferenceservice", component: "llminferenceservice-workload", wantComponent: "llminferenceservice-workload"},
+		{name: "missing part-of", workload: "other-app", component: "llminferenceservice-workload"},
+		{name: "other application", partOf: "other-app", workload: "my-model", component: "llminferenceservice-workload"},
+		{name: "no labels"},
+		{name: "Dynamo labels take priority", partOf: "llminferenceservice", workload: "kserve-model", component: "llminferenceservice-workload", dynamoWorkload: "dynamo-model", dynamoComponent: "decode", wantWorkload: "dynamo-model", wantComponent: "decode"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "kserve-worker-container"
+
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(t.Context()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+			})
+
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
+			labels := map[string]string{
+				kubernetes.KubeAppPartOfLabelKey:             tt.partOf,
+				kubernetes.KubeAppNameLabelKey:               tt.workload,
+				kubernetes.KubeAppComponentLabelKey:          tt.component,
+				kubernetes.DynamoGraphDeploymentNameLabelKey: tt.dynamoWorkload,
+				kubernetes.DynamoComponentTypeLabelKey:       tt.dynamoComponent,
+			}
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "kserve-worker-pod",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "kserve-worker",
+						Namespace: "inference",
+						Labels:    labels,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{ID: containerID, Name: "worker"},
+					},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			assert.Equal(t, types.NewEntityID(types.KubernetesPodUID, "kserve-worker-pod"), tagInfos[0].EntityID)
+			assert.Equal(t, types.NewEntityID(types.ContainerID, containerID), tagInfos[1].EntityID)
+			for _, tagInfo := range tagInfos {
+				var inferenceTags []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+						inferenceTags = append(inferenceTags, tag)
+					}
+				}
+				var expected []string
+				if tt.wantWorkload != "" {
+					expected = append(expected, "inference_workload:"+tt.wantWorkload)
+				}
+				if tt.wantComponent != "" {
+					expected = append(expected, "inference_workload_component:"+tt.wantComponent)
+				}
+				assert.ElementsMatch(t, expected, inferenceTags)
+				for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
+	}
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"
@@ -4377,6 +4468,7 @@ func TestHandleGPU(t *testing.T) {
 	}
 
 	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+	numaNode := 0
 
 	tests := []struct {
 		name     string
@@ -4396,6 +4488,13 @@ func TestHandleGPU(t *testing.T) {
 				PCIBusID:          "0000:00:1e.0",
 				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
 				FabricCliqueID:    7,
+				ChassisSerial:     "1821825880999",
+				SlotNumber:        20,
+				TrayIndex:         10,
+				ModuleID:          2,
+				BoardSerial:       "1650825051135",
+				NUMANode:          &numaNode,
+				FabricGUID:        "0x8505c454f59170d4",
 				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
@@ -4410,6 +4509,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
 						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4417,6 +4517,13 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:true",
 						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
 						"gpu_fabric_clique_id:7",
+						"gpu_chassis_serial:1821825880999",
+						"gpu_slot_number:20",
+						"gpu_tray_index:10",
+						"gpu_module_id:2",
+						"gpu_board_serial:1650825051135",
+						"gpu_numa_node:0",
+						"gpu_fabric_guid:0x8505c454f59170d4",
 					},
 					StandardTags: []string{},
 				},
@@ -4450,6 +4557,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:none",
 						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4495,6 +4603,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_mig_profile:3g.20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
+						"gpu_sharing_mode:none",
 						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -4541,6 +4650,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_sharing_mode:none",
 						"gpu_mig_profile:none",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
@@ -4549,6 +4659,39 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:false",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "shared by KAI fractions",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:        "nvidia",
+				Device:        "tesla-t4",
+				NVLinkVersion: "not_nvlink_capable",
+				SharingMode:   workloadmeta.GPUSharingModeKAIFraction,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla-t4",
+						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:kai_fraction",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
 					},
 					StandardTags: []string{},
 				},
@@ -5331,6 +5474,7 @@ func TestHandleProcess(t *testing.T) {
 		DriverVersion:      gpuDriverVersion,
 		VirtualizationMode: gpuVirtMode,
 		PCIBusID:           "0000:00:1e.0",
+		SharingMode:        workloadmeta.GPUSharingModeKAIFraction,
 	})
 
 	cfg := configmock.New(t)
@@ -5665,6 +5809,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_sharing_mode:kai_fraction",
 					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
@@ -5710,6 +5855,7 @@ func TestHandleProcess(t *testing.T) {
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_sharing_mode:kai_fraction",
 					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
