@@ -22,6 +22,7 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -126,7 +127,8 @@ type Serializer struct {
 	hostname             string
 	logger               log.Component
 
-	zlibV3WarnOnce sync.Once
+	zlibV3WarnOnce        sync.Once
+	endpointMetricFilters map[string]*endpointMetricFilter
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -168,6 +170,18 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		logger.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
 	}
 
+	return s
+}
+
+// NewSerializerWithEndpointRouting creates a serializer with endpoint metric filters.
+func NewSerializerWithEndpointRouting(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, routing configutils.MetricsEndpointRouting) *Serializer {
+	s := NewSerializer(forwarder, orchestratorForwarder, compressor, config, logger, hostName)
+	filters := compileEndpointMetricFilters(routing)
+	if filter, selected := filters[routing.PrimaryEndpoint]; selected {
+		// Associate the primary policy with its normalized transport URL.
+		filters[routing.PrimaryEndpointURL] = filter
+	}
+	s.endpointMetricFilters = filters
 	return s
 }
 
