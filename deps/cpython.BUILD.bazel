@@ -238,13 +238,6 @@ configure_make(
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
         "//conditions:default": [],
-    }) + select({
-        "@platforms//os:macos": [
-            # Override ARFLAGS: the hermetic toolchain injects -static (invalid for llvm-ar).
-            # Passing as a configure arg takes precedence over the inline env.
-            "ARFLAGS=rcs",
-        ],
-        "//conditions:default": [],
     }),
     copts = [
         "-O2",
