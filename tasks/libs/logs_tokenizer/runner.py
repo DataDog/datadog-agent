@@ -1,21 +1,30 @@
 """
-Runner behind `dda inv logs-tokenizer.bench-compare` (tasks/logs_tokenizer.py): builds both sides, runs the benchmarks in
-alternating rounds and turns benchstat's verdict into an exit code. The pass/fail rules live in
-compare.py, which has no invoke dependency so it can be unit-tested on its own.
+Runner behind `dda inv logs-tokenizer.bench-compare` and `dda inv logs-tokenizer.bench-check-verdict` (tasks/logs_tokenizer.py): builds both
+sides, runs the benchmarks in alternating rounds, turns benchstat's verdict into an exit code, and
+reports it. The pass/fail rules live in compare.py, which has no invoke dependency so it can be
+unit-tested on its own.
 """
 
 import contextlib
+import json
+import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import bin_name, join_command
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.utils import bin_name, get_metric_origin, join_command
 from tasks.libs.logs_tokenizer.compare import (
+    BYPASS_LABEL,
     EXIT_CANNOT_COMPARE,
     EXIT_REGRESSION,
+    benchmark_metrics,
+    bypassed,
     find_regressions,
+    markdown_report,
     parse_benchstat_csv,
 )
 
@@ -44,7 +53,9 @@ def _find_benchstat(ctx):
     raise _cannot_compare("benchstat not found: run dda inv install-tools")
 
 
-def run_compare(ctx, targets, bench, bench_files, base, rounds, benchtime, max_slowdown):
+def run_compare(
+    ctx, targets, bench, bench_files, base, rounds, benchtime, max_slowdown, report, verdict_file, send_metrics
+):
     """Runs `dda inv logs-tokenizer.bench-compare`; see the task's docstring for what it checks."""
     if rounds < 4:
         raise _cannot_compare(f"--rounds must be at least 4, got {rounds}")
@@ -122,12 +133,21 @@ def run_compare(ctx, targets, bench, bench_files, base, rounds, benchtime, max_s
             raise _cannot_compare(f"no benchmark matches {bench}: nothing was compared")
 
         sides = [f"base={outputs['base']}", f"head={outputs['head']}"]
-        _checked(ctx, [benchstat, *sides])
+        text = _checked(ctx, [benchstat, *sides]).stdout
         table = _checked(ctx, [benchstat, "-format", "csv", *sides], hide=True).stdout
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
-    regressions = find_regressions(parse_benchstat_csv(table), max_slowdown)
+    rows = parse_benchstat_csv(table)
+    regressions = find_regressions(rows, max_slowdown)
+    if report:
+        markdown = markdown_report(f"Benchmarks of `{pkg}`", rows, regressions, base, max_slowdown, text)
+        Path(report).write_text(markdown, encoding="utf-8")
+    if verdict_file:
+        verdict = {"verdict": "regression" if regressions else "pass", "regressions": regressions, "base": base}
+        Path(verdict_file).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+    if send_metrics:
+        _send_benchmark_metrics(ctx, pkg, rows)
     for message in regressions:
         print(f"REGRESSION {message}")
     if regressions:
@@ -136,4 +156,53 @@ def run_compare(ctx, targets, bench, bench_files, base, rounds, benchtime, max_s
         )
     print(
         f"PASS: no benchmark is more than {max_slowdown:g}% slower, allocates more, or uses more than {max_slowdown:g}% more bytes"
+    )
+
+
+def _send_benchmark_metrics(ctx, pkg, rows):
+    from tasks.libs.common.datadog_api import create_gauge, send_metrics
+
+    git_ref = (
+        os.environ.get("CI_COMMIT_REF_NAME") or ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    )
+    timestamp = int(time.time())
+    origin = get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE)
+    series = [
+        create_gauge(
+            metric,
+            timestamp,
+            value,
+            tags=[f"package:{pkg}", f"benchmark:{benchmark}", f"git_ref:{git_ref}"],
+            unit=unit,
+            metric_origin=origin,
+        )
+        for metric, value, benchmark, unit in benchmark_metrics(rows)
+    ]
+    try:
+        send_metrics(series)
+    except Exception as e:  # Best effort: if Datadog is unreachable, the comparison still passes.
+        print(f"Could not send the benchmark metrics to Datadog: {e}")
+    else:
+        print(f"Sent {len(series)} benchmark metrics to Datadog")
+
+
+def run_check_verdict(verdict_file):
+    """Runs `dda inv logs-tokenizer.bench-check-verdict`; see the task's docstring."""
+    verdict = json.loads(Path(verdict_file).read_text(encoding="utf-8"))
+    if verdict["verdict"] == "pass":
+        print("No regression")
+        return
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    labels = []
+    if branch := os.environ.get("CI_COMMIT_BRANCH"):
+        prs = list(GithubAPI().get_pr_for_branch(branch))
+        if prs:
+            labels = [label.name for label in prs[0].get_labels()]
+    if bypassed(verdict, labels):
+        print(f"Regression accepted by the {BYPASS_LABEL} label: {'; '.join(verdict['regressions'])}")
+        return
+    raise Exit(
+        message=f"Regression: {'; '.join(verdict['regressions'])}. If it is expected, add the {BYPASS_LABEL} label.",
+        code=EXIT_REGRESSION,
     )
