@@ -7,6 +7,7 @@ go_library(
     srcs = [
         "labels.go",
         "layout.go",
+        "reader.go",
         "tls_amd64.go",
         "tls_arm64.go",
         "tls_unsupported.go",
