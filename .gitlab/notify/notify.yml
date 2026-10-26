@@ -24,13 +24,21 @@ notify:
   tags: ["arch:amd64"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   variables:
     # The slack-notifier image is now based on Ubuntu noble, whose system Python is externally managed (PEP 668)
     PIP_BREAK_SYSTEM_PACKAGES: "1"
+    # Understood by both ci-identities-gitlab-job-client and the AWS CLI.
+    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
   script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
+    - $CI_PROJECT_DIR/tools/ci/install_authanywhere.sh
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_gitlab_token.sh) || exit $?; export GITLAB_TOKEN
+    # The failed jobs history lives in dd-ci-artefacts-build-stable, which needs CI-identities credentials
+    - $CI_PROJECT_DIR/tools/ci/setup_ci_identities_aws.sh
     - |
       # Do not send notifications if this is a child pipeline of another repo
       # The triggering repo should already have its own notification system
