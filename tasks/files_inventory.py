@@ -21,7 +21,10 @@ from tasks.static_quality_gates.gates import byte_to_string
 
 
 def _compare_inventories(
-    previous_inventory: list[FileInfo], current_inventory: list[FileInfo]
+    previous_inventory: list[FileInfo],
+    current_inventory: list[FileInfo],
+    *,
+    compare_symlinks: bool = False,
 ) -> tuple[list[FileInfo], list[FileInfo], dict[str, FileChange]]:
     removed_files = []
     added_files = []
@@ -49,6 +52,11 @@ def _compare_inventories(
             changed_flags |= FileChange.Flags.Owner
         if current.group != previous.group:
             changed_flags |= FileChange.Flags.Group
+
+        if compare_symlinks and (
+            bool(current.is_symlink) != bool(previous.is_symlink) or current.symlink_target != previous.symlink_target
+        ):
+            changed_flags |= FileChange.Flags.Symlink
 
         if changed_flags:
             changed_files[path] = FileChange(

@@ -97,6 +97,7 @@ class FileChange:
         Permissions = auto()
         Owner = auto()
         Group = auto()
+        Symlink = auto()
 
     flags: Flags
     previous: FileInfo
