@@ -151,11 +151,6 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		if err != nil || p.GetDetail() == nil {
 			return set("waiting", "supervisor_unavailable", pollInterval)
 		}
-		// The control plane may recover after a crash, but only core owns its initial launch.
-		restartAllowed := p.Detail.RestartPolicy == "never" || (name == controlProcess && p.Detail.RestartPolicy == "on-failure")
-		if p.Detail.AutoStart || !restartAllowed {
-			return set("blocked", "unsupported_supervisor_policy", 0)
-		}
 		children[i] = p.Detail
 	}
 	generation := [2]string{children[0].Uuid, children[1].Uuid}
@@ -177,6 +172,13 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		}
 		c.attempted = false
 		c.generation = [2]string{}
+	}
+	for i, child := range children {
+		// The control plane may recover after a crash, but only core owns its initial launch.
+		restartAllowed := child.RestartPolicy == "never" || (i == 0 && child.RestartPolicy == "on-failure")
+		if child.AutoStart || !restartAllowed {
+			return set("blocked", "unsupported_supervisor_policy", 0)
+		}
 	}
 	for _, child := range children {
 		switch child.State {

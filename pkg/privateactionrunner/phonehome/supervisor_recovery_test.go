@@ -54,6 +54,21 @@ func TestSupervisorReplacementRequiresBothNewIDsAndRC(t *testing.T) {
 	require.Equal(t, 2, f.pm.starts)
 }
 
+func TestInvalidConfigInHandedOffLifecycleDoesNotStopWatching(t *testing.T) {
+	f := newFixture(t)
+	f.c.step(context.Background())
+	f.pm.control.State = pb.ProcessState_INVALID_CONFIG
+	f.pm.control.RestartPolicy = ""
+	require.Equal(t, pollInterval, f.c.step(context.Background()))
+	require.Equal(t, "handed_off", f.state.State)
+	require.Equal(t, 1, f.pm.starts)
+	f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
+	f.pm.control.State = pb.ProcessState_SKIPPED
+	f.pm.control.RestartPolicy = "never"
+	f.c.step(context.Background())
+	require.Equal(t, 2, f.pm.starts)
+}
+
 func TestAmbiguousStartIsNotRetriedAfterSupervisorReplacement(t *testing.T) {
 	f := newFixture(t)
 	f.pm.startErr = errors.New("response lost")
