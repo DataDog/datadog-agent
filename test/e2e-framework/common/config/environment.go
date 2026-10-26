@@ -89,6 +89,8 @@ const (
 	DDDogstatsdFullImagePathParamName = "fullImagePath"
 
 	DefaultMajorVersion = "7"
+
+	DefaultKubernetesVersion = "1.37"
 )
 
 type CommonEnvironment struct {
@@ -236,7 +238,7 @@ func (e *CommonEnvironment) InfraOSImageIDUseLatest() bool {
 }
 
 func (e *CommonEnvironment) KubernetesVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.37")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, DefaultKubernetesVersion)
 }
 
 func (e *CommonEnvironment) KindVersion() string {

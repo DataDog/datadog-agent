@@ -7,16 +7,20 @@ package containers
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
@@ -25,8 +29,32 @@ type kindSuite struct {
 	k8sSuite
 }
 
+// effectiveKindKubernetesVersion returns the Kubernetes version the kind
+// cluster will run, as selected through `-c ddinfra:kubernetesVersion`.
+func effectiveKindKubernetesVersion(t *testing.T) string {
+	stackParamsJSON, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackParameters, "")
+	if err != nil {
+		t.Logf("unable to read stack params, assuming Kubernetes version %s: %v", config.DefaultKubernetesVersion, err)
+		return config.DefaultKubernetesVersion
+	}
+
+	var stackParams map[string]string
+	if err := json.Unmarshal([]byte(stackParamsJSON), &stackParams); err != nil {
+		t.Logf("unable to parse stack params %q, assuming Kubernetes version %s: %v", stackParamsJSON, config.DefaultKubernetesVersion, err)
+		return config.DefaultKubernetesVersion
+	}
+
+	return parseKindKubernetesVersion(
+		stackParams[config.DDInfraConfigNamespace+":"+config.DDInfraKubernetesVersion],
+		config.DefaultKubernetesVersion,
+	)
+}
+
 func TestKindSuite(t *testing.T) {
-	helmValues := `
+	// Run the suite in a subtest named after the Kubernetes version, so that
+	// each version job reports distinct test names to the CI test reports.
+	t.Run("Kubernetes_"+effectiveKindKubernetesVersion(t), func(t *testing.T) {
+		helmValues := `
 datadog:
     logLevel: DEBUG
     envDict:
@@ -36,33 +64,34 @@ clusterAgent:
     envDict:
         DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
 `
-	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
-		provkind.WithRunOptions(
-			scenkind.WithVMOptions(
-				scenec2.WithInstanceType("t3.xlarge"),
+		e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
+			provkind.WithRunOptions(
+				scenkind.WithVMOptions(
+					scenec2.WithInstanceType("t3.xlarge"),
+				),
+				scenkind.WithFakeintakeOptions(
+					// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
+					// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
+					// Fargate requires 1024 CPU units for more than 4096MiB.
+					fakeintake.WithCPU(1024),
+					fakeintake.WithMemory(6144),
+					fakeintake.WithRetentionPeriod("31m"),
+				),
+				scenkind.WithDeployDogstatsd(),
+				scenkind.WithDeployTestWorkload(),
+				scenkind.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(helmValues),
+					kubernetesagentparams.WithHelmValues(containerHelmValues),
+					// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
+					// (legacy) Endpoints providers. This covers tests for both without having to create
+					// independent test suites for both configurations or modify providers at test runtime.
+					kubernetesagentparams.WithKubernetesUseEndpointSlices(),
+				),
+				scenkind.WithDeployArgoRollout(),
 			),
-			scenkind.WithFakeintakeOptions(
-				// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
-				// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
-				// Fargate requires 1024 CPU units for more than 4096MiB.
-				fakeintake.WithCPU(1024),
-				fakeintake.WithMemory(6144),
-				fakeintake.WithRetentionPeriod("31m"),
-			),
-			scenkind.WithDeployDogstatsd(),
-			scenkind.WithDeployTestWorkload(),
-			scenkind.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithHelmValues(helmValues),
-				kubernetesagentparams.WithHelmValues(containerHelmValues),
-				// Kind suite uses EndpointSlices backed providers while the EKS suite uses the default
-				// (legacy) Endpoints providers. This covers tests for both without having to create
-				// independent test suites for both configurations or modify providers at test runtime.
-				kubernetesagentparams.WithKubernetesUseEndpointSlices(),
-			),
-			scenkind.WithDeployArgoRollout(),
-		),
-	)))
+		)))
+	})
 }
 
 func (suite *kindSuite) SetupSuite() {

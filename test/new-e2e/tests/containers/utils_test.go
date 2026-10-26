@@ -129,3 +129,45 @@ func TestAssertTags(t *testing.T) {
 		})
 	}
 }
+
+func TestParseKindKubernetesVersion(t *testing.T) {
+	const defaultVersion = "1.37"
+
+	tests := []struct {
+		name     string
+		version  string
+		expected string
+	}{
+		{
+			name:     "bare version",
+			version:  "1.19",
+			expected: "1.19",
+		},
+		{
+			name:     "leading v",
+			version:  "v1.29",
+			expected: "1.29",
+		},
+		{
+			name:     "digest-pinned version",
+			version:  "v1.37.1@sha256:cddbfcdc4c30efe7cfb61d5373449ff14d42bf2ddc0c390adf2372c6410fc73f",
+			expected: "1.37.1",
+		},
+		{
+			name:     "release candidate",
+			version:  "v1.37.0-rc.1@sha256:adc3f1a9ef8b768d311c0592f727c30e274a870c8f0f7713e949558d0275f8f1",
+			expected: "1.37.0-rc.1",
+		},
+		{
+			name:     "unset",
+			version:  "",
+			expected: defaultVersion,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, parseKindKubernetesVersion(tt.version, defaultVersion))
+		})
+	}
+}

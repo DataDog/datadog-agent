@@ -57,3 +57,17 @@ func assertTags(actualTags []string, expectedTags []*regexp.Regexp, optionalTags
 
 	return nil
 }
+
+// parseKindKubernetesVersion parses the Kubernetes version the kind cluster
+// will run: version if non-empty, defaultVersion otherwise (which is assumed to be sanitized).
+// The `v` prefix and image digest are removed from `version` (e.g. "v1.37.1@sha256:..." -> "1.37.1").
+func parseKindKubernetesVersion(version, defaultVersion string) string {
+	if version == "" {
+		return defaultVersion
+	}
+
+	if digest, _, ok := strings.Cut(version, "@"); ok {
+		version = digest
+	}
+	return strings.TrimPrefix(version, "v")
+}
