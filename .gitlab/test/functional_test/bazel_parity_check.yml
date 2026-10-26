@@ -1,0 +1,24 @@
+bazel_parity_check:
+  stage: functional_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - when: on_success
+  needs:
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
+    - bazel:package:linux-amd64
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" = main ] || [ "$BAZEL_PARITY_SUBMIT" = true ]; then
+        DD_API_KEY=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$AGENT_API_KEY_ORG2" token) || exit $?
+        export DD_API_KEY
+      fi
+    - dda inv -- bazel-parity.check --omnibus-dir "$OMNIBUS_PACKAGE_DIR" --bazel-dir bazel-packages
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - bazel_parity_report.json
+      - bazel_parity_report.md
+  allow_failure: true
