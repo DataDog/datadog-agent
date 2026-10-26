@@ -120,20 +120,15 @@
         crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
       fi
     # Sign the final digest: crane flatten above writes a new one.
-    - |
-      DIGEST=$(crane digest ${TARGET_TAG})
-      SIGN_START=$(date +%s)
-      if ddsign sign ${TARGET_TAG}@${DIGEST}; then
-        echo "ddsign: signed ${TARGET_TAG}@${DIGEST} in $(( $(date +%s) - SIGN_START ))s"
-      else
-        echo "ddsign: failed to sign ${TARGET_TAG}@${DIGEST}, continuing"
-      fi
+    - ddsign sign ${TARGET_TAG}@$(crane digest ${TARGET_TAG})
     - !reference [.static_quality_gate_docker]
   id_tokens:
     DDSIGN_ID_TOKEN:
       aud: image-integrity
   variables:
     BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
+    # A signing failure must not block the image build.
+    DDSIGN_FAIL_OPEN: "1"
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
