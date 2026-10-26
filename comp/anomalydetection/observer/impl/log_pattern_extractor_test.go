@@ -32,7 +32,7 @@ func TestLogPatternExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 
 	ctx := res.Metrics[0].Context
 	assert.Equal(t, "log_pattern_extractor", ctx.Source)
-	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
+	assert.Empty(t, ctx.Example)
 	assert.NotEmpty(t, ctx.Pattern)
 	assert.Equal(t, map[string]string{"service": "web", "env": "prod"}, ctx.SplitTags)
 }
@@ -77,8 +77,8 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 	ctxA := resA.Metrics[0].Context
 	ctxB := resB.Metrics[0].Context
 
-	assert.Equal(t, "GET /users/123 returned 500", ctxA.Example)
-	assert.Equal(t, "GET /users/456 returned 500", ctxB.Example)
+	assert.Empty(t, ctxA.Example)
+	assert.Empty(t, ctxB.Example)
 	assert.NotEmpty(t, ctxA.Pattern)
 	assert.NotEmpty(t, ctxB.Pattern)
 	assert.Equal(t, map[string]string{"service": "api"}, ctxA.SplitTags)
