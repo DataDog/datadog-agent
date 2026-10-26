@@ -5,7 +5,7 @@
 
 //go:build linux && arm64
 
-package process
+package golabels
 
 import (
 	"errors"

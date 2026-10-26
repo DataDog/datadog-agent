@@ -275,7 +275,7 @@ modules:
     used_by_otel: true
   pkg/remoteflags:
     used_by_otel: true
-  pkg/security/resolvers/process/testdata: ignored
+  pkg/security/golabels/testdata: ignored
   pkg/security/secl: default
   pkg/security/seclwin:
     should_test_condition: never

@@ -17,6 +17,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
@@ -143,9 +144,9 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxGone
 	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
-	case errors.Is(err, errSpanCtxUnsupported):
+	case errors.Is(err, errSpanCtxUnsupported), errors.Is(err, golabels.ErrUnsupported):
 		return spanCtxUnsupported
-	case errors.Is(err, errSpanCtxMalformed):
+	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
 		return spanCtxMalformed
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError
