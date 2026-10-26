@@ -188,6 +188,8 @@ _DEFINES_X86_64 = {
 
 _DEFINES_ARM64 = {
     "CPU_SPINWAIT": "__asm__ volatile(\"isb\")",
+    # Support Linux ARM64 kernels with 4 KiB, 16 KiB, or 64 KiB pages.
+    "LG_PAGE": "16",
 }
 
 # Keys end with a newline because some names are prefixes of others
