@@ -996,7 +996,8 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         assert best_module_path, f"No module found for {modified_file}"
         module = get_module_by_path(best_module_path)
 
-        if not module.should_test():
+        # Modules marked `ignored` in modules.yml are not default modules, so they have no GoModule
+        if module is None or not module.should_test():
             continue
 
         targets = module.lint_targets if lint else module.test_targets
