@@ -862,6 +862,11 @@ func TestFullStateResponse(t *testing.T) {
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
 	}
+	metadata.kaiPodGroups["team-a/pg"] = kaiPodGroupEntry{
+		namespace: "team-a",
+		name:      "pg",
+		queueName: "queue-a",
+	}
 
 	resp := fullStateResponse(pods, metadata)
 
@@ -901,6 +906,14 @@ func TestFullStateResponse(t *testing.T) {
 					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 				},
 				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
+		KaiPodGroups: []*pb.KAIPodGroup{
+			{
+				Namespace: "team-a",
+				Name:      "pg",
+				Queue:     "queue-a",
+				Type:      pb.KubeMetadataEventType_SET,
 			},
 		},
 	}

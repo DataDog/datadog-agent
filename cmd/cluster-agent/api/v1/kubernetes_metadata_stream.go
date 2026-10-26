@@ -277,8 +277,11 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	defer srv.metadataMutex.Unlock()
 
 	// Snapshot and compare once per bundle, not once per connected agent.
-	previous := srv.metadata.clone()
+	// KAI PodGroups can be as many as pods, so their changes are computed per
+	// event instead of by diffing a copy of all of them.
+	previous := srv.metadata.cloneWithoutKAIPodGroups()
 	changed := false
+	var kaiPodGroups []*pb.KAIPodGroup
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.KubernetesMetadata:
@@ -298,16 +301,20 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 				changed = true
 			}
 		case *workloadmeta.KubernetesKAIPodGroup:
-			if srv.metadata.processKAIPodGroupEvent(event.Type, entity) {
-				changed = true
+			if update := srv.metadata.processKAIPodGroupEvent(event.Type, entity); update != nil {
+				kaiPodGroups = append(kaiPodGroups, update)
 			}
 		default:
 			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
 	}
 
-	if changed {
-		diff := computeMetadataDiff(previous, srv.metadata)
+	if changed || len(kaiPodGroups) > 0 {
+		var diff metadataDiff
+		if changed {
+			diff = computeMetadataDiff(previous, srv.metadata)
+		}
+		diff.kaiPodGroups = kaiPodGroups
 		if !diff.isEmpty() {
 			srv.metadataVersion++
 			srv.metadataHistory[srv.metadataVersion%metadataHistorySize] = diff.response(false)
@@ -432,11 +439,13 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	return false
 }
 
-func (s *metadataSnapshot) processKAIPodGroupEvent(eventType workloadmeta.EventType, podGroup *workloadmeta.KubernetesKAIPodGroup) bool {
+// processKAIPodGroupEvent applies the event and returns the update to stream,
+// or nil if the PodGroup did not change.
+func (s *metadataSnapshot) processKAIPodGroupEvent(eventType workloadmeta.EventType, podGroup *workloadmeta.KubernetesKAIPodGroup) *pb.KAIPodGroup {
 	key := podGroup.EntityID.ID
 	switch eventType {
 	case workloadmeta.EventTypeSet:
-		s.kaiPodGroups[key] = kaiPodGroupEntry{
+		entry := kaiPodGroupEntry{
 			namespace:   podGroup.Namespace,
 			name:        podGroup.Name,
 			queueName:   podGroup.QueueName,
@@ -444,16 +453,20 @@ func (s *metadataSnapshot) processKAIPodGroupEvent(eventType workloadmeta.EventT
 			annotations: podGroup.Annotations,
 			uid:         podGroup.UID,
 		}
-		return true
+		if prev, exists := s.kaiPodGroups[key]; exists && kaiPodGroupEqual(prev, entry) {
+			return nil
+		}
+		s.kaiPodGroups[key] = entry
+		return protoKAIPodGroup(entry, pb.KubeMetadataEventType_SET)
 	case workloadmeta.EventTypeUnset:
-		if _, exists := s.kaiPodGroups[key]; exists {
+		if prev, exists := s.kaiPodGroups[key]; exists {
 			delete(s.kaiPodGroups, key)
-			return true
+			return protoKAIPodGroup(prev, pb.KubeMetadataEventType_UNSET)
 		}
 	default:
 		log.Errorf("Unknown event type %d for KAI PodGroup %s", eventType, key)
 	}
-	return false
+	return nil
 }
 
 func kueuePodSetAssignmentEntries(assignments []workloadmeta.KueuePodSetAssignment) []kueuePodSetAssignmentEntry {
@@ -544,12 +557,17 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadat
 }
 
 func (s metadataSnapshot) clone() metadataSnapshot {
+	snapshot := s.cloneWithoutKAIPodGroups()
+	maps.Copy(snapshot.kaiPodGroups, s.kaiPodGroups)
+	return snapshot
+}
+
+func (s metadataSnapshot) cloneWithoutKAIPodGroups() metadataSnapshot {
 	snapshot := newMetadataSnapshot()
 	maps.Copy(snapshot.namespaces, s.namespaces)
 	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
-	maps.Copy(snapshot.kaiPodGroups, s.kaiPodGroups)
 	return snapshot
 }
 
@@ -603,6 +621,10 @@ func fullStateResponse(podServices map[string]podServiceEntry, metadata metadata
 
 	resp := computeMetadataDiff(newMetadataSnapshot(), metadata).response(true)
 	resp.Mappings = mappings
+	resp.KaiPodGroups = make([]*pb.KAIPodGroup, 0, len(metadata.kaiPodGroups))
+	for _, entry := range metadata.kaiPodGroups {
+		resp.KaiPodGroups = append(resp.KaiPodGroups, protoKAIPodGroup(entry, pb.KubeMetadataEventType_SET))
+	}
 	return resp
 }
 
@@ -620,7 +642,6 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
-		kaiPodGroups:         computeKAIPodGroupDiff(old.kaiPodGroups, current.kaiPodGroups),
 	}
 }
 
@@ -749,25 +770,6 @@ func computeKueueWorkloadDiff(old, current map[string]kueueWorkloadEntry) []*pb.
 	for key, prev := range old {
 		if _, exists := current[key]; !exists {
 			diff = append(diff, protoKueueWorkload(prev, pb.KubeMetadataEventType_UNSET))
-		}
-	}
-
-	return diff
-}
-
-func computeKAIPodGroupDiff(old, current map[string]kaiPodGroupEntry) []*pb.KAIPodGroup {
-	var diff []*pb.KAIPodGroup
-
-	for key, cur := range current {
-		prev, existed := old[key]
-		if !existed || !kaiPodGroupEqual(prev, cur) {
-			diff = append(diff, protoKAIPodGroup(cur, pb.KubeMetadataEventType_SET))
-		}
-	}
-
-	for key, prev := range old {
-		if _, exists := current[key]; !exists {
-			diff = append(diff, protoKAIPodGroup(prev, pb.KubeMetadataEventType_UNSET))
 		}
 	}
 
