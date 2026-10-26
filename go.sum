@@ -1803,6 +1803,8 @@ github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
 gitlab.com/gitlab-org/api/client-go/v3 v3.22.0 h1:C/+VaOCQbhtkGgdJwD6R/nId/Y3xJvm8e3mBl4qhKaA=
 gitlab.com/gitlab-org/api/client-go/v3 v3.22.0/go.mod h1:UQl7jIdE6nbYNDtc4XWXeiam0V4MJx459e637POlpnQ=
+gitlab.com/gitlab-org/api/client-go/v3 v3.29.0 h1:wPdHPkd5rIRkxcFzlpm0dHxqBEVrkaDpDhpdikuTRNA=
+gitlab.com/gitlab-org/api/client-go/v3 v3.29.0/go.mod h1:jBFhGkTHLKkgeHEdS/A8yA0tQ6UHq96QVsS5muu6flM=
 go.etcd.io/bbolt v1.5.0 h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=
 go.etcd.io/bbolt v1.5.0/go.mod h1:mkltfYE5aUHQxUct9N9V+Kp7aSjFqjgrhcXIS70Lrdk=
 go.etcd.io/etcd/api/v3 v3.7.0 h1:WZlGK7pRtYGDB8ti8wkrQ5D2oWGMbtNL9VA5e+vF2Fg=
