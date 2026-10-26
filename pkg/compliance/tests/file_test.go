@@ -385,3 +385,96 @@ findings[f] {
 `).
 		AssertFailedEvent(nil)
 }
+
+// makeHostRoot returns a host root whose var/run links to /run with an
+// absolute target, as on Ubuntu, holding run/cmp/a, run/cmp/b and etc/cmp.
+func makeHostRoot(t *testing.T) string {
+	root := t.TempDir()
+	for _, d := range []string{"var", "run/cmp", "etc"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("/run", filepath.Join(root, "var/run")); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{"run/cmp/a": "alpha", "run/cmp/b": "beta", "etc/cmp": "inside"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func TestFileHostRoot(t *testing.T) {
+	b := newTestBench(t).WithHostRoot(makeHostRoot(t))
+	defer b.Run()
+
+	b.AddRule("AbsoluteLink").
+		WithInput(`
+- file:
+		path: /var/run/cmp/a
+		parser: raw
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.file.content == "alpha"
+	input.file.path == "/var/run/cmp/a"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("AbsoluteLinkGlob").
+		WithInput(`
+- file:
+		path: /var/run/cmp/*
+		parser: raw
+	type: array
+	tag: files
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	count(input.files) == 2
+	input.files[_].path == "/var/run/cmp/a"
+	input.files[_].content == "beta"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+
+	b.AddRule("DotDot").
+		WithInput(`
+- file:
+		path: /../../etc/cmp
+		parser: raw
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	input.file.content == "inside"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
+	)
+}
+`).
+		AssertPassedEvent(nil)
+}

@@ -45,7 +45,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.51.1
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
-	github.com/pulumi/pulumi/sdk/v3 v3.269.0
+	github.com/pulumi/pulumi/sdk/v3 v3.270.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -288,12 +288,12 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.28.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.28.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.28.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.28.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.28.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.28.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.29.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.29.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.29.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect

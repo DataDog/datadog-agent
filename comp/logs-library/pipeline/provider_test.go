@@ -235,6 +235,7 @@ func TestProviderConfigurations(t *testing.T) {
 				&sender.NoopSink{},
 				diagnosticMessageReceiver,
 				nil, // processing rules
+				nil, // tag filters
 				endpoints,
 				destinationsContext,
 				status,
@@ -304,6 +305,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				&sender.NoopSink{},
 				diagnosticMessageReceiver,
 				nil, // processing rules
+				nil, // tag filters
 				endpoints,
 				destinationsContext,
 				status,

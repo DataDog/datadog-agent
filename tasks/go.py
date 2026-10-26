@@ -344,7 +344,10 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     _check_valid_mods()
     timings = []
-    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
+    # Branches that predate the Bazel migration (e.g. Agent 6, tidied by release tasks running from main)
+    # have no MODULE.bazel, so the Bazel targets used by `_bazel_tidy` don't exist there.
+    use_bazel = shutil.which("bazel") and os.path.exists("MODULE.bazel")
+    (_bazel_tidy if use_bazel else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
         print(f"{result.duration:6.2f}s  {result.name}", file=sys.stderr)
 
@@ -358,7 +361,9 @@ def _timed_step(name, timings, f):
 
 
 def _go_only_tidy(ctx, verbose: bool, timings=None):
-    _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
+    # Pre-Bazel branches don't use a Go workspace either
+    if os.path.exists("go.work"):
+        _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
 
     if os.name != 'nt':  # not windows
         import resource
@@ -385,7 +390,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
 
     _timed_step("go mod tidy (all modules)", timings, _tidy_all_modules)
 
-    print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
+    if os.path.exists("MODULE.bazel"):
+        print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
 
 
 def _bazel_tidy(ctx, verbose: bool, timings=None):

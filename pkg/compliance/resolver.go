@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/distribution/reference"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
@@ -292,8 +293,39 @@ func (r *defaultResolver) pathRelative(rootPath, path string) string {
 	return path
 }
 
-func (r *defaultResolver) pathNormalizeToHostRoot(path string) string {
-	return r.pathNormalize(r.opts.HostRoot, path)
+// pathResolve returns where the host file at path lives under rootPath.
+// Symbolic links resolve inside rootPath as they would on the host, so an
+// absolute link such as Ubuntu's /var/run -> /run stays under rootPath.
+func (r *defaultResolver) pathResolve(rootPath, path string) string {
+	if rootPath == "" {
+		return path
+	}
+	p, err := securejoin.SecureJoin(filepath.Clean(rootPath), path)
+	if err != nil {
+		return r.pathNormalize(rootPath, path)
+	}
+	return p
+}
+
+func (r *defaultResolver) pathResolveInHostRoot(path string) string {
+	return r.pathResolve(r.opts.HostRoot, path)
+}
+
+// splitGlob splits glob into its leading directory, free of pattern
+// characters, and the pattern below it.
+func splitGlob(glob string) (dir, pattern string) {
+	i := strings.IndexAny(glob, `*?[\`)
+	if i < 0 {
+		return filepath.Dir(glob), filepath.Base(glob)
+	}
+	switch j := strings.LastIndexByte(glob[:i], '/'); j {
+	case -1:
+		return "", glob
+	case 0:
+		return "/", glob[1:]
+	default:
+		return glob[:j], glob[j+1:]
+	}
 }
 
 // getFileMeta returns the metadata of the file at path and, with load, the
@@ -362,9 +394,8 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 }
 
 func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, parser string) (interface{}, error) {
-	path = r.pathNormalize(rootPath, path)
 	parsed := parser == "yaml" || parser == "json" || parser == "raw"
-	file, err := r.getFileMeta(path, parsed)
+	file, err := r.getFileMeta(r.pathResolve(rootPath, path), parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +426,7 @@ func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, par
 		}
 	}
 	return map[string]interface{}{
-		"path":        r.pathRelative(rootPath, path),
+		"path":        r.pathRelative(rootPath, r.pathNormalize(rootPath, path)),
 		"glob":        "",
 		"permissions": file.perms,
 		"user":        file.user,
@@ -435,11 +466,16 @@ func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, rootPa
 }
 
 func (r *defaultResolver) resolveFileGlob(ctx context.Context, rootPath, glob, parser string) (interface{}, error) {
-	paths, _ := filepath.Glob(r.pathNormalize(rootPath, glob)) // We ignore errors from Glob which are never I/O errors
+	dir, pattern := splitGlob(glob)
+	base := r.pathResolve(rootPath, dir)
+	paths, _ := filepath.Glob(filepath.Join(base, pattern)) // We ignore errors from Glob which are never I/O errors
 	var resolved []interface{}
 	for _, path := range paths {
-		path = r.pathRelative(rootPath, path)
-		file, err := r.resolveFilePath(ctx, rootPath, path, parser)
+		rel, err := filepath.Rel(base, path)
+		if err != nil {
+			continue
+		}
+		file, err := r.resolveFilePath(ctx, rootPath, filepath.Join(dir, rel), parser)
 		if err != nil {
 			continue
 		}
@@ -499,7 +535,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 }
 
 func (r *defaultResolver) resolveGroup(_ context.Context, spec InputSpecGroup) (interface{}, error) {
-	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
+	f, err := os.Open(r.pathResolveInHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +573,7 @@ func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment
 	}
-	normPath := r.pathNormalizeToHostRoot(spec.Path)
+	normPath := r.pathResolveInHostRoot(spec.Path)
 	if _, err := os.Stat(normPath); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -695,17 +731,17 @@ func (r *defaultResolver) resolvePackage(_ context.Context, spec InputSpecPackag
 	}()
 
 	// apk
-	apkPath := r.pathNormalizeToHostRoot(apkDb)
+	apkPath := r.pathResolveInHostRoot(apkDb)
 	if pkg := findApkPackage(apkPath, spec.Names); pkg != nil {
 		return pkg, nil
 	}
 
 	// dpkg
-	dpkgPath := r.pathNormalizeToHostRoot(dpkgDb)
+	dpkgPath := r.pathResolveInHostRoot(dpkgDb)
 	if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
 		return pkg, nil
 	}
-	dpkgDirPath := r.pathNormalizeToHostRoot(dpkgDbDir)
+	dpkgDirPath := r.pathResolveInHostRoot(dpkgDbDir)
 	if files, _ := os.ReadDir(dpkgDirPath); len(files) > 0 {
 		for _, entry := range files {
 			dpkgPath := filepath.Join(dpkgDirPath, entry.Name())
@@ -717,7 +753,7 @@ func (r *defaultResolver) resolvePackage(_ context.Context, spec InputSpecPackag
 
 	// rpm
 	for _, path := range rpmDbs {
-		rpmPath := r.pathNormalizeToHostRoot(path)
+		rpmPath := r.pathResolveInHostRoot(path)
 		if pkg := findRpmPackage(rpmPath, spec.Names); pkg != nil {
 			return pkg, nil
 		}

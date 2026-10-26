@@ -44,6 +44,27 @@ tags:
   gpu_fabric_clique_id:
     regex: "^\\d+$"
     optional: true
+  gpu_chassis_serial:
+    regex: "^[a-z0-9_.-]+$"
+    optional: true
+  gpu_slot_number:
+    regex: "^\\d+$"
+    optional: true
+  gpu_tray_index:
+    regex: "^\\d+$"
+    optional: true
+  gpu_module_id:
+    regex: "^\\d+$"
+    optional: true
+  gpu_board_serial:
+    regex: "^[a-z0-9_.-]+$"
+    optional: true
+  gpu_numa_node:
+    regex: "^\\d+$"
+    optional: true
+  gpu_fabric_guid:
+    regex: "^0x[0-9a-f]{16}$"
+    optional: true
   gpu_host:
     regex: "^true$"
   pid:
@@ -102,6 +123,13 @@ tagsets:
       - gpu_nvlink_capable
       - gpu_fabric_cluster_uuid
       - gpu_fabric_clique_id
+      - gpu_chassis_serial
+      - gpu_slot_number
+      - gpu_tray_index
+      - gpu_module_id
+      - gpu_board_serial
+      - gpu_numa_node
+      - gpu_fabric_guid
       - gpu_host
   nvlink:
     tags:

@@ -4468,6 +4468,7 @@ func TestHandleGPU(t *testing.T) {
 	}
 
 	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+	numaNode := 0
 
 	tests := []struct {
 		name     string
@@ -4487,6 +4488,13 @@ func TestHandleGPU(t *testing.T) {
 				PCIBusID:          "0000:00:1e.0",
 				FabricClusterUUID: "00112233-4455-6677-8899-aabbccddeeff",
 				FabricCliqueID:    7,
+				ChassisSerial:     "1821825880999",
+				SlotNumber:        20,
+				TrayIndex:         10,
+				ModuleID:          2,
+				BoardSerial:       "1650825051135",
+				NUMANode:          &numaNode,
+				FabricGUID:        "0x8505c454f59170d4",
 				NVLinkVersion:     "3.0",
 			},
 			expected: []*types.TagInfo{
@@ -4509,6 +4517,13 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_nvlink_capable:true",
 						"gpu_fabric_cluster_uuid:00112233-4455-6677-8899-aabbccddeeff",
 						"gpu_fabric_clique_id:7",
+						"gpu_chassis_serial:1821825880999",
+						"gpu_slot_number:20",
+						"gpu_tray_index:10",
+						"gpu_module_id:2",
+						"gpu_board_serial:1650825051135",
+						"gpu_numa_node:0",
+						"gpu_fabric_guid:0x8505c454f59170d4",
 					},
 					StandardTags: []string{},
 				},
