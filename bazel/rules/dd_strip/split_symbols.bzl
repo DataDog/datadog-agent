@@ -116,7 +116,7 @@ def _get_debug_symbols_impl(ctx):
 
     return [
         DefaultInfo(files = depset(dest_src_map.values())),
-        PackageFilegroupInfo(pkg_files = [(pfi, ctx.label)]),
+        PackageFilegroupInfo(pkg_files = [(pfi, ctx.label)], pkg_dirs = [], pkg_symlinks = []),
     ]
 
 get_debug_symbols = rule(
