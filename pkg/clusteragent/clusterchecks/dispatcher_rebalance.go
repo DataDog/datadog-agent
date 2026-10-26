@@ -242,7 +242,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	defer span.Finish()
 
 	var result []types.RebalanceResponse
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+	if d.useUtilizationRebalance() {
 		result = d.rebalanceUsingUtilization(force)
 		span.SetTag("algorithm", "utilization")
 	} else {
@@ -251,6 +251,23 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	}
 	span.SetTag("checks_moved", len(result))
 	return result
+}
+
+// useUtilizationRebalance reports whether the utilization algorithm is used:
+// configured, or forced by runner groups declared or reported by any worker
+// (the busyness algorithm isn't group-aware).
+func (d *dispatcher) useUtilizationRebalance() bool {
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") || len(d.runnerGroups) > 0 {
+		return true
+	}
+	d.store.RLock()
+	defer d.store.RUnlock()
+	for _, node := range d.store.nodes {
+		if node.group != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster
