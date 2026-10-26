@@ -782,6 +782,59 @@ func TestComputeKueueWorkloadDiff(t *testing.T) {
 	}, diff)
 }
 
+func TestProcessKAIPodGroupEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	podGroupEvent := func(eventType workloadmeta.EventType, namespace, queue string) workloadmeta.Event {
+		return workloadmeta.Event{
+			Type: eventType,
+			Entity: &workloadmeta.KubernetesKAIPodGroup{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKAIPodGroup,
+					ID:   workloadmeta.GenerateKAIPodGroupEntityID(namespace, "pg"),
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pg",
+					Namespace:   namespace,
+					UID:         "uid-" + namespace,
+					Labels:      map[string]string{"team": namespace},
+					Annotations: map[string]string{"owner": namespace},
+				},
+				QueueName: queue,
+			},
+		}
+	}
+	podGroupProto := func(eventType pb.KubeMetadataEventType, namespace, queue string) *pb.KAIPodGroup {
+		return &pb.KAIPodGroup{
+			Namespace:   namespace,
+			Name:        "pg",
+			Queue:       queue,
+			Labels:      map[string]string{"team": namespace},
+			Annotations: map[string]string{"owner": namespace},
+			Uid:         "uid-" + namespace,
+			Type:        eventType,
+		}
+	}
+
+	srv.processWmetaEvents([]workloadmeta.Event{
+		podGroupEvent(workloadmeta.EventTypeSet, "team-a", "queue-a"),
+		podGroupEvent(workloadmeta.EventTypeSet, "team-b", "queue-b"),
+	})
+	// An unchanged PodGroup is not sent again.
+	srv.processWmetaEvents([]workloadmeta.Event{podGroupEvent(workloadmeta.EventTypeSet, "team-b", "queue-b")})
+	srv.processWmetaEvents([]workloadmeta.Event{podGroupEvent(workloadmeta.EventTypeSet, "team-a", "queue-c")})
+	srv.processWmetaEvents([]workloadmeta.Event{podGroupEvent(workloadmeta.EventTypeUnset, "team-a", "queue-c")})
+
+	updates, _, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok)
+	require.Len(t, updates, 3)
+	assert.ElementsMatch(t, []*pb.KAIPodGroup{
+		podGroupProto(pb.KubeMetadataEventType_SET, "team-a", "queue-a"),
+		podGroupProto(pb.KubeMetadataEventType_SET, "team-b", "queue-b"),
+	}, updates[0].KaiPodGroups)
+	assert.Equal(t, []*pb.KAIPodGroup{podGroupProto(pb.KubeMetadataEventType_SET, "team-a", "queue-c")}, updates[1].KaiPodGroups)
+	assert.Equal(t, []*pb.KAIPodGroup{podGroupProto(pb.KubeMetadataEventType_UNSET, "team-a", "queue-c")}, updates[2].KaiPodGroups)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {

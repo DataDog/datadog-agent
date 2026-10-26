@@ -484,6 +484,16 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
+// GetKubernetesKAIPodGroup implements Store#GetKubernetesKAIPodGroup
+func (w *workloadmeta) GetKubernetesKAIPodGroup(id string) (*wmdef.KubernetesKAIPodGroup, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKAIPodGroup, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKAIPodGroup), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)

@@ -60,6 +60,10 @@ const (
 	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
 	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
 	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
+	// KAIGroupName is the API group used by KAI Scheduler resources
+	KAIGroupName = "scheduling.run.ai"
+	// KAIPodGroupResourceName is the plural resource name for KAI PodGroup objects
+	KAIPodGroupResourceName = "podgroups"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 

@@ -92,11 +92,21 @@ type kueueWorkloadEntry struct {
 	podSetAssignments []kueuePodSetAssignmentEntry
 }
 
+type kaiPodGroupEntry struct {
+	namespace   string
+	name        string
+	queueName   string
+	labels      map[string]string
+	annotations map[string]string
+	uid         string
+}
+
 type metadataSnapshot struct {
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 	kueueWorkloads       map[string]kueueWorkloadEntry
+	kaiPodGroups         map[string]kaiPodGroupEntry
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -133,6 +143,7 @@ func newMetadataSnapshot() metadataSnapshot {
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
+		kaiPodGroups:         make(map[string]kaiPodGroupEntry),
 	}
 }
 
@@ -286,6 +297,10 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
 				changed = true
 			}
+		case *workloadmeta.KubernetesKAIPodGroup:
+			if srv.metadata.processKAIPodGroupEvent(event.Type, entity) {
+				changed = true
+			}
 		default:
 			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
@@ -417,6 +432,30 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	return false
 }
 
+func (s *metadataSnapshot) processKAIPodGroupEvent(eventType workloadmeta.EventType, podGroup *workloadmeta.KubernetesKAIPodGroup) bool {
+	key := podGroup.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.kaiPodGroups[key] = kaiPodGroupEntry{
+			namespace:   podGroup.Namespace,
+			name:        podGroup.Name,
+			queueName:   podGroup.QueueName,
+			labels:      podGroup.Labels,
+			annotations: podGroup.Annotations,
+			uid:         podGroup.UID,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.kaiPodGroups[key]; exists {
+			delete(s.kaiPodGroups, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for KAI PodGroup %s", eventType, key)
+	}
+	return false
+}
+
 func kueuePodSetAssignmentEntries(assignments []workloadmeta.KueuePodSetAssignment) []kueuePodSetAssignmentEntry {
 	entries := make([]kueuePodSetAssignmentEntry, 0, len(assignments))
 	for _, assignment := range assignments {
@@ -510,6 +549,7 @@ func (s metadataSnapshot) clone() metadataSnapshot {
 	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
+	maps.Copy(snapshot.kaiPodGroups, s.kaiPodGroups)
 	return snapshot
 }
 
@@ -530,7 +570,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).AddKind(workloadmeta.KindKubernetesKAIPodGroup).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -571,6 +611,7 @@ type metadataDiff struct {
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
 	kueueWorkloads       []*pb.KueueWorkload
+	kaiPodGroups         []*pb.KAIPodGroup
 }
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
@@ -579,11 +620,12 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
+		kaiPodGroups:         computeKAIPodGroupDiff(old.kaiPodGroups, current.kaiPodGroups),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.kaiPodGroups) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
@@ -593,6 +635,7 @@ func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse 
 		KueueQueues:          d.kueueQueues,
 		KueueResourceFlavors: d.kueueResourceFlavors,
 		KueueWorkloads:       d.kueueWorkloads,
+		KaiPodGroups:         d.kaiPodGroups,
 	}
 }
 
@@ -712,6 +755,25 @@ func computeKueueWorkloadDiff(old, current map[string]kueueWorkloadEntry) []*pb.
 	return diff
 }
 
+func computeKAIPodGroupDiff(old, current map[string]kaiPodGroupEntry) []*pb.KAIPodGroup {
+	var diff []*pb.KAIPodGroup
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !kaiPodGroupEqual(prev, cur) {
+			diff = append(diff, protoKAIPodGroup(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoKAIPodGroup(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
 func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) *pb.KueueQueue {
 	return &pb.KueueQueue{
 		Namespace:    entry.namespace,
@@ -747,6 +809,18 @@ func protoKueueWorkload(entry kueueWorkloadEntry, eventType pb.KubeMetadataEvent
 		Uid:               entry.uid,
 		PodSetAssignments: protoKueuePodSetAssignments(entry.podSetAssignments),
 		Type:              eventType,
+	}
+}
+
+func protoKAIPodGroup(entry kaiPodGroupEntry, eventType pb.KubeMetadataEventType) *pb.KAIPodGroup {
+	return &pb.KAIPodGroup{
+		Namespace:   entry.namespace,
+		Name:        entry.name,
+		Queue:       entry.queueName,
+		Labels:      entry.labels,
+		Annotations: entry.annotations,
+		Uid:         entry.uid,
+		Type:        eventType,
 	}
 }
 
@@ -792,6 +866,15 @@ func kueueWorkloadEqual(left, right kueueWorkloadEntry) bool {
 		maps.Equal(left.labels, right.labels) &&
 		maps.Equal(left.annotations, right.annotations) &&
 		kueuePodSetAssignmentsEqual(left.podSetAssignments, right.podSetAssignments)
+}
+
+func kaiPodGroupEqual(left, right kaiPodGroupEntry) bool {
+	return left.namespace == right.namespace &&
+		left.name == right.name &&
+		left.queueName == right.queueName &&
+		left.uid == right.uid &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations)
 }
 
 func kueuePodSetAssignmentsEqual(left, right []kueuePodSetAssignmentEntry) bool {

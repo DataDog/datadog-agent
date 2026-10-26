@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "crd.go",
         "deployment.go",
+        "kai.go",
         "kueue.go",
         "metadata.go",
         "node.go",
@@ -36,11 +37,13 @@ dd_agent_go_test(
     srcs = [
         "crd_test.go",
         "deployment_test.go",
+        "kai_test.go",
         "kueue_test.go",
         "metadata_test.go",
         "pod_test.go",
         "utils_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":kubernetes_resource_parsers"],
     gotags_sets = [[
         "cel",
@@ -65,5 +68,6 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_sigs_yaml//:yaml",
     ],
 )

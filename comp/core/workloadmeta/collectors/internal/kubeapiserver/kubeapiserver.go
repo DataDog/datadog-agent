@@ -342,6 +342,21 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	if shouldHaveKAIMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kaiPodGroupGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover KAI PodGroup resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				// Not added to objectStores: the PodGroups RBAC may be missing
+				// with older Helm charts or Operators, and it must not block
+				// readiness.
+				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
 	if c.config.GetBool("cluster_checks.crd_collection") {
 		log.Info("Enabling CRD informer for workloadmeta collector")
 		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)

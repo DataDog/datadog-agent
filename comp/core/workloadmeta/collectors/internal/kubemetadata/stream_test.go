@@ -1476,6 +1476,76 @@ func TestDCAStreamClient_ApplyResponse_IncrementalWorkloadBeforeFullStateIgnored
 	assert.Empty(t, update.updatedKueueWorkloads)
 }
 
+func TestStreamingProvider_KAIPodGroups(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+		wmeta:     wmetaMock,
+	}
+	applyAndHandle := func(resp *pb.KubeMetadataStreamResponse) {
+		provider.dcaStream.applyResponse(resp)
+		provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), map[string]string{})
+	}
+
+	applyAndHandle(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		KaiPodGroups: []*pb.KAIPodGroup{
+			{
+				Namespace:   "team-a",
+				Name:        "pg",
+				Queue:       "queue-a",
+				Uid:         "uid-a",
+				Labels:      map[string]string{"team": "a"},
+				Annotations: map[string]string{"owner": "a"},
+				Type:        pb.KubeMetadataEventType_SET,
+			},
+			{Namespace: "team-b", Name: "pg", Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "team-b", Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+
+	podGroupA, err := wmetaMock.GetKubernetesKAIPodGroup("team-a/pg")
+	require.NoError(t, err)
+	assert.Equal(t, &workloadmeta.KubernetesKAIPodGroup{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKAIPodGroup, ID: "team-a/pg"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pg",
+			Namespace:   "team-a",
+			UID:         "uid-a",
+			Labels:      map[string]string{"team": "a"},
+			Annotations: map[string]string{"owner": "a"},
+		},
+		QueueName: "queue-a",
+	}, podGroupA)
+	podGroupB, err := wmetaMock.GetKubernetesKAIPodGroup("team-b/pg")
+	require.NoError(t, err)
+	assert.Empty(t, podGroupB.QueueName)
+	assert.Len(t, wmetaMock.DumpStructured().Entities[string(workloadmeta.KindKubernetesKAIPodGroup)], 2)
+
+	applyAndHandle(&pb.KubeMetadataStreamResponse{
+		KaiPodGroups: []*pb.KAIPodGroup{{Namespace: "team-a", Name: "pg", Queue: "queue-c", Type: pb.KubeMetadataEventType_SET}},
+	})
+	podGroupA, err = wmetaMock.GetKubernetesKAIPodGroup("team-a/pg")
+	require.NoError(t, err)
+	assert.Equal(t, "queue-c", podGroupA.QueueName)
+
+	applyAndHandle(&pb.KubeMetadataStreamResponse{
+		KaiPodGroups: []*pb.KAIPodGroup{{Namespace: "team-a", Name: "pg", Type: pb.KubeMetadataEventType_UNSET}},
+	})
+	_, err = wmetaMock.GetKubernetesKAIPodGroup("team-a/pg")
+	assert.Error(t, err)
+	_, err = wmetaMock.GetKubernetesKAIPodGroup("team-b/pg")
+	assert.NoError(t, err)
+
+	// A full state without a PodGroup removes it.
+	applyAndHandle(&pb.KubeMetadataStreamResponse{IsFullState: true})
+	_, err = wmetaMock.GetKubernetesKAIPodGroup("team-b/pg")
+	assert.Error(t, err)
+}
+
 func assertKueueQueues(t *testing.T, wmetaMock workloadmetamock.Mock, expected map[string]expectedKueueQueue) {
 	t.Helper()
 
