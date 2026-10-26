@@ -22,8 +22,8 @@ import (
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -66,9 +66,9 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
-	buildFIPS, err := fips.Enabled()
-	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || buildFIPS || cfg.GetBool("fips.enabled") ||
-		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+	mode, err := deployment.Resolve(cfg)
+	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || mode != deployment.Split ||
+		!filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
