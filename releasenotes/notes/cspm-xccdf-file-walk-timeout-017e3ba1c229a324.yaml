@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    CSPM host benchmarks wait up to 10 minutes for an XCCDF rule, where they
+    used to skip a rule whose evaluation took more than 60 seconds. The rules
+    that walk every local file system, such as
+    ``no_files_or_dirs_unowned_by_user`` and
+    ``no_files_or_dirs_ungroupowned``, no longer go missing from a run on
+    hosts where the walk outlasts a minute.

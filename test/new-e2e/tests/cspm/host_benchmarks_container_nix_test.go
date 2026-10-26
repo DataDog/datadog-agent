@@ -112,10 +112,13 @@ func (s *containerBenchmarksSuite) TestDeterminism() {
 // pipeline, so a --report run lands them in fakeintake.
 func (s *containerBenchmarksSuite) TestReporting() {
 	// Bound reporting when fakeintake is unreachable and preserve stderr for diagnosis.
+	// The bound must fit a full benchmark run first: the container walks the host
+	// files as the host agent does, which takes about 100s on RHEL 10.
+	const deadline = "5m"
 	output, err := s.Env().Docker.Client.ExecuteCommandWithErr(s.Env().Agent.ContainerName,
-		"timeout", "--kill-after=10s", "2m", securityAgent, "compliance", "check", "--report")
+		"timeout", "--kill-after=10s", deadline, securityAgent, "compliance", "check", "--report")
 	require.NoErrorf(s.T(), err,
-		"compliance reporting failed (2m deadline, forced kill after another 10s); check container-to-fakeintake connectivity; output: %s", output)
+		"compliance reporting failed (%s deadline, forced kill after another 10s); check container-to-fakeintake connectivity; output: %s", deadline, output)
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		findings, err := s.Env().FakeIntake.Client().GetComplianceFindings()
 		require.NoError(c, err)

@@ -122,4 +122,6 @@ new-e2e-cspm:
       - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksUbuntu2404
       - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAmazonLinux2023
       - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAlmaLinux9
-  timeout: 35m
+  # The RHEL 8 and 10 suites run a full benchmark six times, about 2 minutes
+  # each, on top of provisioning.
+  timeout: 45m

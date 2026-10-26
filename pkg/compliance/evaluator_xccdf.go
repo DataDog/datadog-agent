@@ -37,7 +37,11 @@ const (
 
 const (
 	// xccdfTimeout is the longest wait for the next answer from oscap-io.
-	xccdfTimeout = 60 * time.Second
+	// The rules that walk every local file system, such as
+	// no_files_or_dirs_unowned_by_user, take close to a minute on a fresh
+	// cloud host and longer on a host with more files, and a rule the
+	// watchdog kills oscap-io on reports nothing.
+	xccdfTimeout = 10 * time.Minute
 
 	// xccdfWaitDelay bounds the wait for the oscap-io output once the
 	// process has exited.
