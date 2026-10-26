@@ -17,7 +17,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -146,6 +148,11 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		children[i] = p.Detail
 	}
 	generation := [2]string{children[0].Uuid, children[1].Uuid}
+	// A restart between the two Describe calls must not become a mixed baseline.
+	confirmed, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: generation[0]})
+	if err != nil || confirmed.GetDetail().GetUuid() != generation[0] {
+		return set("waiting", "supervisor_registration_change_pending", pollInterval)
+	}
 	if generation[0] == "" || generation[1] == "" {
 		return set("waiting", "supervisor_registration_unavailable", pollInterval)
 	}
@@ -192,6 +199,11 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	defer startCancel()
 	c.attempted = true
 	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: children[0].Uuid}); err != nil {
+		if grpcstatus.Code(err) == codes.NotFound {
+			// The supervisor resolves the UUID before spawning: this response proves no start.
+			c.attempted = false
+			return set("waiting", "supervisor_registration_change_pending", pollInterval)
+		}
 		return set("blocked", "launch_outcome_unknown_requires_review", 0)
 	}
 	return c.handoff(generation, "supervisor_start_acknowledged")
@@ -199,10 +211,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 
 func (c *controller) handoff(generation [2]string, reason string) time.Duration {
 	c.generation, c.handoffReason = generation, reason
-	// Watching registrations must not keep AAA discovery active after authorization.
-	if source, ok := c.source.(*scopedSource); ok && source.scope != nil {
-		source.scope.SetPARDiscoveryDemand(false)
-	}
+	c.source.Release()
 	c.emit(State{State: "handed_off", Reason: reason})
 	return pollInterval
 }

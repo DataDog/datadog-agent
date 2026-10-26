@@ -16,6 +16,8 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestSupervisorReplacementRequiresBothNewIDsAndRC(t *testing.T) {
@@ -81,20 +83,86 @@ func TestExistingChildrenAreWatchedWithoutTakingOverTheirLifecycle(t *testing.T)
 func TestSupervisorWatchLoopRecoversAndCancels(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newFixture(t)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 3*pollInterval)
 		defer cancel()
-		done := make(chan struct{})
-		go func() { defer close(done); f.c.run(ctx) }()
-		time.Sleep(pollInterval)
-		synctest.Wait()
-		require.Equal(t, 1, f.pm.starts)
-		f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
-		time.Sleep(pollInterval)
-		synctest.Wait()
+		f.c.emit = func(s State) {
+			if s.State == "handed_off" {
+				if f.pm.starts == 1 {
+					f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
+				} else {
+					cancel()
+				}
+			}
+		}
+		f.c.run(ctx)
 		require.Equal(t, 2, f.pm.starts)
-		cancel()
-		<-done
+		require.ErrorIs(t, ctx.Err(), context.Canceled)
 	})
+}
+
+func TestRestartBetweenDescribeCallsDoesNotCaptureMixedIDs(t *testing.T) {
+	for _, active := range []bool{false, true} {
+		f := newFixture(t)
+		if active {
+			f.pm.control.State = pb.ProcessState_RUNNING
+		}
+		f.pm.onDescribe = func(r *pb.DescribeRequest) {
+			if r.NameOrUuid == executorProcess {
+				f.pm.onDescribe = nil
+				f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
+				f.pm.control.State = pb.ProcessState_SKIPPED
+			}
+		}
+		f.c.step(context.Background())
+		require.Equal(t, "supervisor_registration_change_pending", f.state.Reason)
+		require.Empty(t, f.c.generation)
+		require.Zero(t, f.pm.starts)
+		f.c.step(context.Background())
+		require.Equal(t, 1, f.pm.starts)
+	}
+}
+
+func TestMissingRegistrationAtStartCanBeReobserved(t *testing.T) {
+	f := newFixture(t)
+	f.pm.startErr = grpcstatus.Error(codes.NotFound, "registration disappeared before spawn")
+	require.Equal(t, pollInterval, f.c.step(context.Background()))
+	require.False(t, f.c.attempted)
+	f.pm.startErr = nil
+	f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
+	f.c.step(context.Background())
+	require.Equal(t, 2, f.pm.starts)
+	require.Equal(t, "supervisor_start_acknowledged", f.state.Reason)
+}
+
+func TestAmbiguousStartAfterRearmingStopsRecovery(t *testing.T) {
+	f := newFixture(t)
+	f.c.step(context.Background())
+	f.pm.control.Uuid, f.pm.executor.Uuid = "new-control", "new-executor"
+	f.pm.startErr = errors.New("response lost")
+	require.Zero(t, f.c.step(context.Background()))
+	f.pm.control.Uuid, f.pm.executor.Uuid = "another-control", "another-executor"
+	f.pm.startErr = nil
+	require.Zero(t, f.c.step(context.Background()))
+	require.Equal(t, 2, f.pm.starts)
+}
+
+type forwardingSource struct{ Source }
+
+func TestExistingChildrenReleaseDiscoveryThroughSourceInterface(t *testing.T) {
+	f := newScopeFixture(t)
+	c, pm := stackController(t, f)
+	c.source = forwardingSource{c.source}
+	f.rc(true, true)
+	c.step(context.Background())
+	f.step()
+	require.True(t, f.s.demand.Load())
+	pm.control.State = pb.ProcessState_RUNNING
+	c.step(context.Background())
+	require.False(t, f.s.demand.Load())
+	require.Zero(t, pm.starts)
+	f.advance(time.Minute)
+	f.step()
+	require.EqualValues(t, 1, f.aaaGETs.Load())
 }
 
 func TestHTTPStackSupervisorReplacementRequiresFreshScope(t *testing.T) {

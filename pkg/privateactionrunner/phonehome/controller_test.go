@@ -24,6 +24,9 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type supervisor struct {
@@ -32,16 +35,23 @@ type supervisor struct {
 	starts            int
 	startErr          error
 	describeErr       error
+	onDescribe        func(*pb.DescribeRequest)
 }
 
 func (p *supervisor) Describe(_ context.Context, r *pb.DescribeRequest, _ ...grpc.CallOption) (*pb.DescribeResponse, error) {
+	if p.onDescribe != nil {
+		p.onDescribe(r)
+	}
 	if p.describeErr != nil {
 		return nil, p.describeErr
 	}
-	if r.NameOrUuid == controlProcess {
-		return &pb.DescribeResponse{Detail: p.control}, nil
+	if r.NameOrUuid == controlProcess || r.NameOrUuid == p.control.Uuid {
+		return &pb.DescribeResponse{Detail: proto.Clone(p.control).(*pb.ProcessDetail)}, nil
 	}
-	return &pb.DescribeResponse{Detail: p.executor}, nil
+	if r.NameOrUuid == executorProcess || r.NameOrUuid == p.executor.Uuid {
+		return &pb.DescribeResponse{Detail: proto.Clone(p.executor).(*pb.ProcessDetail)}, nil
+	}
+	return nil, grpcstatus.Error(codes.NotFound, "registration not found")
 }
 func (p *supervisor) Start(_ context.Context, _ *pb.StartRequest, _ ...grpc.CallOption) (*pb.StartResponse, error) {
 	p.starts++

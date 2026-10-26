@@ -42,18 +42,21 @@ registrations; only then does core re-arm startup and require RC plus a fresh AA
 Replacing only one registration waits without starting anything. Losing connectivity
 alone does not re-arm the gate, and a recovered connection restores the handoff state.
 
-There is at most one core Start request for the same observed registration lifecycle.
-An ambiguous Start stops the controller and requires operator review, even if the
+There is at most one accepted or ambiguous core Start request for the same observed
+registration lifecycle. A definitive `NotFound` before spawn allows re-observation;
+other Start errors stop the controller and require operator review, even if the
 supervisor later restarts. Acknowledgement is not proof of enrollment or action readiness.
 Ordinary child-process crashes/restarts keep their registration IDs: core does not
 re-authorize, relaunch or stop them. A failed/exited child observed before handoff requires
 operator review. Already-active children and potential credential holders are left alone.
 
-The existing enrollment implementation retains its own retry/persistence behavior and its
-existing limitations on ambiguous network failures. The gate adds no new enrollment POST
-retry, journal, idempotency promise or credential-recovery policy. An operator restart can
-re-arm the gate: reconcile any possibly committed enrollment before manually retrying. The
-provided supervisor and core QA unit must not independently restart failed attempts.
+The existing enrollment implementation retains its retry/persistence behavior and limits
+on ambiguous network failures. Re-authorizing after supervisor replacement re-enters the
+existing bootstrap, potentially including self-enrollment if an identity was not persisted.
+Neither a Start acknowledgement nor new registration IDs establish the outcome of a prior
+enrollment POST. This recovery policy adds no enrollment idempotency or exactly-once guarantee.
+An ambiguous Start RPC still stops automatic recovery; reconcile possibly committed enrollment
+before deliberately restarting core to override that block.
 
 Old POC `.phone-home` attempt journals block new startup rather than silently discarding
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
