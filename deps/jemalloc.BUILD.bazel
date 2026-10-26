@@ -12,7 +12,7 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-VERSION = "5.3.0"
+VERSION = "5.3.1"
 
 package_metadata(
     name = "package_metadata",
@@ -78,11 +78,7 @@ configure_make(
         "--disable-fill",
         "--disable-prof",
         "--disable-static",
-    ] + select({
-        # Support Linux ARM64 kernels with 4 KiB, 16 KiB, or 64 KiB pages.
-        "@//:linux_arm64": ["--with-lg-page=16"],
-        "//conditions:default": [],
-    }),
+    ],
     lib_source = ":all_srcs",
     out_shared_libs = ["libjemalloc.so"],
     resource_size = "medium",
