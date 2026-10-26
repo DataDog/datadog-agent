@@ -69,13 +69,6 @@ func TestWaitFlushReturnsWhenContextIsDone(t *testing.T) {
 	})
 }
 
-func TestComputeServiceNameContainerAppJob(t *testing.T) {
-	t.Setenv("CONTAINER_APP_JOB_NAME", "JOB-name")
-	assert.Equal(t, "job-name", getServiceName())
-	t.Setenv("CONTAINER_APP_NAME", "APP-name")
-	assert.Equal(t, "app-name", getServiceName())
-}
-
 func TestBuildMessage(t *testing.T) {
 	logline := &config.ChannelMessage{
 		Content:   []byte("bababang"),

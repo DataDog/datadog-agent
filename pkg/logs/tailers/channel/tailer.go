@@ -27,9 +27,6 @@ const cloudRunServiceName = "K_SERVICE"
 // containerAppName is the environment variable of the container app name (this is used only for the serverless agent)
 const containerAppName = "CONTAINER_APP_NAME"
 
-// containerAppJobName is the environment variable of the container app job name
-const containerAppJobName = "CONTAINER_APP_JOB_NAME"
-
 // Tailer consumes and processes a channel of strings, and sends them to a
 // stream of log messages.
 //
@@ -113,9 +110,6 @@ func getServiceName() string {
 	}
 	if containerAppName := os.Getenv(containerAppName); containerAppName != "" {
 		return strings.ToLower(containerAppName)
-	}
-	if jobName := os.Getenv(containerAppJobName); jobName != "" {
-		return strings.ToLower(jobName)
 	}
 	return "agent"
 }
