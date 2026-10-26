@@ -498,54 +498,50 @@ func getContainerCount(mb model.MessageBody) int {
 	return 0
 }
 
-func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Response) []*model.CollectorStatus {
-	var statuses []*model.CollectorStatus
-
-	submissionErrors := int64(0)
-
-	for response := range responses {
-		if response.Err != nil {
-			log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
-			submissionErrors++
-			continue
-		}
-
-		if response.StatusCode >= 300 {
-			log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
-			submissionErrors++
-			continue
-		}
-
-		// some checks don't receive a response with a status used to enable RT mode
-		if ignoreResponseBody(checkName) {
-			continue
-		}
-
-		r, err := model.DecodeMessage(response.Body)
-		if err != nil {
-			log.Errorf("[%s] Could not decode response body: %s", checkName, err)
-			submissionErrors++
-			continue
-		}
-
-		switch r.Header.Type {
-		case model.TypeResCollector:
-			rm := r.Body.(*model.ResCollector)
-			if len(rm.Message) > 0 {
-				log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
-				submissionErrors++
-			} else {
-				statuses = append(statuses, rm.Status)
-			}
-		default:
-			log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
-			submissionErrors++
-		}
+func readResponseStatus(checkName string, response defaultforwarder.Response) *model.CollectorStatus {
+	if response.Err != nil {
+		log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
+		status.AddSubmissionErrorCount(1)
+		return nil
 	}
 
-	status.AddSubmissionErrorCount(submissionErrors)
+	if response.StatusCode >= 300 {
+		log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
+		status.AddSubmissionErrorCount(1)
+		return nil
+	}
 
-	return statuses
+	// Some checks don't receive a response with a status used to enable RT mode.
+	if ignoreResponseBody(checkName) {
+		return nil
+	}
+
+	r, err := model.DecodeMessage(response.Body)
+	if err != nil {
+		log.Errorf("[%s] Could not decode response body: %s", checkName, err)
+		status.AddSubmissionErrorCount(1)
+		return nil
+	}
+
+	switch r.Header.Type {
+	case model.TypeResCollector:
+		rm := r.Body.(*model.ResCollector)
+		if len(rm.Message) > 0 {
+			log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
+			status.AddSubmissionErrorCount(1)
+			return nil
+		}
+		if rm.Status == nil {
+			log.Errorf("[%s] Missing collector status from %s", checkName, response.Domain)
+			status.AddSubmissionErrorCount(1)
+			return nil
+		}
+		return rm.Status
+	default:
+		log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
+		status.AddSubmissionErrorCount(1)
+		return nil
+	}
 }
 
 func ignoreResponseBody(checkName string) bool {

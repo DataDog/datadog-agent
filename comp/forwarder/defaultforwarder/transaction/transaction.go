@@ -234,7 +234,7 @@ func (d Destination) String() string {
 }
 
 type Authorizer interface {
-	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
+	Authorize(apiKeyIdx uint, headers http.Header, log log.Component) int
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -273,7 +273,9 @@ type HTTPTransaction struct {
 	// We don't store the API key directly in the transaction, as it may change.
 	// Instead store the index so it can be resolved prior to sending.
 	APIKeyIndex uint
-	Resolver    Authorizer
+	// APIKeyVersion is the credential-set generation used by the most recent send attempt.
+	APIKeyVersion int
+	Resolver      Authorizer
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -407,7 +409,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		req.Header[k] = v
 	}
 	if t.Resolver != nil {
-		t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
+		t.APIKeyVersion = t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
 	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)

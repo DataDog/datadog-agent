@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix Process Agent submissions to additional endpoints so that a slow endpoint
+    no longer delays subsequent process payloads or real-time status updates
+    from healthy endpoints.

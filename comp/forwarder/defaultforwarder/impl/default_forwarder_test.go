@@ -6,7 +6,10 @@
 package defaultforwarderimpl
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +17,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -108,4 +112,49 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	data, err = json.Marshal(actualAPIKeys)
 	require.NoError(t, err)
 	assert.Equal(t, expectData, string(data))
+}
+
+func TestProcessTransactionReportsSentCredentialAfterRotation(t *testing.T) {
+	requestKeys := make(chan string, 2)
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		requestKeys <- r.Header.Get("DD-Api-Key")
+		if requests == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		} else {
+			w.WriteHeader(http.StatusAccepted)
+		}
+	}))
+	defer server.Close()
+
+	cfg := configmock.New(t)
+	cfg.Set("api_key", "old-key", pkgconfigmodel.SourceAgentRuntime)
+	log := logmock.New(t)
+	options, err := NewOptions(cfg, log, map[string][]utils.APIKeys{
+		server.URL: {utils.NewAPIKeys("api_key", "old-key")},
+	})
+	require.NoError(t, err)
+	options.Secrets = secretsmock.New(t)
+	forwarder := NewDefaultForwarder(cfg, log, options)
+
+	txn := transaction.NewHTTPTransaction()
+	txn.Kind = transaction.Process
+	txn.Domain = server.URL
+	txn.Endpoint.Route = "/api/v1/collector"
+	txn.Payload = transaction.NewBytesPayloadWithoutMetaData([]byte("payload"))
+	txn.Resolver = forwarder.domainResolvers[server.URL]
+
+	// The transaction was queued under the old key, but resolves its key when sent.
+	cfg.Set("api_key", "first-rotated-key", pkgconfigmodel.SourceAgentRuntime)
+	client := &http.Client{}
+	require.Error(t, txn.Process(context.Background(), cfg, log, options.Secrets, client, nil))
+	assert.Equal(t, "first-rotated-key", <-requestKeys)
+	assert.Equal(t, 1, txn.APIKeyVersion)
+
+	// A retry of the same transaction must report the key used by its next attempt.
+	cfg.Set("api_key", "second-rotated-key", pkgconfigmodel.SourceAgentRuntime)
+	require.NoError(t, txn.Process(context.Background(), cfg, log, options.Secrets, client, nil))
+	assert.Equal(t, "second-rotated-key", <-requestKeys)
+	assert.Equal(t, 2, txn.APIKeyVersion)
 }

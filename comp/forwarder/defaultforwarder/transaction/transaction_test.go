@@ -198,8 +198,9 @@ func Test_truncateBodyForLog(t *testing.T) {
 
 type mockAuthorizer struct{}
 
-func (mockAuthorizer) Authorize(_ uint, h http.Header, _ log.Component) {
+func (mockAuthorizer) Authorize(_ uint, h http.Header, _ log.Component) int {
 	h.Set("DD-Api-Key", "secret")
+	return 0
 }
 
 // TestProcessDoesNotMutateHeaders verifies that internalProcess does not add the

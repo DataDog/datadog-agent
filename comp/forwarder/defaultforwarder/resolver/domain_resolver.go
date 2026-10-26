@@ -488,11 +488,6 @@ type authHeader struct {
 	key, value string
 }
 
-// Authorize sets the auth header on the provided headers map.
-func (ah authHeader) Authorize(headers http.Header) {
-	headers.Set(ah.key, ah.value)
-}
-
 // GetAuthHeaders returns
 func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	if r.IsLocal() {
@@ -511,14 +506,18 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	return
 }
 
-func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.Component) {
-	authorizers := r.GetAuthorizers()
+func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.Component) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	if apiKeyIdx >= uint(len(authorizers)) {
-		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(authorizers))
+	if r.IsLocal() {
+		headers.Set("Authorization", "Bearer "+r.authToken)
+	} else if apiKeyIdx >= uint(len(r.dedupedAPIKeys)) {
+		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(r.dedupedAPIKeys))
 	} else {
-		authorizers[apiKeyIdx].Authorize(headers)
+		headers.Set("DD-Api-Key", r.dedupedAPIKeys[apiKeyIdx])
 	}
+	return r.keyVersion
 }
 
 // GetConfigName returns the base url as it was originally written in the config.

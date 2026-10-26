@@ -314,7 +314,12 @@ func TestCollectorRunCheck(t *testing.T) {
 }
 
 // TestSubmitterDoesntBlockOnRTUpdate tests notifyRTStatusChange to ensure that we never block if the channel is filled up
-func TestSubmitterDoesntBlockOnRTUpdate(*testing.T) {
-	emptyChan := make(chan<- types.RTResponse)
+func TestSubmitterDoesntBlockOnRTUpdate(t *testing.T) {
+	emptyChan := make(chan types.RTResponse)
 	notifyRTStatusChange(emptyChan, types.RTResponse{})
+
+	queued := make(chan types.RTResponse, 1)
+	queued <- types.RTResponse{{ActiveClients: 0}}
+	notifyRTStatusChange(queued, types.RTResponse{{ActiveClients: 1}})
+	assert.Equal(t, int32(1), (<-queued)[0].ActiveClients)
 }

@@ -16,12 +16,16 @@ import (
 
 // team: agent-metric-pipelines
 
-// Response contains the response details of a successfully posted transaction
+// Response contains the result of a completed transaction.
 type Response struct {
-	Domain     string
-	Body       []byte
-	StatusCode int
-	Err        error
+	Domain string
+	// APIKeyIndex identifies the credential within Domain without exposing its value.
+	APIKeyIndex uint
+	// APIKeyVersion changes when Domain's credential set is updated.
+	APIKeyVersion int
+	Body          []byte
+	StatusCode    int
+	Err           error
 }
 
 // Features is a bitmask to enable specific forwarder features

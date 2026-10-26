@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -47,6 +48,24 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
+// The forwarder times out response channels after 30 seconds of silence; each
+// response restarts that timer. Bound submissions while waiting for closure.
+const maxPendingResponseDrains = 256
+
+// Ignore short network blips without retaining a failed endpoint's RT vote forever.
+const maxConsecutiveRTFailures = 3
+
+type rtEndpointKey struct {
+	domain      string
+	apiKeyIndex uint
+}
+
+type rtEndpointStatus struct {
+	sequence uint64
+	status   *model.CollectorStatus
+	failures uint8
+}
+
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
 	log            log.Component
@@ -71,8 +90,15 @@ type CheckSubmitter struct {
 
 	forwarderRetryMaxQueueBytes int
 
-	// Channel for notifying the submitter to enable/disable realtime mode
+	// Channel for notifying the runner to enable/disable realtime mode
 	rtNotifierChan chan types.RTResponse
+
+	// Serialize RT updates from independently drained response channels.
+	rtMu             sync.Mutex
+	rtSequence       atomic.Uint64
+	rtGeneration     atomic.Uint64                      // incremented when a response reveals a rotated credential set
+	rtEndpoints      map[rtEndpointKey]rtEndpointStatus // guarded by rtMu
+	rtDomainVersions map[string]int                     // guarded by rtMu
 
 	agentStartTime int64
 
@@ -124,7 +150,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	if err != nil {
 		return nil, err
 	}
-
 	processFwd := forwarders.GetProcessForwarder()
 	rtProcessFwd := forwarders.GetRTProcessForwarder()
 
@@ -272,6 +297,9 @@ func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
 }
 
 func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
+	// A stuck connection or RT response cannot consume process check slots.
+	inFlight := make(chan struct{}, maxPendingResponseDrains)
+	limitWarned := false
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -284,15 +312,33 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 				forwarderPayload = transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})
 				responses        chan forwarder.Response
 				err              error
-				updateRTStatus   bool
 			)
 
 			if s.shouldDropPayload(result.name) {
 				continue
 			}
+			if len(inFlight) == maxPendingResponseDrains {
+				// Backpressure before submitting: abandoning a response reader
+				// would not cancel the forwarder's in-flight transaction.
+				if !limitWarned {
+					s.log.Warnf("Process response limit reached (%d); waiting for in-flight submissions", maxPendingResponseDrains)
+					limitWarned = true
+				}
+			} else {
+				limitWarned = false
+			}
+			select {
+			case inFlight <- struct{}{}:
+			case <-s.exit:
+				return
+			}
 
+			updateRTStatus := s.realtimeUpdate[result.name]
+			var submissionGeneration uint64
+			if updateRTStatus {
+				submissionGeneration = s.rtGeneration.Load()
+			}
 			submitFn, ok := s.submitFuncs[result.name]
-			updateRTStatus = s.realtimeUpdate[result.name]
 			if !ok {
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			} else {
@@ -301,16 +347,155 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 
 			if err != nil {
 				s.log.Errorf("Unable to submit payload: %s", err)
+				status.AddSubmissionErrorCount(1)
+				<-inFlight
+				continue
+			}
+			if responses == nil {
+				<-inFlight
 				continue
 			}
 
-			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
+			sequence := uint64(0)
+			if updateRTStatus {
+				sequence = s.rtSequence.Add(1)
+			}
+			s.wg.Add(1)
+			go func() {
+				defer s.wg.Done()
+				defer func() { <-inFlight }()
+				s.drainResponses(result.name, responses, updateRTStatus, sequence, submissionGeneration)
+			}()
+		}
+	}
+}
+
+func (s *CheckSubmitter) drainResponses(name string, responses <-chan forwarder.Response, updateRTStatus bool, sequence, submissionGeneration uint64) {
+	for {
+		select {
+		case <-s.exit:
+			return
+		case response, ok := <-responses:
+			if !ok {
 				if updateRTStatus {
-					notifyRTStatusChange(s.rtNotifierChan, statuses)
+					s.completeRTStatus(sequence, submissionGeneration)
 				}
+				return
+			}
+			// Shutdown can win after the response was selected.
+			select {
+			case <-s.exit:
+				return
+			default:
+			}
+			collectorStatus := readResponseStatus(name, response)
+			if updateRTStatus {
+				s.publishRTStatus(sequence, response.Domain, response.APIKeyIndex, response.APIKeyVersion, collectorStatus)
 			}
 		}
 	}
+}
+
+func (s *CheckSubmitter) publishRTStatus(sequence uint64, domain string, apiKeyIndex uint, apiKeyVersion int, collectorStatus *model.CollectorStatus) {
+	s.rtMu.Lock()
+	defer s.rtMu.Unlock()
+	select {
+	case <-s.exit:
+		return
+	default:
+	}
+	if s.rtEndpoints == nil {
+		s.rtEndpoints = make(map[rtEndpointKey]rtEndpointStatus)
+	}
+	if s.rtDomainVersions == nil {
+		s.rtDomainVersions = make(map[string]int)
+	}
+	knownVersion, known := s.rtDomainVersions[domain]
+	if known && apiKeyVersion < knownVersion {
+		return // A delayed response from before an API-key update.
+	}
+	rotatedStatus := false
+	if known && apiKeyVersion > knownVersion {
+		s.rtGeneration.Add(1)
+		for endpoint, previous := range s.rtEndpoints {
+			if endpoint.domain == domain {
+				rotatedStatus = rotatedStatus || previous.status != nil
+				delete(s.rtEndpoints, endpoint)
+			}
+		}
+	}
+	s.rtDomainVersions[domain] = apiKeyVersion
+	key := rtEndpointKey{domain: domain, apiKeyIndex: apiKeyIndex}
+	previous := s.rtEndpoints[key]
+	if sequence < previous.sequence {
+		return // Only a newer response from this credential can supersede it.
+	}
+	previous.sequence = sequence
+	if collectorStatus == nil {
+		if previous.failures < maxConsecutiveRTFailures {
+			previous.failures++
+		}
+		if previous.failures == maxConsecutiveRTFailures && previous.status != nil {
+			previous.status = nil
+			s.rtEndpoints[key] = previous
+			s.notifyRTStatus()
+			return
+		}
+		s.rtEndpoints[key] = previous
+		if rotatedStatus {
+			s.notifyRTStatus()
+		}
+		return
+	}
+	previous.status = collectorStatus
+	previous.failures = 0
+	s.rtEndpoints[key] = previous
+	s.notifyRTStatus()
+}
+
+// A closed response channel counts once against endpoints that did not answer
+// this payload. Closures from before a credential rotation cannot invalidate
+// decisions made with the new credential set.
+func (s *CheckSubmitter) completeRTStatus(sequence, submissionGeneration uint64) {
+	s.rtMu.Lock()
+	defer s.rtMu.Unlock()
+	select {
+	case <-s.exit:
+		return
+	default:
+	}
+	if submissionGeneration != s.rtGeneration.Load() {
+		return
+	}
+	changed := false
+	for key, previous := range s.rtEndpoints {
+		if previous.sequence < sequence {
+			previous.sequence = sequence
+			if previous.failures < maxConsecutiveRTFailures {
+				previous.failures++
+			}
+			if previous.failures == maxConsecutiveRTFailures && previous.status != nil {
+				previous.status = nil
+				changed = true
+			}
+			s.rtEndpoints[key] = previous
+		}
+	}
+	if changed {
+		s.notifyRTStatus()
+	}
+}
+
+// notifyRTStatus is called with rtMu held. Each snapshot owns its slice; the
+// runner can read it while later response channels update the endpoint cache.
+func (s *CheckSubmitter) notifyRTStatus() {
+	statuses := make(types.RTResponse, 0, len(s.rtEndpoints))
+	for _, endpoint := range s.rtEndpoints {
+		if endpoint.status != nil {
+			statuses = append(statuses, endpoint.status)
+		}
+	}
+	notifyRTStatusChange(s.rtNotifierChan, statuses)
 }
 
 func (s *CheckSubmitter) logQueuesSize() {
@@ -441,9 +626,19 @@ func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 	}
 }
 
-func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {
+func notifyRTStatusChange(rtNotifierChan chan types.RTResponse, statuses types.RTResponse) {
 	select {
 	case rtNotifierChan <- statuses:
-	default: // Never block on the rtNotifierChan in case the runner has somehow stopped
+	default:
+		// Replace a queued update with the newest aggregate rather than
+		// dropping the healthy RT status while the runner is busy.
+		select {
+		case <-rtNotifierChan:
+		default:
+		}
+		select {
+		case rtNotifierChan <- statuses:
+		default: // An unbuffered channel without a reader must never block.
+		}
 	}
 }

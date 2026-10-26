@@ -782,10 +782,12 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 
 		txn.CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 			internalResults <- defaultforwarderdef.Response{
-				Domain:     transaction.Domain,
-				Body:       body,
-				StatusCode: statusCode,
-				Err:        err,
+				Domain:        transaction.Domain,
+				APIKeyIndex:   transaction.APIKeyIndex,
+				APIKeyVersion: transaction.APIKeyVersion,
+				Body:          body,
+				StatusCode:    statusCode,
+				Err:           err,
 			}
 		}
 	}
