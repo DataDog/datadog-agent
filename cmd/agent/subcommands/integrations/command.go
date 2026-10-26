@@ -548,6 +548,16 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		args = append(args, "--unsafe-disable-verification")
 	}
 
+	// Ask the downloader for a summary of the download, for the install telemetry event. Reporting
+	// is best effort: if the file can't be created, the event simply lacks these fields.
+	var resultPath string
+	if resultFile, err := os.CreateTemp("", "datadog-downloader-result-*.json"); err == nil {
+		resultPath = resultFile.Name()
+		resultFile.Close()
+		defer os.Remove(resultPath)
+		args = append(args, downloaderResultFileFlag, resultPath)
+	}
+
 	downloaderCmd := exec.Command(pyPath, args...)
 
 	// We do all of the following so that when we call our downloader, which will
@@ -582,16 +592,6 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 			"HTTPS_PROXY="+proxies.HTTPS,
 			"NO_PROXY="+strings.Join(proxies.NoProxy, ","),
 		)
-	}
-
-	// Ask the downloader for a summary of the download, for the install telemetry event. Reporting
-	// is best effort: if the file can't be created, the event simply lacks these fields.
-	var resultPath string
-	if resultFile, err := os.CreateTemp("", "datadog-downloader-result-*.json"); err == nil {
-		resultPath = resultFile.Name()
-		resultFile.Close()
-		defer os.Remove(resultPath)
-		downloaderCmd.Env = append(downloaderCmd.Env, downloaderResultFileEnvVar+"="+resultPath)
 	}
 
 	// forward the standard error to stderr

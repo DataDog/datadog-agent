@@ -20,8 +20,8 @@ const (
 	installEventName = "integration-install"
 	// installEventTimeout bounds how long the command waits for the event to be sent.
 	installEventTimeout = 3 * time.Second
-	// downloaderResultFileEnvVar asks the downloader to write a downloaderResult to the given path.
-	downloaderResultFileEnvVar = "DD_DOWNLOADER_RESULT_FILE"
+	// downloaderResultFileFlag asks the downloader to write a downloaderResult to the given path.
+	downloaderResultFileFlag = "--result-file"
 )
 
 // Steps of an install, reported as the stage of a failed install.
@@ -79,7 +79,8 @@ func (ev *installEvent) finish(err error, duration time.Duration) {
 	}
 }
 
-// downloaderResult is the summary that the downloader writes to downloaderResultFileEnvVar.
+// downloaderResult is the summary that the downloader writes to the path given with
+// downloaderResultFileFlag.
 type downloaderResult struct {
 	Repository string `json:"repository"`
 	V2Failure  string `json:"v2_failure"`
