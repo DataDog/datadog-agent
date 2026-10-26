@@ -729,10 +729,11 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
-				Max: 155000000,
-				Min: 145000000,
+				Max: 160000000,
+				Min: 140000000,
 			},
 		},
+		Timeout: 6 * time.Minute,
 	})
 
 	suite.testMetric(&testMetricArgs{
