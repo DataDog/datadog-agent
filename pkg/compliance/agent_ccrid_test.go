@@ -11,14 +11,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+// gaugeRecorder records the tags of the gauges sent through the statsd client.
+type gaugeRecorder struct {
+	statsd.ClientInterface
+	tags [][]string
+}
+
+func (g *gaugeRecorder) Gauge(name string, _ float64, tags []string, _ float64) error {
+	if name == metrics.MetricChecksStatuses {
+		g.tags = append(g.tags, tags)
+	}
+	return nil
+}
 
 // TestReportedEventsCarryCCRID pins the invariant that every payload the
 // compliance agent reports is stamped with the host CCRID resolved at startup,
@@ -37,10 +52,12 @@ func TestReportedEventsCarryCCRID(t *testing.T) {
 	rule := &Rule{ID: "rule-1"}
 	benchmark := &Benchmark{FrameworkID: "framework-1"}
 
+	statsdClient := &gaugeRecorder{}
 	a := &Agent{
 		opts: AgentOptions{
-			Reporter: reporter,
-			CCRID:    hostCCRID,
+			Reporter:     reporter,
+			StatsdClient: statsdClient,
+			HostCCRID:    hostCCRID,
 		},
 		statuses: map[string]*CheckStatus{rule.ID: {RuleID: rule.ID}},
 	}
@@ -55,6 +72,11 @@ func TestReportedEventsCarryCCRID(t *testing.T) {
 	a.reportCheckEvents(time.Minute, events...)
 	for _, event := range events {
 		assert.Equal(t, hostCCRID, event.CCRID)
+	}
+	// The checks statuses gauge is tagged for every event, skipped ones included.
+	require.Len(t, statsdClient.tags, len(events))
+	for _, tags := range statsdClient.tags {
+		assert.Contains(t, tags, "ccrid:"+hostCCRID)
 	}
 
 	a.reportResourceLog(time.Minute, NewResourceLog("host", types.ResourceType("test"), nil))
