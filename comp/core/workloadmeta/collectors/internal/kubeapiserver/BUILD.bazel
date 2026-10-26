@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "kubeapiserver",
     srcs = [
+        "autoscalers.go",
         "crd.go",
         "deployments.go",
         "kubeapiserver.go",
@@ -68,6 +69,7 @@ go_library(
 dd_agent_go_test(
     name = "kubeapiserver_test",
     srcs = [
+        "autoscalers_test.go",
         "deployments_test.go",
         "kube_capabilities_test.go",
         "kubeapiserver_test.go",

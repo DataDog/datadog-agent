@@ -342,6 +342,12 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	if shouldHaveAutoscalerStores(c.config) {
+		// Part of the readiness check, but kinds that can't be listed are
+		// skipped and don't block readiness.
+		objectStores = append(objectStores, startAutoscalerStores(ctx, wlmetaStore, client.Discovery(), apiserverClient.DynamicCl, apiserverClient.DynamicInformerCl)...)
+	}
+
 	if c.config.GetBool("cluster_checks.crd_collection") {
 		log.Info("Enabling CRD informer for workloadmeta collector")
 		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)
