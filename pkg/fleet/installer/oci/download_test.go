@@ -11,9 +11,11 @@ package oci
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -129,7 +131,8 @@ func TestDownloadConfigLayer(t *testing.T) {
 
 func TestDownloadInvalidHash(t *testing.T) {
 	s := newTestDownloadServer(t)
-	d := s.Downloader()
+	// The mirror keeps the fallback to the default registries on the local server.
+	d := s.DownloaderWithMirror()
 
 	pkgURL := s.PackageURL(fixtures.FixtureSimpleV1)
 	pkgURL = pkgURL[:strings.Index(pkgURL, "@sha256:")] + "@sha256:2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
@@ -149,12 +152,19 @@ func TestDownloadPlatformNotAvailable(t *testing.T) {
 func TestDownloadRegistryWithOverride(t *testing.T) {
 	s := newTestDownloadServer(t)
 	defer s.Close()
+	var overrideHits atomic.Int32
+	override := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		overrideHits.Add(1)
+		http.NotFound(w, r)
+	}))
+	defer override.Close()
 	d := s.DownloaderWithEnv(&env.Env{
-		RegistryOverride: "fake.io",
+		RegistryOverride: override.URL,
 	})
 
 	_, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
-	assert.Error(t, err) // Host not found
+	assert.Error(t, err)
+	assert.NotZero(t, overrideHits.Load(), "override registry was not contacted")
 }
 
 func TestGetRefAndKeychain(t *testing.T) {
@@ -171,34 +181,34 @@ func TestGetRefAndKeychain(t *testing.T) {
 	tests := []test{
 		{url: "install.datad0g.com/agent-package:latest", expectedRef: "install.datad0g.com/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
-		{url: "install.datad0g.com/agent-package:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
-		{url: "install.datad0g.com/agent-package:latest", registryOverride: "http://fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
-		{url: "install.datad0g.com/agent-package:latest", registryOverride: "https://fake.io", expectedRef: "fake.io/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
-		{url: "install.datad0g.com/agent-package:latest", registryOverride: "https://fake.io:443", expectedRef: "fake.io:443/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
-		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "fake.invalid", expectedRef: "fake.invalid/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "http://fake.invalid", expectedRef: "fake.invalid/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "https://fake.invalid", expectedRef: "fake.invalid/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package:latest", registryOverride: "https://fake.invalid:443", expectedRef: "fake.invalid:443/agent-package:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.invalid", expectedRef: "fake.invalid/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{
 			url:                "install.datad0g.com/agent-package:latest",
-			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expectedRef:        "fake.io/agent-package:latest",
+			regOverrideByImage: map[string]string{"agent-package": "fake.invalid"},
+			expectedRef:        "fake.invalid/agent-package:latest",
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
-			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expectedRef:        "fake.io/agent-package@sha256:1234",
+			regOverrideByImage: map[string]string{"agent-package": "fake.invalid"},
+			expectedRef:        "fake.invalid/agent-package@sha256:1234",
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
-			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expectedRef:        "fake.io/agent-package@sha256:1234",
+			regOverrideByImage: map[string]string{"agent-package": "fake.invalid"},
+			expectedRef:        "fake.invalid/agent-package@sha256:1234",
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
-			registryOverride:   "fake-other.io",
-			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expectedRef:        "fake.io/agent-package@sha256:1234",
+			registryOverride:   "fake-other.invalid",
+			regOverrideByImage: map[string]string{"agent-package": "fake.invalid"},
+			expectedRef:        "fake.invalid/agent-package@sha256:1234",
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
@@ -217,26 +227,26 @@ func TestGetRefAndKeychain(t *testing.T) {
 		// dedicated RegistryUsername / RegistryPassword fields).
 		{
 			url:              "install.datad0g.com/agent-package:latest",
-			registryOverride: "https://user:pass@fake.io",
-			expectedRef:      "fake.io/agent-package:latest",
+			registryOverride: "https://user:pass@fake.invalid",
+			expectedRef:      "fake.invalid/agent-package:latest",
 			expectedKeychain: authn.DefaultKeychain,
 		},
 		{
 			url:              "install.datad0g.com/agent-package:latest",
-			registryOverride: "user:pass@fake.io",
-			expectedRef:      "fake.io/agent-package:latest",
+			registryOverride: "user:pass@fake.invalid",
+			expectedRef:      "fake.invalid/agent-package:latest",
 			expectedKeychain: authn.DefaultKeychain,
 		},
 		{
 			url:              "install.datad0g.com/agent-package:latest",
-			registryOverride: "http://user@fake.io:8080",
-			expectedRef:      "fake.io:8080/agent-package:latest",
+			registryOverride: "http://user@fake.invalid:8080",
+			expectedRef:      "fake.invalid:8080/agent-package:latest",
 			expectedKeychain: authn.DefaultKeychain,
 		},
 		{
 			url:                "install.datad0g.com/agent-package:latest",
-			regOverrideByImage: map[string]string{"agent-package": "https://user:pass@fake.io"},
-			expectedRef:        "fake.io/agent-package:latest",
+			regOverrideByImage: map[string]string{"agent-package": "https://user:pass@fake.invalid"},
+			expectedRef:        "fake.invalid/agent-package:latest",
 			expectedKeychain:   authn.DefaultKeychain,
 		},
 	}
@@ -260,17 +270,17 @@ func TestFormatImageRef(t *testing.T) {
 		in   string
 		want string
 	}{
-		{name: "bare host", in: "fake.io", want: "fake.io"},
-		{name: "bare host with port", in: "fake.io:443", want: "fake.io:443"},
-		{name: "https prefix", in: "https://fake.io", want: "fake.io"},
-		{name: "http prefix", in: "http://fake.io", want: "fake.io"},
-		{name: "https with port", in: "https://fake.io:443", want: "fake.io:443"},
-		{name: "userinfo with scheme", in: "https://user:pass@fake.io", want: "fake.io"},
-		{name: "userinfo without scheme", in: "user:pass@fake.io", want: "fake.io"},
-		{name: "user-only userinfo", in: "https://user@fake.io", want: "fake.io"},
-		{name: "userinfo with port", in: "http://user:pass@fake.io:8080", want: "fake.io:8080"},
-		{name: "userinfo with path", in: "https://user:pass@fake.io/repo", want: "fake.io/repo"},
-		{name: "trailing slash preserved", in: "fake.io/", want: "fake.io/"},
+		{name: "bare host", in: "fake.invalid", want: "fake.invalid"},
+		{name: "bare host with port", in: "fake.invalid:443", want: "fake.invalid:443"},
+		{name: "https prefix", in: "https://fake.invalid", want: "fake.invalid"},
+		{name: "http prefix", in: "http://fake.invalid", want: "fake.invalid"},
+		{name: "https with port", in: "https://fake.invalid:443", want: "fake.invalid:443"},
+		{name: "userinfo with scheme", in: "https://user:pass@fake.invalid", want: "fake.invalid"},
+		{name: "userinfo without scheme", in: "user:pass@fake.invalid", want: "fake.invalid"},
+		{name: "user-only userinfo", in: "https://user@fake.invalid", want: "fake.invalid"},
+		{name: "userinfo with port", in: "http://user:pass@fake.invalid:8080", want: "fake.invalid:8080"},
+		{name: "userinfo with path", in: "https://user:pass@fake.invalid/repo", want: "fake.invalid/repo"},
+		{name: "trailing slash preserved", in: "fake.invalid/", want: "fake.invalid/"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -427,31 +437,31 @@ func TestIsStreamResetError(t *testing.T) {
 
 func TestWithRegistryOverride(t *testing.T) {
 	original := &env.Env{
-		RegistryOverride:            "original.registry.com",
+		RegistryOverride:            "original.registry.invalid",
 		RegistryAuthOverride:        "docker",
 		RegistryUsername:            "origuser",
 		RegistryPassword:            "origpass",
-		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.io"},
+		RegistryOverrideByImage:     map[string]string{"agent-package": "image-scoped.invalid"},
 		RegistryAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
 		Site:                        "datadoghq.com",
 	}
 	client := http.DefaultClient
 	d := NewDownloader(original, client)
 
-	overridden := d.WithRegistryOverride("custom.registry.com", "password", "newuser", "newpass")
+	overridden := d.WithRegistryOverride("custom.registry.invalid", "password", "newuser", "newpass")
 
 	// Overridden downloader has new values
-	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "custom.registry.invalid", overridden.env.RegistryOverride)
 	assert.Equal(t, "password", overridden.env.RegistryAuthOverride)
 	assert.Equal(t, "newuser", overridden.env.RegistryUsername)
 	assert.Equal(t, "newpass", overridden.env.RegistryPassword)
 
 	// Image-scoped override maps are preserved (env vars take precedence)
-	assert.Equal(t, map[string]string{"agent-package": "image-scoped.io"}, overridden.env.RegistryOverrideByImage)
+	assert.Equal(t, map[string]string{"agent-package": "image-scoped.invalid"}, overridden.env.RegistryOverrideByImage)
 	assert.Equal(t, map[string]string{"agent-package": "gcr"}, overridden.env.RegistryAuthOverrideByImage)
 
 	// Original is unchanged
-	assert.Equal(t, "original.registry.com", d.env.RegistryOverride)
+	assert.Equal(t, "original.registry.invalid", d.env.RegistryOverride)
 	assert.Equal(t, "docker", d.env.RegistryAuthOverride)
 	assert.Equal(t, "origuser", d.env.RegistryUsername)
 	assert.Equal(t, "origpass", d.env.RegistryPassword)
@@ -465,7 +475,7 @@ func TestWithRegistryOverride(t *testing.T) {
 
 func TestWithRegistryOverridePartial(t *testing.T) {
 	original := &env.Env{
-		RegistryOverride:     "original.registry.com",
+		RegistryOverride:     "original.registry.invalid",
 		RegistryAuthOverride: "docker",
 		RegistryUsername:     "origuser",
 		RegistryPassword:     "origpass",
@@ -473,9 +483,9 @@ func TestWithRegistryOverridePartial(t *testing.T) {
 	d := NewDownloader(original, http.DefaultClient)
 
 	// Only override URL, leave auth/username/password empty
-	overridden := d.WithRegistryOverride("custom.registry.com", "", "", "")
+	overridden := d.WithRegistryOverride("custom.registry.invalid", "", "", "")
 
-	assert.Equal(t, "custom.registry.com", overridden.env.RegistryOverride)
+	assert.Equal(t, "custom.registry.invalid", overridden.env.RegistryOverride)
 	assert.Equal(t, "docker", overridden.env.RegistryAuthOverride)
 	assert.Equal(t, "origuser", overridden.env.RegistryUsername)
 	assert.Equal(t, "origpass", overridden.env.RegistryPassword)
