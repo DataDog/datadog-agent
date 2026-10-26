@@ -6,6 +6,8 @@
 package logsignature
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,4 +39,27 @@ func TestGenerator_Generate(t *testing.T) {
 	capped := NewGenerator(8)
 	assert.Equal(t, "DD.D.D.D", capped.Generate("10.0.0.1 x"))
 	assert.Equal(t, "CCCCCCCC", capped.Generate("abcdefgh 123"))
+}
+
+// TestGenerator_GenerateAllocations pins Generate's per-log cost on the shared
+// tokenizer: one allocation, the signature string, at every line length. Each
+// call gets a log it has not seen, so a cache keyed by content would count too.
+func TestGenerator_GenerateAllocations(t *testing.T) {
+	g := NewGenerator(4096)
+	for _, line := range []string{
+		"short",
+		"2024-01-15 10:30:45 ERROR request from 10.0.0.1 failed after 3 retries",
+		strings.Repeat("user_id=1234567 status=500 path=/api/v1/charge ", 200),
+	} {
+		logs := make([]string, 101) // AllocsPerRun's warm-up call plus its 100 runs
+		for i := range logs {
+			logs[i] = strconv.Itoa(i) + " " + line
+		}
+		n := 0
+		allocs := testing.AllocsPerRun(100, func() {
+			_ = g.Generate(logs[n])
+			n++
+		})
+		assert.Equal(t, 1.0, allocs, "%d-byte log", len(line))
+	}
 }

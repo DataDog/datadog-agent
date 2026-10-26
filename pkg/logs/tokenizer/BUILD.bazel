@@ -42,7 +42,9 @@ dd_agent_go_test(
     name = "tokenizer_test",
     srcs = [
         "borrowed_tokens_test.go",
+        "consumer_benchmark_test.go",
         "example_test.go",
+        "perf_contract_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
         "tokens_test.go",
