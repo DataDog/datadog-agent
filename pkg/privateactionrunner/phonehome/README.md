@@ -6,13 +6,16 @@ PR 2 adds an independently useful RC-only startup gate. PR 3 composes it with AA
 runner with a saved identity. Neither gate changes Go enrollment/persistence/retries
 or Rust bootstrap. Running children and potential credential holders are left alone.
 
-This is an explicitly opted-in, specially configured Linux node-Agent POC. **Ordinary
-packages are not gated:** shipping `par-control` registrations still auto-start.
+The worker is enabled by `private_action_runner.enabled` on non-Windows platforms;
+there is no separate phone-home opt-in. Startup remains restricted to a specially
+configured Linux node-Agent POC. **Ordinary packages are not gated:** shipping
+`par-control` registrations still auto-start. Without the required configuration,
+the worker reports a blocked state rather than changing existing startup behavior.
 Use a separate test supervisor, not an overlay on a running installation.
 
 ## Configuration
 
-- Core: `DD_PAR_PHONE_HOME_POC=true`, PAR enabled, split mode enabled, local RC enabled.
+- Core: PAR enabled, split mode enabled, local RC enabled.
 - Non-containerized, non-FIPS Linux core Agent; matching core/executor config, API key,
   site, proxy, secrets and user. RC-specific credentials/unsupported endpoint overrides
   and extra PAR config files are not supported. Live credential/endpoint changes need

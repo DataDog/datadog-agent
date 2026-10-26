@@ -44,7 +44,6 @@ type scopeFixture struct {
 
 func newScopeFixture(t *testing.T) *scopeFixture {
 	t.Helper()
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
 	f := &scopeFixture{clock: clock.NewMock(), rcCode: 200, aaaCode: 200, body: grantedScopeJSON}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +185,7 @@ func TestPARDiscoveryCadenceAndBackoffSurviveGatePause(t *testing.T) {
 }
 
 func TestPARDiscoveryRejectsConfigMismatchAndLocalDisable(t *testing.T) {
-	for _, scenario := range []string{"key", "endpoint", "local-off", "poc-off", "par-off"} {
+	for _, scenario := range []string{"key", "endpoint", "local-off", "par-off"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := newScopeFixture(t)
 			f.s.SetPARDiscoveryDemand(true)
@@ -199,8 +198,6 @@ func TestPARDiscoveryRejectsConfigMismatchAndLocalDisable(t *testing.T) {
 				f.cfg.SetInTest("dd_url", "http://127.0.0.1:1")
 			case "local-off":
 				f.cfg.SetInTest("remote_configuration.enabled", false)
-			case "poc-off":
-				t.Setenv("DD_PAR_PHONE_HOME_POC", "false")
 			case "par-off":
 				f.cfg.SetInTest("private_action_runner.enabled", false)
 			}

@@ -23,7 +23,6 @@ type lifecycle struct{ hooks []compdef.Hook }
 func (l *lifecycle) Append(h compdef.Hook) { l.hooks = append(l.hooks, h) }
 
 func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "true")
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
 	lc := &lifecycle{}
 	require.NotNil(t, NewComponent(Requires{Config: cfg, Lifecycle: lc}).Comp)
@@ -38,10 +37,9 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 	require.NoError(t, lc.hooks[0].OnStop(ctx))
 }
 
-func TestOptOutDoesNotRegisterBackgroundWork(t *testing.T) {
-	t.Setenv("DD_PAR_PHONE_HOME_POC", "false")
+func TestDisabledPARDoesNotRegisterBackgroundWork(t *testing.T) {
 	lc := &lifecycle{}
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": false})
 	component := NewComponent(Requires{Config: cfg, Lifecycle: lc}).Comp
 	require.NotNil(t, component)
 	require.Nil(t, component.Status())
