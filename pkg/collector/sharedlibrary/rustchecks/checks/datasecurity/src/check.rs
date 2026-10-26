@@ -138,7 +138,13 @@ mod tests {
         )
     }
 
-    /// Whole milliseconds from `start` to `end`.
+    fn same_timestamp(t: &Option<Timestamp>) -> Option<Timestamp> {
+        t.as_ref().map(|t| Timestamp {
+            seconds: t.seconds,
+            nanos: t.nanos,
+        })
+    }
+
     fn millis_between(start: &Timestamp, end: &Timestamp) -> i64 {
         let nanos = |t: &Timestamp| t.seconds * 1_000_000_000 + i64::from(t.nanos);
         (nanos(end) - nanos(start)) / 1_000_000
@@ -258,8 +264,8 @@ scan_data:
                         scan_task_metadata: Some(ScanTaskMetadata {
                             task_id: "task-1".to_string(),
                             sub_task_id: "sub-1".to_string(),
-                            started_at: metadata.started_at.clone(),
-                            ended_at: metadata.ended_at.clone(),
+                            started_at: same_timestamp(&metadata.started_at),
+                            ended_at: same_timestamp(&metadata.ended_at),
                             status: Status::Success as i32,
                             ..Default::default()
                         }),
