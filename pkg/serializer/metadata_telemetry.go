@@ -6,15 +6,11 @@
 package serializer
 
 import (
+	"strconv"
+
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
-)
-
-// Values of the "compressed" tag of the dropped metadata payload size histogram.
-const (
-	compressedTrue  = "true"
-	compressedFalse = "false"
 )
 
 // metadataDropMetrics holds the telemetry of the metadata payloads dropped by the serializer for exceeding the
@@ -43,6 +39,6 @@ var defaultMetadataDropMetrics = newMetadataDropMetrics(telemetryimpl.GetCompatC
 // record counts a dropped metadata payload and observes both its compressed and uncompressed sizes.
 func (m *metadataDropMetrics) record(exceeded split.SizeLimit, compressedSize, uncompressedSize int) {
 	m.payloads.Inc(exceeded.String())
-	m.bytes.Observe(float64(compressedSize), compressedTrue)
-	m.bytes.Observe(float64(uncompressedSize), compressedFalse)
+	m.bytes.Observe(float64(compressedSize), strconv.FormatBool(true))
+	m.bytes.Observe(float64(uncompressedSize), strconv.FormatBool(false))
 }

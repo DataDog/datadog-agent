@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -629,10 +630,10 @@ func TestSendMetadataTooBig(t *testing.T) {
 	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String()).Get())
 	assert.Zero(t, dropMetrics.payloads.WithValues(split.UncompressedLimit.String()).Get())
 
-	compressed := dropMetrics.bytes.WithValues(compressedTrue).Get()
+	compressed := dropMetrics.bytes.WithValues(strconv.FormatBool(true)).Get()
 	assert.Equal(t, uint64(1), compressed.Count)
 	assert.Greater(t, compressed.Sum, float64(2<<20))
-	uncompressed := dropMetrics.bytes.WithValues(compressedFalse).Get()
+	uncompressed := dropMetrics.bytes.WithValues(strconv.FormatBool(false)).Get()
 	assert.Equal(t, uint64(1), uncompressed.Count)
 	assert.Equal(t, float64(len(payload)), uncompressed.Sum)
 }
