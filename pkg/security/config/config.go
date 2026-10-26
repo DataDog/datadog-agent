@@ -579,6 +579,11 @@ type RuntimeSecurityConfig struct {
 	// default_value: ["exec"]
 	AnomalyDetectionEventTypes []model.EventType
 
+	// description: AnomalyDetectionEventTTL defines how long a sampled activity stays fresh in the kernel before the next occurrence is re-sampled instead of refreshed. 0s disables the TTL.
+	// visibility: private
+	// default_value: 0s
+	AnomalyDetectionEventTTL time.Duration
+
 	// description: AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection event.
 	// visibility: private
 	// default_value: 900s
@@ -1101,6 +1106,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionEventTTL:                     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.event_ttl"),
 		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
 		AnomalyDetectionMinimumStablePeriods:         anomalyDetectionMinimumStablePeriods,
 		AnomalyDetectionWorkloadWarmupPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
