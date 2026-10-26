@@ -267,6 +267,7 @@ func TestRemotePolicies_BlockedPodIsAnnotated(t *testing.T) {
 
 		require.Equal(t, map[string]string{
 			annotation.AppliedConfig:   `{"name":"block-db","id":"a1b2","version":3,"blocked":true}`,
+			annotation.InjectionSource: "remote-config",
 			annotation.InjectionStatus: annotation.InjectionStatusBlocked,
 		}, pod.Annotations)
 		require.Empty(t, pod.Spec.InitContainers)
