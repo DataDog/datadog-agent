@@ -37,7 +37,7 @@ type Discovery struct {
 	done          chan struct{}
 }
 
-// NewDiscovery creates an opt-in worker without starting background work.
+// NewDiscovery creates a worker for enabled PAR without starting background work.
 // Unsupported configuration or absent RC leaves discovery unavailable.
 func NewDiscovery(cfg model.Reader, rc Source) *Discovery {
 	if !Enabled(cfg) || rc == nil {
