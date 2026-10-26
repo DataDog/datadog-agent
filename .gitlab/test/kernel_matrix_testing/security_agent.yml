@@ -310,6 +310,7 @@ kmt_run_secagent_tests_arm64_docker:
     TEST_COMPONENT: security-agent
 
 .kmt_secagent_tests_join:
+  when: always
   stage: kernel_matrix_testing_cleanup
   rules: !reference [.on_security_agent_changes_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
