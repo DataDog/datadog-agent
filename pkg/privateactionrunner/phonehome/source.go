@@ -21,8 +21,11 @@ type Observation struct {
 	Reason string
 }
 
-// Source observes startup prerequisites without performing network requests.
-type Source interface{ Read(time.Time) Observation }
+// Source observes startup prerequisites and releases discovery demand after handoff.
+type Source interface {
+	Read(time.Time) Observation
+	Release()
+}
 
 type rcSource struct {
 	cfg                model.Reader
@@ -34,6 +37,9 @@ type rcSource struct {
 func NewSource(cfg model.Reader, service rcservice.Component) Source {
 	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
 }
+
+// Release is a no-op: RC polling is shared with the rest of core Agent.
+func (*rcSource) Release() {}
 
 func (r *rcSource) Read(_ time.Time) Observation {
 	if !configutils.IsRemoteConfigEnabled(r.cfg) {
