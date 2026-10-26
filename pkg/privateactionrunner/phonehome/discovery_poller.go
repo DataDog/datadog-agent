@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/benbjohnson/clock"
@@ -47,14 +49,14 @@ func NewDiscovery(cfg model.Reader, rc Source) *Discovery {
 		jitter: func(d time.Duration) time.Duration { return time.Duration(rand.Int64N(int64(d) + 1)) },
 		client: &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	p.next = p.clock.Now().Add(p.jitter(time.Minute))
-	p.observation = PARScopeObservation{Reason: "par_scope_unchecked", NextCheck: p.next}
+	p.observation = PARScopeObservation{Reason: phonehomedef.ReasonPARScopeUnchecked, NextCheck: p.next}
 	return p
 }
 
 // GetPARScope checks the current gate without forcing a discovery request.
 func (p *Discovery) GetPARScope() PARScopeObservation {
 	if p == nil {
-		return PARScopeObservation{Reason: "par_scope_unchecked"}
+		return PARScopeObservation{Reason: phonehomedef.ReasonPARScopeUnchecked}
 	}
 	now := p.clock.Now()
 	ready := p.gate()
@@ -62,11 +64,11 @@ func (p *Discovery) GetPARScope() PARScopeObservation {
 	defer p.mu.Unlock()
 	if !ready {
 		p.clearLocked()
-		p.observation.Reason = "par_scope_waiting_for_rc_or_demand"
+		p.observation.Reason = phonehomedef.ReasonPARScopeWaitingForRCOrDemand
 	}
 	result := p.observation
-	if result.Reason == "scope_present" && !result.Granted(now) {
-		result.Reason = "par_scope_expired"
+	if result.Reason == phonehomedef.ReasonScopePresent && !result.Granted(now) {
+		result.Reason = phonehomedef.ReasonPARScopeExpired
 	}
 	return result
 }
@@ -121,7 +123,7 @@ func (p *Discovery) Stop() {
 }
 
 func (p *Discovery) clearLocked() {
-	p.observation = PARScopeObservation{Reason: "par_scope_unchecked", NextCheck: p.next}
+	p.observation = PARScopeObservation{Reason: phonehomedef.ReasonPARScopeUnchecked, NextCheck: p.next}
 	if p.cancelRequest != nil {
 		p.cancelRequest()
 	}
@@ -212,7 +214,7 @@ func (p *Discovery) step(ctx context.Context) {
 	if valid {
 		p.observation = PARScopeObservation{Reason: result.reason, CheckedAt: now}
 	} else {
-		p.observation = PARScopeObservation{Reason: "par_scope_unchecked"}
+		p.observation = PARScopeObservation{Reason: phonehomedef.ReasonPARScopeUnchecked}
 	}
 	p.observation.NextCheck = p.next
 }

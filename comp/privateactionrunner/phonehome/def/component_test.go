@@ -44,6 +44,16 @@ func TestStateWireVocabulary(t *testing.T) {
 		ReasonSupervisorStartAcknowledged:         "supervisor_start_acknowledged",
 		ReasonSupervisorUnavailable:               "supervisor_unavailable",
 		ReasonUnsupportedConfiguration:            "unsupported_configuration",
+		ReasonDiscoveryRateLimited:                "discovery_rate_limited",
+		ReasonDiscoveryUnavailable:                "discovery_unavailable",
+		ReasonInvalidCredentials:                  "invalid_credentials",
+		ReasonInvalidDiscoveryResponse:            "invalid_discovery_response",
+		ReasonInvalidEndpoint:                     "invalid_endpoint",
+		ReasonMissingEnrollmentScope:              "missing_enrollment_scope",
+		ReasonPARScopeExpired:                     "par_scope_expired",
+		ReasonPARScopeUnchecked:                   "par_scope_unchecked",
+		ReasonPARScopeWaitingForRCOrDemand:        "par_scope_waiting_for_rc_or_demand",
+		ReasonScopePresent:                        "scope_present",
 	}
 	for reason, want := range reasons {
 		got, err := json.Marshal(State{Reason: reason})
@@ -52,6 +62,14 @@ func TestStateWireVocabulary(t *testing.T) {
 		}
 		if string(got) != `{"state":"","reason":"`+want+`"}` {
 			t.Errorf("reason %s: %s", reason, got)
+		}
+	}
+}
+
+func TestDiscoveryHTTPReason(t *testing.T) {
+	for code, want := range map[int]string{302: "discovery_http_302", 403: "discovery_http_403", 418: "discovery_http_418"} {
+		if got := DiscoveryHTTPReason(code); string(got) != want {
+			t.Errorf("HTTP %d: got %s, want %s", code, got, want)
 		}
 	}
 }

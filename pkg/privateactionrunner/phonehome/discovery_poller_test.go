@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -138,7 +140,7 @@ func TestPARDiscoveryCadenceAndBackoffSurviveGatePause(t *testing.T) {
 	f.body = `{"data":{"attributes":{"valid":true,"api_key_scopes":["remote_config_read"]}}}`
 	f.mu.Unlock()
 	f.step()
-	require.Equal(t, "missing_enrollment_scope", f.s.GetPARScope().Reason)
+	require.Equal(t, phonehomedef.ReasonMissingEnrollmentScope, f.s.GetPARScope().Reason)
 	for range 20 {
 		f.step()
 	}
@@ -342,6 +344,6 @@ func TestPARDiscoveryHugeHintAndStrictPayload(t *testing.T) {
 		result := validate(context.Background(), server.Client(), server.URL, "key", time.Now())
 		server.Close()
 		require.False(t, result.eligible)
-		require.Equal(t, "invalid_discovery_response", result.reason)
+		require.Equal(t, phonehomedef.ReasonInvalidDiscoveryResponse, result.reason)
 	}
 }

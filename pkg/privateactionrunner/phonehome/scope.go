@@ -5,7 +5,11 @@
 
 package phonehome
 
-import "time"
+import (
+	"time"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+)
 
 type ScopeSource interface {
 	GetPARScope() PARScopeObservation
@@ -13,13 +17,13 @@ type ScopeSource interface {
 }
 
 type PARScopeObservation struct {
-	Reason    string
+	Reason    phonehomedef.Reason
 	CheckedAt time.Time
 	NextCheck time.Time
 }
 
 func (s PARScopeObservation) Granted(now time.Time) bool {
-	return s.Reason == "scope_present" && !s.CheckedAt.IsZero() &&
+	return s.Reason == phonehomedef.ReasonScopePresent && !s.CheckedAt.IsZero() &&
 		!now.Before(s.CheckedAt) && now.Before(s.CheckedAt.Add(2*time.Minute))
 }
 
@@ -40,17 +44,17 @@ func (s *scopedSource) Read(now time.Time) Observation {
 		return rc
 	}
 	if s.scope == nil {
-		return Observation{Reason: "par_scope_unchecked"}
+		return Observation{Reason: phonehomedef.ReasonPARScopeUnchecked}
 	}
 	grant := s.scope.GetPARScope()
 	if grant.Granted(now) {
-		return Observation{Ready: true, Reason: "scope_present"}
+		return Observation{Ready: true, Reason: phonehomedef.ReasonScopePresent}
 	}
 	if grant.Reason == "" {
-		grant.Reason = "par_scope_unchecked"
+		grant.Reason = phonehomedef.ReasonPARScopeUnchecked
 	}
-	if grant.Reason == "scope_present" {
-		grant.Reason = "par_scope_expired"
+	if grant.Reason == phonehomedef.ReasonScopePresent {
+		grant.Reason = phonehomedef.ReasonPARScopeExpired
 	}
 	return Observation{Reason: grant.Reason}
 }
