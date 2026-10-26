@@ -35,7 +35,6 @@ const (
 const (
 	OpenSamplesMaxEntries    = 20000
 	ConnectSamplesMaxEntries = 10000
-	SyscallSamplesMaxEntries = 20000
 	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
 	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
 	ExcludedCgroupsMaxEntries = 4096
@@ -161,6 +160,7 @@ func AllMaps() []*manager.Map {
 	return []*manager.Map{
 		// Syscall table map
 		getSyscallTableMap(),
+		getSamplingIgnoredSyscallsMap(),
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
@@ -195,6 +195,7 @@ func AllMaps() []*manager.Map {
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
 		"network_stats_worker",
+		SyscallUsageTickerFunctionName,
 	}
 }
 
@@ -330,8 +331,8 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	if opts.EventSamplingSyscallsEnabled {
-		editors["syscall_samples"] = manager.MapSpecEditor{
-			MaxEntries: SyscallSamplesMaxEntries,
+		editors["syscall_usage"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["excluded_cgroups"] = manager.MapSpecEditor{

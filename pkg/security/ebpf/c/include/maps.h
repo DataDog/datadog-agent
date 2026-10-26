@@ -59,6 +59,7 @@ BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
 BPF_HASH_MAP(security_profiles, u64, struct security_profile_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 BPF_LRU_MAP(excluded_cgroups, u64, u8, 1) // host/systemd cgroup inodes the v2 syscall sampler skips; populated by userspace; max entries overridden at runtime
+BPF_ARRAY_MAP(sampling_ignored_syscalls, struct security_profile_syscalls_t, 1) // syscalls the v2 syscall sampler skips; populated by userspace
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 1) // max entries updated at runtime; preallocated (written only from userspace)
@@ -104,6 +105,7 @@ BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_s
 BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
 BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_userspace_lru_entry_t, 1024)
 BPF_LRU_MAP(capabilities_usage, struct capabilities_usage_key_t, struct capabilities_usage_entry_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(syscall_usage, u32, struct syscall_usage_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(sock_cookie_pid, u64, u32, 1); // max entries will be overridden at runtime
 BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 BPF_LRU_MAP(otel_process_ctx_naming, u64, u8, 512) // in-flight prctl(PR_SET_VMA_ANON_NAME) calls naming a mapping OTEL_CTX, keyed by pid_tgid
@@ -115,8 +117,6 @@ BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, 
 BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(syscall_samples, struct syscall_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t, BPF_F_NO_PREALLOC);
 // sk_storage_pid stores the pid owning a socket, used for TC pid resolution through bpf_sk_lookup.
 // BPF_F_CLONE allows the storage entry to be cloned when a socket is cloned.
@@ -151,6 +151,8 @@ BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
+// one slot for the exec/exit hooks, one for the ticker: a perf_event program can preempt an fentry program on the same CPU
+BPF_PERCPU_ARRAY_MAP(syscall_usage_event, struct syscall_monitor_event_t, 2)
 // Shared per-CPU staging slot for the deferred span-context fill + send
 BPF_PERCPU_ARRAY_MAP(span_fill_event, struct span_fill_slot_t, 1)
 BPF_PERCPU_ARRAY_MAP(go_labels_scratch_gen, struct go_labels_scratch_t, 1)

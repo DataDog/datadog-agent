@@ -84,9 +84,6 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
 	}
-	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
-		size += probes.SyscallSamplesMaxEntries
-	}
 	if size == 0 {
 		// lru.New rejects non-positive sizes.
 		return 1

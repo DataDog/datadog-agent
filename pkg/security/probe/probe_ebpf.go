@@ -462,6 +462,11 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
+	if p.config.RuntimeSecurity.EventSamplingSyscallsEnabled && !p.kernelVersion.HasBPFForEachMapElemHelper() {
+		seclog.Warnf("The syscalls event sampling feature of CWS requires a kernel with support for the bpf_for_each_map_elem helper, disabling it")
+		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled = false
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
 		seclog.Warnf("The capabilities monitoring period is too short (minimum is 1 second), setting event_monitoring_config.capabilities_monitoring.period to 1 second")
 		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
@@ -2531,6 +2536,12 @@ func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+// isSyscallMonitorEnabled reports whether activity dumps or syscall drift detection consume raw syscalls
+func (p *EBPFProbe) isSyscallMonitorEnabled() bool {
+	return (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
+		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType))
+}
+
 func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 	if p.config.RuntimeSecurity.SecurityProfileEnabled {
 		for _, e := range p.config.RuntimeSecurity.AnomalyDetectionEventTypes {
@@ -2642,11 +2653,11 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if needRawSyscalls ||
-		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
-		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if needRawSyscalls || p.isSyscallMonitorEnabled() || p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
+	}
+	if p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		activatedProbes = append(activatedProbes, probes.SyscallUsageSelectors()...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -3263,6 +3274,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
 		manager.ConstantEditor{
+			Name:  "syscall_monitor_enabled",
+			Value: utils.BoolTouint64(p.isSyscallMonitorEnabled()),
+		},
+		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
 			Value: utils.BoolTouint64(p.probe.Opts.SyscallsMonitorEnabled),
 		},
@@ -3549,6 +3564,10 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
 	}
 
+	if !p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SyscallUsageTickerFunctionName)
+	}
+
 	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
 	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
 	// and use the get_task_pid kretprobe fallback instead
@@ -3562,10 +3581,11 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
-		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+	if p.isSyscallMonitorEnabled() || p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
+	}
+	if p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallUsageSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 

@@ -13,10 +13,14 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+// SyscallUsageTickerFunctionName is the program that periodically sends the syscalls sampled per process
+const SyscallUsageTickerFunctionName = "syscall_usage_ticker"
 
 // syscallMonitorProbes holds the list of probes used to track syscall events
 
@@ -26,6 +30,28 @@ func getSyscallMonitorProbes() []*manager.Probe {
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "sys_enter",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: SyscallUsageTickerFunctionName,
+			},
+			SampleFrequency:   1,
+			PerfEventType:     unix.PERF_TYPE_SOFTWARE,
+			PerfEventConfig:   unix.PERF_COUNT_SW_CPU_CLOCK,
+			PerfEventCPUCount: 1,
+		},
+	}
+}
+
+// SyscallUsageSelectors returns the probes that send the syscalls sampled for workload profiles v2
+func SyscallUsageSelectors() []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: SyscallUsageTickerFunctionName,
 			},
 		},
 	}
@@ -72,14 +98,23 @@ func getSyscallTableMap() *manager.Map {
 			Value: uint8(1),
 		},
 	}
-
-	// Ignore list for the v2 syscall sampler: high-frequency, low-signal syscalls the
-	// sampler fast-exits on to avoid per-syscall overhead (key SAMPLING_IGNORED_SYSCALL_KEY).
-	for _, id := range utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH) {
-		m.Contents = append(m.Contents, ebpf.MapKV{
-			Key:   syscallTableKey{id: uint64(id), key: 3},
-			Value: uint8(1),
-		})
-	}
 	return m
+}
+
+// getSamplingIgnoredSyscallsMap returns the bitmap of high-frequency, low-signal syscalls the
+// v2 syscall sampler fast-exits on to avoid per-syscall overhead.
+func getSamplingIgnoredSyscallsMap() *manager.Map {
+	var ignored [64]byte // SYSCALL_ENCODING_TABLE_SIZE
+	for _, id := range utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH) {
+		if id >= 0 && id < len(ignored)*8 {
+			ignored[id/8] |= 1 << (id % 8)
+		}
+	}
+
+	return &manager.Map{
+		Name: "sampling_ignored_syscalls",
+		Contents: []ebpf.MapKV{
+			{Key: uint32(0), Value: ignored},
+		},
+	}
 }
