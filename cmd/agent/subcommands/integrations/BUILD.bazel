@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "command.go",
         "command_nopython.go",
+        "install_telemetry.go",
         "integrations_darwin.go",
         "integrations_nix.go",
         "integrations_nix_helpers.go",
@@ -16,6 +17,8 @@ go_library(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
+        "//comp/core/agenttelemetry/def",
+        "//comp/core/agenttelemetry/fx",
         "//comp/core/config",
         "//comp/core/log/def",
         "//pkg/config/setup",
@@ -37,6 +40,7 @@ dd_agent_go_test(
     name = "integrations_test",
     srcs = [
         "command_test.go",
+        "install_telemetry_test.go",
         "integrations_test.go",
     ],
     # keep: the wheel fixtures are reached through a relative path built at runtime.
@@ -46,7 +50,9 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//cmd/agent/command",
+        "//pkg/fleet/installer/telemetry",
         "//pkg/util/fxutil",
+        "//pkg/util/log/errortracking",
         "@com_github_coreos_go_semver//semver",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

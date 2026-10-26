@@ -20,11 +20,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -107,14 +110,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	_ = integrationCmd.PersistentFlags().MarkDeprecated("python", "the python flag is now deprecated, python3 is always used")
 
 	// all subcommands use the same provided components, with a different oneShot callback
-	runOneShot := func(callback interface{}) error {
+	runOneShot := func(callback interface{}, opts ...fx.Option) error {
 		return fxutil.OneShot(callback,
-			fx.Supply(cliParams),
-			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
-			}),
-			core.Bundle(),
+			append([]fx.Option{
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
+				}),
+				core.Bundle(),
+			}, opts...)...,
 		)
 	}
 
@@ -127,7 +132,7 @@ You must specify a version of the package to install using the syntax: <package>
  - <version> of the form x.y.z`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
-			return runOneShot(install)
+			return runOneShot(install, agenttelemetryfx.EventsOnlyModule())
 		},
 	}
 	installCmd.Flags().BoolVarP(
@@ -359,7 +364,20 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 	return nil
 }
 
-func install(cliParams *cliParams, _ log.Component) error {
+// install runs the install and then reports it as one integration-install Agent telemetry event,
+// whatever its outcome.
+func install(cliParams *cliParams, _ log.Component, atel agenttelemetry.Component) error {
+	start := time.Now()
+	ev := newInstallEvent(cliParams)
+	err := runInstall(cliParams, &ev)
+	ev.finish(err, time.Since(start))
+	sendInstallEvent(atel, ev, installEventTimeout)
+	return err
+}
+
+// runInstall installs the requested integration, recording in ev what the event reports. ev.Stage
+// tracks the current step, so that it names the failing step when runInstall returns an error.
+func runInstall(cliParams *cliParams, ev *installEvent) error {
 	if err := loadPythonInfo(); err != nil {
 		return err
 	}
@@ -403,13 +421,16 @@ func install(cliParams *cliParams, _ log.Component) error {
 			return err
 		}
 		integration = normalizePackageName(strings.TrimSpace(integration))
+		ev.Integration = integration
 
 		// Install the wheel
+		ev.Stage = stagePipInstall
 		if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 		}
 
 		// Move configuration files
+		ev.Stage = stageConfigMove
 		if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
 			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
@@ -434,12 +455,15 @@ func install(cliParams *cliParams, _ log.Component) error {
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
+	ev.Integration = integration
+	ev.Version = versionToInstall.String()
 	currentVersion, found, err := installedVersion(cliParams, integration)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
 	if found && versionToInstall.Equal(*currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
+		ev.Result = "noop"
 		return nil
 	}
 
@@ -460,12 +484,15 @@ func install(cliParams *cliParams, _ log.Component) error {
 	}
 
 	// Download the wheel
-	wheelPath, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
+	ev.Stage = stageDownload
+	wheelPath, result, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
+	ev.Repository, ev.V2Failure, ev.ErrorType = result.Repository, result.V2Failure, result.ErrorType
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
 
 	// Verify datadog-checks-base is compatible with the requirements
+	ev.Stage = stageCompatibility
 	shippedBaseVersion, found, err := installedVersion(cliParams, "datadog-checks-base")
 	if err != nil {
 		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
@@ -480,11 +507,13 @@ func install(cliParams *cliParams, _ log.Component) error {
 	}
 
 	// Install the wheel
+	ev.Stage = stagePipInstall
 	if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
 	// Move configuration files
+	ev.Stage = stageConfigMove
 	if err := moveConfigurationFilesOf(cliParams, integration); err != nil {
 		fmt.Printf("Installed %s %s", integration, versionToInstall)
 		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
@@ -496,11 +525,13 @@ func install(cliParams *cliParams, _ log.Component) error {
 	return nil
 }
 
-func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
+// downloadWheel downloads the wheel with the downloader and returns its path, along with the
+// downloader's summary of the download, which is filled in even when the download fails.
+func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, downloaderResult, error) {
 	// We use python 3 to invoke the downloader regardless of config
 	pyPath, err := getCommandPython(cliParams.useSysPython)
 	if err != nil {
-		return "", err
+		return "", downloaderResult{}, err
 	}
 
 	args := []string{
@@ -553,10 +584,20 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		)
 	}
 
+	// Ask the downloader for a summary of the download, for the install telemetry event. Reporting
+	// is best effort: if the file can't be created, the event simply lacks these fields.
+	var resultPath string
+	if resultFile, err := os.CreateTemp("", "datadog-downloader-result-*.json"); err == nil {
+		resultPath = resultFile.Name()
+		resultFile.Close()
+		defer os.Remove(resultPath)
+		downloaderCmd.Env = append(downloaderCmd.Env, downloaderResultFileEnvVar+"="+resultPath)
+	}
+
 	// forward the standard error to stderr
 	stderr, err := downloaderCmd.StderrPipe()
 	if err != nil {
-		return "", err
+		return "", downloaderResult{}, err
 	}
 	go func() {
 		in := bufio.NewScanner(stderr)
@@ -567,10 +608,10 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 
 	stdout, err := downloaderCmd.StdoutPipe()
 	if err != nil {
-		return "", err
+		return "", downloaderResult{}, err
 	}
 	if err := downloaderCmd.Start(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+		return "", downloaderResult{}, fmt.Errorf("error running command: %v", err)
 	}
 	// Buffered so the goroutine can send even if we return early on error.
 	lastLineCh := make(chan string, 1)
@@ -584,8 +625,13 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		lastLineCh <- last
 	}()
 
-	if err := downloaderCmd.Wait(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+	err = downloaderCmd.Wait()
+	var result downloaderResult
+	if resultPath != "" {
+		result = readDownloaderResult(resultPath)
+	}
+	if err != nil {
+		return "", result, fmt.Errorf("error running command: %v", err)
 	}
 
 	// The path to the wheel will be at the last line of the output
@@ -594,10 +640,10 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	// Verify the availability of the wheel file
 	if _, err := os.Stat(wheelPath); err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("wheel %s does not exist", wheelPath)
+			return "", result, fmt.Errorf("wheel %s does not exist", wheelPath)
 		}
 	}
-	return wheelPath, nil
+	return wheelPath, result, nil
 }
 
 func parseWheelPackageName(wheelPath string) (string, error) {
