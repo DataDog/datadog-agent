@@ -115,6 +115,21 @@ func TestSupervisorWatchLoopRecoversAndCancels(t *testing.T) {
 	})
 }
 
+func TestMissingRegistrationIDDoesNotIssueEmptyLookup(t *testing.T) {
+	for _, control := range []bool{false, true} {
+		f := newFixture(t)
+		if control {
+			f.pm.control.Uuid = ""
+		} else {
+			f.pm.executor.Uuid = ""
+		}
+		f.pm.onDescribe = func(r *pb.DescribeRequest) { require.NotEmpty(t, r.NameOrUuid) }
+		require.Equal(t, pollInterval, f.c.step(context.Background()))
+		require.Equal(t, "supervisor_registration_unavailable", f.state.Reason)
+		require.Zero(t, f.pm.starts)
+	}
+}
+
 func TestRestartBetweenDescribeCallsDoesNotCaptureMixedIDs(t *testing.T) {
 	for _, active := range []bool{false, true} {
 		f := newFixture(t)
