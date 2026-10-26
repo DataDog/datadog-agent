@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"golang.org/x/sys/unix"
@@ -74,6 +75,7 @@ type Process struct {
 	FsRes                    *FSResources
 	FdToSocket               map[int32]SocketInfo
 	otelProcessCtxNaming     bool
+	tracerMemfdSealing       bool
 }
 
 // NewProcess returns a new process
@@ -136,6 +138,7 @@ type ProcessCache struct {
 	pid2Process map[int]*Process
 	tgid2Pid    map[int][]int
 	tgid2OTel   map[int]*otelState
+	tgid2Go     map[int]*golabels.Layout
 }
 
 // NewProcessCache returns a new thread cache
@@ -144,6 +147,7 @@ func NewProcessCache() *ProcessCache {
 		pid2Process: make(map[int]*Process),
 		tgid2Pid:    make(map[int][]int),
 		tgid2OTel:   make(map[int]*otelState),
+		tgid2Go:     make(map[int]*golabels.Layout),
 	}
 }
 
@@ -191,6 +195,7 @@ func (tc *ProcessCache) Remove(process *Process) {
 
 	if process.Pid == process.Tgid {
 		delete(tc.tgid2OTel, process.Pid)
+		delete(tc.tgid2Go, process.Pid)
 
 		pids, ok := tc.tgid2Pid[process.Pid]
 		if !ok {
@@ -236,5 +241,28 @@ func (tc *ProcessCache) inheritOTel(ptgid, tgid int) {
 	if state := tc.tgid2OTel[ptgid]; state != nil {
 		inherited := *state
 		tc.tgid2OTel[tgid] = &inherited
+	}
+}
+
+// getGoLabels returns the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) getGoLabels(tgid int) *golabels.Layout {
+	return tc.tgid2Go[tgid]
+}
+
+// setGoLabels sets the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) setGoLabels(tgid int, layout *golabels.Layout) {
+	tc.tgid2Go[tgid] = layout
+}
+
+// unsetGoLabels unsets the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) unsetGoLabels(tgid int) {
+	delete(tc.tgid2Go, tgid)
+}
+
+// inheritGoLabels copies the Go pprof labels layout to a forked child: it
+// describes the executable, which a fork does not replace
+func (tc *ProcessCache) inheritGoLabels(ptgid, tgid int) {
+	if layout := tc.tgid2Go[ptgid]; layout != nil {
+		tc.tgid2Go[tgid] = layout
 	}
 }

@@ -84,9 +84,10 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, proces
 		}
 	}
 
-	// exec replaces the address space holding the record: read it at the entry
+	// exec replaces the address space holding the record and the labels: read
+	// them at the entry
 	if nr == ExecveNr || nr == ExecveatNr {
-		syscallMsg.SpanContext = ctx.otelSpanContext(process, &regs)
+		syscallMsg.SpanContext = ctx.spanContext(process, &regs)
 	}
 
 	/* internal special cases */
@@ -150,10 +151,11 @@ func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, ppid int, 
 // sendFork reports a fork. regs are parent's, stopped at the fork event.
 func (ctx *CWSPtracerCtx) sendFork(process *Process, parent *Process, regs *syscall.PtraceRegs) {
 	ctx.processCache.inheritOTel(parent.Tgid, process.Tgid)
+	ctx.processCache.inheritGoLabels(parent.Tgid, process.Tgid)
 
 	ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
 		Type:        ebpfless.SyscallTypeFork,
-		SpanContext: ctx.otelSpanContext(parent, regs),
+		SpanContext: ctx.spanContext(parent, regs),
 		Fork: &ebpfless.ForkSyscallMsg{
 			PPID: uint32(parent.Tgid),
 		},
@@ -172,10 +174,10 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 		if handler.ShouldSend != nil {
 			syscallMsg.Retval = ctx.ReadRet(regs)
 			if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
-				// The thread is still stopped in the syscall, so its record is
-				// the one it had at the entry.
+				// The thread is still stopped in the syscall, so its record and
+				// its goroutine are the ones it had at the entry.
 				if nr != ExecveNr && nr != ExecveatNr {
-					syscallMsg.SpanContext = ctx.otelSpanContext(process, &regs)
+					syscallMsg.SpanContext = ctx.spanContext(process, &regs)
 				}
 				ctx.sendSyscallMsg(process, syscallMsg)
 			}
@@ -188,14 +190,23 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 		// now the pid is the tgid
 		process.Pid = process.Tgid
 
-		// the thread-local registered belongs to the image the exec replaced
+		// the thread-local and the labels layout registered belong to the image
+		// the exec replaced
 		if ret := ctx.ReadRet(regs); ret == 0 || ret == -int64(syscall.ENOSYS) {
 			ctx.processCache.unsetOTel(process.Tgid)
+			ctx.processCache.unsetGoLabels(process.Tgid)
 		}
 	case PrctlNr:
 		if process.otelProcessCtxNaming {
 			process.otelProcessCtxNaming = false
 			ctx.resolveOTelProcessContext(process)
+		}
+	case FcntlNr:
+		if process.tracerMemfdSealing {
+			process.tracerMemfdSealing = false
+			if ctx.ReadRet(regs) >= 0 {
+				ctx.resolveGoLabels(process)
+			}
 		}
 	case CloneNr:
 		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, ppid, &regs)
