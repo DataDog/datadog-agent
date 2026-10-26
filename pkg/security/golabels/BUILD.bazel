@@ -7,6 +7,7 @@ go_library(
     srcs = [
         "labels.go",
         "layout.go",
+        "reader.go",
         "tls_amd64.go",
         "tls_arm64.go",
         "tls_unsupported.go",
@@ -168,7 +169,10 @@ unstripped_go_binary(
 
 dd_agent_go_test(
     name = "golabels_test",
-    srcs = ["tls_test.go"],
+    srcs = [
+        "reader_test.go",
+        "tls_test.go",
+    ],
     data = glob(["testdata/**"]) + select({
         "@platforms//os:linux": [
             ":go_labels_cgo_pie_plain",
@@ -194,6 +198,8 @@ dd_agent_go_test(
     }),
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/process/gooffsets",
+            "//pkg/security/secl/model/utils",
             "//pkg/util/safeelf",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -201,6 +207,8 @@ dd_agent_go_test(
             "@rules_go//go/runfiles",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/process/gooffsets",
+            "//pkg/security/secl/model/utils",
             "//pkg/util/safeelf",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
