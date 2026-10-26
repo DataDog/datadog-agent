@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -407,50 +408,46 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 }
 
 func TestGaugeIntervalOptionFromFeatureGate(t *testing.T) {
+	// The lossless/minimal translator is not wired into the exporter on 7.85.x,
+	// so only the default translator is exercised here.
 	for _, enabled := range []bool{false, true} {
-		for _, lossless := range []bool{false, true} {
-			t.Run(fmt.Sprintf("enabled=%t/lossless=%t", enabled, lossless), func(t *testing.T) {
-				previous := gaugeIntervalGate.IsEnabled()
-				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), enabled))
-				t.Cleanup(func() {
-					require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), previous))
-				})
-
-				cfg := newDefaultConfig().(*ExporterConfig)
-				set := componenttest.NewNopTelemetrySettings()
-				attributesTranslator, err := attributes.NewTranslator(set)
-				require.NoError(t, err)
-				hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-host", nil })
-				buildTranslator := translatorFromConfig
-				if lossless {
-					buildTranslator = minimalTranslatorFromConfig
-				}
-				tr, err := buildTranslator(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
-				require.NoError(t, err)
-
-				// The gate is read at construction, not on each translated point.
-				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), !enabled))
-				md := pmetric.NewMetrics()
-				m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
-				m.SetName("test.gauge_interval")
-				dp := m.SetEmptyGauge().DataPoints().AppendEmpty()
-				dp.SetDoubleValue(42)
-				dp.SetTimestamp(pcommon.Timestamp(121e9))
-				dp.Attributes().PutInt("datadog.gauge.interval", 15)
-				consumer := &serializerConsumer{hosts: make(map[string]struct{})}
-				_, err = tr.MapMetrics(t.Context(), md, consumer, nil)
-				require.NoError(t, err)
-				require.Len(t, consumer.series, 1)
-				wantInterval := int64(0)
-				if enabled {
-					wantInterval = 15
-				}
-				assert.Equal(t, wantInterval, consumer.series[0].Interval)
-				assert.Equal(t, metrics.APIGaugeType, consumer.series[0].MType)
-				require.Len(t, consumer.series[0].Points, 1)
-				assert.Equal(t, float64(42), consumer.series[0].Points[0].Value)
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			previous := gaugeIntervalGate.IsEnabled()
+			require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), enabled))
+			t.Cleanup(func() {
+				require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), previous))
 			})
-		}
+
+			cfg := newDefaultConfig().(*ExporterConfig)
+			set := componenttest.NewNopTelemetrySettings()
+			attributesTranslator, err := attributes.NewTranslator(set)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-host", nil })
+			tr, err := translatorFromConfig(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			// The gate is read at construction, not on each translated point.
+			require.NoError(t, featuregate.GlobalRegistry().Set(gaugeIntervalGate.ID(), !enabled))
+			md := pmetric.NewMetrics()
+			m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			m.SetName("test.gauge_interval")
+			dp := m.SetEmptyGauge().DataPoints().AppendEmpty()
+			dp.SetDoubleValue(42)
+			dp.SetTimestamp(pcommon.Timestamp(121e9))
+			dp.Attributes().PutInt("datadog.gauge.interval", 15)
+			consumer := &serializerConsumer{hosts: make(map[string]struct{})}
+			_, err = tr.MapMetrics(t.Context(), md, consumer, nil)
+			require.NoError(t, err)
+			require.Len(t, consumer.series, 1)
+			wantInterval := int64(0)
+			if enabled {
+				wantInterval = 15
+			}
+			assert.Equal(t, wantInterval, consumer.series[0].Interval)
+			assert.Equal(t, metrics.APIGaugeType, consumer.series[0].MType)
+			require.Len(t, consumer.series[0].Points, 1)
+			assert.Equal(t, float64(42), consumer.series[0].Points[0].Value)
+		})
 	}
 }
 
