@@ -113,6 +113,7 @@ func otelSpanToDDSpanMinimal(
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
+	setDynamoDBTableName(sattr, rattr, ddspan)
 	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
 	if pSvc, ok := ddspan.Meta[string(semantics.ConceptPeerService)]; ok {
 		ddspan.Meta[string(semantics.ConceptPeerService)], _ = normalizeutil.NormalizePeerService(pSvc)
@@ -163,6 +164,24 @@ func OtelSpanToDDSpanMinimal(
 ) *pb.Span {
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
 	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, primaryTagKeys, spanAccessor)
+}
+
+// setDynamoDBTableName sets the Datadog "tablename" tag, the only source of the
+// peer.aws.dynamodb.table peer tag, from the OTel aws.dynamodb.table_names attribute.
+// The attribute is a string array while "tablename" holds one name, so only a call that
+// targets a single table is mapped. A "tablename" attribute set by the producer is kept.
+func setDynamoDBTableName(sattr, rattr pcommon.Map, ddspan *pb.Span) {
+	const tablenameKey = "tablename"
+	if GetOTelAttrFromEitherMap(sattr, rattr, false, tablenameKey) != "" {
+		return
+	}
+	names, ok := sattr.Get(string(semconv.AWSDynamoDBTableNamesKey))
+	if !ok || names.Type() != pcommon.ValueTypeSlice || names.Slice().Len() != 1 {
+		return
+	}
+	if name := names.Slice().At(0).Str(); name != "" {
+		ddspan.Meta[tablenameKey] = name
+	}
 }
 
 func isDatadogAPMConventionKey(k string) bool {

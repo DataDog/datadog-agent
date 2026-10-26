@@ -954,6 +954,86 @@ func TestOtelSpanToDDSpan_HTTPAttributeMappings(t *testing.T) {
 	}
 }
 
+// TestOtelSpanToDDSpan_DynamoDBTableName tests that aws.dynamodb.table_names is mapped to the
+// Datadog tablename tag, on both the full conversion and the minimal one used for APM stats.
+func TestOtelSpanToDDSpan_DynamoDBTableName(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	tableNames := func(names ...string) func(pcommon.Map) {
+		return func(m pcommon.Map) {
+			s := m.PutEmptySlice("aws.dynamodb.table_names")
+			for _, n := range names {
+				s.AppendEmpty().SetStr(n)
+			}
+		}
+	}
+	tests := []struct {
+		name     string
+		span     func(pcommon.Map)
+		res      func(pcommon.Map)
+		expected string
+	}{
+		{
+			name:     "single table",
+			span:     tableNames("orders"),
+			expected: "orders",
+		},
+		{
+			name: "several tables are ambiguous",
+			span: tableNames("orders", "shipments"),
+		},
+		{
+			name: "empty array",
+			span: tableNames(),
+		},
+		{
+			name: "empty name",
+			span: tableNames(""),
+		},
+		{
+			name: "plain string is not the semantic convention type",
+			span: func(m pcommon.Map) { m.PutStr("aws.dynamodb.table_names", "orders") },
+		},
+		{
+			name: "resource attribute is ignored",
+			res:  tableNames("orders"),
+		},
+		{
+			name:     "tablename set on the span is kept",
+			span:     func(m pcommon.Map) { tableNames("orders")(m); m.PutStr("tablename", "mine") },
+			expected: "mine",
+		},
+		{
+			name:     "tablename set on the resource is kept",
+			span:     tableNames("orders"),
+			res:      func(m pcommon.Map) { m.PutStr("tablename", "mine") },
+			expected: "mine",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			if tt.span != nil {
+				tt.span(span.Attributes())
+			}
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("service.name", "test-svc")
+			if tt.res != nil {
+				tt.res(res.Attributes())
+			}
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			assert.Equal(t, tt.expected, OtelSpanToDDSpan(span, res, lib, cfg).Meta["tablename"], "full conversion")
+			assert.Equal(t, tt.expected, OtelSpanToDDSpanMinimal(span, res, lib, false, false, cfg, []string{"tablename"}, nil).Meta["tablename"], "minimal conversion")
+		})
+	}
+}
+
 // TestOtelSpanToDDSpan_DBAttributeMappings tests full span conversion with database attribute mappings
 // (db.query.text, db.statement preservation, db.namespace → db.name).
 func TestOtelSpanToDDSpan_DBAttributeMappings(t *testing.T) {

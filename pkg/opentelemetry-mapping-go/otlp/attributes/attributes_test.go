@@ -167,6 +167,7 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
 			string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
 			string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
+			string(semconv127.AWSEKSClusterARNKey):      "sample_eks_cluster_arn",
 			"datadog.container.tag.custom.team":         "otel",
 		})
 		assert.NoError(t, err)
@@ -184,6 +185,7 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			"task_family":         "sample_task_family",
 			"ecs_cluster_name":    "sample_ecs_cluster_name",
 			"ecs_container_name":  "sample_ecs_container_name",
+			"eks_cluster_arn":     "sample_eks_cluster_arn",
 			"custom.team":         "otel",
 		}, ContainerTagsFromResourceAttributes(attributes))
 		fmt.Println(ContainerTagsFromResourceAttributes(attributes))
@@ -324,6 +326,7 @@ func TestContainerTagFromAttributes(t *testing.T) {
 		string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
 		string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
 		string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
+		string(semconv127.AWSEKSClusterARNKey):      "sample_eks_cluster_arn",
 		"custom_tag":                                "example_custom_tag",
 		"":                                          "empty_string_key",
 		"empty_string_val":                          "",
@@ -343,6 +346,7 @@ func TestContainerTagFromAttributes(t *testing.T) {
 		"task_family":         "sample_task_family",
 		"ecs_cluster_name":    "sample_ecs_cluster_name",
 		"ecs_container_name":  "sample_ecs_container_name",
+		"eks_cluster_arn":     "sample_eks_cluster_arn",
 	}, ContainerTagFromAttributes(attributeMap))
 }
 
