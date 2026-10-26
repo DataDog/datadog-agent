@@ -32,6 +32,24 @@ EXPECTED_CHECKSUMS = {
 
 
 class TestFiles(unittest.TestCase):
+    def test_malloc_conf(self):
+        self.assertEqual(
+            os.environ.get("MALLOC_CONF"),
+            "background_thread:true,dirty_decay_ms:5000",
+        )
+
+    def test_preloaded_libraries(self):
+        libraries = [
+            "/opt/lib/nosys.so",
+            "/opt/datadog-agent/embedded/lib/libjemalloc.so.2",
+        ]
+        self.assertEqual(os.environ.get("LD_PRELOAD"), ":".join(libraries))
+        with open("/proc/self/maps") as f:
+            mappings = f.read()
+        for library in libraries:
+            self.assertTrue(os.path.isfile(library), library + " should be present")
+            self.assertIn(os.path.realpath(library), mappings, library + " should be loaded")
+
     def test_files_present(self):
         for file in EXPECTED_PRESENT:
             self.assertTrue(os.path.isfile(file), file + " should be present")
