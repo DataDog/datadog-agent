@@ -55,9 +55,9 @@ func TestReportedEventsCarryCCRID(t *testing.T) {
 	statsdClient := &gaugeRecorder{}
 	a := &Agent{
 		opts: AgentOptions{
-			Reporter:     reporter,
-			StatsdClient: statsdClient,
-			HostCCRID:    hostCCRID,
+			ResolverOptions: ResolverOptions{StatsdClient: statsdClient},
+			Reporter:        reporter,
+			HostCCRID:       hostCCRID,
 		},
 		statuses: map[string]*CheckStatus{rule.ID: {RuleID: rule.ID}},
 	}
