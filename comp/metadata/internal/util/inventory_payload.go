@@ -115,6 +115,14 @@ type InventoryPayload struct {
 	FlareFileName string
 }
 
+// SetFirstRunDelay sets a provider-specific startup delay. Providers without a
+// host-registration dependency can use zero to report immediately after startup.
+func (i *InventoryPayload) SetFirstRunDelay(delay time.Duration) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.firstRunDelay = delay
+}
+
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
 // needs to be generated.
 func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string) InventoryPayload {
