@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -435,12 +436,17 @@ func (r *distributionRecorder) Distribution(name string, value float64, _ []stri
 func TestManagerV2_queueEventForTagResolution_resolvesTimestampFirst(t *testing.T) {
 	recorder := &distributionRecorder{values: map[string][]float64{}}
 	m := &ManagerV2{
-		config:               &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{}},
-		statsdClient:         recorder,
-		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
-		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
-		queueSize:            atomic.NewUint64(0),
-		pendingProfiles:      atomic.NewUint64(0),
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+			SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
+		}},
+		statsdClient:              recorder,
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
 	}
 
 	const cgroupID = containerutils.CGroupID("test-cgroup")
@@ -880,4 +886,80 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 	assert.Empty(t, m.profilePendingEvents)
 	assert.Empty(t, m.resolvedCgroups)
+}
+
+// newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the
+// containers its tagger doesn't know.
+func newTagResolutionTestManagerV2(t *testing.T, maxPendingPerCgroup, maxPending int) *ManagerV2 {
+	t.Helper()
+
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup = maxPendingPerCgroup
+	m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents = maxPending
+	m.profilePendingEvents = make(map[containerutils.CGroupID]*pendingProfile)
+	m.resolvedCgroups = make(map[containerutils.CGroupID]struct{})
+	m.queueSize = atomic.NewUint64(0)
+	m.pendingProfiles = atomic.NewUint64(0)
+	m.tagResolutionCappedCgroup = atomic.NewUint64(0)
+	m.tagResolutionCappedTotal = atomic.NewUint64(0)
+	m.initEventMetrics()
+	return m
+}
+
+func untaggedTestCGroupID(i int) containerutils.CGroupID {
+	return containerutils.CGroupID(fmt.Sprintf("/docker/%064x", i+1))
+}
+
+// newUntaggedTestEventV2 forges an open event in a container whose tags never resolve, like the
+// containers started by a Docker-in-Docker daemon.
+func newUntaggedTestEventV2(i int) *model.Event {
+	event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+	cgroupID := untaggedTestCGroupID(i)
+	event.ProcessContext.Process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroupID)
+	event.ProcessContext.Process.ContainerContext.Tags = nil
+	event.ProcessContext.Process.CGroup.CGroupID = cgroupID
+	return event
+}
+
+func TestManagerV2_ProcessEvent_capsPendingEventsPerCgroup(t *testing.T) {
+	const maxPendingPerCgroup = 4
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, 100)
+
+	for i := 0; i < maxPendingPerCgroup+10; i++ {
+		m.ProcessEvent(newUntaggedTestEventV2(0))
+	}
+	m.ProcessEvent(newUntaggedTestEventV2(1))
+
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(1))
+	assert.Equal(t, maxPendingPerCgroup, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+	assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(1)].events.Len(), "a full cgroup shouldn't keep the others from queueing")
+	assert.EqualValues(t, maxPendingPerCgroup+1, m.queueSize.Load())
+	assert.EqualValues(t, 10, m.tagResolutionCappedCgroup.Load())
+	assert.Zero(t, m.tagResolutionCappedTotal.Load())
+}
+
+func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
+	const (
+		maxPendingPerCgroup = 4
+		maxPending          = 8
+	)
+	m := newTagResolutionTestManagerV2(t, maxPendingPerCgroup, maxPending)
+
+	fullCgroups := maxPending / maxPendingPerCgroup
+	for c := 0; c < fullCgroups; c++ {
+		for i := 0; i < maxPendingPerCgroup; i++ {
+			m.ProcessEvent(newUntaggedTestEventV2(c))
+		}
+	}
+	require.EqualValues(t, maxPending, m.queueSize.Load())
+
+	m.ProcessEvent(newUntaggedTestEventV2(fullCgroups))
+
+	require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(fullCgroups))
+	assert.Zero(t, m.profilePendingEvents[untaggedTestCGroupID(fullCgroups)].events.Len())
+	assert.EqualValues(t, maxPending, m.queueSize.Load())
+	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
+	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
 }
