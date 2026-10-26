@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    When ``DD_SERVERLESS_INIT_METADATA_ENABLED`` is set, serverless-init
+    reports metadata for AWS Lambda MicroVM instances, identified by instance
+    ID with the MicroVM image as the parent resource. Metadata is reported when an
+    instance starts and each time an instance resumes from a snapshot.

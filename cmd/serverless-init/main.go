@@ -201,8 +201,8 @@ func preloadEarly() {
 
 	// The full-Agent inventory first-run delay staggers the first inventory
 	// payload behind the agent's startup request train. Serverless-init has no
-	// such train: the payload is gated on resource identity instead, and a
-	// delay would only postpone the earliest possible send after identity.
+	// such train. The payload waits for resource identity instead, and a delay
+	// would only postpone the earliest possible send after identity.
 	setOverride("inventories_first_run_delay", 0)
 
 	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
@@ -390,10 +390,11 @@ func run(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	_ runner.Component,
+	metadata serverlessdef.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux,
+		cloudService, tagConfig, metricTags, demux, metadata,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -465,6 +466,7 @@ func setup(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
+	metadata serverlessdef.Component,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -524,6 +526,7 @@ func setup(
 					metricAgent.SetEnhancedUsageMetricTags(tags)
 				}),
 				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+				Metadata:            metadata,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -565,6 +568,7 @@ func setup(
 				metricAgent.SetEnhancedUsageMetricTags(tags)
 			}),
 			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+			Metadata:            metadata,
 		},
 	}
 

@@ -179,6 +179,20 @@ type MetricTagSetterFunc func([]string)
 // SetMetricTags implements MetricTagSetter.
 func (f MetricTagSetterFunc) SetMetricTags(tags []string) { f(tags) }
 
+// MetadataReporter reports serverless metadata for the current MicroVM
+// instance. The server passes the instance ID from the /run body, or the stored
+// ID at /resume. Calls are serialized with the instance ID store and load, so a
+// resume cannot replay a stale ID.
+type MetadataReporter interface {
+	ReportMetadata(microVMID string)
+}
+
+// MetadataReporterFunc wraps a bare function so it satisfies MetadataReporter.
+type MetadataReporterFunc func(string)
+
+// ReportMetadata implements MetadataReporter.
+func (f MetadataReporterFunc) ReportMetadata(microVMID string) { f(microVMID) }
+
 // runBody is the JSON payload sent by the MicroVM platform on /run.
 type runBody struct {
 	MicroVMID string `json:"microvmId"`
@@ -191,7 +205,7 @@ type Server struct {
 	logsFlusher   LogsFlusher
 	metricEmitter MetricEmitter
 	sampleDrainer SampleDrainer
-	instanceID    *atomic.String // set once from /run body
+	instanceID    *atomic.String // updated from valid /run bodies; read by telemetry
 	metricSource  metrics.MetricSource
 	flushTimeout  time.Duration
 
@@ -207,6 +221,8 @@ type Server struct {
 	baseTraceTags       map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
 	metricTagSetter     MetricTagSetter   // nil-safe; set via SetMetricTagSetter after construction
 	baseUsageMetricTags []string          // startup enhanced usage metric tag snapshot; instance:<id> is appended at /run
+	metadataReporter    MetadataReporter  // nil-safe; set via SetMetadataReporter after construction
+	metadataMu          sync.Mutex        // serializes the instance ID store/load with the complete metadata report
 
 	httpServer *http.Server
 	listener   net.Listener // set once ListenAndServe binds successfully
@@ -315,6 +331,14 @@ func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[stri
 func (s *Server) SetMetricTagSetter(setter MetricTagSetter, baseUsageMetricTags []string) {
 	s.metricTagSetter = setter
 	s.baseUsageMetricTags = baseUsageMetricTags
+}
+
+// SetMetadataReporter wires a MetadataReporter into the server. Optional; nil
+// disables metadata reports. If called, it must happen before the first /run
+// request. The reporter receives the instance ID on a valid /run and the
+// stored ID on /resume; nothing is reported before an ID is established.
+func (s *Server) SetMetadataReporter(reporter MetadataReporter) {
+	s.metadataReporter = reporter
 }
 
 // listen binds the TCP port synchronously. Call before serve so the socket is
@@ -657,6 +681,8 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 // handleRun is the only hook that reads r.Body and is therefore not
 // collapsed into dispatchHook directly. The ID is captured before Start
 // so the first heartbeat emission already carries the correct lambda_microvm_id tag.
+// A valid ID also triggers the synchronous metadata report before the
+// heartbeat starts and the hook is forwarded.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
@@ -678,9 +704,12 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	var body runBody
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		log.Debugf("MicroVM lifecycle: could not parse run body: %v", err)
+		// Unmarshal may have partially populated an invalid body.
+		body.MicroVMID = ""
 	}
 	if body.MicroVMID != "" {
 		log.Infof("MicroVM lifecycle: run (microvm_id=%s)", body.MicroVMID)
+		s.metadataMu.Lock()
 		s.instanceID.Store(body.MicroVMID)
 		s.heartbeat.SetMicroVMID(body.MicroVMID)
 		if s.logsTagSetter != nil {
@@ -697,6 +726,10 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		if s.metricTagSetter != nil {
 			s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+body.MicroVMID))
 		}
+		if s.metadataReporter != nil {
+			s.metadataReporter.ReportMetadata(body.MicroVMID)
+		}
+		s.metadataMu.Unlock()
 	} else {
 		log.Info("MicroVM lifecycle: run")
 	}
@@ -712,11 +745,18 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
-// /suspend), and (when a forwarder is configured and enabled) mirrors the
-// user app's response.
+// /suspend), reports metadata for the stored instance ID, and (when a
+// forwarder is configured and enabled) mirrors the user app's response.
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
+	// A same-instance resume keeps its identity. Snapshot reuse for another
+	// instance is expected to supply a new ID through /run.
+	s.metadataMu.Lock()
+	if id := s.instanceID.Load(); id != "" && s.metadataReporter != nil {
+		s.metadataReporter.ReportMetadata(id)
+	}
+	s.metadataMu.Unlock()
 	s.dispatchHook(resumeMetricName, pathResume, noFlush, s.enabledHooks.Resume, w, r)
 }
 

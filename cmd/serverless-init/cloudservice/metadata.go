@@ -18,8 +18,3 @@ func (l *LocalService) CanCollectMetadata() bool { return false }
 func (l *LocalService) GetMetadata() serverlessdef.CloudServiceMetadata {
 	return serverlessdef.CloudServiceMetadata{}
 }
-
-func (m *MicroVM) CanCollectMetadata() bool { return false }
-func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
-	return serverlessdef.CloudServiceMetadata{}
-}

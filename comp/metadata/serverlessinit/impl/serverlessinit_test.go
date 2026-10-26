@@ -221,6 +221,7 @@ func TestCollectionDisabled(t *testing.T) {
 			assert.Nil(t, p.Provider.Callback)
 			assert.Empty(t, lc.hooks)
 			p.Comp.(*serverlessinitComp).collect(t.Context())
+			p.Comp.ReportNow()
 			require.NoError(t, p.Comp.(*serverlessinitComp).stop(t.Context()))
 			assert.Zero(t, provider.reads)
 			assert.Empty(t, s.payloads)
@@ -362,6 +363,130 @@ func TestShutdownDoesNotWaitIndefinitelyForSerializer(t *testing.T) {
 		close(release)
 		<-done
 		assert.Len(t, s.payloads, 1)
+	})
+}
+
+func TestReportNowWithoutIdentity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: " ", WorkloadType: "aws_lambda_microvm"}}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		start := time.Now()
+		p.Comp.ReportNow()
+		assert.Equal(t, start, time.Now(), "a missing identity must not be awaited")
+		assert.Equal(t, 1, provider.reads)
+		assert.Empty(t, s.payloads)
+	})
+}
+
+func TestReportNowFirstRunRace(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		firstRunDelay int
+	}{
+		{name: "collection submits"},
+		{name: "collection waits for first run delay", firstRunDelay: 60},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				conf := enabledConfig()
+				conf["inventories_first_run_delay"] = tt.firstRunDelay
+				provider := &fakeProvider{eligible: true}
+				p, s, _ := newTestComponent(t, conf, provider, serverlessdef.Params{})
+				collected := make(chan struct{})
+				go func() { p.Provider.Callback(t.Context()); close(collected) }()
+				synctest.Wait()
+				provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"})
+				reported := make(chan struct{})
+				go func() { p.Comp.ReportNow(); close(reported) }()
+				<-collected
+				<-reported
+				require.Len(t, s.payloads, 1, "the first identity must be reported once")
+				assert.Equal(t, "vm-A", s.payloads[0].Metadata["resource_id"])
+				assert.Equal(t, "startup", s.payloads[0].Metadata["report_reason"])
+			})
+		})
+	}
+}
+
+func TestReportNowSameIdentityKeepsUUID(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		p.Comp.ReportNow()
+		require.Len(t, s.payloads, 1)
+		p.Comp.ReportNow()
+		require.Len(t, s.payloads, 2, "a resume of the same identity reports at once")
+		assert.Equal(t, s.payloads[0].UUID, s.payloads[1].UUID)
+		assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
+		assert.Equal(t, "vm-A", s.payloads[1].Metadata["resource_id"])
+		p.Provider.Callback(t.Context())
+		assert.Len(t, s.payloads, 2, "collection must not repeat a reported payload")
+	})
+}
+
+func TestReportNowNewIdentityRotatesUUID(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		p.Comp.ReportNow()
+		provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "vm-B"})
+		p.Comp.ReportNow()
+		require.Len(t, s.payloads, 2)
+		assert.NotEqual(t, s.payloads[0].UUID, s.payloads[1].UUID)
+		assert.Equal(t, "vm-B", s.payloads[1].Metadata["resource_id"])
+		assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
+	})
+}
+
+func TestReportNowAfterStop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
+		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		require.NoError(t, lc.hooks[0].OnStop(t.Context()))
+		require.Len(t, s.payloads, 1)
+		reads := provider.reads
+		p.Comp.ReportNow()
+		assert.Len(t, s.payloads, 1)
+		assert.Equal(t, reads, provider.reads, "a stopped component must not read metadata")
+	})
+}
+
+func TestReportNowDoesNotWaitIndefinitelyForCollection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		entered, release := make(chan struct{}), make(chan struct{})
+		s.onSend = func() { close(entered); <-release }
+		done := make(chan struct{})
+		go func() { p.Provider.Callback(t.Context()); close(done) }()
+		<-entered
+		start := time.Now()
+		p.Comp.ReportNow()
+		assert.Equal(t, reportNowTimeout, time.Since(start))
+		close(release)
+		<-done
+		assert.Len(t, s.payloads, 1)
+	})
+}
+
+func TestReportNowAfterTimedOutFirstReportSendsResume(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"}}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		entered, release := make(chan struct{}), make(chan struct{})
+		s.onSend = func() { close(entered); <-release }
+		done := make(chan struct{})
+		go func() { p.Provider.Callback(t.Context()); close(done) }()
+		<-entered
+		p.Comp.ReportNow()
+		close(release)
+		<-done
+		s.onSend = nil
+		require.Len(t, s.payloads, 1)
+		p.Comp.ReportNow()
+		require.Len(t, s.payloads, 2, "a resume after a timed-out first report reports at once")
+		assert.Equal(t, s.payloads[0].UUID, s.payloads[1].UUID)
+		assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
 	})
 }
 

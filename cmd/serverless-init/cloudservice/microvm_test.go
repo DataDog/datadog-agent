@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -176,6 +177,108 @@ func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, midRunAlive.Load(), "child must be alive while Run is blocked on the subprocess")
 	assert.False(t, child.IsAlive(), "child must be dead after Run returns")
+}
+
+func TestMicroVMGetMetadata(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
+	m := &MicroVM{}
+	assert.True(t, m.CanCollectMetadata())
+
+	image := serverlessdef.CloudServiceMetadata{
+		WorkloadType:     "aws_lambda_microvm",
+		ParentResourceID: testImageARN,
+		ResourceName:     "my-image",
+		Region:           "us-east-1",
+		AWSAccountID:     "123456789012",
+	}
+	assert.Equal(t, image, m.GetMetadata(), "the resource identity waits for the /run instance ID")
+
+	instanceID := "vm-abc123"
+	m.instanceID.Store(&instanceID)
+	instance := image
+	instance.ResourceID = "vm-abc123"
+	assert.Equal(t, instance, m.GetMetadata())
+}
+
+func TestMicroVMGetMetadataMissingARN(t *testing.T) {
+	m := &MicroVM{}
+	assert.Equal(t, serverlessdef.CloudServiceMetadata{WorkloadType: "aws_lambda_microvm"}, m.GetMetadata())
+}
+
+func TestMicroVMGetMetadataMalformedARN(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda")
+	m := &MicroVM{}
+	assert.Equal(t, serverlessdef.CloudServiceMetadata{
+		WorkloadType:     "aws_lambda_microvm",
+		ParentResourceID: "arn:aws:lambda",
+	}, m.GetMetadata(), "unparsable fields are unavailable, not \"unknown\"")
+	tags := m.GetTags()
+	assert.Equal(t, "unknown", tags["region"])
+	assert.Equal(t, "unknown", tags["account_id"])
+	assert.Equal(t, "unknown", tags["image_name"])
+}
+
+// identityRecordingMetadata records the MicroVM resource identity each
+// ReportNow call observes.
+type identityRecordingMetadata struct {
+	microVM     *MicroVM
+	mu          sync.Mutex
+	resourceIDs []string
+}
+
+func (r *identityRecordingMetadata) ReportNow() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resourceIDs = append(r.resourceIDs, r.microVM.GetMetadata().ResourceID)
+}
+
+func (r *identityRecordingMetadata) reported() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string{}, r.resourceIDs...)
+}
+
+// TestMicroVMMetadataReporter_ReportsAfterRunAndResume wires the reporter Init
+// installs into a server on a random free port.
+func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
+	m := &MicroVM{}
+	metadata := &identityRecordingMetadata{microVM: m}
+	srv := lifecycle.NewServer(
+		0,
+		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
+		metricAgent, nil,
+		m.GetSource(),
+		time.Second,
+		lifecycle.NewNoopChildHandle(),
+		nil,                     // no forwarder
+		lifecycle.HookToggles{}, // no hooks enabled
+		nil,                     // no heartbeat
+	)
+	srv.SetMetadataReporter(m.MetadataReporter(metadata))
+	require.NoError(t, srv.ListenAndServe(nil))
+	t.Cleanup(func() {
+		shutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = srv.Stop(shutCtx)
+	})
+	post := func(hook, body string) {
+		t.Helper()
+		resp, err := http.Post("http://"+srv.Addr().String()+"/aws/lambda-microvms/runtime/v1/"+hook, "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	post("resume", "")
+	post("run", `{"microvmId":""}`)
+	assert.Empty(t, metadata.reported(), "nothing is reported before /run delivers an instance ID")
+	assert.Empty(t, m.GetMetadata().ResourceID)
+
+	post("run", `{"microvmId":"vm-A"}`)
+	post("resume", "")
+	post("run", `{"microvmId":"vm-B"}`)
+	assert.Equal(t, []string{"vm-A", "vm-A", "vm-B"}, metadata.reported(), "the instance ID is set before each report")
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {

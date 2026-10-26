@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,6 +35,7 @@ import (
 const (
 	identityRetryInterval = 10 * time.Millisecond
 	shutdownGrace         = 250 * time.Millisecond
+	reportNowTimeout      = 250 * time.Millisecond
 )
 
 type serverlessinitComp struct {
@@ -48,7 +50,10 @@ type serverlessinitComp struct {
 	uuid                     string
 	lastResourceID           string
 	submittedCurrentIdentity bool
-	// Serializes collection and shutdown without an uninterruptible lock wait.
+	// submissions counts successful sends. ReportNow reads it before waiting for
+	// the slot, so it can tell whether collection sent a payload during the wait.
+	submissions atomic.Uint64
+	// Serializes collection, reports, and shutdown without an uninterruptible lock wait.
 	collecting chan struct{}
 	stopped    bool
 }
@@ -114,7 +119,37 @@ func (c *serverlessinitComp) collect(ctx context.Context) time.Duration {
 	return c.payload.Collect(ctx)
 }
 
-// enter serializes collection and shutdown behind a single slot, rejecting
+// ReportNow applies the provider's current metadata and enqueues a startup
+// payload at once. It does not repeat a payload for the current identity that
+// collection sent while this call waited for the slot.
+func (c *serverlessinitComp) ReportNow() {
+	submissionsBeforeWait := c.submissions.Load()
+	ctx, cancel := context.WithTimeout(context.Background(), reportNowTimeout)
+	defer cancel()
+	release, ok := c.enter(ctx)
+	if !ok {
+		if ctx.Err() != nil {
+			c.log.Debugf("serverless-init metadata report skipped: collection did not finish within %s", reportNowTimeout)
+		}
+		return
+	}
+	defer release()
+	data := c.provider.GetMetadata()
+	if strings.TrimSpace(data.ResourceID) == "" {
+		return
+	}
+	c.applyMetadata(data)
+	if c.submittedCurrentIdentity && c.submissions.Load() != submissionsBeforeWait {
+		return
+	}
+	// A lifecycle report restarts the identity's report sequence at startup.
+	c.submittedCurrentIdentity = false
+	if err := c.payload.Submit(); err != nil {
+		c.log.Errorf("unable to submit serverless-init metadata payload: %s", err)
+	}
+}
+
+// enter serializes collection, reports, and shutdown behind a single slot, rejecting
 // calls after stop. The stopped check runs after acquisition so stop cannot
 // interleave between the check and the work. release is nil when ok is false.
 func (c *serverlessinitComp) enter(ctx context.Context) (release func(), ok bool) {
@@ -153,7 +188,7 @@ func (c *serverlessinitComp) waitForIdentity(ctx context.Context) (serverlessdef
 // applyMetadata records a newly observed metadata snapshot: it triggers
 // a payload refresh when the wire fields changed, rotates the host UUID when
 // the resource identity changed, and constructs the base payload data on first
-// use (NewData reads install info, so the constructor stays free of file reads).
+// use. NewData reads install info, and the constructor does no file reads.
 func (c *serverlessinitComp) applyMetadata(data serverlessdef.CloudServiceMetadata) {
 	fields := buildFields(data, c.params, c.conf)
 	if !reflect.DeepEqual(fields, c.fields) {
@@ -177,6 +212,7 @@ func (c *serverlessinitComp) identityReady() bool {
 
 func (c *serverlessinitComp) recordSubmission() {
 	c.submittedCurrentIdentity = true
+	c.submissions.Add(1)
 }
 
 // getPayload stamps the submission state as the report reason: the first
