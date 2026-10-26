@@ -1,7 +1,6 @@
 """Read package metadata without installing packages or running their scripts."""
 
 import io
-import re
 import subprocess
 import tarfile
 from pathlib import Path
@@ -101,60 +100,3 @@ def read_rpm_metadata(package: Path) -> dict:
     for field in (*sorted(RPM_RELATIONS), 'scripts', 'triggers', 'filetriggers', 'configfiles'):
         result[field] = subprocess.check_output(['rpm', '-qp', f'--{field}', str(package)], text=True, encoding='utf-8')
     return result
-
-
-def normalize_path(path: str) -> str:
-    path = path.removeprefix('./').lstrip('/')
-    # The installer symlink path includes the full pipeline-stamped build version.
-    return re.sub(r'(opt/datadog-packages/run/[^/]+/)[^/]+', r'\1<version>', path)
-
-
-def normalize_metadata(metadata: dict, package_format: str) -> dict:
-    result = {}
-    for key, raw_value in metadata.items():
-        value = raw_value.strip()
-        if value == '(none)':
-            value = ''
-        if key == 'epoch':
-            value = value or '0'
-        elif key in ('architecture', 'arch'):
-            value = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(value, value)
-        else:
-            if key in DEB_RELATIONS and package_format == 'deb':
-                entries = [re.sub(r'\s+', ' ', v.strip()) for v in value.split(',') if v.strip()]
-            elif key in RPM_RELATIONS:
-                entries = [v.strip() for v in value.splitlines() if v.strip()]
-            else:
-                entries = None
-            if entries is not None:
-                value = sorted(set(entries))
-            else:
-                if key in {'conffiles', 'configfiles'} or (key == 'triggers' and package_format == 'deb'):
-                    value = sorted({normalize_path(v.strip()) for v in value.splitlines() if v.strip()})
-                elif key not in {
-                    'preinst',
-                    'postinst',
-                    'prerm',
-                    'postrm',
-                    'config',
-                    'scripts',
-                    'triggers',
-                    'filetriggers',
-                }:
-                    value = ' '.join(value.split())
-        result[key] = value
-    return result
-
-
-def compare_metadata(previous: dict, current: dict, *, installed_size_tolerance: float = 0.1) -> dict:
-    """Return differing normalized fields with their full omnibus/Bazel values."""
-    differences = {}
-    for field in sorted(previous.keys() | current.keys()):
-        old, new = previous.get(field, ''), current.get(field, '')
-        if old == new:
-            continue
-        if field == 'installed-size' and str(old).isdigit() and str(new).isdigit():
-            if abs(int(old) - int(new)) <= int(old) * installed_size_tolerance:
-                continue
-        differences[field] = {'omnibus': old, 'bazel': new}
-    return differences

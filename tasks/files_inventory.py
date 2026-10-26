@@ -25,9 +25,9 @@ def _compare_inventories(
     current_inventory: list[FileInfo],
     *,
     compare_symlinks: bool = False,
-    symmetric_size: bool = False,
-    size_tolerance_percent: float = 10,
+    compare_all_sizes: bool = False,
 ) -> tuple[list[FileInfo], list[FileInfo], dict[str, FileChange]]:
+    """Compare attributes, keeping the historical >10% growth check unless all size changes are requested."""
     removed_files = []
     added_files = []
     changed_files = {}
@@ -48,7 +48,7 @@ def _compare_inventories(
                 (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100 if previous.size_bytes else 100.0
             )
             size_bytes = current.size_bytes - previous.size_bytes
-            if (abs(size_percent) if symmetric_size else size_percent) > size_tolerance_percent:
+            if compare_all_sizes or size_percent > 10:
                 changed_flags |= FileChange.Flags.Size
         if current.chmod != previous.chmod:
             changed_flags |= FileChange.Flags.Permissions

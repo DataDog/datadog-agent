@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 
 import yaml
@@ -17,19 +17,12 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.files_inventory import _compare_inventories
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
-from tasks.libs.package.metadata import (
-    compare_metadata,
-    normalize_metadata,
-    normalize_path,
-    read_deb_metadata,
-    read_rpm_metadata,
-)
+from tasks.libs.package.metadata import read_deb_metadata, read_rpm_metadata
 from tasks.static_quality_gates.experimental_gates import FileInfo, measure_package_local
 
 PRODUCTS = {'datadog-agent': 'agent'}
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
-STATUSES = {'done', 'remaining', 'accepted'}
 
 
 def find_packages(directory: str, product: str, package_format: str, arch: str) -> Path | None:
@@ -46,36 +39,8 @@ def find_packages(directory: str, product: str, package_format: str, arch: str) 
     return matches[0] if matches else None
 
 
-def normalize_inventory(inventory: list[FileInfo]) -> list[FileInfo]:
-    normalized = []
-    seen = set()
-    for info in inventory:
-        path = normalize_path(info.relative_path)
-        if path in seen:
-            raise ValueError(f'Path normalization collision: {path}')
-        seen.add(path)
-        target = (
-            ('/' if info.symlink_target.startswith('/') else '') + normalize_path(info.symlink_target)
-            if info.symlink_target
-            else None
-        )
-        # Symlink size is the length of its target; ignore stamp length changes.
-        normalized.append(
-            replace(
-                info,
-                relative_path=path,
-                symlink_target=target,
-                size_bytes=len(target) if info.is_symlink else info.size_bytes,
-            )
-        )
-    return normalized
-
-
 def file_tasks(previous: list[FileInfo], current: list[FileInfo]) -> tuple[list[dict], dict]:
-    previous, current = normalize_inventory(previous), normalize_inventory(current)
-    added, removed, changed = _compare_inventories(
-        previous, current, symmetric_size=True, size_tolerance_percent=0, compare_symlinks=True
-    )
+    added, removed, changed = _compare_inventories(previous, current, compare_all_sizes=True, compare_symlinks=True)
     groups = {info.relative_path.split('/')[0]: [] for info in previous + current}
     for result, files in (('missing_in_bazel', removed), ('extra_in_bazel', added)):
         for info in files:
@@ -108,65 +73,6 @@ def file_tasks(previous: list[FileInfo], current: list[FileInfo]) -> tuple[list[
         'mismatch': len(changed),
     }
     return tasks, counts
-
-
-def load_expected_differences(path: str) -> list[dict]:
-    with open(path, encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-    if not isinstance(data, dict) or not isinstance(data.get('differences'), list):
-        raise ValueError(f'{path} must contain a differences list')
-    entries = data['differences']
-    ids = set()
-    for entry in entries:
-        if not isinstance(entry, dict) or not isinstance(entry.get('id'), str) or entry['id'] in ids:
-            raise ValueError(f'{path}: entries need unique string ids')
-        ids.add(entry['id'])
-        for field, allowed in (('product', PRODUCTS), ('format', FORMATS), ('arch', ARCHITECTURES)):
-            if field in entry and entry[field] not in allowed:
-                raise ValueError(f'{path}: unsupported {field} in {entry["id"]}')
-        required = {'check', 'product', 'format', 'arch', 'item', 'reason'}
-        if not required <= entry.keys() or not isinstance(entry['reason'], str) or not entry['reason'].strip():
-            raise ValueError(f'{path}: expected differences require a scope and reason')
-        if entry['check'] == 'file':
-            if not {'path', 'result'} <= entry.keys():
-                raise ValueError(f'{path}: file exceptions require path and result')
-            if entry['result'] not in {'missing_in_bazel', 'extra_in_bazel', 'mismatch'}:
-                raise ValueError(f'{path}: invalid file result')
-            if entry['result'] == 'mismatch' and not {'flags', 'omnibus', 'bazel'} <= entry.keys():
-                raise ValueError(f'{path}: mismatch exceptions must pin flags and file values')
-        elif entry['check'] == 'metadata':
-            if not {'omnibus', 'bazel'} <= entry.keys():
-                raise ValueError(f'{path}: metadata exceptions require the expected values')
-        else:
-            raise ValueError(f'{path}: exceptions support file or metadata checks')
-    return entries
-
-
-def apply_expected_differences(tasks: list[dict], expected: list[dict]) -> list[str]:
-    used = set()
-    for item in tasks:
-        for difference in item.get('differences', []):
-            if 'error' in difference:
-                continue
-            for rule in expected:
-                if not all(rule[k] == item[k] for k in ('check', 'product', 'format', 'arch', 'item')):
-                    continue
-                fields = ('path', 'result') if item['check'] == 'file' else ('omnibus', 'bazel')
-                if item['check'] == 'file' and rule['result'] == 'mismatch':
-                    fields += ('flags', 'omnibus', 'bazel')
-                if all(rule[k] == difference.get(k) for k in fields):
-                    difference['accepted_reason'] = rule['reason']
-                    used.add(rule['id'])
-                    break
-        differences = item['differences']
-        item['status'] = (
-            'done'
-            if not differences
-            else 'accepted'
-            if all('accepted_reason' in d for d in differences)
-            else 'remaining'
-        )
-    return sorted(rule['id'] for rule in expected if rule['id'] not in used)
 
 
 def build_tags(**values: str) -> list[str]:
@@ -244,8 +150,7 @@ def measure_inventory(ctx, package: Path, product: str, package_format: str, arc
             return [FileInfo(**info) for info in yaml.safe_load(f)['file_inventory']]
 
 
-def build_report(ctx, omnibus_dir: str, bazel_dir: str, expected_diffs: str) -> dict:
-    expected = load_expected_differences(expected_diffs)
+def build_report(ctx, omnibus_dir: str, bazel_dir: str) -> dict:
     report = {'schema_version': 1, 'branch': os.environ.get('CI_COMMIT_BRANCH', 'local'), 'packages': [], 'tasks': []}
     for product in PRODUCTS:
         for package_format, reader in FORMATS.items():
@@ -263,18 +168,19 @@ def build_report(ctx, omnibus_dir: str, bazel_dir: str, expected_diffs: str) -> 
                     current = measure_inventory(ctx, new, product, package_format, arch)
                     files, package['files'] = file_tasks(previous, current)
                     report['tasks'].extend({**scope, **item} for item in files)
-                    previous_metadata = normalize_metadata(reader(old), package_format)
-                    current_metadata = normalize_metadata(reader(new), package_format)
-                    differences = compare_metadata(previous_metadata, current_metadata)
+                    previous_metadata, current_metadata = reader(old), reader(new)
                     package['metadata'] = {'omnibus': previous_metadata, 'bazel': current_metadata}
                     for field in sorted(previous_metadata.keys() | current_metadata.keys()):
+                        old_value, new_value = previous_metadata.get(field, ''), current_metadata.get(field, '')
                         report['tasks'].append(
                             {
                                 **scope,
                                 'check': 'metadata',
                                 'item': f'field_{field}',
                                 'title': f'Package metadata: {field}',
-                                'differences': [differences[field]] if field in differences else [],
+                                'differences': [{'omnibus': old_value, 'bazel': new_value}]
+                                if old_value != new_value
+                                else [],
                             }
                         )
                 except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, UnexpectedExit) as error:
@@ -288,8 +194,9 @@ def build_report(ctx, omnibus_dir: str, bazel_dir: str, expected_diffs: str) -> 
                             'differences': [{'error': str(error)}],
                         }
                     )
-    report['unused_expected_differences'] = apply_expected_differences(report['tasks'], expected)
-    report['summary'] = dict.fromkeys(sorted(STATUSES), 0)
+    for item in report['tasks']:
+        item['status'] = 'remaining' if item['differences'] else 'done'
+    report['summary'] = {'done': 0, 'remaining': 0}
     report['summary'].update(Counter(item['status'] for item in report['tasks']))
     report['metrics'] = metric_values(report)
     return report
@@ -300,13 +207,12 @@ def write_report(report: dict, output: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     summary = report['summary']
-    complete = summary['done'] + summary['accepted']
+    complete = summary['done']
     total = complete + summary['remaining']
     lines = [
         '# Bazel Linux package parity',
         '',
-        f'{complete}/{total} tasks complete (including {summary["accepted"]} accepted); '
-        f'{summary["remaining"]} remaining.',
+        f'{complete}/{total} tasks complete; {summary["remaining"]} remaining.',
         '',
         '| Format | Check | Item | Status |',
         '| --- | --- | --- | --- |',
@@ -331,10 +237,6 @@ def write_report(report: dict, output: str) -> str:
             )
         if 'error' in package:
             lines.extend(['', f'{package["format"]} comparison failed: {package["error"]}'])
-    if report['unused_expected_differences']:
-        lines.extend(
-            ['', 'Unused exceptions (review for removal): ' + ', '.join(report['unused_expected_differences'])]
-        )
     markdown = '\n'.join(lines) + '\n'
     path.with_suffix('.md').write_text(markdown, encoding='utf-8')
     return markdown
@@ -351,12 +253,11 @@ def check(
     ctx,
     omnibus_dir,
     bazel_dir,
-    expected_diffs='test/bazel_parity/expected_differences.yaml',
     output='bazel_parity_report.json',
     dry_run=False,
 ):
     """Report package parity; remaining tasks fail this advisory CI check."""
-    report = build_report(ctx, omnibus_dir, bazel_dir, expected_diffs)
+    report = build_report(ctx, omnibus_dir, bazel_dir)
     print(write_report(report, output))
     submit_metrics(report, dry_run)
     if report['summary']['remaining']:

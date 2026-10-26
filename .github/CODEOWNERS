@@ -973,8 +973,7 @@
 /tasks/bazel.py                                                 @DataDog/agent-build
 /tasks/bazel_parity.py                                          @DataDog/agent-build
 /tasks/libs/package/metadata.py                                 @DataDog/agent-build
-/tasks/unit_tests/bazel_parity_tests.py                         @DataDog/agent-build
-/test/bazel_parity/                                             @DataDog/agent-build
+/tasks/unit_tests/bazel_parity_tests.py                          @DataDog/agent-build
 /tasks/build_tags.py                                            @DataDog/agent-build
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
