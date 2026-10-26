@@ -34,6 +34,7 @@ const (
 type NodeStatus struct {
 	LastChange int64    `json:"last_change"`
 	NodeType   NodeType `json:"node_type,omitempty"`
+	Group      string   `json:"group,omitempty"`
 }
 
 // StatusResponse holds the DCA response for a status report

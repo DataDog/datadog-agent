@@ -129,6 +129,14 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  runner_groups:
+    node_type: setting
+    type: string
+    default: ''
+    comment: 'JSON object mapping each cluster checks runner group to the check names
+      it claims, e.g. {"kube": ["kubernetes_state_core", "orchestrator"]}. A claimed
+      check is only dispatched to runners of its group (clc_runner_group), and stays
+      undispatched while the group has no live runner.'
   stickiness_enabled:
     node_type: setting
     type: boolean

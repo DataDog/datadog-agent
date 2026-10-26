@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"fmt"
 	"math/rand"
 	"time"
@@ -50,6 +51,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
+	d.updateGroup(nodeName, node, status.Group)
 	d.store.Unlock()
 
 	node.Lock()
@@ -102,6 +104,19 @@ func (d *dispatcher) getNodeToScheduleCheck() string {
 	}
 
 	return d.getNodeWithLessChecks()
+}
+
+// updateGroup records the worker's runner group. The store must be locked.
+func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string) {
+	if group == node.group {
+		return
+	}
+	if _, known := d.runnerGroups[group]; group != "" && !known {
+		log.Warnf("Node %s declares unknown cluster checks runner group %q: it won't receive any cluster check", nodeName, group)
+	} else {
+		log.Infof("Node %s is in cluster checks runner group %q", nodeName, cmp.Or(group, "general"))
+	}
+	node.group = group
 }
 
 func (d *dispatcher) getRandomNode() string {
