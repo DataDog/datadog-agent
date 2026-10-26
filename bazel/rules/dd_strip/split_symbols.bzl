@@ -98,13 +98,12 @@ def _get_debug_symbols_impl(ctx):
     for strip_info in all_strip_info:
         debug_file = strip_info.debug_file
         if strip_info.packaged_file in original_src_to_dest:
-            original_dest = original_src_to_dest[strip_info.packaged_file]
+            original_folder = paths.dirname(original_src_to_dest[strip_info.packaged_file])
 
-            # TODO: We might need to add extension for windows.
-            suffix = debug_file.basename[len(strip_info.packaged_file.basename):]
-
-            # Note: the lstrip guarantees the path is relative to avoid accidental path resets
-            path = paths.join(prefix, original_dest.lstrip("/") + suffix)
+            # Notes:
+            # - the lstrip guarantees the path is relative to avoid accidental path resets when joining paths
+            # - using debug_file's basename guarantees that the name matches the reference stored in the stripped binary
+            path = paths.join(prefix, original_folder.lstrip("/"), debug_file.basename)
         else:
             fail("Have debug symbol object with no original for", debug_file.short_path, "from", strip_info.original)
         dest_src_map[path] = debug_file
