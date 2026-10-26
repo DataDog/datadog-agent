@@ -8012,6 +8012,27 @@ properties:
         node_type: setting
         type: string
         default: ${log_path}/host-profiler.log
+      symbol_uploader:
+        node_type: section
+        type: object
+        properties:
+          report:
+            node_type: section
+            type: object
+            properties:
+              interval:
+                node_type: setting
+                type: string
+                format: duration
+                default: 5m0s
+                description: How often the host profiler flushes a batched symbol
+                  upload report.
+              max_paths_per_report:
+                node_type: setting
+                type: integer
+                default: 100
+                description: Maximum number of sampled binary paths kept per symbol
+                  upload report, per log level.
     tags:
     - full-agent-only:true
   hpa_configmap_name:

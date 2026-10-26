@@ -15,9 +15,7 @@ import (
 )
 
 const (
-	reportMessage  = "Symbol Upload Report"
-	reportInterval = 5 * time.Minute
-	maxReportPaths = 100
+	reportMessage = "Symbol Upload Report"
 )
 
 // Report reason taxonomy. Reasons are prefixed by their pipeline stage.
@@ -68,14 +66,16 @@ func (p *pendingReport) emit(level slog.Level) {
 // symbolReporter accumulates report occurrences at level into its current
 // pendingReport.
 type symbolReporter struct {
-	mu      sync.Mutex
-	level   slog.Level
-	current pendingReport
+	mu       sync.Mutex
+	level    slog.Level
+	maxPaths int
+	current  pendingReport
 }
 
-func newSymbolReporter(level slog.Level) *symbolReporter {
+func newSymbolReporter(level slog.Level, maxPaths int) *symbolReporter {
 	return &symbolReporter{
-		level: level,
+		level:    level,
+		maxPaths: maxPaths,
 		current: pendingReport{
 			start:   time.Now(),
 			reasons: make(map[string]reasonStats),
@@ -101,7 +101,7 @@ func (r *symbolReporter) takePendingReportLocked() *pendingReport {
 // record batches new occurrences of a reason into the report.
 // n represents the number of occurrences of the reason.
 // paths are optional binary-path samples.
-// When sampling maxReportPaths paths, we emit the full report and start a new one.
+// When sampling r.maxPaths paths, we emit the full report and start a new one.
 func (r *symbolReporter) record(reason string, n int, paths ...string) {
 	if n <= 0 {
 		return
@@ -113,7 +113,7 @@ func (r *symbolReporter) record(reason string, n int, paths ...string) {
 		if p == "" {
 			continue
 		}
-		if r.current.sampled >= maxReportPaths {
+		if r.current.sampled >= r.maxPaths {
 			toEmit = append(toEmit, r.takePendingReportLocked())
 		}
 		stats := r.current.reasons[reason]
@@ -151,13 +151,23 @@ func (r *symbolReporter) flush() {
 type uploadReporter struct {
 	infoRep    *symbolReporter
 	errRep     *symbolReporter
+	interval   time.Duration
 	stopTicker func()
 }
 
-func newUploadReporter() *uploadReporter {
+func newUploadReporter(cfg ReportConfig) *uploadReporter {
+	interval := cfg.Interval
+	if interval <= 0 {
+		interval = DefaultReportInterval
+	}
+	maxPaths := cfg.MaxPathsPerReport
+	if maxPaths <= 0 {
+		maxPaths = DefaultReportMaxPathsPerReport
+	}
 	return &uploadReporter{
-		infoRep: newSymbolReporter(slog.LevelInfo),
-		errRep:  newSymbolReporter(slog.LevelError),
+		infoRep:  newSymbolReporter(slog.LevelInfo, maxPaths),
+		errRep:   newSymbolReporter(slog.LevelError, maxPaths),
+		interval: interval,
 	}
 }
 
@@ -177,7 +187,7 @@ func (r *uploadReporter) flush() {
 	r.errRep.flush()
 }
 
-// StartFlushTicker starts flushing the pending reports every reportInterval.
+// StartFlushTicker starts flushing the pending reports every r.interval.
 func (r *uploadReporter) StartFlushTicker() {
 	if r.stopTicker != nil {
 		r.stopTicker()
@@ -185,7 +195,7 @@ func (r *uploadReporter) StartFlushTicker() {
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		ticker := time.NewTicker(reportInterval)
+		ticker := time.NewTicker(r.interval)
 		defer ticker.Stop()
 		for {
 			select {

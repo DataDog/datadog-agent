@@ -9,7 +9,9 @@ package agentprovider
 
 import (
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -219,6 +221,95 @@ func TestBuildConfigHPFlareDefaultPort(t *testing.T) {
 	hpflare, ok := extensions[hpflareName].(confMap)
 	require.True(t, ok)
 	assert.Equal(t, "localhost:7778", hpflare["endpoint"])
+}
+
+func TestBuildReceiversSymbolUploaderReportBothPositive(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			SymbolUploaderReport: symbolUploaderReportConfig{
+				Interval:          10 * time.Minute,
+				MaxPathsPerReport: 42,
+			},
+		},
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	interval, ok := confmaputils.Get[string](conf, "receivers::profiling::symbol_uploader::report::interval")
+	require.True(t, ok, "interval key should be present when positive")
+	assert.Equal(t, "10m0s", interval)
+
+	max, ok := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::max_paths_per_report")
+	require.True(t, ok, "max_paths_per_report key should be present when positive")
+	assert.Equal(t, 42, max)
+}
+
+func TestBuildReceiversSymbolUploaderReportBothZeroAddsNoReportKey(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	_, hasReport := confmaputils.Get[confMap](conf, "receivers::profiling::symbol_uploader::report")
+	assert.False(t, hasReport, "report key should not be added when both fields are zero")
+}
+
+func TestBuildReceiversSymbolUploaderReportOnlyIntervalPositive(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			SymbolUploaderReport: symbolUploaderReportConfig{
+				Interval: 10 * time.Minute,
+			},
+		},
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	interval, ok := confmaputils.Get[string](conf, "receivers::profiling::symbol_uploader::report::interval")
+	require.True(t, ok, "interval key should be present when positive")
+	assert.Equal(t, "10m0s", interval)
+
+	_, hasMax := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::max_paths_per_report")
+	assert.False(t, hasMax, "max_paths_per_report key should not be added when zero, independent of interval")
+}
+
+func TestBuildReceiversSymbolUploaderReportOnlyMaxPositive(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			SymbolUploaderReport: symbolUploaderReportConfig{
+				MaxPathsPerReport: 42,
+			},
+		},
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	_, hasInterval := confmaputils.Get[string](conf, "receivers::profiling::symbol_uploader::report::interval")
+	assert.False(t, hasInterval, "interval key should not be added when zero, independent of max_paths_per_report")
+
+	max, ok := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::max_paths_per_report")
+	require.True(t, ok, "max_paths_per_report key should be present when positive")
+	assert.Equal(t, 42, max)
 }
 
 func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) {

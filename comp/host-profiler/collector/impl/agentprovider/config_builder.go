@@ -44,6 +44,12 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	}
 
 	_ = confmaputils.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	if agent.hostProfilerConfig.SymbolUploaderReport.Interval > 0 {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::interval", agent.hostProfilerConfig.SymbolUploaderReport.Interval.String())
+	}
+	if agent.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport > 0 {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::max_paths_per_report", agent.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport)
+	}
 
 	receivers["profiling"] = profiling
 	conf["receivers"] = receivers

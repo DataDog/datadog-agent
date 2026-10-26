@@ -44,6 +44,9 @@ receivers:
         send_error_frames: false
         symbol_uploader:
             enabled: true
+            report:
+                interval: 5m0s
+                max_paths_per_report: 100
             symbol_endpoints:
                 - api_key: us3_api_key
                   site: us3.datadoghq.com

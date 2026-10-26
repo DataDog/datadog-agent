@@ -48,6 +48,12 @@ func errSymbolEndpointsSiteRequired() error {
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
 }
+func errSymbolUploaderReportIntervalInvalid() error {
+	return errors.New("symbol_uploader.report.interval must be positive")
+}
+func errSymbolUploaderReportMaxInvalid() error {
+	return errors.New("symbol_uploader.report.max_paths_per_report must be positive")
+}
 
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the confmap.Validator interface.
@@ -76,6 +82,12 @@ func (c *Config) Validate() error {
 			if endpoint.APIKey == "" {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
+		}
+		if c.SymbolUploader.Report.Interval <= 0 {
+			return errSymbolUploaderReportIntervalInvalid()
+		}
+		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 {
+			return errSymbolUploaderReportMaxInvalid()
 		}
 	}
 	return nil
