@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add ``cluster_agent.kueue.pod_template_tags``, enabled by default. Labels and
+    annotations that are identical on every pod set template of a Kueue
+    Workload are added as tags using ``kubernetes_pod_labels_as_tags`` and
+    ``kubernetes_pod_annotations_as_tags``.

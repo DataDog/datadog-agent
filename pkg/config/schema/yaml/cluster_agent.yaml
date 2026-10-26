@@ -289,6 +289,15 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      pod_template_tags:
+        node_type: setting
+        type: boolean
+        default: true
+        description: |-
+          Tag labels and annotations that are identical on every pod set template
+          of a Kueue Workload. The tag names come from kubernetes_pod_labels_as_tags
+          and kubernetes_pod_annotations_as_tags. Enabled by default.
+        comment: Requires cluster_agent.kueue.enabled.
   language_detection:
     node_type: section
     type: object
