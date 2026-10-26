@@ -197,10 +197,18 @@ func TestRuleSetBasenameDiscarders(t *testing.T) {
 			flags:    syscall.O_RDONLY,
 		},
 		{
-			name:  "basename-unset",
+			// the name is derived from the path, synthetic events only setting the path can be discarded
+			name:      "basename-unset-not-matching",
+			exprs:     []string{pathRule, nameRule},
+			path:      "/dev/null",
+			flags:     syscall.O_WRONLY,
+			discarded: true,
+		},
+		{
+			name:  "basename-unset-matching",
 			exprs: []string{pathRule, nameRule},
-			path:  "/dev/null",
-			flags: syscall.O_WRONLY,
+			path:  "/proc/sys/kernel/core_pattern",
+			flags: syscall.O_RDONLY,
 		},
 		{
 			name:     "no-path-nor-basename",
