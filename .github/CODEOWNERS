@@ -177,6 +177,7 @@
 /.gitlab/windows/build/binary_build/windows.yml                           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/codeql_scan.yml                                @DataDog/sdlc-security
 /.gitlab/test/benchmarks/                                                 @DataDog/agent-devx @DataDog/apm-ecosystems-performance @DataDog/agent-apm
+/.gitlab/test/benchmarks/logs_tokenizer.yml                               @DataDog/agent-log-pipelines
 /.gitlab/distribute/                                                      @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/                                          @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/oci.yml                                   @DataDog/agent-delivery @DataDog/fleet

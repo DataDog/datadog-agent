@@ -1218,6 +1218,17 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_logs_tokenizer_changes_or_manual:
+  - !reference [.except_light_pipeline]
+  - changes:
+      paths:
+        - pkg/logs/tokenizer/**/*
+        - .gitlab/test/benchmarks/logs_tokenizer.yml
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - when: manual
+    allow_failure: true
+
 .on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
