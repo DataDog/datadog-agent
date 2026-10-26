@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -87,6 +88,9 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
 		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
 		pkgconfigsetup.SanitizeDataPlaneConfig(config)
+		// The same goes for delegated-auth endpoint directives: re-run the scan over
+		// the merged values (already-registered directives are replaced in place).
+		pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, delegatedAuthComp)
 	}
 
 	for k, v := range p.cliOverride {

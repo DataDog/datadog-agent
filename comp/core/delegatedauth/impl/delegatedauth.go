@@ -53,6 +53,33 @@ var (
 	errWritebackTargetChanged = errors.New("delegated auth config writeback target changed")
 )
 
+// endpointRegistration captures the immutable routing and writeback identity.
+type endpointRegistration struct {
+	orgUUID                          string
+	directive                        string
+	targetSite                       string
+	additionalEndpointDomain         string
+	additionalEndpointsConfigKey     string
+	additionalEndpointKeyIndex       int
+	additionalEndpointsListConfigKey string
+	listEntryIndex                   int
+	additionalEndpointIdentity       string
+}
+
+func endpointRegistrationFor(params delegatedauth.InstanceParams) endpointRegistration {
+	return endpointRegistration{
+		orgUUID:                          params.OrgUUID,
+		directive:                        params.AdditionalEndpointDirective,
+		targetSite:                       resolveTargetSite(params),
+		additionalEndpointDomain:         params.AdditionalEndpointDomain,
+		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
+		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
+		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
+		listEntryIndex:                   params.ListEntryIndex,
+		additionalEndpointIdentity:       params.AdditionalEndpointIdentity,
+	}
+}
+
 type startupRecovery struct {
 	ctx                 context.Context
 	cancel              context.CancelFunc
@@ -60,6 +87,7 @@ type startupRecovery struct {
 	consecutiveFailures int
 	lastError           error
 	nextRetry           time.Time
+	registration        endpointRegistration
 }
 
 // detectAWSCredentialSource is a seam for tests. The real detection probes IMDS as its last step,
@@ -79,6 +107,7 @@ type authInstance struct {
 	apiKeyConfigKey string // Configuration key where the API key should be written
 	providerName    string
 	providerRegion  string
+	registration    endpointRegistration
 
 	// targetSite is the site to exchange the auth proof against. Empty means use the primary site.
 	targetSite string
@@ -311,6 +340,13 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	d.startupMu.Lock()
 	defer d.startupMu.Unlock()
 
+	// Re-registering the same endpoint directive (e.g. the endpoint scan re-running after a
+	// config merge) is a no-op: the existing instance or its background recovery stays as it
+	// is, so a late scan cannot restart a fetch or extend startup during an auth outage.
+	if d.hasEquivalentEndpointRegistration(params) {
+		return nil
+	}
+
 	if err := d.stopStartupRecovery(ctx, params.APIKeyConfigKey); err != nil {
 		return err
 	}
@@ -325,6 +361,25 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 
 	d.startStartupRecovery(params, err)
 	return nil
+}
+
+// hasEquivalentEndpointRegistration reports whether an instance or startup recovery is already
+// registered under the same key with the same routing and writeback identity.
+func (d *delegatedAuthComponent) hasEquivalentEndpointRegistration(params delegatedauth.InstanceParams) bool {
+	if params.AdditionalEndpointDirective == "" {
+		return false
+	}
+	registration := endpointRegistrationFor(params)
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	// A pending recovery owns the latest registration, even if an older instance remains.
+	if recovery := d.startupRecoveries[params.APIKeyConfigKey]; recovery != nil {
+		return recovery.registration == registration
+	}
+	if existing := d.instances[params.APIKeyConfigKey]; existing != nil {
+		return existing.registration == registration
+	}
+	return false
 }
 
 func (d *delegatedAuthComponent) tryAddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
@@ -404,6 +459,7 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 		apiKeyConfigKey:                  apiKeyConfigKey,
 		providerName:                     providerName,
 		providerRegion:                   providerRegion,
+		registration:                     endpointRegistrationFor(params),
 		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
@@ -466,6 +522,7 @@ func (d *delegatedAuthComponent) startStartupRecovery(params delegatedauth.Insta
 		done:                make(chan struct{}),
 		consecutiveFailures: 1,
 		lastError:           initialErr,
+		registration:        endpointRegistrationFor(params),
 	}
 
 	d.mu.Lock()
@@ -816,6 +873,7 @@ func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 		apiKeyConfigKey:                  params.APIKeyConfigKey,
 		providerName:                     providerName,
 		providerRegion:                   providerRegion,
+		registration:                     endpointRegistrationFor(params),
 		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
