@@ -29,6 +29,10 @@ const (
 	MemoryUsage = "memory_usage"
 	// MemoryLimit is the metric name for container runtime memory limits.
 	MemoryLimit = "memory_limit"
+	// ContainerMemoryUsage is the metric name for the memory usage of a single Agent pod container.
+	ContainerMemoryUsage = "container_memory_usage"
+	// ContainerMemoryLimit is the metric name for the memory limit of a single Agent pod container.
+	ContainerMemoryLimit = "container_memory_limit"
 	// CPUUsage is the metric name for container runtime CPU cores used.
 	CPUUsage = "cpu_usage"
 
@@ -50,6 +54,8 @@ type Recorder struct {
 	containersTerminated telemetry.Gauge
 	memoryUsage          telemetry.Gauge
 	memoryLimits         telemetry.Gauge
+	containerMemoryUsage telemetry.Gauge
+	containerMemoryLimit telemetry.Gauge
 	cpuUsage             telemetry.Gauge
 
 	runtimeSnapshotMu  sync.Mutex
@@ -95,6 +101,18 @@ func newRecorder(tm telemetry.Component) *Recorder {
 			MemoryLimit,
 			[]string{kindTag, tags.KubePod},
 			"Sum of container runtime memory limits for Datadog Agent pods",
+		),
+		containerMemoryUsage: tm.NewGauge(
+			subsystem,
+			ContainerMemoryUsage,
+			[]string{kindTag, tags.KubePod, tags.KubeContainerName},
+			"Container runtime memory usage of a Datadog Agent pod container",
+		),
+		containerMemoryLimit: tm.NewGauge(
+			subsystem,
+			ContainerMemoryLimit,
+			[]string{kindTag, tags.KubePod, tags.KubeContainerName},
+			"Container runtime memory limit of a Datadog Agent pod container",
 		),
 		cpuUsage: tm.NewGauge(
 			subsystem,
@@ -167,6 +185,44 @@ func (t *Recorder) RecordCPUUsage(containerID string, total *float64, timestamp 
 	t.cpuUsage.Add((*total-previousSample.total)/float64(elapsed), kind, pod.Name)
 }
 
+// RecordContainerMemory records the memory usage and limit of one container of an eligible Agent pod. Unlike the
+// MemoryUsage and MemoryLimit pod sums, which add the usage of containers without a limit to the limits of the
+// others, it lets a container usage be compared to its own limit. A nil usage or limit is not recorded.
+// It must be called from a WithRuntimeMetrics callback.
+func (t *Recorder) RecordContainerMemory(containerID string, usage, limit *float64, pod *workloadmeta.KubernetesPod) {
+	if pod == nil || pod.Name == "" {
+		return
+	}
+	kind, ok := agentPodKind(pod)
+	if !ok {
+		return
+	}
+	name := podContainerName(pod, containerID)
+	if name == "" {
+		return
+	}
+
+	if usage != nil {
+		t.containerMemoryUsage.Set(*usage, kind, pod.Name, name)
+	}
+	if limit != nil {
+		t.containerMemoryLimit.Set(*limit, kind, pod.Name, name)
+	}
+}
+
+// podContainerName returns the name of the pod container with the given id, or "" when the pod has none.
+func podContainerName(pod *workloadmeta.KubernetesPod, containerID string) string {
+	if containerID == "" {
+		return ""
+	}
+	for _, c := range pod.GetAllContainers() {
+		if c.ID == containerID {
+			return c.Name
+		}
+	}
+	return ""
+}
+
 // ResetKubeletMetrics clears kubelet-sourced state aggregates.
 func (t *Recorder) ResetKubeletMetrics() {
 	t.resetKubeletMetrics()
@@ -195,6 +251,8 @@ func (t *Recorder) resetRuntimeMetrics() {
 		match := map[string]string{kindTag: kind}
 		t.memoryUsage.DeletePartialMatch(match)
 		t.memoryLimits.DeletePartialMatch(match)
+		t.containerMemoryUsage.DeletePartialMatch(match)
+		t.containerMemoryLimit.DeletePartialMatch(match)
 		t.cpuUsage.DeletePartialMatch(match)
 	}
 

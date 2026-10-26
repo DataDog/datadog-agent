@@ -188,6 +188,7 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		if p.agentPerformance != nil {
 			p.agentPerformance.RecordMetric(agentperformance.MemoryUsage, containerStats.Memory.UsageTotal, ownerPod, "")
 			p.agentPerformance.RecordMetric(agentperformance.MemoryLimit, containerStats.Memory.Limit, ownerPod, "")
+			p.agentPerformance.RecordContainerMemory(container.ID, containerStats.Memory.UsageTotal, containerStats.Memory.Limit, ownerPod)
 		}
 
 		p.sendMetric(sender.Gauge, "container.memory.usage", containerStats.Memory.UsageTotal, tags)
