@@ -176,12 +176,7 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 // NewSerializerWithEndpointRouting creates a serializer with endpoint metric filters.
 func NewSerializerWithEndpointRouting(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string, routing configutils.MetricsEndpointRouting) *Serializer {
 	s := NewSerializer(forwarder, orchestratorForwarder, compressor, config, logger, hostName)
-	filters := metricsserializer.CompileEndpointMetricFilters(routing)
-	if filter, selected := filters[routing.PrimaryEndpoint]; selected {
-		// Associate the primary policy with its normalized transport URL.
-		filters[routing.PrimaryEndpointURL] = filter
-	}
-	s.endpointMetricFilters = filters
+	s.endpointMetricFilters = metricsserializer.CompileEndpointMetricFilters(routing)
 	return s
 }
 

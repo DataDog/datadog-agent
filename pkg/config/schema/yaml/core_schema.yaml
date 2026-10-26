@@ -7512,8 +7512,8 @@ properties:
                 type: string
             description: |-
               Per-endpoint metric-name allowlists.
-              Keys must exactly match the effective primary URL (dd_url or site) or a key
-              in additional_endpoints. Unknown endpoints are rejected. A metric is sent
+              Keys must exactly match the resolved primary URL (including any trailing dot)
+              or a key in additional_endpoints. Unknown endpoints are rejected. A metric is sent
               if its normalized name matches this list or metric_prefix_allowlist for
               the endpoint. Applies to series and sketches. Requires use_v2_api.series
               to be enabled. Endpoints absent from both

@@ -517,13 +517,12 @@ func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
 func TestEndpointMetricRoutingSitePrimaryWithMetricsOverride(t *testing.T) {
 	for _, prefix := range []string{"vector", "observability_pipelines_worker"} {
 		t.Run(prefix, func(t *testing.T) {
-			const primary = "https://app.us5.datadoghq.com"
 			cfg := configmock.New(t)
 			cfg.SetInTest("site", "us5.datadoghq.com")
 			cfg.SetInTest("api_key", "fake-key")
 			cfg.SetInTest(prefix+".metrics.enabled", true)
 			cfg.SetInTest(prefix+".metrics.url", "http://worker.example")
-			cfg.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{primary: {"keep"}})
+			cfg.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{utils.GetInfraEndpoint(cfg): {"keep"}})
 			s := newSeriesV3Serializer(t, cfg)
 			pipelines := s.buildPipelines(metricsKindSeries)
 			require.Len(t, pipelines, 1)

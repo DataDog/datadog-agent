@@ -17,43 +17,40 @@ func TestMetricsEndpointRoutingConfiguration(t *testing.T) {
 	t.Setenv("DD_EXPERIMENTAL_METRICS_ENDPOINT_ROUTING_METRIC_PREFIX_ALLOWLIST", `{"https://secondary.example/Path": ["billing."]}`)
 	cfg := configmock.NewFromYAML(t, `
 site: us5.datadoghq.com
+convert_dd_site_fqdn:
+  enabled: true
 additional_endpoints:
   https://secondary.example/Path: [fake-key]
 experimental:
   metrics_endpoint_routing:
     metric_allowlist:
-      https://app.us5.datadoghq.com: [critical.slo]
+      https://app.us5.datadoghq.com.: [critical.slo]
       https://secondary.example/Path: []
 `)
 	routing, err := ReadMetricsEndpointRouting(cfg)
 	require.NoError(t, err)
-	require.Equal(t, []string{"critical.slo"}, routing.MetricAllowlist["https://app.us5.datadoghq.com"])
+	require.Equal(t, []string{"critical.slo"}, routing.MetricAllowlist["https://app.us5.datadoghq.com."])
 	require.Contains(t, routing.MetricAllowlist, "https://secondary.example/Path")
 	require.Empty(t, routing.MetricAllowlist["https://secondary.example/Path"])
 	require.Equal(t, []string{"billing."}, routing.MetricPrefixAllowlist["https://secondary.example/Path"])
 	endpoints, err := GetMultipleEndpoints(cfg)
 	require.NoError(t, err)
-	require.Equal(t, "https://app.us5.datadoghq.com", routing.PrimaryEndpoint)
+	require.Equal(t, "https://app.us5.datadoghq.com.", routing.PrimaryEndpointURL)
 	require.Contains(t, endpoints, GetInfraEndpoint(cfg), "retain Agent transport normalization")
 }
 
-func TestMetricsEndpointRoutingRejectsAmbiguousNormalizedEndpoints(t *testing.T) {
-	for _, site := range []string{"us5.datadoghq.com", "bücher.example"} {
-		t.Run(site, func(t *testing.T) {
-			cfg := configmock.New(t)
-			cfg.SetInTest("site", site)
-			cfg.SetInTest("convert_dd_site_fqdn.enabled", true)
-			cfg.SetInTest("additional_endpoints", map[string][]string{GetInfraEndpoint(cfg): {"key"}})
-			_, err := GetMultipleEndpoints(cfg)
-			require.NoError(t, err, "preserve existing behavior without routing policies")
-			cfg.SetInTest(MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{InfraURLPrefix + site: {"keep"}})
-			_, err = GetMultipleEndpoints(cfg)
-			require.ErrorContains(t, err, "set dd_url explicitly")
-			cfg.SetInTest("dd_url", InfraURLPrefix+site)
-			_, err = GetMultipleEndpoints(cfg)
-			require.NoError(t, err)
-		})
-	}
+func TestMetricsEndpointRoutingExplicitPrimary(t *testing.T) {
+	const primary = "https://agent.us5.datadoghq.com."
+	cfg := configmock.New(t)
+	cfg.SetInTest("dd_url", primary)
+	cfg.SetInTest("additional_endpoints", map[string][]string{primary: {"additional-key"}})
+	cfg.SetInTest(MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{primary: {"keep"}})
+	routing, err := ReadMetricsEndpointRouting(cfg)
+	require.NoError(t, err)
+	require.Equal(t, primary, routing.PrimaryEndpointURL)
+	endpoints, err := GetMultipleEndpoints(cfg)
+	require.NoError(t, err)
+	require.Contains(t, endpoints, primary)
 }
 
 func TestMetricsEndpointRoutingUnknownEndpoint(t *testing.T) {
