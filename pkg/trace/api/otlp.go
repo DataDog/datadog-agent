@@ -771,6 +771,8 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		}
 	}
 
+	transform.SetDynamoDBTableName(in.Attributes(), res.Attributes(), span)
+
 	if in.TraceState().AsRaw() != "" {
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
