@@ -1,0 +1,90 @@
+# Fails CI when values that must match across files drift apart: https://github.com/mennanov/blockwatch
+
+# --- Dynamic instrumentation: the eBPF headers and the Go code that reads their output.
+[[block]]
+target = 'pkg/dyninst/ir/expression.go#/ExprStatusBits'
+name = 'expr-status-bits'
+same-as = 'pkg/dyninst/ebpf/stack_machine.h#/EXPR_STATUS_BITS'
+
+[[block]]
+target = 'pkg/dyninst/ir/expression.go#/CollectionPredicateMaxIterations'
+name = 'collection-predicate-max-iterations'
+same-as = 'pkg/dyninst/ebpf/stack_machine.h#/COLLECTION_PREDICATE_MAX_ITERATIONS'
+
+[[block]]
+target = 'pkg/dyninst/ir/expression.go#/CollectionPredicateMaxElemBytes'
+name = 'collection-predicate-max-elem-bytes'
+same-as = 'pkg/dyninst/ebpf/stack_machine.h#/COLLECTION_PREDICATE_MAX_ELEM_BYTES'
+
+[[block]]
+target = 'pkg/dyninst/irgen/irgen.go#/maxConditionEntryLeaves'
+name = 'max-condition-entry-leaves'
+same-as = 'pkg/dyninst/ebpf/context.h#/MAX_CONDITION_ENTRY_LEAVES'
+
+[[block]]
+target = 'pkg/dyninst/output/event.go#/MaxDataItemSize'
+name = 'max-data-item-size'
+same-as = 'pkg/dyninst/ebpf/scratch.h#/MAX_DATA_ITEM_SIZE'
+
+# --- Network: the DNS port filter in eBPF has a fixed number of slots.
+[[block]]
+target = 'pkg/network/config/config.go#/DNSPortsMax'
+name = 'dns-ports-max'
+same-as = 'pkg/network/ebpf/c/prebuilt/dns.c#/DNS_PORTS_MAX'
+
+# --- Workload protection: buffer sizes shared by the kernel and user space.
+[[block]]
+target = 'pkg/security/probe/kfilters/policy.go#/BasenameFilterSize'
+name = 'basename-filter-size'
+same-as = 'pkg/security/ebpf/c/include/constants/custom.h#/BASENAME_FILTER_SIZE'
+
+[[block]]
+target = 'pkg/security/tests/syscall_tester/c/otel_nodejs_common.h#/OTEL_NODEJS_MAX_CHAIN'
+name = 'otel-nodejs-max-chain'
+same-as = 'pkg/security/ebpf/c/include/helpers/span_nodejs.h#/OTEL_NODEJS_MAX_CHAIN'
+
+# --- Private action runner: the Go executor and the Rust client share a message limit.
+# Values are compared as written, so `20 << 20` on one side fails even though it is the same number.
+[[block]]
+target = 'pkg/privateactionrunner/par-control/src/executor.rs#/MAX_MESSAGE_SIZE'
+name = 'max-message-size'
+same-as = 'pkg/privateactionrunner/executor/server.go#/maxMessageSize'
+
+# --- Build: the Go and Bazel builds must agree.
+# go.work has no symbols, so its directive is found by a pattern.
+[[block]]
+target = 'go.work'
+target-pattern = '^godebug (?P<value>\S+)'
+name = 'godebug-default'
+
+[[block]]
+target = 'bazel/rules/go/go_binary.bzl#/_GODEBUG_DEFAULT'
+name = 'godebug-default'
+same-as = 'go.work:godebug-default'
+
+[[block]]
+target = 'MODULE.bazel#/PYTHON_VERSION'
+name = 'python-version'
+same-as = '.python-version'
+
+# The Windows CPython build copies each dependency into a folder named after its version.
+[[block]]
+target = 'deps/cpython.BUILD.bazel#/python_externals'
+name = 'cpython-windows-deps'
+same-as-pattern = '"(?P<name>\w+)": "(?P<value>[\d.]+)"'
+
+# Every downloaded dependency must be there, with the same version. sqlite is fetched
+# separately, under another version format, so python_externals may hold more.
+[[block]]
+target = 'deps/cpython/cpython.MODULE.bazel#/python_src_deps'
+name = 'cpython-windows-src-deps'
+same-as = 'deps/cpython.BUILD.bazel:cpython-windows-deps'
+same-as-pattern = '"(?P<name>\w+)": \("(?P<value>[\d.]+)", "[0-9a-f]{64}"\)'
+same-as-mode = 'subset'
+
+[[block]]
+target = 'deps/cpython/cpython.MODULE.bazel#/python_bin_deps'
+name = 'cpython-windows-bin-deps'
+same-as = 'deps/cpython.BUILD.bazel:cpython-windows-deps'
+same-as-pattern = '"(?P<name>\w+)": \("(?P<value>[\d.]+)", "[0-9a-f]{64}"\)'
+same-as-mode = 'subset'
