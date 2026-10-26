@@ -145,13 +145,13 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		children[i] = p.Detail
 	}
 	generation := [2]string{children[0].Uuid, children[1].Uuid}
+	if generation[0] == "" || generation[1] == "" {
+		return set("waiting", "supervisor_registration_unavailable", pollInterval)
+	}
 	// A restart between the two Describe calls must not become a mixed baseline.
 	confirmed, err := c.pm.Describe(rpcCtx, &pb.DescribeRequest{NameOrUuid: generation[0]})
 	if err != nil || confirmed.GetDetail().GetUuid() != generation[0] {
 		return set("waiting", "supervisor_registration_change_pending", pollInterval)
-	}
-	if generation[0] == "" || generation[1] == "" {
-		return set("waiting", "supervisor_registration_unavailable", pollInterval)
 	}
 	if c.generation != [2]string{} {
 		if generation == c.generation {
