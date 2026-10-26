@@ -74,6 +74,7 @@ go_library(
 dd_agent_go_test(
     name = "trivy_test",
     srcs = [
+        "docker_client_test.go",
         "image_test.go",
         "layers_containerd_test.go",
         "layers_crio_test.go",
@@ -111,6 +112,7 @@ dd_agent_go_test(
         "@com_github_google_go_containerregistry//pkg/v1/empty",
         "@com_github_moby_moby_api//types/image",
         "@com_github_moby_moby_api//types/storage",
+        "@com_github_moby_moby_client//:client",
         "@com_github_opencontainers_go_digest//:go-digest",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_stretchr_testify//assert",
