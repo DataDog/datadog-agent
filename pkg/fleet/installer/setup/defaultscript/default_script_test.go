@@ -111,7 +111,6 @@ func TestAPMLibraryCInstall(t *testing.T) {
 	cOverride := func(install bool) map[string]bool {
 		return map[string]bool{common.DatadogAPMLibraryCPackage: install}
 	}
-	remoteUpdates := env.Env{RemoteUpdates: true}
 	tests := []struct {
 		name             string
 		env              env.Env
@@ -120,35 +119,35 @@ func TestAPMLibraryCInstall(t *testing.T) {
 		expectedInstall  bool
 		expectedOptional bool
 	}{
-		{name: "linux with ssi and remote updates", env: remoteUpdates, goos: "linux", ssiEnabled: true, expectedInstall: true, expectedOptional: true},
-		{name: "linux with ssi without remote updates", goos: "linux", ssiEnabled: true, expectedInstall: false},
+		{name: "linux with ssi", goos: "linux", ssiEnabled: true, expectedInstall: true, expectedOptional: true},
+		{name: "linux with ssi does not depend on remote updates", env: env.Env{RemoteUpdates: false}, goos: "linux", ssiEnabled: true, expectedInstall: true, expectedOptional: true},
 		{
 			name:             "linux with ssi and other languages only",
-			env:              env.Env{RemoteUpdates: true, ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"java": "1"}},
+			env:              env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"java": "1"}},
 			goos:             "linux",
 			ssiEnabled:       true,
 			expectedInstall:  true,
 			expectedOptional: true,
 		},
-		{name: "linux without ssi", env: remoteUpdates, goos: "linux", ssiEnabled: false, expectedInstall: false},
-		{name: "windows with ssi", env: remoteUpdates, goos: "windows", ssiEnabled: true, expectedInstall: false},
-		{name: "centos 6 with ssi", env: env.Env{RemoteUpdates: true, IsCentos6: true}, goos: "linux", ssiEnabled: true, expectedInstall: false},
+		{name: "linux without ssi", goos: "linux", ssiEnabled: false, expectedInstall: false},
+		{name: "windows with ssi", goos: "windows", ssiEnabled: true, expectedInstall: false},
+		{name: "centos 6 with ssi", env: env.Env{IsCentos6: true}, goos: "linux", ssiEnabled: true, expectedInstall: false},
 		{
-			name:            "explicitly requested without ssi or remote updates",
+			name:            "explicitly requested without ssi",
 			env:             env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
 			goos:            "linux",
 			expectedInstall: true,
 		},
 		{
 			name:            "explicitly requested with ssi is not optional",
-			env:             env.Env{RemoteUpdates: true, ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
+			env:             env.Env{ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{"c": ""}},
 			goos:            "linux",
 			ssiEnabled:      true,
 			expectedInstall: true,
 		},
 		{
 			name:            "false override opts out on linux with ssi",
-			env:             env.Env{RemoteUpdates: true, DefaultPackagesInstallOverride: cOverride(false)},
+			env:             env.Env{DefaultPackagesInstallOverride: cOverride(false)},
 			goos:            "linux",
 			ssiEnabled:      true,
 			expectedInstall: false,

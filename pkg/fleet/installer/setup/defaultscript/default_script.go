@@ -317,7 +317,7 @@ func apmLibraryCInstall(e *env.Env, goos string, apmInstrumentationEnabled bool)
 	if _, requested := e.ApmLibraries[packageToLanguage(common.DatadogAPMLibraryCPackage)]; requested {
 		return true, false
 	}
-	implicit := goos == "linux" && !e.IsCentos6 && apmInstrumentationEnabled && e.RemoteUpdates
+	implicit := goos == "linux" && !e.IsCentos6 && apmInstrumentationEnabled
 	return implicit, implicit
 }
 
