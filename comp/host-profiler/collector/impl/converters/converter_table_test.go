@@ -174,18 +174,18 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 		{
 			name:     "symbol-uploader-report-preserved-unchanged",
-			provided: "no_agent/symbol-up-report-preserved/in.yaml",
-			expected: "no_agent/symbol-up-report-preserved/out.yaml",
+			provided: "no_agent/report-preserved/in.yaml",
+			expected: "no_agent/report-preserved/out.yaml",
 		},
 		{
 			name:     "symbol-uploader-report-invalid-interval-preserved-unchanged",
-			provided: "no_agent/symbol-up-report-bad-interval/in.yaml",
-			expected: "no_agent/symbol-up-report-bad-interval/out.yaml",
+			provided: "no_agent/report-bad-interval/in.yaml",
+			expected: "no_agent/report-bad-interval/out.yaml",
 		},
 		{
 			name:     "symbol-uploader-report-zero-max-preserved-unchanged",
-			provided: "no_agent/symbol-up-report-zero-max/in.yaml",
-			expected: "no_agent/symbol-up-report-zero-max/out.yaml",
+			provided: "no_agent/report-zero-max/in.yaml",
+			expected: "no_agent/report-zero-max/out.yaml",
 		},
 		{
 			name:     "converts-non-string-api-key",
