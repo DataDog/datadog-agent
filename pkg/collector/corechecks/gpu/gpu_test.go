@@ -1470,7 +1470,7 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 			continue
 		}
 		name := call.Arguments.Get(0).(string)
-		if name != "gpu.device.sharing_fraction" && name != "gpu.fraction.memory.limit" {
+		if name != "gpu.device.sharing_fraction" && name != "gpu.device.sharing_memory" {
 			continue
 		}
 		tags := slices.Sorted(slices.Values(call.Arguments.Get(3).([]string)))
@@ -1485,11 +1485,11 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 		}
 	}
 	assert.ElementsMatch(t, perPod(0.5), emitted["gpu.device.sharing_fraction"])
-	assert.ElementsMatch(t, perPod(8<<30), emitted["gpu.fraction.memory.limit"])
+	assert.ElementsMatch(t, perPod(8<<30), emitted["gpu.device.sharing_memory"])
 }
 
 // sharingMetricNames are the metrics of the sharing collector, by spec name.
-var sharingMetricNames = []string{"device.sharing_fraction", "fraction.memory.limit"}
+var sharingMetricNames = []string{"device.sharing_fraction", "device.sharing_memory"}
 
 func TestSharingFractionFollowsSpec(t *testing.T) {
 	// The sharing collector's metrics need a container on the device, which

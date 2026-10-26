@@ -128,8 +128,8 @@ func TestSharingCollector(t *testing.T) {
 			require.NoError(t, err)
 
 			got := map[string]map[string]float64{
-				sharingFractionMetricName:     {},
-				fractionMemoryLimitMetricName: {},
+				sharingFractionMetricName: {},
+				sharingMemoryMetricName:   {},
 			}
 			for _, sample := range samples {
 				metric, ok := sample.(*Metric)
@@ -151,7 +151,7 @@ func TestSharingCollector(t *testing.T) {
 				test.wantMemory = map[string]float64{}
 			}
 			assert.Equal(t, test.want, got[sharingFractionMetricName], "fractions")
-			assert.Equal(t, test.wantMemory, got[fractionMemoryLimitMetricName], "memory")
+			assert.Equal(t, test.wantMemory, got[sharingMemoryMetricName], "memory")
 		})
 	}
 }

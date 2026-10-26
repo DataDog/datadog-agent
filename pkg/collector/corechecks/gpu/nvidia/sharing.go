@@ -19,9 +19,9 @@ const (
 	// sharingFractionMetricName is the metric holding the fraction of a device
 	// assigned to a container.
 	sharingFractionMetricName = "device.sharing_fraction"
-	// fractionMemoryLimitMetricName is the metric holding the memory of a
-	// device that a container is allowed to use.
-	fractionMemoryLimitMetricName = "fraction.memory.limit"
+	// sharingMemoryMetricName is the metric holding the memory of a device
+	// that a container is allowed to use.
+	sharingMemoryMetricName = "device.sharing_memory"
 )
 
 // sharingCollector reports the share of its device assigned to each container
@@ -70,7 +70,7 @@ func (c *sharingCollector) Collect() ([]Sample, error) {
 			samples = append(samples, NewMetric(sharingFractionMetricName, share.Fraction, metrics.GaugeType, Low, nil, workloads))
 		}
 		if share.Memory > 0 {
-			samples = append(samples, NewMetric(fractionMemoryLimitMetricName, float64(share.Memory), metrics.GaugeType, Low, nil, workloads))
+			samples = append(samples, NewMetric(sharingMemoryMetricName, float64(share.Memory), metrics.GaugeType, Low, nil, workloads))
 		}
 	}
 	return samples, nil
