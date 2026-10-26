@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )

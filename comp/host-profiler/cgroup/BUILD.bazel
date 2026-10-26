@@ -8,7 +8,7 @@ go_library(
         "containerid_other.go",
         "helpers.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup",
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/cgroup",
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
