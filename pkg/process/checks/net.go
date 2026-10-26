@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"runtime"
 	"sort"
 	"strconv"
 	"time"
@@ -755,11 +756,14 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
 }
 
+// netnsAttributionSupported is whether system-probe can attribute sockets by network namespace on this platform.
+var netnsAttributionSupported = runtime.GOOS == "linux"
+
 // netnsReattributed returns the connections Resolve reported as reattributed, but only when
-// system-probe's network namespace attribution is enabled. Otherwise a laddr that differs from the
-// PID's container means a stale PID map, and acting on it would strip a normal connection's tags.
+// system-probe's network namespace attribution is enabled and supported. Otherwise a laddr that differs
+// from the PID's container means a stale PID map, and acting on it would strip a normal connection's tags.
 func (c *ConnectionsCheck) netnsReattributed(reported map[*model.Connection]string) map[*model.Connection]string {
-	if c.sysprobeYamlConfig == nil || !c.sysprobeYamlConfig.GetBool("network_config.enable_netns_container_attribution") {
+	if !netnsAttributionSupported || c.sysprobeYamlConfig == nil || !c.sysprobeYamlConfig.GetBool("network_config.enable_netns_container_attribution") {
 		return nil
 	}
 	return reported

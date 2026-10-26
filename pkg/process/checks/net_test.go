@@ -1123,6 +1123,7 @@ func TestNetworkConnectionNetNSReattributed(t *testing.T) {
 }
 
 func TestNetNSReattributedRequiresSystemProbeFlag(t *testing.T) {
+	setNetNSAttributionSupported(t, true)
 	conn := makeConnection(7)
 	reported := map[*model.Connection]string{conn: "proxy-container"}
 
@@ -1136,6 +1137,22 @@ func TestNetNSReattributedRequiresSystemProbeFlag(t *testing.T) {
 	assert.Equal(t, reported, (&ConnectionsCheck{sysprobeYamlConfig: on}).netnsReattributed(reported))
 
 	assert.Nil(t, (&ConnectionsCheck{}).netnsReattributed(reported))
+}
+
+func TestNetNSReattributedRequiresSupportedPlatform(t *testing.T) {
+	setNetNSAttributionSupported(t, false)
+	reported := map[*model.Connection]string{makeConnection(7): "proxy-container"}
+
+	on := configmock.NewSystemProbe(t)
+	on.SetInTest("network_config.enable_netns_container_attribution", true)
+	assert.Nil(t, (&ConnectionsCheck{sysprobeYamlConfig: on}).netnsReattributed(reported),
+		"where system-probe can't attribute by netns, a laddr/PID mismatch is a stale PID map even with the flag on")
+}
+
+func setNetNSAttributionSupported(t *testing.T, supported bool) {
+	prev := netnsAttributionSupported
+	netnsAttributionSupported = supported
+	t.Cleanup(func() { netnsAttributionSupported = prev })
 }
 
 func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
