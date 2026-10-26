@@ -49,8 +49,6 @@ type DomainResolver = *domainResolver
 type domainResolver struct {
 	// configName is the url as it was configured by the user.
 	configName string
-	// additionalConfigNames are exact config keys sharing this destination.
-	additionalConfigNames []string
 	// domain is the url base to be used for network requests, it is modified by the forwarder.
 	domain         string
 	apiKeys        []utils.APIKeys
@@ -191,12 +189,11 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 	}
 
 	return &domainResolver{
-		configName:            configName,
-		additionalConfigNames: slices.Clone(descriptor.AdditionalConfigNames),
-		domain:                descriptor.BaseURL,
-		apiKeys:               descriptor.APIKeySet,
-		keyVersion:            0,
-		dedupedAPIKeys:        deduped,
+		configName:     configName,
+		domain:         descriptor.BaseURL,
+		apiKeys:        descriptor.APIKeySet,
+		keyVersion:     0,
+		dedupedAPIKeys: deduped,
 		// Derived from APIKeySet directly rather than trusting descriptor.HasPendingDelegatedAuth,
 		// so this is correct even for a descriptor built without going through
 		// utils.newEndpointDescriptor's aggregation (e.g. constructed directly in a test).
@@ -305,14 +302,7 @@ func (r *domainResolver) reloadAdditionalEndpoints(setting string, config config
 
 	// additional_endpoints is keyed by the configured URL; GetBaseDomain may have been rewritten
 	// with the agent version (see AddAgentVersionToDomain).
-	configuredEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
-	endpoints, found := configuredEndpoints[r.configName]
-	for _, configName := range r.additionalConfigNames {
-		if keys, ok := configuredEndpoints[configName]; ok {
-			endpoints = append(endpoints, keys...)
-			found = true
-		}
-	}
+	endpoints, found := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)[r.configName]
 	if !found && setting != "additional_endpoints" {
 		return nil, nil, false, false
 	}

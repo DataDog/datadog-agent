@@ -361,30 +361,6 @@ func TestUpdateAdditionalEndpointsUsesConfigName(t *testing.T) {
 	assertKeys(t, []string{"rotated-key"}, resolver)
 }
 
-func TestUpdateAdditionalEndpointsUsesOnlyExplicitConfigNames(t *testing.T) {
-	const setting = "process_config.additional_endpoints"
-	const domain = "https://process.datadoghq.eu"
-	descriptor := utils.NewEndpointDescriptorWithConfigName(domain+"/", domain, []utils.APIKeys{
-		utils.NewAPIKeys("api_key", "main-key"),
-		utils.NewAPIKeys(setting, "old-key"),
-	}, domain+"/v1")
-	resolver, err := NewSingleDomainResolver2(descriptor)
-	require.NoError(t, err)
-	descriptor.AdditionalConfigNames[0] = domain + "/untracked"
-	resolver.SetBaseDomain("https://rewritten.example")
-
-	config := configmock.New(t)
-	config.SetInTest(setting, map[string][]string{
-		domain:                {"bare-key"},
-		domain + "/":          {"first-key", "shared-key"},
-		domain + "/v1":        {"second-key", "shared-key"},
-		domain + "/untracked": {"untracked-key"},
-	})
-	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
-
-	assertKeys(t, []string{"main-key", "first-key", "shared-key", "second-key"}, resolver)
-}
-
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),

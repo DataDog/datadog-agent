@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Endpoint is a single endpoint where process data will be submitted.
@@ -61,8 +62,8 @@ func KeysPerDomains(endpoints []Endpoint) map[string][]utils.APIKeys {
 }
 
 // EndpointDescriptors groups endpoints by domain (scheme://host). The domain can differ from the
-// additional_endpoints keys it came from (e.g. a trailing slash or path), so the descriptor
-// preserves every original config key for API key updates.
+// additional_endpoints key it came from (e.g. a trailing slash or path), so when a domain has
+// exactly one such key it becomes the descriptor's ConfigName, which API key updates look up.
 func EndpointDescriptors(endpoints []Endpoint) utils.EndpointDescriptorSet {
 	configKeys := make(map[string][]string)
 	for _, ep := range endpoints {
@@ -75,15 +76,15 @@ func EndpointDescriptors(endpoints []Endpoint) utils.EndpointDescriptorSet {
 	eds := utils.EndpointDescriptorSet{}
 	for domain, keyset := range KeysPerDomains(endpoints) {
 		configName := ""
-		keys := configKeys[domain]
-		if len(keys) > 0 {
+		switch keys := configKeys[domain]; {
+		case len(keys) == 1 && keys[0] != domain:
+			configName = keys[0]
+		case len(keys) > 1:
+			// A resolver tracks one config key, so an update only keeps the entry written as the domain.
 			slices.Sort(keys)
-			if keys[0] != domain {
-				configName = keys[0]
-			}
-			keys = keys[1:]
+			log.Warnf("additional endpoints %v all send to %s; after an API key update, only the keys of an entry written exactly as %s are kept until restart", keys, domain, domain)
 		}
-		eds[domain] = utils.NewEndpointDescriptorWithConfigName(configName, domain, keyset, keys...)
+		eds[domain] = utils.NewEndpointDescriptorWithConfigName(configName, domain, keyset)
 	}
 	return eds
 }
