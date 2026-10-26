@@ -99,6 +99,12 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, 1234, ia.Get()["test"])
 }
 
+func TestDisabledCollectsNoCommonFields(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{"inventories_enabled": false}, nil)
+	assert.NotContains(t, ia.Get(), "agent_version")
+	assert.NotContains(t, ia.Get(), "install_method_tool")
+}
+
 func TestGetPayload(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 

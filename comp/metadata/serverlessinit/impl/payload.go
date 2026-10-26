@@ -24,10 +24,9 @@ const reportReasonPeriodic = "periodic"
 // it is not the process-global flavor (flavor.SetFlavor).
 const serverlessInitFlavor = "serverless-init"
 
-// buildFields flattens the per-platform metadata and process-level
-// serverless context into the (unprefixed) agent_metadata keys. env, service,
-// and version come from the tag map so they match the values this container
-// tags its telemetry with; site is not a tag, so it comes from the config.
+// buildFields flattens the per-platform metadata and the process-level params
+// into the unprefixed agent_metadata keys. A sidecar's argv is not the
+// workload, so sidecar mode drops the wrapped command.
 func buildFields(inv serverlessdef.CloudServiceMetadata, params serverlessdef.Params, conf configmodel.Reader) map[string]interface{} {
 	wrappedCommand := params.WrappedCommand
 	if params.Sidecar {

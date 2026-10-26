@@ -18,17 +18,14 @@ type Component interface {
 	ReportNow()
 }
 
-// Params carries the process-level context the embedding binary resolves
-// before Fx starts.
+// Params holds the process-level inputs to the payload.
 type Params struct {
-	// Sidecar reports sidecar-container mode. Sidecar argv is not the workload,
-	// so the embedding binary supplies no wrapped command in that mode.
+	// Sidecar selects the sidecar deployment model. The payload ignores
+	// WrappedCommand in sidecar mode.
 	Sidecar bool
-	// Tags are the merged telemetry tags; env, service, and version come from
-	// here so the payload matches the values this container tags its telemetry
-	// with.
+	// Tags supply dd_env, dd_service, and dd_version.
 	Tags map[string]string
-	// WrappedCommand is the in-container wrapped application argv, used for
-	// runtime detection and the opt-in wrapped_command field.
+	// WrappedCommand is the wrapped application argv. It feeds runtime
+	// detection and the opt-in wrapped_command field.
 	WrappedCommand []string
 }

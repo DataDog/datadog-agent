@@ -25,7 +25,17 @@ import (
 
 func newTestData(t *testing.T) *Data {
 	hostname, _ := hostnamemock.NewMock("data-hostname")
-	return NewData(config.NewMock(t), logmock.New(t), hostname)
+	d := NewData(config.NewMock(t), logmock.New(t), hostname)
+	d.Init()
+	return d
+}
+
+func TestNewDataCollectsNothingBeforeInit(t *testing.T) {
+	hostname, _ := hostnamemock.NewMock("data-hostname")
+	d := NewData(config.NewMock(t), logmock.New(t), hostname)
+	assert.Empty(t, d.Get())
+	d.Init()
+	assert.Equal(t, version.AgentVersion, d.Get()["agent_version"])
 }
 
 func TestSet(t *testing.T) {
@@ -54,6 +64,7 @@ func TestDataConcurrentAccess(t *testing.T) {
 	d := NewData(config.NewMockWithOverrides(t, map[string]any{
 		"inventories_configuration_enabled": false,
 	}), logmock.New(t), hostname)
+	d.Init()
 
 	const writers = 4
 	const readers = 2
@@ -136,7 +147,7 @@ func TestDataInitErrorInstallInfo(t *testing.T) {
 		}, nil
 	}
 
-	d.initData()
+	d.Init()
 	assert.Equal(t, "test_tool", d.data["install_method_tool"])
 	assert.Equal(t, "1.2.3", d.data["install_method_tool_version"])
 	assert.Equal(t, "4.5.6", d.data["install_method_installer_version"])
@@ -147,6 +158,7 @@ func TestDataGetConfigs(t *testing.T) {
 	d := NewData(config.NewMockWithOverrides(t, map[string]any{
 		"inventories_configuration_enabled": true,
 	}), logmock.New(t), hostname)
+	d.Init()
 
 	data := make(map[string]interface{})
 	d.getConfigs(data)

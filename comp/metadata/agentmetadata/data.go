@@ -10,10 +10,10 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"sync"
 	"time"
 
 	"go.yaml.in/yaml/v3"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -27,7 +27,7 @@ import (
 
 var installinfoGet = installinfo.Get
 
-// Data builds the common inventory-agent fields and wire payload without a component lifecycle.
+// Data holds the common agent_metadata fields and builds the wire payload.
 // Values added to the payload must not be mutated afterwards.
 type Data struct {
 	conf         config.Component
@@ -38,15 +38,16 @@ type Data struct {
 	mu           sync.Mutex
 }
 
-// NewData collects the common metadata. It does not run the full-Agent collectors.
+// NewData returns empty metadata for the resolved hostname. Init collects the
+// common fields.
 func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component) *Data {
 	hname, _ := hostname.Get(context.Background())
-	d := &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
-	d.initData()
-	return d
+	return &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
 }
 
-func (ia *Data) initData() {
+// Init collects the common fields: install info, hostname source, version,
+// flavor, and infrastructure mode.
+func (ia *Data) Init() {
 	tool := "undefined"
 	toolVersion := ""
 	installerVersion := ""

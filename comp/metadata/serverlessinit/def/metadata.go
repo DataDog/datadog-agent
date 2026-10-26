@@ -5,13 +5,8 @@
 
 package serverlessinit
 
-import (
-	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-)
-
-// Application-runtime names shared by every metadata derivation path. Platform
-// metadata mapping and wrapped-command detection must select from the same
-// vocabulary, and these exact strings are what downstream consumers join on.
+// Application-runtime names reported in the runtime field. Platform mappings
+// and wrapped-command detection must both use these values.
 const (
 	RuntimeNodeJS = "Node.js"
 	RuntimePython = "Python"
@@ -21,19 +16,15 @@ const (
 	RuntimeRuby   = "Ruby"
 )
 
-// CloudServiceMetadata holds the per-platform serverless fields that feed the
-// serverless-init metadata payload. Each CloudServiceMetadataProvider
-// implementation derives these from its own environment so the payload builder
-// stays thin and the derivation lives next to the existing tag logic.
-//
-// Empty strings represent unavailable values. The serverless-init payload builder
-// converts them to nil, allowing optional fields to be omitted or serialized as
-// JSON null. Payloads without resource identity are withheld.
+// CloudServiceMetadata holds the per-platform fields of the metadata payload.
+// An empty string means unavailable and is serialized as JSON null. No payload
+// is sent while ResourceID is empty.
 type CloudServiceMetadata struct {
 	WorkloadType string
 
-	// ResourceID is the Canonical Cloud Resource ID (CCRID), the first component
-	// of the downstream composite key.
+	// ResourceID is the Canonical Cloud Resource ID (CCRID) of the resource.
+	// MicroVM uses the platform instance ID instead. Empty means the identity is
+	// not known yet.
 	ResourceID string
 
 	// ResourceName is the platform display name (app / service / job); it is
@@ -58,19 +49,12 @@ type CloudServiceMetadata struct {
 	ParentResourceID string
 }
 
-// CloudServiceMetadataProvider is the platform contract this component consumes.
-// The embedding binary's cloud-service detection implements it. GetMetadata
-// must not perform I/O and must support concurrent reads while identity changes.
+// CloudServiceMetadataProvider supplies the platform metadata. GetMetadata must
+// not perform I/O and must support concurrent reads while identity changes.
 type CloudServiceMetadataProvider interface {
 	// CanCollectMetadata reports platform support without collecting data or checking identity readiness.
 	CanCollectMetadata() bool
 	// GetMetadata returns the per-platform serverless fields for the
 	// metadata payload.
 	GetMetadata() CloudServiceMetadata
-}
-
-// Eligible reports whether the serverless metadata payload may be
-// collected: the configuration opt-in and a provider that can collect.
-func Eligible(conf configmodel.Reader, provider CloudServiceMetadataProvider) bool {
-	return conf.GetBool("serverless.metadata_enabled") && provider.CanCollectMetadata()
 }

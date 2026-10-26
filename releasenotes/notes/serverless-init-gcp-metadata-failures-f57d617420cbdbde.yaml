@@ -9,6 +9,3 @@ fixes:
     ``gcrj.resource_name`` tags are omitted when a required component
     (project, region, service, job, or function target) is unavailable,
     instead of being reported with empty path segments.
-  - |
-    serverless-init now fetches GCP metadata once per process and shares it
-    between tagging and the serverless-init metadata payload.

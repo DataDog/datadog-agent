@@ -23,7 +23,7 @@ const runtimeUnknown = ""
 var pythonExecutable = regexp.MustCompile(`^python([0-9]+(\.[0-9]+)*)?$`)
 
 // resolveRuntime reports the application runtime, never the Agent or container
-// runtime. Sidecars must pass no wrapped command: their argv is not the workload.
+// runtime.
 func resolveRuntime(metadata []string, wrappedCommand []string) string {
 	candidates := append([]string{os.Getenv("DD_SERVERLESS_METADATA_RUNTIME")}, metadata...)
 	candidates = append(candidates, commandRuntime(wrappedCommand))

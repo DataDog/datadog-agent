@@ -179,10 +179,10 @@ type MetricTagSetterFunc func([]string)
 // SetMetricTags implements MetricTagSetter.
 func (f MetricTagSetterFunc) SetMetricTags(tags []string) { f(tags) }
 
-// MetadataReporter reports serverless metadata for the current MicroVM
-// instance. The server passes the instance ID from the /run body, or the stored
-// ID at /resume. Calls are serialized with the instance ID store and load, so a
-// resume cannot replay a stale ID.
+// MetadataReporter receives the instance ID from a valid /run body, or the
+// stored ID at /resume. Calls run in the hook handler, serialized with the
+// instance ID store and load, so a resume cannot replay a stale ID.
+// Implementations should return quickly.
 type MetadataReporter interface {
 	ReportMetadata(microVMID string)
 }
@@ -333,10 +333,8 @@ func (s *Server) SetMetricTagSetter(setter MetricTagSetter, baseUsageMetricTags 
 	s.baseUsageMetricTags = baseUsageMetricTags
 }
 
-// SetMetadataReporter wires a MetadataReporter into the server. Optional; nil
-// disables metadata reports. If called, it must happen before the first /run
-// request. The reporter receives the instance ID on a valid /run and the
-// stored ID on /resume; nothing is reported before an ID is established.
+// SetMetadataReporter sets the reporter for /run and /resume. A nil reporter
+// disables reports. Call it before the server starts.
 func (s *Server) SetMetadataReporter(reporter MetadataReporter) {
 	s.metadataReporter = reporter
 }
@@ -681,8 +679,7 @@ func (s *Server) aliveCheckReady(w http.ResponseWriter) {
 // handleRun is the only hook that reads r.Body and is therefore not
 // collapsed into dispatchHook directly. The ID is captured before Start
 // so the first heartbeat emission already carries the correct lambda_microvm_id tag.
-// A valid ID also triggers the synchronous metadata report before the
-// heartbeat starts and the hook is forwarded.
+// A valid ID goes to the metadata reporter before the heartbeat starts.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// Read the body once so we can parse the instance ID AND still forward the
 	// original payload to the user app. Without this, the forwarder path would
@@ -750,8 +747,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
-	// A same-instance resume keeps its identity. Snapshot reuse for another
-	// instance is expected to supply a new ID through /run.
+	// Resume reports the stored ID; only /run changes it.
 	s.metadataMu.Lock()
 	if id := s.instanceID.Load(); id != "" && s.metadataReporter != nil {
 		s.metadataReporter.ReportMetadata(id)

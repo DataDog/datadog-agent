@@ -104,11 +104,10 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 				go func() { p.Provider.Callback(collectCtx); close(collected) }()
 				t.Cleanup(func() { cancelCollect(); <-collected })
 
-				var expectedReports, forwarded atomic.Int32
+				var forwarded atomic.Int32
 				var forwarder *lifecycle.Forwarder
 				if forwarding {
 					upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						assert.Len(t, serial.sent(), int(expectedReports.Load()), "the report must finish before forwarding")
 						forwarded.Add(1)
 						w.WriteHeader(http.StatusAccepted)
 					}))
@@ -129,7 +128,6 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 				client := &http.Client{Timeout: 5 * time.Second}
 				post := func(hook, body string, expected int) {
 					t.Helper()
-					expectedReports.Store(int32(expected))
 					url := fmt.Sprintf("http://127.0.0.1:%d/aws/lambda-microvms/runtime/v1/%s", srv.Addr().(*net.TCPAddr).Port, hook)
 					resp, err := client.Post(url, "application/json", strings.NewReader(body))
 					require.NoError(t, err)
@@ -144,7 +142,7 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 						status = http.StatusAccepted
 					}
 					require.Equal(t, status, resp.StatusCode)
-					assert.Len(t, serial.sent(), expected, "the report must finish before the hook response")
+					require.Eventually(t, func() bool { return len(serial.sent()) == expected }, 5*time.Second, time.Millisecond)
 				}
 				post("ready", "", 0)
 				post("validate", "", 0)

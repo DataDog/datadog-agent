@@ -10,18 +10,13 @@ update every minute (see `inventories_min_interval`).
 
 # Content
 
-The `Set` method lets other components add metadata to the payload.
+The `Set` method from the component allow the rest of the codebase to add any information to the payload.
 
 ## Shared payload code
 
-`inventoryagentimpl.NewData` collects common fields such as versions, startup time, installation information,
-and infrastructure mode. Its `GetPayload` method combines those fields with caller-supplied metadata and the
-optional scrubbed configuration. It uses the same JSON format as the full Agent without running its collectors.
-
-Serverless-init registers its own metadata runner provider and uses this library code without constructing the
-inventoryagent component. It owns eligibility, resource-identity readiness, and UUID selection. The shared inventory
-helper provides transport and scheduling. Serverless-init skips `inventories_first_run_delay` but retains
-`inventories_min_interval` and `inventories_max_interval`. The full Agent retains all three settings.
+`agentmetadata.NewData` and its `Init` method collect the common fields: versions, startup time, installation
+information, hostname source, and infrastructure mode. `GetPayload` combines those fields with caller-supplied
+metadata and the optional scrubbed configuration. The component calls `Init` only when `inventories_enabled` is true.
 
 ## Agent Configuration
 

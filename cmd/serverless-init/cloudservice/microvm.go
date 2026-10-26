@@ -106,13 +106,10 @@ func (m *MicroVM) GetTags() map[string]string {
 	return tags
 }
 
-// CanCollectMetadata reports MicroVM support; the resource identity arrives
-// later with the /run lifecycle hook.
 func (m *MicroVM) CanCollectMetadata() bool { return true }
 
-// GetMetadata derives the metadata from the image ARN, the parent every
-// instance runs from. ResourceID stays empty until /run delivers the instance
-// ID, so no image-only payload is reported.
+// GetMetadata derives the parent, region, account, and name from the image
+// ARN. ResourceID is empty until MetadataReporter stores an instance ID.
 func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
 	metadata := serverlessdef.CloudServiceMetadata{WorkloadType: workloadTypeAWSMicroVM}
 	if arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar); arn != "" {
@@ -125,12 +122,12 @@ func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
 	return metadata
 }
 
-// MetadataReporter returns the lifecycle reporter Init wires into the
-// lifecycle server: it records the instance ID before metadata reports it.
+// MetadataReporter returns a reporter that stores the instance ID, then calls
+// metadata.ReportNow in a new goroutine so the caller does not wait for it.
 func (m *MicroVM) MetadataReporter(metadata serverlessdef.Component) lifecycle.MetadataReporter {
 	return lifecycle.MetadataReporterFunc(func(instanceID string) {
 		m.instanceID.Store(&instanceID)
-		metadata.ReportNow()
+		go metadata.ReportNow()
 	})
 }
 

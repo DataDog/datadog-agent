@@ -24,6 +24,7 @@ import (
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessinitmock "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/mock"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -218,33 +219,14 @@ func TestMicroVMGetMetadataMalformedARN(t *testing.T) {
 	assert.Equal(t, "unknown", tags["image_name"])
 }
 
-// identityRecordingMetadata records the MicroVM resource identity each
-// ReportNow call observes.
-type identityRecordingMetadata struct {
-	microVM     *MicroVM
-	mu          sync.Mutex
-	resourceIDs []string
-}
-
-func (r *identityRecordingMetadata) ReportNow() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.resourceIDs = append(r.resourceIDs, r.microVM.GetMetadata().ResourceID)
-}
-
-func (r *identityRecordingMetadata) reported() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]string{}, r.resourceIDs...)
-}
-
 // TestMicroVMMetadataReporter_ReportsAfterRunAndResume wires the reporter Init
 // installs into a server on a random free port.
 func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
 	metricAgent := &serverlessMetrics.ServerlessMetricAgent{}
 	m := &MicroVM{}
-	metadata := &identityRecordingMetadata{microVM: m}
+	reportedIDs := make(chan string, 8)
+	metadata := serverlessinitmock.New(t, 8, func() { reportedIDs <- m.GetMetadata().ResourceID })
 	srv := lifecycle.NewServer(
 		0,
 		metricAgent, &noopTraceAgent{}, &noopLogsFlusher{},
@@ -270,15 +252,31 @@ func TestMicroVMMetadataReporter_ReportsAfterRunAndResume(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}
 
+	nextReportedID := func() string {
+		t.Helper()
+		select {
+		case id := <-reportedIDs:
+			return id
+		case <-time.After(5 * time.Second):
+			t.Fatal("no metadata report")
+			return ""
+		}
+	}
+
 	post("resume", "")
 	post("run", `{"microvmId":""}`)
-	assert.Empty(t, metadata.reported(), "nothing is reported before /run delivers an instance ID")
 	assert.Empty(t, m.GetMetadata().ResourceID)
+	assert.Empty(t, metadata.Reported(), "nothing is reported before /run delivers an instance ID")
 
-	post("run", `{"microvmId":"vm-A"}`)
-	post("resume", "")
-	post("run", `{"microvmId":"vm-B"}`)
-	assert.Equal(t, []string{"vm-A", "vm-A", "vm-B"}, metadata.reported(), "the instance ID is set before each report")
+	for _, step := range []struct{ hook, body, id string }{
+		{"run", `{"microvmId":"vm-A"}`, "vm-A"},
+		{"resume", "", "vm-A"},
+		{"run", `{"microvmId":"vm-B"}`, "vm-B"},
+	} {
+		post(step.hook, step.body)
+		assert.Equal(t, step.id, nextReportedID(), "the instance ID is set before each report")
+		<-metadata.Reported()
+	}
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {

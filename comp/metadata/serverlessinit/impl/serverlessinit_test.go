@@ -378,6 +378,49 @@ func TestReportNowWithoutIdentity(t *testing.T) {
 	})
 }
 
+func TestEligible(t *testing.T) {
+	assert.False(t, eligible(config.NewMock(t), &fakeProvider{eligible: true}), "default off")
+	conf := config.NewMockWithOverrides(t, map[string]any{"serverless.metadata_enabled": true})
+	assert.False(t, eligible(conf, &fakeProvider{eligible: false}))
+	assert.True(t, eligible(conf, &fakeProvider{eligible: true}))
+}
+
+func TestIdentityWaitBacksOff(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() { p.Provider.Callback(ctx); close(done) }()
+		const waited = time.Minute
+		time.Sleep(waited)
+		synctest.Wait()
+		reads := provider.reads
+		cancel()
+		<-done
+		assert.LessOrEqual(t, reads, int(waited/maxIdentityRetryInterval)+10, "polling slows to the maximum interval")
+		assert.Empty(t, s.payloads)
+	})
+}
+
+func TestReportNowWakesIdentityWait(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		provider := &fakeProvider{eligible: true}
+		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+		collected := make(chan struct{})
+		go func() { p.Provider.Callback(t.Context()); close(collected) }()
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "vm-A"})
+		start := time.Now()
+		p.Comp.ReportNow()
+		<-collected
+		assert.Zero(t, time.Since(start), "the waiting collection reads the new identity at once")
+		require.Len(t, s.payloads, 1)
+		assert.Equal(t, "vm-A", s.payloads[0].Metadata["resource_id"])
+	})
+}
+
 func TestReportNowFirstRunRace(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
@@ -535,7 +578,7 @@ func TestRunnerShutdownOrdering(t *testing.T) {
 		stopped := make(chan error, 1)
 		go func() { stopped <- app.Stop(t.Context()) }()
 		synctest.Wait()
-		require.True(t, comp.(*serverlessinitComp).stopped)
+		require.True(t, comp.(*serverlessinitComp).stopped.Load())
 		provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "shutdown-identity"})
 		require.NoError(t, <-stopped)
 		assert.Equal(t, []string{"enqueue", "demux drain", "forwarder drain"}, order)

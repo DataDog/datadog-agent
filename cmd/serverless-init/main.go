@@ -82,14 +82,14 @@ import (
 
 const datadogConfigPath = "datadog.yaml"
 
-// Shutdown timeouts for the trace, log, and metrics phases. Platform defaults:
+// Shutdown time budget for serverless-init. These values sum to ~9s, which
+// fits within the tightest supported platform grace window. Platform defaults:
 //
 //	Cloud Run (tightest): 10s — https://docs.cloud.google.com/run/docs/container-contract#shutdown
 //	Azure Container Apps:  30s — https://learn.microsoft.com/en-us/azure/container-apps/application-lifecycle-management#shutdown
 //	Azure App Service:     30s via WEBSITES_SHUTDOWN_TIMEOUT (scale-in SIGTERM delivery is unreliable)
 //
-// These phase timeouts do not bound total shutdown. Metadata construction and
-// enqueue are synchronous and cannot be canceled.
+// Any change here is the only edit needed — all phases read these constants.
 //
 // The three metrics-pipeline bounds (aggregator → forwarder) are separate
 // because the metrics path stages independently: the demux/aggregator drains
@@ -122,8 +122,21 @@ const (
 	// tick that fires close to SIGTERM consumes part of the shutdown budget.
 	metricsFlushInterval = 3 * time.Second
 
-	// shutdownBudgetWatchdog logs when shutdown exceeds this elapsed time.
-	// It does not interrupt shutdown or bound its duration.
+	// shutdownBudgetWatchdog fires a debug log if total shutdown elapsed time
+	// exceeds this. Four shutdown phases run, each independently
+	// timeout-bounded: trace (2.5 s) + logs (1.5 s) + demux Stop (2 s) +
+	// forwarder purge (3 s). The DogStatsD server and demux Stop phases now
+	// drain the worker batchers and the aggregator sample channel internally
+	// (via the dogstatsd_flush_incomplete_buckets gate wired in preloadEarly),
+	// still bounded by aggregator_stop_timeout
+	// (2 s) — so the old explicit ServerlessFlush (1 s) and metric-drain
+	// (0.1 s) phases are gone. Worst-case sum is ≈9 s — strictly under both
+	// the watchdog and Cloud Run's 10 s grace window. In practice each phase
+	// finishes in milliseconds (the worker batchers are small, the sample
+	// channels short, and HTTP requests either land or were already in
+	// flight), so the watchdog only fires on a genuine overrun rather than a
+	// guaranteed-late tripwire. The debug log is observability, not a
+	// guarantee.
 	shutdownBudgetWatchdog = 9*time.Second + 500*time.Millisecond
 )
 
@@ -141,7 +154,9 @@ func preloadEarly() {
 	// overrides or future default changes.
 	setOverride("forwarder_storage_max_size_in_bytes", 0)
 
-	// Bound the forwarder purge window, leaving room for the other shutdown phases.
+	// Bound DefaultForwarder.Stop()'s purge window so shutdown stays inside
+	// the platform grace budget (Cloud Run default 10s), leaving room for
+	// the aggregator flush, logs flush, and trace agent stop.
 	setOverride("forwarder_stop_timeout", metricsForwarderStopTimeoutSeconds)
 
 	// Wait for in-flight HTTP transactions to complete before cancelling the
@@ -199,10 +214,7 @@ func preloadEarly() {
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
 
-	// The full-Agent inventory first-run delay staggers the first inventory
-	// payload behind the agent's startup request train. Serverless-init has no
-	// such train. The payload waits for resource identity instead, and a delay
-	// would only postpone the earliest possible send after identity.
+	// Send the first metadata payload as soon as resource identity is known.
 	setOverride("inventories_first_run_delay", 0)
 
 	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
@@ -235,10 +247,8 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
-// wrappedCommand returns the in-container wrapped application argv. Sidecar
-// argv is not the workload, so sidecar mode supplies no command.
 func wrappedCommand() []string {
-	if modeConf.SidecarMode || len(os.Args) <= 1 {
+	if len(os.Args) <= 1 {
 		return nil
 	}
 	return os.Args[1:]
@@ -409,9 +419,10 @@ func run(
 	//      by traceStopTimeout (2.5 s).
 	//   4. logs agent flushes any buffered records — bounded by
 	//      logsFlushTimeout (1.5 s).
-	//   5. run() returns and Fx stops hooks in reverse construction order.
-	//      The runner stops before the provider's bounded identity wait and
-	//      best-effort final enqueue. Serializer dependencies drain afterward:
+	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
+	//      and the metrics pipeline flushes itself (no external orchestration).
+	//      The metadata stop hook, with its bounded identity wait, runs before
+	//      the metrics pipeline hooks:
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
 	//            (set in preloadEarly) — closes stopChan; each worker flushes its
 	//            batcher (batcher.flush() → AggregateSamples → samplesChan push)

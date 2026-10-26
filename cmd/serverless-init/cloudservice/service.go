@@ -100,13 +100,7 @@ type CloudService interface {
 	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
 
-	// GetMetadata returns the per-platform serverless fields for the
-	// metadata payload. Implementations must not deadlock with the
-	// rest of the CloudService interface.
-	GetMetadata() serverlessdef.CloudServiceMetadata
-
-	// CanCollectMetadata reports whether the platform permits metadata collection.
-	CanCollectMetadata() bool
+	serverlessdef.CloudServiceMetadataProvider
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
