@@ -72,3 +72,23 @@ func TestRefreshBackendsSkipsEvictionOnIterationError(t *testing.T) {
 	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{2}, err: errors.New("iteration failed")}, start.Add(removedBackendTTL+time.Second))
 	assert.ElementsMatch(t, []uint32{1, 2}, backendIDs(cache))
 }
+
+func TestRefreshBackendsKeepsRemovedBackendWhileLookedUp(t *testing.T) {
+	cache := map[uint32]backend{}
+	start := time.Now()
+
+	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{1, 2}}, start)
+	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{2}}, start.Add(time.Minute))
+
+	// a live connection still points at removed backend 1
+	b, ok := touchBackend(cache, 1, start.Add(9*time.Minute))
+	require.True(t, ok)
+	assert.Equal(t, uint16(8080), b.port)
+
+	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{2}}, start.Add(removedBackendTTL+time.Second))
+	assert.ElementsMatch(t, []uint32{1, 2}, backendIDs(cache))
+
+	// once lookups stop, it's evicted a TTL after the last one
+	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{2}}, start.Add(9*time.Minute+removedBackendTTL+time.Second))
+	assert.ElementsMatch(t, []uint32{2}, backendIDs(cache))
+}
