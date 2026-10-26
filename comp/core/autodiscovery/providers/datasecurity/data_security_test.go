@@ -122,6 +122,43 @@ const scanTaskUnknownHostConfig = `{
   ]
 }`
 
+// scanTaskPartialConfig has one buildable sub task (identical to the one in scanTaskConfig) and two
+// that are not: one with an unknown host and one with an unsupported platform.
+const scanTaskPartialConfig = `{
+  "task_id": "task-1",
+  "scanning_rules": [
+    {"id": "rule-1", "license": "proprietary", "pattern": "\\d+"}
+  ],
+  "scan_data": [
+    {
+      "sub_task_id": "sub-1",
+      "query": "SELECT * FROM users",
+      "timeout_seconds": 30,
+      "entity": {
+        "platform": "postgres",
+        "database_cluster_name": "cluster",
+        "database_instance_name": "instance",
+        "database_host_name": "db-host",
+        "database": "app",
+        "schema": "public",
+        "table": "users"
+      }
+    },
+    {
+      "sub_task_id": "sub-bad-host",
+      "query": "SELECT * FROM orders",
+      "timeout_seconds": 30,
+      "entity": {"platform": "postgres", "database_host_name": "unknown-host", "database": "app", "schema": "public", "table": "orders"}
+    },
+    {
+      "sub_task_id": "sub-bad-platform",
+      "query": "SELECT 1",
+      "timeout_seconds": 30,
+      "entity": {"platform": "mysql", "database_host_name": "db-host", "database": "app", "schema": "public", "table": "t"}
+    }
+  ]
+}`
+
 // wantCheckInstance is the check instance the provider is expected to emit for
 // scanTaskConfig once the local postgres connection has been resolved. The
 // scanning rule (with its license) is forwarded verbatim.
@@ -250,6 +287,17 @@ func TestControllerUpdate(t *testing.T) {
 				Error: `failed to build sub task "sub-1": postgres integration with host="unknown-host" not found`,
 			}},
 			wantChanges: []integration.ConfigChanges{{}},
+		},
+		{
+			name:          "failed sub tasks do not block the buildable ones and are named in the error",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskPartialConfig)}},
+			wantStatus: map[string]state.ApplyStatus{"rc-1": {
+				State: state.ApplyStateError,
+				Error: `failed to build sub task "sub-bad-host": postgres integration with host="unknown-host" not found; ` +
+					`failed to build sub task "sub-bad-platform": unsupported platform "mysql"`,
+			}},
+			// only sub-1 is scheduled
+			wantChanges: []integration.ConfigChanges{{Schedule: []integration.Config{wantScheduledConfig}}},
 		},
 		{
 			name:          "re-delivery at the same RC path unschedules the previous check",
@@ -396,62 +444,4 @@ func asYAML(t *testing.T, doc string) map[string]any {
 	var out map[string]any
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &out))
 	return out
-}
-
-// scanTaskPartialConfig has one buildable sub task and two that are not.
-const scanTaskPartialConfig = `{
-  "task_id": "task-2",
-  "scanning_rules": [
-    {"id": "rule-1", "license": "proprietary", "pattern": "\\d+"}
-  ],
-  "scan_data": [
-    {
-      "sub_task_id": "sub-ok",
-      "query": "SELECT * FROM users",
-      "timeout_seconds": 30,
-      "entity": {"platform": "postgres", "database_host_name": "db-host", "database": "app", "schema": "public", "table": "users"}
-    },
-    {
-      "sub_task_id": "sub-bad-host",
-      "query": "SELECT * FROM orders",
-      "timeout_seconds": 30,
-      "entity": {"platform": "postgres", "database_host_name": "unknown-host", "database": "app", "schema": "public", "table": "orders"}
-    },
-    {
-      "sub_task_id": "sub-bad-platform",
-      "query": "SELECT 1",
-      "timeout_seconds": 30,
-      "entity": {"platform": "mysql", "database_host_name": "db-host", "database": "app", "schema": "public", "table": "t"}
-    }
-  ]
-}`
-
-// TestControllerSchedulesBuildableSubTasks asserts failed sub tasks do not block the others and are
-// named in the apply error.
-func TestControllerSchedulesBuildableSubTasks(t *testing.T) {
-	rc, provider := newTestController(t, []integration.Config{postgresIntegration()})
-	require.NotNil(t, rc.callback)
-	stream := provider.(types.StreamingConfigProvider).Stream(context.Background())
-	receiveChanges(t, stream) // drain the initial empty snapshot
-
-	statuses := map[string]state.ApplyStatus{}
-	rc.callback(map[string]state.RawConfig{"rc-1": rawScanTask("rc-1", scanTaskPartialConfig)}, func(path string, status state.ApplyStatus) {
-		statuses[path] = status
-	})
-
-	assert.Equal(t, state.ApplyStateError, statuses["rc-1"].State)
-	assert.Contains(t, statuses["rc-1"].Error, `failed to build sub task "sub-bad-host": postgres integration with host="unknown-host" not found`)
-	assert.Contains(t, statuses["rc-1"].Error, `failed to build sub task "sub-bad-platform": unsupported platform "mysql"`)
-	assert.NotContains(t, statuses["rc-1"].Error, "sub-ok")
-
-	changes := receiveChanges(t, stream)
-	require.Len(t, changes.Schedule, 1)
-	var inst struct {
-		ScanData []struct {
-			SubTaskID string `yaml:"sub_task_id"`
-		} `yaml:"scan_data"`
-	}
-	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &inst))
-	require.Len(t, inst.ScanData, 1)
-	assert.Equal(t, "sub-ok", inst.ScanData[0].SubTaskID)
 }
