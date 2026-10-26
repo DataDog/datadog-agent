@@ -10,8 +10,8 @@ import "strconv"
 
 // team: action-platform
 
-// Component owns the core phone-home lifecycle.
-type Component interface{}
+// Component exposes startup-gate progress, not enrollment or action readiness.
+type Component interface{ Status() *State }
 
 // StateName identifies a phone-home startup state.
 type StateName string
