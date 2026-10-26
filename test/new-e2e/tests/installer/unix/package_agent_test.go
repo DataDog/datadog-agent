@@ -182,6 +182,7 @@ func (s *packageAgentSuite) TestPrivilegedRshellHelperLifecycle() {
 	// Enabling it only needs an Agent restart.
 	defer s.enableRshellHelper()()
 	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.requireRshellHelperSupported()
 	s.assertRshellHelper(true)
 	s.Equal("dd-agent:dd-agent 600 socket", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a %F' "+rshellSocketPath)))
 	// systemd creates the directory with the unit's Group=dd-agent.
@@ -227,6 +228,7 @@ func (s *packageAgentSuite) TestPrivilegedRshellSurvivesReboot() {
 
 	defer s.enableRshellHelper()()
 	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.requireRshellHelperSupported()
 	s.assertRshellHelper(true)
 	// The exit status is zero even with a cycle: check the diagnostics.
 	verify := s.host.Run("sudo systemd-analyze verify --man=no default.target 2>&1 || true")
@@ -253,11 +255,32 @@ func (s *packageAgentSuite) requireRshellBinary() {
 // function that restores the original file.
 func (s *packageAgentSuite) enableRshellHelper() func() {
 	const configPath = "/etc/datadog-agent/datadog.yaml"
-	const backupPath = "/tmp/datadog.yaml.rshell-backup"
+	// Not /tmp: TestPrivilegedRshellSurvivesReboot reboots, which clears it.
+	const backupPath = "/var/tmp/datadog.yaml.rshell-backup"
 	s.host.Run(fmt.Sprintf("sudo cp -p %s %s", configPath, backupPath))
 	s.Require().Equal("0", strings.TrimSpace(s.host.Run(fmt.Sprintf("sudo grep -c '^private_action_runner:' %s || true", configPath))), "the test appends this section")
 	s.host.Run(fmt.Sprintf(`printf 'private_action_runner:\n  restricted_shell:\n    privileged:\n      enabled: true\n' | sudo tee -a %s > /dev/null`, configPath))
 	return func() { s.host.Run(fmt.Sprintf("sudo mv %s %s", backupPath, configPath)) }
+}
+
+// requireRshellHelperSupported waits for the enabled helper to start, and
+// skips the test where the kernel cannot run it: the launcher then declines,
+// creating no socket. Its own log line decides, rather than a kernel version
+// guess, since distributions backport Landlock.
+func (s *packageAgentSuite) requireRshellHelperSupported() {
+	const unsupported = "not starting the rshell privileged helper: it needs Landlock ABI"
+	declined := false
+	s.Require().Eventually(func() bool {
+		if strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+rshellServiceUnit)) == "ActiveState=active" && s.socketExists(rshellSocketPath) {
+			return true
+		}
+		declined = strings.Contains(s.host.Run("sudo journalctl -u "+rshellServiceUnit+" --no-pager -o cat | tail -n 20"), unsupported)
+		return declined
+	}, time.Minute, time.Second, "the enabled helper neither started nor declined the kernel")
+	if declined {
+		s.False(s.socketExists(rshellSocketPath), "a declined helper must not leave its socket")
+		s.T().Skip("this kernel lacks the Landlock support the privileged helper needs")
+	}
 }
 
 // socketExists reports whether path is a Unix socket. host.FileExists only
