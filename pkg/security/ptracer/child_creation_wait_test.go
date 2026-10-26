@@ -10,6 +10,7 @@ package ptracer
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -85,9 +86,13 @@ func TestChildCreationWaitOrdering(t *testing.T) {
 		{name: "fork", nr: ForkNr},
 		{name: "vfork", nr: VforkNr},
 		{name: "clone", nr: CloneNr},
+		{name: "clone shared files", nr: CloneNr, flags: unix.CLONE_FILES},
+		{name: "clone shared fs", nr: CloneNr, flags: unix.CLONE_FS},
 		{name: "clone shared resources", nr: CloneNr, flags: unix.CLONE_FILES | unix.CLONE_FS},
 		{name: "clone thread", nr: CloneNr, flags: unix.CLONE_THREAD | unix.CLONE_FILES | unix.CLONE_FS},
 		{name: "clone3", nr: Clone3Nr},
+		{name: "clone3 shared files", nr: Clone3Nr, flags: unix.CLONE_FILES},
+		{name: "clone3 shared fs", nr: Clone3Nr, flags: unix.CLONE_FS},
 		{name: "clone3 thread", nr: Clone3Nr, flags: unix.CLONE_THREAD | unix.CLONE_FILES | unix.CLONE_FS},
 	} {
 		for _, childFirst := range []bool{false, true} {
@@ -131,17 +136,17 @@ func TestChildCreationWaitOrdering(t *testing.T) {
 				assert.Equal(t, []int{h.child.Pid}, h.resumed)
 				assert.Empty(t, h.children.heldByTID)
 				assert.False(t, h.child.creationWaitTimedOut)
-				assert.Equal(t, h.parent.FdRes.Fd, h.child.FdRes.Fd)
-				assert.Equal(t, h.parent.FsRes.Cwd, h.child.FsRes.Cwd)
 				if tc.flags&unix.CLONE_FILES != 0 {
 					assert.Same(t, h.parent.FdRes, h.child.FdRes)
 				} else {
 					assert.NotSame(t, h.parent.FdRes, h.child.FdRes)
+					assert.Empty(t, h.child.FdRes.Fd) // resolve private FDs from the child, not the creator
 				}
 				if tc.flags&unix.CLONE_FS != 0 {
 					assert.Same(t, h.parent.FsRes, h.child.FsRes)
 				} else {
 					assert.NotSame(t, h.parent.FsRes, h.child.FsRes)
+					assert.Empty(t, h.child.FsRes.Cwd)
 				}
 				if thread {
 					assert.Empty(t, h.messages) // threads do not publish process forks
@@ -156,6 +161,90 @@ func TestChildCreationWaitOrdering(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestChildCreationWaitPrivateResourcesResolveFromChild(t *testing.T) {
+	// The harness uses this process as the child's procfs view. Its real CWD
+	// and directory FD represent the private resources copied at fork time.
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	cwd, err = filepath.EvalSymlinks(cwd)
+	require.NoError(t, err)
+	fdDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	dir, err := os.Open(fdDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dir.Close() })
+	fd := int32(dir.Fd())
+	postForkDir := t.TempDir()
+
+	for _, tc := range []struct {
+		name string
+		nr   int
+	}{
+		{name: "fork", nr: ForkNr},
+		{name: "vfork", nr: VforkNr},
+		{name: "clone", nr: CloneNr},
+		{name: "clone3", nr: Clone3Nr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newChildCreationWaitTest(t)
+			h.parent.FsRes.Cwd = cwd
+			h.parent.FdRes.Fd[fd] = fdDir
+			require.True(t, h.ctx.holdChildAtInitialStop(h.child.Pid, initialChildStop(), h.children))
+
+			// A sibling remains runnable while the creator's notification is
+			// pending. Its updates must not seed the child's private caches.
+			sibling := NewProcess(-2)
+			h.ctx.processCache.shareResources(sibling, h.parent.Pid, unix.CLONE_THREAD|unix.CLONE_FILES|unix.CLONE_FS)
+			sibling.FsRes.Cwd = postForkDir
+			sibling.FdRes.Fd[fd] = postForkDir
+
+			var arg uint64
+			if tc.nr == Clone3Nr {
+				flags := new(uint64)
+				var pinner runtime.Pinner
+				pinner.Pin(flags)
+				defer pinner.Unpin()
+				arg = uint64(uintptr(unsafe.Pointer(flags)))
+			}
+			h.ctx.handleChildCreationEvent(tc.nr, h.parent.Pid, h.child.Pid, syscallTestRegs(tc.nr, arg), h.children)
+			require.True(t, h.child.creationHandled)
+
+			path, err := getFullPathFromFilename(h.child, "relative-file")
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(cwd, "relative-file"), path)
+			path, err = getFullPathFromFd(h.child, "relative-file", unix.AT_FDCWD)
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(cwd, "relative-file"), path)
+			path, err = getFullPathFromFd(h.child, "relative-file", fd)
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(fdDir, "relative-file"), path)
+			assert.Equal(t, fdDir, h.child.FdRes.Fd[fd])
+			assert.Equal(t, postForkDir, h.parent.FsRes.Cwd)
+			assert.Equal(t, postForkDir, h.parent.FdRes.Fd[fd])
+		})
+	}
+}
+
+func TestChildCreationWaitInheritedMemfdKeepsHookName(t *testing.T) {
+	// Fileless execution: memfd_create, fork, then execveat(fd, "", AT_EMPTY_PATH).
+	// Procfs reports "/memfd:payload (deleted)" for the child's private FD.
+	memfd, err := unix.MemfdCreate("payload", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = unix.Close(memfd) })
+	fd := int32(memfd)
+
+	h := newChildCreationWaitTest(t)
+	h.parent.FdRes.Fd[fd] = "memfd:payload"
+	require.True(t, h.ctx.holdChildAtInitialStop(h.child.Pid, initialChildStop(), h.children))
+	h.ctx.handleChildCreationEvent(ForkNr, h.parent.Pid, h.child.Pid, syscallTestRegs(ForkNr, 0), h.children)
+	require.True(t, h.child.creationHandled)
+	require.NotSame(t, h.parent.FdRes, h.child.FdRes)
+
+	filename, err := h.child.GetFilenameFromFd(fd)
+	require.NoError(t, err)
+	assert.Equal(t, "memfd:payload", filename)
 }
 
 func TestChildCreationWaitInitialTraceeAndOtherSignals(t *testing.T) {

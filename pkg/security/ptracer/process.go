@@ -36,9 +36,10 @@ type FdResources struct {
 	FileHandleCache map[fileHandleKey]*fileHandleVal
 }
 
+// clone retains file-handle metadata, but not paths from the creator's live FD table.
 func (f *FdResources) clone() *FdResources {
 	return &FdResources{
-		Fd:              maps.Clone(f.Fd),
+		Fd:              make(map[int32]string),
 		FileHandleCache: maps.Clone(f.FileHandleCache),
 	}
 }
@@ -46,12 +47,6 @@ func (f *FdResources) clone() *FdResources {
 // FSResources defines shared process resources
 type FSResources struct {
 	Cwd string
-}
-
-func (f *FSResources) clone() *FSResources {
-	return &FSResources{
-		Cwd: f.Cwd,
-	}
 }
 
 // SocketInfo represents the status of an open socket
@@ -135,6 +130,8 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Inherited memfds must keep the memfd_create hook's naming convention.
+	filename = procExecutableName(filename)
 
 	// fill the cache for next time
 	p.FdRes.Fd[fd] = filename
@@ -191,6 +188,9 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	process.CGroupID = parent.CGroupID
 	process.ContainerID = parent.ContainerID
 
+	// A sibling can change the creator's FD/CWD caches after the kernel copies
+	// private resources but before this creation event. Leave private paths
+	// unresolved so they are read from the child's procfs entries instead.
 	if cloneFlags&unix.CLONE_FILES != 0 {
 		process.FdRes = parent.FdRes
 	} else {
@@ -199,7 +199,7 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	if cloneFlags&unix.CLONE_FS != 0 {
 		process.FsRes = parent.FsRes
 	} else {
-		process.FsRes = parent.FsRes.clone()
+		process.FsRes = &FSResources{}
 	}
 
 	// re-add to update the caches
