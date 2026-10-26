@@ -157,9 +157,7 @@ sudo rm -rf /private/var/root/datadog-install
 // macosWaitForHealthyAgent polls until the agent is healthy. Safe in t.Cleanup: CollectT
 // recovers failures internally, unlike MustExecuteOn(m.T(), ...).
 func (m *macosInstallSuite) macosWaitForHealthyAgent(client *common.MacOSTestClient) {
-	m.EventuallyWithT(func(c *assert.CollectT) {
-		client.MustExecuteOn(c, macosAgentStatusCmd)
-	}, 20*time.Second, 1*time.Second)
+	waitForHealthyMacosAgent(m.T(), client, 20*time.Second)
 }
 
 // macosRestartDaemon kickstarts restartTarget; logs rather than aborts on failure so later
@@ -324,6 +322,28 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")
 	assert.NoError(m.T(), err)
 	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
+}
+
+// TestLaunchDaemonsInstalledByInstaller checks that the .dmg postinstall script had the installer
+// write and load the Agent's stable LaunchDaemons, from the same definitions the package ships as a
+// fallback, and that nothing else was loaded.
+func (m *macosInstallSuite) TestLaunchDaemonsInstalledByInstaller() {
+	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
+	macosLogDiagnosticsOnFailure(m.T(), macosTestClient)
+
+	_, err := macosTestClient.Execute("sudo test -x " + macosInstallerBinary)
+	require.NoError(m.T(), err, "the installer binary is not shipped in the package")
+
+	assertMacosInstallerPostinstSucceeded(m.T(), macosTestClient)
+	assertMacosStableLaunchDaemons(m.T(), macosTestClient)
+
+	// The plist examples the LaunchDaemons used to be copied from are no longer shipped.
+	examples, err := macosTestClient.Execute("ls /opt/datadog-agent/etc/ | grep -E 'com\\.datadoghq\\.(agent|sysprobe|data-plane|procmgr)\\.plist\\.example' || true")
+	require.NoError(m.T(), err)
+	assert.Empty(m.T(), strings.TrimSpace(examples))
+
+	// The installer is only used to install the Agent's LaunchDaemons: it does not run as a daemon.
+	assertNoMacosUnexpectedLaunchDaemons(m.T(), macosTestClient)
 }
 
 func (m *macosInstallSuite) TestAgentStatusAndConfig() {

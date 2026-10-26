@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The macOS ``.dmg`` now ships the Datadog installer binary and uses it to write and load the
+    Agent's LaunchDaemons (process manager, Agent, system-probe and Agent Data Plane) on install
+    and upgrade. If the installer cannot run, the package installs the same LaunchDaemon
+    definitions directly. The ``.plist.example`` copies of these LaunchDaemons are no longer
+    shipped under ``/opt/datadog-agent/etc``. The Agent LaunchDaemon now passes its configuration
+    directory, system-probe configuration path and PID file explicitly.

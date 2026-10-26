@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.agent</string>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
+        <dict>
+            <key>SuccessfulExit</key>
+            <false/>
+        </dict>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>{{.ProgramDir}}/bin/agent/agent</string>
+            <string>run</string>
+            <string>-c</string>
+            <string>{{.EtcDir}}</string>
+            <string>--sysprobecfgpath={{.EtcDir}}/system-probe.yaml</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>{{.LogDir}}/launchd.log</string>
+        <key>StandardErrorPath</key>
+        <string>{{.LogDir}}/launchd.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>{{.AgentUser}}</string>
+        <key>GroupName</key>
+        <string>{{.AgentGroup}}</string>
+    </dict>
+</plist>

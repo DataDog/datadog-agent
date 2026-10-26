@@ -40,6 +40,23 @@ nocap_service_srcs = glob([
     "tmpl/gen/r/on/*.socket",
 ])
 
+# The launchd job definitions for macOS, read by GetLaunchdJob.
+# keep
+launchd_job_srcs = glob(["tmpl/gen/darwin/*.plist"])
+
+# The stable definitions of the Agent's own LaunchDaemons, also shipped as plain files: the .dmg
+# postinstall script installs them directly when the installer cannot.
+filegroup(
+    name = "launchd_fallback_jobs",
+    srcs = [
+        "tmpl/gen/darwin/com.datadoghq.agent.plist",
+        "tmpl/gen/darwin/com.datadoghq.data-plane.plist",
+        "tmpl/gen/darwin/com.datadoghq.procmgr.plist",
+        "tmpl/gen/darwin/com.datadoghq.sysprobe.plist",
+    ],
+    visibility = ["//packages/macos/app:__pkg__"],
+)
+
 go_library(
     name = "embedded",
     srcs = ["embed.go"],
@@ -48,7 +65,7 @@ go_library(
         "scripts/dd-cleanup",
         "scripts/dd-container-install",
         "scripts/dd-host-install",
-    ] + service_srcs + nocap_service_srcs,
+    ] + service_srcs + nocap_service_srcs + launchd_job_srcs,
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],
 )
@@ -58,6 +75,10 @@ go_library(
     name = "tmpl_lib",
     srcs = ["tmpl/main.go"],
     embedsrcs = [
+        "tmpl/com.datadoghq.agent.plist.tmpl",
+        "tmpl/com.datadoghq.data-plane.plist.tmpl",
+        "tmpl/com.datadoghq.procmgr.plist.tmpl",
+        "tmpl/com.datadoghq.sysprobe.plist.tmpl",
         "tmpl/datadog-agent-par-control.yaml.tmpl",
         "tmpl/datadog-agent-par-control-windows.yaml.tmpl",
         "tmpl/datadog-agent-action-executor.yaml.tmpl",

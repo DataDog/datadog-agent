@@ -1,4 +1,3 @@
-import plistlib
 import unittest
 from pathlib import Path
 
@@ -48,56 +47,31 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn('"//deps/agent_data_plane:all_files"', macos_srcs)
         self.assertEqual(dependencies.count("//deps/agent_data_plane:all_files"), 4)
 
-    def test_macos_app_installs_adp_launchdaemon_template(self):
-        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
-
-        self.assertIn('name = "launchd_data_plane_plist_example"', build_file)
-        self.assertIn('out = "etc/com.datadoghq.data-plane.plist.example"', build_file)
-        self.assertIn('":launchd_data_plane_plist_example"', build_file)
-
-    def test_adp_launchdaemon_invokes_adp_with_macos_config(self):
-        plist_path = REPO_ROOT / "packages/macos/app/launchd.data-plane.plist.example.in"
-        plist = plistlib.loads(plist_path.read_bytes())
-
-        self.assertEqual(plist["Label"], "com.datadoghq.data-plane")
-        self.assertEqual(
-            plist["ProgramArguments"],
-            [
-                "/opt/datadog-agent/embedded/bin/agent-data-plane",
-                "--config",
-                "/opt/datadog-agent/etc/datadog.yaml",
-                "run",
-                "--pidfile",
-                "/opt/datadog-agent/run/agent-data-plane.pid",
-            ],
-        )
-        self.assertEqual(plist["UserName"], "_dd-agent")
-        self.assertEqual(plist["GroupName"], "daemon")
-
     def test_system_launchdaemons_are_managed_consistently(self):
-        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
+        # The agent/sysprobe/data-plane LaunchDaemons are no longer shipped as plist examples under
+        # etc/ for postinst to cp into place: postinst runs `installer postinst datadog-agent dmg`,
+        # which installs the stable jobs from the definitions embedded in the installer -- see
+        # postInstallDatadogAgent and installStableJobs in
+        # pkg/fleet/installer/packages/datadog_agent_darwin.go. Go-side coverage for the rendered
+        # job content itself lives in pkg/fleet/installer/packages/embedded/embed_test.go.
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
-        services = [
-            ("agent", "launchd_plist_example", "com.datadoghq.agent"),
-            ("sysprobe", "launchd_sysprobe_plist_example", "com.datadoghq.sysprobe"),
-            ("data-plane", "launchd_data_plane_plist_example", "com.datadoghq.data-plane"),
-        ]
-        for name, build_target, label in services:
-            with self.subTest(service=name):
-                plist = f"/Library/LaunchDaemons/{label}.plist"
-                example_plist = f"{label}.plist.example"
+        self.assertIn("postinst datadog-agent dmg", postinst)
 
-                self.assertIn(f'":{build_target}"', build_file)
+        labels = [
+            "com.datadoghq.agent",
+            "com.datadoghq.sysprobe",
+            "com.datadoghq.data-plane",
+        ]
+        for label in labels:
+            with self.subTest(service=label):
+                plist = f"/Library/LaunchDaemons/{label}.plist"
+                # postinst still ships the GUI LaunchAgent and the AI usage desktop monitor this
+                # way, so only the three jobs InstallStableJobs now owns are asserted absent here.
+                self.assertNotIn(f"{label}.plist.example", postinst)
                 self.assertIn(f"launchctl bootout system/{label}", preinst)
-                self.assertIn(example_plist, postinst)
-                self.assertIn(plist, postinst)
-                self.assertIn(f"chown root:wheel {plist}", postinst)
-                self.assertIn(f"chmod 644 {plist}", postinst)
-                self.assertIn(f"launchctl enable system/{label}", postinst)
-                self.assertIn(f"launchctl bootstrap system {plist}", postinst)
                 self.assertIn(f"launchctl bootout system/{label}", uninstall)
                 self.assertIn(plist, uninstall)
 
@@ -126,3 +100,32 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn("tmpl/gen/windows/datadog-agent-data-plane.yaml", embed_go)
         self.assertIn("ADPWindowsProcmgrConfig", embed_go)
         self.assertIn("embedded.ADPWindowsProcmgrConfig", adp_procmgr)
+
+    def test_postinst_falls_back_to_the_shipped_launchdaemons(self):
+        # When `installer postinst datadog-agent dmg` fails or the installer is missing, postinst
+        # installs the Agent's stable LaunchDaemons itself, from plain copies of the installer's own
+        # embedded definitions shipped under the root-owned embedded/ tree, never under etc/.
+        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
+        embedded_build = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/BUILD.bazel").read_text()
+        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
+
+        self.assertIn('"//pkg/fleet/installer/packages/embedded:launchd_fallback_jobs"', build_file)
+        self.assertIn('prefix = "embedded/share/launchd"', build_file)
+        self.assertIn('":launchd_fallback_jobs"', build_file)
+        self.assertIn('FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"', postinst)
+        self.assertEqual(postinst.count("install_fallback_launchdaemons\n"), 2)
+
+        for label in [
+            "com.datadoghq.procmgr",
+            "com.datadoghq.agent",
+            "com.datadoghq.sysprobe",
+            "com.datadoghq.data-plane",
+        ]:
+            with self.subTest(service=label):
+                self.assertIn(f'"tmpl/gen/darwin/{label}.plist"', embedded_build)
+                self.assertTrue(
+                    (REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist").is_file()
+                )
+                self.assertIn(label, postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
+        # The installer daemon is Fleet's, not the Agent's: the fallback does not install it.
+        self.assertNotIn("com.datadoghq.installer", postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
