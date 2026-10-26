@@ -213,7 +213,8 @@ properties:
         visibility: public
         description: |-
           Set to true to report which GPU each KAI Scheduler fractional workload
-          is using.
+          is using and the fraction of it assigned to the workload
+          (`gpu.device.sharing_fraction`, `gpu_sharing_mode:kai_fraction`).
   nvlink:
     node_type: section
     type: object
