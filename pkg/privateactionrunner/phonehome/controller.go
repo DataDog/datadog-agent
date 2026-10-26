@@ -81,8 +81,7 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
-	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || buildFIPS || cfg.GetBool("fips.enabled") ||
-		!cfg.GetBool(par.SplitEnabled) || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+	if bypass || err != nil || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		emit(State{State: "blocked", Reason: "unsupported_configuration"})
 		return
 	}
