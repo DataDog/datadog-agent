@@ -8,8 +8,5 @@
 ---
 fixes:
   - |
-    APM: Fix the trace writer sending requests larger than the intake accepts,
-    which were rejected with ``413 Payload Too Large`` and dropped traces. This
-    could happen since Agent 7.84.0 with large traces, for example traces carrying
-    LLM Observability data. The writer now sends buffered traces on their own before
-    a large payload, and splits large payloads by size instead of by number of traces.
+    APM: Fix the trace writer sending payloads over the intake limit, which were
+    rejected with ``413 Payload Too Large`` and dropped traces since Agent 7.84.0.
