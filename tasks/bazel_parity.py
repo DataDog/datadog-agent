@@ -199,44 +199,22 @@ def print_report(report: dict) -> None:
     summary = report['summary']
     complete = summary['done']
     total = complete + summary['remaining']
-    lines = [
-        '# Bazel Linux package parity',
-        '',
-        f'{complete}/{total} tasks complete; {summary["remaining"]} remaining.',
-        '',
-        '| Format | Check | Item | Status |',
-        '| --- | --- | --- | --- |',
-    ]
-    for item in report['tasks']:
-        lines.append(f'| {item["format"]} | {item["check"]} | {item["item"]} | {item["status"]} |')
-    lines.extend(
-        [
-            '',
-            '## File counts',
-            '',
-            '| Format | Match | Missing in Bazel | Extra in Bazel | Mismatch |',
-            '| --- | --- | --- | --- | --- |',
-        ]
-    )
+    print('Bazel Linux package parity')
+    print(f'{complete}/{total} tasks complete; {summary["remaining"]} remaining.')
+    print('\nFile counts:')
     for package in report['packages']:
+        scope = f'{package["product"]}/{package["format"]}/{package["arch"]}'
         if 'files' in package:
-            counts = package['files']
-            lines.append(
-                f'| {package["format"]} | {counts["match"]} | {counts["missing_in_bazel"]} | '
-                f'{counts["extra_in_bazel"]} | {counts["mismatch"]} |'
-            )
+            counts = ', '.join(f'{result}={count}' for result, count in package['files'].items())
+            print(f'  {scope}: {counts}')
         if 'error' in package:
-            lines.extend(['', f'{package["format"]} comparison failed: {package["error"]}'])
+            print(f'  {scope}: comparison failed: {package["error"]}')
+    print('\nChecks:')
     for item in report['tasks']:
+        scope = f'{item["product"]}/{item["format"]}/{item["arch"]}'
+        print(f'  {scope} {item["check"]} {item["item"]}: {item["status"]}')
         if item['differences']:
-            lines.extend(
-                [
-                    '',
-                    f'{item["product"]}/{item["format"]}/{item["arch"]}: {item["title"]}',
-                    json.dumps(item['differences'], indent=2),
-                ]
-            )
-    print('\n'.join(lines))
+            print(json.dumps(item['differences'], indent=2))
 
 
 @task(
