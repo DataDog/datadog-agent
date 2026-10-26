@@ -9,18 +9,19 @@ Date:   Thu Jul 20 13:40:38 2023 +0200
     cgroup. Both cgroup and cgroup2 are supported.
 
 diff --git a/src/common/memusage.c b/src/common/memusage.c
-index 8d75ee09c..f758de16c 100644
+index 8d75ee09c..de7db83f3 100644
 --- a/src/common/memusage.c
 +++ b/src/common/memusage.c
 @@ -46,14 +46,13 @@
  #define GET_VM_FREE_PAGE_COUNT  "vm.stats.vm.v_free_count"
  #define GET_VM_INACT_PAGE_COUNT "vm.stats.vm.v_inactive_count"
  #define GET_VM_ACT_PAGE_COUNT   "vm.stats.vm.v_active_count"
-+#endif /* OS_FREEBSD */
+-
+-#define BYTES_TO_KIB(x) (x >> 10)
+ #endif /* OS_FREEBSD */
  
- #define BYTES_TO_KIB(x) (x >> 10)
--#endif /* OS_FREEBSD */
- 
++#define BYTES_TO_KIB(x) ((x) >> 10)
++
  #if defined(OS_APPLE)
  #include <mach/mach.h>
  #include <sys/sysctl.h>
@@ -55,41 +56,31 @@ index 8d75ee09c..f758de16c 100644
  #define stat_sizet_field(name, stype, sfield)                           \
  	{ (name), &read_common_sizet, (ptrdiff_t)offsetof(stype, sfield) }
  
-@@ -303,14 +322,31 @@ int oscap_sys_memusage(struct sys_memusage *mu)
- 	if (mu == NULL)
- 		return -1;
- #if defined(OS_LINUX)
--	if (read_status(MEMUSAGE_LINUX_SYS_STATUS,
--	                mu, __sys_stat_ptable,
--	                (sizeof __sys_stat_ptable)/sizeof(struct stat_parser)) != 0)
--	{
--		return -1;
-+	// cgroup
-+	size_t cgroup_memory_usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_USAGE);
-+	size_t cgroup_memory_limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT);
-+	if (cgroup_memory_usage != (size_t)-1 && cgroup_memory_limit != (size_t)-1) {
-+		mu->mu_total = BYTES_TO_KIB(cgroup_memory_limit);
-+		mu->mu_realfree = BYTES_TO_KIB(cgroup_memory_limit) - BYTES_TO_KIB(cgroup_memory_usage);
-+	} else {
-+		// cgroup2
-+		size_t cgroup_memory_current = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT);
-+		size_t cgroup_memory_max = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_MAX);
-+		if (cgroup_memory_current != (size_t)-1 && cgroup_memory_max != (size_t)-1) {
-+			mu->mu_total = BYTES_TO_KIB(cgroup_memory_max);
-+			mu->mu_realfree = BYTES_TO_KIB(cgroup_memory_max) - BYTES_TO_KIB(cgroup_memory_current);
-+		} else {
-+			if (read_status(MEMUSAGE_LINUX_SYS_STATUS,
-+			                mu, __sys_stat_ptable,
-+			                (sizeof __sys_stat_ptable)/sizeof(struct stat_parser)) != 0)
-+			{
-+				return -1;
-+			}
-+
-+			mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
-+		}
+@@ -311,6 +330,27 @@ int oscap_sys_memusage(struct sys_memusage *mu)
  	}
  
--	mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
+ 	mu->mu_realfree = mu->mu_free + mu->mu_cached + mu->mu_buffers;
++
++	/*
++	 * A cgroup memory limit below the physical memory bounds the memory
++	 * of the process. cgroup v1 reports a group without a limit as a
++	 * number larger than any memory, and cgroup v2 as "max", which does
++	 * not parse.
++	 */
++	size_t usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_USAGE);
++	size_t limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP_LIMIT);
++	if (usage == (size_t)-1 || limit == (size_t)-1) {
++		usage = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_CURRENT);
++		limit = get_sys_value(MEMUSAGE_LINUX_SYS_CGROUP2_MAX);
++	}
++	if (usage != (size_t)-1 && limit != (size_t)-1 && BYTES_TO_KIB(limit) < mu->mu_total) {
++		size_t room = usage < limit ? BYTES_TO_KIB(limit - usage) : 0;
++
++		mu->mu_total = BYTES_TO_KIB(limit);
++		if (room < mu->mu_realfree)
++			mu->mu_realfree = room;
++	}
++
  #elif defined(OS_FREEBSD)
  	if (freebsd_sys_memusage(mu))
  		return -1;
@@ -133,7 +124,7 @@ index daa29fe57..aa8b9c9f0 100644
  #define OSCAP_TEST_READ_COMMON_SIZET
  #include "memusage.c"
  
-@@ -51,6 +66,96 @@
+@@ -51,6 +66,102 @@
  	return (ret != -1);
  }
  
@@ -149,8 +140,10 @@ index daa29fe57..aa8b9c9f0 100644
 +/*
 + * Each test gives the contents of the cgroup files in bytes, NULL for a
 + * missing file, and the memory oscap_sys_memusage must report in KiB.
-+ * Without a cgroup limit, the memory comes from meminfo, where the free
-+ * memory is MemFree + Cached + Buffers.
++ * The memory comes from meminfo, where the free memory is MemFree +
++ * Cached + Buffers, unless a cgroup limit below MemTotal bounds the total
++ * and the free memory. 9223372036854771712 is how cgroup v1 reports a
++ * group without a limit.
 + */
 +static const struct sys_test {
 +	const char *name;
@@ -165,6 +158,10 @@ index daa29fe57..aa8b9c9f0 100644
 +	{ "cgroup v2", NULL, NULL, "268435456\n", "1073741824\n", 1048576, 786432 },
 +	{ "cgroup v2 max", NULL, NULL, "268435456\n", "max\n", 8000000, 4200000 },
 +	{ "no cgroup", NULL, NULL, NULL, NULL, 8000000, 4200000 },
++	{ "cgroup v1 unlimited", "536870912\n", "9223372036854771712\n", NULL, NULL, 8000000, 4200000 },
++	{ "cgroup v1 above MemTotal", "536870912\n", "17179869184\n", NULL, NULL, 8000000, 4200000 },
++	{ "cgroup v2 above MemTotal", NULL, NULL, "268435456\n", "17179869184\n", 8000000, 4200000 },
++	{ "cgroup v1 usage above limit", "2147487744\n", "2147483648\n", NULL, NULL, 2097152, 0 },
 +};
 +
 +/* Write text to path, or remove path if text is NULL. */
@@ -230,7 +227,7 @@ index daa29fe57..aa8b9c9f0 100644
  int main(int argc, char *argv[])
  {
  	if (!test_basic()) {
-@@ -69,5 +174,11 @@
+@@ -69,5 +180,11 @@
  		fprintf(stderr, "test_errno has failed\n");
  		return 1;
  	}

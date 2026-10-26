@@ -1463,10 +1463,10 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		}
 	}
 
-	// The executable of a host process the host index lacks may belong to a
-	// package installed since the last scan. Its run waits for the scan
-	// indexing it, if the executable is still at its path.
-	if pkg == nil && !replaced && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
+	// The executable or the interpreter of a host process the host index lacks
+	// may belong to a package installed since the last scan. Its run waits for
+	// the scan indexing it, if the file is still at its path.
+	if pkg == nil && !replaced && sbom.ContainerID == "" && runs(pc, file) {
 		r.addHostMiss(pc, file)
 	}
 
@@ -1493,6 +1493,13 @@ func (r *Resolver) latches(d *Data, previous, now time.Time) bool {
 // UID, as a setuid-root binary run by another user does.
 func runsAsRoot(pc *model.ProcessContext) bool {
 	return pc.UID == 0 || pc.EUID == 0
+}
+
+// runs reports whether the process of pc runs file: its executable, or the
+// interpreter of its script.
+func runs(pc *model.ProcessContext, file *model.FileEvent) bool {
+	return file.PathnameStr == pc.Process.FileEvent.PathnameStr ||
+		pc.Process.HasInterpreter() && file.PathnameStr == pc.Process.LinuxBinprm.FileEvent.PathnameStr
 }
 
 // LookupPackage returns the package that owns file, as ResolvePackage does,
