@@ -292,7 +292,10 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+# Use jemalloc for native allocations while preserving the syscall compatibility wrapper.
+# Set LD_PRELOAD=/opt/lib/nosys.so at runtime to disable jemalloc.
+ENV LD_PRELOAD=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so.2 \
+    MALLOC_CONF=background_thread:true,dirty_decay_ms:5000
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh
