@@ -74,6 +74,8 @@ func startHelper(logger log.Component, params *helperParams) error {
 		return err
 	}
 	logger.Infof("starting the rshell privileged helper on %s", params.socketPath)
+	// exec discards whatever the logger has not written yet.
+	logger.Flush()
 	args := []string{"sh", "-c", fmt.Sprintf(helperTrampoline, socket.Fd()), "sh",
 		params.helperPath, "privileged-helper", "--policy=" + params.policyPath, "--idle-timeout=0"}
 	// The helper runs commands with an empty environment; pass it nothing

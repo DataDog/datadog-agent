@@ -184,7 +184,8 @@ func (s *packageAgentSuite) TestPrivilegedRshellHelperLifecycle() {
 	s.host.Run("sudo systemctl restart " + agentUnit)
 	s.assertRshellHelper(true)
 	s.Equal("dd-agent:dd-agent 600 socket", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a %F' "+rshellSocketPath)))
-	s.Equal("root:root 755", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a' "+rshellSocketDir)),
+	// systemd creates the directory with the unit's Group=dd-agent.
+	s.Equal("root:dd-agent 755", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a' "+rshellSocketDir)),
 		"dd-agent must reach the socket but not replace it")
 	s.False(s.socketExists(rshellLegacySocketPath))
 	// The launcher replaced itself with the rshell helper, which keeps real
