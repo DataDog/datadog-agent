@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -74,6 +75,39 @@ func TestReadDownloaderResult(t *testing.T) {
 			assert.Equal(t, tt.expected, readDownloaderResult(path))
 		})
 	}
+}
+
+// Pins the contract with the downloader: the option that requests the summary, and the summary's
+// fields, which are reported even though the downloader prints only the wheel path.
+func TestDownloadWheelReturnsDownloaderSummary(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake downloader is a shell script")
+	}
+	oldRootDir := rootDir
+	t.Cleanup(func() { rootDir = oldRootDir })
+	rootDir = t.TempDir()
+
+	wheel := filepath.Join(rootDir, "datadog_postgres-18.0.0-py3-none-any.whl")
+	require.NoError(t, os.WriteFile(wheel, nil, 0o600))
+	// A downloader that fell back to v1 because v2 was unreachable.
+	fakePython := filepath.Join(rootDir, getRelPyPath())
+	require.NoError(t, os.MkdirAll(filepath.Dir(fakePython), 0o755))
+	script := `#!/bin/sh
+while [ $# -gt 0 ]; do
+  if [ "$1" = "--result-file" ]; then
+    echo '{"repository": "v1", "v2_failure": "network error"}' > "$2"
+  fi
+  shift
+done
+echo "` + wheel + `"
+`
+	require.NoError(t, os.WriteFile(fakePython, []byte(script), 0o755))
+
+	path, result, err := downloadWheel(&cliParams{}, "datadog-postgres", "18.0.0", "core")
+
+	require.NoError(t, err)
+	assert.Equal(t, wheel, path)
+	assert.Equal(t, downloaderResult{Repository: "v1", V2Failure: "network error"}, result)
 }
 
 // An unreachable intake must never hold the install for longer than the send budget.
