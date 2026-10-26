@@ -62,6 +62,13 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+    enum:
+    - basic
+    - full
+    - end_user_device
+    - cloud_cost_only
+    - none
+    - null
   dd_url:
     node_type: setting
     type: string
@@ -78,6 +85,7 @@ properties:
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
     tags:
     - template_section:Common
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   proxy:
     node_type: section
     type: object
@@ -1181,6 +1189,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                description: Flag to use the v3 API for the metrics series payload.
       logs:
         node_type: section
         type: object
@@ -1293,6 +1302,8 @@ properties:
     - template_section:Agent
     - full-agent-only:true
     comment: Go_expvar server port
+    minimum: 1
+    maximum: 65535
   cmd_port:
     node_type: setting
     type: integer
@@ -1301,6 +1312,8 @@ properties:
     description: The port on which the IPC api listens.
     tags:
     - template_section:Agent
+    minimum: 1
+    maximum: 65535
   GUI_port:
     node_type: setting
     type: integer
@@ -1359,6 +1372,8 @@ properties:
     tags:
     - golang_type:int64
     - template_section:Agent
+    minimum: 1
+    maximum: 1000
   enable_metadata_collection:
     node_type: setting
     type: boolean
@@ -2145,6 +2160,7 @@ properties:
             visibility: public
             description: The `workers` refers to the number of concurrent workers
               available for synthetics tests execution.
+            minimum: 1
           flush_interval:
             node_type: setting
             type: string
@@ -2268,6 +2284,8 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: 'Notice: 0 means UDP port closed'
+    minimum: 1
+    maximum: 65535
   dogstatsd_require_listener:
     node_type: setting
     type: boolean
@@ -2427,6 +2445,8 @@ properties:
     description: The port for the go_expvar server.
     tags:
     - template_section:Dogstatsd
+    minimum: 1
+    maximum: 65535
   dogstatsd_so_rcvbuf:
     node_type: setting
     type: integer
@@ -3055,6 +3075,8 @@ properties:
       Set to 0 to not limit the number of files to create.
     tags:
     - template_section:Logging
+    minimum: 0
+    maximum: 1000
   log_to_syslog:
     node_type: setting
     type: boolean
@@ -6579,6 +6601,7 @@ properties:
           Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
           and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
           to also be true.
+        description: Flag to enable or disable Data Security.
       enforce_ssl:
         node_type: setting
         type: boolean
@@ -7402,6 +7425,7 @@ properties:
         type: boolean
         default: true
         comment: 'Serializer: allow user to blacklist any kind of payload to be sent'
+        description: Flag to enable or disable events payloads.
       json_to_v1_intake:
         node_type: setting
         type: boolean
@@ -7410,14 +7434,17 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable series payloads.
       service_checks:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable service checks payloads.
       sketches:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable sketches payloads.
   enabled_rfc1123_compliant_cluster_name_tag:
     node_type: setting
     type: boolean
@@ -7710,6 +7737,9 @@ properties:
     type: integer
     default: 0
     comment: in seconds, 0 means disabled
+    minimum: 0
+    description: Interval in seconds after which forwarder connections to Datadog are
+      reset. 0 disables the reset.
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
@@ -9447,6 +9477,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        description: Flag to enable or disable shared library checks.
       library_folder_path:
         node_type: setting
         type: string
@@ -9700,6 +9731,8 @@ properties:
     comment: |-
       If true, then new version of disk v2 check will be used.
       Otherwise, the python version of disk check will be used.
+    description: Flag to enable or disable the Go core disk check. When disabled, the
+      Python disk check is used instead.
   use_improved_cgroup_parser:
     node_type: setting
     type: boolean
@@ -9718,6 +9751,8 @@ properties:
       the darwin and bsd network check has not been ported from python
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
+    description: Flag to enable or disable the Go core network check. When disabled, the
+      Python network check is used instead.
   use_v2_api:
     node_type: section
     type: object
