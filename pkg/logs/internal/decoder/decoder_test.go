@@ -180,7 +180,6 @@ func TestDecoderMultilineKeepsIngestionTimestampOfUnparsedLastLine(t *testing.T)
 			}
 			d := InitializeDecoderForTest(sources.NewLogSource("", c), tt.parser)
 			d.Start()
-			defer d.Stop()
 
 			for _, line := range tt.lines {
 				d.InputChan() <- NewInput(line)
@@ -189,6 +188,10 @@ func TestDecoderMultilineKeepsIngestionTimestampOfUnparsedLastLine(t *testing.T)
 			output := <-d.OutputChan()
 			assert.True(t, strings.HasPrefix(string(output.GetContent()), "1234 hello"))
 			assert.Positive(t, output.IngestionTimestamp)
+
+			d.Stop()
+			for range d.OutputChan() {
+			}
 		})
 	}
 }
