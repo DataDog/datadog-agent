@@ -110,9 +110,7 @@ func GetIdentityFilePath(cfg configModel.Reader) string {
 	}
 	// similarly to pkg/api/security/cert/cert_getter.go we also check if auth_token_file_path as a fallback since customers would probably want these files to be next to each other
 	if cfg.GetString("auth_token_file_path") != "" {
-		dest := filepath.Join(filepath.Dir(cfg.GetString("auth_token_file_path")), defaultIdentityFileName)
-		log.Warnf("IPC cert/key created or retrieved next to auth_token_file_path location: %v", dest)
-		return dest
+		return filepath.Join(filepath.Dir(cfg.GetString("auth_token_file_path")), defaultIdentityFileName)
 	}
 	return filepath.Join(filepath.Dir(cfg.ConfigFileUsed()), defaultIdentityFileName)
 }

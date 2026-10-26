@@ -62,10 +62,6 @@ func TestGenerationIsUpToDate(t *testing.T) {
 	fixtures.AssertEqualFS(t, currentGeneratedFS, newGeneratedFS)
 }
 
-// TestProcessesEnvVarsDefinedInProcmgrService tests that every environment
-// variable referenced in a gen/pm/processes.d/*.yaml process definition
-// is defined in every gen/pm/*/datadog-agent-procmgr.service context that
-// starts the process manager responsible for running that process.
 func TestPARInitialStartupIsCoreOwned(t *testing.T) {
 	for _, tc := range []struct {
 		name, restart string
@@ -93,6 +89,10 @@ func TestParControlUsesActiveConfigDirForFleetPolicies(t *testing.T) {
 	assert.Contains(t, string(process), "DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable")
 }
 
+// TestProcessesEnvVarsDefinedInProcmgrService tests that every environment
+// variable referenced in a gen/pm/processes.d/*.yaml process definition
+// is defined in every gen/pm/*/datadog-agent-procmgr.service context that
+// starts the process manager responsible for running that process.
 func TestProcessesEnvVarsDefinedInProcmgrService(t *testing.T) {
 	processesDir, err := fs.Sub(genFS, "gen/pm/processes.d")
 	assert.NoError(t, err)
