@@ -88,12 +88,6 @@ def build_tags(**values: str) -> list[str]:
     return tags
 
 
-def should_submit(dry_run: bool = False) -> bool:
-    return not dry_run and (
-        os.environ.get('CI_COMMIT_BRANCH') == 'main' or os.environ.get('BAZEL_PARITY_SUBMIT') == 'true'
-    )
-
-
 def metric_values(report: dict) -> list[dict]:
     metrics = []
     for item in report['tasks']:
@@ -126,7 +120,7 @@ def metric_values(report: dict) -> list[dict]:
 
 
 def submit_metrics(report: dict, dry_run: bool) -> None:
-    if not should_submit(dry_run):
+    if dry_run or (os.environ.get('CI_COMMIT_BRANCH') != 'main' and os.environ.get('BAZEL_PARITY_SUBMIT') != 'true'):
         print(f'Dry run: {len(report["metrics"])} metrics; nothing submitted.')
         return
     timestamp = int(time.time())

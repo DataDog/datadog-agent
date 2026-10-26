@@ -2,8 +2,6 @@ bazel_parity_check:
   stage: functional_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  rules:
-    - when: on_success
   needs:
     - agent_deb-x64-a7
     - agent_rpm-x64-a7

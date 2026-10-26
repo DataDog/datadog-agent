@@ -2,15 +2,12 @@ bazel:package:linux-amd64:
   extends: .bazel:runner:linux-amd64
   stage: packaging
   needs: ["setup_agent_version"]
-  rules:
-    - when: on_success
   script:
     # Use the same cached pipeline version as omnibus instead of the localbuild fallback.
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
     - bazel build --remote_download_outputs=toplevel //packages/agent/linux:debian //packages/agent/linux:rpm
-    # Copy the named outputs; Bazel also exposes constant-name symlinks which
-    # would otherwise produce duplicate package pairs in downloaded artifacts.
+    # Copy one versioned package per format for the parity check.
     - mkdir -p bazel-packages
     # CI disables Bazel's convenience symlinks, including bazel-bin.
     - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
