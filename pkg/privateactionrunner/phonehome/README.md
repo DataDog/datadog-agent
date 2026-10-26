@@ -1,17 +1,17 @@
-# RC- and AAA-gated PAR startup POC
+# RC- and AAA-gated PAR startup
 
-The core Agent combines an RC startup gate with AAA scope discovery through
-`GET /api/v2/validate`: after RC's last successful `Enabled && Authorized`, require
-`private_action_runner_enroll` before **every new PAR start**, including a stopped
-runner with a saved identity. Neither gate changes Go enrollment/persistence/retries
-or Rust bootstrap. Running children and potential credential holders are left alone.
+Core Agent owns the initial startup of packaged Linux host split-mode PAR. After RC's
+last successful `Enabled && Authorized`, AAA `GET /api/v2/validate` must confirm
+`private_action_runner_enroll` before core starts PAR, including a stopped runner with
+a saved identity. Neither gate changes Go enrollment/persistence/retries or Rust
+bootstrap. Running children and potential credential holders are left alone.
 
 The worker is enabled by `private_action_runner.enabled` on non-Windows platforms;
-there is no separate phone-home opt-in. Startup remains restricted to a specially
-configured Linux node-Agent POC. **Ordinary packages are not gated:** shipping
-`par-control` registrations still auto-start. Without the required configuration,
-the worker reports a blocked state rather than changing existing startup behavior.
-Use a separate test supervisor, not an overlay on a running installation.
+there is no separate phone-home opt-in. Linux process-manager packages register both PAR children
+without auto-start. Core starts the Rust control plane after its prerequisites pass;
+Rust's existing bootstrap starts the Go executor. Monolithic startup, Windows and
+container registrations are unchanged. Unsupported configurations report a blocked
+state; they do not cause core to launch or stop a monolithic runner.
 
 ## Configuration
 
@@ -20,13 +20,18 @@ Use a separate test supervisor, not an overlay on a running installation.
   site, proxy, secrets and user. RC-specific credentials/unsupported endpoint overrides
   and extra PAR config files are not supported. Live credential/endpoint changes need
   a coordinated restart.
-- Absolute `private_action_runner.identity_file_path` and `DD_PM_SOCKET_PATH` in core.
-- Both child registrations must have `auto_start: false`, `restart: never`.
-  Explicitly pass `DD_PM_SOCKET_PATH` to children; supervisor environment is not
-  automatically inherited. Example registrations are under `testdata/processes.d`.
-- Set `DD_PAR_POC_BIN` to the packaged binary directory and `DD_PAR_POC_DIR` to an
-  isolated configuration/IPC directory, with `DD_PM_SOCKET_PATH=$DD_PAR_POC_DIR/procmgr.sock`.
-  Configure the same executor socket and IPC certificate in core/PAR config.
+- The standard supervisor socket is `/var/run/datadog-procmgrd/dd-procmgrd.sock`.
+  `DD_PM_SOCKET_PATH` may override it with an absolute path. If overridden, configure
+  the same socket for core, supervisor and children; the supervisor environment is
+  not automatically inherited by children.
+- Identity location uses the existing enrollment resolver: explicit
+  `private_action_runner.identity_file_path`, otherwise next to `auth_token_file_path`
+  when configured, otherwise next to `datadog.yaml`. The resolved path must be absolute.
+- Both child registrations have `auto_start: false`. The Rust control plane retains
+  `restart: on-failure` and its existing backoff; the executor retains `restart: never`.
+  `restart: never` is also accepted for control-plane tests without automatic recovery.
+- Optional isolated test registrations live under `testdata/processes.d`; they are not
+  required for normal package startup. Core and executor must use matching configuration.
 - For fresh enrollment, enable ordinary PAR API-key self-enrollment. Existing identities
   are handled by the existing PAR bootstrap, not by the gate.
 
@@ -34,25 +39,30 @@ Use a separate test supervisor, not an overlay on a running installation.
 
 RC nil/false waits without starting PAR or calling AAA. A later positive RC response
 allows AAA discovery without a core restart; a PAR-scope grant then permits startup. Failed RC polls retain the last successful response indefinitely;
-this POC adds no freshness framework. The gate checks RC again immediately before Start.
+the gate adds no RC freshness framework. The gate checks RC again immediately before Start.
 
 There is **at most one Start RPC per core process lifetime**. Acknowledgement means only
 that startup was handed to the supervisor, not that enrollment or action readiness succeeded.
 After a successful or ambiguous Start, this controller does not retry or monitor enrollment.
-A failed/exited child requires operator review; already-active children are left untouched.
-It never stops an action-serving PAR or a process that might hold credentials.
+Already-active children are left untouched. After handoff, the supervisor owns
+control-plane crash recovery, without rechecking RC/AAA. Rust owns subsequent executor
+starts. Core never stops an action-serving PAR or a process that might hold credentials.
+A failed/exited child observed before handoff requires operator review.
 
 The existing enrollment implementation retains its own retry/persistence behavior and its
-existing limitations on ambiguous network failures. The startup gate adds no enrollment POST
+existing limitations on ambiguous network failures. The gate adds no new enrollment POST
 retry, journal, idempotency promise or credential-recovery policy. An operator restart can
 re-arm the gate: reconcile any possibly committed enrollment before manually retrying. The
-provided supervisor and core QA unit must not independently restart failed attempts.
+control-plane on-failure policy can re-enter the existing bootstrap/enrollment path;
+this is unchanged crash-recovery behavior, not an enrollment idempotency guarantee.
+Restart core after a supervisor daemon restart: the one-shot gate
+does not monitor or re-arm itself for recreated supervisor registrations.
 
 Old POC `.phone-home` attempt journals block new startup rather than silently discarding
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
 
 Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
-When the POC is enabled, `datadog-agent status` also reports the startup-gate state,
+When PAR is enabled, `datadog-agent status` also reports the startup-gate state,
 reason and next check in JSON, text and HTML.
 
 ## AAA discovery
@@ -67,11 +77,11 @@ Nil discovery fails closed, rather than restoring the RC-only behavior accidenta
 Discovery ends when core hands startup to the supervisor, not when enrollment is
 confirmed. The established Go enrollment path owns everything after that handoff.
 A subsequent deliberate core restart with stopped children requires fresh AAA approval,
-even with a saved identity. No post-enrollment revocation or automatic relaunch is added.
+even with a saved identity. No post-enrollment revocation or core-owned automatic relaunch is added.
 
 ## COAT diagnostics
 
-The opted-in core component records `par_phone_home.state` (a gauge) and
+The core component records `par_phone_home.state` (a gauge) and
 `par_phone_home.transitions` (a counter), with only `state` and `reason` labels.
 The gauge is one-hot: the previous pair is set to zero. The counter counts entries,
 including the initial observation and re-entry, not repeated polls or next-check changes.

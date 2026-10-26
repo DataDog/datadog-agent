@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    Show startup-gate progress and the next prerequisite check in the Private
-    Action Runner section of ``datadog-agent status`` when the phone-home proof
-    of concept is enabled. Startup handoff does not imply enrollment or action
-    readiness.
+    Initial startup of Linux host split-mode Private Action Runner now waits
+    for Remote Configuration to be enabled for the organization and for the
+    API key to have the required Remote Configuration and PAR enrollment
+    permissions. ``datadog-agent status`` reports the startup state and reason.

@@ -43,7 +43,7 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, gauges, 1)
 	require.Equal(t, float64(1), gauges[0].Value())
-	require.Equal(t, map[string]string{"state": "blocked", "reason": "unsupported_poc_configuration"}, gauges[0].Tags())
+	require.Equal(t, map[string]string{"state": "blocked", "reason": "unsupported_configuration"}, gauges[0].Tags())
 	counts, err := tel.GetCountMetric("par_phone_home", "transitions")
 	require.NoError(t, err)
 	require.Len(t, counts, 1)

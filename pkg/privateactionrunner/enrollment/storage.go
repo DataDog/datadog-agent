@@ -47,7 +47,7 @@ func RotateIdentity(ctx context.Context, cfg configModel.Reader, result *Result)
 
 // getIdentityFromFile returns the identity of the private action runner from the identity file. Returns nil if the identity file does not exist
 func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
-	filePath := getIdentityFilePath(cfg)
+	filePath := GetIdentityFilePath(cfg)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -74,7 +74,7 @@ func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
 
 // persistIdentityToFile saves the enrollment result to the identity file
 func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
-	filePath := getIdentityFilePath(cfg)
+	filePath := GetIdentityFilePath(cfg)
 
 	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
 	if err != nil {
@@ -103,8 +103,8 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 	return nil
 }
 
-// getIdentityFilePath returns the path to the file which contains the identity of the private action runner when doing self-enrollment
-func getIdentityFilePath(cfg configModel.Reader) string {
+// GetIdentityFilePath returns the path used to persist the runner's self-enrollment identity.
+func GetIdentityFilePath(cfg configModel.Reader) string {
 	if configPath := cfg.GetString(par.IdentityFilePath); configPath != "" {
 		return configPath
 	}
