@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // kubeGroups declares the "kube" runner group claiming the kube-family checks.
@@ -122,4 +125,87 @@ func TestAddWithNoGroupWorkerDangles(t *testing.T) {
 	d.store.RUnlock()
 
 	requireNotLocked(t, d.store)
+}
+
+// rebalanceWorker is a CLC runner registered by newRebalanceDispatcher, with
+// the cluster checks it currently runs (check ID -> check name).
+type rebalanceWorker struct {
+	name   string
+	group  string
+	checks map[string]string
+}
+
+// newRebalanceDispatcher returns a dispatcher ready for the utilization
+// rebalance, with the given runner groups declared and each worker registered
+// with its checks placed on it. Every check costs 3s per 15s interval, so a
+// runner holding two is the busiest.
+func newRebalanceDispatcher(t *testing.T, groups string, workers ...rebalanceWorker) *dispatcher {
+	t.Helper()
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
+	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", true)
+
+	d := newGroupDispatcher(t, groups)
+	mockClient := &rebalanceTestClcRunnerClient{testStats: make(map[string]types.CLCRunnersStats)}
+	d.clcRunnersClient = mockClient
+	d.advancedDispatching.Store(true)
+	d.store.active = true
+
+	for i, w := range workers {
+		ip := fmt.Sprintf("10.0.0.%d", i+1)
+		registerWorker(t, d, w.name, ip, types.NodeTypeCLCRunner, w.group)
+
+		stats := types.CLCRunnersStats{}
+		d.store.Lock()
+		for id, checkName := range w.checks {
+			stats[id] = types.CLCRunnerStats{AverageExecutionTime: 3000, IsClusterCheck: true}
+			digest := "digest-" + id
+			d.store.idToDigest[checkid.ID(id)] = digest
+			d.store.digestToConfig[digest] = integration.Config{Name: checkName}
+			d.store.digestToNode[digest] = w.name
+		}
+		d.store.nodes[w.name].workers = constants.DefaultNumWorkers
+		d.store.nodes[w.name].clcRunnerStats = stats
+		d.store.Unlock()
+		mockClient.testStats[ip] = stats
+	}
+	return d
+}
+
+// placement returns the current node of each digest.
+func placement(d *dispatcher) map[string]string {
+	d.store.RLock()
+	defer d.store.RUnlock()
+	return maps.Clone(d.store.digestToNode)
+}
+
+// TestRebalanceUsingUtilizationRespectsGroups verifies that the utilization
+// rebalance spreads each group's checks only among that group's runners.
+func TestRebalanceUsingUtilizationRespectsGroups(t *testing.T) {
+	// kube checks all on kube1 and http checks all on general1 (both
+	// overloaded), kube2 and general2 idle.
+	d := newRebalanceDispatcher(t, `{"kube":["kube_check"]}`,
+		rebalanceWorker{"kube1", "kube", map[string]string{"kube_a": "kube_check", "kube_b": "kube_check"}},
+		rebalanceWorker{"kube2", "kube", nil},
+		rebalanceWorker{"general1", "", map[string]string{"http_a": "http_check", "http_b": "http_check"}},
+		rebalanceWorker{"general2", "", nil},
+	)
+
+	checksMoved := d.rebalanceUsingUtilization(false)
+	requireNotLocked(t, d.store)
+
+	nodes := placement(d)
+	for _, digest := range []string{"digest-kube_a", "digest-kube_b"} {
+		assert.Contains(t, []string{"kube1", "kube2"}, nodes[digest])
+	}
+	for _, digest := range []string{"digest-http_a", "digest-http_b"} {
+		assert.Contains(t, []string{"general1", "general2"}, nodes[digest])
+	}
+
+	moved := map[string]bool{}
+	for _, m := range checksMoved {
+		moved[m.Digest] = true
+	}
+	// The overloaded runners were relieved: at least one move per group.
+	assert.True(t, moved["digest-kube_a"] || moved["digest-kube_b"])
+	assert.True(t, moved["digest-http_a"] || moved["digest-http_b"])
 }
