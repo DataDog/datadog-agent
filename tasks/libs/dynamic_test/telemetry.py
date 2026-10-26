@@ -97,6 +97,23 @@ class TelemetryHandler(ABC):
         pass
 
 
+class ConsoleTelemetryHandler(TelemetryHandler):
+    """Report evaluation events locally without publishing events or metrics."""
+
+    def send_event(self, event: TelemetryEvent) -> bool:
+        print(f"{event.title}: {event.text}")
+        return True
+
+    def send_metric(self, metric: TelemetryMetric) -> bool:
+        return True
+
+    def count(self, name: str, value: int | float = 1, tags: list[str] | None = None) -> bool:
+        return True
+
+    def gauge(self, name: str, value: int | float = 1, tags: list[str] | None = None) -> bool:
+        return True
+
+
 class DatadogTelemetryHandler(TelemetryHandler):
     """Datadog implementation of TelemetryHandler using existing datadog_api functions."""
 

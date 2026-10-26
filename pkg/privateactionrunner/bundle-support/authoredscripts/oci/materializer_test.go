@@ -60,8 +60,36 @@ func TestMaterializerMaterialize(t *testing.T) {
 	}, destination)
 
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	artifact := authoredscripts.LocalArtifact{Directory: destination}
+	_, err = os.Stat(filepath.Join(artifact.ScriptDirectory(), "executable.sh"))
 	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestMaterializerMaterializeWithExtension(t *testing.T) {
+	server := fixtures.NewServer(t)
+	packageURL := server.PackageURL(fixtures.FixtureSimpleV1WithExtension)
+	digest := packageURL[strings.LastIndex(packageURL, "@sha256:")+len("@sha256:"):]
+	materializer, err := NewMaterializer(&installerenv.Env{}, server.Client())
+	require.NoError(t, err)
+	destination := t.TempDir()
+
+	err = materializer.Materialize(context.Background(), authoredscripts.Descriptor{
+		Package: fixtures.FixtureSimpleV1WithExtension.Package,
+		Version: fixtures.FixtureSimpleV1WithExtension.Version,
+		URL:     packageURL,
+		SHA256:  digest,
+	}, destination)
+
+	require.NoError(t, err)
+	artifact := authoredscripts.LocalArtifact{Directory: destination}
+	_, err = os.Stat(filepath.Join(artifact.ScriptDirectory(), "executable.sh"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(artifact.DependencyDirectory("simple-extension"), "extension.sh"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(artifact.ScriptDirectory(), "extension.sh"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestMaterializerRejectsPackageMetadataBeforeExtraction(t *testing.T) {

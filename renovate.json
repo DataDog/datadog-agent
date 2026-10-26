@@ -78,6 +78,11 @@
         "groupName": "prost/tonic protobuf stack"
       },
       {
+        "matchManagers": ["cargo"],
+        "matchDepNames": ["datadog-agent-commons", "saluki-tls"],
+        "groupName": "saluki"
+      },
+      {
         "matchManagers": ["npm"],
         "enabled": false
       },
@@ -111,6 +116,21 @@
         "enabled": false
       },
       {
+        "description": "kube-state-metrics is replaced by the DataDog fork, synced with upstream by upstream-chaser: bumping the upstream require is a no-op. Remove this rule and the next one together with the replace in go.mod",
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["k8s.io/kube-state-metrics{,/v*}"],
+        "enabled": false
+      },
+      {
+        "description": "Bump the replace to the DataDog fork tags (vX.Y.<upstream patch+1>-dd.N), which are semver pre-releases",
+        "matchManagers": ["gomod"],
+        "matchDepTypes": ["replace"],
+        "matchDepNames": ["github.com/DataDog/kube-state-metrics{,/v*}"],
+        "allowedVersions": "/^v\\d+\\.\\d+\\.\\d+-dd\\.\\d+$/",
+        "ignoreUnstable": false,
+        "enabled": true
+      },
+      {
         "description": "Disable when pinned on a commit (->forks)",
         "matchManagers": ["gomod"],
         "matchUpdateTypes": ["digest"],
@@ -120,6 +140,12 @@
         "description": "DBMON-6923: paused pending a product decision on Oracle version support",
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/sijms/go-ora{,/v*}"],
+        "enabled": false
+      },
+      {
+        "description": "Test programs built with the oldest supported Go toolchain (tasks/system_probe.py) pin compatible dd-trace-go versions",
+        "matchManagers": ["gomod"],
+        "matchFileNames": ["pkg/dyninst/testprogs/**"],
         "enabled": false
       },
       {
@@ -205,11 +231,6 @@
           "supply_chain_tools"
         ],
         "enabled": false
-      },
-      {
-        "matchManagers": ["bazel-module"],
-        "matchDepNames": ["rules_rust", "rules_rust_prost"],
-        "groupName": "rules_rust"
       },
       {
         "matchManagers": ["bundler"],

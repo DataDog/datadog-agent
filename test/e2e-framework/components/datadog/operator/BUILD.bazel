@@ -32,6 +32,7 @@ dd_agent_go_test(
     name = "operator_test",
     srcs = ["helm_test.go"],
     embed = [":operator"],
+    tags = ["go_link:enormous"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/utils",

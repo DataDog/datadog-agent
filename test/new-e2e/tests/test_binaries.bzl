@@ -13,6 +13,7 @@ TEST_BINARIES = {
     "//test/new-e2e/tests/agent-log-pipelines/linux-log/journald:journald_test": "tests-agent-log-pipelines-linux-log-journald.test",
     "//test/new-e2e/tests/agent-log-pipelines/listener:listener_test": "tests-agent-log-pipelines-listener.test",
     "//test/new-e2e/tests/agent-log-pipelines/windows-log/file-tailing:file-tailing_test": "tests-agent-log-pipelines-windows-log-file-tailing.test",
+    "//test/new-e2e/tests/agent-log-pipelines/windows-log/registry-durability:registry-durability_test": "tests-agent-log-pipelines-windows-log-registry-durability.test",
     "//test/new-e2e/tests/agent-metric-pipelines/dogstatsd-unit:dogstatsd-unit_test": "tests-agent-metric-pipelines-dogstatsd-unit.test",
     "//test/new-e2e/tests/agent-metric-pipelines/expected-tags:expected-tags_test": "tests-agent-metric-pipelines-expected-tags.test",
     "//test/new-e2e/tests/agent-metric-pipelines/jmxfetch:jmxfetch_test": "tests-agent-metric-pipelines-jmxfetch.test",

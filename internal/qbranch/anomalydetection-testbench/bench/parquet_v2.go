@@ -410,11 +410,12 @@ func streamMetricFileV2(filePath string, contexts map[uint64]contextEntryV2, fn 
 			}
 
 			if err := fn(recorderdef.MetricData{
-				Source:    source,
-				Name:      entry.Name,
-				Value:     val,
-				Timestamp: tsNs / 1_000_000_000,
-				Tags:      entry.Tags, // shared; do not mutate
+				Source:     source,
+				Name:       entry.Name,
+				Value:      val,
+				Timestamp:  tsNs / 1_000_000_000,
+				Tags:       entry.Tags, // shared; do not mutate
+				SampleRate: 1,
 			}); err != nil {
 				return err
 			}

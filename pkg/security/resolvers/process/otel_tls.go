@@ -68,7 +68,6 @@ type otelV8Layout struct {
 	taggedSize               uint16
 	jsMapTableOffset         uint16
 	orderedHashMapHeaderSize uint16
-	jsObjectRecordOffset     uint16
 }
 
 // otelNodeJSSchemaVersion is one schema version the Node.js writer may
@@ -90,7 +89,6 @@ var otelNodeJSSchemaVersions = []otelNodeJSSchemaVersion{
 			taggedSize:               otelSupportedTaggedSize,
 			jsMapTableOffset:         0x18,
 			orderedHashMapHeaderSize: 0x10,
-			jsObjectRecordOffset:     0x18,
 		},
 	},
 }
@@ -165,8 +163,7 @@ func serializeOTelTLSValue(res otelTLSResolution) []byte {
 	binary.NativeEndian.PutUint16(buf[32:34], res.v8.taggedSize)
 	binary.NativeEndian.PutUint16(buf[34:36], res.v8.jsMapTableOffset)
 	binary.NativeEndian.PutUint16(buf[36:38], res.v8.orderedHashMapHeaderSize)
-	binary.NativeEndian.PutUint16(buf[38:40], res.v8.jsObjectRecordOffset)
-	// buf[40:48] is otel_v8_layout_t._pad, intentionally left zero.
+	// buf[38:48] is otel_v8_layout_t._pad, intentionally left zero.
 	return buf
 }
 

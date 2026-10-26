@@ -235,6 +235,53 @@ func (d *safeDeviceImpl) GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error) {
 	return info, nil
 }
 
+func (d *safeDeviceImpl) GetGpuFabricInfoV3() (nvml.GpuFabricInfo_v3, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuFabricInfoV")); err != nil {
+		return nvml.GpuFabricInfo_v3{}, err
+	}
+	handler := d.nvmlDevice.GetGpuFabricInfoV()
+	return getGpuFabricInfoV3(handler.V3, handler.V2)
+}
+
+// getGpuFabricInfoV3 isolates the versioned NVML calls, whose concrete handler
+// cannot be mocked, so the V2 fallback can be tested without hardware.
+func getGpuFabricInfoV3(getV3 func() (nvml.GpuFabricInfo_v3, nvml.Return), getV2 func() (nvml.GpuFabricInfo_v2, nvml.Return)) (nvml.GpuFabricInfo_v3, error) {
+	info, ret := getV3()
+	if ret == nvml.ERROR_ARGUMENT_VERSION_MISMATCH {
+		v2, retV2 := getV2()
+		info = nvml.GpuFabricInfo_v3{ClusterUuid: v2.ClusterUuid, Status: v2.Status, CliqueId: v2.CliqueId, State: v2.State, HealthMask: v2.HealthMask}
+		ret = retV2
+	}
+	if err := NewNvmlAPIErrorOrNil("GetGpuFabricInfoV", ret); err != nil {
+		return nvml.GpuFabricInfo_v3{}, err
+	}
+	return info, nil
+}
+
+func (d *safeDeviceImpl) GetPlatformInfo() (nvml.PlatformInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetPlatformInfo")); err != nil {
+		return nvml.PlatformInfo{}, err
+	}
+	info, ret := d.nvmlDevice.GetPlatformInfo()
+	return info, NewNvmlAPIErrorOrNil("GetPlatformInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetNumaNodeId() (int, error) { //nolint:revive // Maintaining consistency with go-nvml API naming
+	if err := d.lib.lookup(toNativeName("GetNumaNodeId")); err != nil {
+		return 0, err
+	}
+	node, ret := d.nvmlDevice.GetNumaNodeId()
+	return node, NewNvmlAPIErrorOrNil("GetNumaNodeId", ret)
+}
+
+func (d *safeDeviceImpl) GetSerial() (string, error) {
+	if err := d.lib.lookup(toNativeName("GetSerial")); err != nil {
+		return "", err
+	}
+	serial, ret := d.nvmlDevice.GetSerial()
+	return serial, NewNvmlAPIErrorOrNil("GetSerial", ret)
+}
+
 func (d *safeDeviceImpl) GetIndex() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
 		return 0, err
@@ -545,6 +592,16 @@ func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, er
 	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
 }
 
+func (d *safeDeviceImpl) GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error) {
+	// The Go binding uses the v4 struct layout, which older versions of the
+	// function would fill incorrectly, so require the _v4 symbol.
+	if err := d.lib.lookup(toNativeName("GetGridLicensableFeatures_v4")); err != nil {
+		return nvml.GridLicensableFeatures{}, err
+	}
+	features, ret := d.nvmlDevice.GetGridLicensableFeatures()
+	return features, NewNvmlAPIErrorOrNil("GetGridLicensableFeatures_v4", ret)
+}
+
 func (d *safeDeviceImpl) GetSupportedEventTypes() (uint64, error) {
 	if err := d.lib.lookup(toNativeName("GetSupportedEventTypes")); err != nil {
 		return 0, err
@@ -567,6 +624,15 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	}
 	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+}
+
+func (d *safeDeviceImpl) GetRetiredPagesCount(cause nvml.PageRetirementCause) (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetRetiredPages_v2")); err != nil {
+		return 0, err
+	}
+	// We only need the number of retired pages, not their addresses
+	addresses, _, ret := d.nvmlDevice.GetRetiredPages_v2(cause)
+	return uint64(len(addresses)), NewNvmlAPIErrorOrNil("GetRetiredPages_v2", ret)
 }
 
 func (d *safeDeviceImpl) GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error) {

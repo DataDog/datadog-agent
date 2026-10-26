@@ -8,6 +8,7 @@ package sbom
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -39,6 +40,8 @@ const (
 	propImageID     = "aquasecurity:trivy:ImageID"
 	propRepoDigest  = "aquasecurity:trivy:RepoDigest"
 	propRepoTag     = "aquasecurity:trivy:RepoTag"
+	propCreated     = "datadog:image:Created"
+	propOSFallback  = "datadog:scan:OSFallback"
 )
 
 // kubeadmSBOMHelmValues builds the Agent Helm values for the SBOM suite on the
@@ -95,6 +98,8 @@ agents:
 
 type kubeadmSuite struct {
 	sbomTargetsSuite[environments.Kubernetes]
+
+	runtime kubeComp.ContainerRuntime
 }
 
 // sbomHostRetentionPeriod overrides fakeintake's 15m default: the host SBOM
@@ -122,7 +127,10 @@ func TestSBOMKubeadmSuite(t *testing.T) {
 			),
 		),
 	)
-	e2e.Run(t, &kubeadmSuite{sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true}}, e2e.WithProvisioner(prov))
+	e2e.Run(t, &kubeadmSuite{
+		sbomTargetsSuite: sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true},
+		runtime:          kubeComp.Containerd,
+	}, e2e.WithProvisioner(prov))
 }
 
 // TestSBOMKubeadmCrioSuite is the CRI-O counterpart of TestSBOMKubeadmSuite: the
@@ -146,7 +154,10 @@ func TestSBOMKubeadmCrioSuite(t *testing.T) {
 			),
 		),
 	)
-	e2e.Run(t, &kubeadmSuite{sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true}}, e2e.WithProvisioner(prov))
+	e2e.Run(t, &kubeadmSuite{
+		sbomTargetsSuite: sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true},
+		runtime:          kubeComp.CRIO,
+	}, e2e.WithProvisioner(prov))
 }
 
 func (s *kubeadmSuite) SetupSuite() {
@@ -164,6 +175,133 @@ func (s *kubeadmSuite) Test00UpAndRunning() {
 		environments.WithAgentReadinessTimeout(10*time.Minute),
 	)
 	s.Require().NoError(err, "Not all agents eventually became ready in time.")
+}
+
+// TestContainerImageLayerCreated verifies that every layer history sent in the
+// container image payloads carries a created time, and that it is not the zero
+// time.
+func (s *kubeadmSuite) TestContainerImageLayerCreated() {
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		names, err := s.Fakeintake.GetContainerImageNames()
+		require.NoErrorf(c, err, "Failed to query fake intake")
+		require.NotEmptyf(c, names, "No container image payload yet")
+
+		checked := 0
+		for _, name := range names {
+			images, err := s.Fakeintake.FilterContainerImages(name)
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			for _, img := range images {
+				for _, layer := range img.GetLayers() {
+					history := layer.GetHistory()
+					if history == nil {
+						continue
+					}
+					checked++
+					if !assert.NotNilf(c, history.GetCreated(), "%s sends layer %s with no created time", name, layer.GetDigest()) {
+						continue
+					}
+					assert.Falsef(c, history.GetCreated().AsTime().IsZero(), "%s sends layer %s created at the zero time", name, layer.GetDigest())
+				}
+			}
+		}
+		assert.NotZerof(c, checked, "No container image payload has a layer with history yet")
+	}, 8*time.Minute, 15*time.Second, "Failed validating the layer created times of the container image payloads")
+}
+
+// TestContainerImageEventsKeepSBOM names an image the Agent has scanned, then
+// removes that name, and checks that every SBOM the Agent sends for the image
+// afterwards comes from the scan it had: no PENDING SBOM and no new scan.
+func (s *kubeadmSuite) TestContainerImageEventsKeepSBOM() {
+	if s.runtime != kubeComp.Containerd {
+		s.T().Skip("names images with ctr, the containerd client")
+	}
+
+	// CoreDNS runs on every kubeadm cluster, and no other test checks its SBOM.
+	const repo = "registry.k8s.io/coredns/coredns"
+	const alias = "sbom-e2e-alias"
+	name := repo + ":" + alias
+	payloads := func(c require.TestingT) []*aggregator.SBOMPayload {
+		ids, err := s.Fakeintake.GetSBOMIDs()
+		require.NoError(c, err, "failed to query the fake intake")
+		var all []*aggregator.SBOMPayload
+		for _, id := range ids {
+			if !strings.HasPrefix(id, repo+"@") {
+				continue
+			}
+			ps, err := s.Fakeintake.FilterSBOMs(id)
+			require.NoError(c, err, "failed to query the fake intake")
+			all = append(all, ps...)
+		}
+		return all
+	}
+
+	var scanned *aggregator.SBOMPayload
+	if !s.EventuallyWithTf(func(c *assert.CollectT) {
+		scanned = nil
+		for _, p := range payloads(c) {
+			if p.Status == sbom.SBOMStatus_SUCCESS && len(p.GetRepoDigests()) > 0 &&
+				(scanned == nil || p.GetCollectedTime().After(scanned.GetCollectedTime())) {
+				scanned = p
+			}
+		}
+		assert.NotNilf(c, scanned, "no successful SBOM of %s yet", repo)
+	}, 10*time.Minute, 15*time.Second, "no successful SBOM of %s", repo) {
+		return
+	}
+	generated := scanned.GetGeneratedAt().AsTime()
+	_, imageID, _ := strings.Cut(scanned.GetId(), "@")
+	s.T().Logf("%s: image %s scanned at %s", repo, imageID, generated)
+
+	// sameScan returns the SBOMs of the image received after scanned, and
+	// checks that they all come from the scan of scanned.
+	sameScan := func(c *assert.CollectT) []*aggregator.SBOMPayload {
+		var later []*aggregator.SBOMPayload
+		for _, p := range payloads(c) {
+			if !p.GetCollectedTime().After(scanned.GetCollectedTime()) {
+				continue
+			}
+			later = append(later, p)
+			assert.Equalf(c, sbom.SBOMStatus_SUCCESS, p.Status, "%s sent a %v SBOM with tags %v", repo, p.Status, p.GetRepoTags())
+			assert.Truef(c, p.GetGeneratedAt().AsTime().Equal(generated), "%s sent an SBOM generated at %s, want %s", repo, p.GetGeneratedAt().AsTime(), generated)
+		}
+		return later
+	}
+
+	t := s.T()
+	shell := startHostShell(t, s.Env())
+	since := hostEpoch(t, s.Env(), shell)
+	t.Cleanup(func() {
+		hostExec(t, s.Env(), shell, "ctr -n k8s.io images rm "+name+" >/dev/null 2>&1 || true")
+	})
+
+	hostExec(t, s.Env(), shell, "ctr -n k8s.io images tag "+scanned.GetRepoDigests()[0]+" "+name)
+	if !s.EventuallyWithTf(func(c *assert.CollectT) {
+		named := lo.Filter(sameScan(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, named, "no SBOM of %s yet", name)
+	}, 5*time.Minute, 10*time.Second, "naming %s changed the SBOM of %s", name, repo) {
+		return
+	}
+
+	hostExec(t, s.Env(), shell, "ctr -n k8s.io images rm "+name)
+	// The image carried the name until its removal, so an SBOM without the
+	// name received after the newest one fakeintake holds now reflects it.
+	var removed time.Time
+	for _, p := range payloads(t) {
+		if p.GetCollectedTime().After(removed) {
+			removed = p.GetCollectedTime()
+		}
+	}
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		unnamed := lo.Filter(sameScan(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return p.GetCollectedTime().After(removed) && !slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, unnamed, "no SBOM of %s since the removal of %s yet", repo, name)
+	}, 5*time.Minute, 10*time.Second, "removing %s changed the SBOM of %s", name, repo)
+
+	log := containerLog(t.Context(), t, s.Env(), "agent", since)
+	assert.NotContainsf(t, log, "containerd scan request ["+imageID+"]", "the Agent scanned %s again", repo)
 }
 
 // expectedComponent describes a meaningful SBOM component to assert on. When name
@@ -191,6 +329,7 @@ type containerTarget struct {
 	tag          string
 	digest       string
 	imageID      string
+	created      string
 	diffIDs      []string
 	layerDigests []string
 	// componentCount is the exact total component count (OS + language) for the
@@ -205,6 +344,7 @@ var containerTargets = []containerTarget{
 		short: "node", repo: "node", tag: "26.2.0",
 		digest:  "sha256:980c5420a7a2ddcb44037726977f2a349e5c7b64217516c7488dce4c74d71583",
 		imageID: "sha256:56122bfdab2ec6ccdfb5353a47d6a5ea08018cac6eb44e6a7cec699bdc038f2f",
+		created: "2026-05-20T20:12:16.038472911Z",
 		diffIDs: []string{
 			"sha256:17d38572a7dcb03eff5bfd7354c717d7ee9c69b9d6a29f523722534201e411f4",
 			"sha256:47dffecc554065cd728ca9db016fb3b7f3b5577dc8964ac34256e3869ada8db9",
@@ -237,6 +377,7 @@ var containerTargets = []containerTarget{
 		short: "golang", repo: "golang", tag: "1.26.3-alpine",
 		digest:  "sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d",
 		imageID: "sha256:b8fbd9862b05789bb9e5462bf7d67300660e2ab5217aeb637b8db103ac45ea21",
+		created: "2026-05-07T17:37:46.445094564Z",
 		diffIDs: []string{
 			"sha256:29df493baa13de438d6d2ece3a8333032e0b7b9b9d8cce4ee82194da255f61e1",
 			"sha256:a044995f677dc855dbd75a95d29117acba23684d7fac58182c25a8dbdd70d8f1",
@@ -267,6 +408,7 @@ var containerTargets = []containerTarget{
 		short: "ubi", repo: "registry.access.redhat.com/ubi9/ubi", tag: "9.8-1780376557",
 		digest:  "sha256:80b1f4c34a7eed1b03a05d12b55768f3e522eef6ec294c6fbd5fa47b6b2892ee",
 		imageID: "sha256:c04f6c0e54326101acce230068ad4783242335106d0ec2322660c0f8dd72089c",
+		created: "2026-06-02T05:04:37.326772648Z",
 		diffIDs: []string{
 			"sha256:470f7d5ad4c7fdffde1c80a31b1722932d09adbd9fec6c41454ac84337d15783",
 		},
@@ -285,6 +427,7 @@ var containerTargets = []containerTarget{
 		short: "python-312", repo: "registry.access.redhat.com/ubi9/python-312", tag: "9.8-1779945122",
 		digest:  "sha256:52d1ffcda3b9552934f947b7d41fb0cb66973bdc0d7e91814facadc126f68663",
 		imageID: "sha256:ad02b9631880f45ec370056476ceb23031d67069b598e50829df5983f95c641f",
+		created: "2026-05-28T05:13:24.95560707Z",
 		diffIDs: []string{
 			"sha256:71275925ca13ef2f569403246b30b57d44ee7fe1d932461993c525a61ecddecd",
 			"sha256:24f9bb9093bd82585055c570f497aceff7363569a71199655e196d8809e68c98",
@@ -310,6 +453,7 @@ var containerTargets = []containerTarget{
 		short: "python", repo: "python", tag: "3.14.5",
 		digest:  "sha256:250e5c97be05e1eb2272fbdbd810dfd638f9012e1e6f65c99390ad3239943a08",
 		imageID: "sha256:f494e154bc1f458228780ebfb2cef8654f0b0e9c860e8bf3ce24fa49f509670a",
+		created: "2026-05-20T02:53:05.550102136Z",
 		diffIDs: []string{
 			"sha256:17d38572a7dcb03eff5bfd7354c717d7ee9c69b9d6a29f523722534201e411f4",
 			"sha256:47dffecc554065cd728ca9db016fb3b7f3b5577dc8964ac34256e3869ada8db9",
@@ -341,6 +485,7 @@ var containerTargets = []containerTarget{
 		short: "ruby", repo: "ruby", tag: "3.3.4-bookworm",
 		digest:  "sha256:d4233f4242ea25346f157709bb8417c615e7478468e2699c8e86a4e1f0156de8",
 		imageID: "sha256:94de028496f47434dc707899bb5d38489554c3d1cc88c2501052302f8d7250ee",
+		created: "2024-07-09T05:04:38Z",
 		diffIDs: []string{
 			"sha256:8f4ceb8cc1a2056b98f0424fad4715dd334aecc9769186b3ea0394f131524e27",
 			"sha256:916d866d5b0dc17158c78e5a09717fcf619b04450125caafa9c1b8f7aa6a2c45",
@@ -463,6 +608,7 @@ func (s *sbomTargetsSuite[Env]) TestContainerSBOM() {
 					// Metadata must match the real image config exactly.
 					assert.Equalf(c, target.diffIDs, metaDiffIDs, "DiffID list does not match the real image config for %s", target.short)
 					assert.Containsf(c, propertyValues(metaProps, propImageID), target.imageID, "ImageID does not match the real image config for %s", target.short)
+					assert.Equalf(c, []string{target.created}, propertyValues(metaProps, propCreated), "Created does not match the real image config for %s", target.short)
 					if repoDigests := propertyValues(metaProps, propRepoDigest); assert.NotEmptyf(c, repoDigests, "no RepoDigest for %s", target.short) {
 						// A runtime may surface several RepoDigests (crio adds the platform
 						// manifest digest next to the pulled index digest); the pinned digest
@@ -521,6 +667,34 @@ func (s *sbomTargetsSuite[Env]) TestContainerSBOM() {
 	}
 }
 
+// TestContainerImageBuiltAt verifies that each target image's container image
+// payload reports the created field of the real image config as its build
+// time.
+func (s *sbomTargetsSuite[Env]) TestContainerImageBuiltAt() {
+	for _, target := range containerTargets {
+		s.Run("image="+target.short, func() {
+			s.EventuallyWithTf(func(c *assert.CollectT) {
+				names, err := s.Fakeintake.GetContainerImageNames()
+				require.NoErrorf(c, err, "Failed to query fake intake")
+
+				var images []*aggregator.ContainerImagePayload
+				for _, name := range names {
+					p, err := s.Fakeintake.FilterContainerImages(name)
+					require.NoErrorf(c, err, "Failed to query fake intake")
+					images = append(images, lo.Filter(p, func(img *aggregator.ContainerImagePayload, _ int) bool {
+						return img.GetDigest() == target.imageID
+					})...)
+				}
+				require.NotEmptyf(c, images, "No container image payload for %s yet", target.short)
+
+				for _, img := range images {
+					assert.Equalf(c, target.created, img.GetBuiltAt().AsTime().Format(time.RFC3339Nano), "BuiltAt does not match the real image config for %s", target.short)
+				}
+			}, 8*time.Minute, 15*time.Second, "Failed finding the container image payload for %s", target.short)
+		})
+	}
+}
+
 // dumpImageOnce logs the Agent's authoritative metadata + meaningful-component
 // values for an image exactly once, so exact versions/layers can be read from
 // the CI trace without flooding it.
@@ -565,8 +739,13 @@ func (s *sbomTargetsSuite[Env]) logSBOMInventory() {
 	})
 }
 
+// maxHostScanDuration bounds the host scan. A minimal RHEL host scans in
+// seconds.
+const maxHostScanDuration = time.Minute
+
 // TestHostSBOM verifies the host (RHEL 10) SBOM: it is the OS itself (not an
-// image), lists meaningful rpm packages, and carries no layer/DiffID metadata.
+// image), lists meaningful rpm packages, carries no layer/DiffID metadata, and
+// comes from a scan with all its analyzers that took less than a minute.
 func (s *sbomTargetsSuite[Env]) TestHostSBOM() {
 	s.EventuallyWithTf(func(collect *assert.CollectT) {
 		c := &myCollectT{CollectT: collect, errors: []error{}}
@@ -619,10 +798,15 @@ func (s *sbomTargetsSuite[Env]) TestHostSBOM() {
 			// languages is enabled on the host too, but a minimal RHEL host has no
 			// language packages to surface: its Go binaries (kubelet, containerd, ...)
 			// are owned by rpm packages, so the deferred analyzers skip them, and the
-			// flannel CNI plugin only appears as a container SBOM. The value here is
-			// that the scan completes (SUCCESS above) without timing out, which the
-			// trivy deferral fix makes possible. Log the count; don't assert a floor.
+			// flannel CNI plugin only appears as a container SBOM. Log the count.
+			// Don't assert a floor.
 			s.T().Logf("SBOM-COUNT[host] components=%d application=%d", len(comps), len(applicationComponents(comps)))
+
+			// A scan that runs out of time reports SUCCESS too, with the OS
+			// packages alone and the fallback property.
+			assert.Emptyf(c, propertyValues(bom.GetMetadata().GetProperties(), propOSFallback), "host SBOM lists the OS packages alone: its scan ran out of time")
+			took := p.GetGenerationDuration().AsDuration()
+			assert.Lessf(c, took, maxHostScanDuration, "host scan took %s, more than %s", took, maxHostScanDuration)
 
 			// A host SBOM must not look like a container image.
 			assert.Emptyf(c, p.GetDdTags(), "host SBOM should carry no image dd tags")

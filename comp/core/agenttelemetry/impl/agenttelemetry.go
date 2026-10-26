@@ -29,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -77,6 +78,12 @@ type atel struct {
 	errLogsFlushInterval time.Duration
 	errLogsStartupJitter time.Duration
 	shutdownDrainTimeout time.Duration
+
+	// flag gates profiles carrying a `remote_flag`; nil means every gated profile is off.
+	flag *remoteFlagHandler
+
+	// flushFailures counts consecutive flushSession failures, the health signal for remote flags.
+	flushFailures *atomic.Uint32
 }
 
 const (
@@ -105,6 +112,8 @@ type Provides struct {
 
 	Comp     agenttelemetry.Component
 	Endpoint api.AgentEndpointProvider
+	// Subscriber registers this component's remote flag handlers.
+	Subscriber pkgremoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
 }
 
 // Interfacing with runner.
@@ -250,6 +259,8 @@ func createAtel(
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
 
+		flushFailures: atomic.NewUint32(0),
+
 		errortrackingEnabled: errortrackingEnabled,
 		errLogsCh:            errLogsCh,
 		errLogsDropped:       atomic.NewUint64(0),
@@ -284,6 +295,8 @@ func NewComponent(deps Requires) Provides {
 	}
 	a.localEmitter = localEmitter
 
+	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
+
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
 		deps.Lc.Append(compdef.Hook{
@@ -297,8 +310,9 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	return Provides{
-		Comp:     a,
-		Endpoint: api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+		Comp:       a,
+		Endpoint:   api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+		Subscriber: a.flag,
 	}
 }
 
@@ -610,6 +624,9 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 
 	session := a.sender.startSession(a.cancelCtx)
 	for _, p := range profiles {
+		if p.RemoteFlag != "" && !a.flag.enabledFor(p.RemoteFlag) {
+			continue
+		}
 		a.reportAgentMetrics(session, pms, p)
 	}
 	return session, nil
@@ -626,10 +643,37 @@ func (a *atel) run(profiles []*Profile) {
 	}
 
 	err = a.sender.flushSession(session)
+	a.recordFlushResult(err)
 	if err != nil {
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
 		return
 	}
+}
+
+// recordFlushResult feeds the remote flag health signal: consecutive failures
+// accumulate, any success clears them.
+func (a *atel) recordFlushResult(err error) {
+	if a.flushFailures == nil {
+		return
+	}
+	if err != nil {
+		a.flushFailures.Inc()
+		return
+	}
+	a.flushFailures.Store(0)
+}
+
+// isHealthy is the health probe the Remote Flags client polls after a flag is
+// enabled. Reporting false long enough makes the client call SafeRecover,
+// which turns the gated profiles back off.
+func (a *atel) isHealthy() bool {
+	if !a.enabled {
+		return false
+	}
+	if a.flushFailures == nil {
+		return true
+	}
+	return a.flushFailures.Load() < maxConsecutiveFlushFailures
 }
 
 func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {

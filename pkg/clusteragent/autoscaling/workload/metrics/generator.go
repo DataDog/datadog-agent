@@ -276,12 +276,60 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		localFallbackValue = 1.0
 	}
 
+	// Distinguish a fallback forced by annotation from one triggered by stale product values,
+	// otherwise this metric becomes ambiguous now that both can switch it on.
+	fallbackTrigger := "stale"
+	if internal.IsFallbackForced() {
+		fallbackTrigger = "forced"
+	}
+
 	metrics = append(metrics, metricsstore.StructuredMetric{
 		Name:  metricPrefix + ".local.fallback_enabled",
 		Type:  metricsstore.MetricTypeGauge,
 		Value: localFallbackValue,
+		Tags:  append([]string{"fallback_trigger:" + fallbackTrigger}, baseTags...),
+	})
+
+	// Paused by the pause annotation
+	pausedValue := 0.0
+	if internal.IsPaused() {
+		pausedValue = 1.0
+	}
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".paused",
+		Type:  metricsstore.MetricTypeGauge,
+		Value: pausedValue,
 		Tags:  baseTags,
 	})
+
+	// Replica count pinned by the force-replicas annotation. Only emitted while a count is pinned, so
+	// that the many autoscalers without it do not each send a series.
+	if replicas, forced := internal.ForcedReplicas(); forced {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".force_replicas",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: float64(replicas),
+			Tags:  baseTags,
+		})
+	}
+
+	// Whether the override set by the force-resources annotation is applied (1 or 0): paused or
+	// non-Apply autoscalers do not apply it. Only emitted while a valid override is set, so that the
+	// many autoscalers without it do not each send a series.
+	if len(internal.ForcedResources()) > 0 {
+		forcedResourcesValue := 0.0
+		if !internal.IsPaused() && applyModeTagValue(internal.Spec()) == strings.ToLower(string(datadoghq.DatadogPodAutoscalerApplyModeApply)) {
+			forcedResourcesValue = 1.0
+		}
+
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".force_resources",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: forcedResourcesValue,
+			Tags:  baseTags,
+		})
+	}
 
 	// 3. DPA apply mode
 	metrics = appendApplyModeMetrics(metrics, internal, baseTags)

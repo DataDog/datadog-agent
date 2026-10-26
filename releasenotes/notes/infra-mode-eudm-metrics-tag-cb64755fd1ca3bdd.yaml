@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    When ``infrastructure_mode`` is set to ``end_user_device``, the Agent adds an
+    ``infra_mode:end_user_device`` tag to metrics from eligible integrations.
+    ``custom_*`` checks and plain DogStatsD metrics are never tagged.

@@ -41,6 +41,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
@@ -62,7 +63,7 @@ const (
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
-	return cfg.GetBool(privateactionrunner.PAREnabled)
+	return cfg.GetBool(par.Enabled)
 }
 
 func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
@@ -142,7 +143,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 	if splitDeploymentEnabled(
-		reqs.Config.GetBool(privateactionrunner.PARSplitEnabled),
+		reqs.Config.GetBool(par.SplitEnabled),
 		configenv.IsContainerized(),
 		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
 	) {
@@ -250,8 +251,8 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
-		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
+		p.coreConfig.Set(par.PrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(par.URN, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
 	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.metricsClient)
@@ -259,15 +260,15 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, err
 	}
 
-	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.PARSelfEnroll)
+	canSelfEnroll := p.coreConfig.GetBool(par.SelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		p.coreConfig.Set(privateactionrunner.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(privateactionrunner.PARUrn, updatedCfg.Urn, model.SourceAgentRuntime)
+		p.coreConfig.Set(par.PrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(par.URN, updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
@@ -328,7 +329,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	p.executorServer.SetControlPlaneConfig(snapshot, tlsConfig.Certificates[0].Certificate[0])
 
-	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
+	socketPath := p.coreConfig.GetString(par.ExecutorSocketPath)
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
 		cancel()
@@ -341,7 +342,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	if cfg != nil && cfg.TaskTimeoutSeconds != nil {
 		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
 	}
-	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds))
+	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(par.IdleTimeoutSeconds))
 	if cfg == nil {
 		idleTimeout = time.Minute
 	}
@@ -359,6 +360,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
 
+	// The executor has its own span buffer; start its sender only after setup succeeds.
+	if cfg != nil {
+		p.startTelemetry(cfg)
+	}
+
 	go func() {
 		defer close(p.executorDone)
 		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
@@ -371,8 +377,8 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
-	if !p.coreConfig.GetBool(privateactionrunner.PAREnabled) || !splitDeploymentEnabled(
-		p.coreConfig.GetBool(privateactionrunner.PARSplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	if !p.coreConfig.GetBool(par.Enabled) || !splitDeploymentEnabled(
+		p.coreConfig.GetBool(par.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
 	) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -385,7 +391,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -404,7 +410,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -455,6 +461,10 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		}
 	}
 
+	// Flush completed spans after draining, or best-effort if the stop deadline expired.
+	// Actions still running after the deadline may finish after the sender stops.
+	p.stopTelemetry()
+
 	var stopErr error
 	if p.encryptionStore != nil {
 		p.encryptionStore.Stop()
@@ -476,7 +486,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		if p.shutdowner != nil {
 			go func() {
@@ -503,12 +513,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// runner_id is only finalized after enrollment.
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
-	p.telemetry = telemetry.NewTelemetry(
-		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
-		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
-		observability.ParService,
-	)
+	p.startTelemetry(cfg)
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -520,7 +525,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}
@@ -561,9 +566,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 		stopErr = errors.Join(stopErr, err)
 	}
-	if p.telemetry != nil {
-		p.telemetry.Stop()
-	}
+	p.stopTelemetry()
 	if p.ownsMetricsClient && p.metricsClient != nil {
 		if err := p.metricsClient.Flush(); err != nil {
 			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
@@ -573,6 +576,22 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 	}
 	return stopErr
+}
+
+func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+	p.telemetry = telemetry.NewTelemetry(
+		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		cfg.DatadogSite,
+		observability.ParService,
+	)
+}
+
+func (p *PrivateActionRunner) stopTelemetry() {
+	if p.telemetry != nil {
+		p.telemetry.Stop()
+		p.telemetry = nil
+	}
 }
 
 func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
@@ -591,7 +610,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
 	apiKey := p.coreConfig.GetString("api_key")
-	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
+	apiKeyOnlyEnrollment := p.coreConfig.GetBool(par.APIKeyOnlyEnrollment)
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
 		return nil, fmt.Errorf("invalid api_key: %w", err)
@@ -616,7 +635,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 
 	enrollmentResult, err := enrollment.Enroll(ctx, p.coreConfig, agentIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("enrollment API call failed: %w", err)
+		return nil, err
 	}
 	p.logger.Info("Self-enrollment successful")
 

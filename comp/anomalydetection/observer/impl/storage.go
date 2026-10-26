@@ -14,13 +14,15 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
 type StorageConfig struct {
-	// MaxSeries caps live series; when exceeded on Advance, series are evicted
-	// until count drops to MaxSeries*(1-EvictionFloorRatio). 0 disables eviction.
+	// MaxSeries caps live non-telemetry series. Before a new series is admitted at
+	// capacity, the oldest existing series are evicted until the incoming series
+	// can be added at MaxSeries*(1-EvictionFloorRatio). 0 disables the cap for replay.
 	MaxSeries int
 
 	// EvictionFloorRatio controls how far below MaxSeries eviction drains.
@@ -167,6 +169,7 @@ type bucketCounts struct {
 // seriesStats contains accumulated statistics for a time series (internal).
 // Buckets are stored in timestamp order, enabling binary search for range queries.
 type seriesStats struct {
+	MetricType metrics.MetricType
 	Namespace  string
 	Name       string
 	Host       string
@@ -341,6 +344,9 @@ type AddResult struct {
 	// Ref is the SeriesRef assigned to this point's series.
 	// -1 when the point is dropped (non-finite or sentinel values).
 	Ref observer.SeriesRef
+	// CapacityEvictedRefs contains series evicted before admitting this point.
+	// Callers must fan these refs out to detector and auxiliary state cleanup.
+	CapacityEvictedRefs []observer.SeriesRef
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
@@ -356,18 +362,18 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 // the CompositeTags path, this legacy []string boundary copies caller-owned
 // tags before storage may retain them.
 func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags []string, key uint64) AddResult {
-	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(copyTags(tags)), key)
+	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(copyTags(tags)), key, observer.UnknownType)
 }
 
 // AddWithKeyAndHostComposite inserts a point using immutable composite tags.
 // A new series retains the supplied view directly, or a matching canonical
 // composite view from the bounded tag interner. Existing-series writes do not
-// inspect or transform tags.
-func (s *timeSeriesStorage) AddWithKeyAndHostComposite(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64) AddResult {
-	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key)
+// inspect or transform tags. The first known metric type is retained per series.
+func (s *timeSeriesStorage) AddWithKeyAndHostComposite(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType) AddResult {
+	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key, metricType)
 }
 
-func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64) AddResult {
+func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -380,13 +386,18 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 		return AddResult{Ref: -1}
 	}
 	stats, exists := s.series[key]
+	var capacityEvictedRefs []observer.SeriesRef
 	if !exists {
+		if namespace != observer.TelemetryNamespace {
+			capacityEvictedRefs = s.evictForAdmissionLocked()
+		}
 		// Composite tags are immutable and can be retained directly. The interner
 		// only hashes storage misses and never flattens or copies a tag view.
 		tags, tagInternFingerprint := s.internCompositeTags(tags)
 		id := s.nextSeriesRef
 		s.nextSeriesRef++
 		stats = &seriesStats{
+			MetricType:           metricType,
 			Namespace:            namespace,
 			Name:                 name,
 			Host:                 host,
@@ -402,7 +413,12 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 		}
 		s.seriesGen++
 	}
-	res := AddResult{IsNew: !exists, Ref: stats.ref}
+	// Keep one stable type per series. Missing metadata may be filled in by a
+	// later observation, but conflicting known types do not rewrite history.
+	if stats.MetricType == observer.UnknownType && metricType != observer.UnknownType {
+		stats.MetricType = metricType
+	}
+	res := AddResult{IsNew: !exists, Ref: stats.ref, CapacityEvictedRefs: capacityEvictedRefs}
 	stats.writeGeneration++
 	if len(stats.buckets) == 0 || timestamp > stats.lastActivityTimestamp {
 		stats.lastActivityTimestamp = timestamp
@@ -743,17 +759,19 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 		return nil
 	}
 	return &observer.SeriesMeta{
-		Ref:       ref,
-		Namespace: ss.Namespace,
-		Name:      ss.Name,
-		Host:      ss.Host,
-		Tags:      ss.Tags,
+		MetricType: ss.MetricType,
+		Ref:        ref,
+		Namespace:  ss.Namespace,
+		Name:       ss.Name,
+		Host:       ss.Host,
+		Tags:       ss.Tags,
 	}
 }
 
 // seriesMeta is lightweight series metadata including point count,
 // used for API listing without materializing point data.
 type seriesMeta struct {
+	MetricType metrics.MetricType
 	Ref        observer.SeriesRef // compact numeric ref
 	Namespace  string
 	Name       string
@@ -772,6 +790,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 	for _, stats := range s.seriesIDStats {
 		if stats != nil && stats.Namespace == namespace {
 			result = append(result, seriesMeta{
+				MetricType: stats.MetricType,
 				Ref:        stats.ref,
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
@@ -1096,6 +1115,15 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.evictToCapacityLocked(seriesLimit, target)
+}
+
+// evictToCapacityLocked is EvictToCapacity with the storage write lock already
+// held. Capacity admission uses it before allocating the incoming series.
+func (s *timeSeriesStorage) evictToCapacityLocked(seriesLimit, target int) []observer.SeriesRef {
+	if target < 0 {
+		target = 0
+	}
 
 	// Common case is under the limit, skip allocation entirely.
 	count := s.liveSeriesCount
@@ -1109,7 +1137,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 	candidates := make([]entry, 0, count)
 	for _, st := range s.seriesIDStats {
-		if st == nil {
+		if st == nil || st.Namespace == observer.TelemetryNamespace {
 			continue
 		}
 		candidates = append(candidates, entry{ref: st.ref, lastTs: st.lastActivityTimestamp})
@@ -1143,6 +1171,35 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	return freed
 }
 
+// capacityEvictionTarget is the number of live series that should remain after
+// a capacity event. Production config validation guarantees a ratio in [0, 1),
+// while the clamps keep explicit replay/test configurations safe as well.
+func (s *timeSeriesStorage) capacityEvictionTarget() int {
+	if s.cfg.MaxSeries <= 0 {
+		return 0
+	}
+	if math.IsNaN(s.cfg.EvictionFloorRatio) || s.cfg.EvictionFloorRatio < 0 {
+		return s.cfg.MaxSeries
+	}
+	if s.cfg.EvictionFloorRatio >= 1 {
+		return 1
+	}
+	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
+	return max(1, min(s.cfg.MaxSeries, target))
+}
+
+// evictForAdmissionLocked makes room before a new non-telemetry series is
+// allocated. New identities win admission even when their first point is older
+// than existing activity. It leaves one slot below the configured post-eviction
+// target so admitting the incoming series lands exactly on that target.
+func (s *timeSeriesStorage) evictForAdmissionLocked() []observer.SeriesRef {
+	if s.cfg.MaxSeries <= 0 || s.liveSeriesCount < s.cfg.MaxSeries {
+		return nil
+	}
+	targetBeforeAdmission := s.capacityEvictionTarget() - 1
+	return s.evictToCapacityLocked(s.cfg.MaxSeries-1, targetBeforeAdmission)
+}
+
 // EvictInactiveBefore removes non-telemetry series whose last activity is at
 // or before cutoff. The caller supplies a data-time cutoff so eviction is
 // deterministic in both live operation and replay.
@@ -1171,8 +1228,7 @@ func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
 	if s.cfg.MaxSeries <= 0 {
 		return nil
 	}
-	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
-	return s.EvictToCapacity(s.cfg.MaxSeries, target)
+	return s.EvictToCapacity(s.cfg.MaxSeries, s.capacityEvictionTarget())
 }
 
 // StorageReader interface implementation
@@ -1196,11 +1252,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 			continue
 		}
 		result = append(result, observer.SeriesMeta{
-			Ref:       stats.ref,
-			Namespace: stats.Namespace,
-			Name:      stats.Name,
-			Host:      stats.Host,
-			Tags:      stats.Tags,
+			MetricType: stats.MetricType,
+			Ref:        stats.ref,
+			Namespace:  stats.Namespace,
+			Name:       stats.Name,
+			Host:       stats.Host,
+			Tags:       stats.Tags,
 		})
 	}
 	return result

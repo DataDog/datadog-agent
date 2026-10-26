@@ -45,6 +45,7 @@ func (h *ListPipelineBridgesHandler) Run(
 		return nil, err
 	}
 
+	//nolint:staticcheck // SA1019: trigger_jobs, its replacement, only exists since GitLab 19.2
 	bridges, _, err := git.Jobs.ListPipelineBridges(inputs.ProjectId.String(), inputs.PipelineId, inputs.ListJobsOptions)
 	if err != nil {
 		return nil, err

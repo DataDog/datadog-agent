@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	composeVersion = "v2.27.0"
 	defaultTimeout = 300
 )
 
@@ -63,6 +62,18 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 		}
 		comp.opts = utils.MergeOptions(comp.opts, utils.PulumiDependsOn(composeCmd))
 
+		// Inject the internal registry hosting the workload app images so that
+		// compose files using ${DD_APPS_REGISTRY:-ghcr.io/datadog} pull the apps
+		// from the internal registry (agent-qa ECR, GCP Artifact Registry, Azure
+		// ACR depending on the cloud) when one is available. Environments without
+		// an internal registry (local runs, which report "none") keep the
+		// default public ghcr.io.
+		if reg := e.InternalRegistry(); reg != "" && reg != "none" {
+			comp.defaultEnvVars = pulumi.StringMap{
+				"DD_APPS_REGISTRY": pulumi.String(reg),
+			}
+		}
+
 		return nil
 	}, opts...)
 }
@@ -76,7 +87,9 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 // When ImagePullRegistry is configured, DD_REGISTRY is automatically injected into every
 // ComposeStrUp call so that compose files using ${DD_REGISTRY:-docker.io} pull from the
 // ECR pull-through cache for Docker Hub images. Callers may still override DD_REGISTRY by
-// passing it explicitly in their envVars map.
+// passing it explicitly in their envVars map. DD_APPS_REGISTRY (the internal registry
+// hosting the workload app images, set by NewManager) is injected the same way so compose
+// files using ${DD_APPS_REGISTRY:-ghcr.io/datadog} pull the workload apps from ECR.
 func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOption) (*Manager, error) {
 	ecrCreds, err := SetupECRDockerAuth(e.CommonNamer().WithPrefix("docker"), host, opts...)
 	if err != nil {
@@ -87,9 +100,10 @@ func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceO
 		return nil, err
 	}
 	if reg := e.ImagePullRegistry(); reg != "" {
-		mgr.defaultEnvVars = pulumi.StringMap{
-			"DD_REGISTRY": pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub"),
+		if mgr.defaultEnvVars == nil {
+			mgr.defaultEnvVars = pulumi.StringMap{}
 		}
+		mgr.defaultEnvVars["DD_REGISTRY"] = pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub")
 	}
 	return mgr, nil
 }
@@ -264,10 +278,10 @@ EOF`),
 	return groupCmd, err
 }
 
-// assertCompose verifies that docker-compose at composeVersion is already
+// assertCompose verifies that docker-compose at os.ComposeVersion is already
 // present on the host. Actual installs happen either via the pre-baked AWS e2e
-// AMI or via docker.InstallCompose, called explicitly by Azure/GCP
-// provisioners before NewManager. This method never installs — runtime
+// AMI or via PackageManager.RuntimeInstallDocker, called explicitly by GCP,
+// Azure and local provisioners before NewManager. This method never installs — runtime
 // installs on AWS are disallowed.
 //
 // Version validation runs in Go (via ApplyT) so a missing or wrong version
@@ -287,10 +301,10 @@ func (d *Manager) assertCompose() (command.Command, error) {
 	}
 
 	validated := versionCmd.StdoutOutput().ApplyT(func(out string) (string, error) {
-		if !strings.Contains(out, composeVersion) {
+		if !strings.Contains(out, os.ComposeVersion) {
 			return "", fmt.Errorf(
-				"docker-compose %s expected on host but got %q; runtime installs are not allowed on AWS — use docker.InstallCompose on Azure/GCP",
-				composeVersion, strings.TrimSpace(out),
+				"docker-compose %s expected on host but got %q; runtime installs are not allowed on AWS — use PackageManager.RuntimeInstallDocker on GCP/Azure/local",
+				os.ComposeVersion, strings.TrimSpace(out),
 			)
 		}
 		return ":", nil

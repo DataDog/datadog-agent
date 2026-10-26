@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
@@ -361,8 +362,29 @@ func Test_buildPayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowPayload := buildPayload(&tt.flow, "my-hostname", curTime)
+			flowPayload := buildPayload(&tt.flow, dpi.Application{}, "my-hostname", curTime)
 			assert.Equal(t, tt.expectedPayload, flowPayload)
 		})
 	}
+}
+
+func Test_buildPayload_dpi(t *testing.T) {
+	flow := common.Flow{FlowType: common.TypeIPFIX, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationID: 100}
+
+	flowPayload := buildPayload(&flow, dpi.Application{
+		ID:          100,
+		Name:        "HTTP",
+		Description: "Hypertext Transfer Protocol",
+		Metadata:    dpi.Metadata{Category: "browsing", ApplicationFamily: "encrypted"},
+	}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{
+		ApplicationID:          100,
+		ApplicationName:        "HTTP",
+		ApplicationDescription: "Hypertext Transfer Protocol",
+		Category:               "browsing",
+		ApplicationFamily:      "encrypted",
+	}, flowPayload.DPI)
+
+	flowPayload = buildPayload(&flow, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationID: 100}, flowPayload.DPI, "the application id is reported even when the application is unknown")
 }

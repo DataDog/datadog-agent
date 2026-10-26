@@ -6,14 +6,14 @@
 package listener
 
 import (
-	"errors"
 	"io"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestIsConnectionClosedError(t *testing.T) {
-	assert.True(t, isClosedConnError(errors.New("use of closed network connection")))
+	assert.True(t, isClosedConnError(net.ErrClosed))
 	assert.False(t, isClosedConnError(io.EOF))
 }

@@ -59,8 +59,10 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},
 		{key: "runtime_security_config.security_profile.v2.enabled", defaultValue: true},
 		{key: "runtime_security_config.security_profile.v2.max_dump_size", defaultValue: 2560},
-		{key: "runtime_security_config.security_profile.v2.event_types", defaultValue: []string{"exec", "open", "dns", "bind", "connect", "capabilities"}},
+		{key: "runtime_security_config.security_profile.v2.event_types", defaultValue: []string{"exec", "open", "dns", "bind", "mount", "connect", "capabilities"}},
 		{key: "runtime_security_config.security_profile.v2.profile_reporting_delay.time_based", defaultValue: false},
+		{key: "runtime_security_config.security_profile.v2.tag_resolution.max_pending_events", defaultValue: 4096},
+		{key: "runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup", defaultValue: 512},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {

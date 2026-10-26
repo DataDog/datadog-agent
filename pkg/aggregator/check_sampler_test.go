@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -149,6 +151,59 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 
 	if assert.Equal(t, 1, len(series)) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}
+
+// countShardSeries returns the number of series of the given telemetry family
+// whose "shard" label equals shard.
+func countShardSeries(t *testing.T, family, shard string) int {
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	n := 0
+	for _, f := range families {
+		if f.GetName() != family {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "shard" && l.GetValue() == shard {
+					n++
+				}
+			}
+		}
+	}
+	return n
+}
+
+func TestCheckSamplerReleaseDeletesContextTelemetry(t *testing.T) {
+	const id = "release:telemetry:1234"
+	families := []string{
+		"aggregator__checks_contexts",
+		"aggregator__checks_contexts_by_mtype",
+		"aggregator__checks_contexts_bytes_by_mtype",
+	}
+
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, tags.NewStore(true, "test"), checkid.ID(id), nooptagger.NewComponent())
+	checkSampler.addSample(&metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}, filterlistimpl.NewNoopTagMatcher())
+	matcher := metricname.NewMatcher([]string{}, false)
+	checkSampler.commit(12346.0, &matcher)
+	checkSampler.flush()
+
+	for _, family := range families {
+		require.NotZero(t, countShardSeries(t, family, id), family)
+	}
+
+	checkSampler.release()
+
+	for _, family := range families {
+		assert.Zero(t, countShardSeries(t, family, id), family)
 	}
 }
 
@@ -608,6 +663,45 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
+}
+
+func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      4.0,
+		LowerBound: math.Inf(-1),
+		UpperBound: -1.0,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}
+	checkSampler.addBucket(bucket1, tagmatcher)
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	expSketch := &quantile.Sketch{}
+	expSketch.InsertMany(quantile.Default(), []float64{-1.0, -1.0, -1.0, -1.0})
+
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+	}, flushed[0], .03)
+}
+
+func TestCheckHistogramBucketNegativeInfinityBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityBucket)
 }
 
 func testCheckDistribution(t *testing.T, store *tags.Store) {

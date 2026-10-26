@@ -86,7 +86,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [
@@ -96,6 +95,7 @@ dd_agent_go_test(
         "//pkg/clusteragent/api",
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/agentprofiling",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/setup/constants",

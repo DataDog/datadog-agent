@@ -1015,6 +1015,7 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
@@ -1022,6 +1023,21 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	if gpu.FabricClusterUUID != "" {
 		tagList.AddLow(tags.GPUFabricClusterUUID, strings.ToLower(gpu.FabricClusterUUID))
 		tagList.AddLow(tags.GPUFabricCliqueID, strconv.FormatUint(uint64(gpu.FabricCliqueID), 10))
+	}
+	if gpu.ChassisSerial != "" {
+		tagList.AddLow(tags.GPUChassisSerial, strings.ToLower(gpu.ChassisSerial))
+		tagList.AddLow(tags.GPUSlotNumber, strconv.FormatUint(uint64(gpu.SlotNumber), 10))
+		tagList.AddLow(tags.GPUTrayIndex, strconv.FormatUint(uint64(gpu.TrayIndex), 10))
+		tagList.AddLow(tags.GPUModuleID, strconv.FormatUint(uint64(gpu.ModuleID), 10))
+	}
+	if gpu.BoardSerial != "" {
+		tagList.AddLow(tags.GPUBoardSerial, strings.ToLower(gpu.BoardSerial))
+	}
+	if gpu.NUMANode != nil {
+		tagList.AddLow(tags.GPUNUMANode, strconv.Itoa(*gpu.NUMANode))
+	}
+	if gpu.FabricGUID != "" {
+		tagList.AddLow(tags.GPUFabricGUID, gpu.FabricGUID)
 	}
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
@@ -1032,6 +1048,17 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+// sharingModeTagValue returns the gpu_sharing_mode tag value of a GPU. Like
+// gpu_slicing_mode, it is set on every device, to "none" when no sharing
+// mechanism was detected, so that grouping by it never yields an untagged
+// bucket.
+func sharingModeTagValue(gpu *workloadmeta.GPU) string {
+	if gpu.SharingMode == "" {
+		return string(workloadmeta.GPUSharingModeNone)
+	}
+	return string(gpu.SharingMode)
 }
 
 // migProfileTagValue returns the gpu_mig_profile value for a GPU. Like every
@@ -1109,6 +1136,22 @@ func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	// Older Dynamo deployments use a worker subtype for decode and prefill roles.
+	component := pod.Labels[kubernetes.DynamoSubComponentTypeLabelKey]
+	if component == "" {
+		component = pod.Labels[kubernetes.DynamoComponentTypeLabelKey]
+	}
+	// Match the backend's KServe LLMInferenceService workload detection.
+	if pod.Labels[kubernetes.KubeAppPartOfLabelKey] == "llminferenceservice" {
+		if pod.Labels[kubernetes.DynamoGraphDeploymentNameLabelKey] == "" {
+			tagList.AddLow(tags.InferenceWorkload, pod.Labels[kubernetes.KubeAppNameLabelKey])
+		}
+		if component == "" {
+			component = pod.Labels[kubernetes.KubeAppComponentLabelKey]
+		}
+	}
+	tagList.AddLow(tags.InferenceWorkloadComponent, component)
+
 	for name, value := range pod.Labels {
 		switch name {
 		case kubernetes.EnvTagLabelKey:
@@ -1131,6 +1174,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppManagedBy, value)
 		case kubernetes.DynamoGraphDeploymentNameLabelKey:
 			tagList.AddLow(tags.DynamoGraphDeployment, value)
+			tagList.AddLow(tags.InferenceWorkload, value)
 		}
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)

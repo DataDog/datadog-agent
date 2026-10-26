@@ -37,7 +37,7 @@ func processDiscoveryCheckWithMockProbe(t *testing.T) (*ProcessDiscoveryCheck, *
 		probe:      probe,
 		scrubber:   procutil.NewDefaultDataScrubber(),
 		info:       info,
-		userProbe:  &LookupIDProbe{},
+		userProbe:  NewLookupIDProbe(configmock.New(t)),
 		initCalled: true,
 	}, probe
 }

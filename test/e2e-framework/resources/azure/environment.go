@@ -30,7 +30,6 @@ const (
 	DDInfraDefaultResourceGroup            = "az/defaultResourceGroup"
 	DDInfraDefaultVNetParamName            = "az/defaultVNet"
 	DDInfraDefaultSubnetParamName          = "az/defaultSubnet"
-	DDInfraDefaultSecurityGroupParamName   = "az/defaultSecurityGroup"
 	DDInfraDefaultInstanceTypeParamName    = "az/defaultInstanceType"
 	DDInfraDefaultARMInstanceTypeParamName = "az/defaultARMInstanceType"
 	DDInfraDefaultPublicKeyPath            = "az/defaultPublicKeyPath"
@@ -119,10 +118,6 @@ func (e *Environment) DefaultVNet() string {
 
 func (e *Environment) DefaultSubnet() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultSubnetParamName, e.envDefault.ddInfra.defaultSubnet)
-}
-
-func (e *Environment) DefaultSecurityGroup() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultSecurityGroupParamName, e.envDefault.ddInfra.defaultSecurityGroup)
 }
 
 func (e *Environment) DefaultInstanceType() string {

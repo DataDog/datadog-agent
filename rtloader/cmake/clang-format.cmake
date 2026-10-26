@@ -1,7 +1,7 @@
 # Get all project files
 file(GLOB_RECURSE
      ALL_SOURCE_FILES
-     *.[ch]pp *.[ch]xx *.cc *.h
+     *.[ch]pp *.[ch]xx *.cc *.c *.h
     )
 list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX ".CMakeFiles.")
 

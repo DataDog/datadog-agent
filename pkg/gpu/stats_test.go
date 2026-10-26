@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -32,8 +33,8 @@ func getMetricsEntry(key model.ProcessStatsKey, stats *model.GPUStats) *model.Ut
 	return nil
 }
 
-func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection, int64) {
-	nvmltestutil.SetupMockNVML(t)
+func getStatsGeneratorForTest(t *testing.T, mockOpts ...testutil.NvmlMockOption) (*statsGenerator, *streamCollection, int64) {
+	nvmltestutil.SetupMockNVML(t, mockOpts...)
 	sysCtx := getTestSystemContext(t)
 
 	ktime, err := ddebpf.NowNanoseconds()
@@ -386,6 +387,27 @@ func TestGetStatsNormalization(t *testing.T) {
 		require.InDelta(t, testutil.DefaultGpuCores/2, metrics.UsedCores, 0.001, "incorrect utilization for pid %d", pid)
 		require.InDelta(t, testutil.DefaultTotalMemory/2, metrics.Memory.MaxBytes, 0.001, "incorrect normalized max memory for pid %d", pid)
 	}
+}
+
+func TestGetNormalizationFactorsWithUnknownMemoryLimit(t *testing.T) {
+	statsGen, _, _ := getStatsGeneratorForTest(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+	}))
+
+	factors, err := statsGen.getNormalizationFactors([]model.ProcessStatsTuple{{
+		Key: model.ProcessStatsKey{
+			PID:        1,
+			DeviceUUID: testutil.DefaultGpuUUID,
+		},
+		UtilizationMetrics: model.UtilizationMetrics{
+			Memory: model.MemoryMetrics{MaxBytes: 1},
+		},
+	}})
+
+	require.NoError(t, err)
+	require.Equal(t, 1.0, factors[testutil.DefaultGpuUUID].memory)
 }
 
 func TestGetStatsActiveTimePct(t *testing.T) {

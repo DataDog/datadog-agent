@@ -34,6 +34,10 @@ const (
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
 	// DynamoGraphDeploymentNameLabelKey is the Dynamo operator's label for the owning graph deployment
 	DynamoGraphDeploymentNameLabelKey = "nvidia.com/dynamo-graph-deployment-name"
+	// DynamoComponentTypeLabelKey is the Dynamo operator's label for the component role
+	DynamoComponentTypeLabelKey = "nvidia.com/dynamo-component-type"
+	// DynamoSubComponentTypeLabelKey is the Dynamo operator's label for the specific worker role
+	DynamoSubComponentTypeLabelKey = "nvidia.com/dynamo-sub-component-type"
 	// KueueQueueNameLabelKey is the queue selection label key used by Kueue-managed workloads
 	KueueQueueNameLabelKey = "kueue.x-k8s.io/queue-name"
 	// KueueLocalQueueNameLabelKey is the pod label key set by Kueue with the admitted local queue name

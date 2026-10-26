@@ -1,0 +1,569 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: 10919beea371e6d9ccd983eca1835e3f1ea2499ab405f36687348915846ac980
+      cni.projectcalico.org/podIP: 192.168.97.60/32
+      cni.projectcalico.org/podIPs: 192.168.97.60/32
+      karpenter.sh/do-not-disrupt: 'true'
+      nvidia.com/container.resource-reservation.gpu-compute.mode: time-slicing
+      run.ai/reserve_for_gpu_index: GPU-be38b139-9eb5-692d-593c-b1041f029e26
+    creationTimestamp: '2026-10-14T14:49:12Z'
+    generation: 1
+    labels:
+      app: kai-resource-reservation
+      runai-gpu-group: 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    name: gpu-reservation-1e6c83a8ebe11f36
+    namespace: kai-resource-reservation
+    resourceVersion: '18228'
+    uid: 98d10696-5fcd-44d0-9f7c-a700c05638f4
+  spec:
+    containers:
+    - env:
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.name
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.namespace
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imagePullPolicy: IfNotPresent
+      name: resource-reservation
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        runAsNonRoot: true
+        runAsUser: 10000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-6bskk
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: kai-resource-reservation
+    serviceAccountName: kai-resource-reservation
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes: []
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        nvidia.com/gpu: '1'
+      containerID: containerd://cc548b858cdf27c0dc6f2bcc2fc3cb8112230a80f16cba86ba392f1b9ab617c6
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imageID: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation@sha256:b636055c7ec0e5926d4643e26e19c950e679e8d85e6030d2da0d78e392b72cf5
+      lastState: {}
+      name: resource-reservation
+      ready: true
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:12Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 10000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-6bskk
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.60
+    podIPs:
+    - ip: 192.168.97.60
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:12Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: f80cd58be96c4dd14c1f6c8920bd48d03b23a9fda4fa659697616d205653ddfb
+      cni.projectcalico.org/podIP: 192.168.97.59/32
+      cni.projectcalico.org/podIPs: 192.168.97.59/32
+      karpenter.sh/do-not-disrupt: 'true'
+      nvidia.com/container.resource-reservation.gpu-compute.mode: time-slicing
+      run.ai/reserve_for_gpu_index: GPU-0b5693b2-d023-de74-f5c9-bb2c1cad110d
+    creationTimestamp: '2026-10-14T14:49:10Z'
+    generation: 1
+    labels:
+      app: kai-resource-reservation
+      runai-gpu-group: c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    name: gpu-reservation-6d8e72c077c10ec9
+    namespace: kai-resource-reservation
+    resourceVersion: '18184'
+    uid: 155ac3c0-41bc-4ec3-9649-f4b41c5cdd81
+  spec:
+    containers:
+    - env:
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.name
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.namespace
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imagePullPolicy: IfNotPresent
+      name: resource-reservation
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        runAsNonRoot: true
+        runAsUser: 10000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-fjk66
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: kai-resource-reservation
+    serviceAccountName: kai-resource-reservation
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes: []
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:10Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:10Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        nvidia.com/gpu: '1'
+      containerID: containerd://74d556bb65c485e570cc34dfdb2cdf5c594a6398903c5a2a5aefa79e7e037d0f
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imageID: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation@sha256:b636055c7ec0e5926d4643e26e19c950e679e8d85e6030d2da0d78e392b72cf5
+      lastState: {}
+      name: resource-reservation
+      ready: true
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:12Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 10000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-fjk66
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.59
+    podIPs:
+    - ip: 192.168.97.59
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:10Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: f6a7ee63eddcf879ff2e5e492778296669ccffe97a775203c6a1645204647da1
+      cni.projectcalico.org/podIP: 192.168.97.61/32
+      cni.projectcalico.org/podIPs: 192.168.97.61/32
+      karpenter.sh/do-not-disrupt: 'true'
+      nvidia.com/container.resource-reservation.gpu-compute.mode: time-slicing
+      run.ai/reserve_for_gpu_index: GPU-32a93c9b-38dc-933a-192a-58a0a2f92a19
+    creationTimestamp: '2026-10-14T14:49:12Z'
+    generation: 1
+    labels:
+      app: kai-resource-reservation
+      runai-gpu-group: 0350dd42-d924-4f06-b897-3be2da6998e1
+    name: gpu-reservation-757d4ae74ae8a0f2
+    namespace: kai-resource-reservation
+    resourceVersion: '18227'
+    uid: 4737cb62-f61c-4ac4-aff2-9873795fb543
+  spec:
+    containers:
+    - env:
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.name
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.namespace
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imagePullPolicy: IfNotPresent
+      name: resource-reservation
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        runAsNonRoot: true
+        runAsUser: 10000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-vhk89
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: kai-resource-reservation
+    serviceAccountName: kai-resource-reservation
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes: []
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:13Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        nvidia.com/gpu: '1'
+      containerID: containerd://ae144bcbefbf36ba3d0bedc6ca2f8033e4e45ace9c3ec9b644984ddee3361f6d
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imageID: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation@sha256:b636055c7ec0e5926d4643e26e19c950e679e8d85e6030d2da0d78e392b72cf5
+      lastState: {}
+      name: resource-reservation
+      ready: true
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:12Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 10000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-vhk89
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.61
+    podIPs:
+    - ip: 192.168.97.61
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:12Z'
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: 606f15be96d18fdb1bc405c707702e7302b895a0ee31428eee76b62b2b18dd03
+      cni.projectcalico.org/podIP: 192.168.97.16/32
+      cni.projectcalico.org/podIPs: 192.168.97.16/32
+      karpenter.sh/do-not-disrupt: 'true'
+      nvidia.com/container.resource-reservation.gpu-compute.mode: time-slicing
+      run.ai/reserve_for_gpu_index: GPU-d7bea0fc-e039-0702-46b6-97510ff81958
+    creationTimestamp: '2026-10-14T14:49:12Z'
+    generation: 1
+    labels:
+      app: kai-resource-reservation
+      runai-gpu-group: 0247250f-e9cb-4445-8a61-23ffd7e6fd53
+    name: gpu-reservation-c39b814206ba355f
+    namespace: kai-resource-reservation
+    resourceVersion: '18264'
+    uid: 936813fd-034c-49eb-9a9b-8c00eb24d38b
+  spec:
+    containers:
+    - env:
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.name
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: metadata.namespace
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imagePullPolicy: IfNotPresent
+      name: resource-reservation
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        runAsNonRoot: true
+        runAsUser: 10000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-stqb4
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: ip-172-31-10-249
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: kai-resource-reservation
+    serviceAccountName: kai-resource-reservation
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes: []
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:14Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:14Z'
+      observedGeneration: 1
+      status: 'True'
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:14Z'
+      observedGeneration: 1
+      status: 'True'
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: '2026-10-14T14:49:12Z'
+      observedGeneration: 1
+      status: 'True'
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        nvidia.com/gpu: '1'
+      containerID: containerd://705d2912a0849cc2e38926b698bc4b5af301bf639bf9ba83eb0eeda8808ede21
+      image: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation:v0.18.5
+      imageID: ghcr.io/kai-scheduler/kai-scheduler/resourcereservation@sha256:b636055c7ec0e5926d4643e26e19c950e679e8d85e6030d2da0d78e392b72cf5
+      lastState: {}
+      name: resource-reservation
+      ready: true
+      resources:
+        limits:
+          nvidia.com/gpu: '1'
+        requests:
+          nvidia.com/gpu: '1'
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: '2026-10-14T14:49:13Z'
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 10000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-stqb4
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.31.10.249
+    hostIPs:
+    - ip: 172.31.10.249
+    observedGeneration: 1
+    phase: Running
+    podIP: 192.168.97.16
+    podIPs:
+    - ip: 192.168.97.16
+    qosClass: BestEffort
+    startTime: '2026-10-14T14:49:12Z'
+kind: List
+metadata:
+  resourceVersion: ''

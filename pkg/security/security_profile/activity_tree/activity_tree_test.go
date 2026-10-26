@@ -358,7 +358,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		filepathsInProcessCache := map[ImageProcessKey]bool{}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// The node should be evicted since it's not in the process cache
 		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
@@ -397,16 +397,16 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// The node should NOT be evicted since it's in the process cache
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
 		// Verify that the LastSeen timestamp was updated to protect the node
-		imageTagTimes, exists := processNode.GetSeenTimes(testTagID)
+		_, lastSeen, exists := processNode.GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("mixed_scenario_some_protected_some_evicted", func(t *testing.T) {
@@ -454,7 +454,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// Only the expired node should be evicted
 		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
@@ -462,9 +462,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
 
 		// Verify that the protected node's timestamp was updated
-		imageTagTimes, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
+		_, lastSeen, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("node_with_multiple_image_tags_partial_protection", func(t *testing.T) {
@@ -496,7 +496,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		processNode.AppendImageTagID(veryOldTagID, veryOldTime)
 		processNode.AppendImageTagID(oldTagID, oldTime)
 		processNode.AppendImageTagID(recentTagID, recentTime)
-		processNode.AppendImageTagID(testTagID, oldTime) // Add the profile tag that can be refreshed
+		processNode.AppendImageTagID(testTagID, oldTime) // Add the tag of the running process that can be refreshed
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (very-old-tag and old-tag should be evicted)
@@ -508,29 +508,70 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// The node should NOT be evicted, but expired tags should be refreshed
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
-		// Verify that only the profile's image tag was refreshed
+		// Verify that only the image tag of the running process was refreshed
 		node := tree.ProcessNodes[0]
-		veryOldTagTimes, _ := node.GetSeenTimes(veryOldTagID)
-		oldTagTimes, _ := node.GetSeenTimes(oldTagID)
-		recentTagTimes, _ := node.GetSeenTimes(recentTagID)
-		testTagTimes, _ := node.GetSeenTimes(testTagID)
+		_, _, veryOldExists := node.GetSeenTimes(veryOldTagID)
+		_, _, oldExists := node.GetSeenTimes(oldTagID)
+		_, recentLastSeen, recentExists := node.GetSeenTimes(recentTagID)
+		_, testLastSeen, testExists := node.GetSeenTimes(testTagID)
 
 		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
-		assert.Zero(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
-		assert.Zero(t, oldTagTimes, "Expected old-tag to be evicted")
-		assert.NotZero(t, recentTagTimes, "Expected recent-tag to still exist")
-		assert.NotZero(t, testTagTimes, "Expected test-tag to still exist")
+		assert.False(t, veryOldExists, "Expected very-old-tag to be evicted")
+		assert.False(t, oldExists, "Expected old-tag to be evicted")
+		assert.True(t, recentExists, "Expected recent-tag to still exist")
+		assert.True(t, testExists, "Expected test-tag to still exist")
 
-		// The test-tag should have been refreshed to current time (it's the profile tag)
-		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
+		// The test-tag should have been refreshed to current time (it's the tag of the running process)
+		assert.Greater(t, testLastSeen, evictionTime.UnixNano(), "Expected test-tag LastSeen to be updated")
 		// Recent tag should remain unchanged since it wasn't expired
-		assert.True(t, recentTagTimes.LastSeen.Equal(recentTime), "Expected recent-tag LastSeen to remain unchanged")
+		assert.Equal(t, recentTime.UnixNano(), recentLastSeen, "Expected recent-tag LastSeen to remain unchanged")
+	})
+
+	t.Run("each_image_tag_is_protected_by_its_own_running_processes", func(t *testing.T) {
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		oldTime := time.Now().Add(-2 * time.Hour)
+		stoppedTagID := tree.GetOrInsertImageTag("15.4")
+		runningTagID := tree.GetOrInsertImageTag("16.1")
+
+		processNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: ProcessInfo{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/lib/postgresql/bin/postgres",
+				},
+			},
+		}
+		processNode.AppendImageTagID(stoppedTagID, oldTime)
+		processNode.AppendImageTagID(runningTagID, oldTime)
+		tree.ProcessNodes = []*ProcessNode{processNode}
+
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Only a 16.1 container is running postgres
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "postgres", ImageTag: "16.1", Filepath: "/usr/lib/postgresql/bin/postgres"}: true,
+		}
+
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "postgres")
+
+		assert.Equal(t, 0, evicted, "Expected the node of a running process to be kept")
+		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
+
+		_, _, stoppedExists := processNode.GetSeenTimes(stoppedTagID)
+		_, runningLastSeen, runningExists := processNode.GetSeenTimes(runningTagID)
+		assert.False(t, stoppedExists, "Expected the tag without running process to be evicted")
+		assert.True(t, runningExists, "Expected the tag of the running process to still exist")
+		assert.Greater(t, runningLastSeen, evictionTime.UnixNano(), "Expected the tag of the running process to be refreshed")
 	})
 
 	t.Run("empty_process_cache_allows_normal_eviction", func(t *testing.T) {
@@ -573,7 +614,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		filepathsInProcessCache := map[ImageProcessKey]bool{}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// Both nodes should be evicted
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")

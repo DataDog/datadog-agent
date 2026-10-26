@@ -44,6 +44,7 @@ import (
 	com_datadoghq_kubernetes_admissionregistration "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/admission"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
 	com_datadoghq_kubernetes_apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
+	com_datadoghq_kubernetes_autoscaling "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/autoscaling"
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
@@ -75,7 +76,7 @@ type Registry struct {
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
 func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
-	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient)
+	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient, configuration.AgentHTTPClient)
 	if err != nil {
 		return nil, fmt.Errorf("could not create authored-script bundle: %w", err)
 	}
@@ -108,9 +109,10 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.kubernetes.admissionregistration":     com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
 			"com.datadoghq.kubernetes.apiextensions":             com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":                      com_datadoghq_kubernetes_apps.NewKubernetesApps(),
+			"com.datadoghq.kubernetes.autoscaling":               com_datadoghq_kubernetes_autoscaling.NewKubernetesAutoscaling(),
 			"com.datadoghq.kubernetes.batch":                     com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":                      com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),
 			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.networking":                com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),

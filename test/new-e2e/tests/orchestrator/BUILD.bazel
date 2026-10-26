@@ -13,6 +13,7 @@ dd_agent_go_test(
     srcs = [
         "ecs_test.go",
         "k8s_api_key_test.go",
+        "k8s_infra_mode_test.go",
         "k8s_test.go",
         "kserve_test.go",
         "kubeai_test.go",
@@ -20,6 +21,7 @@ dd_agent_go_test(
     ],
     data = [
         "agent_api_key_values.yaml",
+        "agent_infra_mode_values.yaml",
         "agent_values.yaml",
         "fixtures/kserve.yaml",
         "fixtures/kubeai.yaml",
@@ -27,6 +29,7 @@ dd_agent_go_test(
     embed = [":orchestrator"],
     embedsrcs = [
         "agent_api_key_values.yaml",
+        "agent_infra_mode_values.yaml",
         "agent_values.yaml",
         "fixtures/kserve.yaml",
         "fixtures/kubeai.yaml",

@@ -87,6 +87,9 @@ const (
 	// SourceNVML represents entities detected by the NVML GPU collector.
 	SourceNVML Source = "nvml"
 
+	// SourceAMDGPU represents entities detected by the AMD GPU (amdgpu sysfs) collector.
+	SourceAMDGPU Source = "amdgpu"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
@@ -675,8 +678,18 @@ type Container struct {
 	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
 	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
 	// populated node-locally by resolving the container's CDI device
-	// allocations to NVML UUIDs (physical GPUs and MIG instances).
-	GPUDeviceIDs []string `proto:"ignore"`
+	// allocations to NVML UUIDs (physical GPUs and MIG instances). With KAI
+	// Scheduler (gpu.kai_scheduler.enabled), it also holds the GPUs of
+	// fractional pods, read from their reservation pods. It is sent to remote
+	// workloadmeta clients, as system-probe needs it to attribute GPU process
+	// metrics to the right device.
+	GPUDeviceIDs []string
+	// GPUShares holds, keyed by GPU device UUID, the share of each GPU in
+	// GPUDeviceIDs that the container is assigned when the GPU is shared with
+	// other workloads by a mechanism that assigns each of them a share, such as
+	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
+	// way.
+	GPUShares map[string]GPUShare `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -780,6 +793,9 @@ func (c Container) String(verbose bool) string {
 	if len(c.GPUDeviceIDs) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
 		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		if len(c.GPUShares) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
 	}
 
 	if c.ECSContainer != nil {
@@ -1796,6 +1812,7 @@ type ContainerImageMetadata struct {
 	OSVersion    string
 	Architecture string
 	Variant      string
+	Created      time.Time
 	Layers       []ContainerImageLayer
 	SBOM         *CompressedSBOM
 }
@@ -1817,6 +1834,7 @@ type SBOM struct {
 	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
 }
 
 // CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
@@ -1827,6 +1845,7 @@ type CompressedSBOM struct {
 	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
+	OSFallback         bool `proto:"ignore"` // read in the core Agent alone
 }
 
 // GetID implements Entity#GetID.
@@ -1894,6 +1913,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+		_, _ = fmt.Fprintln(&sb, "Created:", i.Created)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
 		if i.SBOM != nil {
@@ -1901,6 +1921,9 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 			switch i.SBOM.Status {
 			case Success:
 				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+				if i.SBOM.OSFallback {
+					_, _ = fmt.Fprintln(&sb, "OS packages alone: the scan with application analyzers ran out of time")
+				}
 			case Failed:
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:
@@ -2271,6 +2294,27 @@ const (
 	GPUCOUNT
 )
 
+// GPUSharingMode is the mechanism through which a GPU is shared between
+// workloads.
+type GPUSharingMode string
+
+const (
+	// GPUSharingModeNone means that no sharing mechanism was detected for the
+	// GPU.
+	GPUSharingModeNone GPUSharingMode = "none"
+	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
+	// between workloads that each request a fraction of it.
+	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+)
+
+// GPUShare is the share of a GPU assigned to a container that shares the GPU
+// with other workloads.
+type GPUShare struct {
+	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
+	// or 0 when the container shares the GPU but its share is unknown.
+	Fraction float64
+}
+
 // GPUDeviceType is an enum to identify the type of the GPU device.
 type GPUDeviceType int
 
@@ -2345,6 +2389,27 @@ type GPU struct {
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
 
+	// ChassisSerial is the serial number of the chassis (rack) containing the GPU,
+	// reported on rack-scale systems such as GB200 NVL72. Empty otherwise.
+	ChassisSerial string
+
+	// SlotNumber, TrayIndex and ModuleID locate the GPU inside the chassis.
+	// They are meaningful only when ChassisSerial is set.
+	SlotNumber uint8
+	TrayIndex  uint8
+	ModuleID   uint8
+
+	// BoardSerial is the board serial number, shared by the GPUs of one
+	// superchip on GB200. It is set only when ChassisSerial is set.
+	BoardSerial string
+
+	// FabricGUID is the GPU's NVLink fabric GUID from NVML platform info (not an
+	// InfiniBand HCA GUID). Empty when not reported.
+	FabricGUID string
+
+	// NUMANode is the NUMA node closest to the GPU. Nil when not reported.
+	NUMANode *int
+
 	// NVLinkVersion is the version reported by the GPU's NVLink links.
 	NVLinkVersion string
 
@@ -2357,6 +2422,11 @@ type GPU struct {
 	// Healthy indicates whether or not the GPU device is healthy
 	Healthy bool
 
+	// Lost indicates that the driver reports the GPU as lost (e.g., it fell off
+	// the bus). Attributes that require querying the device keep the values
+	// reported before the GPU was lost.
+	Lost bool
+
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
 	ParentGPUUUID string
 
@@ -2367,6 +2437,11 @@ type GPU struct {
 	// as reported by the driver for the device's GPU instance. Empty for physical
 	// devices and for MIG devices on drivers that do not expose the profile name.
 	MIGProfile string
+
+	// SharingMode is the mechanism through which the device is shared between
+	// workloads. Empty when the collector does not detect sharing mechanisms,
+	// which means the same as GPUSharingModeNone.
+	SharingMode GPUSharingMode
 }
 
 var _ Entity = &GPU{}
@@ -2425,6 +2500,12 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+	if g.Lost {
+		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
+	if g.SharingMode != "" && g.SharingMode != GPUSharingModeNone {
+		_, _ = fmt.Fprintln(&sb, "Sharing Mode:", g.SharingMode)
+	}
 
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {

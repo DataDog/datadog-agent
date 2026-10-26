@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Workload Protection now updates the cgroup context of a process only when its
+    migration to a new cgroup succeeds. Previously, a failed write to a ``cgroup.procs``
+    or ``tasks`` file could associate the process with the wrong cgroup or container.

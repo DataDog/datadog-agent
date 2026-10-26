@@ -15,7 +15,7 @@ import (
 )
 
 func TestRunAuthoredScriptIsUnsupportedOnWindows(t *testing.T) {
-	handler := NewRunAuthoredScriptHandler(nil)
+	handler := NewRunAuthoredScriptHandler(nil, nil)
 
 	_, err := handler.Run(context.Background(), nil, nil)
 
