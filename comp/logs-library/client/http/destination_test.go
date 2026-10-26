@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"expvar"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1260,45 +1262,70 @@ func TestPendingDelegatedAuthDropsAfterBound(t *testing.T) {
 }
 
 func TestPendingDelegatedAuthLatchDropsImmediately(t *testing.T) {
-	// After the bound fires once, later payloads drop without waiting a fresh bound.
-	cfg := configmock.New(t)
-	server := NewDelegatedAuthPendingTestServer(cfg)
-	defer server.Stop()
+	for _, retrying := range []bool{false, true} {
+		t.Run(fmt.Sprintf("already_retrying=%t", retrying), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				cfg := configmock.New(t)
+				destCtx := client.NewDestinationsContext()
+				destCtx.Start()
+				defer destCtx.Stop()
 
-	prevWait, prevInterval := delegatedAuthMaxWait, credentialWaitInterval
-	delegatedAuthMaxWait = 2 * time.Second
-	credentialWaitInterval = 10 * time.Millisecond
-	t.Cleanup(func() { delegatedAuthMaxWait, credentialWaitInterval = prevWait, prevInterval })
+				// A pending credential never reaches HTTP; no real server is needed.
+				endpoint := config.NewEndpoint("DELA[some-org-uuid, aws]", "logs_config.additional_endpoints", "pending.example", 0, config.EmptyPathPrefix, false)
+				destination := NewDestination(endpoint, JSONContentType, destCtx, true, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
+				if retrying {
+					destination.lastRetryError = client.NewRetryableError(errors.New("server error"))
+				}
 
-	send := func() chan destinationResult {
-		done := make(chan destinationResult, 1)
-		payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
-		go func() { done <- server.Destination.sendAndRetry(payload, make(chan *message.Payload, 1), nil) }()
-		return done
-	}
+				var logs bytes.Buffer
+				logger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(&logs, log.InfoLvl)
+				require.NoError(t, err)
+				log.SetupLogger(logger, "info")
+				defer log.SetupLogger(log.Default(), "debug")
 
-	// First payload waits the full bound.
-	select {
-	case <-send():
-	case <-time.After(5 * time.Second):
-		t.Fatal("the first payload never ended its delegated-auth wait")
-	}
+				output := make(chan *message.Payload, 1)
+				send := func() {
+					payload := &message.Payload{MessageMetas: []*message.MessageMetadata{{}}, Encoded: []byte("test log")}
+					result := destination.sendAndRetry(payload, output, nil)
+					require.NoError(t, result.err)
+					require.Empty(t, output, "a dropped payload must not be acknowledged")
+				}
+				assertLogCounts := func(waits int) {
+					t.Helper()
+					log.Flush()
+					assert.Equal(t, waits, strings.Count(logs.String(), "queuing logs until delegated auth provides an API key"))
+					assert.Equal(t, waits, strings.Count(logs.String(), "dropping logs for this destination until the key arrives"))
+				}
 
-	// The latch persists after the drop (structural, no timing).
-	server.Destination.retryLock.Lock()
-	latched := !server.Destination.pendingDelegatedAuthSince.IsZero()
-	retrying := server.Destination.lastRetryError == nil
-	server.Destination.retryLock.Unlock()
-	assert.True(t, latched, "the pending latch must persist after the timeout drop")
-	assert.True(t, retrying, "the timeout drop must clear the retry episode so the worker keeps feeding this destination")
+				// The first payload waits the full bound in virtual time.
+				start := time.Now()
+				send()
+				assert.Greater(t, time.Since(start), delegatedAuthMaxWait)
+				assert.LessOrEqual(t, time.Since(start), delegatedAuthMaxWait+credentialWaitInterval)
+				assertLogCounts(1)
 
-	// The second payload must not wait a fresh bound: a fresh wait would take the full
-	// 2s bound; 1s leaves a 2x margin on the discriminating dimension while tolerating
-	// scheduling delay.
-	select {
-	case <-send():
-	case <-time.After(1 * time.Second):
-		t.Fatal("the latch did not drop the second payload immediately")
+				pendingSince := destination.pendingDelegatedAuthSince
+				require.False(t, pendingSince.IsZero())
+				assert.Nil(t, destination.lastRetryError, "the worker must keep feeding this destination")
+
+				// Later drops neither advance time nor start a new logging episode.
+				for range 3 {
+					start = time.Now()
+					send()
+					assert.Equal(t, start, time.Now())
+					assert.Equal(t, pendingSince, destination.pendingDelegatedAuthSince)
+					assert.Nil(t, destination.lastRetryError)
+				}
+				assertLogCounts(1)
+
+				// Once retry state resets after a send, a new wait logs again.
+				destination.updateRetryState(nil, nil)
+				start = time.Now()
+				send()
+				assert.Greater(t, time.Since(start), delegatedAuthMaxWait)
+				assertLogCounts(2)
+			})
+		})
 	}
 }
 

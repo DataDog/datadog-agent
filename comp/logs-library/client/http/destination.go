@@ -72,14 +72,16 @@ var delegatedAuthMaxWait = 5 * time.Minute
 // startDelegatedAuthWait records when the destination first held a payload for a
 // delegated-auth key, and clears any send backoff left over from a previous retry
 // episode so the credential recheck cadence is credentialWaitInterval, not the send
-// backoff (retryLock must not be held by the caller).
-func (d *Destination) startDelegatedAuthWait() {
+// backoff. It returns true only for a new credential wait (retryLock must not be held).
+func (d *Destination) startDelegatedAuthWait() bool {
 	d.retryLock.Lock()
 	defer d.retryLock.Unlock()
-	if d.pendingDelegatedAuthSince.IsZero() {
+	started := d.pendingDelegatedAuthSince.IsZero()
+	if started {
 		d.pendingDelegatedAuthSince = time.Now()
 	}
 	d.nbErrors = 0
+	return started
 }
 
 // stopRetryingForDelegatedAuthDrop ends the retry episode on the delegated-auth timeout
@@ -368,13 +370,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// Never ack a payload this destination didn't send: that would let the auditor advance
 			// past logs nobody delivered. Reporting retrying makes the worker skip this destination,
 			// so other reliable destinations keep sending.
-			started := d.markWaitingForCredential(err, isRetrying)
+			d.markWaitingForCredential(err, isRetrying)
 			if d.endpoint.AwaitsDelegatedAuthKey() {
 				// Start the clock on every awaited wait, not just retry-episode starts:
 				// a credential can turn pending mid-retry-episode (runtime config update
 				// re-marking the entry, or a racing write reverting it to the directive).
-				d.startDelegatedAuthWait()
-				if started {
+				if d.startDelegatedAuthWait() {
 					log.Infof("%s: queuing logs until delegated auth provides an API key", d.url)
 				}
 				if d.delegatedAuthWaitExceeded() {
@@ -560,9 +561,8 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 	return nil
 }
 
-// markWaitingForCredential reports this destination as retrying without growing the backoff. It
-// returns true when the destination wasn't already retrying.
-func (d *Destination) markWaitingForCredential(err error, isRetrying chan bool) bool {
+// markWaitingForCredential reports this destination as retrying without growing the backoff.
+func (d *Destination) markWaitingForCredential(err error, isRetrying chan bool) {
 	d.retryLock.Lock()
 	defer d.retryLock.Unlock()
 	started := d.lastRetryError == nil
@@ -570,7 +570,6 @@ func (d *Destination) markWaitingForCredential(err error, isRetrying chan bool) 
 		isRetrying <- true
 	}
 	d.lastRetryError = err
-	return started
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
