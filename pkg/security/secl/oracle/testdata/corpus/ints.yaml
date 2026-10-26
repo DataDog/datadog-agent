@@ -1,0 +1,847 @@
+cases:
+  # ---------------------------------------------------------------- comparisons
+  - name: int_cmp_const_right
+    rules:
+      - open.flags >= 0 && (process.pid == 10)
+      - open.flags >= 0 && (process.pid != 10)
+      - open.flags >= 0 && (process.pid < 10)
+      - open.flags >= 0 && (process.pid <= 10)
+      - open.flags >= 0 && (process.pid > 10)
+      - open.flags >= 0 && (process.pid >= 10)
+      - open.flags >= 0 && (process.pid == 0)
+      - open.flags >= 0 && (process.pid > 2147483647)
+      - open.flags >= 0 && (process.pid <= 4294967295)
+    events:
+      - {type: open, fields: {process.pid: 0}}
+      - {type: open, fields: {process.pid: 9}}
+      - {type: open, fields: {process.pid: 10}}
+      - {type: open, fields: {process.pid: 11}}
+      - {type: open, fields: {process.pid: 2147483647}}
+      - {type: open, fields: {process.pid: 2147483648}}
+      - {type: open, fields: {process.pid: 4294967295}}
+
+  - name: int_cmp_const_left
+    rules:
+      - open.flags >= 0 && (10 == process.pid)
+      - open.flags >= 0 && (10 != process.pid)
+      - open.flags >= 0 && (10 < process.pid)
+      - open.flags >= 0 && (10 <= process.pid)
+      - open.flags >= 0 && (10 > process.pid)
+      - open.flags >= 0 && (10 >= process.pid)
+    events:
+      - {type: open, fields: {process.pid: 0}}
+      - {type: open, fields: {process.pid: 9}}
+      - {type: open, fields: {process.pid: 10}}
+      - {type: open, fields: {process.pid: 11}}
+
+  - name: int_cmp_const_const
+    rules:
+      - open.flags >= 0 && (1 == 1 && process.pid == 3)
+      - open.flags >= 0 && (1 != 1 || process.pid == 3)
+      - open.flags >= 0 && (1 < 2 && process.pid == 3)
+      - open.flags >= 0 && (2 < 1 || process.pid == 4)
+      - open.flags >= 0 && (2 <= 2 && process.pid == 3)
+      - open.flags >= 0 && (3 <= 2 || process.pid == 4)
+      - open.flags >= 0 && (3 > 2 && process.pid == 3)
+      - open.flags >= 0 && (2 > 3 || process.pid == 4)
+      - open.flags >= 0 && (2 >= 2 && process.pid == 3)
+      - open.flags >= 0 && (2 >= 3 || process.pid == 4)
+      - open.flags >= 0 && (5 != 6 && process.pid == 3)
+    events:
+      - {type: open, fields: {process.pid: 3}}
+      - {type: open, fields: {process.pid: 4}}
+      - {type: open, fields: {process.pid: 5}}
+
+  - name: int_cmp_negative_values
+    rules:
+      - open.retval < 0
+      - open.retval == -1
+      - open.retval == EACCES
+      - open.retval != -13
+      - open.retval >= -13
+      - open.retval > -14 && open.retval < -12
+      - '-1 > open.retval'
+      - open.retval <= -9223372036854775807
+      - open.retval > 9223372036854775806
+      - open.retval == -EACCES
+      - open.retval in [-1, -13, 0]
+      - open.retval not in [-1, -13, 0]
+    events:
+      - {type: open, fields: {open.retval: 0}}
+      - {type: open, fields: {open.retval: -1}}
+      - {type: open, fields: {open.retval: -13}}
+      - {type: open, fields: {open.retval: -14}}
+      - {type: open, fields: {open.retval: 13}}
+      - {type: open, fields: {open.retval: 9223372036854775807}}
+      - {type: open, fields: {open.retval: -9223372036854775807}}
+
+  - name: int_cmp_field_vs_field
+    rules:
+      - open.flags >= 0 && (process.uid == process.gid)
+      - open.flags >= 0 && (process.uid != process.gid)
+      - open.flags >= 0 && (process.uid < process.gid)
+      - open.flags >= 0 && (process.uid <= process.gid)
+      - open.flags >= 0 && (process.uid > process.gid)
+      - open.flags >= 0 && (process.uid >= process.gid)
+      - open.flags >= 0 && (process.pid == process.ppid)
+      - open.flags >= 0 && (process.euid == process.uid && process.fsuid == process.uid)
+    events:
+      - {type: open, fields: {process.uid: 1000, process.gid: 1000, process.pid: 5, process.ppid: 5, process.euid: 1000, process.fsuid: 1000}}
+      - {type: open, fields: {process.uid: 1000, process.gid: 1001, process.pid: 5, process.ppid: 6, process.euid: 1000, process.fsuid: 0}}
+      - {type: open, fields: {process.uid: 1001, process.gid: 1000, process.pid: 6, process.ppid: 5, process.euid: 0, process.fsuid: 0}}
+      - {type: open, fields: {process.uid: 0, process.gid: 0, process.pid: 1, process.ppid: 0}}
+
+  - name: int_cmp_cross_event_fields
+    rules:
+      - chown.file.destination.uid == process.uid
+      - chown.file.destination.gid != process.gid
+      - chown.file.uid < chown.file.destination.uid
+      - chown.file.destination.uid >= 1000 && chown.file.destination.gid <= 100
+    events:
+      - {type: chown, fields: {chown.file.destination.uid: 1000, chown.file.destination.gid: 100, chown.file.uid: 0, process.uid: 1000, process.gid: 100}}
+      - {type: chown, fields: {chown.file.destination.uid: 999, chown.file.destination.gid: 101, chown.file.uid: 999, process.uid: 1000, process.gid: 100}}
+      - {type: chown, fields: {chown.file.destination.uid: 0, chown.file.destination.gid: 0, chown.file.uid: 5, process.uid: 0, process.gid: 0}}
+
+  # ------------------------------------------------------------- bit operations
+  - name: int_bit_and_flags
+    rules:
+      - open.flags & O_CREAT > 0
+      - open.flags & O_CREAT == O_CREAT
+      - open.flags & O_CREAT != 0
+      - open.flags & (O_CREAT | O_EXCL) == (O_CREAT | O_EXCL)
+      - open.flags & O_ACCMODE == O_RDONLY
+      - open.flags & O_ACCMODE == O_WRONLY
+      - open.flags & O_ACCMODE == O_RDWR
+      - open.flags & 3 == 1
+      - 3 & open.flags == 3
+      - open.flags & O_TRUNC == 0
+      - O_CREAT & open.flags > 0
+      - open.flags & process.pid == process.pid
+    events:
+      - {type: open, fields: {open.flags: 0, process.pid: 0}}
+      - {type: open, fields: {open.flags: 1, process.pid: 1}}
+      - {type: open, fields: {open.flags: 2, process.pid: 2}}
+      - {type: open, fields: {open.flags: 3, process.pid: 3}}
+      - {type: open, fields: {open.flags: 64, process.pid: 64}}
+      - {type: open, fields: {open.flags: 65, process.pid: 65}}
+      - {type: open, fields: {open.flags: 194, process.pid: 128}}
+      - {type: open, fields: {open.flags: 578, process.pid: 512}}
+      - {type: open, fields: {open.flags: 1089, process.pid: 7}}
+
+  - name: int_bit_or_xor
+    rules:
+      - open.flags | O_CREAT == O_CREAT
+      - open.flags | O_CREAT == 66
+      - (open.flags | 1) == 3
+      - open.flags | 1 | 2 == 3
+      - open.flags ^ 1 == 0
+      - open.flags ^ O_CREAT == 64
+      - open.flags ^ O_CREAT ^ O_CREAT == 1
+      - open.flags ^ process.uid == 0
+      - open.flags >= 0 && (1 | 2 == 3)
+      - open.flags >= 0 && (1 | 2 == 4)
+      - 6 ^ 3 == 5 && open.flags == 0
+      - 6 & 3 == 2 && open.flags == 0
+      - open.flags & 1 | 2 == 3
+      - open.flags | 2 & 3 == 3
+      - open.flags ^ 1 & 3 == 2
+    events:
+      - {type: open, fields: {open.flags: 0, process.uid: 0}}
+      - {type: open, fields: {open.flags: 1, process.uid: 1}}
+      - {type: open, fields: {open.flags: 2, process.uid: 3}}
+      - {type: open, fields: {open.flags: 3, process.uid: 3}}
+      - {type: open, fields: {open.flags: 64, process.uid: 0}}
+      - {type: open, fields: {open.flags: 66, process.uid: 64}}
+
+  - name: int_bit_on_both_sides
+    rules:
+      - open.flags >= 0 && (process.uid & 1 == process.gid & 1)
+      - open.flags >= 0 && (process.uid | process.gid == process.euid)
+      - open.flags >= 0 && (process.uid ^ process.gid == 0)
+      - open.flags >= 0 && ((process.uid & 255) == (process.gid & 255))
+      - open.flags >= 0 && (process.cap_effective & CAP_SYS_ADMIN > 0)
+      - open.flags >= 0 && (process.cap_effective & (CAP_SYS_ADMIN | CAP_NET_RAW) == (CAP_SYS_ADMIN | CAP_NET_RAW))
+      - open.flags >= 0 && (process.cap_effective & CAP_NET_RAW == 0)
+      - open.flags >= 0 && (process.caps_used & CAP_NET_RAW != 0)
+    events:
+      - {type: open, fields: {process.uid: 1, process.gid: 3, process.euid: 3, process.cap_effective: 0, process.caps_used: 0}}
+      - {type: open, fields: {process.uid: 256, process.gid: 0, process.euid: 256, process.cap_effective: 2097152, process.caps_used: 8192}}
+      - {type: open, fields: {process.uid: 5, process.gid: 5, process.euid: 0, process.cap_effective: 2105344, process.caps_used: 8192}}
+      - {type: open, fields: {process.uid: 4, process.gid: 2, process.euid: 6, process.cap_effective: 8192, process.caps_used: 0}}
+      - {type: open, fields: {process.uid: 2, process.gid: 1, process.euid: 3, process.cap_effective: 2113536, process.caps_used: 0}}
+
+  # ----------------------------------------------------------------- arithmetic
+  - name: int_arith_plus_minus
+    rules:
+      - open.flags >= 0 && (process.pid + 1 == 11)
+      - open.flags >= 0 && (process.pid - 1 == 9)
+      - open.flags >= 0 && (10 - process.pid > 0)
+      - open.flags >= 0 && (10 - process.pid == 0)
+      - open.flags >= 0 && (1 + process.pid == 11)
+      - open.flags >= 0 && (process.pid + 1 - 1 == process.ppid)
+      - open.flags >= 0 && (process.pid - 1 - 1 == 8)
+      - open.flags >= 0 && (process.pid + 5 + 5 == 20)
+      - open.flags >= 0 && (process.pid + process.ppid == 15)
+      - open.flags >= 0 && (process.pid - process.ppid > 0)
+      - open.flags >= 0 && (process.pid - process.ppid <= 0)
+      - open.flags >= 0 && (process.pid + 1 - process.ppid == 6)
+      - open.flags >= 0 && (1 + 2 + 3 == process.ppid + 1)
+      - open.flags >= 0 && (5 - 2 - 1 == 2 && process.pid == 10)
+      - open.flags >= 0 && (process.pid + 1 != 11)
+      - open.flags >= 0 && (process.pid + 1 >= 11)
+      - open.flags >= 0 && (process.pid - 20 < -10)
+      - open.flags >= 0 && (process.pid + 1 <= 11)
+      - open.flags >= 0 && (process.pid + 1 > 11)
+      - open.flags >= 0 && (process.pid + 1 < 11)
+      - open.flags >= 0 && (11 == process.pid + 1)
+      - open.flags >= 0 && (11 > process.pid + 1)
+      - open.flags >= 0 && (12 <= process.pid + 3 - 1)
+    events:
+      - {type: open, fields: {process.pid: 10, process.ppid: 5}}
+      - {type: open, fields: {process.pid: 9, process.ppid: 5}}
+      - {type: open, fields: {process.pid: 11, process.ppid: 5}}
+      - {type: open, fields: {process.pid: 5, process.ppid: 5}}
+      - {type: open, fields: {process.pid: 0, process.ppid: 5}}
+      - {type: open, fields: {process.pid: 7, process.ppid: 5}}
+      - {type: open, fields: {process.pid: 3, process.ppid: 6}}
+
+  - name: int_arith_with_bits_and_unary
+    rules:
+      - (open.flags & O_CREAT) + 1 == 65
+      - open.flags - (open.flags & 3) == 64
+      - open.flags >= 0 && (-process.pid == -10)
+      - open.flags >= 0 && (-process.pid < 0)
+      - open.flags >= 0 && (-process.pid + 10 == 0)
+      - open.flags >= 0 && (10 + -process.pid == 0)
+      - open.flags >= 0 && (-(process.pid + 1) == -11)
+      - open.flags >= 0 && (- -process.pid == 10)
+      - open.flags >= 0 && (^process.pid == -11)
+      - open.flags >= 0 && (^process.pid & 255 == 245)
+      - open.flags >= 0 && (^^process.pid == 10)
+      - open.flags >= 0 && (^0 == -1 && process.pid == 10)
+      - open.flags >= 0 && (-1 < open.retval)
+      - '-open.retval > 0'
+      - '-open.retval == 13'
+      - '^open.retval == 12'
+      - '-(-open.retval) == 13'
+      - '-open.flags == -64'
+      - '^open.flags & O_CREAT == 0'
+      - open.flags >= 0 && (-3 + 10 == 7 && process.pid == 10)
+    events:
+      - {type: open, fields: {process.pid: 10, open.flags: 64, open.retval: -13}}
+      - {type: open, fields: {process.pid: 9, open.flags: 65, open.retval: 0}}
+      - {type: open, fields: {process.pid: 0, open.flags: 0, open.retval: 13}}
+      - {type: open, fields: {process.pid: 255, open.flags: 66, open.retval: -1}}
+
+  # --------------------------------------------------------------------- arrays
+  - name: int_in_literal_arrays
+    rules:
+      - open.flags >= 0 && (process.pid in [1, 2, 10])
+      - open.flags >= 0 && (process.pid not in [1, 2, 10])
+      - open.flags >= 0 && (process.pid in [10])
+      - open.flags >= 0 && (process.pid not in [10])
+      - open.flags >= 0 && (process.pid + 1 in [3, 11])
+      - open.flags >= 0 && (process.pid + 1 not in [3, 11])
+      - open.flags >= 0 && (-process.pid in [-1, -10])
+      - open.flags >= 0 && (process.pid & 1 in [1])
+      - open.flags in [O_RDONLY, O_WRONLY, O_RDWR ]
+      - open.flags not in [O_RDONLY, O_WRONLY, O_RDWR ]
+      - open.flags in [O_CREAT, O_EXCL ]
+      - open.flags & O_ACCMODE in [O_WRONLY, O_RDWR ]
+    events:
+      - {type: open, fields: {process.pid: 1, open.flags: 0}}
+      - {type: open, fields: {process.pid: 2, open.flags: 1}}
+      - {type: open, fields: {process.pid: 10, open.flags: 66}}
+      - {type: open, fields: {process.pid: 3, open.flags: 64}}
+      - {type: open, fields: {process.pid: 11, open.flags: 193}}
+      - {type: open, fields: {process.pid: 0, open.flags: 3}}
+
+  - name: int_array_fields
+    rules:
+      - open.flags >= 0 && (process.ancestors.pid == 1)
+      - open.flags >= 0 && (process.ancestors.pid != 1)
+      - open.flags >= 0 && (process.ancestors.pid > 5)
+      - open.flags >= 0 && (process.ancestors.pid >= 5)
+      - open.flags >= 0 && (process.ancestors.pid < 5)
+      - open.flags >= 0 && (process.ancestors.pid <= 5)
+      - open.flags >= 0 && (1 == process.ancestors.pid)
+      - open.flags >= 0 && (1 != process.ancestors.pid)
+      - open.flags >= 0 && (5 < process.ancestors.pid)
+      - open.flags >= 0 && (5 <= process.ancestors.pid)
+      - open.flags >= 0 && (1 > process.ancestors.pid)
+      - open.flags >= 0 && (7 >= process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.pid in [1, 7])
+      - open.flags >= 0 && (process.ancestors.pid not in [1, 7])
+      - open.flags >= 0 && (process.ancestors.pid allin [1, 7, 20])
+      - open.flags >= 0 && (process.ancestors.pid allin [1])
+      - open.flags >= 0 && (process.ancestors.uid in [1000])
+      - open.flags >= 0 && (process.ancestors.uid not in [1000])
+      - open.flags >= 0 && (process.ancestors.uid == 0 && process.uid == 1000)
+      - open.flags >= 0 && (process.pid in process.ancestors.pid)
+      - open.flags >= 0 && (process.pid not in process.ancestors.pid)
+      - open.flags >= 0 && (process.ppid == process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.pid == process.ppid)
+      - open.flags >= 0 && (process.ancestors.length > 1)
+      - open.flags >= 0 && (process.ancestors.length == 1)
+      - open.flags >= 0 && (process.ancestors.length >= 3)
+      - open.flags >= 0 && (2 == process.ancestors.length)
+      - open.flags >= 0 && (process.ancestors.pid + 1 == 2)
+      - open.flags >= 0 && (process.ancestors.pid & 1 == 1)
+    processes:
+      init: {pid: 1}
+      sh: {pid: 7, parent: init, fields: {uid: 0}}
+      app: {pid: 20, parent: sh, fields: {uid: 1000, ppid: 7}}
+      lone: {pid: 30, fields: {uid: 0, ppid: 30}}
+      app2: {pid: 8, parent: init, fields: {uid: 1000, ppid: 1}}
+      dup: {pid: 1, parent: init, fields: {uid: 5, ppid: 1}}
+      kid: {pid: 21, parent: app, fields: {uid: 5, ppid: 20}}
+    events:
+      - {type: open, process: app, fields: {open.flags: 1}}
+      - {type: open, process: sh, fields: {open.flags: 1}}
+      - {type: open, process: init, fields: {open.flags: 1}}
+      - {type: open, process: lone, fields: {open.flags: 1}}
+      - {type: open, process: app2, fields: {open.flags: 1}}
+      - {type: open, process: dup, fields: {open.flags: 1}}
+      - {type: open, process: kid, fields: {open.flags: 1}}
+
+  - name: int_array_vs_array
+    rules:
+      - open.flags >= 0 && (process.ancestors.pid in process.ancestors.uid)
+      - open.flags >= 0 && (process.ancestors.pid not in process.ancestors.uid)
+      - open.flags >= 0 && (process.ancestors.pid allin process.ancestors.uid)
+      - open.flags >= 0 && (process.ancestors.uid in [0, 1000])
+      - open.flags >= 0 && (process.ancestors.uid allin [0, 1000])
+      - open.flags >= 0 && (process.ancestors.uid allin [0])
+      - open.flags >= 0 && (process.ancestors.uid not in [5, 6])
+      - open.flags >= 0 && (process.ancestors.uid == process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.uid != process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.uid < process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.uid > process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.uid <= process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.uid >= process.ancestors.pid)
+    processes:
+      a: {pid: 1}
+      b: {pid: 2, parent: a, fields: {uid: 1}}
+      c: {pid: 3, parent: b, fields: {uid: 9}}
+      d: {pid: 4, parent: a, fields: {uid: 4}}
+      p: {pid: 7, fields: {uid: 3}}
+      q: {pid: 3, parent: p, fields: {uid: 7}}
+      r: {pid: 9, parent: q, fields: {uid: 9}}
+    events:
+      - {type: open, process: c}
+      - {type: open, process: d}
+      - {type: open, process: r}
+      - {type: open, process: a}
+      - {type: open, process: q}
+
+  - name: int_string_length_fields
+    rules:
+      - open.flags >= 0 && (process.file.name.length == 4)
+      - open.flags >= 0 && (process.file.name.length > 4)
+      - open.flags >= 0 && (process.file.name.length < 4)
+      - open.flags >= 0 && (process.file.name.length >= 4)
+      - open.flags >= 0 && (process.file.name.length <= 4)
+      - open.flags >= 0 && (process.file.name.length != 4)
+      - open.flags >= 0 && (process.file.path.length in [4, 9])
+      - open.flags >= 0 && (process.file.name.length + 1 == 5)
+      - open.flags >= 0 && (process.file.name.length == process.pid)
+      - open.file.name.length == 0
+      - open.file.path.length > 10
+      - open.flags >= 0 && (process.ancestors.file.name.length > 4)
+      - open.flags >= 0 && (process.ancestors.file.name.length == 6)
+      - open.flags >= 0 && (process.ancestors.file.name.length in [4, 9])
+    processes:
+      p4: {pid: 4, fields: {file.name: abcd, file.path: /bin/abcd}}
+      p5: {pid: 5, fields: {file.name: abcde, file.path: /bin/abcde}, parent: p4}
+      p6: {pid: 6, fields: {file.name: abcdef, file.path: /abcd}, parent: p5}
+      p7: {pid: 7, fields: {file.name: "ab", file.path: /ab}, parent: p6}
+    events:
+      - {type: open, process: p4, fields: {open.file.name: "", open.file.path: /tmp/short}}
+      - {type: open, process: p5, fields: {open.file.name: x, open.file.path: /tmp/a_long_path}}
+      - {type: open, process: p6, fields: {open.file.name: xy, open.file.path: /tmp/a_long_path_2}}
+      - {type: open, process: p7, fields: {open.file.name: xyz, open.file.path: /t}}
+
+  # ------------------------------------------------------------------ constants
+  - name: int_constants_signals_ptrace_mmap
+    rules:
+      - signal.type == SIGKILL
+      - signal.type in [SIGKILL, SIGTERM ]
+      - signal.type != SIGKILL && signal.type > SIGHUP
+      - signal.pid == 1 && signal.type == SIGTERM
+      - ptrace.request == PTRACE_PEEKTEXT
+      - ptrace.request != PTRACE_PEEKTEXT
+      - mmap.protection & PROT_EXEC != 0
+      - mmap.protection & (PROT_READ | PROT_WRITE) == (PROT_READ | PROT_WRITE)
+      - mmap.protection == PROT_READ | PROT_EXEC
+      - mmap.flags & MAP_SHARED > 0
+      - mmap.flags & MAP_SHARED == 0 && mmap.protection & PROT_EXEC == 0
+      - bind.addr.family == AF_INET
+      - bind.addr.family != AF_INET && bind.addr.port > 1024
+      - bind.addr.port >= 80 && bind.addr.port <= 443
+      - bind.addr.port in [80, 443, 8080]
+      - capset.cap_effective & CAP_SYS_ADMIN == CAP_SYS_ADMIN
+      - capset.cap_permitted & CAP_NET_RAW != 0 && capset.cap_effective & CAP_NET_RAW == 0
+      - chmod.file.destination.mode & S_IRWXU == S_IRWXU
+      - chmod.file.destination.mode & 0 == 0
+      - chmod.file.destination.mode == 493 || chmod.file.destination.mode == 420
+      - open.file.mode & S_IFMT == S_IFREG
+    events:
+      - {type: signal, fields: {signal.type: 9, signal.pid: 1}}
+      - {type: signal, fields: {signal.type: 15, signal.pid: 1}}
+      - {type: signal, fields: {signal.type: 1, signal.pid: 2}}
+      - {type: signal, fields: {signal.type: 2, signal.pid: 2}}
+      - {type: ptrace, fields: {ptrace.request: 1}}
+      - {type: ptrace, fields: {ptrace.request: 16}}
+      - {type: mmap, fields: {mmap.protection: 1, mmap.flags: 1}}
+      - {type: mmap, fields: {mmap.protection: 3, mmap.flags: 2}}
+      - {type: mmap, fields: {mmap.protection: 5, mmap.flags: 0}}
+      - {type: mmap, fields: {mmap.protection: 4, mmap.flags: 1}}
+      - {type: bind, fields: {bind.addr.family: 2, bind.addr.port: 80}}
+      - {type: bind, fields: {bind.addr.family: 10, bind.addr.port: 8080}}
+      - {type: bind, fields: {bind.addr.family: 10, bind.addr.port: 443}}
+      - {type: bind, fields: {bind.addr.family: 2, bind.addr.port: 79}}
+      - {type: capset, fields: {capset.cap_effective: 2097152, capset.cap_permitted: 2097152}}
+      - {type: capset, fields: {capset.cap_effective: 0, capset.cap_permitted: 8192}}
+      - {type: capset, fields: {capset.cap_effective: 8192, capset.cap_permitted: 8192}}
+      - {type: chmod, fields: {chmod.file.destination.mode: 493}}
+      - {type: chmod, fields: {chmod.file.destination.mode: 420}}
+      - {type: chmod, fields: {chmod.file.destination.mode: 0}}
+      - {type: open, fields: {open.file.mode: 33188}}
+      - {type: open, fields: {open.file.mode: 16877}}
+
+  # ------------------------------------------------------------------ durations
+  - name: int_duration_field_vs_duration
+    rules:
+      - open.flags >= 0 && (process.created_at < 1h)
+      - open.flags >= 0 && (process.created_at <= 1h)
+      - open.flags >= 0 && (process.created_at > 1h)
+      - open.flags >= 0 && (process.created_at >= 1h)
+      - open.flags >= 0 && (process.created_at == 1h)
+      - open.flags >= 0 && (process.created_at > 30m && process.created_at < 90m)
+      - open.flags >= 0 && (process.created_at > 5s)
+      - open.flags >= 0 && (process.created_at < 1m)
+      - open.flags >= 0 && (process.created_at <= 90m)
+      - open.flags >= 0 && (process.created_at >= 90m)
+      - open.flags >= 0 && (process.created_at > 90m + 30m)
+      - open.flags >= 0 && (1h < process.created_at)
+      - open.flags >= 0 && (1h > process.created_at)
+      - open.flags >= 0 && (1h <= process.created_at)
+      - open.flags >= 0 && (1h >= process.created_at)
+      - open.flags >= 0 && (1h == process.created_at)
+    events:
+      - {type: open, fields: {process.created_at: 3999999970000000000}}
+      - {type: open, fields: {process.created_at: 3999999400000000000}}
+      - {type: open, fields: {process.created_at: 92800000000000}}
+      - {type: open, fields: {process.created_at: 94000000000000}}
+      - {type: open, fields: {process.created_at: 89200000000000}}
+      - {type: open, fields: {process.created_at: 3599999999999}}
+      - {type: open, fields: {process.created_at: 3600000000000}}
+      - {type: open, fields: {process.created_at: 3600000000001}}
+      - {type: open, fields: {process.created_at: 5400000000000}}
+
+  - name: int_duration_constants
+    rules:
+      - open.flags >= 0 && (10s + 40s == 50s && process.pid == 1)
+      - open.flags >= 0 && (1m == 60s && process.pid == 1)
+      - open.flags >= 0 && (5s < 1m && process.pid == 1)
+      - open.flags >= 0 && (5s <= 1m && process.pid == 1)
+      - open.flags >= 0 && (5s > 1m || process.pid == 2)
+      - open.flags >= 0 && (5s >= 1m || process.pid == 2)
+      - open.flags >= 0 && (1h - 30m == 30m && process.pid == 1)
+      - open.flags >= 0 && (1h - 30m < 1h && process.pid == 1)
+      - open.flags >= 0 && (1h + 30m > 1h && process.pid == 1)
+      - open.flags >= 0 && (1h + 30m >= 90m && process.pid == 1)
+      - open.flags >= 0 && (1h + 30m <= 1h || process.pid == 2)
+      - open.flags >= 0 && (1h + 30m == 90m || process.pid == 2)
+      - open.flags >= 0 && (1s < 1m && 1m < 1h && process.pid == 1)
+    events:
+      - {type: open, fields: {process.pid: 1}}
+      - {type: open, fields: {process.pid: 2}}
+      - {type: open, fields: {process.pid: 3}}
+
+  - name: int_duration_arithmetic
+    rules:
+      - open.flags >= 0 && (process.created_at - process.parent.created_at > 1h)
+      - open.flags >= 0 && (process.created_at - process.parent.created_at >= 130m)
+      - open.flags >= 0 && (process.created_at - process.parent.created_at < 3h)
+      - open.flags >= 0 && (process.created_at - process.parent.created_at <= 90m)
+      - open.flags >= 0 && (process.created_at - process.parent.created_at == 120m)
+      - open.flags >= 0 && (process.created_at - process.parent.created_at + 3s <= 3h)
+      - open.flags >= 0 && (process.created_at - process.parent.created_at + 3s > 3h)
+      - open.flags >= 0 && (process.parent.created_at - process.created_at < 0s)
+      - open.flags >= 0 && (process.parent.created_at - process.created_at + 1h > 0s)
+      - open.flags >= 0 && (process.created_at + 1h > 2h)
+      - open.flags >= 0 && (process.created_at + 1h < 2h)
+      - open.flags >= 0 && (process.created_at + 1h >= 2h)
+      - open.flags >= 0 && (process.created_at + 1h <= 2h)
+      - open.flags >= 0 && (process.created_at + 1h == 1h)
+      - open.flags >= 0 && (process.created_at - 1h == 5s)
+      - open.flags >= 0 && (1h + process.created_at > 2h)
+      - open.flags >= 0 && (10s + 40s > 5s && process.pid == 7)
+      - open.flags >= 0 && (10s + 40s < 5s || process.pid == 9)
+    processes:
+      old: {pid: 1, fields: {created_at: 82000000000000}}
+      mid: {pid: 2, parent: old, fields: {created_at: 89200000000000}}
+      new: {pid: 7, parent: mid, fields: {created_at: 91000000000000}}
+      top: {pid: 8, parent: new, fields: {created_at: 99400000000000}}
+      bare: {pid: 9}
+    events:
+      - {type: open, process: new}
+      - {type: open, process: mid}
+      - {type: open, process: old}
+      - {type: open, process: top}
+      - {type: open, process: bare}
+
+  - name: int_duration_arithmetic_two_timestamps
+    rules:
+      - open.file.change_time - process.created_at > 1h
+      - open.file.modification_time - process.created_at + 3s <= 5s
+      - open.file.modification_time - process.created_at + 3s <= 1h
+      - process.created_at - open.file.modification_time > 30m
+    events:
+      - {type: open, fields: {process.created_at: 89200000000000, open.file.change_time: 96400000000000, open.file.modification_time: 91000000000000}}
+      - {type: open, fields: {process.created_at: 89200000000000, open.file.change_time: 89200000000000, open.file.modification_time: 92800000000000}}
+      - {type: open, fields: {process.created_at: 96400000000000, open.file.change_time: 89200000000000, open.file.modification_time: 96400000000000}}
+      - {type: open, fields: {process.created_at: 89200000000000, open.file.change_time: 85600000000000, open.file.modification_time: 85600000000000}}
+
+  - name: int_duration_array_fields
+    rules:
+      - open.flags >= 0 && (process.ancestors.created_at < 1h)
+      - open.flags >= 0 && (process.ancestors.created_at <= 1h)
+      - open.flags >= 0 && (process.ancestors.created_at > 1h)
+      - open.flags >= 0 && (process.ancestors.created_at >= 1h)
+      - open.flags >= 0 && (process.ancestors.created_at > 4h)
+      - open.flags >= 0 && (process.ancestors.created_at < 10s)
+      - open.flags >= 0 && (process.ancestors.created_at > 30m && process.ancestors.created_at < 1h)
+    processes:
+      root: {pid: 1, fields: {created_at: 82000000000000}}
+      mid: {pid: 2, parent: root, fields: {created_at: 92800000000000}}
+      leaf: {pid: 3, parent: mid, fields: {created_at: 3999999400000000000}}
+      leaf2: {pid: 4, parent: mid, fields: {created_at: 3999999970000000000}}
+      root2: {pid: 5, fields: {created_at: 3999999400000000000}}
+      kid2: {pid: 6, parent: root2, fields: {created_at: 3999999990000000000}}
+    events:
+      - {type: open, process: leaf}
+      - {type: open, process: leaf2}
+      - {type: open, process: mid}
+      - {type: open, process: kid2}
+      - {type: open, process: root}
+
+  - name: int_duration_array_reversed_and_misc
+    rules:
+      - open.flags >= 0 && (1h < process.ancestors.created_at)
+      - open.flags >= 0 && (1h > process.ancestors.created_at)
+      - open.flags >= 0 && (1h <= process.ancestors.created_at)
+      - open.flags >= 0 && (1h >= process.ancestors.created_at)
+      - open.flags >= 0 && (1h == process.ancestors.created_at)
+      - open.flags >= 0 && (1h != process.ancestors.created_at)
+      - open.flags >= 0 && (process.ancestors.created_at == 1h)
+    processes:
+      root: {pid: 1, fields: {created_at: 82000000000000}}
+      leaf: {pid: 3, parent: root, fields: {created_at: 3999999400000000000}}
+    events:
+      - {type: open, process: leaf}
+      - {type: open, process: root}
+
+  # ------------------------------------------------------------------- errors
+  - name: int_type_errors
+    rules:
+      - process.pid == "a"
+      - process.pid != "a"
+      - process.pid < "a"
+      - process.pid + "a" == 1
+      - '"a" + 1 == 2'
+      - process.pid & "a" == 1
+      - process.file.name & 1 == 1
+      - process.file.name + 1 == 1
+      - '-process.file.name == 1'
+      - '^process.file.name == 1'
+      - '-"a" == 1'
+      - process.pid in ["a"]
+      - process.pid in [1, "a"]
+      - process.pid in ["a", 1]
+      - process.pid in process.file.name
+      - process.ancestors.pid in process.file.name
+      - process.ancestors.pid == "a"
+      - process.ancestors.pid in ["a"]
+      - process.pid == true
+      - process.pid == process.file.name
+      - open.flags >= 0 && (process.pid == process.file.name.length && process.pid == 1)
+      - process.file.name == process.pid
+      - process.created_at == "1h"
+      - open.flags | "a" == 1
+      - open.flags ^ "a" == 1
+      - open.flags & O_CREAT in [64]
+      - process.pid in [1, 2] == true
+      - process.pid + 1
+      - process.pid
+      - process.pid & 1
+      - '-process.pid'
+      - process.pid =~ 1
+      - process.pid !~ 1
+      - 1 allin process.pid
+      - process.pid allin [1]
+      - process.pid > [1]
+      - process.ancestors.pid > [1]
+      - open.flags >= 0 && (process.pid > process.ancestors.pid && process.pid < 5 && process.pid == 5)
+      - open.flags + - 1 == 0
+    events:
+      - {type: open, fields: {process.pid: 1, open.flags: 1}}
+      - {type: open, fields: {process.pid: 1, open.flags: 64, process.file.name: a}}
+
+  - name: int_boolean_composition
+    rules:
+      - open.flags >= 0 && (process.pid > 1 && process.pid < 10 || process.pid == 100)
+      - open.flags >= 0 && (process.pid > 1 && (process.pid < 10 || process.pid == 100))
+      - open.flags >= 0 && (!(process.pid > 5) && process.uid in [0, 1000])
+      - open.flags >= 0 && (not (process.pid + 1 == 6) && process.uid >= 1000)
+      - open.flags >= 0 && ((process.pid & 1) == 1 && (process.uid | 1) == 1001 || process.pid - process.uid == 0)
+      - open.flags >= 0 && (process.pid > 5 == true)
+      - process.pid > 5 && process.uid > 5 && open.flags > 5 && open.retval > 5
+      - process.pid > 5 || process.uid > 5 || open.flags > 5 || open.retval > 5
+    events:
+      - {type: open, fields: {process.pid: 5, process.uid: 1000, open.flags: 0, open.retval: 0}}
+      - {type: open, fields: {process.pid: 6, process.uid: 1000, open.flags: 6, open.retval: 6}}
+      - {type: open, fields: {process.pid: 100, process.uid: 1001, open.flags: 0, open.retval: 0}}
+      - {type: open, fields: {process.pid: 3, process.uid: 0, open.flags: 0, open.retval: 0}}
+      - {type: open, fields: {process.pid: 0, process.uid: 0, open.flags: 0, open.retval: 0}}
+      - {type: open, fields: {process.pid: 7, process.uid: 7, open.flags: 0, open.retval: 0}}
+
+  - name: int_scalar_field_vs_array_field
+    rules:
+      - open.flags >= 0 && (process.pid > process.ancestors.pid)
+      - open.flags >= 0 && (process.pid >= process.ancestors.pid)
+      - open.flags >= 0 && (process.pid < process.ancestors.pid)
+      - open.flags >= 0 && (process.pid <= process.ancestors.pid)
+      - open.flags >= 0 && (process.pid == process.ancestors.pid)
+      - open.flags >= 0 && (process.pid != process.ancestors.pid)
+      - open.flags >= 0 && (process.ancestors.pid > process.pid)
+      - open.flags >= 0 && (process.ancestors.pid >= process.pid)
+      - open.flags >= 0 && (process.ancestors.pid < process.pid)
+      - open.flags >= 0 && (process.ancestors.pid <= process.pid)
+      - open.flags >= 0 && (process.ancestors.pid == process.pid)
+      - open.flags >= 0 && (process.ancestors.pid != process.pid)
+      - open.flags >= 0 && (process.ancestors.pid > process.ancestors.uid)
+      - open.flags >= 0 && (process.ancestors.pid > process.uid + 1)
+      - open.flags >= 0 && (process.ancestors.pid + 1 > process.uid)
+      - open.flags >= 0 && (process.ancestors.pid in [process.pid])
+      - open.flags >= 0 && (process.pid in [1, 7, 20] && process.ancestors.pid in [1, 7, 20])
+      - open.flags >= 0 && (process.uid in process.ancestors.uid)
+      - open.flags >= 0 && (process.ancestors.pid >= 1 && process.ancestors.pid <= 7)
+      - open.flags >= 0 && (process.ancestors.pid > 1 || process.ancestors.pid < 0)
+      - 2 | open.flags == 3
+      - 1 ^ open.flags == 0
+      - open.flags >= 0 && (1 | process.uid == 3)
+      - open.flags >= 0 && (1 ^ process.uid == 0)
+      - open.flags >= 0 && (6 & process.uid == 4)
+      - 1 + open.flags == 2
+      - 1 - open.flags == 0
+      - 5 - open.flags - process.uid == 2
+    processes:
+      init: {pid: 1}
+      sh: {pid: 7, parent: init, fields: {uid: 2}}
+      app: {pid: 20, parent: sh, fields: {uid: 4}}
+      mid: {pid: 4, parent: sh, fields: {uid: 3}}
+      big: {pid: 100, parent: app, fields: {uid: 1}}
+      one: {pid: 1, parent: init, fields: {uid: 6}}
+    events:
+      - {type: open, process: app, fields: {open.flags: 1}}
+      - {type: open, process: sh, fields: {open.flags: 2}}
+      - {type: open, process: init, fields: {open.flags: 0}}
+      - {type: open, process: mid, fields: {open.flags: 1}}
+      - {type: open, process: big, fields: {open.flags: 3}}
+      - {type: open, process: one, fields: {open.flags: 1}}
+
+  - name: int_errors_unknown_and_misplaced
+    rules:
+      - 'open.flags >= 0 && (open.flags & NOSUCH == 1)'
+      - 'open.flags >= 0 && (NOSUCH & 1 == 1)'
+      - 'open.flags >= 0 && (open.flags | NOSUCH == 1)'
+      - 'open.flags >= 0 && (open.flags ^ NOSUCH == 1)'
+      - 'open.flags >= 0 && (process.pid + NOSUCH == 1)'
+      - 'open.flags >= 0 && (NOSUCH + 1 == 1)'
+      - 'open.flags >= 0 && (process.pid - NOSUCH == 1)'
+      - 'open.flags >= 0 && (process.pid + 1 - NOSUCH == 1)'
+      - 'open.flags >= 0 && (process.pid + 1 + true == 1)'
+      - 'open.flags >= 0 && (process.pid + 1 - "a" == 1)'
+      - 'open.flags >= 0 && (-NOSUCH == 1)'
+      - 'open.flags >= 0 && (^NOSUCH == 1)'
+      - 'open.flags >= 0 && (!process.pid == 1)'
+      - 'open.flags >= 0 && (not process.pid)'
+      - 'open.flags >= 0 && (! (process.pid + 1))'
+      - 'open.flags >= 0 && (NOSUCH > 1)'
+      - 'open.flags >= 0 && (process.pid > NOSUCH)'
+      - 'open.flags >= 0 && (process.pid in [NOSUCH ])'
+      - 'open.flags >= 0 && (process.pid in NOSUCH)'
+      - 'open.flags >= 0 && (open.flags & true == 1)'
+      - 'open.flags >= 0 && (true | open.flags == 1)'
+      - 'open.flags >= 0 && (1 & 2 | 4 == 6)'
+      - 'open.flags >= 0 && (open.flags & 1 & 2 == 0)'
+      - 'open.flags >= 0 && (open.flags | 1 | 2 | 4 == 7)'
+      - 'open.flags >= 0 && (open.flags ^ 1 ^ 2 == 3)'
+      - 'open.flags >= 0 && (process.pid - 1 - 1 - 1 == 0)'
+    events:
+      - {type: open, fields: {process.pid: 3, open.flags: 3}}
+      - {type: open, fields: {process.pid: 4, open.flags: 0}}
+
+  # ------------------------------------------- int arrays from literal macros
+  # A macro holding an integer array is an IntArrayEvaluator with literal
+  # values, the only way to reach the array operators with a literal array
+  # on the right side of a scalar comparison.
+  - name: int_macro_array_field_vs_literal
+    macros:
+      - id: nums
+        expression: "[1, 7, 20]"
+    rules:
+      - open.flags >= 0 && (open.flags > nums)
+      - open.flags >= 0 && (open.flags >= nums)
+      - open.flags >= 0 && (open.flags < nums)
+      - open.flags >= 0 && (open.flags <= nums)
+      - open.flags >= 0 && (open.flags == nums)
+      - open.flags >= 0 && (open.flags != nums)
+      - open.flags >= 0 && (nums > open.flags)
+      - open.flags >= 0 && (nums >= open.flags)
+      - open.flags >= 0 && (nums < open.flags)
+      - open.flags >= 0 && (nums <= open.flags)
+      - open.flags >= 0 && (nums == open.flags)
+      - open.flags >= 0 && (nums != open.flags)
+      - open.flags >= 0 && (process.pid > nums)
+      - open.flags >= 0 && (process.pid <= nums)
+    events:
+      - {type: open, fields: {process.pid: 0, open.flags: 0}}
+      - {type: open, fields: {process.pid: 1, open.flags: 1}}
+      - {type: open, fields: {process.pid: 7, open.flags: 7}}
+      - {type: open, fields: {process.pid: 8, open.flags: 8}}
+      - {type: open, fields: {process.pid: 20, open.flags: 20}}
+      - {type: open, fields: {process.pid: 21, open.flags: 21}}
+      - {type: open, fields: {process.pid: 100, open.flags: 100}}
+
+  - name: int_macro_array_literal_vs_scalar
+    macros:
+      - id: nums
+        expression: "[1, 7, 20]"
+    rules:
+      - open.flags >= 0 && (5 > nums)
+      - open.flags >= 0 && (5 < nums)
+      - open.flags >= 0 && (5 >= nums)
+      - open.flags >= 0 && (5 <= nums)
+      - open.flags >= 0 && (1 == nums)
+      - open.flags >= 0 && (2 != nums)
+      - open.flags >= 0 && (100 > nums && process.pid == 1)
+      - open.flags >= 0 && (-3 < nums && process.pid == 1)
+    events:
+      - {type: open, fields: {process.pid: 1, open.flags: 1}}
+      - {type: open, fields: {process.pid: 2, open.flags: 2}}
+
+  - name: int_macro_array_event_retval_errors
+    macros:
+      - id: nums
+        expression: "[1, 7, 20]"
+      - id: errnos
+        expression: "[-1, -13]"
+    rules:
+      - event.retval > nums
+      - event.retval >= nums
+      - event.retval < nums
+      - event.retval <= nums
+      - event.retval == nums
+      - event.retval > errnos
+      - event.retval >= errnos
+      - event.retval < errnos
+      - event.retval <= errnos
+      - event.retval == errnos
+      - open.flags >= 0 && (event.retval in errnos)
+    events:
+      - {type: open, fields: {event.retval: -1, process.pid: 1, open.flags: 1}}
+      - {type: open, fields: {event.retval: -13, process.pid: 2, open.flags: 2}}
+      - {type: open, fields: {event.retval: 0, process.pid: 3, open.flags: 3}}
+
+  - name: int_macro_array_negative_and_constants
+    macros:
+      - id: signed
+        expression: "[-10, 0, 10]"
+    rules:
+      - open.flags >= 0 && (process.pid > signed)
+      - open.flags >= 0 && (process.pid < signed)
+      - open.flags >= 0 && (-10 == signed)
+      - open.flags >= 0 && (signed == -10)
+    events:
+      - {type: open, fields: {process.pid: -10, open.flags: 1}}
+      - {type: open, fields: {process.pid: 0, open.flags: 2}}
+      - {type: open, fields: {process.pid: 10, open.flags: 3}}
+      - {type: open, fields: {process.pid: 11, open.flags: 4}}
+
+  # ------------------------------------------- approver NOT of integer values
+  # Approvers test a value against its bitwise NOT (eval.NotOfValue), so the
+  # rule must hold for the NOT computed by one implementation and not by
+  # another. Each case pairs a value with the NOT of the other integer width.
+  - name: int_approver_not_uint32_range
+    rules:
+      - open.retval == 100000 || open.retval == -100001
+    events:
+      - {type: open, fields: {open.retval: 100000}}
+      - {type: open, fields: {open.retval: -100001}}
+
+  - name: int_approver_not_negative_int8
+    rules:
+      - open.retval == -1000 || open.retval == -25
+    events:
+      - {type: open, fields: {open.retval: -1000}}
+      - {type: open, fields: {open.retval: -25}}
+
+  - name: int_approver_not_negative_int16
+    rules:
+      - open.retval == -40000 || open.retval == -25537
+    events:
+      - {type: open, fields: {open.retval: -40000}}
+      - {type: open, fields: {open.retval: -25537}}
+
+  - name: int_approver_not_negative_int32
+    rules:
+      - open.retval == -3000000000 || open.retval == -1294967297
+    events:
+      - {type: open, fields: {open.retval: -3000000000}}
+      - {type: open, fields: {open.retval: -1294967297}}
+
+  # ------------------------------------------- bool arrays (BoolArrayEquals)
+  # Only "array == bool" reaches BoolArrayEquals: the bool array is the left
+
+  # ------------------------------------------- bool arrays (BoolArrayEquals)
+  # Only "array == bool" reaches BoolArrayEquals (the bool array is the left
+  # operand); bool array literals cannot be written in a macro, so both
+  # operands are fields.
+  - name: bool_array_equals_fields
+    rules:
+      - open.flags >= 0 && (process.ancestors.args_truncated == true)
+      - open.flags >= 0 && (process.ancestors.args_truncated != true)
+      - open.flags >= 0 && (process.ancestors.args_truncated == false)
+      - open.flags >= 0 && (process.ancestors.args_truncated == process.is_kworker)
+      - open.flags >= 0 && (process.ancestors.args_truncated != process.is_kworker)
+      - open.flags >= 0 && (process.ancestors.args_truncated == true && process.is_kworker)
+    processes:
+      kw: {pid: 6, fields: {is_kworker: true, args_truncated: true}}
+      plain: {pid: 7, fields: {is_kworker: false, args_truncated: false}}
+      mixed: {pid: 8, parent: plain, fields: {is_kworker: true, args_truncated: false}}
+    events:
+      - {type: open, process: kw, fields: {open.flags: 1}}
+      - {type: open, process: plain, fields: {open.flags: 1}}
+      - {type: open, process: mixed, fields: {open.flags: 1}}
+
+  - name: bool_array_equals_type_errors
+    rules:
+      - open.flags >= 0 && (process.is_kworker == process.ancestors.args_truncated)
+      - open.flags >= 0 && (process.ancestors.args_truncated == 1)
+    events:
+      - {type: open, fields: {process.pid: 1, open.flags: 1}}
+
+  # an int array macro compared to a duration builds the both-literal
+  # DurationArray operator at load time
+  - name: int_macro_array_vs_duration
+    macros:
+      - id: nums
+        expression: "[1, 7, 20]"
+    rules:
+      - open.flags >= 0 && nums < 1h
+      - open.flags >= 0 && nums > 1h
+    events:
+      - {type: open, fields: {open.flags: 1}}

@@ -44,9 +44,38 @@ smoke:
         exec.file.name: 'panic: runtime error: invalid memory address or nil pointer dereference'
         open.file.path: supported
         process.uid: none
+    event_types:
+        - exec
+        - open
+    macro_ids:
+        - sensitive
+    field_values:
+        exec.file.name:
+            - scalar:"bash"
+        open.file.path:
+            - scalar:"/etc/passwd"
+            - scalar:"/etc/shadow"
+            - scalar:"/tmp/x"
+        process.uid:
+            - scalar:0
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [r0 r2 setter]
+    rule_ids:
+        - r0
+        - r2
+        - setter
+    approvers_all:
+        - field_stats exec.file.name=1
+        - field_stats open.file.path=2
+    policy_rules:
+        - policy0/r0 accepted=true disabled=false expression="open.file.path in sensitive && process.uid != 0" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/setter accepted=true disabled=false expression="exec.file.name == \"bash\"" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r2 accepted=true disabled=false expression="open.file.path == \"/tmp/x\" && ${process.seen}" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
     steps:
         - result: true
           matched:
+            - r0
+          second_listener:
             - r0
           matching_values:
             r0:
@@ -57,6 +86,9 @@ smoke:
                 process.uid: "true"
             r2:
                 open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+            process.seen: 0
           variables:
             process.pid: 10(true) own=10(true)
             process.seen: false(false) own=false(false)
@@ -67,11 +99,16 @@ smoke:
                 process.uid: "true"
             r2:
                 open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+            process.seen: 0
           variables:
             process.pid: 10(true) own=10(true)
             process.seen: false(false) own=false(false)
         - result: true
           matched:
+            - setter
+          second_listener:
             - setter
           matching_values:
             setter:
@@ -80,11 +117,16 @@ smoke:
           partials:
             setter:
                 exec.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+            process.seen: 1
           variables:
             process.pid: 10(true) own=10(true)
             process.seen: true(true) own=true(true)
         - result: true
           matched:
+            - r2
+          second_listener:
             - r2
           matching_values:
             r2:
@@ -96,6 +138,9 @@ smoke:
                 process.uid: "true"
             r2:
                 open.file.path: "true"
+          scoped_counts:
+            process.pid: 0
+            process.seen: 1
           variables:
             process.pid: 10(true) own=10(true)
             process.seen: true(true) own=true(true)
@@ -106,6 +151,9 @@ smoke:
                 process.uid: "false"
             r2:
                 open.file.path: "false"
+          scoped_counts:
+            process.pid: 0
+            process.seen: 1
           variables:
             process.pid: 1(true) own=1(true)
             process.seen: false(false) own=false(false)

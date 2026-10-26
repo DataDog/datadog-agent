@@ -1,0 +1,643 @@
+cases:
+  # ---------------------------------------------------------------- bucket ordering: execution_context tag, priority
+  - name: bucket_order_execution_context_and_priority
+    rules:
+      - {id: plain, expression: 'open.file.name == "o"'}
+      - {id: ctx_true, expression: 'open.file.name == "o"', tags: {execution_context: "true"}}
+      - {id: ctx_false, expression: 'open.file.name == "o"', tags: {execution_context: "false"}}
+      - {id: ctx_upper, expression: 'open.file.name == "o"', tags: {execution_context: "TRUE"}}
+      - {id: other_tag, expression: 'open.file.name == "o"', tags: {foo: bar}}
+      - {id: prio_high, expression: 'open.file.name == "o"', priority: 10}
+      - {id: prio_low, expression: 'open.file.name == "o"', priority: -3}
+      - {id: ctx_prio, expression: 'open.file.name == "o"', priority: 5, tags: {execution_context: "true"}}
+    events:
+      - {type: open, fields: {open.file.name: o}}
+      - {type: open, fields: {open.file.name: z}}
+
+  # ---------------------------------------------------------------- override: tags / every / actions / product tags
+  - name: override_tags_changes_bucket_order
+    rules:
+      - {id: a, expression: 'open.file.name == "o"', tags: {k: v}}
+      - {id: b, expression: 'open.file.name == "o"', tags: {k: v}}
+    policies:
+      - |
+        rules:
+          - id: b
+            combine: override
+            override_options:
+              fields: [tags]
+            tags:
+              execution_context: "true"
+    events:
+      - {type: open, fields: {open.file.name: o}}
+
+  - name: override_without_tags_option_keeps_tags
+    rules:
+      - {id: a, expression: 'open.file.name == "o"', tags: {k: v}}
+      - {id: b, expression: 'open.file.name == "o"', tags: {k: v}}
+    policies:
+      - |
+        rules:
+          - id: b
+            combine: override
+            override_options:
+              fields: [every, product_tags]
+            tags:
+              execution_context: "true"
+            product_tags: [x, y]
+            every: 10s
+    events:
+      - {type: open, fields: {open.file.name: o}}
+
+  - name: override_product_tags_and_every_variants
+    rules:
+      - {id: a, expression: 'open.file.name == "o"', every: 1m, product_tags: [p]}
+      - {id: b, expression: 'open.file.name == "o"', every: 5, product_tags: [p]}
+      - {id: c, expression: 'open.file.name == "o"', every: 30s}
+    policies:
+      - |
+        rules:
+          - id: a
+            combine: override
+            override_options:
+              fields: [every]
+            every: 2h
+          - id: b
+            combine: override
+            override_options:
+              fields: [product_tags]
+            product_tags: [q, r]
+          - id: c
+            combine: override
+            override_options:
+              fields: [every, product_tags, tags, actions]
+            every: 7
+            product_tags: [z]
+    events:
+      - {type: open, fields: {open.file.name: o}}
+
+  - name: override_actions_added_once
+    rules:
+      - id: a
+        expression: 'open.file.name == "o"'
+        actions:
+          - set: {name: base, value: 1}
+      - {id: b, expression: 'open.file.name == "o"'}
+    policies:
+      - |
+        rules:
+          - id: a
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: base, value: 1}
+              - set: {name: extra, value: 2}
+          - id: b
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: bextra, value: hello}
+      - |
+        rules:
+          - id: a
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: extra, value: 2}
+              - set: {name: third, value: 3}
+          - id: b
+            combine: override
+            override_options:
+              fields: [actions]
+    events:
+      - {type: open, fields: {open.file.name: o}}
+      - {type: open, fields: {open.file.name: z}}
+
+  - name: override_actions_only_duplicates
+    rules:
+      - id: a
+        expression: 'open.file.name == "o"'
+        actions:
+          - set: {name: base, value: 1}
+    policies:
+      - |
+        rules:
+          - id: a
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: base, value: 1}
+    events:
+      - {type: open, fields: {open.file.name: o}}
+
+  - name: override_all_non_default_policy_is_not_applied
+    rules:
+      - {id: a, expression: 'open.file.name == "o"', tags: {k: v}}
+    policies:
+      - |
+        rules:
+          - id: a
+            combine: override
+            expression: 'open.file.name == "changed"'
+            override_options:
+              fields: [all]
+            tags:
+              execution_context: "true"
+    events:
+      - {type: open, fields: {open.file.name: o}}
+      - {type: open, fields: {open.file.name: changed}}
+
+  - name: override_with_empty_options_and_missing_target
+    rules:
+      - {id: a, expression: 'open.file.name == "o"'}
+    policies:
+      - |
+        rules:
+          - id: a
+            combine: override
+            expression: 'open.file.name == "changed"'
+          - id: unknown
+            combine: override
+            expression: 'open.file.name == "u"'
+    events:
+      - {type: open, fields: {open.file.name: o}}
+      - {type: open, fields: {open.file.name: changed}}
+      - {type: open, fields: {open.file.name: u}}
+
+  # ---------------------------------------------------------------- merge / disabled across policies
+  - name: merge_same_id_first_policy_wins
+    rules:
+      - {id: a, expression: 'open.flags == 1'}
+    policies:
+      - |
+        rules:
+          - id: a
+            expression: 'open.flags == 2'
+      - |
+        rules:
+          - id: a
+            expression: 'open.flags == 3'
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 3}}
+
+  - name: disabled_base_enabled_by_later_policy
+    rules:
+      - {id: a, expression: 'open.flags == 1', disabled: true}
+      - {id: b, expression: 'open.flags == 1', disabled: true}
+      - {id: c, expression: 'open.flags == 1', disabled: true, tags: {k: v}}
+    policies:
+      - |
+        rules:
+          - id: a
+            expression: 'open.flags == 2'
+          - id: b
+            expression: 'open.flags == 2'
+            disabled: true
+          - id: c
+            combine: override
+            override_options:
+              fields: [tags]
+            tags: {execution_context: "true"}
+            expression: 'open.flags == 2'
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+
+  - name: disabled_later_policy_does_not_disable
+    rules:
+      - {id: a, expression: 'open.flags == 1'}
+      - {id: b, expression: 'open.flags == 1', tags: {k: v}}
+    policies:
+      - |
+        rules:
+          - id: a
+            disabled: true
+            expression: 'open.flags == 1'
+          - id: b
+            disabled: true
+            combine: override
+            override_options:
+              fields: [tags]
+            tags: {execution_context: "true"}
+      - |
+        rules:
+          - id: a
+            disabled: true
+            expression: 'open.flags == 1'
+          - id: b
+            combine: override
+            override_options:
+              fields: [tags]
+            tags: {execution_context: "true"}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+
+  - name: disabled_rule_without_expression
+    rules:
+      - {id: a, expression: 'open.flags == 1'}
+      - {id: d, disabled: true}
+      - {id: e}
+    policies:
+      - |
+        rules:
+          - id: d
+            expression: 'open.flags == 5'
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 5}}
+
+  # ---------------------------------------------------------------- policies observation
+  - name: policies_listing_and_empty_policy
+    rules:
+      - {id: a, expression: 'open.flags == 1'}
+      - {id: bad, expression: 'open.flags =='}
+      - {id: filtered, expression: 'open.flags == 2', agent_version: '>= 99.0.0'}
+    agent_version: 7.50.0
+    policies:
+      - |
+        rules: []
+      - |
+        version: 1.2.3
+        type: content_pack
+        replace_policy_id: other
+        rules:
+          - {id: p1, expression: 'open.flags == 3'}
+      - |
+        macros:
+          - id: m
+            expression: open.flags == 4
+      - |
+        version: 9
+        rules:
+          - {id: p3, expression: 'open.flags == 5'}
+          - {id: filtered, expression: 'open.flags == 6', agent_version: '>= 99.0.0'}
+          - {id: a, expression: 'open.flags == 7'}
+      - "this: is: not valid: yaml: ["
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 3}}
+      - {type: open, fields: {open.flags: 5}}
+      - {type: open, fields: {open.flags: 7}}
+
+  - name: policy_rule_definition_errors
+    rules:
+      - {id: ok, expression: 'open.flags == 1'}
+      - {id: "bad id!", expression: 'open.flags == 1'}
+      - {id: group_bad, group_id: "bad group!", expression: 'open.flags == 1'}
+      - {id: group_ok, group_id: grp, expression: 'open.flags == 2'}
+      - {id: no_expr}
+      - {expression: 'open.flags == 1', id: ""}
+    policies:
+      - |
+        rules:
+          - {expression: 'open.flags == 1'}
+          - {id: from_raw, expression: 'open.flags == 2'}
+    macros:
+      - {id: "bad macro!", expression: 'open.flags == 1'}
+      - {id: good_macro, expression: 'open.flags == 3'}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+
+  # ---------------------------------------------------------------- rule cache
+  - name: rule_cache_same_expression_twice
+    rule_cache: true
+    macros:
+      - {id: m, expression: 'open.flags == 1'}
+    rules:
+      - {id: a, expression: 'open.file.name == "o" && open.flags in [1, 2]'}
+      - {id: b, expression: 'open.file.name == "o" && open.flags in [1, 2]'}
+      - {id: c, expression: 'open.file.name == "o" && open.flags in [1, 2]'}
+      - {id: d, expression: 'open.file.name == "o" || m'}
+      - {id: e, expression: 'open.file.name == "o" || m'}
+      - {id: f, expression: 'open.file.name == "p" || open.flags == 9'}
+      - {id: g, expression: 'open.file.name == "o" && ('}
+      - {id: h, expression: 'open.file.name == "o" && ('}
+    events:
+      - {type: open, fields: {open.file.name: o, open.flags: 1}}
+      - {type: open, fields: {open.file.name: o, open.flags: 3}}
+      - {type: open, fields: {open.file.name: p, open.flags: 1}}
+      - {type: open, fields: {open.file.name: p, open.flags: 9}}
+
+  - name: rule_cache_disabled_same_expression_twice
+    rule_cache: false
+    rules:
+      - {id: a, expression: 'open.file.name == "o" && open.flags in [1, 2]'}
+      - {id: b, expression: 'open.file.name == "o" && open.flags in [1, 2]'}
+    events:
+      - {type: open, fields: {open.file.name: o, open.flags: 1}}
+      - {type: open, fields: {open.file.name: o, open.flags: 3}}
+
+  # ---------------------------------------------------------------- HumanReadableDuration in YAML
+  - name: duration_yaml_forms
+    rules:
+      - {id: d_str, expression: 'open.flags == 1', every: 10s}
+      - {id: d_int, expression: 'open.flags == 1', every: 5}
+      - {id: d_zero, expression: 'open.flags == 1', every: 0}
+    policies:
+      - |
+        rules:
+          - {id: d_bad_str, expression: 'open.flags == 1', every: bogus}
+      - |
+        rules:
+          - {id: d_list, expression: 'open.flags == 1', every: [1]}
+      - |
+        rules:
+          - {id: d_float, expression: 'open.flags == 1', every: 1.5}
+      - |
+        rules:
+          - {id: d_ok, expression: 'open.flags == 1', every: 1h30m}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+
+  # ---------------------------------------------------------------- actions: PreCheck / definitions
+  - name: action_precheck_errors
+    rules:
+      - {id: null_action, expression: 'open.flags == 1', actions: [null]}
+      - {id: two, expression: 'open.flags == 1', actions: [{set: {name: v, value: 1}, kill: {signal: SIGKILL}}]}
+      - {id: three, expression: 'open.flags == 1', actions: [{set: {name: v, value: 1}, kill: {signal: SIGKILL}, log: {level: info, message: hi}}]}
+      - {id: log_no_level, expression: 'open.flags == 1', actions: [{log: {message: hi}}]}
+      - {id: log_ok, expression: 'open.flags == 1', actions: [{log: {level: info, message: hi}}]}
+      - {id: kill_ok, expression: 'open.flags == 1', actions: [{kill: {signal: SIGKILL}}]}
+      - {id: set_filter, expression: 'open.flags == 1', actions: [{filter: 'open.file.name == "x"', set: {name: filtered_v, value: 1}}]}
+      - {id: ok_after_bad, expression: 'open.flags == 1', actions: [{set: {name: after, value: 1}}]}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+
+  - name: action_network_filter_precheck
+    rules:
+      - {id: nf_no_filter, expression: 'open.flags == 1', actions: [{network_filter: {policy: drop}}]}
+      - {id: nf_bad_scope, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp', scope: host}}]}
+      - {id: nf_bad_policy, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp', policy: reject}}]}
+      - {id: nf_bad_scope_and_policy, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp', scope: nope, policy: nope}}]}
+      - {id: nf_default, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp'}}]}
+      - {id: nf_process_drop, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp', scope: process, policy: drop}}]}
+      - {id: nf_cgroup_allow, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp', scope: cgroup, policy: allow}}]}
+      - {id: nf_with_kill, expression: 'open.flags == 1', actions: [{network_filter: {filter: 'tcp'}, kill: {signal: SIGKILL}}]}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+
+  - name: action_coredump_hash_variants
+    rules:
+      - {id: cd_empty, expression: 'open.flags == 1', actions: [{coredump: {}}]}
+      - {id: cd_process, expression: 'open.flags == 1', actions: [{coredump: {process: true}}]}
+      - {id: hash_bad_field, expression: 'open.flags == 1', actions: [{hash: {field: nonexistent.file}}]}
+      - {id: hash_wrong_type, expression: 'open.flags == 1', actions: [{hash: {field: exec.file}}]}
+      - {id: hash_default_open, expression: 'open.flags == 2', actions: [{hash: {}}]}
+      - {id: hash_two, expression: 'open.flags == 2', actions: [{hash: {}}, {hash: {field: process.file}}]}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+
+  # ---------------------------------------------------------------- action support given enabled event types
+  - name: actions_supported_event_types_without_packet
+    event_types_enabled: [open, exec]
+    accept_bpf_filters: true
+    rules:
+      - {id: nf, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp}}]}
+      - {id: set_ok, expression: 'open.flags == 1', actions: [{set: {name: v1, value: 1}}]}
+      - {id: kill_ok, expression: 'open.flags == 1', actions: [{kill: {signal: SIGKILL}}]}
+      - {id: second_nf, expression: 'open.flags == 1', actions: [{set: {name: v2, value: 1}}, {network_filter: {filter: tcp}}]}
+      - {id: no_action, expression: 'open.flags == 1'}
+      - {id: mkdir_not_enabled, expression: 'mkdir.file.name == "a"'}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+
+  - name: actions_supported_event_types_with_packet
+    event_types_enabled: [open, packet]
+    accept_bpf_filters: true
+    rules:
+      - {id: nf_default, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp}}]}
+      - {id: nf_cgroup_allow, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp, scope: cgroup, policy: allow}}]}
+      - {id: nf_process_drop, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp, scope: process, policy: drop}}]}
+      - {id: nf_bad_scope, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp, scope: host}}]}
+      - {id: nf_bad_policy, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp, policy: reject}}]}
+      - {id: nf_no_filter, expression: 'open.flags == 1', actions: [{network_filter: {scope: cgroup}}]}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+
+  - name: actions_nf_bad_bpf_filter_with_validator
+    accept_bpf_filters: true
+    rules:
+      - {id: nf_ok, expression: 'open.flags == 1', actions: [{network_filter: {filter: tcp}}]}
+      - {id: nf_empty, expression: 'open.flags == 1', actions: [{network_filter: {filter: ""}}]}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+
+  # ---------------------------------------------------------------- default / custom / remote-config providers
+  - name: provider_default_policy_override_all
+    rules:
+      - {id: unrelated, expression: 'open.flags == 99'}
+      - id: o
+        combine: override
+        expression: 'open.flags == 2'
+        override_options: {fields: [all]}
+        tags: {execution_context: "true"}
+        product_tags: [pt]
+        every: 3m
+        actions: [{set: {name: ov, value: 1}}]
+    providers:
+      - type: file
+        policies:
+          - name: default.policy
+            internal_type: default
+            content: |
+              rules:
+                - {id: o, expression: 'open.flags == 1', tags: {a: b}}
+                - {id: plain, expression: 'open.flags == 1'}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+
+  - name: provider_default_policy_first_even_if_listed_last
+    rules:
+      - {id: same, expression: 'open.flags == 7'}
+    providers:
+      - type: file
+        policies:
+          - name: custom1
+            internal_type: custom
+            content: |
+              rules:
+                - {id: same, expression: 'open.flags == 8'}
+                - {id: only_custom, expression: 'open.flags == 3'}
+          - name: default.policy
+            internal_type: default
+            content: |
+              rules:
+                - {id: same, expression: 'open.flags == 1'}
+                - {id: only_default, expression: 'open.flags == 2'}
+      - type: file
+        policies:
+          - name: default.policy
+            internal_type: default
+            content: |
+              rules:
+                - {id: same, expression: 'open.flags == 4'}
+                - {id: second_default, expression: 'open.flags == 5'}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 3}}
+      - {type: open, fields: {open.flags: 4}}
+      - {type: open, fields: {open.flags: 5}}
+      - {type: open, fields: {open.flags: 7}}
+      - {type: open, fields: {open.flags: 8}}
+
+  - name: provider_custom_disables_default_rule
+    rules:
+      - {id: unrelated, expression: 'open.flags == 99'}
+    providers:
+      - type: file
+        policies:
+          - name: default.policy
+            internal_type: default
+            content: |
+              rules:
+                - {id: d_off, expression: 'open.flags == 1'}
+                - {id: d_on, expression: 'open.flags == 2'}
+                - {id: d_off_on, expression: 'open.flags == 3'}
+                - {id: d_dis, expression: 'open.flags == 4', disabled: true}
+                - {id: d_dis_on, expression: 'open.flags == 5', disabled: true}
+                - {id: d_two_off, expression: 'open.flags == 6'}
+                - {id: d_default_dis, expression: 'open.flags == 7'}
+          - name: custom1
+            internal_type: custom
+            content: |
+              rules:
+                - {id: d_off, disabled: true}
+                - {id: d_on, expression: 'open.flags == 22'}
+                - {id: d_off_on, disabled: true}
+                - {id: d_dis, disabled: true}
+                - {id: d_dis_on, expression: 'open.flags == 55'}
+                - {id: d_two_off, disabled: true}
+                - {id: d_default_dis, disabled: true}
+          - name: custom2
+            internal_type: custom
+            content: |
+              rules:
+                - {id: d_off_on, expression: 'open.flags == 33'}
+                - {id: d_two_off, disabled: true}
+          - name: other_default
+            internal_type: default
+            content: |
+              rules:
+                - {id: d_default_dis, disabled: true}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 3}}
+      - {type: open, fields: {open.flags: 4}}
+      - {type: open, fields: {open.flags: 5}}
+      - {type: open, fields: {open.flags: 6}}
+      - {type: open, fields: {open.flags: 7}}
+
+  - name: provider_remote_config_replaces_default_policy
+    rules:
+      - {id: local, expression: 'open.flags == 9'}
+      - {id: shared, expression: 'open.flags == 1'}
+    providers:
+      - type: file
+        policies:
+          - name: dp_file
+            internal_type: default
+            content: |
+              rules:
+                - {id: from_file_default, expression: 'open.flags == 2'}
+      - type: remote-config
+        policies:
+          - name: dp_rc
+            internal_type: default
+            content: |
+              rules:
+                - {id: from_rc_default, expression: 'open.flags == 3'}
+                - {id: shared, expression: 'open.flags == 4'}
+          - name: dp_rc_kept
+            internal_type: default
+            content: |
+              rules:
+                - {id: from_rc_kept, expression: 'open.flags == 5'}
+          - name: custom_rc
+            internal_type: custom
+            content: |
+              replace_policy_id: dp_rc
+              rules:
+                - {id: from_rc_custom, expression: 'open.flags == 6'}
+          - name: custom_rc_other
+            internal_type: custom
+            content: |
+              rules:
+                - {id: from_rc_custom_other, expression: 'open.flags == 7'}
+      - type: file
+        policies:
+          - name: custom_file_replace
+            internal_type: custom
+            content: |
+              replace_policy_id: dp_file
+              rules:
+                - {id: from_file_custom, expression: 'open.flags == 8'}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 3}}
+      - {type: open, fields: {open.flags: 4}}
+      - {type: open, fields: {open.flags: 5}}
+      - {type: open, fields: {open.flags: 6}}
+      - {type: open, fields: {open.flags: 7}}
+      - {type: open, fields: {open.flags: 8}}
+      - {type: open, fields: {open.flags: 9}}
+
+  - name: provider_remote_config_ordered_first
+    rules:
+      - {id: dup, expression: 'open.flags == 1'}
+    providers:
+      - type: file
+        policies:
+          - name: file_p
+            internal_type: custom
+            content: |
+              rules:
+                - {id: dup, expression: 'open.flags == 2'}
+      - type: bundled
+        policies:
+          - name: bundled_p
+            internal_type: internal
+            content: |
+              rules:
+                - {id: dup, expression: 'open.flags == 3'}
+      - type: remote-config
+        policies:
+          - name: rc_p
+            internal_type: custom
+            content: |
+              rules:
+                - {id: dup, expression: 'open.flags == 4'}
+    events:
+      - {type: open, fields: {open.flags: 1}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 3}}
+      - {type: open, fields: {open.flags: 4}}
+
+  - name: policy_info_version_type_replace
+    rules:
+      - {id: a, expression: 'open.flags == 1'}
+    policies:
+      - |
+        version: 1.2.3
+        type: content_pack
+        replace_policy_id: some_policy
+        rules:
+          - {id: b, expression: 'open.flags == 2'}
+      - |
+        rules:
+          - {id: c, expression: 'open.flags == 3'}
+    events:
+      - {type: open, fields: {open.flags: 1}}

@@ -1,0 +1,836 @@
+cases:
+  - name: values_macro_in_notin
+    macros:
+      - id: sensitive
+        values: ["/etc/passwd", "/etc/shadow", "/root/.ssh/id_rsa"]
+    rules:
+      - id: in_rule
+        expression: open.file.path in sensitive
+      - id: notin_rule
+        expression: exec.file.path not in sensitive && exec.file.name == "cat"
+      - id: allin_rule
+        expression: open.file.path in sensitive && open.flags & O_CREAT == 0
+      - id: not_op_rule
+        expression: mkdir.file.path in sensitive || !(mkdir.file.path in sensitive) && mkdir.mode == 0755
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /etc/shadow, open.flags: 64}}
+      - {type: open, fields: {open.file.path: /etc/passwd2, open.flags: 0}}
+      - {type: open, fields: {open.file.path: "", open.flags: 0}}
+      - {type: open, fields: {open.file.path: /root/.ssh/id_rsa, open.flags: 0}}
+      - {type: exec, fields: {exec.file.path: /bin/cat, exec.file.name: cat}}
+      - {type: exec, fields: {exec.file.path: /etc/passwd, exec.file.name: cat}}
+      - {type: mkdir, fields: {mkdir.file.path: /etc/shadow, mkdir.mode: 0}}
+      - {type: mkdir, fields: {mkdir.file.path: /tmp/a, mkdir.mode: 493}}
+      - {type: mkdir, fields: {mkdir.file.path: /tmp/a, mkdir.mode: 1}}
+
+  - name: values_macro_prefix_in_array
+    macros:
+      - id: names
+        values: ["bash", "sh", "zsh"]
+    rules:
+      - id: argv_in
+        expression: exec.file.name in names && exec.argv in names
+      - id: anc
+        expression: open.file.name in names && process.ancestors.file.name in names
+      - id: allin
+        expression: exec.argv in names
+      - id: notall
+        expression: exec.argv not in names && exec.file.name == "x"
+    processes:
+      init: {pid: 1, fields: {file.name: sh}}
+      weird: {pid: 5, parent: init, fields: {file.name: weird}}
+      child: {pid: 10, parent: weird, fields: {file.name: bash}}
+    events:
+      - {type: exec, process: child, fields: {exec.file.name: bash, exec.argv: [bash, sh]}}
+      - {type: exec, process: child, fields: {exec.file.name: bash, exec.argv: [bash, other]}}
+      - {type: exec, process: child, fields: {exec.file.name: other, exec.argv: [bash]}}
+      - {type: exec, process: child, fields: {exec.file.name: x, exec.argv: [bash, other]}}
+      - {type: exec, process: child, fields: {exec.file.name: x, exec.argv: [bash, zsh]}}
+      - {type: open, process: child, fields: {open.file.name: bash}}
+      - {type: open, process: weird, fields: {open.file.name: bash}}
+      - {type: open, process: weird, fields: {open.file.name: other}}
+
+  - name: expression_macro_bool
+    macros:
+      - id: is_root
+        expression: process.uid == 0
+      - id: tmp_file
+        expression: open.file.path =~ "/tmp/*"
+      - id: write_flag
+        expression: open.flags & O_WRONLY != 0
+    rules:
+      - id: root_tmp
+        expression: open.file.path != "" && is_root && tmp_file
+      - id: not_root
+        expression: open.file.path != "" && !is_root
+      - id: write_not_tmp
+        expression: write_flag && !tmp_file
+      - id: either
+        expression: is_root || write_flag
+    processes:
+      root: {pid: 1, fields: {uid: 0, file.name: init}}
+      user: {pid: 20, parent: root, fields: {uid: 1000, file.name: bash}}
+    events:
+      - {type: open, process: root, fields: {open.file.path: /tmp/a, open.flags: 0}}
+      - {type: open, process: user, fields: {open.file.path: /tmp/a, open.flags: 0}}
+      - {type: open, process: user, fields: {open.file.path: /etc/a, open.flags: 1}}
+      - {type: open, process: user, fields: {open.file.path: /tmp/a, open.flags: 1}}
+      - {type: open, process: root, fields: {open.file.path: /var/a, open.flags: 1}}
+      - {type: open, process: user, fields: {open.file.path: /var/a, open.flags: 2}}
+
+  - name: macro_references_macro
+    macros:
+      - id: base_dirs
+        values: ["/etc/passwd", "/etc/shadow"]
+      - id: is_sensitive
+        expression: open.file.path in base_dirs
+      - id: is_sensitive_write
+        expression: is_sensitive && open.flags & O_WRONLY != 0
+      - id: is_sensitive_root_write
+        expression: is_sensitive_write && process.uid == 0
+    rules:
+      - id: l1
+        expression: is_sensitive
+      - id: l2
+        expression: is_sensitive_write
+      - id: l3
+        expression: is_sensitive_root_write
+      - id: l3b
+        expression: is_sensitive_root_write || open.file.path == "/x"
+    processes:
+      root: {pid: 1, fields: {uid: 0}}
+      user: {pid: 2, fields: {uid: 5}}
+    events:
+      - {type: open, process: root, fields: {open.file.path: /etc/passwd, open.flags: 0}}
+      - {type: open, process: root, fields: {open.file.path: /etc/passwd, open.flags: 1}}
+      - {type: open, process: user, fields: {open.file.path: /etc/shadow, open.flags: 1}}
+      - {type: open, process: user, fields: {open.file.path: /etc/other, open.flags: 1}}
+      - {type: open, process: root, fields: {open.file.path: /x, open.flags: 0}}
+
+  - name: macro_shared_between_rules
+    macros:
+      - id: m_bash
+        expression: process.file.name == "bash"
+      - id: m_list
+        values: [a, b]
+    rules:
+      - id: s1
+        expression: open.file.name in m_list && m_bash
+      - id: s2
+        expression: open.file.name in m_list && !m_bash
+      - id: s3
+        expression: mkdir.file.name in m_list && m_bash
+      - id: s4
+        expression: m_bash && open.file.name not in m_list
+      - id: s5
+        expression: m_bash && open.file.name in m_list && open.file.path != "/tmp/b"
+    processes:
+      bash: {pid: 1, fields: {file.name: bash}}
+      dash: {pid: 2, fields: {file.name: dash}}
+    events:
+      - {type: open, process: bash, fields: {open.file.name: a, open.file.path: /tmp/a}}
+      - {type: open, process: dash, fields: {open.file.name: a, open.file.path: /tmp/a}}
+      - {type: open, process: bash, fields: {open.file.name: b, open.file.path: /tmp/b}}
+      - {type: open, process: bash, fields: {open.file.name: c, open.file.path: /tmp/c}}
+      - {type: mkdir, process: bash, fields: {mkdir.file.name: a}}
+      - {type: mkdir, process: dash, fields: {mkdir.file.name: a}}
+      - {type: mkdir, process: bash, fields: {mkdir.file.name: z}}
+
+  - name: macro_used_twice_in_rule
+    macros:
+      - id: names
+        values: [x, y]
+      - id: is_x
+        expression: open.file.name == "x"
+    processes:
+      py: {pid: 4, fields: {file.name: y}}
+      pz: {pid: 5, fields: {file.name: z}}
+    rules:
+      - id: twice
+        expression: open.file.name in names && process.file.name in names
+      - id: twice_expr
+        expression: is_x && (is_x || open.flags == 1) && !(is_x && open.flags == 2)
+    events:
+      - {type: open, process: py, fields: {open.file.name: x, open.flags: 0}}
+      - {type: open, process: pz, fields: {open.file.name: x, open.flags: 2}}
+      - {type: open, process: py, fields: {open.file.name: z, open.flags: 0}}
+      - {type: open, process: py, fields: {open.file.name: x, open.flags: 2}}
+      - {type: open, process: py, fields: {open.file.name: x, open.flags: 1}}
+
+  - name: macro_unused_and_dangling
+    macros:
+      - id: unused_values
+        values: [foo]
+      - id: unused_expr
+        expression: open.file.path == "/never"
+      - id: used
+        expression: open.file.path == "/used"
+    rules:
+      - id: only_used
+        expression: used
+    events:
+      - {type: open, fields: {open.file.path: /used}}
+      - {type: open, fields: {open.file.path: /never}}
+
+  - name: macro_boolean_expressions
+    macros:
+      - id: paren_or
+        expression: (open.file.path == "/a" || open.file.path == "/b")
+      - id: with_and
+        expression: open.file.path == "/c" && open.flags == 1
+      - id: with_not
+        expression: not (open.file.path == "/d")
+      - id: with_int
+        expression: open.flags in [1, 2, 3]
+      - id: with_re
+        expression: open.file.path =~ "/re/**"
+      - id: with_regex
+        expression: open.file.name =~ r"^f[0-9]+$"
+    rules:
+      - id: a
+        expression: paren_or
+      - id: b
+        expression: with_and
+      - id: c
+        expression: with_not && open.file.name == "q"
+      - id: d
+        expression: with_int && open.file.path == "/i"
+      - id: e
+        expression: with_re
+      - id: f
+        expression: with_regex
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /b}}
+      - {type: open, fields: {open.file.path: /z}}
+      - {type: open, fields: {open.file.path: /c, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /c, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /d, open.file.name: q}}
+      - {type: open, fields: {open.file.path: /e, open.file.name: q}}
+      - {type: open, fields: {open.file.path: /i, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /i, open.flags: 4}}
+      - {type: open, fields: {open.file.path: /re/x/y}}
+      - {type: open, fields: {open.file.path: /ra/x/y, open.file.name: f12}}
+      - {type: open, fields: {open.file.path: /ra/x/y, open.file.name: f1x}}
+
+  - name: macro_int_array_and_primary
+    macros:
+      - id: flags
+        expression: "[1, 2, 4]"
+      - id: yes
+        expression: "true"
+      - id: no
+        expression: "false"
+      - id: strs
+        expression: '["/a", "/b"]'
+      - id: one_str
+        expression: '"/a"'
+      - id: num
+        expression: "3"
+    rules:
+      - id: int_arr
+        expression: open.flags in flags
+      - id: yes_rule
+        expression: yes && open.file.path == "/y"
+      - id: no_rule
+        expression: no || open.file.path == "/n"
+      - id: str_arr
+        expression: open.file.path in strs
+      - id: str_prim
+        expression: open.file.path == one_str
+      - id: int_prim
+        expression: open.flags == num
+    events:
+      - {type: open, fields: {open.flags: 1, open.file.path: /y}}
+      - {type: open, fields: {open.flags: 3, open.file.path: /n}}
+      - {type: open, fields: {open.flags: 5, open.file.path: /b}}
+      - {type: open, fields: {open.flags: 4, open.file.path: /a}}
+      - {type: open, fields: {open.flags: 0, open.file.path: /c}}
+
+  - name: macro_in_mixed_array
+    macros:
+      - id: names
+        values: [foo, bar]
+    rules:
+      - id: mixed
+        expression: open.file.name in [names, "baz"]
+      - id: nested
+        expression: open.file.name in names || open.file.name == "baz"
+    events:
+      - {type: open, fields: {open.file.name: foo}}
+      - {type: open, fields: {open.file.name: baz}}
+      - {type: open, fields: {open.file.name: nope}}
+
+  - name: macro_name_collisions
+    macros:
+      - id: open
+        values: [a]
+      - id: process
+        values: [b]
+    rules:
+      - id: coll
+        expression: open.file.name in open
+      - id: coll2
+        expression: process.file.name in process
+    processes:
+      p: {pid: 1, fields: {file.name: b}}
+    events:
+      - {type: open, process: p, fields: {open.file.name: a}}
+      - {type: open, process: p, fields: {open.file.name: b}}
+
+  - name: macro_both_expression_and_values
+    macros:
+      - id: bad
+        expression: open.file.path == "/x"
+        values: [/x]
+      - id: good
+        values: [/y]
+    rules:
+      - id: uses_bad
+        expression: bad
+      - id: uses_good
+        expression: open.file.path in good
+    events:
+      - {type: open, fields: {open.file.path: /x}}
+      - {type: open, fields: {open.file.path: /y}}
+
+  - name: macro_syntax_error
+    macros:
+      - id: broken
+        expression: open.file.path ==
+      - id: broken_field
+        expression: open.nonexistent == 1
+      - id: broken_type
+        expression: open.file.path == 1
+      - id: fine
+        expression: open.file.path == "/x"
+    rules:
+      - id: r_fine
+        expression: fine
+      - id: r_broken
+        expression: broken
+    events:
+      - {type: open, fields: {open.file.path: /x}}
+
+  - name: macro_invalid_id
+    macros:
+      - id: "bad id!"
+        values: [a]
+      - id: good_one
+        values: [a]
+    rules:
+      - id: r
+        expression: open.file.name in good_one
+    events:
+      - {type: open, fields: {open.file.name: a}}
+
+  - name: macro_fim_write_rejected
+    macros:
+      - id: fimmacro
+        expression: fim.write.file.path == "/x"
+      - id: okmacro
+        expression: open.file.path == "/x"
+    rules:
+      - id: r
+        expression: okmacro
+    events:
+      - {type: open, fields: {open.file.path: /x}}
+
+  - name: macro_multi_event_type_error
+    macros:
+      - id: open_macro
+        expression: open.file.path == "/x"
+      - id: exec_macro
+        expression: exec.file.name == "y"
+    rules:
+      - id: mixed_types
+        expression: open_macro && exec_macro
+      - id: ok
+        expression: exec_macro
+    events:
+      - {type: exec, fields: {exec.file.name: y}}
+      - {type: open, fields: {open.file.path: /x}}
+
+  - name: macro_bare_rules_two_event_types
+    macros:
+      - id: open_macro
+        expression: open.file.path == "/x"
+      - id: exec_macro
+        expression: exec.file.name == "y"
+    rules:
+      - id: ok
+        expression: exec_macro
+      - id: ok2
+        expression: open_macro
+      - id: ok3
+        expression: exec_macro && exec.file.name != ""
+      - id: ok4
+        expression: open.file.path != "" && open_macro
+      - id: plain
+        expression: exec.file.name == "y"
+    events:
+      - {type: exec, fields: {exec.file.name: y}}
+      - {type: open, fields: {open.file.path: /x}}
+
+  - name: macro_mixed_event_types_in_expression
+    macros:
+      - id: bad
+        expression: open.file.path == "/x" && exec.file.name == "y"
+      - id: good
+        expression: open.file.path == "/x"
+    rules:
+      - id: r
+        expression: good
+      - id: r2
+        expression: good && open.flags == 1
+    events:
+      - {type: open, fields: {open.file.path: /x, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /x, open.flags: 0}}
+
+  - name: macro_unknown_reference
+    rules:
+      - id: unknown
+        expression: open.file.path in nomacro
+      - id: unknown_bare
+        expression: nomacro
+      - id: fine
+        expression: open.file.path == "/x"
+    events:
+      - {type: open, fields: {open.file.path: /x}}
+
+  - name: macro_values_empty
+    macros:
+      - id: nothing
+        values: []
+      - id: also_nothing
+        expression: ""
+    rules:
+      - id: r
+        expression: open.file.name in nothing
+    events:
+      - {type: open, fields: {open.file.name: a}}
+
+  - name: macro_merge_values
+    macros:
+      - id: names
+        values: [a, b]
+    policies:
+      - |
+        macros:
+          - id: names
+            combine: merge
+            values: [c, d]
+        rules:
+          - id: extra
+            expression: open.file.name == "zzz"
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: open, fields: {open.file.name: d}}
+      - {type: open, fields: {open.file.name: e}}
+
+  - name: macro_override_values
+    macros:
+      - id: names
+        values: [a, b]
+    policies:
+      - |
+        macros:
+          - id: names
+            combine: override
+            values: [x]
+        rules: []
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: x}}
+
+  - name: macro_merge_three_policies
+    macros:
+      - id: names
+        values: [a]
+    policies:
+      - |
+        macros:
+          - id: names
+            combine: merge
+            values: [b]
+        rules: []
+      - |
+        macros:
+          - id: names
+            combine: merge
+            values: [c]
+          - id: other
+            values: [q]
+        rules:
+          - id: r2
+            expression: open.file.name in other
+      - |
+        macros:
+          - id: names
+            combine: override
+            values: [d]
+        rules: []
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: open, fields: {open.file.name: d}}
+      - {type: open, fields: {open.file.name: q}}
+
+  - name: macro_override_then_merge
+    macros:
+      - id: names
+        values: [a]
+    policies:
+      - |
+        macros:
+          - id: names
+            combine: override
+            values: [x]
+        rules: []
+      - |
+        macros:
+          - id: names
+            combine: merge
+            values: [y]
+        rules: []
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: x}}
+      - {type: open, fields: {open.file.name: y}}
+
+  - name: macro_empty_policy_and_unknown_combine
+    macros:
+      - id: names
+        values: [a]
+    policies:
+      - |
+        rules: []
+      - |
+        macros:
+          - id: names
+            combine: bogus
+            values: [z]
+        rules: []
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: z}}
+
+  - name: macro_merge_expression_error
+    macros:
+      - id: m
+        expression: open.file.name == "a"
+    policies:
+      - |
+        macros:
+          - id: m
+            combine: merge
+            values: [b]
+        rules: []
+    rules:
+      - id: r
+        expression: m
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}
+
+  - name: macro_merge_into_expression_error
+    macros:
+      - id: m
+        values: [a]
+    policies:
+      - |
+        macros:
+          - id: m
+            combine: merge
+            expression: open.file.name == "b"
+        rules: []
+    rules:
+      - id: r
+        expression: open.file.name in m
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}
+
+  - name: macro_redefined_without_combine
+    macros:
+      - id: names
+        values: [a]
+    policies:
+      - |
+        macros:
+          - id: names
+            values: [b]
+        rules: []
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}
+
+  - name: macro_expression_redefined_in_policy
+    macros:
+      - id: m
+        expression: open.file.name == "a"
+    policies:
+      - |
+        macros:
+          - id: m
+            expression: open.file.name == "b"
+        rules: []
+      - |
+        macros:
+          - id: m
+            combine: override
+            expression: open.file.name == "c"
+        rules: []
+    rules:
+      - id: r
+        expression: m
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}
+      - {type: open, fields: {open.file.name: c}}
+
+  - name: macro_defined_only_in_second_policy
+    policies:
+      - |
+        macros:
+          - id: late
+            values: [z]
+          - id: late_expr
+            expression: open.flags == 1
+        rules:
+          - id: uses_late
+            expression: open.file.name in late && late_expr
+    rules:
+      - id: first
+        expression: open.file.name == "a"
+    events:
+      - {type: open, fields: {open.file.name: z, open.flags: 1}}
+      - {type: open, fields: {open.file.name: z, open.flags: 0}}
+      - {type: open, fields: {open.file.name: a, open.flags: 0}}
+
+  - name: macro_agent_version_values
+    agent_version: "7.50.0"
+    macros:
+      - id: names
+        agent_version: ">= 7.40"
+        values: [a]
+      - id: names_new
+        agent_version: ">= 7.60"
+        values: [b]
+      - id: expr_old
+        agent_version: "< 7.45"
+        expression: open.file.name == "old"
+      - id: expr_ok
+        agent_version: ">= 7.50"
+        expression: open.file.name == "ok"
+    rules:
+      - id: r_names
+        expression: open.file.name in names
+      - id: r_names_new
+        expression: open.file.name in names_new
+      - id: r_old
+        expression: expr_old
+      - id: r_ok
+        expression: expr_ok
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}
+      - {type: open, fields: {open.file.name: old}}
+      - {type: open, fields: {open.file.name: ok}}
+
+  - name: macro_agent_version_alternative_definitions
+    agent_version: "7.55.2"
+    macros:
+      - id: names
+        agent_version: ">= 7.60"
+        values: [new]
+      - id: names
+        agent_version: "< 7.60"
+        values: [old]
+    rules:
+      - id: r
+        expression: open.file.name in names
+    events:
+      - {type: open, fields: {open.file.name: new}}
+      - {type: open, fields: {open.file.name: old}}
+
+  - name: macro_agent_version_invalid_constraint
+    agent_version: "7.50.0"
+    macros:
+      - id: names
+        agent_version: "not a constraint"
+        values: [a]
+      - id: names2
+        values: [b]
+    rules:
+      - id: r
+        expression: open.file.name in names2
+    events:
+      - {type: open, fields: {open.file.name: b}}
+
+  - name: macro_agent_version_rules_filtered
+    agent_version: "7.50.0"
+    macros:
+      - id: m
+        values: [a]
+    rules:
+      - id: new_rule
+        agent_version: ">= 7.60"
+        expression: open.file.name in m
+      - id: ok_rule
+        agent_version: ">= 7.40, < 7.60"
+        expression: open.file.name in m
+      - id: bad_ver_rule
+        agent_version: "garbage"
+        expression: open.file.name in m
+    events:
+      - {type: open, fields: {open.file.name: a}}
+
+  - name: macro_prerelease_agent_version
+    agent_version: "7.60.0-rc.1"
+    macros:
+      - id: m
+        agent_version: ">= 7.60"
+        values: [a]
+    rules:
+      - id: r
+        expression: open.file.name in m
+    events:
+      - {type: open, fields: {open.file.name: a}}
+
+  - name: macro_with_ancestor_and_array_fields
+    macros:
+      - id: shell_ancestor
+        expression: process.ancestors.file.name in ["bash", "sh"]
+      - id: has_arg
+        expression: exec.argv in ["--evil"]
+      - id: container
+        expression: process.container.id != ""
+    rules:
+      - id: anc
+        expression: exec.file.name == "curl" && shell_ancestor
+      - id: arg
+        expression: has_arg && !container
+      - id: cont
+        expression: exec.file.name == "curl" && container
+    processes:
+      init: {pid: 1, fields: {file.name: sh}}
+      mid: {pid: 2, parent: init, fields: {file.name: python, container.id: abc}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: curl}}
+      lonely: {pid: 9, fields: {file.name: curl}}
+    events:
+      - {type: exec, process: leaf, fields: {exec.file.name: curl, exec.argv: ["--evil", x]}}
+      - {type: exec, process: lonely, fields: {exec.file.name: curl, exec.argv: ["--evil"]}}
+      - {type: exec, process: lonely, fields: {exec.file.name: curl, exec.argv: ["ok"]}}
+      - {type: exec, process: mid, fields: {exec.file.name: curl}}
+
+  - name: macro_cidr_and_ip
+    macros:
+      - id: internal
+        expression: connect.addr.ip in [10.0.0.0/8, 192.168.0.0/16]
+      - id: localhost
+        expression: connect.addr.ip == 127.0.0.1
+      - id: ports
+        expression: connect.addr.port in [80, 443]
+    rules:
+      - id: ext
+        expression: connect.addr.ip != 0.0.0.0/32 && !internal && ports
+      - id: loc
+        expression: localhost || internal
+    events:
+      - {type: connect, fields: {connect.addr.ip: 10.1.2.3, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 8.8.8.8, connect.addr.port: 443}}
+      - {type: connect, fields: {connect.addr.ip: 8.8.8.8, connect.addr.port: 22}}
+      - {type: connect, fields: {connect.addr.ip: 127.0.0.1, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.5.5, connect.addr.port: 1}}
+
+  - name: macro_value_with_special_chars
+    macros:
+      - id: odd
+        values: ['a"b', "with space", "star*", "back\\slash", "/path/with/slash", ""]
+    rules:
+      - id: r
+        expression: open.file.name in odd
+    events:
+      - {type: open, fields: {open.file.name: 'a"b'}}
+      - {type: open, fields: {open.file.name: "with space"}}
+      - {type: open, fields: {open.file.name: "star*"}}
+      - {type: open, fields: {open.file.name: "starX"}}
+      - {type: open, fields: {open.file.name: "back\\slash"}}
+      - {type: open, fields: {open.file.name: ""}}
+      - {type: open, fields: {open.file.name: "nope"}}
+
+  - name: macro_values_macro_in_variable_rule
+    macros:
+      - id: names
+        values: [a, b]
+    rules:
+      - id: setter
+        expression: open.file.name in names
+        actions:
+          - set: {name: last, field: open.file.name}
+      - id: reader
+        expression: exec.file.name == ${last}
+      - id: reader_in
+        expression: ${last} in names && exec.file.name == "zzz"
+    events:
+      - {type: exec, fields: {exec.file.name: a}}
+      - {type: open, fields: {open.file.name: a}}
+      - {type: exec, fields: {exec.file.name: a}}
+      - {type: open, fields: {open.file.name: c}}
+      - {type: exec, fields: {exec.file.name: zzz}}
+
+  - name: macro_disabled_rule_uses_macro
+    macros:
+      - id: m
+        values: [a]
+    rules:
+      - id: active
+        expression: open.file.name in m
+      - id: off
+        disabled: true
+        expression: open.file.name in m
+    events:
+      - {type: open, fields: {open.file.name: a}}
+
+  - name: macro_override_rule_with_macro
+    macros:
+      - id: m1
+        values: [a]
+      - id: m2
+        values: [b]
+    policies:
+      - |
+        rules:
+          - id: r
+            combine: override
+            override_options:
+              fields: [expression]
+            expression: open.file.name in m2
+    rules:
+      - id: r
+        expression: open.file.name in m1
+    events:
+      - {type: open, fields: {open.file.name: a}}
+      - {type: open, fields: {open.file.name: b}}

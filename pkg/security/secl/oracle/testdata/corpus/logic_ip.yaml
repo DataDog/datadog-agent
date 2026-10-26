@@ -1,0 +1,576 @@
+cases:
+  # ---------------- boolean logic over dynamic string/int fields ----------------
+  - name: logic_and_or_not_basic
+    rules:
+      - open.file.path == "/a" && open.flags == 1
+      - open.file.path == "/a" and open.flags == 1 and open.file.name == "a"
+      - open.file.path == "/a" || open.flags == 2
+      - open.file.path == "/a" or open.flags == 2 or open.file.name == "z"
+      - "!(open.file.path == \"/a\")"
+      - not (open.file.path == "/a")
+      - "!(open.file.path == \"/a\" && open.flags == 1)"
+      - not (open.file.path == "/a" || open.flags == 2)
+      - "!!(open.file.path == \"/a\")"
+      - not (not (open.file.path == "/a"))
+      - "!(!(open.file.path == \"/a\") || !(open.flags == 1))"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: a, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: a, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: b, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: b, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: z, open.flags: 3}}
+      - {type: open, fields: {open.file.path: /c, open.file.name: z, open.flags: 3}}
+
+  - name: logic_precedence_and_parens
+    rules:
+      - open.flags == 1 || open.flags == 2 && open.file.name == "a"
+      - (open.flags == 1 || open.flags == 2) && open.file.name == "a"
+      - open.flags == 1 && open.file.name == "a" || open.flags == 2
+      - open.flags == 1 && (open.file.name == "a" || open.flags == 2)
+      - open.flags == 1 || open.flags == 2 && open.file.name == "a" || open.file.path == "/z"
+      - ((open.flags == 1) && ((open.file.name == "a") || (open.file.path == "/z")))
+      - "!(open.flags == 1) && open.file.name == \"a\""
+      - "!(open.flags == 1 && open.file.name == \"a\") && open.file.path == \"/z\""
+      - open.flags == 1 && !(open.file.name == "a") || open.file.path == "/z" && !(open.flags == 3)
+    events:
+      - {type: open, fields: {open.file.path: /x, open.file.name: a, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /x, open.file.name: a, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /x, open.file.name: b, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /x, open.file.name: b, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: b, open.flags: 3}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: a, open.flags: 4}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: b, open.flags: 4}}
+      - {type: open, fields: {open.file.path: /y, open.file.name: c, open.flags: 3}}
+
+  - name: logic_static_constants
+    macros:
+      - id: m_true
+        expression: "true"
+      - id: m_false
+        expression: "false"
+      - id: m_flagged
+        expression: open.flags == 1
+    rules:
+      - "true && open.flags == 1"
+      - "open.flags == 1 && true"
+      - "false && open.flags == 1"
+      - "open.flags == 1 && false"
+      - "true || open.flags == 1"
+      - "open.flags == 1 || true"
+      - "false || open.flags == 1"
+      - "open.flags == 1 || false"
+      - "!true || open.flags == 1"
+      - "!false && open.flags == 1"
+      - "!(true && false) && open.flags == 1"
+      - "true && false || open.flags == 1"
+      - "true && (false || open.flags == 1)"
+      - "m_true && open.flags == 1"
+      - "open.flags == 1 && m_true"
+      - "m_false || open.flags == 1"
+      - "open.flags == 1 || m_false"
+      - "m_false && open.flags == 1"
+      - "open.flags == 1 && m_false"
+      - "m_true || open.flags == 1"
+      - "open.flags == 1 || m_true"
+      - "m_true && m_flagged"
+      - "m_flagged && m_true"
+      - "m_flagged || m_false"
+      - "m_false || m_flagged"
+      - "!m_flagged"
+      - "not m_flagged && open.file.path == \"/p\""
+      - "m_flagged && m_flagged"
+      - "m_flagged || m_flagged"
+      - "1 == 1 && open.flags == 1"
+      - "open.flags == 1 && 1 == 2"
+      - "1 == 2 || open.flags == 1"
+      - "open.flags == 1 || 1 == 1"
+      - "\"a\" == \"a\" && open.file.path == \"/p\""
+      - "\"a\" == \"b\" || open.file.path == \"/p\""
+      - "open.file.path == \"/p\" && \"a\" != \"b\""
+      - "!(1 == 1) || open.flags == 1"
+      - "!(1 == 2) && open.flags == 1"
+      - "(1 == 1 && 2 == 2) || open.flags == 7"
+      - "(1 == 1 && 2 == 3) || open.flags == 7"
+      - "(1 == 2 || 2 == 2) && open.flags == 1"
+      - "(1 == 2 || 2 == 3) && open.flags == 1"
+    events:
+      - {type: open, fields: {open.file.path: /p, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /p, open.flags: 7}}
+      - {type: open, fields: {open.file.path: /q, open.flags: 2}}
+
+  - name: logic_bool_fields
+    rules:
+      - open.file.in_upper_layer == true
+      - open.file.in_upper_layer == false
+      - open.file.in_upper_layer != true
+      - open.file.in_upper_layer != false
+      - true == open.file.in_upper_layer
+      - false == open.file.in_upper_layer
+      - true != open.file.in_upper_layer
+      - false != open.file.in_upper_layer
+      - open.file.in_upper_layer
+      - "!open.file.in_upper_layer"
+      - not open.file.in_upper_layer
+      - open.file.in_upper_layer && open.flags == 1
+      - open.flags == 1 && open.file.in_upper_layer
+      - open.file.in_upper_layer || open.flags == 1
+      - open.flags == 1 || open.file.in_upper_layer
+      - "!open.file.in_upper_layer && open.flags == 1"
+      - "open.flags == 1 && !open.file.in_upper_layer"
+      - open.file.in_upper_layer && open.file.mount_visible
+      - open.file.in_upper_layer || open.file.mount_visible
+      - open.file.in_upper_layer && !open.file.mount_visible
+      - "!open.file.in_upper_layer || open.file.mount_visible"
+      - open.file.in_upper_layer == open.file.mount_visible
+      - open.file.in_upper_layer != open.file.mount_visible
+      - open.file.in_upper_layer == open.file.mount_visible && open.flags == 1
+      - open.file.in_upper_layer == (open.flags == 1)
+      - open.file.in_upper_layer != (open.flags == 1)
+      - (open.flags == 1) == (open.file.path == "/p")
+      - (open.flags == 1) != (open.file.path == "/p")
+      - (open.flags == 1) == true
+      - (open.flags == 1) != true
+      - true == (open.flags == 1)
+      - (open.flags == 1) == false
+      - false != (open.flags == 1)
+      - (open.flags == 1) == (1 == 1)
+      - open.file.in_upper_layer == true && open.file.mount_visible == false
+      - open.file.in_upper_layer != false || open.file.mount_visible != true
+    events:
+      - {type: open, fields: {open.file.path: /p, open.flags: 1, open.file.in_upper_layer: true, open.file.mount_visible: true}}
+      - {type: open, fields: {open.file.path: /p, open.flags: 1, open.file.in_upper_layer: true, open.file.mount_visible: false}}
+      - {type: open, fields: {open.file.path: /p, open.flags: 2, open.file.in_upper_layer: false, open.file.mount_visible: true}}
+      - {type: open, fields: {open.file.path: /q, open.flags: 1, open.file.in_upper_layer: false, open.file.mount_visible: false}}
+      - {type: open, fields: {open.file.path: /q, open.flags: 2, open.file.in_upper_layer: true, open.file.mount_visible: true}}
+      - {type: open, fields: {open.file.path: /q, open.flags: 2}}
+
+  - name: logic_bool_arrays
+    processes:
+      root: {pid: 1, fields: {is_thread: true}}
+      mid: {pid: 2, parent: root, fields: {is_thread: false}}
+      leaf: {pid: 3, parent: mid, fields: {is_thread: false}}
+      thr: {pid: 4, parent: mid, fields: {is_thread: true}}
+      lone: {pid: 5, fields: {is_thread: false}}
+    rules:
+      - "(process.ancestors.is_thread == true) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread == false) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread != true) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread != false) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(!process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread && process.is_thread) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread || process.is_thread) && open.file.path == \"/p\""
+      - "(process.ancestors.is_thread == true && open.file.path == \"/p\") && open.file.path == \"/p\""
+      - "(!(process.ancestors.is_thread == true)) && open.file.path == \"/p\""
+      - "(!(process.ancestors.is_thread == true) && process.is_thread == false) && open.file.path == \"/p\""
+      - "(process.is_thread == true || process.ancestors.is_thread == false) && open.file.path == \"/p\""
+      - "(true in process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(false in process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(true not in process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(false not in process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(process.is_thread in process.ancestors.is_thread) && open.file.path == \"/p\""
+      - "(process.ancestors[A].is_thread == true && process.ancestors[A].pid == 2) && open.file.path == \"/p\""
+      - "(process.ancestors[A].is_thread == false && process.ancestors[A].pid in [1, 2]) && open.file.path == \"/p\""
+      - "(process.parent.is_thread) && open.file.path == \"/p\""
+      - "(!process.parent.is_thread) && open.file.path == \"/p\""
+      - "(process.parent.is_thread == process.is_thread) && open.file.path == \"/p\""
+    events:
+      - {type: open, process: leaf, fields: {open.file.path: /p}}
+      - {type: open, process: thr, fields: {open.file.path: /p}}
+      - {type: open, process: mid, fields: {open.file.path: /p}}
+      - {type: open, process: root, fields: {open.file.path: /p}}
+      - {type: open, process: lone, fields: {open.file.path: /p}}
+
+  - name: logic_matching_values_offsets
+    rules:
+      - open.file.path == "/a" && open.flags == 1 && open.file.name == "a"
+      - open.file.path in ["/a", "/b"] || open.file.name == "zz"
+      - (open.file.path == "/a" || open.file.path == "/b") && (open.flags == 1 || open.flags == 2)
+      - open.file.path == "/a" && (open.flags == 1 || open.flags == 2) && open.file.name != "q"
+      - open.file.path =~ "/a*" && open.flags & 1 == 1
+      - open.file.path == "/a" && !(open.flags == 5)
+      - open.file.path == "/a"   &&   open.flags == 1
+      - "open.file.path == \"/a\" &&\n open.flags == 1"
+      - open.file.name in ["a", "b"] && open.file.path in ["/a", "/b"]
+      - open.file.path == "/a" || open.file.path == "/b" || open.file.path == "/c"
+      - open.file.path == "/a" && open.file.name == "a" && open.flags == 1 && open.mode == 0
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: a, open.flags: 1, open.mode: 0}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: b, open.flags: 2, open.mode: 0}}
+      - {type: open, fields: {open.file.path: /c, open.file.name: c, open.flags: 3, open.mode: 0}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: a, open.flags: 5, open.mode: 7}}
+      - {type: open, fields: {open.file.path: /a/x, open.file.name: zz, open.flags: 3, open.mode: 0}}
+
+  - name: logic_matching_values_arrays
+    processes:
+      root: {pid: 1, fields: {file.name: systemd, uid: 0}}
+      mid: {pid: 2, parent: root, fields: {file.name: bash, uid: 1000}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: curl, uid: 1000}}
+    rules:
+      - process.ancestors.file.name == "bash" && open.file.path == "/p"
+      - process.ancestors.file.name in ["bash", "systemd"] || open.file.path == "/zz"
+      - "(process.file.name == \"curl\" && process.ancestors[A].file.name == \"systemd\" && process.ancestors[A].uid == 0) && open.file.path == \"/p\""
+      - "(exec.file.name == \"x\" || process.ancestors.uid == 0) && open.file.path == \"/p\""
+      - process.ancestors.file.name == "bash" && process.ancestors.file.name == "systemd" && open.file.path == "/p"
+      - process.ancestors.file.name == "bash" && process.ancestors.file.name == "systemd" && open.file.path == "/p" || open.file.path == "/zz"
+    events:
+      - {type: open, process: leaf, fields: {open.file.path: /p}}
+      - {type: open, process: mid, fields: {open.file.path: /p}}
+      - {type: open, process: leaf, fields: {open.file.path: /zz}}
+
+  # ---------------- IP / CIDR ----------------
+  - name: ip_connect_basic
+    rules:
+      - connect.addr.ip == 10.0.0.1
+      - connect.addr.ip != 10.0.0.1
+      - connect.addr.ip == 10.0.0.0/8
+      - connect.addr.ip != 10.0.0.0/8
+      - connect.addr.ip in [10.0.0.1, 192.168.1.1]
+      - connect.addr.ip not in [10.0.0.1, 192.168.1.1]
+      - connect.addr.ip in [10.0.0.0/8, 192.168.0.0/16]
+      - connect.addr.ip not in [10.0.0.0/8, 192.168.0.0/16]
+      - connect.addr.ip in [10.0.0.0/8, 192.168.1.1]
+      - connect.addr.ip == 10.0.0.1 || connect.addr.ip == 192.168.1.1
+      - connect.addr.ip in [10.0.0.0/8] && connect.addr.port == 80
+      - connect.addr.ip == 0.0.0.0/0
+      - connect.addr.ip == 255.255.255.255
+      - connect.addr.ip == 0.0.0.0
+      - connect.addr.ip in [0.0.0.0/0]
+      - connect.addr.ip == 127.0.0.0/8
+      - connect.addr.ip == 10.0.0.0/32
+      - connect.addr.ip == 10.0.0.1/32
+      - connect.addr.ip == 10.0.0.0/31
+      - connect.addr.ip == 10.0.0.0/24
+      - connect.addr.ip in [10.0.0.0/24, 10.0.1.0/24]
+      - connect.addr.ip == ::1
+      - connect.addr.ip == ::/0
+      - connect.addr.ip == 2001:db8::/32
+      - connect.addr.ip in [2001:db8::/32, fe80::/10]
+      - connect.addr.ip in [::1, 10.0.0.1]
+      - connect.addr.ip != 2001:db8::1
+      - connect.addr.ip not in 2001:db8::/32
+      - connect.addr.ip == 2001:db8::1
+      - connect.addr.ip == ::ffff:10.0.0.1
+      - connect.addr.ip == 1.1.1.1 && connect.addr.is_public == true
+      - connect.addr.is_public
+      - "!connect.addr.is_public"
+      - connect.addr.is_public == false && connect.addr.ip in 10.0.0.0/8
+      - connect.addr.is_public || connect.addr.ip in 10.0.0.0/8
+    events:
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.0, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.2, connect.addr.port: 81}}
+      - {type: connect, fields: {connect.addr.ip: 10.0.1.5, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 10.255.255.255, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 11.0.0.0, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 9.255.255.255, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.1.1, connect.addr.port: 443}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.200.200, connect.addr.port: 443}}
+      - {type: connect, fields: {connect.addr.ip: 127.0.0.1}}
+      - {type: connect, fields: {connect.addr.ip: 0.0.0.0}}
+      - {type: connect, fields: {connect.addr.ip: 255.255.255.255}}
+      - {type: connect, fields: {connect.addr.ip: 1.1.1.1}}
+      - {type: connect, fields: {connect.addr.ip: "::1"}}
+      - {type: connect, fields: {connect.addr.ip: "::"}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db8::1"}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db8:ffff::1"}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db9::1"}}
+      - {type: connect, fields: {connect.addr.ip: "fe80::1"}}
+      - {type: connect, fields: {connect.addr.ip: "::ffff:10.0.0.1"}}
+      - {type: connect, fields: {connect.addr.ip: "2606:4700::1111"}}
+
+  - name: ip_bind_accept_network
+    rules:
+      - bind.addr.ip == 0.0.0.0
+      - bind.addr.ip in [127.0.0.0/8, ::1/128]
+      - bind.addr.ip not in 192.168.0.0/16 && bind.addr.port == 22
+      - bind.addr.ip == 192.168.0.0/16 || bind.addr.ip == ::/0
+      - bind.addr.is_public
+      - bind.addr.is_public == false
+      - accept.addr.ip == 10.1.2.3
+      - accept.addr.ip in [10.0.0.0/8, fc00::/7]
+      - accept.addr.ip != 10.1.2.3
+      - accept.addr.is_public
+      - dns.question.name == "a.com" && network.destination.ip in 8.8.8.0/24
+      - "(network.destination.ip == 8.8.8.8) && dns.id >= 0"
+      - "(network.source.ip == 10.0.0.0/8) && dns.id >= 0"
+      - "(network.source.ip in [10.0.0.0/8, 172.16.0.0/12]) && dns.id >= 0"
+      - "(network.source.ip != 10.0.0.0/8 && network.destination.ip == 8.8.8.8) && dns.id >= 0"
+      - "(network.source.ip == network.destination.ip) && dns.id >= 0"
+      - "(network.source.is_public == false && network.destination.is_public == true) && dns.id >= 0"
+      - "(network.destination.is_public) && dns.id >= 0"
+      - "(network.source.is_public) && dns.id >= 0"
+      - "(network.source.ip in [::1, fe80::/10] || network.destination.ip == 2001:4860:4860::8888) && dns.id >= 0"
+      - "(!(network.source.ip in 10.0.0.0/8)) && dns.id >= 0"
+    events:
+      - {type: bind, fields: {bind.addr.ip: 0.0.0.0, bind.addr.port: 22}}
+      - {type: bind, fields: {bind.addr.ip: 127.0.0.1, bind.addr.port: 22}}
+      - {type: bind, fields: {bind.addr.ip: "::1", bind.addr.port: 22}}
+      - {type: bind, fields: {bind.addr.ip: 192.168.5.5, bind.addr.port: 22}}
+      - {type: bind, fields: {bind.addr.ip: 8.8.4.4, bind.addr.port: 22}}
+      - {type: bind, fields: {bind.addr.ip: "::", bind.addr.port: 80}}
+      - {type: accept, fields: {accept.addr.ip: 10.1.2.3}}
+      - {type: accept, fields: {accept.addr.ip: 10.1.2.4}}
+      - {type: accept, fields: {accept.addr.ip: "fd00::1"}}
+      - {type: accept, fields: {accept.addr.ip: 1.2.3.4}}
+      - {type: dns, fields: {dns.question.name: a.com, network.destination.ip: 8.8.8.8, network.source.ip: 10.0.0.5}}
+      - {type: dns, fields: {dns.question.name: a.com, network.destination.ip: 8.8.8.9, network.source.ip: 172.16.0.5}}
+      - {type: dns, fields: {dns.question.name: b.com, network.destination.ip: 8.8.9.1, network.source.ip: 8.8.9.1}}
+      - {type: dns, fields: {dns.question.name: a.com, network.destination.ip: "2001:4860:4860::8888", network.source.ip: "fe80::2"}}
+      - {type: dns, fields: {dns.question.name: a.com, network.destination.ip: "2001:4860:4860::8844", network.source.ip: "::1"}}
+
+  - name: ip_arrays_dns_response
+    rules:
+      - dns.response.ips == 10.0.0.1
+      - dns.response.ips != 10.0.0.1
+      - dns.response.ips == 10.0.0.0/8
+      - dns.response.ips in [10.0.0.0/8, 192.168.0.0/16]
+      - dns.response.ips not in [10.0.0.0/8, 192.168.0.0/16]
+      - dns.response.ips in 10.0.0.0/8
+      - dns.response.ips not in 10.0.0.0/8
+      - dns.response.ips allin [10.0.0.0/8, 192.168.0.0/16]
+      - dns.response.ips allin [10.0.0.0/8]
+      - dns.response.ips allin [10.0.0.1, 10.0.0.2]
+      - dns.response.ips in [10.0.0.1, 10.0.0.2]
+      - dns.response.ips in [2001:db8::/32]
+      - dns.response.ips allin [2001:db8::/32, 10.0.0.0/8]
+      - dns.response.ips == 2001:db8::1
+      - dns.response.ips != 2001:db8::1
+      - 10.0.0.1 in dns.response.ips
+      - 10.0.0.1 not in dns.response.ips
+      - 10.0.0.0/8 in dns.response.ips
+      - 10.0.0.0/8 not in dns.response.ips
+      - 2001:db8::/32 in dns.response.ips
+      - 10.0.0.5 in dns.response.ips
+      - 10.0.0.0/24 in dns.response.ips
+      - dns.response.ips == 10.0.0.1 && dns.question.name == "a.com"
+      - dns.response.ips in 10.0.0.0/8 || dns.question.name == "c.com"
+      - "!(dns.response.ips in 10.0.0.0/8)"
+      - dns.response.ips == 0.0.0.0/0
+      - dns.response.ips == ::/0
+    events:
+      - {type: dns, fields: {dns.question.name: a.com, dns.response.ips: [10.0.0.1]}}
+      - {type: dns, fields: {dns.question.name: a.com, dns.response.ips: [10.0.0.1, 10.0.0.2]}}
+      - {type: dns, fields: {dns.question.name: b.com, dns.response.ips: [10.0.0.1, 192.168.1.1]}}
+      - {type: dns, fields: {dns.question.name: b.com, dns.response.ips: [192.168.1.1, 8.8.8.8]}}
+      - {type: dns, fields: {dns.question.name: c.com, dns.response.ips: [8.8.8.8]}}
+      - {type: dns, fields: {dns.question.name: c.com, dns.response.ips: ["2001:db8::1", 10.0.0.5]}}
+      - {type: dns, fields: {dns.question.name: c.com, dns.response.ips: ["2001:db8::1", "2001:db8::2"]}}
+      - {type: dns, fields: {dns.question.name: d.com, dns.response.ips: []}}
+      - {type: dns, fields: {dns.question.name: d.com}}
+      - {type: dns, fields: {dns.question.name: d.com, dns.response.ips: ["2001:db8::/48"]}}
+      - {type: dns, fields: {dns.question.name: d.com, dns.response.ips: [10.0.0.0/24]}}
+      - {type: dns, fields: {dns.question.name: d.com, dns.response.ips: [10.0.0.0/24, 10.0.0.1]}}
+
+  - name: ip_session_and_ancestors
+    processes:
+      root: {pid: 1, fields: {user_session.ssh_client_ip: 10.1.1.1}}
+      mid: {pid: 2, parent: root, fields: {user_session.ssh_client_ip: 192.168.1.1}}
+      leaf: {pid: 3, parent: mid, fields: {user_session.ssh_client_ip: "2001:db8::5"}}
+      pub: {pid: 4, parent: root, fields: {user_session.ssh_client_ip: 8.8.8.8}}
+    rules:
+      - "(process.user_session.ssh_client_ip == 2001:db8::/32) && open.file.path == \"/p\""
+      - "(process.user_session.ssh_client_ip in [10.0.0.0/8, 192.168.0.0/16]) && open.file.path == \"/p\""
+      - "(process.user_session.ssh_client_ip != 8.8.8.8) && open.file.path == \"/p\""
+      - "(process.ancestors.user_session.ssh_client_ip == 10.0.0.0/8) && open.file.path == \"/p\""
+      - "(process.ancestors.user_session.ssh_client_ip in [192.168.0.0/16]) && open.file.path == \"/p\""
+      - "(process.ancestors.user_session.ssh_client_ip not in [192.168.0.0/16]) && open.file.path == \"/p\""
+      - "(process.ancestors.user_session.ssh_client_ip allin [10.0.0.0/8, 192.168.0.0/16]) && open.file.path == \"/p\""
+      - "(process.ancestors.user_session.ssh_client_ip allin [10.0.0.0/8]) && open.file.path == \"/p\""
+      - "(process.ancestors.user_session.ssh_client_ip != 10.1.1.1) && open.file.path == \"/p\""
+      - "(process.parent.user_session.ssh_client_ip == 192.168.1.0/24) && open.file.path == \"/p\""
+      - "(process.ancestors[A].user_session.ssh_client_ip == 192.168.1.1 && process.ancestors[A].pid == 2) && open.file.path == \"/p\""
+      - "(process.user_session.ssh_client_ip == 8.8.8.8 || process.parent.user_session.ssh_client_ip == 10.1.1.1) && open.file.path == \"/p\""
+      - exec.user_session.ssh_client_ip == 10.0.0.0/8
+      - exit.user_session.ssh_client_ip in [10.0.0.0/8]
+    events:
+      - {type: open, process: leaf, fields: {open.file.path: /p}}
+      - {type: open, process: mid, fields: {open.file.path: /p}}
+      - {type: open, process: root, fields: {open.file.path: /p}}
+      - {type: open, process: pub, fields: {open.file.path: /p}}
+      - {type: exec, process: leaf, fields: {exec.user_session.ssh_client_ip: 10.9.9.9}}
+      - {type: exec, process: leaf, fields: {exec.user_session.ssh_client_ip: 11.9.9.9}}
+      - {type: exit, process: leaf, fields: {exit.user_session.ssh_client_ip: 10.9.9.9}}
+
+  - name: ip_packet_fields
+    rules:
+      - packet.destination.ip == 10.0.0.0/8
+      - packet.source.ip in [192.168.0.0/16, fe80::/10]
+      - packet.source.ip != packet.destination.ip
+      - packet.destination.is_public && packet.source.is_public == false
+      - packet.destination.ip == 10.0.0.1 && packet.destination.port == 53
+    events:
+      - {type: packet, fields: {packet.destination.ip: 10.0.0.1, packet.source.ip: 192.168.0.1, packet.destination.port: 53}}
+      - {type: packet, fields: {packet.destination.ip: 8.8.8.8, packet.source.ip: "fe80::1", packet.destination.port: 53}}
+      - {type: packet, fields: {packet.destination.ip: 8.8.8.8, packet.source.ip: 8.8.8.8, packet.destination.port: 80}}
+
+  - name: ip_load_errors
+    rules:
+      - connect.addr.ip == "10.0.0.1"
+      - connect.addr.ip in 10.0.0.0/8
+      - connect.addr.ip not in 10.0.0.1
+      - open.file.in_upper_layer in [true]
+      - open.file.in_upper_layer not in [false, true]
+      - open.file.in_upper_layer allin [true]
+      - connect.addr.ip == 10
+      - connect.addr.ip in ["10.0.0.0/8"]
+      - connect.addr.ip =~ 10.0.0.0/8
+      - connect.addr.ip in [10.0.0.1, "a"]
+      - connect.addr.ip == 10.0.0.1 && connect.addr.port == "a"
+      - connect.addr.ip > 10.0.0.1
+      - connect.addr.ip allin [10.0.0.0/8]
+      - connect.addr.port == 10.0.0.1
+      - open.flags == true
+      - open.file.in_upper_layer == 1
+      - open.file.in_upper_layer == "true"
+      - open.file.in_upper_layer in [1]
+      - open.file.in_upper_layer > true
+      - open.file.in_upper_layer && 1
+      - open.file.path && true
+      - open.flags || false
+      - "!open.flags"
+      - "!open.file.path"
+      - true == 1
+      - 1 && true
+      - connect.addr.ip && true
+      - "!connect.addr.ip"
+      - connect.addr.ip == 10.0.0.1 &&
+      - connect.addr.ip == 10.0.0.1 ||| open.flags == 1
+      - (connect.addr.ip == 10.0.0.1
+      - connect.addr.ip == 300.0.0.1
+      - connect.addr.ip == 10.0.0.0/33
+      - connect.addr.ip == 2001:::1
+      - open.flags == 1 && connect.addr.port == 80
+      - dns.question.name == "a" && open.file.path == "/p"
+    events:
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 80}}
+
+  - name: logic_nondeterministic_operands
+    rules:
+      - (open.flags == 1 || false) && open.file.path == "/p"
+      - (open.flags == 1 && true) && open.file.path == "/p"
+      - (false || open.flags == 1) && open.file.path == "/p"
+      - (true && open.flags == 1) && open.file.path == "/p"
+      - (open.flags == 1 || open.file.name == "n") && open.file.path == "/p"
+      - (open.flags == 1 && open.file.name == "n") && open.file.path == "/p"
+      - open.file.path == "/p" && (open.flags == 1 || false)
+      - open.file.path == "/p" || (open.flags == 1 && true)
+      - open.file.path == "/p" || (true && open.flags == 1)
+      - open.file.path == "/p" || (open.flags == 1 || true)
+      - open.file.path == "/p" && (true || open.flags == 1)
+      - open.file.path == "/p" && (open.flags == 1 || open.file.name == "n") && !(open.mode == 2)
+      - "!(open.flags == 1 || false) || open.file.path == \"/p\""
+      - (true == true) && open.flags == 1
+      - (true == false) || open.flags == 1
+      - (true != false) && open.flags == 1
+      - (open.flags == 1) == (true == true)
+      - (true == true) == (open.flags == 1)
+      - (1 == 1) != (open.flags == 1)
+      - open.file.in_upper_layer == true || false
+      - false || open.file.in_upper_layer
+      - open.file.in_upper_layer && true
+      - true && open.file.in_upper_layer
+      - open.file.in_upper_layer || open.file.mount_visible || open.file.mount_detached
+      - open.file.in_upper_layer && open.file.mount_visible && open.file.mount_detached
+      - (open.file.in_upper_layer || open.file.mount_visible) && open.file.path == "/p"
+      - (open.file.in_upper_layer && open.file.mount_visible) || open.file.path == "/p"
+      - "!(open.file.in_upper_layer && open.file.mount_visible) && open.file.path == \"/p\""
+      - (open.file.in_upper_layer && open.flags == 1) || (open.file.mount_visible && open.flags == 2)
+    events:
+      - {type: open, fields: {open.file.path: /p, open.file.name: n, open.flags: 1, open.mode: 2, open.file.in_upper_layer: true, open.file.mount_visible: true, open.file.mount_detached: true}}
+      - {type: open, fields: {open.file.path: /p, open.file.name: n, open.flags: 2, open.mode: 0, open.file.in_upper_layer: true, open.file.mount_visible: false, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /q, open.file.name: n, open.flags: 1, open.mode: 0, open.file.in_upper_layer: false, open.file.mount_visible: true, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /q, open.file.name: m, open.flags: 2, open.mode: 0, open.file.in_upper_layer: false, open.file.mount_visible: true, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /q, open.file.name: m, open.flags: 3, open.mode: 2, open.file.in_upper_layer: false, open.file.mount_visible: false, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /p, open.file.name: m, open.flags: 3, open.mode: 0}}
+
+  - name: ip_static_and_literal_left
+    rules:
+      - 10.0.0.1 == 10.0.0.0/8 && connect.addr.port == 80
+      - 10.0.0.1 != 10.0.0.0/8 || connect.addr.port == 80
+      - 10.0.0.1 == 11.0.0.0/8 || connect.addr.port == 80
+      - 10.0.0.0/8 == connect.addr.ip
+      - 10.0.0.1 == connect.addr.ip
+      - 10.0.0.1 != connect.addr.ip
+      - 10.0.0.0/8 != connect.addr.ip
+      - 10.0.0.1 in [10.0.0.0/8] && connect.addr.port == 80
+      - 10.0.0.1 in [11.0.0.0/8] || connect.addr.port == 80
+      - 10.0.0.1 not in [10.0.0.0/8] || connect.addr.port == 81
+      - 10.0.0.1 in [10.0.0.0/8, 10.0.0.0/8, 10.0.0.1, 10.0.0.1] && connect.addr.ip == 10.0.0.1
+      - connect.addr.ip in [10.0.0.0/8, 10.0.0.0/8, 192.168.0.1, 192.168.0.1, 192.168.0.1/32]
+      - connect.addr.ip in [2001:db8::/32, 2001:db8::/32, 2001:db8::1, 2001:db8::1]
+      - 2001:db8::1 in [2001:db8::/32] && connect.addr.port == 80
+      - 2001:db8::1 == 2001:db8::/32 && connect.addr.port == 80
+      - 2001:db8::1 == 10.0.0.0/8 || connect.addr.port == 80
+      - connect.addr.ip != connect.addr.ip
+    events:
+      - {type: connect, fields: {connect.addr.ip: 10.0.0.1, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.ip: 10.9.9.9, connect.addr.port: 81}}
+      - {type: connect, fields: {connect.addr.ip: 11.0.0.1, connect.addr.port: 81}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.0.1, connect.addr.port: 82}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db8::1", connect.addr.port: 82}}
+      - {type: connect, fields: {connect.addr.ip: "2001:db9::1", connect.addr.port: 82}}
+
+  # ---------------------- bare boolean fields in Or, with static operands
+  # a bare bool field on the left of || with a constant on the right takes the
+  # field-update path of Or; the partial evaluation of Or replaces the operand
+  # not deterministic for the approver field by `true`.
+  - name: logic_or_bool_field_static_operand
+    rules:
+      - open.file.in_upper_layer || false
+      - open.file.in_upper_layer || true
+      - open.file.in_upper_layer || open.flags == 1
+      - open.file.in_upper_layer && (open.file.path == "/a" || false)
+      - (open.file.in_upper_layer || false) && open.flags == 1
+      - (open.file.in_upper_layer || true) && open.flags == 2
+      - (open.file.path == "/a" || true) && open.flags == 1
+      - (open.file.path == "/a" || false) || open.flags == 2
+      - open.flags == 1 && (open.file.path == "/a" || false)
+      - (open.file.path == "/a" || open.file.name == "b") && open.flags == 2
+      - (open.file.in_upper_layer || open.file.mount_visible) && open.flags == 1
+      - (open.file.in_upper_layer || open.file.mount_visible) && open.file.path == "/a"
+      - (open.file.mount_detached || false) && open.flags == 3
+      - open.file.mount_detached || open.file.in_upper_layer || open.flags == 3
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: b, open.flags: 1, open.file.in_upper_layer: true, open.file.mount_visible: false, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: b, open.flags: 2, open.file.in_upper_layer: false, open.file.mount_visible: true, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: c, open.flags: 3, open.file.in_upper_layer: false, open.file.mount_visible: false, open.file.mount_detached: true}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: b, open.flags: 1, open.file.in_upper_layer: false, open.file.mount_visible: true, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: b, open.flags: 2, open.file.in_upper_layer: true, open.file.mount_visible: false, open.file.mount_detached: true}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: c, open.flags: 3, open.file.in_upper_layer: false, open.file.mount_visible: false, open.file.mount_detached: false}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: c, open.flags: 4, open.file.in_upper_layer: false, open.file.mount_visible: false, open.file.mount_detached: false}}
+
+  # ---------------------- IP variables against CIDR arrays (both dynamic)
+  - name: cidr_variable_vs_dns_ips
+    rules:
+      - id: setter
+        expression: connect.addr.ip in [10.0.0.0/8, 192.168.0.0/16] && connect.addr.port == 1
+        actions:
+          - set: {name: vip, field: connect.addr.ip}
+      - dns.response.ips == ${vip}
+      - dns.response.ips != ${vip}
+      - '${vip} in dns.response.ips'
+      - '${vip} not in dns.response.ips'
+      - dns.response.ips == ${vip} && dns.id == 1
+    events:
+      - {type: connect, fields: {connect.addr.ip: 10.1.1.1, connect.addr.port: 1}}
+      - {type: dns, fields: {dns.response.ips: [10.1.1.1]}}
+      - {type: dns, fields: {dns.response.ips: [10.1.1.1, 10.2.2.2]}}
+      - {type: dns, fields: {dns.response.ips: [10.2.2.2]}}
+      - {type: dns, fields: {dns.response.ips: []}}
+      - {type: dns, fields: {dns.response.ips: ["2001:db8::1"]}}
+      - {type: connect, fields: {connect.addr.ip: 192.168.3.4, connect.addr.port: 1}}
+      - {type: dns, fields: {dns.response.ips: [10.1.1.1]}}
+      - {type: dns, fields: {dns.response.ips: [192.168.9.9, 10.1.1.1], dns.id: 1}}
+      - {type: dns, fields: {dns.response.ips: [172.16.0.1], dns.id: 1}}
+
+  # a dynamic left operand OR'ed with a constant: partial evaluation on a
+  # field the left side doesn't solely depend on replaces it with true
+  - name: logic_or_dynamic_left_constant_right_partials
+    rules:
+      - (open.flags == 1 && process.uid == 0) || false
+      - (open.file.name == "a" || process.uid == 3) || false
+      - (open.flags == 2 && open.file.name == "b") || true
+    events:
+      - {type: open, fields: {open.flags: 1, process.uid: 0, open.file.name: a}}
+      - {type: open, fields: {open.flags: 0, process.uid: 5, open.file.name: c}}

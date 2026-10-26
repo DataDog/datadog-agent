@@ -1,0 +1,1686 @@
+cases:
+  - name: global_scalar_types
+    rules:
+      - id: setter
+        expression: open.file.path == "/set"
+        actions:
+          - set: {name: b, value: true, default_value: false}
+          - set: {name: i, value: 42, default_value: 0}
+          - set: {name: s, value: "hello", default_value: "init"}
+          - set: {name: neg, value: -7, default_value: 7}
+          - set: {name: empty_s, value: "", default_value: "nonempty"}
+          - set: {name: f, value: false, default_value: true}
+      - id: check_bool
+        expression: mkdir.file.path == "/c" && ${b} == true
+      - id: check_bool_not
+        expression: mkdir.file.path == "/c" && !${f}
+      - id: check_bool_bare
+        expression: mkdir.file.path == "/d" && ${b}
+      - id: check_int
+        expression: mkdir.file.path == "/c" && ${i} == 42 && ${i} > 41 && ${i} < 43 && ${i} >= 42 && ${i} <= 42 && ${i} != 41
+      - id: check_neg
+        expression: mkdir.file.path == "/c" && ${neg} < 0
+      - id: check_str
+        expression: mkdir.file.path == "/c" && ${s} == "hello" && ${s} != "world"
+      - id: check_str_glob
+        expression: mkdir.file.path == "/c" && ${s} =~ "hel*" && ${s} !~ "x*"
+      - id: check_str_in
+        expression: mkdir.file.path == "/c" && ${s} in ["hello", "bye"] && ${s} not in ["a", "b"]
+      - id: check_str_pattern
+        expression: mkdir.file.path == "/c" && ${s} in [~"h*o"]
+      - id: check_str_regex
+        expression: mkdir.file.path == "/c" && ${s} =~ r"^h.l+o$"
+      - id: check_empty
+        expression: mkdir.file.path == "/c" && ${empty_s} == ""
+      - id: check_in_string
+        expression: mkdir.file.path == "/c" && "${s}" == "hello" && "${i}" == "42"
+      - id: check_concat
+        expression: mkdir.file.path == "/${s}" && "pre-${s}-${i}-post" == "pre-hello-42-post"
+      - id: check_bool_in_string
+        expression: mkdir.file.path == "/c" && "${b}" == "true"
+    events:
+      - {type: mkdir, fields: {mkdir.file.path: /c}}
+      - {type: open, fields: {open.file.path: /set}}
+      - {type: mkdir, fields: {mkdir.file.path: /c}}
+      - {type: mkdir, fields: {mkdir.file.path: /d}}
+      - {type: mkdir, fields: {mkdir.file.path: /hello}}
+
+  - name: global_int_comparisons_against_field
+    rules:
+      - id: setter
+        expression: open.file.path == "/set"
+        actions:
+          - set: {name: limit, field: open.flags}
+      - id: gt
+        expression: mkdir.mode > ${limit}
+      - id: lt
+        expression: mkdir.mode < ${limit}
+      - id: eq
+        expression: mkdir.mode == ${limit}
+      - id: arith
+        expression: mkdir.mode == ${limit} + 1
+      - id: arith2
+        expression: mkdir.mode - ${limit} == 2
+      - id: bitand
+        expression: mkdir.mode & ${limit} != 0
+    events:
+      - {type: mkdir, fields: {mkdir.mode: 5}}
+      - {type: open, fields: {open.file.path: /set, open.flags: 4}}
+      - {type: mkdir, fields: {mkdir.mode: 4}}
+      - {type: mkdir, fields: {mkdir.mode: 5}}
+      - {type: mkdir, fields: {mkdir.mode: 3}}
+      - {type: mkdir, fields: {mkdir.mode: 6}}
+      - {type: open, fields: {open.file.path: /set, open.flags: 0}}
+      - {type: mkdir, fields: {mkdir.mode: 0}}
+
+  - name: global_arrays_value_and_append
+    rules:
+      - id: setter
+        expression: open.file.path == "/set"
+        actions:
+          - set: {name: sarr, value: [a, b, c]}
+          - set: {name: iarr, value: [1, 2, 3]}
+          - set: {name: sapp, append: true, value: x}
+          - set: {name: iapp, append: true, value: 7}
+          - set: {name: fapp, append: true, field: open.file.name}
+          - set: {name: fiapp, append: true, field: open.flags}
+      - id: in_s
+        expression: mkdir.file.name in ${sarr}
+      - id: notin_s
+        expression: mkdir.file.name not in ${sarr} && mkdir.file.name != ""
+      - id: in_i
+        expression: mkdir.mode in ${iarr}
+      - id: notin_i
+        expression: mkdir.mode not in ${iarr}
+      - id: lit_in_s
+        expression: mkdir.file.name == "q" && "b" in ${sarr}
+      - id: lit_in_i
+        expression: mkdir.file.name == "q" && 2 in ${iarr}
+      - id: lit_not_in_i
+        expression: mkdir.file.name == "q" && 9 in ${iarr}
+      - id: in_sapp
+        expression: mkdir.file.name == "z" && "x" in ${sapp}
+      - id: in_iapp
+        expression: mkdir.file.name == "z" && 7 in ${iapp}
+      - id: in_fapp
+        expression: mkdir.file.name == "z" && "n1" in ${fapp}
+      - id: in_fapp2
+        expression: mkdir.file.name == "z" && "n2" in ${fapp}
+      - id: in_fiapp
+        expression: mkdir.file.name == "z" && 5 in ${fiapp}
+      - id: all_in
+        expression: mkdir.file.name == "z" && ${sarr} in ["a", "b", "c", "d"]
+      - id: eq_arr
+        expression: mkdir.file.name == "z" && ${sarr} == "a"
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: a, mkdir.mode: 1}}
+      - {type: open, fields: {open.file.path: /set, open.file.name: n1, open.flags: 5}}
+      - {type: mkdir, fields: {mkdir.file.name: a, mkdir.mode: 1}}
+      - {type: mkdir, fields: {mkdir.file.name: zz, mkdir.mode: 9}}
+      - {type: mkdir, fields: {mkdir.file.name: q, mkdir.mode: 3}}
+      - {type: mkdir, fields: {mkdir.file.name: z, mkdir.mode: 0}}
+      - {type: open, fields: {open.file.path: /set, open.file.name: n2, open.flags: 6}}
+      - {type: mkdir, fields: {mkdir.file.name: z, mkdir.mode: 0}}
+      - {type: open, fields: {open.file.path: /set, open.file.name: n2, open.flags: 6}}
+      - {type: mkdir, fields: {mkdir.file.name: z, mkdir.mode: 0}}
+
+  - name: global_array_length_and_index
+    rules:
+      - id: setter
+        expression: open.file.path == "/set"
+        actions:
+          - set: {name: names, append: true, field: open.file.name}
+          - set: {name: nums, append: true, field: open.flags}
+          - set: {name: fixed, value: [first, second, third]}
+          - set: {name: str, value: hello}
+          - set: {name: name_count, expression: "${names.length}", default_value: 0}
+          - set: {name: str_len, expression: "${str.length}", default_value: 0}
+      - id: len_eq
+        expression: mkdir.file.name == "q" && ${names.length} == 2
+      - id: len_gt
+        expression: mkdir.file.name == "q" && ${names.length} > 1
+      - id: len_zero
+        expression: mkdir.file.name == "q" && ${names.length} == 0
+      - id: len_nums
+        expression: mkdir.file.name == "q" && ${nums.length} >= 2
+      - id: len_str
+        expression: mkdir.file.name == "q" && ${str.length} == 5
+      - id: len_fixed
+        expression: mkdir.file.name == "q" && ${fixed.length} == 3
+      - id: idx0
+        expression: mkdir.file.name == "q" && "${fixed}[0]" == "first"
+      - id: idx_outside_string
+        expression: mkdir.file.name == "q" && ${fixed}[1] == "second"
+      - id: count_var
+        expression: mkdir.file.name == "q" && ${name_count} == 2
+      - id: strlen_var
+        expression: mkdir.file.name == "q" && ${str_len} == 5
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: q}}
+      - {type: open, fields: {open.file.path: /set, open.file.name: n1, open.flags: 1}}
+      - {type: mkdir, fields: {mkdir.file.name: q}}
+      - {type: open, fields: {open.file.path: /set, open.file.name: n2, open.flags: 2}}
+      - {type: mkdir, fields: {mkdir.file.name: q}}
+
+  - name: set_from_field_types
+    rules:
+      - id: setter
+        expression: open.file.path != ""
+        actions:
+          - set: {name: v_path, field: open.file.path}
+          - set: {name: v_flags, field: open.flags}
+          - set: {name: v_uid, field: process.uid}
+          - set: {name: v_name, field: process.file.name}
+          - set: {name: v_in_upper, field: open.file.in_upper_layer}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${v_path} == "/p" && ${v_flags} == 3 && ${v_uid} == 1000 && ${v_name} == "bash"
+      - id: reader_partial
+        expression: mkdir.file.name == "r" && ${v_path} == "/p"
+      - id: reader_bool
+        expression: mkdir.file.name == "r" && ${v_in_upper}
+      - id: reader_bool2
+        expression: mkdir.file.name == "r" && !${v_in_upper}
+    processes:
+      sh: {pid: 10, fields: {uid: 1000, file.name: bash}}
+    events:
+      - {type: mkdir, process: sh, fields: {mkdir.file.name: r}}
+      - {type: open, process: sh, fields: {open.file.path: /p, open.flags: 3, open.file.in_upper_layer: true}}
+      - {type: mkdir, process: sh, fields: {mkdir.file.name: r}}
+      - {type: open, process: sh, fields: {open.file.path: /p2, open.flags: 4, open.file.in_upper_layer: false}}
+      - {type: mkdir, process: sh, fields: {mkdir.file.name: r}}
+
+  - name: set_from_expression
+    rules:
+      - id: setter
+        expression: open.file.path != ""
+        actions:
+          - set: {name: sum, expression: "${sum} + open.flags", default_value: 0}
+          - set: {name: is_big, expression: "open.flags > 5", default_value: false}
+          - set: {name: label, expression: '"p:${last}"', default_value: ""}
+          - set: {name: last, field: open.file.name}
+          - set: {name: both, expression: "open.flags == 1 && open.file.name == \"x\"", default_value: false}
+      - id: r_sum
+        expression: mkdir.file.name == "r" && ${sum} == 10
+      - id: r_sum_gt
+        expression: mkdir.file.name == "r" && ${sum} > 5
+      - id: r_big
+        expression: mkdir.file.name == "r" && ${is_big}
+      - id: r_label
+        expression: mkdir.file.name == "r" && ${label} == "p:x"
+      - id: r_both
+        expression: mkdir.file.name == "r" && ${both}
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /a, open.flags: 1, open.file.name: x}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /a, open.flags: 9, open.file.name: y}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: set_expression_errors
+    rules:
+      - id: bad_syntax
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v1, expression: "open.flags +", default_value: 0}
+      - id: bad_event_type
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v2, expression: "exec.file.name", default_value: ""}
+      - id: bad_default_type
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v3, expression: "open.flags + 1", default_value: "str"}
+      - id: unknown_field
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v4, expression: "open.nothing", default_value: ""}
+      - id: good
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v5, expression: "open.flags + 1", default_value: 0}
+    events:
+      - {type: open, fields: {open.file.path: /a, open.flags: 1}}
+
+  - name: set_field_errors
+    rules:
+      - id: wrong_event
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v1, field: exec.file.name}
+      - id: unknown_field
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v2, field: open.nothing}
+      - id: array_no_append
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v3, field: exec.argv}
+      - id: array_append
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v4, field: exec.argv, append: true}
+      - id: int_array_append
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v4i, field: process.ancestors.pid, append: true}
+      - id: unsupported_type
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v5, field: open.file.mode}
+      - id: field_value_conflict
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v6, field: open.file.path, value: 3}
+      - id: field_value_conflict_array
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v7, field: open.file.path, value: [a, b]}
+      - id: field_value_same_type
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v8, field: open.file.path, value: "dflt"}
+      - id: field_default_conflict
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v9, field: open.file.path, default_value: 1}
+      - id: ip_field
+        expression: connect.addr.ip == 1.2.3.4
+        actions:
+          - set: {name: v10, field: connect.addr.ip}
+      - id: bool_field_append
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v11, field: open.file.in_upper_layer, append: true}
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: exec, fields: {exec.file.name: a, exec.argv: [x, y]}}
+      - {type: connect, fields: {connect.addr.ip: 1.2.3.4}}
+
+  - name: set_array_index_field
+    rules:
+      - id: setter
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: arg0, field: "exec.argv[0]"}
+          - set: {name: arg1, field: "exec.argv[1]"}
+          - set: {name: arg_far, field: "exec.argv[7]"}
+          - set: {name: arg_list, field: "exec.argv[1]", append: true}
+      - id: bad_index_target
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: notarr, field: "exec.file.name[0]"}
+      - id: unknown_index_base
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: nobase, field: "exec.nothing[0]"}
+      - id: r
+        expression: mkdir.file.name == "r" && ${arg0} == "first" && ${arg1} == "second"
+      - id: r_far
+        expression: mkdir.file.name == "r" && ${arg_far} == ""
+      - id: r_list
+        expression: mkdir.file.name == "r" && "second" in ${arg_list}
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: exec, fields: {exec.file.name: a, exec.argv: [first, second]}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: set_capture
+    rules:
+      - id: capture_path
+        expression: open.file.path =~ "/orch/**"
+        actions:
+          - set:
+              name: cmd_id
+              field: open.file.path
+              capture: "/orch/([^/]+)/"
+              default_value: ""
+          - set:
+              name: ids
+              field: open.file.path
+              capture: "/orch/([^/]+)/"
+              append: true
+      - id: capture_idx
+        expression: exec.file.name == "idx"
+        actions:
+          - set:
+              name: arg_cap
+              field: "exec.argv[0]"
+              capture: "--id=(\\d+)"
+      - id: r
+        expression: mkdir.file.name == "r" && ${cmd_id} == "abc"
+      - id: r_ids
+        expression: mkdir.file.name == "r" && "def" in ${ids}
+      - id: r_arg
+        expression: mkdir.file.name == "r" && ${arg_cap} == "123"
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /orch/abc/x}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /orch/nomatch}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /orch/def/x}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: exec, fields: {exec.file.name: idx, exec.argv: ["--id=123"]}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: exec, fields: {exec.file.name: idx, exec.argv: ["--other"]}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: set_capture_errors
+    rules:
+      - id: array_field
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c1, field: exec.argv, capture: "(.*)"}
+      - id: array_field_append
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c2, field: exec.argv, capture: "(.*)", append: true}
+      - id: int_field
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c3, field: process.pid, capture: "(.*)"}
+      - id: bad_regex
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c4, field: exec.file.name, capture: "(["}
+      - id: no_group
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c5, field: exec.file.name, capture: "abc"}
+      - id: two_groups
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c6, field: exec.file.name, capture: "(a)(b)"}
+      - id: no_field
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c7, value: abc, capture: "(a)"}
+      - id: unknown_field
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c8, field: exec.nope, capture: "(a)"}
+      - id: ok
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: c9, field: exec.file.name, capture: "(a)"}
+    events:
+      - {type: exec, fields: {exec.file.name: a, exec.argv: [x]}}
+
+  - name: set_invalid_definitions
+    rules:
+      - id: bad_name
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: "bad name!", value: 1}
+      - id: field_conflict
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: process, value: 1}
+      - id: scoped_name_conflicts_field
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: pid, value: 1, scope: process}
+      - id: constant_conflict
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: O_CREAT, value: 1}
+      - id: bad_scope
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v1, value: 1, scope: nothing}
+      - id: no_value
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v2}
+      - id: empty_array
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v3, value: []}
+      - id: bool_array
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v4, value: [true, false]}
+      - id: mixed_array
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v5, value: [a, 1]}
+      - id: value_and_field
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v6, value: abc, field: open.file.path, expression: '"x"'}
+      - id: float_value
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v7, value: 1.5}
+      - id: append_bool
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v8, value: true, append: true}
+      - id: ok
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v9, value: 1}
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+
+  - name: set_conflicting_types_across_rules
+    rules:
+      - id: r1
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: shared, value: 1}
+      - id: r2
+        expression: open.file.path == "/b"
+        actions:
+          - set: {name: shared, value: "str"}
+      - id: r3
+        expression: open.file.path == "/c"
+        actions:
+          - set: {name: shared, value: [a]}
+      - id: r4
+        expression: open.file.path == "/d"
+        actions:
+          - set: {name: shared, value: 2}
+      - id: r5
+        expression: open.file.path == "/e"
+        actions:
+          - set: {name: shared, value: 3, scope: process}
+      - id: r6
+        expression: open.file.path == "/f"
+        actions:
+          - set: {name: shared, value: 4, private: true}
+      - id: r7
+        expression: open.file.path == "/g"
+        actions:
+          - set: {name: shared, append: true, value: 4}
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /b}}
+      - {type: open, fields: {open.file.path: /d}}
+      - {type: open, fields: {open.file.path: /e}}
+      - {type: open, fields: {open.file.path: /g}}
+
+  - name: set_same_var_multiple_rules_and_actions
+    rules:
+      - id: first
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: counter, value: 1}
+          - set: {name: counter, value: 2}
+      - id: second
+        expression: open.file.path == "/a" && open.flags == 1
+        actions:
+          - set: {name: counter, value: 3}
+          - set: {name: list, append: true, value: one}
+      - id: third
+        expression: open.file.path == "/a" && open.flags == 2
+        actions:
+          - set: {name: list, append: true, value: two}
+          - set: {name: list, append: true, value: one}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${counter} == 3 && "two" in ${list}
+    events:
+      - {type: open, fields: {open.file.path: /a, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /a, open.flags: 1}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /a, open.flags: 2}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: set_in_same_event_visible_to_later_rule
+    rules:
+      - id: a_setter
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: flag, value: true}
+      - id: b_reader
+        expression: open.file.path == "/a" && ${flag}
+      - id: c_reader_not
+        expression: open.file.path == "/a" && !${flag}
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /a}}
+
+  - name: action_filter
+    rules:
+      - id: setter
+        expression: open.file.path != ""
+        actions:
+          - filter: open.flags == 1
+            set: {name: f1, value: true, default_value: false}
+          - filter: open.file.name == "x" && open.flags != 1
+            set: {name: f2, value: true, default_value: false}
+          - filter: ${f1} == true
+            set: {name: f3, value: true, default_value: false}
+          - filter: process.uid == 1000
+            set: {name: f4, value: "set", default_value: ""}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${f1} && ${f2}
+      - id: reader3
+        expression: mkdir.file.name == "r" && ${f3}
+      - id: reader4
+        expression: mkdir.file.name == "r" && ${f4} == "set"
+    processes:
+      u: {pid: 1, fields: {uid: 1000}}
+      o: {pid: 2, fields: {uid: 5}}
+    events:
+      - {type: open, process: o, fields: {open.file.path: /a, open.flags: 0, open.file.name: y}}
+      - {type: mkdir, process: o, fields: {mkdir.file.name: r}}
+      - {type: open, process: o, fields: {open.file.path: /a, open.flags: 1, open.file.name: y}}
+      - {type: mkdir, process: o, fields: {mkdir.file.name: r}}
+      - {type: open, process: o, fields: {open.file.path: /a, open.flags: 0, open.file.name: x}}
+      - {type: mkdir, process: o, fields: {mkdir.file.name: r}}
+      - {type: open, process: u, fields: {open.file.path: /a, open.flags: 0, open.file.name: z}}
+      - {type: mkdir, process: o, fields: {mkdir.file.name: r}}
+
+  - name: action_filter_errors
+    rules:
+      - id: bad_syntax
+        expression: open.file.path != ""
+        actions:
+          - filter: open.flags ==
+            set: {name: v1, value: 1}
+      - id: unknown_var
+        expression: open.file.path != ""
+        actions:
+          - filter: ${nothing} == 1
+            set: {name: v3, value: 1}
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+
+  - name: process_scope_basic
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: tag, value: "marked", scope: process}
+          - set: {name: cnt, value: 1, scope: process}
+          - set: {name: flag, value: true, scope: process}
+          - set: {name: tags, append: true, value: t1, scope: process}
+          - set: {name: nums, append: true, value: 5, scope: process}
+          - set: {name: from_field, field: exec.file.name, scope: process}
+      - id: reader
+        expression: open.file.path == "/r" && ${process.tag} == "marked" && ${process.cnt} == 1 && ${process.flag}
+      - id: reader_arrays
+        expression: open.file.path == "/r" && "t1" in ${process.tags} && 5 in ${process.nums}
+      - id: reader_field
+        expression: open.file.path == "/r" && ${process.from_field} == "setme"
+      - id: reader_string
+        expression: open.file.path == "/r" && "${process.tag}:${process.cnt}" == "marked:1"
+      - id: reader_default
+        expression: open.file.path == "/r" && ${process.tag} == ""
+      - id: reader_default_int
+        expression: open.file.path == "/r" && ${process.cnt} == 0
+      - id: reader_default_bool
+        expression: open.file.path == "/r" && !${process.flag}
+      - id: reader_len
+        expression: open.file.path == "/r" && ${process.tags.length} == 1
+    processes:
+      a: {pid: 100, fields: {file.name: a}}
+      b: {pid: 200, fields: {file.name: b}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /r}}
+      - {type: exec, process: a, fields: {exec.file.name: setme}}
+      - {type: open, process: a, fields: {open.file.path: /r}}
+      - {type: open, process: b, fields: {open.file.path: /r}}
+      - {type: exec, process: b, fields: {exec.file.name: setme}}
+      - {type: open, process: b, fields: {open.file.path: /r}}
+
+  - name: process_scope_inheritance
+    rules:
+      - id: setter_inh
+        expression: exec.file.name == "inh"
+        actions:
+          - set: {name: inh_var, value: "inherited", scope: process, inherited: true}
+          - set: {name: inh_arr, append: true, value: p, scope: process, inherited: true}
+          - set: {name: inh_int, value: 7, scope: process, inherited: true}
+          - set: {name: inh_bool, value: true, scope: process, inherited: true}
+      - id: setter_plain
+        expression: exec.file.name == "plain"
+        actions:
+          - set: {name: plain_var, value: "plain", scope: process}
+          - set: {name: plain_arr, append: true, value: p, scope: process}
+      - id: read_inh
+        expression: open.file.path == "/r" && ${process.inh_var} == "inherited"
+      - id: read_inh_arr
+        expression: open.file.path == "/r" && "p" in ${process.inh_arr}
+      - id: read_inh_int
+        expression: open.file.path == "/r" && ${process.inh_int} == 7
+      - id: read_inh_bool
+        expression: open.file.path == "/r" && ${process.inh_bool}
+      - id: read_plain
+        expression: open.file.path == "/r" && ${process.plain_var} == "plain"
+      - id: read_plain_arr
+        expression: open.file.path == "/r" && "p" in ${process.plain_arr}
+      - id: read_none
+        expression: open.file.path == "/r" && ${process.inh_var} == ""
+    processes:
+      root: {pid: 1, fields: {file.name: root}}
+      mid: {pid: 2, parent: root, fields: {file.name: mid}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: leaf}}
+      other: {pid: 4, parent: root, fields: {file.name: other}}
+    events:
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+      - {type: exec, process: root, fields: {exec.file.name: inh}}
+      - {type: open, process: root, fields: {open.file.path: /r}}
+      - {type: open, process: mid, fields: {open.file.path: /r}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+      - {type: open, process: other, fields: {open.file.path: /r}}
+      - {type: exec, process: root, fields: {exec.file.name: plain}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+      - {type: open, process: root, fields: {open.file.path: /r}}
+      - {type: exec, process: mid, fields: {exec.file.name: inh}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+
+  - name: process_scope_inheritance_override_in_child
+    rules:
+      - id: set_root
+        expression: exec.file.name == "root_set"
+        actions:
+          - set: {name: v, value: "from_root", scope: process, inherited: true}
+          - set: {name: arr, append: true, value: r, scope: process, inherited: true}
+      - id: set_child
+        expression: exec.file.name == "child_set"
+        actions:
+          - set: {name: v, value: "from_child", scope: process, inherited: true}
+          - set: {name: arr, append: true, value: c, scope: process, inherited: true}
+      - id: read
+        expression: open.file.path == "/r" && ${process.v} == "from_child"
+      - id: read_root
+        expression: open.file.path == "/r" && ${process.v} == "from_root"
+      - id: read_arr
+        expression: open.file.path == "/r" && "r" in ${process.arr} && "c" in ${process.arr}
+      - id: read_arr_len
+        expression: open.file.path == "/r" && ${process.arr.length} == 2
+    processes:
+      root: {pid: 1, fields: {file.name: root}}
+      child: {pid: 2, parent: root, fields: {file.name: child}}
+      grandchild: {pid: 3, parent: child, fields: {file.name: grandchild}}
+    events:
+      - {type: exec, process: root, fields: {exec.file.name: root_set}}
+      - {type: open, process: grandchild, fields: {open.file.path: /r}}
+      - {type: exec, process: child, fields: {exec.file.name: child_set}}
+      - {type: open, process: grandchild, fields: {open.file.path: /r}}
+      - {type: open, process: root, fields: {open.file.path: /r}}
+
+  - name: process_scope_private
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: secret, value: 5, scope: process, private: true}
+          - set: {name: public, value: 6, scope: process}
+      - id: reader_private
+        expression: open.file.path == "/r" && ${process.secret} == 5
+      - id: reader_public
+        expression: open.file.path == "/r" && ${process.public} == 6
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: exec, process: p, fields: {exec.file.name: setme}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+
+  - name: global_private_variable
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: secret, value: 5, private: true}
+      - id: reader
+        expression: open.file.path == "/r" && ${secret} == 5
+    events:
+      - {type: exec, fields: {exec.file.name: setme}}
+      - {type: open, fields: {open.file.path: /r}}
+
+  - name: process_scope_without_process_context
+    rules:
+      - id: setter
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: v, value: 1, scope: process}
+      - id: reader
+        expression: open.file.path == "/b" && ${process.v} == 1
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /b}}
+      - {type: open, process: p, fields: {open.file.path: /a}}
+      - {type: open, process: p, fields: {open.file.path: /b}}
+
+  - name: container_scope
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: cv, value: "mine", scope: container}
+          - set: {name: ci, value: 3, scope: container}
+          - set: {name: carr, append: true, value: c1, scope: container}
+          - set: {name: cb, value: true, scope: container}
+      - id: reader
+        expression: open.file.path == "/r" && ${container.cv} == "mine" && ${container.ci} == 3
+      - id: reader_arr
+        expression: open.file.path == "/r" && "c1" in ${container.carr} && ${container.cb}
+      - id: reader_default
+        expression: open.file.path == "/r" && ${container.cv} == ""
+    processes:
+      c1a: {pid: 10, fields: {file.name: a, container.id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+      c1b: {pid: 11, parent: c1a, fields: {file.name: b, container.id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+      c2: {pid: 20, fields: {file.name: c, container.id: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}
+      host: {pid: 30, fields: {file.name: h}}
+    events:
+      - {type: open, process: c1b, fields: {open.file.path: /r}}
+      - {type: exec, process: c1a, fields: {exec.file.name: setme}}
+      - {type: open, process: c1b, fields: {open.file.path: /r}}
+      - {type: open, process: c2, fields: {open.file.path: /r}}
+      - {type: open, process: host, fields: {open.file.path: /r}}
+      - {type: exec, process: host, fields: {exec.file.name: setme}}
+      - {type: open, process: host, fields: {open.file.path: /r}}
+
+  - name: cgroup_scope
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: gv, value: "mine", scope: cgroup}
+          - set: {name: gi, value: 3, scope: cgroup}
+          - set: {name: garr, append: true, value: g1, scope: cgroup}
+      - id: reader
+        expression: open.file.path == "/r" && ${cgroup.gv} == "mine" && ${cgroup.gi} == 3
+      - id: reader_arr
+        expression: open.file.path == "/r" && "g1" in ${cgroup.garr}
+      - id: reader_default
+        expression: open.file.path == "/r" && ${cgroup.gv} == ""
+    processes:
+      c1: {pid: 10, fields: {file.name: a, cgroup.id: "/system.slice/a.service"}}
+      c1b: {pid: 11, parent: c1, fields: {file.name: b, cgroup.id: "/system.slice/a.service"}}
+      c2: {pid: 20, fields: {file.name: c, cgroup.id: "/system.slice/b.service"}}
+      none: {pid: 30, fields: {file.name: h}}
+    events:
+      - {type: open, process: c1b, fields: {open.file.path: /r}}
+      - {type: exec, process: c1, fields: {exec.file.name: setme}}
+      - {type: open, process: c1b, fields: {open.file.path: /r}}
+      - {type: open, process: c2, fields: {open.file.path: /r}}
+      - {type: open, process: none, fields: {open.file.path: /r}}
+      - {type: exec, process: none, fields: {exec.file.name: setme}}
+      - {type: open, process: none, fields: {open.file.path: /r}}
+
+  - name: variable_ttl
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: temp, value: "x", ttl: 1s, default_value: ""}
+          - set: {name: temp_int, value: 5, ttl: 1s, default_value: 0}
+          - set: {name: temp_arr, append: true, value: a, ttl: 1s, default_value: z}
+          - set: {name: temp_proc, value: "p", scope: process, ttl: 1s, default_value: ""}
+          - set: {name: forever, value: "y", default_value: ""}
+      - id: reader
+        expression: open.file.path == "/r" && ${temp} == "x"
+      - id: reader_int
+        expression: open.file.path == "/r" && ${temp_int} == 5
+      - id: reader_arr
+        expression: open.file.path == "/r" && "a" in ${temp_arr}
+      - id: reader_proc
+        expression: open.file.path == "/r" && ${process.temp_proc} == "p"
+      - id: reader_forever
+        expression: open.file.path == "/r" && ${forever} == "y"
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, process: p, fields: {exec.file.name: setme}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: open, process: p, fields: {open.file.path: /r}, sleep: 2s, cleanup: true}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+
+  - name: variable_ttl_refresh_and_no_cleanup
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: temp, value: "x", ttl: 1s, default_value: ""}
+      - id: reader
+        expression: open.file.path == "/r" && ${temp} == "x"
+    events:
+      - {type: exec, fields: {exec.file.name: setme}}
+      - {type: open, fields: {open.file.path: /r}, sleep: 2s}
+      - {type: open, fields: {open.file.path: /r}, cleanup: true}
+
+  - name: variable_size_limit
+    rules:
+      - id: setter
+        expression: open.file.path != ""
+        actions:
+          - set: {name: hist, append: true, field: open.file.name, size: 3}
+          - set: {name: hist_i, append: true, field: open.flags, size: 2}
+          - set: {name: unbounded, append: true, field: open.file.name}
+      - id: reader
+        expression: mkdir.file.name == "r" && "a" in ${hist}
+      - id: reader_d
+        expression: mkdir.file.name == "r" && "d" in ${hist}
+      - id: reader_len
+        expression: mkdir.file.name == "r" && ${hist.length} == 3
+      - id: reader_ilen
+        expression: mkdir.file.name == "r" && ${hist_i.length} == 2 && 3 in ${hist_i} && !(1 in ${hist_i})
+      - id: reader_unb
+        expression: mkdir.file.name == "r" && ${unbounded.length} == 4
+    events:
+      - {type: open, fields: {open.file.path: /1, open.file.name: a, open.flags: 1}, sleep: 20ms}
+      - {type: open, fields: {open.file.path: /1, open.file.name: b, open.flags: 2}, sleep: 20ms}
+      - {type: open, fields: {open.file.path: /1, open.file.name: c, open.flags: 3}, sleep: 20ms}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /1, open.file.name: d, open.flags: 4}, sleep: 20ms}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: variable_size_with_process_scope_no_eviction
+    rules:
+      - id: setter
+        expression: open.file.path != ""
+        actions:
+          - set: {name: seen, append: true, field: open.file.name, size: 3, scope: process}
+          - set: {name: seen_i, append: true, field: open.flags, size: 3, scope: process, ttl: 1m}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${process.seen.length} == 3
+      - id: reader_a
+        expression: mkdir.file.name == "r" && "a" in ${process.seen}
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /1, open.file.name: a, open.flags: 1}, sleep: 20ms}
+      - {type: mkdir, process: p, fields: {mkdir.file.name: r}}
+      - {type: open, process: p, fields: {open.file.path: /1, open.file.name: b, open.flags: 2}, sleep: 20ms}
+      - {type: open, process: p, fields: {open.file.path: /1, open.file.name: c, open.flags: 3}, sleep: 20ms}
+      - {type: mkdir, process: p, fields: {mkdir.file.name: r}}
+
+  - name: variable_default_value
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: s, value: "set", default_value: "dflt"}
+          - set: {name: i, value: 2, default_value: 99}
+          - set: {name: b, value: false, default_value: true}
+          - set: {name: ps, value: "set", default_value: "pdflt", scope: process}
+          - set: {name: arr, append: true, value: new, default_value: old}
+          - set: {name: iarr, append: true, value: 2, default_value: 1}
+      - id: r_default
+        expression: open.file.path == "/r" && ${s} == "dflt" && ${i} == 99 && ${b} && ${process.ps} == "pdflt"
+      - id: r_set
+        expression: open.file.path == "/r" && ${s} == "set" && ${i} == 2 && !${b} && ${process.ps} == "set"
+      - id: r_arr_default
+        expression: open.file.path == "/r" && "old" in ${arr} && 1 in ${iarr}
+      - id: r_arr_set
+        expression: open.file.path == "/r" && "new" in ${arr} && 2 in ${iarr}
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, process: p, fields: {exec.file.name: setme}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+
+  - name: variable_default_value_type_errors
+    rules:
+      - id: r1
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v1, value: 1, default_value: "s"}
+      - id: r2
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v2, field: exec.file.name, default_value: 1}
+      - id: r3
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v3, value: [a], default_value: [1]}
+      - id: r4
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v4, value: a, default_value: [a]}
+      - id: ok
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: v5, value: 2, default_value: 3}
+    events:
+      - {type: exec, fields: {exec.file.name: a}}
+
+  - name: scope_field_other_process
+    rules:
+      - id: setter
+        expression: cgroup_write.file.path == "/tmp/one"
+        actions:
+          - set:
+              name: tagged
+              value: "yes"
+              scope: process
+              scope_field: cgroup_write.pid
+          - set:
+              name: tagged_self
+              value: "self"
+              scope: process
+          - set:
+              name: key
+              field: cgroup_write.file.path
+              scope: process
+              scope_field: cgroup_write.pid
+              default_value: ""
+          - set:
+              name: key_list
+              field: cgroup_write.file.path
+              append: true
+              scope: process
+              scope_field: cgroup_write.pid
+      - id: reader
+        expression: open.file.path == "/r" && ${process.tagged} == "yes" && ${process.key} == "/tmp/one"
+      - id: reader_self
+        expression: open.file.path == "/r" && ${process.tagged_self} == "self"
+      - id: reader_list
+        expression: open.file.path == "/r" && "/tmp/one" in ${process.key_list}
+    processes:
+      actor: {pid: 100, fields: {file.name: actor}}
+      target: {pid: 200, fields: {file.name: target}}
+      other: {pid: 300, fields: {file.name: other}}
+    events:
+      - {type: open, process: target, fields: {open.file.path: /r}}
+      - {type: cgroup_write, process: actor, fields: {cgroup_write.file.path: /tmp/one, cgroup_write.pid: 200}}
+      - {type: open, process: target, fields: {open.file.path: /r}}
+      - {type: open, process: actor, fields: {open.file.path: /r}}
+      - {type: open, process: other, fields: {open.file.path: /r}}
+      - {type: cgroup_write, process: actor, fields: {cgroup_write.file.path: /tmp/one, cgroup_write.pid: 999}}
+      - {type: open, process: target, fields: {open.file.path: /r}}
+
+  - name: scope_field_with_expression_and_filter
+    rules:
+      - id: first
+        expression: cgroup_write.file.path == "/tmp/one" && ${process.key} == ""
+        actions:
+          - filter: ${process.key} == ""
+            set:
+              name: key
+              default_value: ""
+              expression: '"first"'
+              scope: process
+              scope_field: cgroup_write.pid
+              inherited: true
+          - filter: ${process.key} == ""
+            set:
+              name: key
+              default_value: ""
+              expression: '"cgroup_write_first"'
+              scope: process
+              inherited: true
+      - id: second
+        expression: cgroup_write.file.path == "/tmp/two" && ${process.key} == "cgroup_write_first"
+        actions:
+          - filter: ${process.key} == "first"
+            set:
+              name: parent_keys
+              default_value: ""
+              scope_field: cgroup_write.pid
+              expression: "${process.key}"
+              scope: process
+              append: true
+              inherited: true
+          - filter: ${process.key} == "first"
+            set:
+              name: key
+              default_value: ""
+              expression: '"second"'
+              scope: process
+              scope_field: cgroup_write.pid
+              inherited: true
+          - filter: ${process.key} == "cgroup_write_first"
+            set:
+              name: parent_keys
+              default_value: ""
+              expression: "${process.key}"
+              scope: process
+              append: true
+              inherited: true
+      - id: third
+        expression: open.file.path == "/tmp/third" && ${process.key} == "second"
+        actions:
+          - set:
+              name: parent_keys
+              default_value: ""
+              expression: "${process.key}"
+              scope: process
+              append: true
+              inherited: true
+      - id: reader_parents
+        expression: open.file.path == "/r" && "first" in ${process.parent_keys}
+    processes:
+      actor: {pid: 100, fields: {file.name: actor}}
+      target: {pid: 200, parent: actor, fields: {file.name: target}}
+    events:
+      - {type: cgroup_write, process: actor, fields: {cgroup_write.file.path: /tmp/one, cgroup_write.pid: 200}}
+      - {type: cgroup_write, process: actor, fields: {cgroup_write.file.path: /tmp/two, cgroup_write.pid: 200}}
+      - {type: open, process: target, fields: {open.file.path: /tmp/third}}
+      - {type: open, process: target, fields: {open.file.path: /r}}
+
+  - name: scope_field_errors
+    rules:
+      - id: bad_field
+        expression: cgroup_write.file.path == "/a"
+        actions:
+          - set: {name: v1, value: 1, scope: process, scope_field: cgroup_write.nothing}
+      - id: wrong_type
+        expression: cgroup_write.file.path == "/a"
+        actions:
+          - set: {name: v2, value: 1, scope: process, scope_field: cgroup_write.file.path}
+      - id: wrong_event
+        expression: cgroup_write.file.path == "/a"
+        actions:
+          - set: {name: v3, value: 1, scope: process, scope_field: open.flags}
+      - id: no_scope
+        expression: cgroup_write.file.path == "/a"
+        actions:
+          - set: {name: v4, value: 1, scope_field: cgroup_write.pid}
+      - id: container_scope
+        expression: cgroup_write.file.path == "/a"
+        actions:
+          - set: {name: v5, value: 1, scope: container, scope_field: cgroup_write.pid}
+      - id: ok
+        expression: cgroup_write.file.path == "/a"
+        actions:
+          - set: {name: v6, value: 1, scope: process, scope_field: cgroup_write.pid}
+    processes:
+      t: {pid: 5, fields: {file.name: t}}
+    events:
+      - {type: cgroup_write, process: t, fields: {cgroup_write.file.path: /a, cgroup_write.pid: 5}}
+
+  - name: variable_in_rule_without_set
+    rules:
+      - id: r
+        expression: open.file.path == "/a" && ${never_set} == 1
+      - id: r2
+        expression: open.file.path == "/a" && ${process.never_set2} == "x"
+      - id: r3
+        expression: open.file.path == "/a" && "${never_set3}" == "x"
+      - id: r4
+        expression: open.file.path == "/a" && "x" in ${never_set4}
+      - id: r5
+        expression: open.file.path == "/a" && ${container.never_set5} == "x"
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+
+  - name: variable_used_with_wrong_type
+    rules:
+      - id: setter
+        expression: open.file.path == "/set"
+        actions:
+          - set: {name: s, value: str}
+          - set: {name: i, value: 1}
+          - set: {name: b, value: true}
+          - set: {name: sa, value: [a]}
+          - set: {name: ia, value: [1]}
+      - id: str_vs_int
+        expression: mkdir.mode == ${s}
+      - id: int_vs_str
+        expression: mkdir.file.name == ${i}
+      - id: bool_vs_int
+        expression: mkdir.mode == ${b}
+      - id: arr_in_int
+        expression: mkdir.mode in ${sa}
+      - id: arr_in_str
+        expression: mkdir.file.name in ${ia}
+      - id: str_ok_arith
+        expression: mkdir.mode + ${s} == 1
+      - id: ok
+        expression: mkdir.mode == ${i}
+    events:
+      - {type: open, fields: {open.file.path: /set}}
+      - {type: mkdir, fields: {mkdir.mode: 1}}
+
+  - name: variable_ip_values
+    rules:
+      - id: setter
+        expression: connect.addr.ip in [10.0.0.0/8]
+        actions:
+          - set: {name: last_ip, field: connect.addr.ip}
+          - set: {name: ips, append: true, field: connect.addr.ip}
+          - set: {name: ips_p, append: true, field: connect.addr.ip, scope: process}
+      - id: same
+        expression: connect.addr.ip == ${last_ip}
+      - id: same_net
+        expression: connect.addr.ip in [${last_ip}] && connect.addr.port == 1
+      - id: in_ips
+        expression: connect.addr.ip in ${ips} && connect.addr.port == 2
+      - id: in_ips_p
+        expression: connect.addr.ip in ${process.ips_p} && connect.addr.port == 3
+      - id: cidr_in_ips
+        expression: connect.addr.ip allin ${ips} && connect.addr.port == 4
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: connect, process: p, fields: {connect.addr.ip: 10.1.1.1, connect.addr.port: 0}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 10.1.1.1, connect.addr.port: 1}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 10.2.2.2, connect.addr.port: 1}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 10.1.1.1, connect.addr.port: 2}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 10.2.2.2, connect.addr.port: 3}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 10.9.9.9, connect.addr.port: 3}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 8.8.8.8, connect.addr.port: 4}}
+
+  - name: process_pid_builtin
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: pidstr, expression: '"cmd_${process.pid}"', default_value: ""}
+          - set: {name: pidvar, expression: "${process.pid}", default_value: 0}
+          - set: {name: pid_scoped, expression: '"p${process.pid}"', default_value: "", scope: process}
+      - id: r_pid
+        expression: open.file.path == "/r" && ${process.pid} == 100
+      - id: r_pid_other
+        expression: open.file.path == "/r" && ${process.pid} == 200
+      - id: r_pid_field
+        expression: open.file.path == "/r" && ${process.pid} == process.pid
+      - id: r_pidstr
+        expression: open.file.path == "/r" && ${pidstr} == "cmd_100"
+      - id: r_pidvar
+        expression: open.file.path == "/r" && ${pidvar} == 100
+      - id: r_scoped
+        expression: open.file.path == "/r" && ${process.pid_scoped} == "p100"
+      - id: r_in_string
+        expression: open.file.path == "/r" && "pid=${process.pid}" == "pid=200"
+      - id: r_gt
+        expression: open.file.path == "/r" && ${process.pid} > 150
+    processes:
+      a: {pid: 100, fields: {file.name: a}}
+      b: {pid: 200, fields: {file.name: b}}
+    events:
+      - {type: exec, process: a, fields: {exec.file.name: setme}}
+      - {type: open, process: a, fields: {open.file.path: /r}}
+      - {type: open, process: b, fields: {open.file.path: /r}}
+
+  - name: field_reference_in_string
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: dir, value: "/tmp", default_value: "/none"}
+      - id: r1
+        expression: open.file.path == "${dir}/x"
+      - id: r2
+        expression: open.file.name == "%{process.file.name}"
+      - id: r3
+        expression: open.file.path == "${dir}/%{open.file.name}"
+      - id: r4
+        expression: open.file.path =~ "${dir}/*"
+      - id: r5
+        expression: open.file.path in ["${dir}/a", "${dir}/b"]
+      - id: r6
+        expression: open.file.path == "$${dir}/x"
+    processes:
+      px: {pid: 1, fields: {file.name: x}}
+    events:
+      - {type: open, process: px, fields: {open.file.path: /tmp/x, open.file.name: x}}
+      - {type: exec, fields: {exec.file.name: setme}}
+      - {type: open, fields: {open.file.path: /tmp/x, open.file.name: x}}
+      - {type: open, fields: {open.file.path: /tmp/a, open.file.name: a}}
+      - {type: open, fields: {open.file.path: /tmp/c, open.file.name: zz}}
+      - {type: open, fields: {open.file.path: /other/x, open.file.name: x}}
+      - {type: open, fields: {open.file.path: "${dir}/x", open.file.name: x}}
+
+  - name: variable_set_by_rule_then_used_by_same_rule_filter
+    rules:
+      - id: counter
+        expression: open.file.path != ""
+        actions:
+          - set: {name: count, expression: "${count} + 1", default_value: 0}
+          - filter: ${count} >= 2
+            set: {name: reached, value: true}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${reached}
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: rule_override_adds_set_actions
+    policies:
+      - |
+        rules:
+          - id: base
+            combine: override
+            override_options:
+              fields: [actions]
+            actions:
+              - set: {name: extra, value: "added"}
+    rules:
+      - id: base
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: orig, value: "orig"}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${orig} == "orig" && ${extra} == "added"
+      - id: reader_orig
+        expression: mkdir.file.name == "r" && ${orig} == "orig"
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: unused_variable_set_and_get_across_event_types
+    rules:
+      - id: set_open
+        expression: open.file.path == "/a"
+        actions:
+          - set: {name: shared, value: "open"}
+      - id: set_exec
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: shared, value: "exec"}
+      - id: get_mkdir
+        expression: mkdir.file.name == "r" && ${shared} == "exec"
+      - id: get_mkdir2
+        expression: mkdir.file.name == "r" && ${shared} == "open"
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: exec, fields: {exec.file.name: a}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: variable_partial_evaluation_and_discarders
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: gate, value: true}
+          - set: {name: pgate, value: "go", scope: process}
+      - id: gated
+        expression: open.file.path == "/gated" && ${gate}
+      - id: pgated
+        expression: open.file.path == "/pgated" && ${process.pgate} == "go"
+      - id: either
+        expression: open.file.path == "/either" || ${gate}
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /gated}}
+      - {type: open, process: p, fields: {open.file.path: /other}}
+      - {type: exec, process: p, fields: {exec.file.name: setme}}
+      - {type: open, process: p, fields: {open.file.path: /gated}}
+      - {type: open, process: p, fields: {open.file.path: /pgated}}
+      - {type: open, process: p, fields: {open.file.path: /other}}
+
+  - name: variable_ancestors_and_process_fields_in_set
+    rules:
+      - id: setter
+        expression: exec.file.name == "child"
+        actions:
+          - set: {name: anc_names, append: true, field: process.ancestors.file.name}
+          - set: {name: parent_name, field: process.parent.file.name}
+          - set: {name: pid_list, append: true, field: process.ancestors.pid}
+      - id: r_anc
+        expression: mkdir.file.name == "r" && "root" in ${anc_names}
+      - id: r_parent
+        expression: mkdir.file.name == "r" && ${parent_name} == "mid"
+      - id: r_pids
+        expression: mkdir.file.name == "r" && 1 in ${pid_list}
+    processes:
+      root: {pid: 1, fields: {file.name: root}}
+      mid: {pid: 2, parent: root, fields: {file.name: mid}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: child}}
+    events:
+      - {type: exec, process: leaf, fields: {exec.file.name: child}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: variable_string_interpolation_types
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: one_s, append: true, value: only}
+          - set: {name: one_i, append: true, value: 5}
+          - set: {name: flag, value: true, default_value: false}
+          - set: {name: num, value: 12, default_value: 0}
+      - id: setter_ip
+        expression: connect.addr.ip == 1.2.3.4
+        actions:
+          - set: {name: ip_list, append: true, field: connect.addr.ip}
+      - id: arr_in_string
+        expression: open.file.name == "r" && "${one_s}" == "only"
+      - id: int_arr_in_string
+        expression: open.file.name == "r" && "${one_i}" == "5"
+      - id: int_arr_in_string_default
+        expression: open.file.name == "r" && "${one_i}" == "6"
+      - id: int_in_string
+        expression: open.file.name == "r" && "n=${num}" == "n=12"
+      - id: field_ref_array
+        expression: open.file.name == "r" && "%{process.ancestors.file.name}" == "a1,a2"
+      - id: field_ref_int_array
+        expression: open.file.name == "r" && "%{process.ancestors.pid}" == "2,1"
+      - id: field_ref_int
+        expression: open.file.name == "r" && "pid=%{process.pid}" == "pid=3"
+      - id: field_ref_string
+        expression: open.file.name == "r" && "/%{open.file.name}" == "/r"
+      - id: field_ref_unsupported
+        expression: open.file.name == "r" && "%{open.file.in_upper_layer}" == "true"
+      - id: field_ref_unknown
+        expression: open.file.name == "r" && "%{open.nothing}" == "x"
+      - id: var_ip_in_string
+        expression: open.file.name == "r" && "${ip_list}" == "1.2.3.4"
+      - id: length_ip
+        expression: open.file.name == "r" && ${ip_list.length} == 1
+      - id: length_bool
+        expression: open.file.name == "r" && ${flag.length} == 1
+      - id: length_int
+        expression: open.file.name == "r" && ${num.length} == 1
+      - id: length_unknown
+        expression: open.file.name == "r" && ${nothing.length} == 1
+      - id: length_scoped
+        expression: open.file.name == "r" && ${process.nothing.length} == 1
+      - id: mixed
+        expression: open.file.name == "r" && "${one_s}-${num}-%{process.pid}-${one_i}" == "only-12-3-5"
+    processes:
+      a2: {pid: 1, fields: {file.name: a2}}
+      a1: {pid: 2, parent: a2, fields: {file.name: a1}}
+      leaf: {pid: 3, parent: a1, fields: {file.name: leaf}}
+    events:
+      - {type: open, process: leaf, fields: {open.file.name: r}}
+      - {type: exec, process: leaf, fields: {exec.file.name: setme}}
+      - {type: connect, process: leaf, fields: {connect.addr.ip: 1.2.3.4}}
+      - {type: open, process: leaf, fields: {open.file.name: r}}
+
+  - name: set_expression_type_compat
+    rules:
+      - id: slice_ok
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e1, expression: "exec.argv", default_value: [d], append: true}
+      - id: slice_elem_mismatch
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e2, expression: "exec.argv", default_value: [1], append: true}
+      - id: slice_vs_scalar_default
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e3, expression: "exec.argv", default_value: "d"}
+      - id: append_scalar_expr_slice_default
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e4, expression: "exec.file.name", default_value: [d], append: true}
+      - id: append_scalar_expr_slice_default_mismatch
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e5, expression: "exec.file.name", default_value: [1], append: true}
+      - id: bool_expr
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e6, expression: "exec.file.name == \"a\"", default_value: false}
+      - id: bool_expr_mismatch
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e7, expression: "exec.file.name == \"a\"", default_value: 1}
+      - id: int_array_expr
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e8, expression: "process.ancestors.pid", default_value: [0]}
+      - id: int_array_expr_mismatch
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e9, expression: "process.ancestors.pid", default_value: [x]}
+      - id: no_default
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: e10, expression: "exec.file.name"}
+      - id: reader
+        expression: mkdir.file.name == "r" && ${e6}
+      - id: reader_e1
+        expression: mkdir.file.name == "r" && "x" in ${e1}
+      - id: reader_e1_default
+        expression: mkdir.file.name == "r" && "d" in ${e1}
+      - id: reader_e4
+        expression: mkdir.file.name == "r" && "a" in ${e4}
+      - id: reader_e8
+        expression: mkdir.file.name == "r" && 2 in ${e8}
+    processes:
+      top: {pid: 1, fields: {file.name: top}}
+      mid: {pid: 2, parent: top, fields: {file.name: mid}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: leaf}}
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: exec, process: leaf, fields: {exec.file.name: a, exec.argv: [x, y]}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: variable_ttl_arrays_and_scopes
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: ia, append: true, value: 5, ttl: 1s, default_value: 1}
+          - set: {name: sa, append: true, value: s, ttl: 1s, default_value: z}
+          - set: {name: cont, value: "c", scope: container, ttl: 1s, default_value: ""}
+          - set: {name: cont_arr, append: true, value: "c", scope: container, ttl: 1s, default_value: z}
+          - set: {name: proc_ia, append: true, value: 9, scope: process, ttl: 1s, default_value: 1}
+      - id: setter_ip
+        expression: connect.addr.ip == 1.2.3.4
+        actions:
+          - set: {name: ipb, append: true, field: connect.addr.ip, ttl: 1s}
+          - set: {name: ipc, append: true, field: connect.addr.ip, scope: process, ttl: 1s}
+      - id: r_ia
+        expression: open.file.path == "/r" && 5 in ${ia}
+      - id: r_sa
+        expression: open.file.path == "/r" && "s" in ${sa}
+      - id: r_cont
+        expression: open.file.path == "/r" && ${container.cont} == "c"
+      - id: r_cont_arr
+        expression: open.file.path == "/r" && "c" in ${container.cont_arr}
+      - id: r_pia
+        expression: open.file.path == "/r" && 9 in ${process.proc_ia}
+      - id: r_ipb
+        expression: open.file.path == "/r" && ${ipb.length} == 1
+      - id: r_ipc
+        expression: open.file.path == "/r" && ${process.ipc.length} == 1
+    processes:
+      p: {pid: 1, fields: {file.name: p, container.id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}
+    events:
+      - {type: exec, process: p, fields: {exec.file.name: setme}}
+      - {type: connect, process: p, fields: {connect.addr.ip: 1.2.3.4}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: open, process: p, fields: {open.file.path: /r}, sleep: 2s, cleanup: true}
+
+  - name: set_action_error_stops_later_actions
+    rules:
+      - id: bool_append_err
+        expression: exec.file.name == "a"
+        actions:
+          - set: {name: flag_b, value: true, append: true}
+          - set: {name: after_a, value: 1, default_value: 0}
+      - id: control
+        expression: exec.file.name == "c"
+        actions:
+          - set: {name: flag_c, value: true}
+          - set: {name: after_c, value: 1, default_value: 0}
+      - id: scoped_bool_append_err
+        expression: exec.file.name == "s"
+        actions:
+          - set: {name: pflag, value: true, append: true, scope: process}
+          - set: {name: after_s, value: 1, default_value: 0}
+      - id: scoped_bool_ok
+        expression: exec.file.name == "ok"
+        actions:
+          - set: {name: pflag_ok, value: true, scope: process}
+          - set: {name: after_ok, value: 1, default_value: 0}
+      - id: no_scope_then_set
+        expression: exec.file.name == "n"
+        actions:
+          - set: {name: pv, value: 1, scope: process}
+          - set: {name: pa, append: true, value: x, scope: process}
+          - set: {name: after_n, value: 1, default_value: 0}
+      - id: reader_flag
+        expression: open.file.path == "/r" && ${flag_b}
+      - id: reader_pflag
+        expression: open.file.path == "/r" && ${process.pflag}
+      - id: reader_pflag_ok
+        expression: open.file.path == "/r" && ${process.pflag_ok}
+      - id: reader_pv
+        expression: open.file.path == "/r" && ${process.pv} == 1
+      - id: reader_after_a
+        expression: open.file.path == "/r" && ${after_a} == 1
+      - id: reader_after_c
+        expression: open.file.path == "/r" && ${after_c} == 1
+      - id: reader_after_s
+        expression: open.file.path == "/r" && ${after_s} == 1
+      - id: reader_after_ok
+        expression: open.file.path == "/r" && ${after_ok} == 1
+      - id: reader_after_n
+        expression: open.file.path == "/r" && ${after_n} == 1
+    processes:
+      p: {pid: 1, fields: {file.name: p}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, process: p, fields: {exec.file.name: a}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, process: p, fields: {exec.file.name: c}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, process: p, fields: {exec.file.name: s}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, process: p, fields: {exec.file.name: ok}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+      - {type: exec, fields: {exec.file.name: n}}
+      - {type: open, process: p, fields: {open.file.path: /r}}
+
+  - name: set_array_index_field_with_value
+    rules:
+      - id: setter
+        expression: exec.file.name == "idx"
+        actions:
+          - set: {name: a0, field: "exec.argv[0]", default_value: ""}
+          - set: {name: a1, field: "exec.argv[1]", default_value: "fallback"}
+          - set: {name: a2, field: "exec.argv[1]", append: true, default_value: "seed"}
+      - id: r0
+        expression: mkdir.file.name == "r" && ${a0} == "first"
+      - id: r1
+        expression: mkdir.file.name == "r" && ${a1} == "second"
+      - id: r2
+        expression: mkdir.file.name == "r" && "second" in ${a2}
+    events:
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+      - {type: exec, fields: {exec.file.name: idx, exec.argv: [first, second]}}
+      - {type: mkdir, fields: {mkdir.file.name: r}}
+
+  - name: reparent_snapshots_inherited_variables
+    rules:
+      - id: setter_root
+        expression: exec.file.name == "root_set"
+        actions:
+          - set: {name: inh_s, value: "root", scope: process, inherited: true}
+          - set: {name: inh_a, append: true, value: r, scope: process, inherited: true}
+          - set: {name: inh_i, value: 7, scope: process, inherited: true}
+          - set: {name: inh_b, value: true, scope: process, inherited: true}
+          - set: {name: inh_ttl, value: "t", scope: process, inherited: true, ttl: 300ms, default_value: ""}
+          - set: {name: inh_ttl_a, append: true, value: ta, scope: process, inherited: true, ttl: 300ms}
+          - set: {name: plain, value: "p", scope: process}
+      - id: setter_root_again
+        expression: exec.file.name == "root_set2"
+        actions:
+          - set: {name: inh_s, value: "root2", scope: process, inherited: true}
+          - set: {name: inh_a, append: true, value: r2, scope: process, inherited: true}
+      - id: setter_mid
+        expression: exec.file.name == "mid_set"
+        actions:
+          - set: {name: inh_s, value: "mid", scope: process, inherited: true}
+      - id: setter_leaf
+        expression: exec.file.name == "leaf_set"
+        actions:
+          - set: {name: inh_i, value: 99, scope: process, inherited: true}
+      - id: r_s_root
+        expression: open.file.path == "/r" && ${process.inh_s} == "root"
+      - id: r_s_mid
+        expression: open.file.path == "/r" && ${process.inh_s} == "mid"
+      - id: r_s_root2
+        expression: open.file.path == "/r" && ${process.inh_s} == "root2"
+      - id: r_a
+        expression: open.file.path == "/r" && "r" in ${process.inh_a}
+      - id: r_a2
+        expression: open.file.path == "/r" && "r2" in ${process.inh_a}
+      - id: r_i7
+        expression: open.file.path == "/r" && ${process.inh_i} == 7
+      - id: r_i99
+        expression: open.file.path == "/r" && ${process.inh_i} == 99
+      - id: r_b
+        expression: open.file.path == "/r" && ${process.inh_b}
+      - id: r_ttl
+        expression: open.file.path == "/r" && ${process.inh_ttl} == "t"
+      - id: r_ttl_a
+        expression: open.file.path == "/r" && "ta" in ${process.inh_ttl_a}
+      - id: r_plain
+        expression: open.file.path == "/r" && ${process.plain} == "p"
+    processes:
+      root: {pid: 1, fields: {file.name: root}}
+      mid: {pid: 2, parent: root, fields: {file.name: mid}}
+      leaf: {pid: 3, parent: mid, fields: {file.name: leaf}}
+      other: {pid: 4, parent: root, fields: {file.name: other}}
+      late: {pid: 5, parent: root, fields: {file.name: late}}
+      lone: {pid: 6, fields: {file.name: lone}}
+    events:
+      - {type: exec, process: root, fields: {exec.file.name: root_set}}
+      - {type: exec, process: mid, fields: {exec.file.name: mid_set}}
+      - {type: exec, process: leaf, fields: {exec.file.name: leaf_set}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+      - {type: open, process: other, fields: {open.file.path: /r}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}, reparent: {process: leaf, parent: ""}}
+      - {type: open, process: other, fields: {open.file.path: /r}, reparent: {process: other, parent: lone}}
+      - {type: exec, process: root, fields: {exec.file.name: root_set2}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+      - {type: open, process: other, fields: {open.file.path: /r}}
+      - {type: open, process: mid, fields: {open.file.path: /r}}
+      - {type: open, process: lone, fields: {open.file.path: /r}}
+      - {type: open, process: late, fields: {open.file.path: /r}, sleep: 400ms, cleanup: true, reparent: {process: late, parent: lone}}
+      - {type: open, process: other, fields: {open.file.path: /r}}
+      - {type: open, process: leaf, fields: {open.file.path: /r}}
+      - {type: open, process: lone, fields: {open.file.path: /r}, reparent: {process: lone, parent: ""}}
+      - {type: open, process: root, fields: {open.file.path: /r}, reparent: {process: root, parent: ""}}
+
+  - name: log_actions_levels_and_filter
+    rules:
+      - id: levels
+        expression: open.file.path == "/log"
+        actions:
+          - log: {level: debug, message: "dbg msg"}
+          - log: {level: info, message: "info msg"}
+          - log: {level: warning, message: "warn msg"}
+          - log: {level: error, message: "err msg"}
+          - log: {level: ERROR, message: "upper err msg"}
+          - log: {level: Info, message: "mixed info msg"}
+          - log: {level: nothing, message: "unknown level msg"}
+          - log: {level: info}
+          - log: {level: warning, message: ""}
+      - id: filtered
+        expression: open.file.path == "/filtered"
+        actions:
+          - filter: open.flags == 1
+            log: {level: info, message: "filtered in"}
+          - filter: open.flags == 2
+            log: {level: info, message: "filtered other"}
+          - filter: open.flags == 1
+            set: {name: fv, value: 1, default_value: 0}
+    events:
+      - {type: open, fields: {open.file.path: /log}}
+      - {type: open, fields: {open.file.path: /filtered, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /filtered, open.flags: 3}}
+
+  - name: scoped_counts_many_scopes
+    rules:
+      - id: setter
+        expression: exec.file.name == "setme"
+        actions:
+          - set: {name: pv, value: "x", scope: process}
+          - set: {name: pa, append: true, value: y, scope: process}
+          - set: {name: cv, value: 1, scope: container}
+      - id: setter_other
+        expression: exec.file.name == "setother"
+        actions:
+          - set: {name: pother, value: 1, scope: process}
+    processes:
+      a: {pid: 1, fields: {file.name: a, container.id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+      b: {pid: 2, fields: {file.name: b}}
+      c: {pid: 3, fields: {file.name: c}}
+    events:
+      - {type: exec, process: a, fields: {exec.file.name: setme}}
+      - {type: exec, process: b, fields: {exec.file.name: setme}}
+      - {type: exec, process: c, fields: {exec.file.name: setother}}
+      - {type: exec, process: c, fields: {exec.file.name: setme}}

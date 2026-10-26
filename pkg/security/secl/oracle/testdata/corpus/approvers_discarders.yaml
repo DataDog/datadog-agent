@@ -1,0 +1,1219 @@
+cases:
+  # ---------------------------------------------------------------- approvers, default caps
+  - name: default_caps_scalar_glob_pattern
+    rules:
+      - open.file.path == "/etc/passwd"
+      - open.file.path in ["/etc/shadow", "/etc/gshadow"]
+      - open.file.path =~ "/var/log/*"
+      - open.file.path =~ "/tmp/*.sock"
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.path: /etc/gshadow}}
+      - {type: open, fields: {open.file.path: /var/log/syslog}}
+      - {type: open, fields: {open.file.path: /tmp/a.sock}}
+      - {type: open, fields: {open.file.path: /home/user/file}}
+
+  - name: default_caps_multi_fields
+    rules:
+      - open.file.path == "/etc/passwd" && open.flags & O_WRONLY > 0
+      - open.file.name == "id_rsa" && process.uid != 0
+      - open.flags & (O_CREAT | O_TRUNC) > 0 && open.file.path =~ "/tmp/*"
+    processes:
+      root: {pid: 1, fields: {uid: 0}}
+      user: {pid: 2, fields: {uid: 1000}}
+    events:
+      - {type: open, process: user, fields: {open.file.path: /etc/passwd, open.flags: 1}}
+      - {type: open, process: user, fields: {open.file.path: /etc/passwd, open.flags: 0}}
+      - {type: open, process: root, fields: {open.file.name: id_rsa}}
+      - {type: open, process: user, fields: {open.file.name: id_rsa}}
+      - {type: open, process: user, fields: {open.file.path: /tmp/x, open.flags: 64}}
+      - {type: open, process: user, fields: {open.file.path: /tmp/x, open.flags: 0}}
+
+  - name: default_caps_not_equal_no_approver
+    rules:
+      - open.file.path != "/etc/passwd"
+      - open.file.name != "x" && open.flags == O_RDWR
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd, open.file.name: x, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /etc/hosts, open.file.name: y, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /etc/hosts, open.file.name: y, open.flags: 0}}
+
+  # ---------------------------------------------------------------- kfilters-like capability sets
+  - name: kfilters_open_caps_full
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob, pattern], weight: 100}
+        - {field: open.file.name, types: [scalar, glob, pattern], weight: 100}
+        - {field: open.flags, types: [scalar, bitmask], weight: 100}
+        - {field: open.file.in_upper_layer, types: [scalar], weight: 50}
+        - {field: process.auid, types: [scalar, range], mode: approver_only, weight: 100, range: [0, 4294967294]}
+    rules:
+      - open.file.path == "/etc/passwd" && open.flags & (O_CREAT | O_RDWR) > 0
+      - open.file.name in ["id_rsa", "id_dsa"] && process.auid > 1000
+      - open.file.path =~ "/var/lib/*" && open.file.in_upper_layer
+      - open.flags == O_RDONLY && open.file.name == "hosts"
+      - process.auid >= 500 && process.auid < 600 && open.file.path == "/data"
+    processes:
+      a: {pid: 1, fields: {auid: 1500}}
+      b: {pid: 2, fields: {auid: 550}}
+      c: {pid: 3, fields: {auid: 4294967295}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /etc/passwd, open.flags: 66}}
+      - {type: open, process: a, fields: {open.file.path: /etc/passwd, open.flags: 0}}
+      - {type: open, process: a, fields: {open.file.name: id_rsa}}
+      - {type: open, process: b, fields: {open.file.name: id_rsa}}
+      - {type: open, process: a, fields: {open.file.path: /var/lib/x, open.file.in_upper_layer: true}}
+      - {type: open, process: a, fields: {open.file.path: /var/lib/x, open.file.in_upper_layer: false}}
+      - {type: open, process: c, fields: {open.file.name: hosts, open.flags: 0}}
+      - {type: open, process: b, fields: {open.file.path: /data}}
+      - {type: open, process: c, fields: {open.file.path: /data}}
+
+  - name: kfilters_auid_only_mode_no_discarder
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 100}
+        - {field: process.auid, types: [scalar, range], mode: approver_only, weight: 200, range: [0, 4294967294], handle_not: true}
+    rules:
+      - open.file.name != "" && process.auid == 1000
+      - open.file.path == "/etc/passwd"
+      - process.auid > 5000 && open.file.path =~ "/srv/*"
+    processes:
+      u: {pid: 1, fields: {auid: 1000}}
+      big: {pid: 2, fields: {auid: 6000}}
+      unset: {pid: 3, fields: {auid: 4294967295}}
+    events:
+      - {type: open, process: u, fields: {open.file.name: a, open.file.path: /etc/passwd}}
+      - {type: open, process: big, fields: {open.file.name: a, open.file.path: /srv/x}}
+      - {type: open, process: unset, fields: {open.file.name: a, open.file.path: /etc/hosts}}
+      - {type: open, process: unset, fields: {open.file.name: "", open.file.path: /etc/hosts}}
+
+  - name: kfilters_auid_not_unset_breaks_approvers
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 100}
+        - {field: process.auid, types: [scalar, range], mode: approver_only, weight: 200, range: [0, 4294967294], handle_not: true}
+    rules:
+      - open.file.path == "/etc/passwd"
+      - process.auid != 4294967295 && open.file.path != ""
+    processes:
+      u: {pid: 1, fields: {auid: 1000}}
+      unset: {pid: 3, fields: {auid: 4294967295}}
+    events:
+      - {type: open, process: u, fields: {open.file.path: /etc/passwd}}
+      - {type: open, process: unset, fields: {open.file.path: /etc/hosts}}
+      - {type: open, process: u, fields: {open.file.path: /etc/hosts}}
+
+  - name: kfilters_auid_not_unset_with_bitmask_cap
+    caps:
+      open:
+        - {field: process.auid, types: [scalar, range, bitmask], mode: approver_only, weight: 200, range: [0, 4294967294], handle_not: true}
+    rules:
+      - process.auid != 4294967295 && open.file.path != ""
+      - process.auid != 7 && open.file.path != ""
+    processes:
+      u: {pid: 1, fields: {auid: 1000}}
+      unset: {pid: 3, fields: {auid: 4294967295}}
+    events:
+      - {type: open, process: u, fields: {open.file.path: /etc/passwd}}
+      - {type: open, process: unset, fields: {open.file.path: /etc/hosts}}
+
+  - name: approvers_on_readonly_fields
+    caps:
+      open:
+        - {field: open.file.name.length, types: [scalar, range], weight: 10}
+        - {field: open.file.path.length, types: [scalar], weight: 5}
+        - {field: open.file.name, types: [scalar], weight: 1}
+      connect:
+        - {field: connect.addr.hostname.root_domain, types: [scalar], weight: 10}
+        - {field: connect.addr.port, types: [scalar], weight: 1}
+    rules:
+      - open.file.name.length > 3 && open.file.name == "abcd"
+      - open.file.path.length == 5 && open.file.name == "efg"
+      - connect.addr.hostname.root_domain == "evil.com" && connect.addr.port == 80
+    events:
+      - {type: open, fields: {open.file.name: abcd, open.file.path: /abcd}}
+      - {type: open, fields: {open.file.name: abc, open.file.path: /abcd}}
+      - {type: open, fields: {open.file.name: efg, open.file.path: /efg1}}
+      - {type: connect, fields: {connect.addr.hostname: a.evil.com, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.hostname: a.good.com, connect.addr.port: 80}}
+
+  - name: approvers_iterator_and_array_fields
+    caps:
+      exec:
+        - {field: process.ancestors.file.name, types: [scalar, glob], weight: 10}
+        - {field: exec.argv, types: [scalar], weight: 5}
+        - {field: exec.file.name, types: [scalar], weight: 1}
+    rules:
+      - process.ancestors.file.name == "sshd" && exec.file.name == "ls"
+    processes:
+      sshd: {pid: 1, fields: {file.name: sshd}}
+      bash: {pid: 2, parent: sshd, fields: {file.name: bash}}
+      lone: {pid: 4, fields: {file.name: lone}}
+    events:
+      - {type: exec, process: bash, fields: {exec.file.name: ls}}
+      - {type: exec, process: lone, fields: {exec.file.name: ls}}
+      - {type: exec, process: bash, fields: {exec.file.name: cat}}
+
+  - name: approvers_array_field_scalar
+    caps:
+      exec:
+        - {field: exec.argv, types: [scalar, glob], weight: 5}
+        - {field: exec.envs, types: [scalar], weight: 1}
+    rules:
+      - exec.argv in ["-la", "-l"] && exec.file.name == "ls"
+      - exec.envs in ["A=1"]
+    events:
+      - {type: exec, fields: {exec.file.name: ls, exec.argv: ["-la"]}}
+      - {type: exec, fields: {exec.file.name: ls, exec.argv: ["-x"]}}
+      - {type: exec, fields: {exec.file.name: cat, exec.envs: ["A=1", "B=2"]}}
+      - {type: exec, fields: {exec.file.name: cat, exec.envs: ["B=2"]}}
+
+  - name: discarders_unknown_supported_field
+    discarders: [open.file.path, not.a.field]
+    rules:
+      - open.file.path == "/a"
+    events:
+      - {type: open, fields: {open.file.path: /b}}
+
+  - name: kfilters_mmap_mprotect_caps
+    caps:
+      mmap:
+        - {field: mmap.protection, types: [scalar, bitmask]}
+        - {field: mmap.flags, types: [scalar, bitmask]}
+        - {field: mmap.file.name, types: [scalar, pattern], weight: 10}
+      mprotect:
+        - {field: mprotect.req_protection, types: [scalar, bitmask]}
+        - {field: mprotect.vm_protection, types: [scalar, bitmask]}
+    rules:
+      - mmap.protection & PROT_EXEC > 0 && mmap.flags & MAP_SHARED > 0
+      - mmap.protection == PROT_READ|PROT_WRITE && mmap.file.name == "libc.so"
+      - mprotect.req_protection & (PROT_WRITE | PROT_EXEC) > 0
+      - mprotect.vm_protection & PROT_EXEC > 0 && mprotect.req_protection == PROT_NONE
+    events:
+      - {type: mmap, fields: {mmap.protection: 4, mmap.flags: 1}}
+      - {type: mmap, fields: {mmap.protection: 4, mmap.flags: 2}}
+      - {type: mmap, fields: {mmap.protection: 3, mmap.file.name: libc.so}}
+      - {type: mmap, fields: {mmap.protection: 1, mmap.file.name: libc.so}}
+      - {type: mprotect, fields: {mprotect.req_protection: 6}}
+      - {type: mprotect, fields: {mprotect.req_protection: 1}}
+      - {type: mprotect, fields: {mprotect.req_protection: 0, mprotect.vm_protection: 4}}
+      - {type: mprotect, fields: {mprotect.req_protection: 0, mprotect.vm_protection: 1}}
+
+  - name: kfilters_bind_connect_caps
+    caps:
+      bind:
+        - {field: bind.addr.family, types: [scalar], weight: 50}
+        - {field: bind.addr.port, types: [scalar], weight: 80, reject: ["0"]}
+        - {field: bind.addr.is_public, types: [scalar], weight: 60}
+      connect:
+        - {field: connect.addr.family, types: [scalar], weight: 50}
+        - {field: connect.addr.port, types: [scalar], weight: 80}
+        - {field: connect.addr.hostname, types: [scalar], weight: 100}
+    rules:
+      - bind.addr.port == 8080 && bind.addr.family == AF_INET
+      - bind.addr.port == 0 && bind.addr.family == AF_INET6
+      - bind.addr.is_public == true && bind.addr.port in [80, 443]
+      - connect.addr.port in [22, 3306] && connect.addr.family == AF_INET
+    events:
+      - {type: bind, fields: {bind.addr.port: 8080, bind.addr.family: 2}}
+      - {type: bind, fields: {bind.addr.port: 0, bind.addr.family: 10}}
+      - {type: bind, fields: {bind.addr.port: 443, bind.addr.family: 2, bind.addr.ip: "8.8.8.8"}}
+      - {type: bind, fields: {bind.addr.port: 1, bind.addr.family: 2, bind.addr.ip: "10.0.0.1"}}
+      - {type: connect, fields: {connect.addr.port: 22, connect.addr.family: 2}}
+      - {type: connect, fields: {connect.addr.port: 23, connect.addr.family: 2}}
+      - {type: connect, fields: {connect.addr.port: 3306, connect.addr.family: 10}}
+      - {type: connect, fields: {connect.addr.port: 3306, connect.addr.family: 2}}
+
+  - name: connect_hostname_readonly_field_no_approver
+    caps:
+      connect:
+        - {field: connect.addr.hostname, types: [scalar, glob], weight: 100}
+        - {field: connect.addr.port, types: [scalar], weight: 80}
+    rules:
+      - connect.addr.port == 80
+      - connect.addr.hostname == "evil.example.com"
+      - connect.addr.hostname =~ "*.evil.org" && connect.addr.port == 80
+    events:
+      - {type: connect, fields: {connect.addr.hostname: evil.example.com}}
+      - {type: connect, fields: {connect.addr.hostname: a.evil.org, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.hostname: good.org, connect.addr.port: 80}}
+      - {type: connect, fields: {connect.addr.hostname: good.org, connect.addr.port: 81}}
+
+  - name: connect_ip_default_caps
+    rules:
+      - connect.addr.ip in [10.0.0.0/8, 192.168.1.1] && connect.addr.port == 22
+      - connect.addr.ip == 172.16.0.0/12
+    events:
+      - {type: connect, fields: {connect.addr.ip: "10.2.3.4", connect.addr.port: 22}}
+      - {type: connect, fields: {connect.addr.ip: "10.2.3.4", connect.addr.port: 21}}
+      - {type: connect, fields: {connect.addr.ip: "172.20.1.1", connect.addr.port: 1}}
+      - {type: connect, fields: {connect.addr.ip: "8.8.8.8", connect.addr.port: 22}}
+
+  # ---------------------------------------------------------------- accept mode / best field
+  - name: accept_mode_rule_without_approver
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 100}
+    rules:
+      - open.file.path == "/etc/passwd"
+      - open.file.name == "no-cap-for-this-field"
+      - open.file.path == "/etc/shadow"
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.name: no-cap-for-this-field}}
+      - {type: open, fields: {open.file.path: /etc/hosts}}
+
+  - name: accept_mode_second_rule_lacks_approver
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 100}
+        - {field: open.flags, types: [bitmask], weight: 10}
+    rules:
+      - open.file.path == "/a"
+      - open.flags & O_CREAT > 0
+      - open.file.path != "/b"
+      - open.file.path == "/c"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /b, open.flags: 64}}
+      - {type: open, fields: {open.file.path: /c, open.flags: 0}}
+
+  - name: accept_mode_all_caps_empty
+    caps:
+      open: []
+    rules:
+      - open.file.path == "/a"
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /b}}
+
+  - name: best_field_by_weight
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 10}
+        - {field: open.file.name, types: [scalar], weight: 50}
+        - {field: open.flags, types: [scalar, bitmask], weight: 30}
+    rules:
+      - open.file.path == "/a" && open.file.name == "a" && open.flags == O_RDWR
+      - open.file.path == "/b" && open.flags & O_APPEND > 0
+      - open.file.path in ["/c", "/d"]
+      - open.file.name == "e" && open.file.path =~ "/e/*"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: a, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /b, open.flags: 1024}}
+      - {type: open, fields: {open.file.path: /d}}
+      - {type: open, fields: {open.file.name: e, open.file.path: /e/x}}
+      - {type: open, fields: {open.file.name: z, open.file.path: /z}}
+
+  - name: best_field_equal_weight_first_wins
+    caps:
+      open:
+        - {field: open.file.name, types: [scalar], weight: 20}
+        - {field: open.file.path, types: [scalar], weight: 20}
+    rules:
+      - open.file.path == "/a" && open.file.name == "a"
+      - open.file.name == "b" && open.file.path == "/b"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: a}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: x}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: b}}
+
+  - name: best_field_lower_weight_listed_first
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 5}
+        - {field: open.file.name, types: [scalar], weight: 500}
+    rules:
+      - open.file.path == "/a" && open.file.name == "a"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: a}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: b}}
+
+  - name: type_mismatch_skips_field
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 100}
+        - {field: open.file.name, types: [scalar, pattern], weight: 1}
+    rules:
+      - open.file.path =~ "/glob/*" && open.file.name == "n"
+      - open.file.path =~ "/glob/*" && open.file.name == ~"n*"
+    events:
+      - {type: open, fields: {open.file.path: /glob/x, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /glob/x, open.file.name: m}}
+      - {type: open, fields: {open.file.path: /other, open.file.name: nn}}
+
+  - name: mixed_value_types_in_one_field
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 1}
+        - {field: open.file.name, types: [scalar], weight: 0}
+    rules:
+      - open.file.path in ["/a", "/b*"] && open.file.name == "n"
+      - open.file.path in ["/a", ~"/b*"]
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /bb, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /c, open.file.name: m}}
+
+  - name: merge_duplicate_values_across_rules
+    rules:
+      - open.file.path == "/a"
+      - open.file.path in ["/a", "/b"]
+      - open.file.path == "/b" || open.file.path == "/c"
+      - open.file.path in ["/c", "/c", "/d"]
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /d}}
+      - {type: open, fields: {open.file.path: /e}}
+
+  - name: multi_event_types_approvers
+    rules:
+      - open.file.path == "/etc/passwd"
+      - chmod.file.path == "/bin/sh"
+      - chmod.file.path in ["/bin/bash", "/bin/zsh"] && chmod.file.destination.mode > 0
+      - unlink.file.path =~ "/tmp/*"
+      - exec.file.name == "curl"
+      - exec.file.name != "curl"
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: chmod, fields: {chmod.file.path: /bin/sh}}
+      - {type: chmod, fields: {chmod.file.path: /bin/bash, chmod.file.destination.mode: 755}}
+      - {type: chmod, fields: {chmod.file.path: /bin/bash, chmod.file.destination.mode: 0}}
+      - {type: unlink, fields: {unlink.file.path: /tmp/x}}
+      - {type: unlink, fields: {unlink.file.path: /var/x}}
+      - {type: exec, fields: {exec.file.name: curl}}
+      - {type: exec, fields: {exec.file.name: wget}}
+
+  # ---------------------------------------------------------------- not / handle_not
+  - name: not_equal_without_handle_not
+    caps:
+      open:
+        - {field: open.flags, types: [scalar, bitmask], weight: 10}
+        - {field: open.file.name, types: [scalar], weight: 1}
+    rules:
+      - open.flags != O_RDONLY && open.file.name == "x"
+      - open.flags != 64
+    events:
+      - {type: open, fields: {open.flags: 0, open.file.name: x}}
+      - {type: open, fields: {open.flags: 1, open.file.name: x}}
+      - {type: open, fields: {open.flags: 64, open.file.name: y}}
+
+  - name: not_equal_with_handle_not
+    caps:
+      open:
+        - {field: open.flags, types: [scalar, bitmask], weight: 10, handle_not: true}
+        - {field: open.file.name, types: [scalar], weight: 1, handle_not: true}
+    rules:
+      - open.flags != O_RDONLY
+      - open.file.name != "x" && open.flags == 1
+      - open.flags != 3
+    events:
+      - {type: open, fields: {open.flags: 0, open.file.name: x}}
+      - {type: open, fields: {open.flags: 1, open.file.name: y}}
+      - {type: open, fields: {open.flags: 3, open.file.name: x}}
+
+  - name: handle_not_on_non_int
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 10, handle_not: true}
+    rules:
+      - open.file.path != "/a"
+      - open.file.path !~ "/b/*"
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /b/c}}
+      - {type: open, fields: {open.file.path: /z}}
+
+  - name: not_in_array
+    caps:
+      open:
+        - {field: open.flags, types: [scalar, bitmask], weight: 10, handle_not: true}
+        - {field: open.file.path, types: [scalar], weight: 1}
+    rules:
+      - open.flags not in [0, 1] && open.file.path == "/a"
+      - open.file.path not in ["/b", "/c"]
+    events:
+      - {type: open, fields: {open.flags: 2, open.file.path: /a}}
+      - {type: open, fields: {open.flags: 0, open.file.path: /a}}
+      - {type: open, fields: {open.flags: 0, open.file.path: /b}}
+      - {type: open, fields: {open.flags: 0, open.file.path: /zzz}}
+
+  # ---------------------------------------------------------------- bitmask
+  - name: bitmask_combinations
+    caps:
+      open:
+        - {field: open.flags, types: [bitmask, scalar], weight: 10}
+    rules:
+      - open.flags & O_CREAT > 0
+      - open.flags & O_TRUNC > 0 && open.flags & O_APPEND > 0
+      - open.flags & (O_WRONLY | O_RDWR) > 0
+      - open.flags & O_CREAT > 0 && open.flags & O_EXCL > 0 && open.flags & O_TRUNC > 0
+    events:
+      - {type: open, fields: {open.flags: 64}}
+      - {type: open, fields: {open.flags: 1536}}
+      - {type: open, fields: {open.flags: 1025}}
+      - {type: open, fields: {open.flags: 2}}
+      - {type: open, fields: {open.flags: 0}}
+      - {type: open, fields: {open.flags: 704}}
+
+  - name: bitmask_only_cap_scalar_rule
+    caps:
+      open:
+        - {field: open.flags, types: [bitmask], weight: 10}
+    rules:
+      - open.flags == O_CREAT
+      - open.flags & O_CREAT > 0
+    events:
+      - {type: open, fields: {open.flags: 64}}
+      - {type: open, fields: {open.flags: 65}}
+      - {type: open, fields: {open.flags: 0}}
+
+  - name: bitmask_rejected_value
+    caps:
+      open:
+        - {field: open.flags, types: [bitmask], weight: 10, reject: ["65"]}
+        - {field: open.file.name, types: [scalar], weight: 1}
+    rules:
+      - open.flags & O_CREAT > 0 && open.flags & O_WRONLY > 0 && open.file.name == "x"
+      - open.flags & O_APPEND > 0 && open.file.name == "y"
+    events:
+      - {type: open, fields: {open.flags: 65, open.file.name: x}}
+      - {type: open, fields: {open.flags: 1024, open.file.name: y}}
+      - {type: open, fields: {open.flags: 0, open.file.name: z}}
+
+  - name: bitmask_with_range_value_ignored
+    caps:
+      open:
+        - {field: open.flags, types: [bitmask, range], weight: 10}
+    rules:
+      - open.flags > 5 && open.flags & O_CREAT > 0
+      - open.flags & O_APPEND > 0
+    events:
+      - {type: open, fields: {open.flags: 64}}
+      - {type: open, fields: {open.flags: 1088}}
+      - {type: open, fields: {open.flags: 1}}
+
+  # ---------------------------------------------------------------- ranges
+  - name: range_all_operators_no_bounds
+    caps:
+      open:
+        - {field: process.auid, types: [range], weight: 10}
+    rules:
+      - process.auid > 100 && open.file.path != ""
+      - process.auid >= 200 && open.file.path != ""
+      - process.auid < 300 && open.file.path != ""
+      - process.auid <= 400 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 150}}
+      b: {pid: 2, fields: {auid: 100}}
+      c: {pid: 3, fields: {auid: 500}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+      - {type: open, process: c, fields: {open.file.path: /x}}
+
+  - name: range_greater
+    caps:
+      open:
+        - {field: process.auid, types: [range], weight: 10, range: [0, 1000000]}
+    rules:
+      - process.auid > 100 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 101}}
+      b: {pid: 2, fields: {auid: 100}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+
+  - name: range_greater_equal
+    caps:
+      open:
+        - {field: process.auid, types: [range], weight: 10, range: [0, 1000000]}
+    rules:
+      - process.auid >= 100 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 100}}
+      b: {pid: 2, fields: {auid: 99}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+
+  - name: range_lesser
+    caps:
+      open:
+        - {field: process.auid, types: [range], weight: 10, range: [5, 1000000]}
+    rules:
+      - process.auid < 100 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 99}}
+      b: {pid: 2, fields: {auid: 100}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+
+  - name: range_lesser_equal
+    caps:
+      open:
+        - {field: process.auid, types: [range], weight: 10, range: [5, 1000000]}
+    rules:
+      - process.auid <= 100 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 100}}
+      b: {pid: 2, fields: {auid: 101}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+
+  - name: range_two_sided
+    caps:
+      open:
+        - {field: process.auid, types: [range, scalar], weight: 10, mode: approver_only, range: [0, 99999]}
+    rules:
+      - process.auid > 10 && process.auid < 20 && open.file.path != ""
+      - process.auid >= 30 && process.auid <= 40 && open.file.path != ""
+      - (process.auid > 50 || process.auid < 5) && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 15}}
+      b: {pid: 2, fields: {auid: 35}}
+      c: {pid: 3, fields: {auid: 3}}
+      d: {pid: 4, fields: {auid: 25}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+      - {type: open, process: c, fields: {open.file.path: /x}}
+      - {type: open, process: d, fields: {open.file.path: /x}}
+
+  - name: range_scalar_equal_and_range
+    caps:
+      open:
+        - {field: process.auid, types: [range, scalar], weight: 10, range: [0, 99999]}
+    rules:
+      - process.auid == 7 && open.file.path != ""
+      - process.auid in [8, 9] && open.file.path != ""
+      - process.auid > 1000 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 7}}
+      b: {pid: 2, fields: {auid: 2000}}
+      c: {pid: 3, fields: {auid: 500}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+      - {type: open, process: c, fields: {open.file.path: /x}}
+
+  - name: range_with_default_caps
+    rules:
+      - process.auid > 10 && open.file.path == "/a"
+      - process.auid <= 3 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 11}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /a}}
+      - {type: open, process: a, fields: {open.file.path: /b}}
+
+  - name: range_scalar_cap_only
+    caps:
+      open:
+        - {field: process.auid, types: [scalar], weight: 10}
+        - {field: open.file.path, types: [scalar], weight: 1}
+    rules:
+      - process.auid > 10 && open.file.path == "/a"
+    processes:
+      a: {pid: 1, fields: {auid: 11}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /a}}
+
+  - name: range_handle_not
+    caps:
+      open:
+        - {field: process.auid, types: [scalar, range], weight: 10, handle_not: true, range: [0, 4294967294]}
+    rules:
+      - process.auid != 4294967295 && open.file.path != ""
+    processes:
+      a: {pid: 1, fields: {auid: 4294967295}}
+      b: {pid: 2, fields: {auid: 1}}
+    events:
+      - {type: open, process: a, fields: {open.file.path: /x}}
+      - {type: open, process: b, fields: {open.file.path: /x}}
+
+  # ---------------------------------------------------------------- rejected values
+  - name: rejected_scalar_value
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 100, reject: ['"/bad"', '"/worse/*"']}
+        - {field: open.file.name, types: [scalar], weight: 1}
+    rules:
+      - open.file.path in ["/ok", "/bad"] && open.file.name == "n"
+      - open.file.path =~ "/worse/*" && open.file.name == "m"
+      - open.file.path =~ "/fine/*"
+    events:
+      - {type: open, fields: {open.file.path: /ok, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /bad, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /worse/x, open.file.name: m}}
+      - {type: open, fields: {open.file.path: /fine/x}}
+
+  # ---------------------------------------------------------------- macros / arrays / ||
+  - name: approvers_from_macros_and_arrays
+    macros:
+      - id: sensitive
+        values: ["/etc/shadow", "/etc/gshadow"]
+      - id: is_write
+        expression: open.flags & (O_WRONLY | O_RDWR) > 0
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 10}
+        - {field: open.flags, types: [bitmask], weight: 20}
+    rules:
+      - open.file.path in sensitive
+      - open.file.path in sensitive && is_write
+    events:
+      - {type: open, fields: {open.file.path: /etc/shadow, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /etc/gshadow, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /tmp/x, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /srv/x, open.flags: 2}}
+
+  - name: approvers_expression_macros_have_no_field_values
+    macros:
+      - id: is_write
+        expression: open.flags & (O_WRONLY | O_RDWR) > 0
+      - id: tmp_files
+        expression: open.file.path =~ "/tmp/*"
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, glob], weight: 10}
+        - {field: open.flags, types: [bitmask], weight: 20}
+    rules:
+      - open.file.path == "/etc/passwd"
+      - tmp_files && is_write
+      - tmp_files
+    events:
+      - {type: open, fields: {open.file.path: /tmp/x, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /tmp/x, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /srv/x, open.flags: 2}}
+
+  - name: approvers_macro_default_caps
+    macros:
+      - id: m1
+        expression: open.file.name == "a" || open.file.name == "b"
+      - id: m2
+        expression: m1 && open.flags == O_RDWR
+    rules:
+      - m2
+      - m1 && open.file.path == "/p"
+    events:
+      - {type: open, fields: {open.file.name: a, open.flags: 2}}
+      - {type: open, fields: {open.file.name: b, open.flags: 0, open.file.path: /p}}
+      - {type: open, fields: {open.file.name: c, open.flags: 2}}
+
+  - name: approvers_or_expressions
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 10}
+        - {field: open.file.name, types: [scalar], weight: 20}
+    rules:
+      - open.file.path == "/a" || open.file.path == "/b"
+      - open.file.name == "n" || open.file.path == "/c"
+      - (open.file.path == "/d" || open.file.name == "d") && open.flags == 1
+      - open.file.path == "/e" || open.flags == 3
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.name: n}}
+      - {type: open, fields: {open.file.path: /d, open.flags: 1}}
+      - {type: open, fields: {open.flags: 3}}
+      - {type: open, fields: {open.file.path: /zzz, open.flags: 0, open.file.name: zz}}
+
+  - name: approvers_or_with_unsupported_branch
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 10}
+    rules:
+      - open.file.path == "/a" || open.file.name == "n"
+    events:
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.name: n}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: z}}
+
+  - name: approvers_with_variable_in_rule
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar], weight: 10}
+    rules:
+      - id: setter
+        expression: exec.file.name == "go"
+        actions:
+          - set: {name: flag, value: true, scope: process}
+      - open.file.path == "/a" && ${process.flag}
+      - open.file.path == "/b" && process.uid == 0
+    processes:
+      p: {pid: 1, fields: {file.name: go, uid: 0}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /a}}
+      - {type: exec, process: p, fields: {exec.file.name: go}}
+      - {type: open, process: p, fields: {open.file.path: /a}}
+      - {type: open, process: p, fields: {open.file.path: /b}}
+      - {type: open, process: p, fields: {open.file.path: /c}}
+
+  - name: approvers_with_string_functions_and_regexp
+    caps:
+      open:
+        - {field: open.file.path, types: [scalar, regexp, glob, pattern], weight: 10}
+        - {field: open.file.name, types: [scalar], weight: 1}
+    rules:
+      - open.file.name =~ r"^k.*d$" && open.file.path == "/k"
+      - open.file.path == "/x" && open.file.name.length > 3
+      - open.file.name in ["foo", "bar"] && open.file.path.length < 10
+    events:
+      - {type: open, fields: {open.file.path: /k, open.file.name: kmsgd}}
+      - {type: open, fields: {open.file.path: /x, open.file.name: abcd}}
+      - {type: open, fields: {open.file.path: /x, open.file.name: ab}}
+      - {type: open, fields: {open.file.path: /y, open.file.name: foo}}
+      - {type: open, fields: {open.file.path: /yyyyyyyyyyyyyyyy, open.file.name: foo}}
+
+  - name: approvers_bool_and_int_fields
+    caps:
+      open:
+        - {field: open.file.in_upper_layer, types: [scalar], weight: 5}
+        - {field: process.uid, types: [scalar], weight: 6}
+    rules:
+      - open.file.in_upper_layer == true
+      - open.file.in_upper_layer == false && process.uid == 0
+      - process.uid in [0, 1, 2] && open.flags >= 0
+    processes:
+      r: {pid: 1, fields: {uid: 0}}
+      u: {pid: 2, fields: {uid: 1000}}
+    events:
+      - {type: open, process: r, fields: {open.file.in_upper_layer: true}}
+      - {type: open, process: u, fields: {open.file.in_upper_layer: false}}
+      - {type: open, process: u, fields: {open.file.in_upper_layer: true}}
+
+  - name: approvers_rule_field_not_of_event_type
+    caps:
+      open:
+        - {field: process.file.name, types: [scalar], weight: 5}
+    rules:
+      - open.file.path == "/a" && process.file.name == "sh"
+      - process.file.name == "bash" && open.flags >= 0
+    processes:
+      sh: {pid: 1, fields: {file.name: sh}}
+      bash: {pid: 2, fields: {file.name: bash}}
+      other: {pid: 3, fields: {file.name: zsh}}
+    events:
+      - {type: open, process: sh, fields: {open.file.path: /a}}
+      - {type: open, process: bash, fields: {open.file.path: /a}}
+      - {type: open, process: other, fields: {open.file.path: /a}}
+
+  # ---------------------------------------------------------------- discarders
+  - name: discarders_basic_values
+    rules:
+      - open.file.path == "/etc/passwd"
+      - open.file.path in ["/etc/shadow", "/etc/gshadow"]
+    events:
+      - {type: open, fields: {open.file.path: /etc/passwd}}
+      - {type: open, fields: {open.file.path: /etc/hosts}}
+      - {type: open, fields: {open.file.path: ""}}
+      - {type: open, fields: {open.file.path: /etc/shadow}}
+
+  - name: discarders_glob_pattern_regexp
+    rules:
+      - open.file.path =~ "/var/log/*"
+      - open.file.name == ~"sys*"
+      - open.file.name =~ r"^k.*d$"
+    events:
+      - {type: open, fields: {open.file.path: /var/log/a, open.file.name: syslog}}
+      - {type: open, fields: {open.file.path: /var/lib/a, open.file.name: kmsgd}}
+      - {type: open, fields: {open.file.path: /opt/a, open.file.name: other}}
+
+  - name: discarders_multi_field_and
+    rules:
+      - open.file.path == "/etc/passwd" && open.flags & O_WRONLY > 0
+      - open.file.name == "x" && process.uid == 0 && open.file.path =~ "/tmp/*"
+    processes:
+      root: {pid: 1, fields: {uid: 0}}
+      user: {pid: 2, fields: {uid: 1000}}
+    events:
+      - {type: open, process: root, fields: {open.file.path: /etc/passwd, open.flags: 1}}
+      - {type: open, process: root, fields: {open.file.path: /etc/passwd, open.flags: 0}}
+      - {type: open, process: root, fields: {open.file.path: /etc/hosts, open.flags: 1}}
+      - {type: open, process: user, fields: {open.file.path: /tmp/a, open.file.name: x}}
+      - {type: open, process: root, fields: {open.file.path: /tmp/a, open.file.name: y}}
+      - {type: open, process: root, fields: {open.file.path: /opt/a, open.file.name: x}}
+
+  - name: discarders_or_across_fields
+    rules:
+      - open.file.path == "/a" || open.file.name == "n"
+      - open.file.path == "/b" || (open.file.name == "m" && open.flags == 1)
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: z}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: z, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: z, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: m, open.flags: 1}}
+
+  - name: discarders_not_equal_and_not_in
+    rules:
+      - open.file.path != "/a"
+      - open.file.name not in ["x", "y"] && open.flags != 0
+      - open.file.path !~ "/skip/*" && open.file.name == "keep"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: x, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: x, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /skip/z, open.file.name: keep, open.flags: 1}}
+
+  - name: discarders_rule_prevents_discarder
+    rules:
+      - open.file.path == "/a"
+      - open.flags == O_RDWR
+    events:
+      - {type: open, fields: {open.file.path: /b, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /b, open.flags: 2}}
+      - {type: open, fields: {open.file.path: /a, open.flags: 0}}
+
+  - name: discarders_restricted_supported_list
+    discarders: [open.file.path]
+    rules:
+      - open.file.path == "/a" && open.file.name == "n" && open.flags == 1
+    events:
+      - {type: open, fields: {open.file.path: /z, open.file.name: n, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: z, open.flags: 1}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: n, open.flags: 1}}
+
+  - name: discarders_supported_other_field_only
+    discarders: [open.flags, open.file.name]
+    rules:
+      - open.file.path == "/a" && open.file.name == "n" && open.flags == 1
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: z, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /a, open.file.name: n, open.flags: 1}}
+
+  - name: discarders_supported_field_not_in_ruleset
+    discarders: [open.file.path, open.file.name, chmod.file.path, unlink.file.path, exec.file.name]
+    rules:
+      - open.file.path == "/a"
+      - chmod.file.path == "/c"
+    events:
+      - {type: open, fields: {open.file.path: /b}}
+      - {type: chmod, fields: {chmod.file.path: /d}}
+      - {type: unlink, fields: {unlink.file.path: /d}}
+      - {type: exec, fields: {exec.file.name: ls}}
+
+  - name: discarders_supported_field_not_used_by_bucket
+    discarders: [open.file.name]
+    rules:
+      - open.file.path == "/a"
+    events:
+      - {type: open, fields: {open.file.path: /b, open.file.name: n}}
+
+  - name: discarders_with_macros
+    macros:
+      - id: sens
+        values: ["/etc/shadow", "/etc/passwd"]
+      - id: is_exec_flag
+        expression: open.flags & O_WRONLY > 0
+      - id: nested
+        expression: is_exec_flag && open.file.name == "k"
+    rules:
+      - open.file.path in sens
+      - nested
+      - is_exec_flag && open.file.path in sens
+    events:
+      - {type: open, fields: {open.file.path: /etc/shadow, open.flags: 0, open.file.name: z}}
+      - {type: open, fields: {open.file.path: /etc/x, open.flags: 0, open.file.name: z}}
+      - {type: open, fields: {open.file.path: /etc/x, open.flags: 1, open.file.name: k}}
+      - {type: open, fields: {open.file.path: /etc/x, open.flags: 1, open.file.name: z}}
+
+  - name: discarders_macros_every_rule_has_path
+    macros:
+      - id: is_write
+        expression: open.flags & O_WRONLY > 0
+      - id: tmp
+        expression: open.file.path =~ "/tmp/*"
+    discarders: [open.file.path, open.flags]
+    rules:
+      - tmp && is_write
+      - open.file.path == "/etc/passwd" && is_write
+      - tmp && open.file.name == "n"
+    events:
+      - {type: open, fields: {open.file.path: /tmp/a, open.flags: 1, open.file.name: z}}
+      - {type: open, fields: {open.file.path: /srv/a, open.flags: 1, open.file.name: z}}
+      - {type: open, fields: {open.file.path: /tmp/a, open.flags: 0, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /etc/passwd, open.flags: 0, open.file.name: z}}
+
+  - name: discarders_variables_every_rule_has_path
+    discarders: [open.file.path, open.file.name]
+    rules:
+      - id: setter
+        expression: exec.file.name == "go"
+        actions:
+          - set: {name: seen, value: true, scope: process}
+          - set: {name: tag, value: "x"}
+      - open.file.path == "/a" && ${process.seen}
+      - open.file.path == "/b" && ${tag} == "x"
+      - open.file.path in ["/c", "/d"] && process.uid == 1000 && !${process.seen}
+    processes:
+      p: {pid: 1, fields: {file.name: go, uid: 1000}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /a}}
+      - {type: open, process: p, fields: {open.file.path: /z}}
+      - {type: exec, process: p, fields: {exec.file.name: go}}
+      - {type: open, process: p, fields: {open.file.path: /a}}
+      - {type: open, process: p, fields: {open.file.path: /b}}
+      - {type: open, process: p, fields: {open.file.path: /c}}
+      - {type: open, process: p, fields: {open.file.path: /z}}
+
+  - name: discarders_iterator_every_rule_has_it
+    discarders: [process.ancestors.file.name, exec.argv0]
+    rules:
+      - process.ancestors.file.name == "sshd" && exec.argv0 == "a"
+      - process.ancestors.file.name in ["cron", "init"] && exec.argv0 == "b"
+    processes:
+      init: {pid: 1, fields: {file.name: init}}
+      sshd: {pid: 2, parent: init, fields: {file.name: sshd}}
+      bash: {pid: 3, parent: sshd, fields: {file.name: bash}}
+      lone: {pid: 4, fields: {file.name: lone}}
+    events:
+      - {type: exec, process: bash, fields: {exec.argv0: a}}
+      - {type: exec, process: bash, fields: {exec.argv0: b}}
+      - {type: exec, process: lone, fields: {exec.argv0: a}}
+      - {type: exec, process: sshd, fields: {exec.argv0: z}}
+
+  - name: discarders_macro_only_rule
+    macros:
+      - id: m
+        expression: open.file.path == "/a" || open.file.name == "n"
+    rules:
+      - m && open.flags == 1
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: z}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: n}}
+      - {type: open, fields: {open.file.path: /z, open.file.name: z}}
+
+  - name: discarders_with_variable_rule
+    rules:
+      - id: setter
+        expression: exec.file.name == "go"
+        actions:
+          - set: {name: seen, value: true, scope: process}
+          - set: {name: counter, value: 1}
+          - set: {name: uidvar, value: 5}
+      - open.file.path == "/a" && ${process.seen}
+      - open.file.name == "n" && ${counter} == 1
+      - open.file.path == "/b" && process.uid == ${uidvar}
+    processes:
+      p: {pid: 1, fields: {file.name: go, uid: 5}}
+    events:
+      - {type: open, process: p, fields: {open.file.path: /z, open.file.name: z}}
+      - {type: exec, process: p, fields: {exec.file.name: go}}
+      - {type: open, process: p, fields: {open.file.path: /a, open.file.name: n}}
+      - {type: open, process: p, fields: {open.file.path: /z, open.file.name: z}}
+      - {type: open, process: p, fields: {open.file.path: /b, open.file.name: z}}
+
+  - name: discarders_process_fields
+    rules:
+      - process.file.name == "bash" && open.file.path == "/a"
+      - process.ancestors.file.name == "sshd" && open.file.name == "n"
+    processes:
+      sshd: {pid: 1, fields: {file.name: sshd}}
+      bash: {pid: 2, parent: sshd, fields: {file.name: bash}}
+      cron: {pid: 3, fields: {file.name: cron}}
+    events:
+      - {type: open, process: bash, fields: {open.file.path: /a, open.file.name: n}}
+      - {type: open, process: cron, fields: {open.file.path: /a, open.file.name: n}}
+      - {type: open, process: bash, fields: {open.file.path: /z, open.file.name: z}}
+      - {type: open, process: cron, fields: {open.file.path: /z, open.file.name: z}}
+
+  - name: discarders_iterator_fields
+    rules:
+      - process.ancestors.file.name == "sshd" && exec.file.name != ""
+      - exec.file.name == "ls" && process.ancestors.uid == 0
+      - exec.argv in ["-la"]
+    processes:
+      sshd: {pid: 1, fields: {file.name: sshd, uid: 0}}
+      bash: {pid: 2, parent: sshd, fields: {file.name: bash, uid: 1000}}
+      cron: {pid: 3, fields: {file.name: cron, uid: 1000}}
+    events:
+      - {type: exec, process: bash, fields: {exec.file.name: ls}}
+      - {type: exec, process: cron, fields: {exec.file.name: ls}}
+      - {type: exec, process: cron, fields: {exec.file.name: cat, exec.argv: ["-la"]}}
+      - {type: exec, process: cron, fields: {exec.file.name: cat, exec.argv: ["-l"]}}
+
+  - name: discarders_iterator_with_item_variable
+    rules:
+      - exec.file.name == "ls" && process.ancestors.file.name in ["sshd", "login"]
+      - process.ancestors[A].file.name == "init" && process.ancestors[A].uid == 0 && exec.file.name != ""
+    processes:
+      init: {pid: 1, fields: {file.name: init, uid: 0}}
+      sshd: {pid: 2, parent: init, fields: {file.name: sshd, uid: 0}}
+      bash: {pid: 3, parent: sshd, fields: {file.name: bash, uid: 5}}
+      lone: {pid: 4, fields: {file.name: lone, uid: 5}}
+    events:
+      - {type: exec, process: bash, fields: {exec.file.name: ls}}
+      - {type: exec, process: bash, fields: {exec.file.name: cat}}
+      - {type: exec, process: lone, fields: {exec.file.name: ls}}
+      - {type: exec, process: sshd, fields: {exec.file.name: cat}}
+
+  - name: discarders_int_range_and_bool
+    rules:
+      - open.flags > 10 && open.file.in_upper_layer == true
+      - process.uid >= 1000 || open.flags < 2
+    processes:
+      u: {pid: 1, fields: {uid: 1000}}
+      r: {pid: 2, fields: {uid: 0}}
+    events:
+      - {type: open, process: u, fields: {open.flags: 11, open.file.in_upper_layer: true}}
+      - {type: open, process: r, fields: {open.flags: 5, open.file.in_upper_layer: false}}
+      - {type: open, process: r, fields: {open.flags: 1, open.file.in_upper_layer: true}}
+      - {type: open, process: r, fields: {open.flags: 20, open.file.in_upper_layer: true}}
+
+  - name: discarders_string_functions
+    rules:
+      - open.file.path == "/a" && open.file.name.length > 3
+      - open.file.name in ["xx", "yy"] && open.file.path.length < 5
+      - open.file.extension == ".so" && open.file.path != "/a"
+    events:
+      - {type: open, fields: {open.file.path: /a, open.file.name: abcd, open.file.extension: ".so"}}
+      - {type: open, fields: {open.file.path: /b, open.file.name: xx, open.file.extension: ".so"}}
+      - {type: open, fields: {open.file.path: /bbbbbbbbbb, open.file.name: zz, open.file.extension: ".txt"}}
+
+  - name: discarders_event_without_rules
+    rules:
+      - open.file.path == "/a"
+    events:
+      - {type: open, fields: {open.file.path: /b}}
+      - {type: chmod, fields: {chmod.file.path: /b}}
+      - {type: exec, fields: {exec.file.name: ls}}
+
+  - name: discarders_several_event_types
+    rules:
+      - open.file.path == "/a"
+      - chmod.file.path == "/c" && chmod.file.destination.mode > 100
+      - unlink.file.path in ["/u1", "/u2"]
+      - mkdir.file.path =~ "/m/*"
+      - exec.file.name == "sh" && exec.argv0 == "sh"
+    events:
+      - {type: open, fields: {open.file.path: /x}}
+      - {type: chmod, fields: {chmod.file.path: /c, chmod.file.destination.mode: 50}}
+      - {type: chmod, fields: {chmod.file.path: /z, chmod.file.destination.mode: 500}}
+      - {type: unlink, fields: {unlink.file.path: /u2}}
+      - {type: unlink, fields: {unlink.file.path: /z}}
+      - {type: mkdir, fields: {mkdir.file.path: /m/q}}
+      - {type: mkdir, fields: {mkdir.file.path: /n/q}}
+      - {type: exec, fields: {exec.file.name: sh, exec.argv0: bash}}
+      - {type: exec, fields: {exec.file.name: ls, exec.argv0: sh}}
+
+  - name: discarders_invalid_rule_field_report
+    rules:
+      - open.file.path == "/a"
+      - open.file.name == "b"
+      - open.file.path =~ "/c/*" && open.flags == 1
+    discarders: [open.file.path, open.file.name, open.flags, chmod.file.path]
+    events:
+      - {type: open, fields: {open.file.path: /z, open.file.name: z, open.flags: 0}}
+
+  # ---------------------------------------------------------------- multi discarders
+  - name: multi_discarder_open_chmod_unlink
+    discarders: [exec.file.name]
+    multi_discarders:
+      - entries:
+          - {field: open.file.path, event_type: open}
+          - {field: chmod.file.path, event_type: chmod}
+          - {field: unlink.file.path, event_type: unlink}
+        final_field: open.file.path
+        final_event_type: open
+    rules:
+      - open.file.path == "/a"
+      - chmod.file.path == "/a"
+      - unlink.file.path == "/b"
+    events:
+      - {type: open, fields: {open.file.path: /z}}
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: open, fields: {open.file.path: /b}}
+      - {type: chmod, fields: {chmod.file.path: /z}}
+      - {type: unlink, fields: {unlink.file.path: /b}}
+
+  - name: multi_discarder_missing_bucket_skipped
+    discarders: [exec.file.name]
+    multi_discarders:
+      - entries:
+          - {field: open.file.path, event_type: open}
+          - {field: chmod.file.path, event_type: chmod}
+          - {field: rename.file.path, event_type: rename}
+        final_field: chmod.file.path
+        final_event_type: chmod
+    rules:
+      - open.file.path == "/a"
+      - chmod.file.path == "/a"
+    events:
+      - {type: open, fields: {open.file.path: /z}}
+      - {type: open, fields: {open.file.path: /a}}
+      - {type: chmod, fields: {chmod.file.path: /z}}
+      - {type: chmod, fields: {chmod.file.path: /a}}
+
+  - name: multi_discarder_pattern_rules
+    discarders: [exec.file.name]
+    multi_discarders:
+      - entries:
+          - {field: open.file.path, event_type: open}
+          - {field: mkdir.file.path, event_type: mkdir}
+        final_field: open.file.path
+        final_event_type: open
+    rules:
+      - open.file.path =~ "/var/*"
+      - mkdir.file.path in ["/var/a", "/tmp/b"]
+      - open.file.path == "/etc/hosts" && open.flags == 1
+    events:
+      - {type: open, fields: {open.file.path: /var/x, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /tmp/b, open.flags: 0}}
+      - {type: open, fields: {open.file.path: /srv/s, open.flags: 0}}
+      - {type: mkdir, fields: {mkdir.file.path: /tmp/b}}
+
+  - name: multi_discarder_non_string_entry
+    discarders: [exec.file.name]
+    multi_discarders:
+      - entries:
+          - {field: open.flags, event_type: open}
+          - {field: chmod.file.path, event_type: chmod}
+        final_field: open.flags
+        final_event_type: open
+    rules:
+      - open.flags == 1
+      - chmod.file.path == "/a"
+    events:
+      - {type: open, fields: {open.flags: 0}}
+      - {type: open, fields: {open.flags: 1}}
+
+  - name: multi_discarder_unsettable_entry_field
+    discarders: [exec.file.name]
+    multi_discarders:
+      - entries:
+          - {field: open.file.path, event_type: open}
+          - {field: chmod.file.path.length, event_type: chmod}
+        final_field: open.file.path
+        final_event_type: open
+    rules:
+      - open.file.path == "/a"
+      - chmod.file.path == "/a"
+    events:
+      - {type: open, fields: {open.file.path: /z}}
+
+  - name: multi_discarder_two_groups
+    discarders: [exec.file.name]
+    multi_discarders:
+      - entries:
+          - {field: open.file.name, event_type: open}
+          - {field: unlink.file.name, event_type: unlink}
+        final_field: open.file.name
+        final_event_type: open
+      - entries:
+          - {field: open.file.path, event_type: open}
+          - {field: chmod.file.path, event_type: chmod}
+        final_field: chmod.file.path
+        final_event_type: chmod
+    rules:
+      - open.file.name == "n1" && open.file.path == "/q1"
+      - open.file.path == "/p1" && open.file.name == "n3"
+      - unlink.file.name == "n2"
+      - chmod.file.path == "/p2"
+    events:
+      - {type: open, fields: {open.file.name: zz, open.file.path: /zz}}
+      - {type: open, fields: {open.file.name: n1, open.file.path: /zz}}
+      - {type: open, fields: {open.file.name: zz, open.file.path: /p1}}
+      - {type: open, fields: {open.file.name: n2, open.file.path: /p2}}

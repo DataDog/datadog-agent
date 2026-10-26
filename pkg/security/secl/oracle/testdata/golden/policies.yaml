@@ -1,0 +1,3553 @@
+action_coredump_hash_variants:
+    load_errors:
+        - 'rule `hash_bad_field` error: invalid field nonexistent.file on event open'
+        - 'rule `hash_wrong_type` error: field ''exec.file'' is not compatible with ''open'' rules'
+    rules:
+        cd_empty:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        cd_process:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        hash_default_open:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+        hash_two:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+            field_stats:
+                open.flags: 4
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:2
+            - scalar:2
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [cd_empty cd_process hash_bad_field hash_default_open hash_two hash_wrong_type]
+    rule_ids:
+        - cd_empty
+        - cd_process
+        - hash_default_open
+        - hash_two
+    approvers_all:
+        - field_stats open.flags=4
+    policy_rules:
+        - policy0/cd_empty accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/cd_process accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/hash_bad_field accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/hash_wrong_type accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/hash_default_open accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/hash_two accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=2 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - cd_empty
+            - cd_process
+          second_listener:
+            - cd_empty
+            - cd_process
+          matching_values:
+            cd_empty:
+                - open.flags=1@0+10
+                - =1@14+1
+            cd_process:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            cd_empty:
+                open.flags: "true"
+            cd_process:
+                open.flags: "true"
+            hash_default_open:
+                open.flags: "false"
+            hash_two:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - hash_default_open
+            - hash_two
+          second_listener:
+            - hash_default_open
+            - hash_two
+          matching_values:
+            hash_default_open:
+                - open.flags=2@0+10
+                - =2@14+1
+            hash_two:
+                - open.flags=2@0+10
+                - =2@14+1
+          partials:
+            cd_empty:
+                open.flags: "false"
+            cd_process:
+                open.flags: "false"
+            hash_default_open:
+                open.flags: "true"
+            hash_two:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+action_network_filter_precheck:
+    load_errors:
+        - 'rule `nf_bad_policy` error: BPF Filters are not supported'
+        - 'rule `nf_bad_scope_and_policy` error: BPF Filters are not supported'
+        - 'rule `nf_bad_scope` error: BPF Filters are not supported'
+        - 'rule `nf_cgroup_allow` error: BPF Filters are not supported'
+        - 'rule `nf_default` error: BPF Filters are not supported'
+        - 'rule `nf_no_filter` error: a not empty BPF filter must be specified to the ''network_filter'' action'
+        - 'rule `nf_process_drop` error: BPF Filters are not supported'
+        - 'rule `nf_with_kill` error: BPF Filters are not supported'
+    rules:
+        nf_bad_policy:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_bad_scope:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_bad_scope_and_policy:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_cgroup_allow:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_default:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_no_filter:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_process_drop:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_with_kill:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 8
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [nf_bad_policy nf_bad_scope nf_bad_scope_and_policy nf_cgroup_allow nf_default nf_no_filter nf_process_drop nf_with_kill]
+    rule_ids:
+        - nf_bad_policy
+        - nf_bad_scope
+        - nf_bad_scope_and_policy
+        - nf_cgroup_allow
+        - nf_default
+        - nf_no_filter
+        - nf_process_drop
+        - nf_with_kill
+    approvers_all:
+        - field_stats open.flags=8
+    policy_rules:
+        - policy0/nf_no_filter accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_bad_scope accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_bad_policy accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_bad_scope_and_policy accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_default accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_process_drop accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_cgroup_allow accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_with_kill accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - nf_no_filter
+            - nf_bad_scope
+            - nf_bad_policy
+            - nf_bad_scope_and_policy
+            - nf_default
+            - nf_process_drop
+            - nf_cgroup_allow
+            - nf_with_kill
+          second_listener:
+            - nf_no_filter
+            - nf_bad_scope
+            - nf_bad_policy
+            - nf_bad_scope_and_policy
+            - nf_default
+            - nf_process_drop
+            - nf_cgroup_allow
+            - nf_with_kill
+          matching_values:
+            nf_bad_policy:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_bad_scope:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_bad_scope_and_policy:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_cgroup_allow:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_default:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_no_filter:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_process_drop:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_with_kill:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            nf_bad_policy:
+                open.flags: "true"
+            nf_bad_scope:
+                open.flags: "true"
+            nf_bad_scope_and_policy:
+                open.flags: "true"
+            nf_cgroup_allow:
+                open.flags: "true"
+            nf_default:
+                open.flags: "true"
+            nf_no_filter:
+                open.flags: "true"
+            nf_process_drop:
+                open.flags: "true"
+            nf_with_kill:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+action_precheck_errors:
+    load_errors:
+        - 'rule `log_no_level` error: a valid log level must be specified to the ''log'' action'
+        - 'rule `null_action` error: action definition can''t be null'
+        - 'rule `three` error: only one action can be specified'
+        - 'rule `two` error: only one action can be specified'
+    rules:
+        kill_ok:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        log_no_level:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        log_ok:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        null_action:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        ok_after_bad:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        set_filter:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        three:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        two:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 8
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [kill_ok log_no_level log_ok null_action ok_after_bad set_filter three two]
+    rule_ids:
+        - kill_ok
+        - log_no_level
+        - log_ok
+        - null_action
+        - ok_after_bad
+        - set_filter
+        - three
+        - two
+    approvers_all:
+        - field_stats open.flags=8
+    policy_rules:
+        - policy0/null_action accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/two accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/three accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/log_no_level accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/log_ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/kill_ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/set_filter accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ok_after_bad accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - null_action
+            - two
+            - three
+            - log_no_level
+            - log_ok
+            - kill_ok
+            - set_filter
+            - ok_after_bad
+          second_listener:
+            - null_action
+            - two
+            - three
+            - log_no_level
+            - log_ok
+            - kill_ok
+            - set_filter
+            - ok_after_bad
+          matching_values:
+            kill_ok:
+                - open.flags=1@0+10
+                - =1@14+1
+            log_no_level:
+                - open.flags=1@0+10
+                - =1@14+1
+            log_ok:
+                - open.flags=1@0+10
+                - =1@14+1
+            null_action:
+                - open.flags=1@0+10
+                - =1@14+1
+            ok_after_bad:
+                - open.flags=1@0+10
+                - =1@14+1
+            set_filter:
+                - open.flags=1@0+10
+                - =1@14+1
+            three:
+                - open.flags=1@0+10
+                - =1@14+1
+            two:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            kill_ok:
+                open.flags: "true"
+            log_no_level:
+                open.flags: "true"
+            log_ok:
+                open.flags: "true"
+            null_action:
+                open.flags: "true"
+            ok_after_bad:
+                open.flags: "true"
+            set_filter:
+                open.flags: "true"
+            three:
+                open.flags: "true"
+            two:
+                open.flags: "true"
+          logs:
+            - 'info: hi'
+          scoped_counts:
+            process.pid: 0
+          variables:
+            after: 1(true)
+            filtered_v: 1(false)
+            process.pid: 0(true) own=0(true)
+actions_nf_bad_bpf_filter_with_validator:
+    load_errors:
+        - 'rule `nf_empty` error: a not empty BPF filter must be specified to the ''network_filter'' action'
+    rules:
+        nf_empty:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_ok:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 2
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [nf_empty nf_ok]
+    rule_ids:
+        - nf_empty
+        - nf_ok
+    approvers_all:
+        - field_stats open.flags=2
+    policy_rules:
+        - policy0/nf_ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_empty accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - nf_ok
+            - nf_empty
+          second_listener:
+            - nf_ok
+            - nf_empty
+          matching_values:
+            nf_empty:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_ok:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            nf_empty:
+                open.flags: "true"
+            nf_ok:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+actions_supported_event_types_with_packet:
+    load_errors:
+        - 'rule `nf_bad_policy` error: invalid policy ''reject'', expected ''drop'' or ''allow'''
+        - 'rule `nf_bad_scope` error: invalid scope ''host'''
+        - 'rule `nf_no_filter` error: a not empty BPF filter must be specified to the ''network_filter'' action'
+    rules:
+        nf_bad_policy:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_bad_scope:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_cgroup_allow:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_default:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_no_filter:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        nf_process_drop:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 6
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [nf_bad_policy nf_bad_scope nf_cgroup_allow nf_default nf_no_filter nf_process_drop]
+    rule_ids:
+        - nf_bad_policy
+        - nf_bad_scope
+        - nf_cgroup_allow
+        - nf_default
+        - nf_no_filter
+        - nf_process_drop
+    approvers_all:
+        - field_stats open.flags=6
+    policy_rules:
+        - policy0/nf_default accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_cgroup_allow accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_process_drop accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_bad_scope accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_bad_policy accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/nf_no_filter accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - nf_default
+            - nf_cgroup_allow
+            - nf_process_drop
+            - nf_bad_scope
+            - nf_bad_policy
+            - nf_no_filter
+          second_listener:
+            - nf_default
+            - nf_cgroup_allow
+            - nf_process_drop
+            - nf_bad_scope
+            - nf_bad_policy
+            - nf_no_filter
+          matching_values:
+            nf_bad_policy:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_bad_scope:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_cgroup_allow:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_default:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_no_filter:
+                - open.flags=1@0+10
+                - =1@14+1
+            nf_process_drop:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            nf_bad_policy:
+                open.flags: "true"
+            nf_bad_scope:
+                open.flags: "true"
+            nf_cgroup_allow:
+                open.flags: "true"
+            nf_default:
+                open.flags: "true"
+            nf_no_filter:
+                open.flags: "true"
+            nf_process_drop:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+actions_supported_event_types_without_packet:
+    load_errors:
+        - 'rule `mkdir_not_enabled` error: event type not enabled'
+        - 'rule `nf` error: network_filter action requires packet_action event type'
+        - 'rule `second_nf` error: network_filter action requires packet_action event type'
+    rules:
+        kill_ok:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        no_action:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        set_ok:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 3
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [kill_ok mkdir_not_enabled nf no_action second_nf set_ok]
+    rule_ids:
+        - kill_ok
+        - no_action
+        - set_ok
+    approvers_all:
+        - field_stats open.flags=3
+    policy_rules:
+        - policy0/nf accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/set_ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/kill_ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/second_nf accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=2 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/no_action accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/mkdir_not_enabled accepted=true disabled=false expression="mkdir.file.name == \"a\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - set_ok
+            - kill_ok
+            - no_action
+          second_listener:
+            - set_ok
+            - kill_ok
+            - no_action
+          matching_values:
+            kill_ok:
+                - open.flags=1@0+10
+                - =1@14+1
+            no_action:
+                - open.flags=1@0+10
+                - =1@14+1
+            set_ok:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            kill_ok:
+                open.flags: "true"
+            no_action:
+                open.flags: "true"
+            set_ok:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+            v1: 1(true)
+            v2: 1(false)
+        - result: false
+          partials:
+            kill_ok:
+                open.flags: "false"
+            no_action:
+                open.flags: "false"
+            set_ok:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+            v1: 1(true)
+            v2: 1(false)
+bucket_order_execution_context_and_priority:
+    rules:
+        ctx_false:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        ctx_prio:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        ctx_true:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        ctx_upper:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        other_tag:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        plain:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        prio_high:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        prio_low:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 8
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [ctx_false ctx_prio ctx_true ctx_upper other_tag plain prio_high prio_low]
+    rule_ids:
+        - ctx_false
+        - ctx_prio
+        - ctx_true
+        - ctx_upper
+        - other_tag
+        - plain
+        - prio_high
+        - prio_low
+    approvers_all:
+        - field_stats open.file.name=8
+    policy_rules:
+        - policy0/plain accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ctx_true accepted=true disabled=false expression="open.file.name == \"o\"" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ctx_false accepted=true disabled=false expression="open.file.name == \"o\"" tags=[execution_context=false] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ctx_upper accepted=true disabled=false expression="open.file.name == \"o\"" tags=[execution_context=TRUE] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/other_tag accepted=true disabled=false expression="open.file.name == \"o\"" tags=[foo=bar] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/prio_high accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/prio_low accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/ctx_prio accepted=true disabled=false expression="open.file.name == \"o\"" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - ctx_prio
+            - ctx_true
+            - ctx_upper
+            - plain
+            - ctx_false
+            - prio_high
+            - other_tag
+            - prio_low
+          second_listener:
+            - ctx_prio
+            - ctx_true
+            - ctx_upper
+            - plain
+            - ctx_false
+            - prio_high
+            - other_tag
+            - prio_low
+          matching_values:
+            ctx_false:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            ctx_prio:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            ctx_true:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            ctx_upper:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            other_tag:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            plain:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            prio_high:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            prio_low:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            ctx_false:
+                open.file.name: "true"
+            ctx_prio:
+                open.file.name: "true"
+            ctx_true:
+                open.file.name: "true"
+            ctx_upper:
+                open.file.name: "true"
+            other_tag:
+                open.file.name: "true"
+            plain:
+                open.file.name: "true"
+            prio_high:
+                open.file.name: "true"
+            prio_low:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            ctx_false:
+                open.file.name: "false"
+            ctx_prio:
+                open.file.name: "false"
+            ctx_true:
+                open.file.name: "false"
+            ctx_upper:
+                open.file.name: "false"
+            other_tag:
+                open.file.name: "false"
+            plain:
+                open.file.name: "false"
+            prio_high:
+                open.file.name: "false"
+            prio_low:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="z"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+disabled_base_enabled_by_later_policy:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        c:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 2
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b c]
+        - policy1(oracle) internal_type= type= version= replace= [a b c]
+    rule_ids:
+        - a
+        - c
+    approvers_all:
+        - field_stats open.flags=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy0/b accepted=true disabled=true expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0 policy1] enable_count=-1
+        - policy0/c accepted=true disabled=false expression="open.flags == 1" tags=[execution_context=true k=v] product_tags=[] every= actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/a accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/b accepted=true disabled=true expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/c accepted=true disabled=false expression="open.flags == 2" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - c
+            - a
+          second_listener:
+            - c
+            - a
+          matching_values:
+            a:
+                - open.flags=1@0+10
+                - =1@14+1
+            c:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            a:
+                open.flags: "true"
+            c:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.flags: "false"
+            c:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+disabled_later_policy_does_not_disable:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        b:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 2
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b]
+        - policy1(oracle) internal_type= type= version= replace= [a b]
+        - policy2(oracle) internal_type= type= version= replace= [a b]
+    rule_ids:
+        - a
+        - b
+    approvers_all:
+        - field_stats open.flags=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[policy1 policy2] used_by=[policy0 policy1 policy2] enable_count=-2
+        - policy0/b accepted=true disabled=false expression="open.flags == 1" tags=[execution_context=true k=v] product_tags=[] every= actions=0 policy=policy2 modified_by=[policy1 policy2] used_by=[policy0 policy1 policy2] enable_count=0
+        - policy1/a accepted=true disabled=true expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/b accepted=true disabled=true expression="" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy2/a accepted=true disabled=true expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+        - policy2/b accepted=true disabled=false expression="" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - b
+            - a
+          second_listener:
+            - b
+            - a
+          matching_values:
+            a:
+                - open.flags=1@0+10
+                - =1@14+1
+            b:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            a:
+                open.flags: "true"
+            b:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.flags: "false"
+            b:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+disabled_rule_without_expression:
+    load_errors:
+        - 'rule `d` error: syntax error `1:1: unexpected token "<EOF>"`'
+        - 'rule `e` error: no rule expression'
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 1
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a d]
+        - policy1(oracle) internal_type= type= version= replace= [d]
+    rule_ids:
+        - a
+    approvers_all:
+        - field_stats open.flags=1
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/d accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy0/e accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy1/d accepted=true disabled=false expression="open.flags == 5" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            a:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=5
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+duration_yaml_forms:
+    load_errors:
+        - 'error loading policy `policy1` from source `oracle`: time: invalid duration "bogus"'
+        - 'error loading policy `policy2` from source `oracle`: invalid duration: (yaml type: []interface {})'
+        - 'error loading policy `policy3` from source `oracle`: invalid duration: (yaml type: float64)'
+    rules:
+        d_int:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        d_ok:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        d_str:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        d_zero:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 4
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [d_int d_str d_zero]
+        - policy4(oracle) internal_type= type= version= replace= [d_ok]
+    rule_ids:
+        - d_int
+        - d_ok
+        - d_str
+        - d_zero
+    approvers_all:
+        - field_stats open.flags=4
+    policy_rules:
+        - policy0/d_str accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every=10s actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/d_int accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every=5ns actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/d_zero accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy4/d_ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every=1h30m0s actions=0 policy=policy4 modified_by=[] used_by=[policy4] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - d_str
+            - d_int
+            - d_zero
+            - d_ok
+          second_listener:
+            - d_str
+            - d_int
+            - d_zero
+            - d_ok
+          matching_values:
+            d_int:
+                - open.flags=1@0+10
+                - =1@14+1
+            d_ok:
+                - open.flags=1@0+10
+                - =1@14+1
+            d_str:
+                - open.flags=1@0+10
+                - =1@14+1
+            d_zero:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            d_int:
+                open.flags: "true"
+            d_ok:
+                open.flags: "true"
+            d_str:
+                open.flags: "true"
+            d_zero:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+merge_same_id_first_policy_wins:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+            field_stats:
+                open.flags: 1
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a]
+        - policy1(oracle) internal_type= type= version= replace= [a]
+        - policy2(oracle) internal_type= type= version= replace= [a]
+    rule_ids:
+        - a
+    approvers_all:
+        - field_stats open.flags=1
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0 policy1 policy2] enable_count=2
+        - policy1/a accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy2/a accepted=true disabled=false expression="open.flags == 3" tags=[] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            a:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=3
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+override_actions_added_once:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b]
+        - policy1(oracle) internal_type= type= version= replace= [a b]
+        - policy2(oracle) internal_type= type= version= replace= [a b]
+    rule_ids:
+        - a
+        - b
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=3 policy=policy2 modified_by=[policy1 policy2] used_by=[policy0 policy1 policy2] enable_count=2
+        - policy0/b accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=1 policy=policy1 modified_by=[policy1 policy2] used_by=[policy0 policy1 policy2] enable_count=2
+        - policy1/a accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=2 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/b accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=1 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy2/a accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=2 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+        - policy2/b accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+            - b
+          second_listener:
+            - a
+            - b
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            b:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+            b:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            base: 1(true)
+            bextra: '"hello"(true)'
+            extra: 2(true)
+            process.pid: 0(true) own=0(true)
+            third: 3(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "false"
+            b:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="z"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            base: 1(true)
+            bextra: '"hello"(true)'
+            extra: 2(true)
+            process.pid: 0(true) own=0(true)
+            third: 3(true)
+override_actions_only_duplicates:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a]
+        - policy1(oracle) internal_type= type= version= replace= [a]
+    rule_ids:
+        - a
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=1 policy=policy0 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/a accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=1 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            base: 1(true)
+            process.pid: 0(true) own=0(true)
+override_all_non_default_policy_is_not_applied:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 1
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a]
+        - policy1(oracle) internal_type= type= version= replace= [a]
+    rule_ids:
+        - a
+    approvers_all:
+        - field_stats open.file.name=1
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[k=v] product_tags=[] every= actions=0 policy=policy0 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/a accepted=true disabled=false expression="open.file.name == \"changed\"" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="changed"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+override_product_tags_and_every_variants:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        c:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 3
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b c]
+        - policy1(oracle) internal_type= type= version= replace= [a b c]
+    rule_ids:
+        - a
+        - b
+        - c
+    approvers_all:
+        - field_stats open.file.name=3
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[p] every=2h0m0s actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy0/b accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[q r] every=5ns actions=0 policy=policy0 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy0/c accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[z] every=7ns actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/a accepted=true disabled=false expression="" tags=[] product_tags=[] every=2h0m0s actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/b accepted=true disabled=false expression="" tags=[] product_tags=[q r] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/c accepted=true disabled=false expression="" tags=[] product_tags=[z] every=7ns actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+            - b
+            - c
+          second_listener:
+            - a
+            - b
+            - c
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            b:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            c:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+            b:
+                open.file.name: "true"
+            c:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+override_tags_changes_bucket_order:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b]
+        - policy1(oracle) internal_type= type= version= replace= [b]
+    rule_ids:
+        - a
+        - b
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[k=v] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/b accepted=true disabled=false expression="open.file.name == \"o\"" tags=[execution_context=true k=v] product_tags=[] every= actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/b accepted=true disabled=false expression="" tags=[execution_context=true] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - b
+            - a
+          second_listener:
+            - b
+            - a
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            b:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+            b:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+override_with_empty_options_and_missing_target:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        unknown:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"u"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+                    - scalar:"u"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"u"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a]
+        - policy1(oracle) internal_type= type= version= replace= [a unknown]
+    rule_ids:
+        - a
+        - unknown
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/a accepted=true disabled=false expression="open.file.name == \"changed\"" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/unknown accepted=true disabled=false expression="open.file.name == \"u\"" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+            unknown:
+                open.file.name: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "false"
+            unknown:
+                open.file.name: "false"
+          discarders:
+            - open:open.file.name="changed"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - unknown
+          second_listener:
+            - unknown
+          matching_values:
+            unknown:
+                - open.file.name="u"@0+14
+                - ="u"@18+3
+          partials:
+            a:
+                open.file.name: "false"
+            unknown:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+override_without_tags_option_keeps_tags:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b]
+        - policy1(oracle) internal_type= type= version= replace= [b]
+    rule_ids:
+        - a
+        - b
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\"" tags=[k=v] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/b accepted=true disabled=false expression="open.file.name == \"o\"" tags=[k=v] product_tags=[x y] every=10s actions=0 policy=policy1 modified_by=[policy1] used_by=[policy0 policy1] enable_count=1
+        - policy1/b accepted=true disabled=false expression="" tags=[execution_context=true] product_tags=[x y] every=10s actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+            - b
+          second_listener:
+            - a
+            - b
+          matching_values:
+            a:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            b:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+            b:
+                open.file.name: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+policies_listing_and_empty_policy:
+    load_errors:
+        - 'error loading policy `policy1` from source `oracle`: the policy is empty'
+        - 'error loading policy `policy5` from source `oracle`: yaml: mapping values are not allowed in this context'
+        - 'rule `bad` error: syntax error `1:14: unexpected token "<EOF>" (expected Comparison)`'
+    filtered_rules:
+        - filtered
+        - filtered
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+                    - scalar:1
+        p1:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:3
+                    - scalar:3
+        p3:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:5
+                    - scalar:5
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+                    - scalar:3
+                    - scalar:5
+            field_stats:
+                open.flags: 3
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    macro_ids:
+        - m
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:3
+            - scalar:5
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a bad]
+        - policy1(oracle) internal_type= type= version= replace= []
+        - policy2(oracle) internal_type= type=content_pack version=1.2.3 replace=other [p1]
+        - policy3(oracle) internal_type= type= version= replace= []
+        - policy4(oracle) internal_type= type= version=9 replace= [a p3]
+    rule_ids:
+        - a
+        - p1
+        - p3
+    approvers_all:
+        - field_stats open.flags=3
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0 policy4] enable_count=1
+        - policy0/bad accepted=true disabled=false expression="open.flags ==" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/filtered accepted=false disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy2/p1 accepted=true disabled=false expression="open.flags == 3" tags=[] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+        - policy4/p3 accepted=true disabled=false expression="open.flags == 5" tags=[] product_tags=[] every= actions=0 policy=policy4 modified_by=[] used_by=[policy4] enable_count=0
+        - policy4/filtered accepted=false disabled=false expression="open.flags == 6" tags=[] product_tags=[] every= actions=0 policy=policy4 modified_by=[] used_by=[policy4] enable_count=0
+        - policy4/a accepted=true disabled=false expression="open.flags == 7" tags=[] product_tags=[] every= actions=0 policy=policy4 modified_by=[] used_by=[policy4] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            a:
+                open.flags: "true"
+            p1:
+                open.flags: "false"
+            p3:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - p1
+          second_listener:
+            - p1
+          matching_values:
+            p1:
+                - open.flags=3@0+10
+                - =3@14+1
+          partials:
+            a:
+                open.flags: "false"
+            p1:
+                open.flags: "true"
+            p3:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - p3
+          second_listener:
+            - p3
+          matching_values:
+            p3:
+                - open.flags=5@0+10
+                - =5@14+1
+          partials:
+            a:
+                open.flags: "false"
+            p1:
+                open.flags: "false"
+            p3:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.flags: "false"
+            p1:
+                open.flags: "false"
+            p3:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=7
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+policy_info_version_type_replace:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        b:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+        c:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:3
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:3
+            field_stats:
+                open.flags: 3
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:2
+            - scalar:3
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a]
+        - policy1(oracle) internal_type= type=content_pack version=1.2.3 replace=some_policy [b]
+        - policy2(oracle) internal_type= type= version= replace= [c]
+    rule_ids:
+        - a
+        - b
+        - c
+    approvers_all:
+        - field_stats open.flags=3
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy1/b accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy2/c accepted=true disabled=false expression="open.flags == 3" tags=[] product_tags=[] every= actions=0 policy=policy2 modified_by=[] used_by=[policy2] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+          second_listener:
+            - a
+          matching_values:
+            a:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            a:
+                open.flags: "true"
+            b:
+                open.flags: "false"
+            c:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+policy_rule_definition_errors:
+    load_errors:
+        - 'macro `bad macro!` definition error: ID does not match pattern `^[a-zA-Z0-9_]*$`'
+        - 'rule `` error: no rule ID'
+        - 'rule `bad id!` error: rule ID pattern error'
+        - 'rule `group_bad` error: rule ID pattern error'
+        - 'rule `no_expr` error: no rule expression'
+    rules:
+        from_raw:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+                    - scalar:2
+        group_ok:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+                    - scalar:2
+        ok:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+                    - scalar:1
+        r5:
+            event_type: open
+            fields:
+                - open.flags
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+            field_stats:
+                open.flags: 4
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    macro_ids:
+        - good_macro
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:2
+            - scalar:2
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [group_ok ok r5]
+        - policy1(oracle) internal_type= type= version= replace= [from_raw]
+    rule_ids:
+        - from_raw
+        - group_ok
+        - ok
+        - r5
+    approvers_all:
+        - field_stats open.flags=4
+    policy_rules:
+        - policy0/ok accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/bad id! accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/group_bad accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/group_ok accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/no_expr accepted=true disabled=false expression="" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/r5 accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy1/ accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+        - policy1/from_raw accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=policy1 modified_by=[] used_by=[policy1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - ok
+            - r5
+          second_listener:
+            - ok
+            - r5
+          matching_values:
+            ok:
+                - open.flags=1@0+10
+                - =1@14+1
+            r5:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            from_raw:
+                open.flags: "false"
+            group_ok:
+                open.flags: "false"
+            ok:
+                open.flags: "true"
+            r5:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - group_ok
+            - from_raw
+          second_listener:
+            - group_ok
+            - from_raw
+          matching_values:
+            from_raw:
+                - open.flags=2@0+10
+                - =2@14+1
+            group_ok:
+                - open.flags=2@0+10
+                - =2@14+1
+          partials:
+            from_raw:
+                open.flags: "true"
+            group_ok:
+                open.flags: "true"
+            ok:
+                open.flags: "false"
+            r5:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+provider_custom_disables_default_rule:
+    rules:
+        d_dis_on:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:5
+        d_off_on:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:3
+        d_on:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+        unrelated:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:99
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:2
+                    - scalar:3
+                    - scalar:5
+                    - scalar:99
+            field_stats:
+                open.flags: 4
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:2
+            - scalar:3
+            - scalar:5
+            - scalar:99
+    policies:
+        - default.policy(file) internal_type=default type= version= replace= [d_default_dis d_dis d_dis_on d_off d_off_on d_on d_two_off]
+        - policy0(oracle) internal_type= type= version= replace= [unrelated]
+        - custom1(file) internal_type=custom type= version= replace= [d_default_dis d_dis d_dis_on d_off d_off_on d_on d_two_off]
+        - custom2(file) internal_type=custom type= version= replace= [d_off_on d_two_off]
+        - other_default(file) internal_type=default type= version= replace= [d_default_dis]
+    rule_ids:
+        - d_dis_on
+        - d_off_on
+        - d_on
+        - unrelated
+    approvers_all:
+        - field_stats open.flags=4
+    policy_rules:
+        - default.policy/d_off accepted=true disabled=true expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[custom1] used_by=[default.policy custom1] enable_count=-1
+        - default.policy/d_on accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=default.policy modified_by=[] used_by=[default.policy custom1] enable_count=1
+        - default.policy/d_off_on accepted=true disabled=false expression="open.flags == 3" tags=[] product_tags=[] every= actions=0 policy=custom2 modified_by=[custom1 custom2] used_by=[default.policy custom1 custom2] enable_count=0
+        - default.policy/d_dis accepted=true disabled=true expression="open.flags == 4" tags=[] product_tags=[] every= actions=0 policy=default.policy modified_by=[] used_by=[default.policy custom1] enable_count=-1
+        - default.policy/d_dis_on accepted=true disabled=false expression="open.flags == 5" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[custom1] used_by=[default.policy custom1] enable_count=1
+        - default.policy/d_two_off accepted=true disabled=true expression="open.flags == 6" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[custom1] used_by=[default.policy custom1 custom2] enable_count=-2
+        - default.policy/d_default_dis accepted=true disabled=true expression="open.flags == 7" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[custom1] used_by=[default.policy custom1 other_default] enable_count=-2
+        - policy0/unrelated accepted=true disabled=false expression="open.flags == 99" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - custom1/d_off accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/d_on accepted=true disabled=false expression="open.flags == 22" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/d_off_on accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/d_dis accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/d_dis_on accepted=true disabled=false expression="open.flags == 55" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/d_two_off accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/d_default_dis accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom2/d_off_on accepted=true disabled=false expression="open.flags == 33" tags=[] product_tags=[] every= actions=0 policy=custom2 modified_by=[] used_by=[custom2] enable_count=0
+        - custom2/d_two_off accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=custom2 modified_by=[] used_by=[custom2] enable_count=0
+        - other_default/d_default_dis accepted=true disabled=true expression="" tags=[] product_tags=[] every= actions=0 policy=other_default modified_by=[] used_by=[other_default] enable_count=0
+    steps:
+        - result: false
+          partials:
+            d_dis_on:
+                open.flags: "false"
+            d_off_on:
+                open.flags: "false"
+            d_on:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=1
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - d_on
+          second_listener:
+            - d_on
+          matching_values:
+            d_on:
+                - open.flags=2@0+10
+                - =2@14+1
+          partials:
+            d_dis_on:
+                open.flags: "false"
+            d_off_on:
+                open.flags: "false"
+            d_on:
+                open.flags: "true"
+            unrelated:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - d_off_on
+          second_listener:
+            - d_off_on
+          matching_values:
+            d_off_on:
+                - open.flags=3@0+10
+                - =3@14+1
+          partials:
+            d_dis_on:
+                open.flags: "false"
+            d_off_on:
+                open.flags: "true"
+            d_on:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            d_dis_on:
+                open.flags: "false"
+            d_off_on:
+                open.flags: "false"
+            d_on:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=4
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - d_dis_on
+          second_listener:
+            - d_dis_on
+          matching_values:
+            d_dis_on:
+                - open.flags=5@0+10
+                - =5@14+1
+          partials:
+            d_dis_on:
+                open.flags: "true"
+            d_off_on:
+                open.flags: "false"
+            d_on:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            d_dis_on:
+                open.flags: "false"
+            d_off_on:
+                open.flags: "false"
+            d_on:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=6
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            d_dis_on:
+                open.flags: "false"
+            d_off_on:
+                open.flags: "false"
+            d_on:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=7
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+provider_default_policy_first_even_if_listed_last:
+    rules:
+        only_custom:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:3
+        only_default:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+        same:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:3
+            field_stats:
+                open.flags: 3
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:2
+            - scalar:3
+    policies:
+        - default.policy(file) internal_type=default type= version= replace= [only_default same]
+        - policy0(oracle) internal_type= type= version= replace= [same]
+        - custom1(file) internal_type=custom type= version= replace= [only_custom same]
+    rule_ids:
+        - only_custom
+        - only_default
+        - same
+    approvers_all:
+        - field_stats open.flags=3
+    policy_rules:
+        - default.policy/same accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=default.policy modified_by=[] used_by=[default.policy policy0 custom1] enable_count=2
+        - default.policy/only_default accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=default.policy modified_by=[] used_by=[default.policy] enable_count=0
+        - policy0/same accepted=true disabled=false expression="open.flags == 7" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - custom1/same accepted=true disabled=false expression="open.flags == 8" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+        - custom1/only_custom accepted=true disabled=false expression="open.flags == 3" tags=[] product_tags=[] every= actions=0 policy=custom1 modified_by=[] used_by=[custom1] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - same
+          second_listener:
+            - same
+          matching_values:
+            same:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            only_custom:
+                open.flags: "false"
+            only_default:
+                open.flags: "false"
+            same:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - only_default
+          second_listener:
+            - only_default
+          matching_values:
+            only_default:
+                - open.flags=2@0+10
+                - =2@14+1
+          partials:
+            only_custom:
+                open.flags: "false"
+            only_default:
+                open.flags: "true"
+            same:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - only_custom
+          second_listener:
+            - only_custom
+          matching_values:
+            only_custom:
+                - open.flags=3@0+10
+                - =3@14+1
+          partials:
+            only_custom:
+                open.flags: "true"
+            only_default:
+                open.flags: "false"
+            same:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            only_custom:
+                open.flags: "false"
+            only_default:
+                open.flags: "false"
+            same:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=4
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            only_custom:
+                open.flags: "false"
+            only_default:
+                open.flags: "false"
+            same:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=5
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            only_custom:
+                open.flags: "false"
+            only_default:
+                open.flags: "false"
+            same:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=7
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            only_custom:
+                open.flags: "false"
+            only_default:
+                open.flags: "false"
+            same:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=8
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+provider_default_policy_override_all:
+    rules:
+        o:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        plain:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+        unrelated:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:99
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:1
+                    - scalar:99
+            field_stats:
+                open.flags: 3
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:99
+    policies:
+        - default.policy(file) internal_type=default type= version= replace= [o plain]
+        - policy0(oracle) internal_type= type= version= replace= [o unrelated]
+    rule_ids:
+        - o
+        - plain
+        - unrelated
+    approvers_all:
+        - field_stats open.flags=3
+    policy_rules:
+        - default.policy/o accepted=true disabled=false expression="open.flags == 1" tags=[execution_context=true] product_tags=[pt] every=3m0s actions=1 policy=policy0 modified_by=[policy0] used_by=[default.policy policy0] enable_count=1
+        - default.policy/plain accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=default.policy modified_by=[] used_by=[default.policy] enable_count=0
+        - policy0/unrelated accepted=true disabled=false expression="open.flags == 99" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/o accepted=true disabled=false expression="open.flags == 2" tags=[execution_context=true] product_tags=[pt] every=3m0s actions=1 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - o
+            - plain
+          second_listener:
+            - o
+            - plain
+          matching_values:
+            o:
+                - open.flags=1@0+10
+                - =1@14+1
+            plain:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            o:
+                open.flags: "true"
+            plain:
+                open.flags: "true"
+            unrelated:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            ov: 1(true)
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            o:
+                open.flags: "false"
+            plain:
+                open.flags: "false"
+            unrelated:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            ov: 1(true)
+            process.pid: 0(true) own=0(true)
+provider_remote_config_ordered_first:
+    rules:
+        dup:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:4
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:4
+            field_stats:
+                open.flags: 1
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:4
+    policies:
+        - rc_p(remote-config) internal_type=custom type= version= replace= [dup]
+        - policy0(oracle) internal_type= type= version= replace= [dup]
+        - file_p(file) internal_type=custom type= version= replace= [dup]
+        - bundled_p(bundled) internal_type=internal type= version= replace= [dup]
+    rule_ids:
+        - dup
+    approvers_all:
+        - field_stats open.flags=1
+    policy_rules:
+        - rc_p/dup accepted=true disabled=false expression="open.flags == 4" tags=[] product_tags=[] every= actions=0 policy=rc_p modified_by=[] used_by=[rc_p policy0 file_p bundled_p] enable_count=3
+        - policy0/dup accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - file_p/dup accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=file_p modified_by=[] used_by=[file_p] enable_count=0
+        - bundled_p/dup accepted=true disabled=false expression="open.flags == 3" tags=[] product_tags=[] every= actions=0 policy=bundled_p modified_by=[] used_by=[bundled_p] enable_count=0
+    steps:
+        - result: false
+          partials:
+            dup:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=1
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            dup:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=2
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            dup:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=3
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - dup
+          second_listener:
+            - dup
+          matching_values:
+            dup:
+                - open.flags=4@0+10
+                - =4@14+1
+          partials:
+            dup:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+provider_remote_config_replaces_default_policy:
+    rules:
+        from_file_custom:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:8
+        from_file_default:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:2
+        from_rc_custom:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:6
+        from_rc_custom_other:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:7
+        from_rc_kept:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:5
+        local:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:9
+        shared:
+            event_type: open
+            fields:
+                - open.flags
+            field_values:
+                open.flags:
+                    - scalar:1
+    approvers:
+        open:
+            approvers:
+                open.flags:
+                    - scalar:5
+                    - scalar:2
+                    - scalar:6
+                    - scalar:7
+                    - scalar:9
+                    - scalar:1
+                    - scalar:8
+            field_stats:
+                open.flags: 7
+    discarders_report:
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.flags:
+            - scalar:1
+            - scalar:2
+            - scalar:5
+            - scalar:6
+            - scalar:7
+            - scalar:8
+            - scalar:9
+    policies:
+        - dp_rc_kept(remote-config) internal_type=default type= version= replace= [from_rc_kept]
+        - custom_rc(remote-config) internal_type=custom type= version= replace=dp_rc [from_rc_custom]
+        - custom_rc_other(remote-config) internal_type=custom type= version= replace= [from_rc_custom_other]
+        - policy0(oracle) internal_type= type= version= replace= [local shared]
+        - dp_file(file) internal_type=default type= version= replace= [from_file_default]
+        - custom_file_replace(file) internal_type=custom type= version= replace=dp_file [from_file_custom]
+    rule_ids:
+        - from_file_custom
+        - from_file_default
+        - from_rc_custom
+        - from_rc_custom_other
+        - from_rc_kept
+        - local
+        - shared
+    approvers_all:
+        - field_stats open.flags=7
+    policy_rules:
+        - dp_rc_kept/from_rc_kept accepted=true disabled=false expression="open.flags == 5" tags=[] product_tags=[] every= actions=0 policy=dp_rc_kept modified_by=[] used_by=[dp_rc_kept] enable_count=0
+        - custom_rc/from_rc_custom accepted=true disabled=false expression="open.flags == 6" tags=[] product_tags=[] every= actions=0 policy=custom_rc modified_by=[] used_by=[custom_rc] enable_count=0
+        - custom_rc_other/from_rc_custom_other accepted=true disabled=false expression="open.flags == 7" tags=[] product_tags=[] every= actions=0 policy=custom_rc_other modified_by=[] used_by=[custom_rc_other] enable_count=0
+        - policy0/local accepted=true disabled=false expression="open.flags == 9" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/shared accepted=true disabled=false expression="open.flags == 1" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - dp_file/from_file_default accepted=true disabled=false expression="open.flags == 2" tags=[] product_tags=[] every= actions=0 policy=dp_file modified_by=[] used_by=[dp_file] enable_count=0
+        - custom_file_replace/from_file_custom accepted=true disabled=false expression="open.flags == 8" tags=[] product_tags=[] every= actions=0 policy=custom_file_replace modified_by=[] used_by=[custom_file_replace] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - shared
+          second_listener:
+            - shared
+          matching_values:
+            shared:
+                - open.flags=1@0+10
+                - =1@14+1
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - from_file_default
+          second_listener:
+            - from_file_default
+          matching_values:
+            from_file_default:
+                - open.flags=2@0+10
+                - =2@14+1
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "true"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=3
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          discarders:
+            - open:open.flags=4
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - from_rc_kept
+          second_listener:
+            - from_rc_kept
+          matching_values:
+            from_rc_kept:
+                - open.flags=5@0+10
+                - =5@14+1
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "true"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - from_rc_custom
+          second_listener:
+            - from_rc_custom
+          matching_values:
+            from_rc_custom:
+                - open.flags=6@0+10
+                - =6@14+1
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "true"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - from_rc_custom_other
+          second_listener:
+            - from_rc_custom_other
+          matching_values:
+            from_rc_custom_other:
+                - open.flags=7@0+10
+                - =7@14+1
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "true"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - from_file_custom
+          second_listener:
+            - from_file_custom
+          matching_values:
+            from_file_custom:
+                - open.flags=8@0+10
+                - =8@14+1
+          partials:
+            from_file_custom:
+                open.flags: "true"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "false"
+            shared:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - local
+          second_listener:
+            - local
+          matching_values:
+            local:
+                - open.flags=9@0+10
+                - =9@14+1
+          partials:
+            from_file_custom:
+                open.flags: "false"
+            from_file_default:
+                open.flags: "false"
+            from_rc_custom:
+                open.flags: "false"
+            from_rc_custom_other:
+                open.flags: "false"
+            from_rc_kept:
+                open.flags: "false"
+            local:
+                open.flags: "true"
+            shared:
+                open.flags: "false"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+rule_cache_disabled_same_expression_twice:
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+    approvers:
+        open:
+            approvers:
+                open.file.name:
+                    - scalar:"o"
+            field_stats:
+                open.file.name: 2
+    discarders_report:
+        open.file.name: supported
+        open.flags: supported
+    event_types:
+        - open
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:2
+            - scalar:2
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b]
+    rule_ids:
+        - a
+        - b
+    approvers_all:
+        - field_stats open.file.name=2
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\" && open.flags in [1, 2]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/b accepted=true disabled=false expression="open.file.name == \"o\" && open.flags in [1, 2]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+            - b
+          second_listener:
+            - a
+            - b
+          matching_values:
+            a:
+                - open.flags=1@25+10
+                - =1@40+1
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            b:
+                - open.flags=1@25+10
+                - =1@40+1
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: false
+          partials:
+            a:
+                open.file.name: "true"
+                open.flags: "false"
+            b:
+                open.file.name: "true"
+                open.flags: "false"
+          discarders:
+            - open:open.flags=3
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+rule_cache_same_expression_twice:
+    load_errors:
+        - 'rule `g` error: syntax error `1:27: unexpected token "<EOF>" (expected Expression ")")`'
+        - 'rule `h` error: syntax error `1:27: unexpected token "<EOF>" (expected Expression ")")`'
+    rules:
+        a:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:1
+                    - scalar:2
+        b:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:1
+                    - scalar:2
+        c:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+                open.flags:
+                    - scalar:1
+                    - scalar:2
+                    - scalar:1
+                    - scalar:2
+        d:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        e:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"o"
+        f:
+            event_type: open
+            fields:
+                - open.file.name
+                - open.flags
+                - open.flags
+            field_values:
+                open.file.name:
+                    - scalar:"p"
+                open.flags:
+                    - scalar:9
+                    - scalar:9
+    approvers:
+        open:
+            accept_mode: d
+            field_stats:
+                open.file.name: 3
+    discarders_report:
+        open.file.name: supported
+        open.flags: supported
+    event_types:
+        - open
+    macro_ids:
+        - m
+    field_values:
+        open.file.name:
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"o"
+            - scalar:"p"
+        open.flags:
+            - scalar:1
+            - scalar:1
+            - scalar:1
+            - scalar:2
+            - scalar:2
+            - scalar:2
+            - scalar:9
+    policies:
+        - policy0(oracle) internal_type= type= version= replace= [a b c d e f g h]
+    rule_ids:
+        - a
+        - b
+        - c
+        - d
+        - e
+        - f
+    approvers_all:
+        - accept_mode open=d
+        - field_stats open.file.name=3
+    policy_rules:
+        - policy0/a accepted=true disabled=false expression="open.file.name == \"o\" && open.flags in [1, 2]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/b accepted=true disabled=false expression="open.file.name == \"o\" && open.flags in [1, 2]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/c accepted=true disabled=false expression="open.file.name == \"o\" && open.flags in [1, 2]" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/d accepted=true disabled=false expression="open.file.name == \"o\" || m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/e accepted=true disabled=false expression="open.file.name == \"o\" || m" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/f accepted=true disabled=false expression="open.file.name == \"p\" || open.flags == 9" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/g accepted=true disabled=false expression="open.file.name == \"o\" && (" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+        - policy0/h accepted=true disabled=false expression="open.file.name == \"o\" && (" tags=[] product_tags=[] every= actions=0 policy=policy0 modified_by=[] used_by=[policy0] enable_count=0
+    steps:
+        - result: true
+          matched:
+            - a
+            - b
+            - c
+            - d
+            - e
+          second_listener:
+            - a
+            - b
+            - c
+            - d
+            - e
+          matching_values:
+            a:
+                - open.flags=1@25+10
+                - =1@40+1
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            b:
+                - open.flags=1@25+10
+                - =1@40+1
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            c:
+                - open.flags=1@25+10
+                - =1@40+1
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+                open.flags: "true"
+            b:
+                open.file.name: "true"
+                open.flags: "true"
+            c:
+                open.file.name: "true"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.flags: "true"
+            e:
+                open.file.name: "true"
+                open.flags: "true"
+            f:
+                open.file.name: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - d
+            - e
+          second_listener:
+            - d
+            - e
+          matching_values:
+            d:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+            e:
+                - open.file.name="o"@0+14
+                - ="o"@18+3
+          partials:
+            a:
+                open.file.name: "true"
+                open.flags: "false"
+            b:
+                open.file.name: "true"
+                open.flags: "false"
+            c:
+                open.file.name: "true"
+                open.flags: "false"
+            d:
+                open.file.name: "true"
+                open.flags: "true"
+            e:
+                open.file.name: "true"
+                open.flags: "true"
+            f:
+                open.file.name: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - d
+            - e
+            - f
+          second_listener:
+            - d
+            - e
+            - f
+          matching_values:
+            f:
+                - open.file.name="p"@0+14
+                - ="p"@18+3
+          partials:
+            a:
+                open.file.name: "false"
+                open.flags: "true"
+            b:
+                open.file.name: "false"
+                open.flags: "true"
+            c:
+                open.file.name: "false"
+                open.flags: "true"
+            d:
+                open.file.name: "true"
+                open.flags: "true"
+            e:
+                open.file.name: "true"
+                open.flags: "true"
+            f:
+                open.file.name: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
+        - result: true
+          matched:
+            - f
+          second_listener:
+            - f
+          matching_values:
+            f:
+                - open.flags=9@25+10
+                - =9@39+1
+          partials:
+            a:
+                open.file.name: "false"
+                open.flags: "false"
+            b:
+                open.file.name: "false"
+                open.flags: "false"
+            c:
+                open.file.name: "false"
+                open.flags: "false"
+            d:
+                open.file.name: "true"
+                open.flags: "true"
+            e:
+                open.file.name: "true"
+                open.flags: "true"
+            f:
+                open.file.name: "true"
+                open.flags: "true"
+          scoped_counts:
+            process.pid: 0
+          variables:
+            process.pid: 0(true) own=0(true)
