@@ -43,8 +43,17 @@
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker push ${TARGET_TAG}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    # Record the pushed digest; docker_sign_agent7_windows signs it from Linux.
+    - $REPO_DIGEST = docker inspect --format '{{index .RepoDigests 0}}' ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - New-Item -ItemType Directory -Force -Path signing | Out-Null
+    - "${TARGET_TAG}@$($REPO_DIGEST.Split('@')[1])" | Out-File -Encoding ascii -FilePath "signing/${CI_JOB_ID}.ref"
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    paths:
+      - signing/
+    expire_in: 2 days
   timeout: 60m
 
 # Base template for agent7 windows builds

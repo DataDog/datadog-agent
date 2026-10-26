@@ -56,3 +56,16 @@ docker_build_fakeintake:
         --build-arg=ALPINE_BASE_IMAGE_REGISTRY=${ALPINE_REGISTRY} \
         --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2
+
+docker_sign_fakeintake:
+  extends: .docker_build_amd64
+  stage: container_build
+  rules: !reference [docker_build_fakeintake, rules]
+  needs: [docker_build_fakeintake]
+  id_tokens:
+    DDSIGN_ID_TOKEN:
+      aud: image-integrity
+  variables:
+    TARGET: !reference [docker_build_fakeintake, variables, TARGET]
+  script:
+    - ddsign sign ${TARGET}@$(crane digest ${TARGET})
