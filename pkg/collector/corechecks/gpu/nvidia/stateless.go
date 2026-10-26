@@ -361,6 +361,41 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	}}, 0, nil
 }
 
+// gpuHealth reports whether the GPU is lost and whether it is unhealthy: the device plugin
+// marks it unhealthy or NVML asks for a recovery action. It returns errUnsupportedDevice when
+// neither source can ever exist on this device, and another error when one is not readable yet.
+func gpuHealth(device ddnvml.Device, deps *CollectorDependencies) (lost, unhealthy bool, err error) {
+	if _, err := device.GetIndex(); err != nil && ddnvml.IsGPULost(err) {
+		return true, false, nil
+	}
+	known := false
+	devicePlugins := deps != nil && deps.Workloadmeta != nil && env.IsFeaturePresent(env.KubernetesDevicePlugins)
+	if devicePlugins {
+		gpu, gpuErr := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
+		if gpuErr == nil {
+			known = true
+			unhealthy = !gpu.Healthy
+		} else {
+			err = gpuErr
+		}
+	}
+	action, actionErr := fieldValueForField(device, nvml.FI_DEV_GET_GPU_RECOVERY_ACTION, "FI_DEV_GET_GPU_RECOVERY_ACTION")
+	if actionErr == nil {
+		known = true
+		unhealthy = unhealthy || nvml.DeviceGpuRecoveryAction(action) != nvml.GPU_RECOVERY_ACTION_NONE
+	} else if err == nil {
+		err = actionErr
+	}
+	switch {
+	case known:
+		return false, unhealthy, nil
+	case !devicePlugins && ddnvml.IsAPIUnsupportedOnDevice(actionErr, device):
+		return false, false, errUnsupportedDevice
+	default:
+		return false, false, err
+	}
+}
+
 // fabricHealthIssues maps the 2-bit NVML fabric health mask fields to the
 // fabric_issue tag value reported when the field is set to TRUE.
 var fabricHealthIssues = []struct {
@@ -1004,8 +1039,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis = append(apis, apiCallInfo{
 		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
-			if !ok || physicalDevice.HasMIGFeatureEnabled {
+			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
 				return nil, 0, errUnsupportedDevice
 			}
 
@@ -1017,7 +1051,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				value = 1
 			}
 			return []Sample{&Metric{
-				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}, noWorkloadTags: true},
 				Name:       "device.unavailable",
 				Value:      value,
 				Type:       metrics.GaugeType,
@@ -1025,21 +1059,47 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		},
 	})
 
-	// Report the node unschedulable state on every device, MIG slices included, like device.total.
+	// Report the unhealthy and unschedulable reasons on physical devices. A GPU is unavailable
+	// for at most one reason: lost, then unhealthy, then unschedulable, so the lower ones report 0.
 	apis = append(apis, apiCallInfo{
-		Name: "node_unschedulable",
-		Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			if deps == nil || deps.NodeUnschedulable == nil {
+		Name: "device_unavailable_reasons",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
 				return nil, 0, errUnsupportedDevice
 			}
+			reportUnschedulable := deps != nil && deps.NodeUnschedulable != nil
+			lost, unhealthy, healthErr := gpuHealth(device, deps)
+			healthUnsupported := errors.Is(healthErr, errUnsupportedDevice)
+			if healthUnsupported && !reportUnschedulable {
+				return nil, 0, errUnsupportedDevice
+			}
+
 			var samples []Sample
-			for _, p := range deps.NodeUnschedulable.Points() {
+			if healthErr == nil {
 				samples = append(samples, &Metric{
-					baseSample: baseSample{tags: slices.Clone(p.Tags)},
+					baseSample: baseSample{tags: []string{"unavailable_reason:unhealthy"}, noWorkloadTags: true},
 					Name:       "device.unavailable",
-					Value:      p.Value,
+					Value:      boolToFloat(unhealthy && !lost),
 					Type:       metrics.GaugeType,
 				})
+			}
+			if reportUnschedulable {
+				// Unknown health does not hold back the node state.
+				for _, p := range deps.NodeUnschedulable.Points() {
+					value := p.Value
+					if lost || unhealthy {
+						value = 0
+					}
+					samples = append(samples, &Metric{
+						baseSample: baseSample{tags: slices.Clone(p.Tags), noWorkloadTags: true},
+						Name:       "device.unavailable",
+						Value:      value,
+						Type:       metrics.GaugeType,
+					})
+				}
+			}
+			if healthErr != nil && !healthUnsupported {
+				return samples, 0, healthErr
 			}
 			return samples, 0, nil
 		},

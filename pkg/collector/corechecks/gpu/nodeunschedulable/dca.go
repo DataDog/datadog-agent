@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// EnabledConfigKey turns the reporting of unschedulable nodes on.
+	// EnabledConfigKey turns the reporting of unschedulable nodes on or off.
 	EnabledConfigKey = "gpu.unschedulable_nodes.enabled"
 	// RefreshIntervalConfigKey is how often the node state is read from the cluster agent.
 	RefreshIntervalConfigKey = "gpu.unschedulable_nodes.refresh_interval"

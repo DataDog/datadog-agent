@@ -205,6 +205,12 @@ func TestLoadRulesFallsBackToCordon(t *testing.T) {
 	require.Equal(t, []string{"cordoned"}, rules.Evaluate(map[string]string{"example.com/drain": "true"}, nil, true))
 }
 
-func TestNewDisabledByDefault(t *testing.T) {
-	require.Nil(t, New(configmock.New(t)))
+func TestNewEnabledByDefault(t *testing.T) {
+	require.NotNil(t, New(configmock.New(t)))
+}
+
+func TestNewDisabled(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest(EnabledConfigKey, false)
+	require.Nil(t, New(cfg))
 }

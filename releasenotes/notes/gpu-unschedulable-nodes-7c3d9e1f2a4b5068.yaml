@@ -8,7 +8,12 @@
 ---
 features:
   - |
-    The GPU check can report GPUs on cordoned, not Ready or otherwise unschedulable
+    The GPU check reports GPUs on cordoned, not Ready or otherwise unschedulable
     Kubernetes nodes as ``gpu.device.unavailable`` with
-    ``unavailable_reason:unschedulable``. Requires the Cluster Agent. Enable it
-    with ``gpu.unschedulable_nodes.enabled``.
+    ``unavailable_reason:unschedulable``. Requires the Cluster Agent. Disable it
+    with ``gpu.unschedulable_nodes.enabled: false``.
+  - |
+    The GPU check reports ``gpu.device.unavailable`` with
+    ``unavailable_reason:unhealthy`` when the Kubernetes device plugin marks a
+    GPU unhealthy or NVML asks for a recovery action. A GPU is unavailable for
+    at most one reason at a time: lost, then unhealthy, then unschedulable.
