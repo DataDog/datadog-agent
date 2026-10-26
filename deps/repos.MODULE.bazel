@@ -373,10 +373,10 @@ http_archive(
 http_archive(
     name = "jemalloc",
     build_file = "//deps:jemalloc.BUILD.bazel",
-    sha256 = "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179",
-    strip_prefix = "jemalloc-5.3.0",
+    sha256 = "ebca504ca158bfff9ce197ee8fb56dd649c7d1a4251fdea3f53ff972a610b85b",
+    strip_prefix = "jemalloc-0697b617fbaa38742613ae867afd4927d31d6118",
     urls = [
-        "https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.tar.gz",
+        "https://github.com/jemalloc/jemalloc/archive/0697b617fbaa38742613ae867afd4927d31d6118.tar.gz",
     ],
 )
 

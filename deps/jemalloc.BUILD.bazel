@@ -12,7 +12,10 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-VERSION = "5.3.0"
+# Pinned dev revision with dynamic page sizing; keep in sync with repos.MODULE.bazel.
+COMMIT = "0697b617fbaa38742613ae867afd4927d31d6118"
+
+VERSION = "5.4.0-63-g" + COMMIT
 
 package_metadata(
     name = "package_metadata",
@@ -20,7 +23,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://github.com/jemalloc/jemalloc/archive/refs/tags/{version}.tar.gz",
+        download_url = "https://github.com/jemalloc/jemalloc/archive/" + COMMIT + ".tar.gz",
         package = "jemalloc",
         version = VERSION,
     ),
@@ -42,7 +45,7 @@ filegroup(
         "doc/*",
         "doc_internal/*",
         "include/jemalloc/*",
-        "include/jemalloc/internal/*",
+        "include/jemalloc/internal/**",
         "include/msvc_compat/*",
         "include/msvc_compat/C99/*",
         "m4/*",
@@ -73,12 +76,21 @@ configure_make(
     autoconf = True,
     configure_in_place = True,
     configure_options = [
+        "--with-version=" + VERSION,
         "--disable-debug",
         "--disable-stats",
         "--disable-fill",
         "--disable-prof",
         "--disable-static",
-    ],
+    ] + select({
+        # Match the host page size on Linux ARM64 instead of always using 64 KiB.
+        "@//:linux_arm64": [
+            "--enable-dynamic-page-size",
+            "--with-min-lg-page=12",
+            "--with-max-lg-page=16",
+        ],
+        "//conditions:default": [],
+    }),
     lib_source = ":all_srcs",
     out_shared_libs = ["libjemalloc.so"],
     resource_size = "medium",
