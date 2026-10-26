@@ -48,6 +48,26 @@ func ResizePolicyFromContainerResizePolicy(rules []corev1.ContainerResizePolicy)
 	return policy
 }
 
+// ResizeConditionsFromPodConditions converts the in-place resize conditions
+// (PodResizePending, PodResizeInProgress) of a pod to the workloadmeta representation.
+// Other conditions are dropped to keep pod entities small in the cluster-agent.
+// Returns nil when the pod has no resize condition.
+func ResizeConditionsFromPodConditions(conditions []corev1.PodCondition) []workloadmeta.KubernetesPodCondition {
+	var result []workloadmeta.KubernetesPodCondition
+	for _, c := range conditions {
+		switch c.Type {
+		case corev1.PodResizePending, corev1.PodResizeInProgress:
+			result = append(result, workloadmeta.KubernetesPodCondition{
+				Type:               string(c.Type),
+				Status:             string(c.Status),
+				Reason:             c.Reason,
+				LastTransitionTime: c.LastTransitionTime.Time,
+			})
+		}
+	}
+	return result
+}
+
 func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 	pod := obj.(*corev1.Pod)
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
@@ -133,6 +153,8 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		containersList = append(containersList, c)
 	}
 
+	conditions := ResizeConditionsFromPodConditions(pod.Status.Conditions)
+
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -154,6 +176,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
+		Conditions:                 conditions,
 		CreationTimestamp:          pod.CreationTimestamp.Time,
 		ReadyTimestamp:             readyTimestamp,
 		DeletionTimestamp:          deletionTimestamp,

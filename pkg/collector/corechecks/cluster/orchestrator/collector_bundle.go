@@ -98,7 +98,9 @@ type CollectorBundle struct {
 	activatedCollectors   map[string]struct{}
 	initializedCollectors map[string]struct{}
 	// startedInformers makes sure an informer shared by several collectors is started once.
-	startedInformers         map[cache.SharedInformer]struct{}
+	// It is keyed by the informer store because client-go typed informer factories return a
+	// new wrapper around the same shared informer on each Informer() call.
+	startedInformers         map[cache.Store]struct{}
 	terminatedResourceBundle *TerminatedResourceBundle
 	// crdsChanged is set by the CRD informer when a CRD of a collected group starts serving new versions.
 	crdsChanged atomic.Bool
@@ -150,7 +152,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		discoveryRetrier:         newRetrier(collectionInterval, maxDiscoveryRetryDelay),
 		activatedCollectors:      map[string]struct{}{},
 		initializedCollectors:    map[string]struct{}{},
-		startedInformers:         map[cache.SharedInformer]struct{}{},
+		startedInformers:         map[cache.Store]struct{}{},
 		terminatedResourceBundle: terminatedResourceBundle,
 	}
 
@@ -400,9 +402,10 @@ func (cb *CollectorBundle) Initialize() {
 			continue
 		}
 
-		if _, found := cb.startedInformers[informer]; !found {
+		store := informer.GetStore()
+		if _, found := cb.startedInformers[store]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
-			cb.startedInformers[informer] = struct{}{}
+			cb.startedInformers[store] = struct{}{}
 
 			// add event handlers for terminated resources
 			if collector.Metadata().SupportsTerminatedResourceCollection {

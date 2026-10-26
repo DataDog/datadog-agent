@@ -539,9 +539,7 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
-        # Use :openscap directly, not :openscap_pkg: these binaries are
-        # installed_files of openscap_pkg, so using it here would create a cycle.
-        ":openscap",
+        ":openscap_pkg",
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
         "@curl//:curl_pkg",
@@ -588,9 +586,7 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
-        # Use :openscap directly, not :openscap_pkg: these binaries are
-        # installed_files of openscap_pkg, so using it here would create a cycle.
-        ":openscap",
+        ":openscap_pkg",
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
         "@curl//:curl_pkg",
@@ -645,17 +641,30 @@ pkg_files(
 
 dd_cc_packaged(
     name = "openscap_pkg",
+    data = [
+        ":cpe_files",
+        ":openscap_sce_pkg",
+        ":xccdf-resources",
+    ],
     dest_dir = "embedded/lib",
     input = ":openscap",
-    installed_executables = {
-        ":oscap": "embedded/bin",
-        ":oscap-io": "embedded/bin",
-    },
-    installed_files = [
-        ":xccdf-resources",
-        ":cpe_files",
-    ],
     version = "33.1.4",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "oscap_pkg",
+    dest_dir = "embedded/bin",
+    input = ":oscap",
+    mode = "0755",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "oscap-io_pkg",
+    dest_dir = "embedded/bin",
+    input = ":oscap-io",
+    mode = "0755",
     visibility = ["//visibility:public"],
 )
 
@@ -670,8 +679,8 @@ dd_cc_packaged(
 dd_collect_dependencies(
     name = "_dep_libs",
     srcs = [
-        ":openscap_pkg",
-        ":openscap_sce_pkg",
+        ":oscap-io_pkg",
+        ":oscap_pkg",
     ],
     visibility = ["//visibility:private"],
 )

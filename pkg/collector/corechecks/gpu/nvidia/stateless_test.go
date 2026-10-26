@@ -1144,6 +1144,81 @@ func TestNeedsRecoverySampleUnsupported(t *testing.T) {
 	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }
 
+func TestFabricHealthToSamples(t *testing.T) {
+	// HealthMask with every field reported as FALSE (healthy) and configuration NONE.
+	const healthyMask = nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION
+
+	tests := []struct {
+		name     string
+		info     nvml.GpuFabricInfo_v3
+		expected map[string]float64 // metric name and fabric_issue tag -> value
+	}{
+		{
+			// As reported by a GB200 NVL72 GPU on driver R580.
+			name:     "registered and healthy",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.SUCCESS), HealthMask: healthyMask, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY},
+			expected: map[string]float64{"fabric.registered": 1, "fabric.health.unhealthy": 0},
+		},
+		{
+			name:     "registration in progress, no health summary on older drivers",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: uint32(nvml.SUCCESS)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name:     "registration failed",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.ERROR_UNKNOWN)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name: "limited capacity with degraded bandwidth and insufficient NVLinks",
+			info: nvml.GpuFabricInfo_v3{
+				State:  nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status: uint32(nvml.SUCCESS),
+				HealthMask: nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+					nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+				HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+			},
+			expected: map[string]float64{
+				"fabric.registered":                                      1,
+				"fabric.health.unhealthy":                                1,
+				"fabric.health.issue|bandwidth_degraded":                 1,
+				"fabric.health.issue|route_unhealthy":                    1,
+				"fabric.health.issue|misconfigured_insufficient_nvlinks": 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := make(map[string]float64)
+			for _, metric := range requireMetrics(t, fabricHealthToSamples(tt.info)) {
+				require.Equal(t, metrics.GaugeType, metric.Type)
+				parts := []string{metric.Name}
+				for _, tag := range metric.Tags() {
+					parts = append(parts, strings.TrimPrefix(tag, "fabric_issue:"))
+				}
+				got[strings.Join(parts, "|")] = metric.Value
+			}
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestFabricHealthSampleUnsupported(t *testing.T) {
+	// The default NVML mock does not expose the versioned fabric API, like GPUs without NVLink fabric.
+	device := setupMockDevice(t)
+
+	_, _, err := fabricHealthSample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
+}
+
 func TestRetiredPagesSample(t *testing.T) {
 	tests := []struct {
 		name          string
