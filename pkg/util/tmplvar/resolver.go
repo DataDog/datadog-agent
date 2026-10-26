@@ -516,31 +516,30 @@ func allowEnvVar(envVar string) bool {
 
 	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
 	if len(allowedEnvs) > 0 {
-		return containsEnvVar(allowedEnvs, envVar)
+		return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+			return strings.EqualFold(env, envVar)
+		})
 	}
 
 	// If the option is not set or is empty, the default behavior applies: all
 	// envs are allowed except the ones bound to agent settings, which can hold
 	// credentials that configs from untrusted sources (e.g. pod annotations)
 	// must not be able to read.
-	if _, isAgentEnvVar := agentEnvVars()[strings.ToUpper(envVar)]; !isAgentEnvVar {
-		return true
-	}
-
-	return containsEnvVar(pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_agent_env_vars"), envVar)
+	_, blocked := blockedAgentEnvVars()[strings.ToUpper(envVar)]
+	return !blocked
 }
 
-func containsEnvVar(envs []string, envVar string) bool {
-	return slices.ContainsFunc(envs, func(env string) bool {
-		return strings.EqualFold(env, envVar)
-	})
-}
+var blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars)
 
-var agentEnvVars = sync.OnceValue(func() map[string]struct{} {
-	envVars := pkgconfigsetup.Datadog().GetEnvVars()
+func computeBlockedAgentEnvVars() map[string]struct{} {
+	cfg := pkgconfigsetup.Datadog()
+	envVars := cfg.GetEnvVars()
 	set := make(map[string]struct{}, len(envVars))
 	for _, envVar := range envVars {
 		set[strings.ToUpper(envVar)] = struct{}{}
 	}
+	for _, envVar := range cfg.GetStringSlice("ad_allowed_agent_env_vars") {
+		delete(set, strings.ToUpper(envVar))
+	}
 	return set
-})
+}

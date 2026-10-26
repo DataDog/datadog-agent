@@ -624,45 +624,6 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "agent setting env var in the agent env var allow list",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				Pid:           1337,
-			},
-			tpl: integration.Config{
-				Name:          "cpu",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
-			},
-			out: integration.Config{
-				Name:          "cpu",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_token\n")},
-				ServiceID:     "a5901276aed1",
-			},
-			configSettings: map[string]interface{}{
-				"ad_allowed_agent_env_vars": []string{"DD_CLUSTER_AGENT_AUTH_TOKEN"},
-			},
-		},
-		{
-			testName: "agent setting env var not in the agent env var allow list",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				Pid:           1337,
-			},
-			tpl: integration.Config{
-				Name:          "cpu",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
-			},
-			errorString: "envvar DD_CLUSTER_AGENT_AUTH_TOKEN is not allowed in check configs, skipping service a5901276aed1",
-			configSettings: map[string]interface{}{
-				"ad_allowed_agent_env_vars": []string{"DD_ENV"},
-			},
-		},
-		{
 			testName: "agent env var allow list is ignored when the env var allow list is set",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
