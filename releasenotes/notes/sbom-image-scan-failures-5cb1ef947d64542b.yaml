@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fixed container image SBOMs staying pending when their scan fails before
+    it reads the image, for example on CRI-O with
+    ``sbom.container_image.overlayfs_direct_scan`` off. They now report the
+    failure.
+  - |
+    Fixed a CRI-O image deleted during its SBOM scan coming back in the
+    Agent's image list.
