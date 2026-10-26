@@ -50,6 +50,7 @@ func TestDefaultEnvVars(t *testing.T) {
 
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, strings.Join(defaultEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
+	require.Contains(t, strings.Split(cfg.EbpfCollectorConfig.IncludeEnvVars, ","), "DD_CRASHTRACKING_IS_MONITOR_PROCESS")
 }
 
 func TestSymbolUploader(t *testing.T) {
