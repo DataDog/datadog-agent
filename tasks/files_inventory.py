@@ -41,7 +41,7 @@ def _compare_inventories(
         if size_change:
             size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
             size_bytes = current.size_bytes - previous.size_bytes
-            if size_percent > 10:
+            if abs(size_percent) > 10:
                 changed_flags |= FileChange.Flags.Size
         if current.chmod != previous.chmod:
             changed_flags |= FileChange.Flags.Permissions

@@ -78,6 +78,23 @@ class TestCompareInventory(unittest.TestCase):
         self.assertEqual(changed['/a/b/d'].current, changed_file_detected)
         self.assertEqual(changed['/a/b/d'].size_percent, 100)
 
+    def test_modified_filesize_decrease(self):
+        changed_inventory = self.default_inventory.copy()
+        changed_file_ignored = FileInfo(
+            relative_path='/a/b/c', size_bytes=1000, is_symlink=False, chmod=0o755, owner=1000, group=1000
+        )
+        changed_file_detected = FileInfo(
+            relative_path='/a/b/d', size_bytes=512, is_symlink=False, chmod=0o755, owner=1000, group=1000
+        )
+        changed_inventory[0] = changed_file_ignored
+        changed_inventory[1] = changed_file_detected
+        added, removed, changed = _compare_inventories(self.default_inventory, changed_inventory)
+        self.assertEqual(len(added), 0)
+        self.assertEqual(len(removed), 0)
+        self.assertEqual(len(changed), 1)
+        self.assertTrue(changed['/a/b/d'].flags & FileChange.Flags.Size)
+        self.assertEqual(changed['/a/b/d'].size_percent, -50)
+
     def test_modified_owner_groups(self):
         changed_inventory = self.default_inventory.copy()
         changed_file = FileInfo(
