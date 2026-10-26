@@ -24,7 +24,6 @@ def _compare_inventories(
     previous_inventory: list[FileInfo],
     current_inventory: list[FileInfo],
     *,
-    compare_symlinks: bool = False,
     compare_all_sizes: bool = False,
 ) -> tuple[list[FileInfo], list[FileInfo], dict[str, FileChange]]:
     """Compare attributes, keeping the historical >10% growth check unless all size changes are requested."""
@@ -56,11 +55,6 @@ def _compare_inventories(
             changed_flags |= FileChange.Flags.Owner
         if current.group != previous.group:
             changed_flags |= FileChange.Flags.Group
-
-        if compare_symlinks and (
-            bool(current.is_symlink) != bool(previous.is_symlink) or current.symlink_target != previous.symlink_target
-        ):
-            changed_flags |= FileChange.Flags.Symlink
 
         if changed_flags:
             changed_files[path] = FileChange(

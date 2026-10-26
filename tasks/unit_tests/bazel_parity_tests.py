@@ -27,6 +27,17 @@ class BazelParityTests(unittest.TestCase):
         for old, new in ((0, 1), (1, 0)):
             _, counts = parity.file_tasks([replace(original, size_bytes=old)], [replace(original, size_bytes=new)])
             self.assertEqual(counts['mismatch'], 1)
+        symlink = replace(original, is_symlink=True, symlink_target='/target')
+        for current, flags in (
+            (replace(symlink, symlink_target='target2'), ['symlink']),
+            (original, ['symlink']),
+            (replace(symlink, size_bytes=99, symlink_target='target2'), ['size', 'symlink']),
+        ):
+            self.assertEqual(_compare_inventories([symlink], [current]), ([], [], {}))
+            tasks, counts = parity.file_tasks([symlink], [current])
+            self.assertEqual(counts['match'], 0)
+            self.assertEqual(counts['mismatch'], 1)
+            self.assertEqual(tasks[0]['differences'][0]['flags'], flags)
 
     def test_metadata_parsing_preserves_values(self):
         control = parse_deb_control(

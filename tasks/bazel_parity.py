@@ -40,21 +40,34 @@ def find_packages(directory: str, product: str, package_format: str, arch: str) 
 
 
 def file_tasks(previous: list[FileInfo], current: list[FileInfo]) -> tuple[list[dict], dict]:
-    added, removed, changed = _compare_inventories(previous, current, compare_all_sizes=True, compare_symlinks=True)
+    added, removed, changed = _compare_inventories(previous, current, compare_all_sizes=True)
     groups = {info.relative_path.split('/')[0]: [] for info in previous + current}
     for result, files in (('missing_in_bazel', removed), ('extra_in_bazel', added)):
         for info in files:
             groups[info.relative_path.split('/')[0]].append(
                 {'path': info.relative_path, 'result': result, 'file': asdict(info)}
             )
-    for path, change in changed.items():
+    current_files = {info.relative_path: info for info in current}
+    mismatch_count = 0
+    for old in previous:
+        path = old.relative_path
+        new = current_files.get(path)
+        if new is None:
+            continue
+        change = changed.get(path)
+        flags = [flag.name.lower() for flag in type(change.flags) if flag & change.flags] if change else []
+        if bool(old.is_symlink) != bool(new.is_symlink) or old.symlink_target != new.symlink_target:
+            flags.append('symlink')
+        if not flags:
+            continue
+        mismatch_count += 1
         groups[path.split('/')[0]].append(
             {
                 'path': path,
                 'result': 'mismatch',
-                'flags': [flag.name.lower() for flag in type(change.flags) if flag & change.flags],
-                'omnibus': asdict(change.previous),
-                'bazel': asdict(change.current),
+                'flags': flags,
+                'omnibus': asdict(old),
+                'bazel': asdict(new),
             }
         )
     tasks = [
@@ -67,10 +80,10 @@ def file_tasks(previous: list[FileInfo], current: list[FileInfo]) -> tuple[list[
         for directory, differences in sorted(groups.items())
     ]
     counts = {
-        'match': len(previous) - len(removed) - len(changed),
+        'match': len(previous) - len(removed) - mismatch_count,
         'missing_in_bazel': len(removed),
         'extra_in_bazel': len(added),
-        'mismatch': len(changed),
+        'mismatch': mismatch_count,
     }
     return tasks, counts
 

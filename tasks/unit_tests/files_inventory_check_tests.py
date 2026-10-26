@@ -1,7 +1,7 @@
 import os
 import tempfile
 import unittest
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from unittest.mock import MagicMock, patch
 
 import yaml
@@ -101,24 +101,6 @@ class TestCompareInventory(unittest.TestCase):
         self.assertFalse(changed['/a/b/c'].flags & ~(FileChange.Flags.Owner | FileChange.Flags.Group))
         self.assertEqual(changed['/a/b/c'].current, changed_file)
         self.assertEqual(changed['/a/b/c'].previous, old_file)
-
-
-class TestCompareInventorySymlinks(unittest.TestCase):
-    previous = FileInfo(relative_path='opt/agent/current', size_bytes=7, is_symlink=True, symlink_target='/target')
-
-    def test_reports_symlink_target_changes_when_enabled(self):
-        current = replace(self.previous, symlink_target='target2')
-        _, _, changed = _compare_inventories([self.previous], [current], compare_symlinks=True)
-        self.assertEqual(changed[current.relative_path].flags, FileChange.Flags.Symlink)
-
-    def test_reports_symlink_type_changes_when_enabled(self):
-        current = replace(self.previous, is_symlink=False, symlink_target=None)
-        _, _, changed = _compare_inventories([self.previous], [current], compare_symlinks=True)
-        self.assertEqual(changed[current.relative_path].flags, FileChange.Flags.Symlink)
-
-    def test_leaves_historical_symlink_behavior_unchanged(self):
-        current = replace(self.previous, symlink_target='target2')
-        self.assertEqual(_compare_inventories([self.previous], [current]), ([], [], {}))
 
 
 class TestCompareInventoryReports(unittest.TestCase):
