@@ -1,0 +1,16 @@
+alias(
+    name = "mc",
+    actual = select({
+        "//:linux_x86_64": "@wine_linux_x86_64//:wmc",
+        "@platforms//os:windows": "@winlibs_mingw64//:windmc",
+    }),
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "nls",
+    srcs = select({
+        "//:linux_x86_64": ["@wine_linux_x86_64//:nls"],
+        "//conditions:default": [],
+    }),
+)
