@@ -9,6 +9,7 @@ package receiver
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -49,10 +50,10 @@ func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
 }
 func errSymbolUploaderReportIntervalInvalid() error {
-	return errors.New("symbol_uploader.report.interval must be positive")
+	return fmt.Errorf("symbol_uploader.report.interval must be positive and at most %s", symboluploader.MaxReportInterval)
 }
 func errSymbolUploaderReportMaxInvalid() error {
-	return errors.New("symbol_uploader.report.max_paths_per_report must be positive")
+	return fmt.Errorf("symbol_uploader.report.max_paths_per_report must be positive and at most %d", symboluploader.MaxReportMaxPathsPerReport)
 }
 
 // Validate validates the config.
@@ -83,10 +84,10 @@ func (c *Config) Validate() error {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
 		}
-		if c.SymbolUploader.Report.Interval <= 0 {
+		if c.SymbolUploader.Report.Interval <= 0 || c.SymbolUploader.Report.Interval > symboluploader.MaxReportIntervalSeconds {
 			return errSymbolUploaderReportIntervalInvalid()
 		}
-		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 {
+		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 || c.SymbolUploader.Report.MaxPathsPerReport > symboluploader.MaxReportMaxPathsPerReport {
 			return errSymbolUploaderReportMaxInvalid()
 		}
 	}

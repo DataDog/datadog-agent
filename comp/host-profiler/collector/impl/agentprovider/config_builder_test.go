@@ -10,6 +10,7 @@ package agentprovider
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -309,6 +310,56 @@ func TestBuildReceiversSymbolUploaderReportOnlyMaxPositive(t *testing.T) {
 	max, ok := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::max_paths_per_report")
 	require.True(t, ok, "max_paths_per_report key should be present when positive")
 	assert.Equal(t, 42, max)
+}
+
+func TestBuildReceiversSymbolUploaderReportIntervalAboveCeilingNotForwarded(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			SymbolUploaderReport: symbolUploaderReportConfig{
+				Interval:          symboluploader.MaxReportIntervalSeconds + 1,
+				MaxPathsPerReport: 42,
+			},
+		},
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	_, hasInterval := confmaputils.Get[string](conf, "receivers::profiling::symbol_uploader::report::interval")
+	assert.False(t, hasInterval, "interval key should not be added when above MaxReportIntervalSeconds")
+
+	max, ok := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::max_paths_per_report")
+	require.True(t, ok, "max_paths_per_report key should be present when positive, independent of interval")
+	assert.Equal(t, 42, max)
+}
+
+func TestBuildReceiversSymbolUploaderReportMaxAboveCeilingNotForwarded(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			SymbolUploaderReport: symbolUploaderReportConfig{
+				Interval:          600,
+				MaxPathsPerReport: symboluploader.MaxReportMaxPathsPerReport + 1,
+			},
+		},
+	}
+	conf := make(confMap)
+	buildReceivers(conf, agent)
+
+	interval, ok := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::interval")
+	require.True(t, ok, "interval key should be present when positive, independent of max_paths_per_report")
+	assert.Equal(t, 600, interval)
+
+	_, hasMax := confmaputils.Get[int](conf, "receivers::profiling::symbol_uploader::report::max_paths_per_report")
+	assert.False(t, hasMax, "max_paths_per_report key should not be added when above MaxReportMaxPathsPerReport")
 }
 
 func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) {

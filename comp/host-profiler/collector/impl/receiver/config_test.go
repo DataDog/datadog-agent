@@ -198,6 +198,48 @@ func TestSymbolUploaderReportNonPositiveIsRejected(t *testing.T) {
 	require.ErrorContains(t, err, errSymbolUploaderReportMaxInvalid().Error())
 }
 
+func TestSymbolUploaderReportIntervalAboveCeilingIsRejected(t *testing.T) {
+	input := map[string]any{
+		"symbol_uploader": map[string]any{
+			"enabled": true,
+			"symbol_endpoints": []any{
+				map[string]any{"site": "datadoghq.com", "api_key": "test-key"},
+			},
+			"report": map[string]any{
+				"interval": symboluploader.MaxReportIntervalSeconds + 1,
+			},
+		},
+	}
+
+	cfg := defaultConfig(profilerName).(Config)
+	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
+	require.NoError(t, err)
+
+	err = cfg.Validate()
+	require.ErrorContains(t, err, errSymbolUploaderReportIntervalInvalid().Error())
+}
+
+func TestSymbolUploaderReportMaxAboveCeilingIsRejected(t *testing.T) {
+	input := map[string]any{
+		"symbol_uploader": map[string]any{
+			"enabled": true,
+			"symbol_endpoints": []any{
+				map[string]any{"site": "datadoghq.com", "api_key": "test-key"},
+			},
+			"report": map[string]any{
+				"max_paths_per_report": symboluploader.MaxReportMaxPathsPerReport + 1,
+			},
+		},
+	}
+
+	cfg := defaultConfig(profilerName).(Config)
+	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
+	require.NoError(t, err)
+
+	err = cfg.Validate()
+	require.ErrorContains(t, err, errSymbolUploaderReportMaxInvalid().Error())
+}
+
 func TestSymbolUploaderReportDisabledSkipsValidation(t *testing.T) {
 	input := map[string]any{
 		"symbol_uploader": map[string]any{

@@ -15,17 +15,18 @@ import (
 
 // Default configuration values
 const (
-	DefaultSymbolQueryInterval  = 5 * time.Second
-	DefaultUploadSymbolsDryRun  = false
-	DefaultUploadSymbolsHTTP2   = false
-	DefaultUploadSymbols        = true
-	DefaultUploadDynamicSymbols = false
-	DefaultUploadGoPCLnTab      = true
-	DefaultReportInterval       = 5 * time.Minute
-	// DefaultReportIntervalSeconds is DefaultReportInterval expressed in seconds,
-	// matching ReportConfig.Interval's wire unit.
+	DefaultSymbolQueryInterval     = 5 * time.Second
+	DefaultUploadSymbolsDryRun     = false
+	DefaultUploadSymbolsHTTP2      = false
+	DefaultUploadSymbols           = true
+	DefaultUploadDynamicSymbols    = false
+	DefaultUploadGoPCLnTab         = true
+	DefaultReportInterval          = 5 * time.Minute
 	DefaultReportIntervalSeconds   = int(DefaultReportInterval / time.Second)
 	DefaultReportMaxPathsPerReport = 100
+	MaxReportInterval              = 24 * time.Hour
+	MaxReportIntervalSeconds       = int(MaxReportInterval / time.Second)
+	MaxReportMaxPathsPerReport     = 100_000
 )
 
 // ReportConfig configures the batched upload report emitted periodically.
