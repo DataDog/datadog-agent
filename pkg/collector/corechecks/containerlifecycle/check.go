@@ -215,9 +215,11 @@ func (c *Check) Run() error {
 }
 
 // observeSubscriptionQueue records the backlog of a workloadmeta subscription
-// channel: its current depth and the time the received bundle waited in it.
+// channel: its current depth, the size of the received bundle, and the time
+// the bundle waited in the channel.
 func observeSubscriptionQueue(channel string, ch chan workloadmeta.EventBundle, bundle workloadmeta.EventBundle) {
 	queueLength.Set(float64(len(ch)), channel)
+	bundleSize.Observe(float64(len(bundle.Events)), channel)
 	if !bundle.EnqueuedAt.IsZero() {
 		queueLatency.Observe(time.Since(bundle.EnqueuedAt).Seconds(), channel)
 	}

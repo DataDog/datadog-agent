@@ -2289,8 +2289,7 @@ type EventBundle struct {
 
 	// EnqueuedAt is the time at which the Store sent the bundle to the
 	// subscriber's channel. Subscribers can use it to measure how long the
-	// bundle waited in the channel. It is zero for bundles not sent by the
-	// Store.
+	// bundle waited in the channel.
 	EnqueuedAt time.Time
 }
 
