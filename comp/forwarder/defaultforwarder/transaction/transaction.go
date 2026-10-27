@@ -274,6 +274,7 @@ type HTTPTransaction struct {
 	// Instead store the index so it can be resolved prior to sending.
 	APIKeyIndex uint
 	// APIKeyVersion is the credential-set generation used by the most recent send attempt.
+	// It is not serialized for disk retries: each send refreshes it from the resolver.
 	APIKeyVersion int
 	Resolver      Authorizer
 }

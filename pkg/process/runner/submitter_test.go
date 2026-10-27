@@ -344,6 +344,55 @@ func TestSubmitterIgnoresStaleRTResponses(t *testing.T) {
 	})
 }
 
+func TestSubmitterOrdersConcurrentQueuesBeforeSubmitReturns(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+		started := make(chan struct{})
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(func() {
+			releaseOnce()
+			s.Stop()
+		})
+
+		const domain = "https://shared.example.com"
+		older := make(chan forwarder.Response, 1)
+		older <- forwarder.Response{Domain: domain, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
+		close(older)
+		newer := make(chan forwarder.Response, 1)
+		newer <- forwarder.Response{Domain: domain, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 2)}
+		close(newer)
+		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			close(started)
+			<-release // Older submission must not become newer by returning last.
+			return older, nil
+		}
+		s.submitFuncs[checks.RTProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			return newer, nil
+		}
+		require.NoError(t, s.Start())
+
+		submitProcessPayload(s)
+		<-started
+		s.Submit(time.Now(), checks.RTProcessCheckName, &types.Payload{
+			CheckName: checks.RTProcessCheckName,
+			Message:   []model.MessageBody{&model.CollectorRealTime{HostName: testHostName}},
+		})
+		synctest.Wait()
+		assert.Equal(t, int32(1), rtStatuses(t, s)[0].ActiveClients)
+
+		releaseOnce()
+		synctest.Wait()
+		select {
+		case <-s.GetRTNotifierChan():
+			t.Fatal("older standard response overwrote newer RT status")
+		default:
+		}
+	})
+}
+
 func TestSubmitterRetainsSlowEndpointRTAcrossSubmissions(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
@@ -630,7 +679,46 @@ func TestSubmitterExpiresRepeatedRTFailures(t *testing.T) {
 	})
 }
 
-func TestSubmitterKeepsOtherKeyVoteDuringRotation(t *testing.T) {
+func TestSubmitterInvalidatesReorderedKeyVotes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+		t.Cleanup(s.Stop)
+
+		const domain = "https://shared.example.com"
+		initial := make(chan forwarder.Response, 2)
+		initial <- forwarder.Response{Domain: domain, APIKeyIndex: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
+		initial <- forwarder.Response{Domain: domain, APIKeyIndex: 2, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 10)}
+		close(initial)
+		rotated := make(chan forwarder.Response, 1)
+		rotated <- forwarder.Response{Domain: domain, APIKeyIndex: 1, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
+		calls := 0
+		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			calls++
+			if calls == 1 {
+				return initial, nil
+			}
+			return rotated, nil
+		}
+		require.NoError(t, s.Start())
+
+		submitProcessPayload(s)
+		synctest.Wait()
+		original := rtStatuses(t, s)
+		require.Len(t, original, 2)
+		assert.Equal(t, int32(1), original[0].ActiveClients+original[1].ActiveClients)
+
+		// Index 2 no longer names its former key after the domain's keys reorder.
+		submitProcessPayload(s)
+		synctest.Wait()
+		current := rtStatuses(t, s)
+		require.Len(t, current, 1, "old key-index votes must not survive a credential-set change")
+		assert.Equal(t, int32(0), current[0].ActiveClients)
+	})
+}
+
+func TestSubmitterInvalidatesDomainVotesDuringRotation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		deps := getSubmitterDeps(t, nil, nil)
 		status.InitExpvars(deps.Config, testHostName, false, false, nil)
@@ -641,7 +729,7 @@ func TestSubmitterKeepsOtherKeyVoteDuringRotation(t *testing.T) {
 		require.NoError(t, err)
 
 		first := make(chan forwarder.Response, 2)
-		second := make(chan forwarder.Response, 2)
+		second := make(chan forwarder.Response, 3)
 		calls := 0
 		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
 			calls++
@@ -658,12 +746,17 @@ func TestSubmitterKeepsOtherKeyVoteDuringRotation(t *testing.T) {
 		runner.UpdateRTStatus(rtStatuses(t, s))
 		assert.True(t, runner.IsRealTimeEnabled())
 
-		second <- forwarder.Response{Domain: domain, APIKeyIndex: 0, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
+		second <- forwarder.Response{Domain: domain, APIKeyIndex: 0, APIKeyVersion: 1, Err: errors.New("rotated key failed")}
 		submitProcessPayload(s)
 		synctest.Wait()
 		runner.UpdateRTStatus(rtStatuses(t, s))
-		assert.True(t, runner.IsRealTimeEnabled(), "rotating a different key must not discard this key's vote")
-		assert.Equal(t, 10*time.Second, runner.realTimeInterval)
+		assert.False(t, runner.IsRealTimeEnabled(), "old key-index votes must be invalidated on rotation")
+
+		second <- forwarder.Response{Domain: domain, APIKeyIndex: 0, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
+		synctest.Wait()
+		runner.UpdateRTStatus(rtStatuses(t, s))
+		assert.False(t, runner.IsRealTimeEnabled())
+		assert.Equal(t, 2*time.Second, runner.realTimeInterval)
 
 		first <- forwarder.Response{Domain: domain, APIKeyIndex: 1, APIKeyVersion: 0, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
 		synctest.Wait()
@@ -675,8 +768,11 @@ func TestSubmitterKeepsOtherKeyVoteDuringRotation(t *testing.T) {
 		second <- forwarder.Response{Domain: domain, APIKeyIndex: 1, APIKeyVersion: 1, StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 1, 10)}
 		close(second)
 		synctest.Wait()
-		assert.Len(t, rtStatuses(t, s), 2)
+		current := rtStatuses(t, s)
+		require.Len(t, current, 2)
+		runner.UpdateRTStatus(current)
 		assert.True(t, runner.IsRealTimeEnabled())
+		assert.Equal(t, 10*time.Second, runner.realTimeInterval)
 	})
 }
 

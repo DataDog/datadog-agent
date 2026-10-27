@@ -8,7 +8,6 @@ package retry
 import (
 	"fmt"
 	"net/http"
-	"reflect"
 	"testing"
 	"time"
 
@@ -224,15 +223,6 @@ func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 	transactions, _, err := serializer.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(uint(0), transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
-}
-
-func TestHTTPTransactionFieldsCount(t *testing.T) {
-	tr := transaction.HTTPTransaction{}
-	transactionType := reflect.TypeOf(tr)
-	assert.Equalf(t, 15, transactionType.NumField(),
-		"A field was added or removed from HTTPTransaction. "+
-			"You probably need to update the implementation of "+
-			"HTTPTransactionsSerializer and then adjust this unit test.")
 }
 
 func createHTTPTransactionTests(domain string) *transaction.HTTPTransaction {

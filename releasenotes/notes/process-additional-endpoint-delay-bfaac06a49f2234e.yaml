@@ -7,3 +7,5 @@ fixes:
     so heavy overload can delay delivery.
     If every endpoint stops responding, real-time mode is disabled after 30
     seconds without a successful response instead of retaining stale status.
+    Changing a domain's API keys clears its previous real-time status until
+    the new credentials receive responses.

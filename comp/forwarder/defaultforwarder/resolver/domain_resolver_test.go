@@ -143,6 +143,32 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
 }
 
+func TestAdditionalEndpointReloadOnlyRotatesChangedDomain(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	const firstDomain = "https://first.example.com"
+	const secondDomain = "https://second.example.com"
+	first, err := NewSingleDomainResolver(firstDomain, []utils.APIKeys{utils.NewAPIKeys(setting, "first-key")})
+	require.NoError(t, err)
+	second, err := NewSingleDomainResolver(secondDomain, []utils.APIKeys{utils.NewAPIKeys(setting, "second-key")})
+	require.NoError(t, err)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest(setting, map[string][]string{
+		firstDomain:  {"rotated-key"},
+		secondDomain: {"second-key"},
+	})
+	log := logmock.New(t)
+	updateAdditionalEndpoints(first, setting, cfg, log)
+	updateAdditionalEndpoints(second, setting, cfg, log)
+
+	assertKeys(t, []string{"rotated-key"}, first)
+	assertKeys(t, []string{"second-key"}, second)
+	assert.Equal(t, 1, first.GetAPIKeyVersion(), "changed domain must identify its new credential set")
+	assert.Equal(t, 0, second.GetAPIKeyVersion(), "unchanged domain must retain its RT vote")
+	second.UpdateAPIKey(setting, "not-present", "irrelevant")
+	assert.Equal(t, 0, second.GetAPIKeyVersion(), "no-op key replacement must not invalidate RT status")
+}
+
 func TestUpdateAdditionalEndpointsAfterAgentVersionDomainRewrite(t *testing.T) {
 	const configuredDomain = "https://app.datadoghq.com"
 	resolver, err := NewSingleDomainResolver(configuredDomain, []utils.APIKeys{

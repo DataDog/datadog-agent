@@ -23,7 +23,6 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/process/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
@@ -71,6 +70,13 @@ func TestUpdateRTStatus(t *testing.T) {
 	}
 	c.UpdateRTStatus(statuses)
 	assert.False(c.realTimeEnabled.Load())
+
+	// Losing every endpoint's vote disables RT without rewriting the last backend interval.
+	c.UpdateRTStatus([]*model.CollectorStatus{{ActiveClients: 1, Interval: 10}})
+	assert.True(c.realTimeEnabled.Load())
+	c.UpdateRTStatus(nil)
+	assert.False(c.realTimeEnabled.Load())
+	assert.Equal(10*time.Second, c.realTimeInterval)
 }
 
 func TestUpdateRTInterval(t *testing.T) {
@@ -311,15 +317,4 @@ func TestCollectorRunCheck(t *testing.T) {
 	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
 
 	c.runCheck(check)
-}
-
-// TestSubmitterDoesntBlockOnRTUpdate tests notifyRTStatusChange to ensure that we never block if the channel is filled up
-func TestSubmitterDoesntBlockOnRTUpdate(t *testing.T) {
-	emptyChan := make(chan types.RTResponse)
-	notifyRTStatusChange(emptyChan, types.RTResponse{})
-
-	queued := make(chan types.RTResponse, 1)
-	queued <- types.RTResponse{{ActiveClients: 0}}
-	notifyRTStatusChange(queued, types.RTResponse{{ActiveClients: 1}})
-	assert.Equal(t, int32(1), (<-queued)[0].ActiveClients)
 }

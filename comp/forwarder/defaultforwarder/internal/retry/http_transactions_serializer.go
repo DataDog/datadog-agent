@@ -120,9 +120,8 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 	return nil
 }
 
-// checkAPIKeyUpdate checks if the resolver has updated it's API keys - it does this by maintaining a version
-// number that increments with every update. If they have been updated, we reload the new set of keys and
-// update our replacers.
+// checkAPIKeyUpdate refreshes replacers when the resolver's effective API keys change.
+// The generation stays stable for config reloads that leave the deduplicated keys unchanged.
 func (s *HTTPTransactionsSerializer) checkAPIKeyUpdate() {
 	if s.resolver.GetAPIKeyVersion() != s.currentKeyVersion {
 		// API keys have been updated so we need to rebuild.

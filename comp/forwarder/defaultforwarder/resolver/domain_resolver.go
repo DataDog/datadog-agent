@@ -329,9 +329,12 @@ func (r *domainResolver) updateAPIKeysLocked(configPath string, newKeys []utils.
 	}
 
 	r.apiKeys = append(newAPIKeys, newKeys...)
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+	deduped := utils.DedupAPIKeys(r.apiKeys)
+	if !slices.Equal(r.dedupedAPIKeys, deduped) {
+		r.keyVersion++
+	}
+	r.dedupedAPIKeys = deduped
 	r.hasPendingDelegatedAuth = hasPendingDelegatedAuthKeys(r.apiKeys)
-	r.keyVersion++
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
@@ -354,8 +357,11 @@ func (r *domainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 		}
 	}
 
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
-	r.keyVersion++
+	deduped := utils.DedupAPIKeys(r.apiKeys)
+	if !slices.Equal(r.dedupedAPIKeys, deduped) {
+		r.keyVersion++
+	}
+	r.dedupedAPIKeys = deduped
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver

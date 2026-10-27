@@ -48,7 +48,7 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
-// Preserve RT decisions through short outages, but not prolonged silence.
+// Preserve RT decisions through short outages, but not credential-set changes or prolonged silence.
 const rtStatusFailureGracePeriod = 30 * time.Second
 
 type rtEndpointKey struct {
@@ -58,7 +58,6 @@ type rtEndpointKey struct {
 
 type rtEndpointStatus struct {
 	sequence    uint64
-	keyVersion  int
 	status      *model.CollectorStatus
 	lastSuccess time.Time
 }
@@ -318,8 +317,9 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			}
 
 			updateRTStatus := s.realtimeUpdate[result.name]
-			var submissionGeneration uint64
+			sequence, submissionGeneration := uint64(0), uint64(0)
 			if updateRTStatus {
+				sequence = s.rtSequence.Add(1)
 				submissionGeneration = s.rtGeneration.Load()
 			}
 			submitFn, ok := s.submitFuncs[result.name]
@@ -338,10 +338,6 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 				continue
 			}
 
-			sequence := uint64(0)
-			if updateRTStatus {
-				sequence = s.rtSequence.Add(1)
-			}
 			// Never gate a new submission on old response channels: an unreachable
 			// endpoint must not delay the next payload to a healthy endpoint.
 			s.wg.Add(1)
@@ -397,17 +393,23 @@ func (s *CheckSubmitter) publishRTStatus(sequence uint64, domain string, apiKeyI
 	if known && apiKeyVersion < knownVersion {
 		return // A delayed response from before an API-key update.
 	}
-	if known && apiKeyVersion > knownVersion {
+	rotated := known && apiKeyVersion > knownVersion
+	if rotated {
 		s.rtGeneration.Add(1)
+		// An index may identify a different key after an update or reorder.
+		for endpoint := range s.rtEndpoints {
+			if endpoint.domain == domain {
+				delete(s.rtEndpoints, endpoint)
+			}
+		}
 	}
 	s.rtDomainVersions[domain] = apiKeyVersion
 	key := rtEndpointKey{domain: domain, apiKeyIndex: apiKeyIndex}
 	previous := s.rtEndpoints[key]
-	if apiKeyVersion == previous.keyVersion && sequence < previous.sequence {
+	if sequence < previous.sequence {
 		return // Only a newer response from this credential set can supersede it.
 	}
 	previous.sequence = sequence
-	previous.keyVersion = apiKeyVersion
 	if collectorStatus == nil {
 		if previous.status != nil && time.Since(previous.lastSuccess) >= rtStatusFailureGracePeriod {
 			previous.status = nil
@@ -416,6 +418,9 @@ func (s *CheckSubmitter) publishRTStatus(sequence uint64, domain string, apiKeyI
 			return
 		}
 		s.rtEndpoints[key] = previous
+		if rotated {
+			s.notifyRTStatus()
+		}
 		return
 	}
 	previous.status = collectorStatus
@@ -464,7 +469,12 @@ func (s *CheckSubmitter) notifyRTStatus() {
 			statuses = append(statuses, endpoint.status)
 		}
 	}
-	notifyRTStatusChange(s.rtNotifierChan, statuses)
+	// Only this submitter writes while holding rtMu; the channel has one slot.
+	select {
+	case <-s.rtNotifierChan:
+	default:
+	}
+	s.rtNotifierChan <- statuses
 }
 
 func (s *CheckSubmitter) logQueuesSize() {
@@ -591,23 +601,6 @@ func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 			_ = s.statsd.Gauge("datadog.process.agent", 1, tags, 1)
 		case <-s.stopHeartbeat:
 			return
-		}
-	}
-}
-
-func notifyRTStatusChange(rtNotifierChan chan types.RTResponse, statuses types.RTResponse) {
-	select {
-	case rtNotifierChan <- statuses:
-	default:
-		// Replace a queued update with the newest aggregate rather than
-		// dropping the healthy RT status while the runner is busy.
-		select {
-		case <-rtNotifierChan:
-		default:
-		}
-		select {
-		case rtNotifierChan <- statuses:
-		default: // An unbuffered channel without a reader must never block.
 		}
 	}
 }

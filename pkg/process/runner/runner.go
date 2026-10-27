@@ -441,6 +441,11 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 		l.realTimeEnabled.Store(true)
 	}
 
+	// There is no backend interval to apply when every endpoint vote has expired.
+	if len(statuses) == 0 {
+		return
+	}
+
 	if maxInterval != l.realTimeInterval {
 		l.realTimeInterval = maxInterval
 		if l.realTimeInterval <= 0 {
