@@ -133,7 +133,11 @@ pub fn start() -> Reaper {
     Reaper {}
 }
 
-/// Poll interval when SIGCHLD is quiet (Tokio also consumes SIGCHLD).
+/// Poll interval when no SIGCHLD arrives.
+///
+/// SIGCHLD is coalesced (kernel and Tokio), and wakeups can race the wait
+/// drain, so we also poll while idle. Tokio delivers SIGCHLD to every
+/// listener. It does not consume it exclusively.
 #[cfg(target_os = "linux")]
 const IDLE_POLL: std::time::Duration = std::time::Duration::from_millis(500);
 
