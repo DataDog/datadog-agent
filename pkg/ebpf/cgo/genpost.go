@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -63,7 +64,7 @@ func filterStdin(w io.Writer, args []string) error {
 // generated file). CC and GOROOT are made absolute first.
 func generate(outPath, srcPath, goBin, cc, goroot, testPath, pkgName string, cgoFlags []string) error {
 	if outPath == "" || goBin == "" || cc == "" || goroot == "" {
-		return fmt.Errorf("genpost requires -out, -go, -cc and -goroot")
+		return errors.New("genpost requires -out, -go, -cc and -goroot")
 	}
 	root, err := os.Getwd()
 	if err != nil {
@@ -102,7 +103,7 @@ func generate(outPath, srcPath, goBin, cc, goroot, testPath, pkgName string, cgo
 		return nil
 	}
 	if pkgName == "" {
-		return fmt.Errorf("genpost requires -pkg with -test")
+		return errors.New("genpost requires -pkg with -test")
 	}
 	return writeTests(bytes.NewReader(raw), abs(testPath), pkgName)
 }
