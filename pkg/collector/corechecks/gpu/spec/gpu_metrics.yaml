@@ -392,6 +392,36 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  # device.sharing_memory is only reported for containers assigned a share of
+  # a GPU, so it is optional: other workloads never produce it.
+  device.sharing_memory:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: >-
+        GPU memory the container is allowed to use, when the GPU is shared
+        between containers that are each assigned a fraction of it, as described
+        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        GPU fractions). The GPU memory not assigned to any container can be
+        computed with `max:gpu.memory.limit{*} by {gpu_uuid} -
+        sum:gpu.device.sharing_memory{*} by {gpu_uuid}`. Not reported for
+        containers without an assigned fraction.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   device.total:
     metadata:
       metric_type: gauge

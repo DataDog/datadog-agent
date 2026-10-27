@@ -34,7 +34,7 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/reporter"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"

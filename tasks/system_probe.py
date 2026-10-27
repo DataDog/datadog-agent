@@ -160,10 +160,9 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
-    embedded_path = get_embedded_path(ctx)
-    assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
-    if os.path.exists(target_file):
+    embedded_path = get_embedded_path()
+    target_file = embedded_path / "embedded" / "lib" / "libpcap.a"
+    if target_file.exists():
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
@@ -174,13 +173,12 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     return
 
 
-def get_libpcap_cgo_flags(ctx):
+def get_libpcap_cgo_flags():
     """Return CGO flags for the development tree where build_libpcap installs its output."""
-    embedded_path = get_embedded_path(ctx)
-    assert embedded_path, "Failed to find embedded path"
+    embedded_path = get_embedded_path()
     return {
-        'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
-        'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
+        'CGO_CFLAGS': f"-I{embedded_path / 'embedded' / 'include'}",
+        'CGO_LDFLAGS': f"-L{embedded_path / 'embedded' / 'lib'}",
     }
 
 
@@ -268,7 +266,7 @@ def build_sysprobe_binary(
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx, arch=arch_obj, env=env)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
+        cgo_flags = get_libpcap_cgo_flags()
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:

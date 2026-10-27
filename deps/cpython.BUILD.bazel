@@ -393,19 +393,6 @@ pkg_files(
     strip_prefix = "build",
 )
 
-# On Windows, python_win is built via MSBuild (not cc_shared_library), so there are no
-# dynamic_deps edges for dd_collect_dependencies to walk automatically from python_pkg.
-# Explicitly collect OpenSSL packaged targets so that embedded3/include/openssl/ and
-# embedded3/lib/*.lib are present (required for FIPS cryptography source builds).
-dd_collect_dependencies(
-    name = "_openssl_deps_win",
-    srcs = [
-        "@openssl//:libcrypto_shared_pkg",
-        "@openssl//:libssl_shared_pkg",
-    ],
-    visibility = ["//visibility:private"],
-)
-
 # We resort to select_file here instead of picking the output groups with filegroup
 # because configure_make names its output groups by "basename", for which we have a conflict:
 # both the versioned python binary as well as the library root (under lib) share the same name.
@@ -510,7 +497,12 @@ pkg_filegroup(
     name = "all_files",
     srcs = select({
         "@platforms//os:windows": [
-            ":_openssl_deps_win",
+            # python_win is built via MSBuild (not cc_shared_library), so there
+            # are no dynamic_deps edges to walk from python_pkg: pull in the
+            # Windows OpenSSL payload (embedded3/include/openssl/,
+            # embedded3/lib/*.lib, ...) explicitly, required for FIPS
+            # cryptography source builds.
+            "@openssl//:windows_pkg",
             ":install_files_win",
         ],
         "//conditions:default": [

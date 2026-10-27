@@ -859,7 +859,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
+	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -2313,6 +2313,9 @@ type GPUShare struct {
 	// Fraction is the fraction of the GPU assigned to the container, in (0, 1],
 	// or 0 when the container shares the GPU but its share is unknown.
 	Fraction float64
+	// Memory is the GPU memory, in bytes, that the container is allowed to
+	// use, or 0 when the container shares the GPU but its memory is unknown.
+	Memory uint64
 }
 
 // GPUDeviceType is an enum to identify the type of the GPU device.
