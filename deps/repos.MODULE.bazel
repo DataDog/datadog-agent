@@ -121,10 +121,10 @@ http_archive(
     files = {
         "generated/config.h": "//deps:util-linux/config.h",
     },
-    sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
-    strip_prefix = "util-linux-2.39.2",
+    sha256 = "af3241e7776964dcb6bb9a811ca7b0d93000b563e2ae2a8df8f80a7cd6e04d56",
+    strip_prefix = "util-linux-2.42.4",
     urls = [
-        "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+        "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.4.tar.gz",
     ],
 )
 
