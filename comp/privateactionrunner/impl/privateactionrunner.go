@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -36,7 +34,6 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
-	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -46,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -64,20 +62,6 @@ const (
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(par.Enabled)
-}
-
-func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
-	if containerized {
-		return envValue == "true"
-	}
-	return configEnabled
-}
-
-func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
-	if fipsEnabled {
-		return false
-	}
-	return goos == "linux" || (goos == "windows" && !containerized && processManagerEnabled)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -142,20 +126,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if splitDeploymentEnabled(
-		reqs.Config.GetBool(par.SplitEnabled),
-		configenv.IsContainerized(),
-		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
-	) {
-		fipsEnabled := reqs.Config.GetBool("fips.enabled")
-		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
-			fipsEnabled = fipsEnabled || buildFIPSEnabled
-		}
-		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
-			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
-			reqs.Log.Flush()
-			return Provides{}, privateactionrunner.ErrSplitDeployment
-		}
+	mode, err := deployment.Resolve(reqs.Config)
+	if err != nil {
+		return Provides{}, err
+	}
+	if mode == deployment.Split {
+		reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrSplitDeployment
+	}
+	if deployment.Requested(reqs.Config) {
 		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
@@ -377,9 +357,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
-	if !p.coreConfig.GetBool(par.Enabled) || !splitDeploymentEnabled(
-		p.coreConfig.GetBool(par.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
-	) {
+	if !p.coreConfig.GetBool(par.Enabled) || !deployment.Requested(p.coreConfig) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
 	}
