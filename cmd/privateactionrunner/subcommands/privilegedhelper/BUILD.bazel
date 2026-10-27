@@ -46,13 +46,5 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ] + select({
-        "@rules_go//go/platform:android": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:linux": [
-            "@org_golang_x_sys//unix",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

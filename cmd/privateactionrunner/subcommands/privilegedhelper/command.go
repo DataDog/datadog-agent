@@ -37,8 +37,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long: `Loads the Agent configuration the way the Private Action Runner does. If
 private_action_runner.restricted_shell.privileged.enabled is false, or the kernel
 cannot run the helper, it exits with status 0 without creating the socket.
-Otherwise it creates the helper socket and replaces itself with the rshell
-privileged helper, which serves it. systemd runs it as root.`,
+Otherwise it replaces itself with the rshell privileged helper, which creates
+and serves the socket. systemd runs it as root.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(params),
@@ -53,7 +53,7 @@ privileged helper, which serves it. systemd runs it as root.`,
 		},
 	}
 	cmd.Flags().StringVar(&params.helperPath, "helper", "", "path to the rshell binary")
-	cmd.Flags().StringVar(&params.socketPath, "socket", par.RShellPrivilegedSocketDefault, "path of the socket to create for the helper")
+	cmd.Flags().StringVar(&params.socketPath, "socket", par.RShellPrivilegedSocketDefault, "path of the socket the helper creates")
 	cmd.Flags().StringVar(&params.policyPath, "policy", "", "path to the root-provisioned helper policy")
 	return []*cobra.Command{cmd}
 }

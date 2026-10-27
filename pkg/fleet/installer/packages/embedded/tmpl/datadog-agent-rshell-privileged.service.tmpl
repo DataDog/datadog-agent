@@ -1,8 +1,8 @@
 [Unit]
 # Pulled in by the matching Agent unit's Wants= and stopped with it. The
-# privateactionrunner launcher exits without creating the socket unless the
-# Agent configuration enables the helper; otherwise it creates the socket and
-# replaces itself with the rshell helper, which serves it until the Agent
+# privateactionrunner launcher exits unless the Agent configuration enables the
+# helper; otherwise it replaces itself with the rshell helper, which creates
+# the socket in this unit's RuntimeDirectory and serves it until the Agent
 # stops.
 {{- if .Stable}}
 Description=Datadog rshell privileged helper
