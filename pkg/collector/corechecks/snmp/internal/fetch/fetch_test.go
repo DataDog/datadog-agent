@@ -944,6 +944,27 @@ func Test_fetchValues_errors(t *testing.T) {
 	}
 }
 
+func Test_fetchValues_columnFailureKeepsScalars(t *testing.T) {
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version2c
+	sess.On("Get", []string{"1.1.1.1.0"}).Return(&gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{{Name: "1.1.1.1.0", Type: gosnmp.Gauge32, Value: 10}},
+	}, nil)
+	sess.On("GetBulk", []string{"1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("request timeout (after 3 retries)"))
+	sess.On("GetNext", []string{"1.1.2"}).Return(&gosnmp.SnmpPacket{}, errors.New("request timeout (after 3 retries)"))
+
+	values, err := Fetch(sess, []string{"1.1.1.1.0"}, []string{"1.1.2"}, NewOidBatchSizeOptimizers(1), checkconfig.DefaultBulkMaxRepetitions)
+
+	assert.EqualError(t, err, "failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1.2]` using GetNext: request timeout (after 3 retries)")
+	expectedValues := &valuestore.ResultValueStore{
+		ScalarValues: valuestore.ScalarResultValuesType{
+			"1.1.1.1.0": {Value: float64(10)},
+		},
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+	assert.Equal(t, expectedValues, values)
+}
+
 func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
