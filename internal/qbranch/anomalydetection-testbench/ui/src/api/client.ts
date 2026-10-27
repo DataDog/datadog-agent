@@ -102,6 +102,8 @@ export interface SeriesInfo {
   virtual?: boolean;
   /** Telemetry metrics: counter deltas use :sum and cumulative display; gauges use the selected aggregation. */
   metricKind?: 'gauge' | 'counter';
+  /** Recorded input metric types for this series, when available. */
+  metricTypes?: string[];
 }
 
 export interface Point {

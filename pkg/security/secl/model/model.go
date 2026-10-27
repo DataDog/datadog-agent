@@ -205,13 +205,26 @@ type SpanContext struct {
 	Attributes    map[string]string `field:"-"`
 }
 
+// TracerMetadataSource is where the tracer metadata of a process came from
+type TracerMetadataSource uint8
+
+const (
+	// TracerMetadataSourceNone means no tracer metadata was found
+	TracerMetadataSourceNone TracerMetadataSource = iota
+	// TracerMetadataSourceMemfd is the Datadog tracer-info memfd, which takes precedence
+	TracerMetadataSourceMemfd
+	// TracerMetadataSourceOTelProcessContext is the OTel process context (OTEP 4719)
+	TracerMetadataSourceOTelProcessContext
+)
+
 // Tracer bundles the per-process APM tracer state: static metadata captured
 // from the tracer-info memfd, plus the most recent span context observed for
 // this process. Cross-platform so the model.go-level accessors compile on
 // both Linux and Windows builds.
 type Tracer struct {
-	Metadata tracermetadata.TracerMetadata
-	Trace    SpanContext
+	Metadata       tracermetadata.TracerMetadata
+	MetadataSource TracerMetadataSource
+	Trace          SpanContext
 	// ThreadlocalAttributeKeys is the ordered list of attribute key names the
 	// process published in its OTel process context (OTEP 4947). The key indices
 	// of a thread context record index into it to resolve the full attribute

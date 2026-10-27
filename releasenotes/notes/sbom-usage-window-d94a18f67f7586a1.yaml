@@ -1,0 +1,24 @@
+---
+enhancements:
+  - |
+    With ``sbom.enrichment.usage.enabled`` set, the first SBOM of the host and
+    of a container image in use waits up to two minutes for the runtime usage
+    that system-probe reports, so that it reaches Datadog with
+    ``LastSeenRunning``, ``HasSetSuidBit`` and ``RunningAsRoot``. When the host
+    SBOM goes out before the usage arrives, the first usage report triggers a
+    host scan, which sends the usage within minutes rather than at the hourly
+    scan.
+  - |
+    With ``sbom.enrichment.usage.enabled`` set, the usage of the host and of
+    each container image is recorded for one SBOM refresh period before an
+    unseen OS package reads ``LastSeenRunning`` ``0``. Within that window, such
+    a package leaves ``LastSeenRunning``, ``HasSetSuidBit`` and
+    ``RunningAsRoot`` unset, so its usage reads as unknown. The SBOMs hold the
+    start of the window in the ``UsageObservedSince`` metadata property, and a
+    package database refresh of a container starts a new window.
+  - |
+    With ``sbom.enrichment.usage.enabled`` set, an OS package of the host SBOM
+    that system-probe has yet to index, such as one installed or upgraded
+    since its last scan of the host, leaves ``LastSeenRunning``,
+    ``HasSetSuidBit`` and ``RunningAsRoot`` unset, so its usage reads as
+    unknown.

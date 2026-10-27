@@ -5,7 +5,9 @@ package datadogconnector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -16,6 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,8 +114,14 @@ func generateTrace(extraAttributes map[string]string) ptrace.Traces {
 	res.Attributes().PutStr("cloud.region", "my-region")
 	// add a custom Resource attribute
 	res.Attributes().PutStr("az", "my-az")
-	for k, v := range extraAttributes {
-		res.Attributes().PutStr(k, v)
+	// Sorted key order: pdata attribute maps preserve insertion order, Go map iteration does not.
+	keys := make([]string, 0, len(extraAttributes))
+	for k := range extraAttributes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		res.Attributes().PutStr(k, extraAttributes[k])
 	}
 
 	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
@@ -549,6 +560,83 @@ func TestSpanDerivedPrimaryTags(t *testing.T) {
 	assert.Equal(t, []string{"team:checkout"}, sp.Stats[0].Stats[0].Stats[0].AdditionalMetricTags)
 }
 
+// TestPeerTagsFollowRegistrySwap verifies that peer tags added by a semantic
+// registry swap (e.g. a Remote Config update) after the connector was created
+// are copied onto the spans fed to the concentrator and show up in the stats.
+func TestPeerTagsFollowRegistrySwap(t *testing.T) {
+	original := semantics.DefaultRegistry()
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Second
+	cfg.Traces.PeerTagsAggregation = true
+
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	// Swap in a registry identical to the live one, except that the peer.service
+	// concept gains a new precursor attribute.
+	const customPeerTag = "x.custom.peer"
+	concepts := make(map[string]semantics.ConceptMapping)
+	for concept, tags := range original.GetAllEquivalences() {
+		concepts[string(concept)] = semantics.ConceptMapping{Canonical: string(concept), Fallbacks: tags}
+	}
+	peerService := concepts[string(semantics.ConceptPeerService)]
+	peerService.Fallbacks = append(slices.Clone(peerService.Fallbacks), semantics.TagInfo{Name: customPeerTag, Provider: semantics.ProviderDatadog, Type: semantics.ValueTypeString})
+	concepts[string(semantics.ConceptPeerService)] = peerService
+	payload, err := json.Marshal(map[string]any{
+		"version":  "test-peer-tags-swap",
+		"metadata": map[string]string{"content_hash": "test-peer-tags-swap"},
+		"concepts": concepts,
+	})
+	require.NoError(t, err)
+	custom, err := semantics.NewRegistryFromJSON(payload)
+	require.NoError(t, err)
+	require.NotContains(t, connector.concentrator.PeerTagKeys(), customPeerTag, "the custom peer tag must only arrive through the registry swap")
+	semantics.UpdateRegistry(custom)
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	s := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	s.SetName("name")
+	s.SetKind(ptrace.SpanKindClient)
+	s.SetTraceID(testTraceID)
+	s.SetSpanID(testSpanID1)
+	s.Attributes().PutStr(customPeerTag, "remote-svc")
+
+	require.NoError(t, connector.ConsumeTraces(t.Context(), td))
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.Len(t, sp.Stats, 1)
+	require.Len(t, sp.Stats[0].Stats, 1)
+	require.Len(t, sp.Stats[0].Stats[0].Stats, 1)
+	assert.Equal(t, []string{customPeerTag + ":remote-svc"}, sp.Stats[0].Stats[0].Stats[0].PeerTags)
+}
+
 type errorSink struct {
 	consumertest.MetricsSink
 	mu         sync.Mutex
@@ -705,4 +793,161 @@ func TestSamplingWeightFromTracestate(t *testing.T) {
 	assert.Equal(t, uint64(2), hitsByResource["sampled-op"], "span with th:8 tracestate should have Hits=2 (weight=2)")
 	// Trace B root has no tracestate → weight=1 → Hits=1.
 	assert.Equal(t, uint64(1), hitsByResource["unsampled-op"], "span with no tracestate should have Hits=1 (weight=1)")
+}
+
+// readOnlySafetyTrace builds traces touching every part of the pdata tree the connector walks.
+func readOnlySafetyTrace() ptrace.Traces {
+	td := generateTrace(map[string]string{
+		"service.name":                "read-only-svc",
+		"deployment.environment.name": "test-env",
+	})
+
+	span := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	span.SetKind(ptrace.SpanKindServer)
+	span.TraceState().FromRaw("ot=th:8")
+	span.Attributes().PutStr("http.method", "GET")
+	span.Attributes().PutStr("db.statement", "SELECT * FROM users WHERE id = 42")
+	span.Attributes().PutInt("http.status_code", 500)
+	link := span.Links().AppendEmpty()
+	link.SetTraceID([16]byte{9, 9, 9, 9, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	link.SetSpanID([8]byte{9, 9, 9, 9, 5, 6, 7, 8})
+	link.TraceState().FromRaw("ot=th:4")
+	link.Attributes().PutStr("link-attr", "link-attr-val")
+	link.SetDroppedAttributesCount(3)
+	span.SetDroppedLinksCount(1)
+
+	// A second scope, and a client span so peer tags and span-kind logic run too.
+	scope := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty()
+	scope.Scope().SetName("second-scope")
+	scope.Scope().SetVersion("v2")
+	scope.Scope().Attributes().PutStr("scope-attr", "scope-attr-val")
+	client := scope.Spans().AppendEmpty()
+	fillSpanOne(client)
+	client.SetName("operationB")
+	client.SetKind(ptrace.SpanKindClient)
+	client.SetSpanID([8]byte{0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28})
+	client.SetParentSpanID([8]byte{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18})
+	client.Attributes().PutStr("peer.service", "downstream-svc")
+
+	// A second resource, so the per-resource loop runs more than once.
+	other := td.ResourceSpans().AppendEmpty()
+	other.Resource().Attributes().PutStr("service.name", "other-svc")
+	other.Resource().Attributes().PutStr("container.id", "other-container-id")
+	other.Resource().SetDroppedAttributesCount(2)
+	fillSpanOne(other.ScopeSpans().AppendEmpty().Spans().AppendEmpty())
+
+	return td
+}
+
+func marshalTraces(t *testing.T, td ptrace.Traces) string {
+	t.Helper()
+	b, err := (&ptrace.JSONMarshaler{}).MarshalTraces(td)
+	require.NoError(t, err)
+	return string(b)
+}
+
+// TestConsumeReadOnlyTraces: with the datadog exporter no longer mutating, the fanout
+// consumer marks the shared ptrace.Traces read-only instead of cloning it, so any write on
+// this connector's path now panics.
+func TestConsumeReadOnlyTraces(t *testing.T) {
+	connector, _ := createConnector(t)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	readOnly := readOnlySafetyTrace()
+	before := marshalTraces(t, readOnly)
+	readOnly.MarkReadOnly()
+
+	require.NotPanics(t, func() {
+		require.NoError(t, connector.ConsumeTraces(t.Context(), readOnly))
+	})
+	assert.Equal(t, before, marshalTraces(t, readOnly),
+		"the connector must not modify the traces it is handed")
+}
+
+// TestReadOnlyTracesProduceIdenticalStats: same corpus, same concentrator inputs, read-only
+// or not. Compares the translation step directly to stay independent of bucket timing.
+func TestReadOnlyTracesProduceIdenticalStats(t *testing.T) {
+	connector, _ := createConnector(t)
+
+	inputsFor := func(td ptrace.Traces) []stats.Input {
+		return otelstats.OTLPTracesToConcentratorInputsWithObfuscation(
+			td, connector.tcfg, connector.ctagKeys, connector.concentrator.PeerTagKeys(),
+			connector.primaryTagKeys, connector.obfuscator)
+	}
+
+	// A copy, not a second build: the comparison below can then only fail on a mutation.
+	mutable := readOnlySafetyTrace()
+	readOnly := ptrace.NewTraces()
+	mutable.CopyTo(readOnly)
+	readOnly.MarkReadOnly()
+
+	var fromMutable, fromReadOnly []stats.Input
+	require.NotPanics(t, func() {
+		fromMutable = inputsFor(mutable)
+		fromReadOnly = inputsFor(readOnly)
+	})
+
+	require.NotEmpty(t, fromMutable)
+	sortInputs(fromMutable)
+	sortInputs(fromReadOnly)
+	if diff := cmp.Diff(fromMutable, fromReadOnly, protocmp.Transform()); diff != "" {
+		t.Errorf("read-only traces produced different concentrator inputs (-mutable +readonly):\n%s", diff)
+	}
+	assert.Equal(t, marshalTraces(t, mutable), marshalTraces(t, readOnly))
+}
+
+// sortInputs makes the output deterministic: the translation indexes spans by ID in maps,
+// so input order follows Go's randomized map iteration.
+func sortInputs(inputs []stats.Input) {
+	for _, input := range inputs {
+		for _, pt := range input.Traces {
+			if pt.TraceChunk != nil {
+				sort.Slice(pt.TraceChunk.Spans, func(i, j int) bool {
+					return pt.TraceChunk.Spans[i].SpanID < pt.TraceChunk.Spans[j].SpanID
+				})
+			}
+		}
+		sort.Slice(input.Traces, func(i, j int) bool {
+			return input.Traces[i].Root.SpanID < input.Traces[j].Root.SpanID
+		})
+	}
+	sort.Slice(inputs, func(i, j int) bool {
+		if inputs[i].ContainerID != inputs[j].ContainerID {
+			return inputs[i].ContainerID < inputs[j].ContainerID
+		}
+		return inputs[i].Traces[0].Root.SpanID < inputs[j].Traces[0].Root.SpanID
+	})
+}
+
+// TestConsumeReadOnlyTracesConcurrent: the exporter and this connector now read the same
+// ptrace.Traces concurrently instead of each getting a copy. Meaningful under -race.
+func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
+	connector, _ := createConnector(t)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	shared := readOnlySafetyTrace()
+	before := marshalTraces(t, shared)
+	shared.MarkReadOnly()
+
+	const consumers = 8
+	var wg sync.WaitGroup
+	errs := make([]error, consumers)
+	for i := range consumers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = connector.ConsumeTraces(t.Context(), shared)
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, before, marshalTraces(t, shared))
 }
