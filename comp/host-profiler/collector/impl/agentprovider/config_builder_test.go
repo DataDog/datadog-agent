@@ -10,7 +10,6 @@ package agentprovider
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -321,7 +320,7 @@ func TestBuildReceiversSymbolUploaderReportIntervalAboveCeilingNotForwarded(t *t
 		endpointsTotalLength: 1,
 		hostProfilerConfig: hostProfilerConfig{
 			SymbolUploaderReport: symbolUploaderReportConfig{
-				Interval:          symboluploader.MaxReportIntervalSeconds + 1,
+				Interval:          maxReportIntervalSeconds + 1,
 				MaxPathsPerReport: 42,
 			},
 		},
@@ -347,7 +346,7 @@ func TestBuildReceiversSymbolUploaderReportMaxAboveCeilingNotForwarded(t *testin
 		hostProfilerConfig: hostProfilerConfig{
 			SymbolUploaderReport: symbolUploaderReportConfig{
 				Interval:          600,
-				MaxPathsPerReport: symboluploader.MaxReportMaxPathsPerReport + 1,
+				MaxPathsPerReport: maxReportMaxPathsPerReport + 1,
 			},
 		},
 	}

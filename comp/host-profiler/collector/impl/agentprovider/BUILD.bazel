@@ -14,7 +14,6 @@ go_library(
         "//comp/core/config",
         "//comp/host-profiler/collector/impl/extensions/hpflareextension",
         "//comp/host-profiler/collector/impl/params",
-        "//comp/host-profiler/symboluploader",
         "//comp/host-profiler/symboluploader/cgroup",
         "//comp/host-profiler/version",
         "//pkg/config/utils",
@@ -40,7 +39,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//comp/host-profiler/collector/impl/extensions/hpflareextension",
             "//comp/host-profiler/collector/impl/receiver",
-            "//comp/host-profiler/symboluploader",
             "//comp/host-profiler/version",
             "//comp/otelcol/ddprofilingextension/impl",
             "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
@@ -67,7 +65,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/collector/impl/extensions/hpflareextension",
             "//comp/host-profiler/collector/impl/receiver",
-            "//comp/host-profiler/symboluploader",
             "//comp/host-profiler/version",
             "//comp/otelcol/ddprofilingextension/impl",
             "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
