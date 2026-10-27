@@ -756,9 +756,9 @@ func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
 		wantInterval time.Duration
 		wantMax      int
 	}{
-		{"explicit positive", ReportConfig{Interval: 30 * time.Second, MaxPathsPerReport: 7}, 30 * time.Second, 7},
+		{"explicit positive", ReportConfig{Interval: 30, MaxPathsPerReport: 7}, 30 * time.Second, 7},
 		{"zero value", ReportConfig{}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
-		{"negative", ReportConfig{Interval: -time.Second, MaxPathsPerReport: -1}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+		{"negative", ReportConfig{Interval: -1, MaxPathsPerReport: -1}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

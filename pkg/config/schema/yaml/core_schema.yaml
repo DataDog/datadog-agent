@@ -8022,11 +8022,11 @@ properties:
             properties:
               interval:
                 node_type: setting
-                type: string
-                format: duration
-                default: 5m0s
-                description: How often the host profiler flushes a batched symbol
-                  upload report.
+                type: integer
+                default: 300
+                description: How often, in seconds, the host profiler flushes a
+                  batched symbol upload report.
+                comment: 5 minutes
               max_paths_per_report:
                 node_type: setting
                 type: integer

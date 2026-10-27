@@ -22,13 +22,16 @@ const (
 	DefaultUploadDynamicSymbols    = false
 	DefaultUploadGoPCLnTab         = true
 	DefaultReportInterval          = 5 * time.Minute
+	// DefaultReportIntervalSeconds is DefaultReportInterval expressed in seconds,
+	// matching ReportConfig.Interval's wire unit.
+	DefaultReportIntervalSeconds   = int(DefaultReportInterval / time.Second)
 	DefaultReportMaxPathsPerReport = 100
 )
 
 // ReportConfig configures the batched upload report emitted periodically.
 type ReportConfig struct {
-	// Interval at which the report is emitted.
-	Interval time.Duration `mapstructure:"interval"`
+	// Interval, in seconds, at which the report is emitted.
+	Interval int `mapstructure:"interval"`
 	// MaxPathsPerReport is the number of binary paths kept per report. When reached, the report is emitted.
 	MaxPathsPerReport int `mapstructure:"max_paths_per_report"`
 }
@@ -74,7 +77,7 @@ func DefaultSymbolUploaderConfig(profilerName string) SymbolUploaderConfig {
 			SymbolQueryInterval:  DefaultSymbolQueryInterval,
 			DryRun:               DefaultUploadSymbolsDryRun,
 			Report: ReportConfig{
-				Interval:          DefaultReportInterval,
+				Interval:          DefaultReportIntervalSeconds,
 				MaxPathsPerReport: DefaultReportMaxPathsPerReport,
 			},
 		},

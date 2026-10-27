@@ -156,7 +156,7 @@ type uploadReporter struct {
 }
 
 func newUploadReporter(cfg ReportConfig) *uploadReporter {
-	interval := cfg.Interval
+	interval := time.Duration(cfg.Interval) * time.Second
 	if interval <= 0 {
 		interval = DefaultReportInterval
 	}

@@ -6,8 +6,6 @@
 package agentprovider
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,7 +44,7 @@ type hostProfilerConfig struct {
 
 // symbolUploaderReportConfig holds the symbol uploader's batched upload report settings.
 type symbolUploaderReportConfig struct {
-	Interval          time.Duration
+	Interval          int
 	MaxPathsPerReport int
 }
 
@@ -126,7 +124,7 @@ func newConfigManager(config config.Component) configManager {
 			Port: config.GetInt("hostprofiler.hpflare.port"),
 		},
 		SymbolUploaderReport: symbolUploaderReportConfig{
-			Interval:          config.GetDuration("hostprofiler.symbol_uploader.report.interval"),
+			Interval:          config.GetInt("hostprofiler.symbol_uploader.report.interval"),
 			MaxPathsPerReport: config.GetInt("hostprofiler.symbol_uploader.report.max_paths_per_report"),
 		},
 	}

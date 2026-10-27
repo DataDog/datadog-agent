@@ -132,7 +132,7 @@ func TestSymbolUploaderReportDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.Validate())
 
-	require.Equal(t, symboluploader.DefaultReportInterval, cfg.SymbolUploader.Report.Interval)
+	require.Equal(t, symboluploader.DefaultReportIntervalSeconds, cfg.SymbolUploader.Report.Interval)
 	require.Equal(t, symboluploader.DefaultReportMaxPathsPerReport, cfg.SymbolUploader.Report.MaxPathsPerReport)
 }
 
@@ -144,7 +144,7 @@ func TestSymbolUploaderReportOverride(t *testing.T) {
 				map[string]any{"site": "datadoghq.com", "api_key": "test-key"},
 			},
 			"report": map[string]any{
-				"interval":             "10m",
+				"interval":             600,
 				"max_paths_per_report": 42,
 			},
 		},
@@ -155,7 +155,7 @@ func TestSymbolUploaderReportOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.Validate())
 
-	require.Equal(t, 10*time.Minute, cfg.SymbolUploader.Report.Interval)
+	require.Equal(t, 600, cfg.SymbolUploader.Report.Interval)
 	require.Equal(t, 42, cfg.SymbolUploader.Report.MaxPathsPerReport)
 }
 
@@ -174,7 +174,7 @@ func TestSymbolUploaderReportInvalidIsRejected(t *testing.T) {
 
 	cfg := defaultConfig(profilerName).(Config)
 	err := confmap.NewFromStringMap(input).Unmarshal(&cfg)
-	require.ErrorContains(t, err, "'symbol_uploader.report.interval' time: invalid duration")
+	require.ErrorContains(t, err, "'symbol_uploader.report.interval' expected type 'int', got unconvertible type 'string'")
 }
 
 func TestSymbolUploaderReportNonPositiveIsRejected(t *testing.T) {
@@ -206,7 +206,7 @@ func TestSymbolUploaderReportDisabledSkipsValidation(t *testing.T) {
 				map[string]any{"site": "datadoghq.com", "api_key": "test-key"},
 			},
 			"report": map[string]any{
-				"interval":             "0s",
+				"interval":             0,
 				"max_paths_per_report": 0,
 			},
 		},
@@ -217,6 +217,6 @@ func TestSymbolUploaderReportDisabledSkipsValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cfg.Validate())
 
-	require.Equal(t, time.Duration(0), cfg.SymbolUploader.Report.Interval)
+	require.Equal(t, 0, cfg.SymbolUploader.Report.Interval)
 	require.Equal(t, 0, cfg.SymbolUploader.Report.MaxPathsPerReport)
 }

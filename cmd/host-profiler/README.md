@@ -121,7 +121,7 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`processors.k8s_attributes`**: Kubernetes metadata enrichment (standalone mode)
 - **`exporters.otlp_http`**: Datadog profiling intake endpoint configuration
 - **`extensions.ddprofiling`**: Datadog profiling extension (Agent mode only)
-- **`symbol_uploader.report.interval`**: How often a pending report is flushed. Default `5m`
+- **`symbol_uploader.report.interval`**: How often, in seconds, a pending report is flushed. Default `300` (5 minutes)
 - **`symbol_uploader.report.max_paths_per_report`**: Maximum number of sampled binary paths kept per report. Default `100`.
 
 ### Configuration Inference

@@ -9,7 +9,6 @@ package agentprovider
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/assert"
@@ -244,15 +243,15 @@ site: datadoghq.com
 hostprofiler:
   symbol_uploader:
     report:
-      interval: 10m
+      interval: 600
 `)
 	mgr := newConfigManager(cfg)
 
-	assert.Equal(t, 10*time.Minute, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+	assert.Equal(t, 600, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
 }
 
 func TestNewConfigManagerSymbolUploaderReportIntervalFromEnvVar(t *testing.T) {
-	t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_REPORT_INTERVAL", "15m")
+	t.Setenv("DD_HOSTPROFILER_SYMBOL_UPLOADER_REPORT_INTERVAL", "900")
 
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key
@@ -260,7 +259,7 @@ site: datadoghq.com
 `)
 	mgr := newConfigManager(cfg)
 
-	assert.Equal(t, 15*time.Minute, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+	assert.Equal(t, 900, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
 }
 
 func TestNewConfigManagerSymbolUploaderReportIntervalUnsetFallsBackToSchemaDefault(t *testing.T) {
@@ -269,7 +268,7 @@ api_key: test-key
 site: datadoghq.com
 `)
 	mgr := newConfigManager(cfg)
-	assert.Equal(t, 5*time.Minute, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+	assert.Equal(t, 300, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
 }
 
 func TestNewConfigManagerSymbolUploaderReportMaxFromYAML(t *testing.T) {
@@ -318,7 +317,7 @@ hostprofiler:
       max_paths_per_report: abc
 `)
 	mgr := newConfigManager(cfg)
-	assert.Equal(t, time.Duration(0), mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
+	assert.Equal(t, 0, mgr.hostProfilerConfig.SymbolUploaderReport.Interval)
 	assert.Equal(t, 0, mgr.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport)
 }
 

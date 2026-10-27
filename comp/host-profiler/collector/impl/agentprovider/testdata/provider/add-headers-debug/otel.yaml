@@ -40,7 +40,7 @@ receivers:
         symbol_uploader:
             enabled: true
             report:
-                interval: 5m0s
+                interval: 300
                 max_paths_per_report: 100
             symbol_endpoints:
                 - api_key: test_api_key_123
