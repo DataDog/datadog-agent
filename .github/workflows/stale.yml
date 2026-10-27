@@ -24,36 +24,6 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.stale.manage-stale
 
-      # The stale action selects PRs by label: label the PRs that add-label-pr.yml missed
-      # (failed runs, PRs opened before it existed) from where their head branch lives.
-      - name: Label PRs missing internal or community
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          github-token: ${{ steps.octo-sts.outputs.token }}
-          script: |
-            const repo = `${context.repo.owner}/${context.repo.repo}`;
-            const prs = await github.paginate(github.rest.pulls.list, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 100
-            });
-            for (const pr of prs) {
-              const labels = pr.labels.map(l => l.name);
-              if (labels.includes('internal') || labels.includes('community')) {
-                continue;
-              }
-              // A deleted head repository can only be a fork
-              const label = pr.head.repo?.full_name === repo ? 'internal' : 'community';
-              core.info(`Adding ${label} to #${pr.number}`);
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                labels: [label]
-              });
-            }
-
       - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           repo-token: ${{ steps.octo-sts.outputs.token }}
