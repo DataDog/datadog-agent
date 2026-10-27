@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -141,7 +140,7 @@ func (c *ConnectionsCheck) IsEnabled() bool {
 		return false
 	}
 
-	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
+	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfigtypes.NetworkTracerModule]
 	return npmModuleEnabled && c.syscfg.Enabled && !c.sysprobeYamlConfig.GetBool("network_config.direct_send")
 }
 
@@ -332,7 +331,7 @@ func (c *ConnectionsCheck) getProcessTagsCallback() func(int32) ([]string, error
 }
 
 func (c *ConnectionsCheck) register() error {
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/register?client_id="+ProcessAgentClientID)
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/register?client_id="+ProcessAgentClientID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -350,7 +349,7 @@ func (c *ConnectionsCheck) register() error {
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections?client_id="+ProcessAgentClientID)
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/connections?client_id="+ProcessAgentClientID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err

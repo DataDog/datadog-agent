@@ -1,0 +1,9 @@
+api_key: ggggg77777
+site: datadoghq.eu
+otel_standalone: true
+otelcollector:
+  converter:
+    features: [pprof, zpages, health_check, opamp]
+  opamp:
+    endpoint: "https://opamp.example.internal:4320/v1/opamp"
+    reports_raw_config: false

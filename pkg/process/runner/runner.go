@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,7 +105,7 @@ func NewRunner(
 	sysProbeCfg := &checks.SysProbeConfig{}
 	if sysCfg != nil && sysCfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := sysCfg.EnabledModules[sysconfigtypes.ProcessModule]
 		sysProbeCfg.ProcessModuleEnabled = processModuleEnabled
 		sysProbeCfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress

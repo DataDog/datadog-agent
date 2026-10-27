@@ -3,6 +3,11 @@ go_sdk.from_file(
     name = "go_work_sdk",
     go_work = "//:go.work",
 )
+go_sdk.from_file(
+    name = "go_civisibility_sdk",
+    go_work = "//:go.work",
+    patches = ["//bazel/patches:go_sdk-civisibility.patch"],
+)
 use_repo(go_sdk, "go_toolchains", "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
@@ -261,6 +266,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_ecsobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_hostobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_k8sobserver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_opampextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_pprofextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_storage_filestorage",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
@@ -599,10 +605,6 @@ go_deps.module_override(
 )
 
 inject_repo(go_deps, "systemd", "libpcap")
-
-register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
-
-use_repo_rule("//bazel/rules/go_civisibility_sdk:repo.bzl", "go_civisibility_sdk")(name = "go_civisibility_sdk")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
