@@ -75,6 +75,7 @@ type MinimalPodSpec struct {
 // MinimalContainer contains only the container fields we need
 type MinimalContainer struct {
 	Name         string                         `json:"name"`
+	Image        string                         `json:"image,omitempty"`
 	Resources    corev1.ResourceRequirements    `json:"resources,omitempty"`
 	ResizePolicy []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
 }
@@ -115,6 +116,7 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 		out.Spec.Containers = make([]MinimalContainer, len(p.Spec.Containers))
 		for i := range p.Spec.Containers {
 			out.Spec.Containers[i].Name = p.Spec.Containers[i].Name
+			out.Spec.Containers[i].Image = p.Spec.Containers[i].Image
 
 			resIn := &p.Spec.Containers[i].Resources
 			resOut := &out.Spec.Containers[i].Resources
@@ -328,8 +330,10 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 
 	containersList := make([]workloadmeta.OrchestratorContainer, 0, len(pod.Spec.Containers))
 	for _, container := range pod.Spec.Containers {
+		image, _ := workloadmeta.NewContainerImage("", container.Image)
 		c := workloadmeta.OrchestratorContainer{
-			Name: container.Name,
+			Name:  container.Name,
+			Image: image,
 		}
 		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
 			c.Resources.CPURequest = kubeutil.FormatCPURequests(cpuReq)
