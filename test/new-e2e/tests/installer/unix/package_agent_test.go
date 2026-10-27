@@ -97,7 +97,8 @@ func (s *packageBaseSuite) testInstall() {
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
-	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+	// Root executes binaries under the package root, so dd-agent must not own it.
+	state.AssertDirExists(agentDir, 0755, "root", "root")
 
 	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
@@ -686,7 +687,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	state.AssertGroupExists("dd-agent")
 
 	// Verify agent files have correct ownership
-	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-agent", 0755, "root", "root")
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
 	s.T().Log("Successfully installed agent with NSS-managed user/group")
@@ -719,7 +720,8 @@ func (s *packageAgentSuite) TestInstallFips() {
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
-	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+	// Root executes binaries under the package root, so dd-agent must not own it.
+	state.AssertDirExists(agentDir, 0755, "root", "root")
 
 	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
