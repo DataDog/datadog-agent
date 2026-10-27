@@ -56,7 +56,7 @@ func runScript(ctx context.Context) error {
 }
 ```
 
-See the [Go API reference](https://pkg.go.dev/github.com/DataDog/datadog-agent/pkg/rshell/interp) for runner options and lifecycle details.
+See the [`interp` package API](interp/api.go) for runner options and lifecycle details.
 
 The same command through the development CLI:
 

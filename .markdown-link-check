@@ -14,6 +14,12 @@
     },
     {
       "pattern": "^/security/threats/"
+    },
+    {
+      "pattern": "^https://www\\.cvedetails\\.com/"
+    },
+    {
+      "pattern": "^https://medium\\.com/"
     }
   ],
   "replacementPatterns": [
