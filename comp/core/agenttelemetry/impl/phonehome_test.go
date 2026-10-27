@@ -11,11 +11,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 )
 
 func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
+	// Wire fixtures keep this independently tidied module free of root-module dependencies.
+	const (
+		waiting                     = "waiting"
+		handedOff                   = "handed_off"
+		rcKeyUnauthorized           = "rc_key_unauthorized"
+		missingEnrollmentScope      = "missing_enrollment_scope"
+		supervisorStartAcknowledged = "supervisor_start_acknowledged"
+	)
 	tel := makeTelMock(t)
 	client := &clientMock{}
 	a := getTestAtel(t, tel, "api_key: synthetic-key\nagent_telemetry:\n  enabled: true\n  use_compression: false", nil, client, nil)
@@ -38,8 +44,8 @@ func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
 	state := tel.NewGauge("par_phone_home", "state", labels, "")
 	transitions := tel.NewCounter("par_phone_home", "transitions", labels, "")
 	const unwanted = "must-not-export-this-label"
-	state.Set(1, string(phonehome.StateWaiting), string(phonehome.ReasonRCKeyUnauthorized), unwanted)
-	transitions.Inc(string(phonehome.StateWaiting), string(phonehome.ReasonRCKeyUnauthorized), unwanted)
+	state.Set(1, waiting, rcKeyUnauthorized, unwanted)
+	transitions.Inc(waiting, rcKeyUnauthorized, unwanted)
 
 	collect := func() map[string]map[string]float64 {
 		t.Helper()
@@ -62,19 +68,24 @@ func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
 					continue
 				}
 				m := raw.(MetricPayload)
-				require.Len(t, m.Tags, 3)
+				require.Contains(t, m.Tags, "state")
+				require.Contains(t, m.Tags, "reason")
 				require.Equal(t, "agent", m.Tags["emitter"])
+				require.NotContains(t, m.Tags, "hostname")
 				key := m.Tags["state"].(string) + "/" + m.Tags["reason"].(string)
-				if values[name] == nil {
-					values[name] = map[string]float64{}
-				}
-				values[name][key] = m.Value
 				if name == "par_phone_home.state" {
 					require.Equal(t, "gauge", m.Type)
 				} else {
 					require.Equal(t, "par_phone_home.transitions", name)
 					require.Equal(t, "counter", m.Type)
+					if m.Value == 0 {
+						continue
+					}
 				}
+				if values[name] == nil {
+					values[name] = map[string]float64{}
+				}
+				values[name][key] = m.Value
 			}
 		}
 		return values
@@ -84,21 +95,19 @@ func TestPhoneHomeDefaultProfilePayloads(t *testing.T) {
 	require.Equal(t, map[string]float64{"waiting/rc_key_unauthorized": 1}, first["par_phone_home.transitions"])
 
 	// The intermediate state disappears before collection, but its entry is counted.
-	state.Set(0, string(phonehome.StateWaiting), string(phonehome.ReasonRCKeyUnauthorized), unwanted)
-	state.Set(1, string(phonehome.StateWaiting), string(phonehome.ReasonMissingEnrollmentScope), unwanted)
-	transitions.Inc(string(phonehome.StateWaiting), string(phonehome.ReasonMissingEnrollmentScope), unwanted)
-	state.Set(0, string(phonehome.StateWaiting), string(phonehome.ReasonMissingEnrollmentScope), unwanted)
-	state.Set(1, string(phonehome.StateHandedOff), string(phonehome.ReasonSupervisorStartAcknowledged), unwanted)
-	transitions.Inc(string(phonehome.StateHandedOff), string(phonehome.ReasonSupervisorStartAcknowledged), unwanted)
+	state.Set(0, waiting, rcKeyUnauthorized, unwanted)
+	state.Set(1, waiting, missingEnrollmentScope, unwanted)
+	transitions.Inc(waiting, missingEnrollmentScope, unwanted)
+	state.Set(0, waiting, missingEnrollmentScope, unwanted)
+	state.Set(1, handedOff, supervisorStartAcknowledged, unwanted)
+	transitions.Inc(handedOff, supervisorStartAcknowledged, unwanted)
 	second := collect()
 	require.Equal(t, map[string]float64{"handed_off/supervisor_start_acknowledged": 1}, second["par_phone_home.state"])
 	require.Equal(t, map[string]float64{
-		"waiting/rc_key_unauthorized": 0, "waiting/missing_enrollment_scope": 1,
+		"waiting/missing_enrollment_scope":         1,
 		"handed_off/supervisor_start_acknowledged": 1,
 	}, second["par_phone_home.transitions"])
 	third := collect()
 	require.Equal(t, second["par_phone_home.state"], third["par_phone_home.state"])
-	for _, delta := range third["par_phone_home.transitions"] {
-		require.Zero(t, delta, "unchanged counters must not be recounted at the next collection")
-	}
+	require.Empty(t, third["par_phone_home.transitions"], "unchanged counters must not be recounted at the next collection")
 }

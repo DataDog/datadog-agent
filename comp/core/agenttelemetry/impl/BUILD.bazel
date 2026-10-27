@@ -60,7 +60,6 @@ dd_agent_go_test(
         "//comp/core/telemetry/mock",
         "//comp/def",
         "//comp/logs/agent/config",
-        "//comp/privateactionrunner/phonehome/def",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/remoteflags",
