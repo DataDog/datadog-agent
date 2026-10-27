@@ -62,8 +62,9 @@
   variables:
     FLAVORS: '--flavors base'
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+    # golangci-lint gets OOMKilled, or thrashes until its package loading deadline, at 16Gi (main: #38464)
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
@@ -127,10 +128,6 @@ lint_flavor_heroku_linux-x64:
     - .linux_x64
   variables:
     FLAVORS: '--flavors heroku'
-    # Repeatedly OOMKilled / timing out at the .linux_lint default of 16Gi (pipeline 123669532: OOMKilled then
-    # context-deadline-exceeded), same root cause as lint_linux-arm64 below.
-    KUBERNETES_MEMORY_REQUEST: 32Gi
-    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -186,10 +183,6 @@ lint_linux-arm64:
     - .linux_lint
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  variables:
-    # Repeatedly OOMKilled at the .linux_lint default of 16Gi (pipeline 123501942: 4/4 attempts).
-    KUBERNETES_MEMORY_REQUEST: 32Gi
-    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 tests_rpm-arm64-py2:
   extends: .rtloader_tests
