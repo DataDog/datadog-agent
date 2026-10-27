@@ -1,5 +1,6 @@
 #!/opt/datadog-agent/embedded/bin/python
 
+import ctypes
 import grp
 import os
 import os.path
@@ -33,10 +34,26 @@ EXPECTED_CHECKSUMS = {
 
 class TestFiles(unittest.TestCase):
     def test_malloc_conf(self):
-        self.assertEqual(
-            os.environ.get("MALLOC_CONF"),
-            "background_thread:true,dirty_decay_ms:5000",
-        )
+        self.assertNotIn("MALLOC_CONF", os.environ)
+        mallctl = ctypes.CDLL(None).mallctl
+        mallctl.argtypes = [
+            ctypes.c_char_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ]
+        mallctl.restype = ctypes.c_int
+        for name, value_type, expected in [
+            (b"config.malloc_conf", ctypes.c_char_p, b"background_thread:true,dirty_decay_ms:5000"),
+            (b"opt.background_thread", ctypes.c_bool, True),
+            (b"opt.dirty_decay_ms", ctypes.c_ssize_t, 5000),
+        ]:
+            with self.subTest(option=name):
+                value = value_type()
+                size = ctypes.c_size_t(ctypes.sizeof(value))
+                self.assertEqual(mallctl(name, ctypes.byref(value), ctypes.byref(size), None, 0), 0)
+                self.assertEqual(value.value, expected)
 
     def test_preloaded_libraries(self):
         libraries = [
