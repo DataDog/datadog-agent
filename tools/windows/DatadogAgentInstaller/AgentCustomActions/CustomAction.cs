@@ -168,6 +168,36 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult PrepareServiceStartup(Session session)
+        {
+            return Datadog.CustomActions.ServiceStartupCustomAction.Prepare(session);
+        }
+
+        [CustomAction]
+        public static ActionResult DisableDDServices(Session session)
+        {
+            return Datadog.CustomActions.ServiceStartupCustomAction.Disable(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RestoreServiceStartup(Session session)
+        {
+            return Datadog.CustomActions.ServiceStartupCustomAction.Restore(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnableDDServices(Session session)
+        {
+            return Datadog.CustomActions.ServiceStartupCustomAction.Enable(session);
+        }
+
+        [CustomAction]
+        public static ActionResult CleanupServiceStartup(Session session)
+        {
+            return Datadog.CustomActions.ServiceStartupCustomAction.Cleanup(session);
+        }
+
+        [CustomAction]
         public static ActionResult StopDDServices(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.StopDDServices(session);

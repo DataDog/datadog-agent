@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Prevent Windows Agent services from restarting while the MSI installer updates
+    files and permissions. Failed installations restore the previous service
+    startup settings without automatically restarting services.

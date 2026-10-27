@@ -163,6 +163,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 
 	// install previous version
 	previousAgentPackage := s.installAndTestLastStable(vm)
+	originalStartup := s.captureProtectedServiceStartup()
 
 	// upgrade to the new version, but intentionally fail
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
@@ -175,6 +176,9 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
+
+	// Check before the manual start below: it must not hide a service left disabled.
+	s.assertProtectedServiceStartup(originalStartup)
 
 	// TODO: we shouldn't have to start the agent manually after rollback
 	//       but the kitchen tests did too.
@@ -226,6 +230,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 
 	// install previous version
 	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackage)
+	originalStartup := s.captureProtectedServiceStartup()
 
 	// upgrade to the new version, but intentionally fail
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
@@ -238,6 +243,8 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
+
+	s.assertProtectedServiceStartup(originalStartup)
 
 	// TODO: we shouldn't have to start the agent manually after rollback
 	//       but the kitchen tests did too.
@@ -451,4 +458,39 @@ func TestUpgradeFromV6(t *testing.T) {
 	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch, "")
 	require.NoError(t, err)
 	Run(t, s)
+}
+
+// protectedServiceStartup records only startup configuration, not running state.
+// Rollback does not promise to restart services.
+type protectedServiceStartup struct {
+	startType        int
+	delayedAutoStart string
+}
+
+func (s *baseAgentMSISuite) captureProtectedServiceStartup() map[string]protectedServiceStartup {
+	vm := s.Env().RemoteHost
+	settings := make(map[string]protectedServiceStartup)
+	for _, name := range []string{"datadogagent", "dd-procmgr-service", "Datadog Installer"} {
+		registryPath := `HKLM:\SYSTEM\CurrentControlSet\Services\` + name
+		exists, err := windowsCommon.RegistryKeyExists(vm, registryPath)
+		s.Require().NoError(err)
+		if !exists {
+			continue // Older Agent packages do not contain all three services.
+		}
+		config, err := windowsCommon.GetServiceConfig(vm, name)
+		s.Require().NoError(err)
+		setting := protectedServiceStartup{startType: config.StartType}
+		if name == "datadogagent" {
+			setting.delayedAutoStart, err = windowsCommon.GetRegistryValue(vm, registryPath, "DelayedAutoStart")
+			s.Require().NoError(err)
+		}
+		settings[name] = setting
+	}
+	return settings
+}
+
+func (s *baseAgentMSISuite) assertProtectedServiceStartup(expected map[string]protectedServiceStartup) {
+	actual := s.captureProtectedServiceStartup()
+	// Equality also checks that a service introduced by the failed upgrade was removed.
+	s.Assert().Equal(expected, actual, "rollback must restore original service startup settings before manual start")
 }

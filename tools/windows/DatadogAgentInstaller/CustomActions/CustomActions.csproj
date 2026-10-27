@@ -98,6 +98,7 @@
     <Compile Include="Rollback\RollbackDataStore.cs" />
     <Compile Include="Rollback\RegistryKeyRollbackData.cs" />
     <Compile Include="ServiceCustomAction.cs" />
+    <Compile Include="ServiceStartupCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="SetupInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
