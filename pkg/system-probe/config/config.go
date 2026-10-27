@@ -25,30 +25,6 @@ const (
 	Namespace = "system_probe_config"
 )
 
-// system-probe module names
-const (
-	NetworkTracerModule          types.ModuleName = "network_tracer"
-	OOMKillProbeModule           types.ModuleName = "oom_kill_probe"
-	TCPQueueLengthTracerModule   types.ModuleName = "tcp_queue_length_tracer"
-	ProcessModule                types.ModuleName = "process"
-	EventMonitorModule           types.ModuleName = "event_monitor"
-	DynamicInstrumentationModule types.ModuleName = "dynamic_instrumentation"
-	EBPFModule                   types.ModuleName = "ebpf"
-	LanguageDetectionModule      types.ModuleName = "language_detection"
-	WindowsCrashDetectModule     types.ModuleName = "windows_crash_detection"
-	ComplianceModule             types.ModuleName = "compliance"
-	PingModule                   types.ModuleName = "ping"
-	TracerouteModule             types.ModuleName = "traceroute"
-	DiscoveryModule              types.ModuleName = "discovery"
-	GPUMonitoringModule          types.ModuleName = "gpu"
-	SoftwareInventoryModule      types.ModuleName = "software_inventory"
-	NotableEventsModule          types.ModuleName = "notable_events"
-	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
-	InjectorModule               types.ModuleName = "injector"
-	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
-	LogonDurationModule          types.ModuleName = "logon_duration"
-)
-
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
 	return newSysprobeConfig(configPath, fleetPoliciesDirPath)
@@ -135,22 +111,22 @@ func load() (*types.Config, error) {
 	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || discoveryServiceMapEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
-		c.EnabledModules[NetworkTracerModule] = struct{}{}
+		c.EnabledModules[types.NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
-		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
+		c.EnabledModules[types.TCPQueueLengthTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(oomKillNS("enabled")) {
-		c.EnabledModules[OOMKillProbeModule] = struct{}{}
+		c.EnabledModules[types.OOMKillProbeModule] = struct{}{}
 	}
 	if csmEnabled ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		coreCfg.GetBool("sbom.enrichment.usage.enabled") ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
-		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
+		(c.ModuleIsEnabled(types.NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
 		gpuEBPFProbesEnabled ||
 		diEnabled {
-		c.EnabledModules[EventMonitorModule] = struct{}{}
+		c.EnabledModules[types.EventMonitorModule] = struct{}{}
 	}
 	complianceEnabled := coreCfg.GetBool(compNS("enabled"))
 	complianceRunInSystemProbe := coreCfg.GetBool(compNS("run_in_system_probe"))
@@ -164,22 +140,22 @@ func load() (*types.Config, error) {
 	shouldEnableComplianceModule := (complianceEnabled && complianceRunInSystemProbe) || complianceDBBenchmarksEnabled || complianceLegacyCWSEnabled
 
 	if shouldEnableComplianceModule {
-		c.EnabledModules[ComplianceModule] = struct{}{}
+		c.EnabledModules[types.ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
-		c.EnabledModules[ProcessModule] = struct{}{}
+		c.EnabledModules[types.ProcessModule] = struct{}{}
 	}
 	if diEnabled {
-		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
+		c.EnabledModules[types.DynamicInstrumentationModule] = struct{}{}
 	}
 	if cfg.GetBool(NSkey("ebpf_check", "enabled")) {
-		c.EnabledModules[EBPFModule] = struct{}{}
+		c.EnabledModules[types.EBPFModule] = struct{}{}
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
-		c.EnabledModules[LanguageDetectionModule] = struct{}{}
+		c.EnabledModules[types.LanguageDetectionModule] = struct{}{}
 	}
 	if cfg.GetBool(pngNS("enabled")) {
-		c.EnabledModules[PingModule] = struct{}{}
+		c.EnabledModules[types.PingModule] = struct{}{}
 	}
 	if tracerouteEnabled(cfg, coreCfg, npmEnabled) {
 		if !cfg.IsConfigured(tracerouteNS("enabled")) {
@@ -187,44 +163,44 @@ func load() (*types.Config, error) {
 			// diagnostics report the module that is actually running.
 			cfg.Set(tracerouteNS("enabled"), true, pkgconfigmodel.SourceAgentRuntime)
 		}
-		c.EnabledModules[TracerouteModule] = struct{}{}
+		c.EnabledModules[types.TracerouteModule] = struct{}{}
 	}
 	if cfg.GetBool(discoveryNS("enabled")) {
-		c.EnabledModules[DiscoveryModule] = struct{}{}
+		c.EnabledModules[types.DiscoveryModule] = struct{}{}
 	}
 	if gpuEnabled {
-		c.EnabledModules[GPUMonitoringModule] = struct{}{}
+		c.EnabledModules[types.GPUMonitoringModule] = struct{}{}
 	}
 	if cfg.GetBool(privilegedLogsNS("enabled")) {
-		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
+		c.EnabledModules[types.PrivilegedLogsModule] = struct{}{}
 	}
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
-		c.EnabledModules[NoisyNeighborModule] = struct{}{}
+		c.EnabledModules[types.NoisyNeighborModule] = struct{}{}
 	}
 	// Read from the core config (datadog.yaml), not the system-probe config, so that
 	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:
 	// end_user_device) also starts the system-probe module.
 	if runtime.GOOS == "darwin" && coreCfg.GetBool(logonDurationNS("enabled")) {
-		c.EnabledModules[LogonDurationModule] = struct{}{}
+		c.EnabledModules[types.LogonDurationModule] = struct{}{}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
-		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+		c.EnabledModules[types.WindowsCrashDetectModule] = struct{}{}
 	}
 
 	if runtime.GOOS == "windows" {
-		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
+		if c.ModuleIsEnabled(types.NetworkTracerModule) || c.ModuleIsEnabled(types.EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
-			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+			c.EnabledModules[types.WindowsCrashDetectModule] = struct{}{}
 		}
 	}
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		if swEnabled {
-			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
+			c.EnabledModules[types.SoftwareInventoryModule] = struct{}{}
 		}
 		if runtime.GOOS == "darwin" && coreCfg.GetBool("notable_events.enabled") {
-			c.EnabledModules[NotableEventsModule] = struct{}{}
+			c.EnabledModules[types.NotableEventsModule] = struct{}{}
 		}
 
 		// injector telemetry is enabled by default, disable only if explicitly configured by the user
@@ -232,14 +208,14 @@ func load() (*types.Config, error) {
 		if !cfg.IsConfigured("injector.enable_telemetry") {
 			injectorDefaultEnabled = true
 		} else if cfg.GetBool("injector.enable_telemetry") {
-			c.EnabledModules[InjectorModule] = struct{}{}
+			c.EnabledModules[types.InjectorModule] = struct{}{}
 		}
 
 		// This check must be last for any default modules on Windows,
 		// Only add default modules if other explicit modules have been enabled
 		// because the count of enabled modules will implicitly enable system probe.
 		if len(c.EnabledModules) > 0 && injectorDefaultEnabled {
-			c.EnabledModules[InjectorModule] = struct{}{}
+			c.EnabledModules[types.InjectorModule] = struct{}{}
 		}
 	}
 
