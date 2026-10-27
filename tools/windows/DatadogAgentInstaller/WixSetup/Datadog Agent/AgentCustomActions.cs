@@ -82,6 +82,16 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureServicesRollback { get; }
 
+        public ManagedAction PrepareServiceStartup { get; }
+
+        public ManagedAction DisableDDServices { get; }
+
+        public ManagedAction RestoreServiceStartup { get; }
+
+        public ManagedAction EnableDDServices { get; }
+
+        public ManagedAction CleanupServiceStartup { get; }
+
         public ManagedAction StopDDServices { get; }
 
         public ManagedAction StartDDServices { get; }
@@ -654,6 +664,47 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
                 .HideTarget(true);
 
+            // An early InstallExecute flushes only the service protection actions before
+            // RemoveExistingProducts. The corresponding rollback runs after the old MSI's
+            // removal has been rolled back. Never take a second snapshot in the nested MSI.
+            var ownsServiceStartup = Condition.NOT(Conditions.RemovingForUpgrade);
+            PrepareServiceStartup = new CustomAction<CustomActions>(
+                new Id(nameof(PrepareServiceStartup)), CustomActions.PrepareServiceStartup,
+                Return.check, When.Before, Step.InstallInitialize, ownsServiceStartup);
+
+            RestoreServiceStartup = new CustomAction<CustomActions>(
+                new Id(nameof(RestoreServiceStartup)), CustomActions.RestoreServiceStartup,
+                Return.ignore, When.After, Step.InstallInitialize, ownsServiceStartup)
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
+
+            DisableDDServices = new CustomAction<CustomActions>(
+                new Id(nameof(DisableDDServices)), CustomActions.DisableDDServices,
+                Return.check, When.After, new Step(RestoreServiceStartup.Id), ownsServiceStartup)
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
+
+            CleanupServiceStartup = new CustomAction<CustomActions>(
+                new Id(nameof(CleanupServiceStartup)), CustomActions.CleanupServiceStartup,
+                Return.ignore, When.Before, Step.InstallFinalize, ownsServiceStartup)
+            {
+                Execute = Execute.commit,
+                Impersonate = false
+            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
+
+            EnableDDServices = new CustomAction<CustomActions>(
+                new Id(nameof(EnableDDServices)), CustomActions.EnableDDServices,
+                Return.check, When.Before, new Step(nameof(StartDDServices)),
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade))
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
@@ -693,7 +744,7 @@ namespace WixSetup.Datadog_Agent
                 Return.ignore,
                 // Must be sequenced before the action it will rollback for
                 When.Before,
-                new Step(StartDDServices.Id),
+                new Step(EnableDDServices.Id),
                 // Must have same condition as the action it will rollback for
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
             )
@@ -742,9 +793,8 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.DoRollback,
                     Return.ignore,
                     When.After,
-                    // This is the earliest we can schedule this action
-                    // during an uninstall
-                    Step.InstallInitialize,
+                    // After the early service-protection execution phase
+                    new Step(nameof(DDCreateFolders)),
                     // Run when REMOVE="ALL" which runs also on upgrade
                     // This ensures this product can be removed before
                     // the new one is installed.
@@ -754,15 +804,14 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
-            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
-            // the config root must already be secure before any other install/uninstall action
-            // that may rely on its contents.
+            // Secure the config root after old-product removal, before other file actions.
+            // Only service protection may execute in the early InstallExecute phase.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
                     When.After,
-                    Step.InstallInitialize,
+                    Step.RemoveExistingProducts,
                     Condition.Always
                     )
             {

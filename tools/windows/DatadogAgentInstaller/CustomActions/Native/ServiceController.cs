@@ -90,7 +90,7 @@ namespace Datadog.CustomActions.Native
                         $"unsupported start type {startType} for service {serviceName}");
             }
 
-            var svc = new System.ServiceProcess.ServiceController(serviceName);
+            using var svc = new System.ServiceProcess.ServiceController(serviceName);
             if (!Win32NativeMethods.ChangeServiceConfig(svc.ServiceHandle,
                 (uint)Win32NativeMethods.SERVICE_NO_CHANGE,
                 dwStartType,
@@ -105,6 +105,23 @@ namespace Datadog.CustomActions.Native
                 null))
             {
                 throw new Win32Exception($"ChangeServiceConfig({serviceName}, startType={startType}) failed");
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", EntryPoint = "ChangeServiceConfig2W", SetLastError = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static extern bool ChangeDelayedAutoStart(System.Runtime.InteropServices.SafeHandle service,
+            uint level, ref int delayed);
+
+        public void SetDelayedAutoStart(string serviceName, bool delayed)
+        {
+            using var service = new System.ServiceProcess.ServiceController(serviceName);
+            var value = delayed ? 1 : 0;
+            const uint delayedAutoStartInfo = 3;
+            if (!ChangeDelayedAutoStart(service.ServiceHandle, delayedAutoStartInfo, ref value))
+            {
+                throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),
+                    $"ChangeServiceConfig2({serviceName}) failed");
             }
         }
 

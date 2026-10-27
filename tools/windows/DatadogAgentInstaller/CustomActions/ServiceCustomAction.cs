@@ -222,24 +222,10 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
-            EnableProcmgrService();
+            // Start types are restored only after all service and file configuration is complete.
             _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
             _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-        }
-
-        private void EnableProcmgrService()
-        {
-            try
-            {
-                _session.Log($"Setting {Constants.ProcmgrServiceName} start type to {ServiceStartMode.Manual}");
-                _serviceController.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual);
-            }
-            catch (Exception e) when (IsServiceDoesNotExistError(e))
-            {
-                _session.Log(
-                    $"Service {Constants.ProcmgrServiceName} not found, not changing its start type: {e}");
-            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
@@ -516,6 +502,22 @@ namespace Datadog.CustomActions
 
         private ActionResult StartDDServicesRollback()
         {
+            // Re-establish protection before undoing files/configuration after a late
+            // failure. The early rollback action restores startup settings last.
+            foreach (var name in ServiceStartupCustomAction.ProtectedServices)
+            {
+                try
+                {
+                    if (_serviceController.ServiceExists(name))
+                    {
+                        _serviceController.SetStartType(name, ServiceStartMode.Disabled);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to disable {name} during rollback: {e}");
+                }
+            }
             // rollback StartDDServices by stopping all of the services
             // continue on error so we can send a stop to all services.
             return StopDDServices(true);
