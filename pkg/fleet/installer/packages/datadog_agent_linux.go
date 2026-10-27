@@ -88,9 +88,15 @@ var (
 		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
-	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
+	// agentPackagePermissions enforce ownership on the agent package files.
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		// Root-executed binaries and the directories holding them must not be
+		// writable by dd-agent, so they are re-pinned to root on top of the default.
+		{Path: ".", Owner: "root", Group: "root"},
+		{Path: "embedded", Owner: "root", Group: "root"},
+		{Path: "embedded/bin", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/installer", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},

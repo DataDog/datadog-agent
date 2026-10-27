@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    On DEB/RPM Linux installs, the package root directory, the ``embedded`` and
+    ``embedded/bin`` directories, and the ``installer`` binary are now owned by
+    ``root`` instead of ``dd-agent``. These are executed by root (via the
+    installer systemd service and the package postinstall), so leaving them
+    writable by the unprivileged ``dd-agent`` user allowed that user to replace
+    them and have root run its code. The agent daemon continues to run as
+    ``dd-agent`` and only needs read and execute access to these files.
+  - |
+    The installer now applies ownership and mode changes without following
+    symbolic links (``lchown`` and skipping ``chmod`` on symlinks), so a
+    symlink planted in a tree the installer chowns as root can no longer
+    redirect the change onto an arbitrary file.
