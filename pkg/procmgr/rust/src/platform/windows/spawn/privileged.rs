@@ -197,7 +197,7 @@ mod tests {
         ] {
             let etc = tempfile::tempdir().expect("tempdir");
             let config = load_template(template, name, etc.path());
-            let request = SpawnRequest::from_config(name, &config).expect("request");
+            let request = SpawnRequest::from_config(name, &config, false).expect("request");
 
             let spec = privileged_process_spec(name, Path::new(INSTALL_DIR), etc.path())
                 .unwrap_or_else(|e| panic!("{name} has no privileged catalog entry: {e}"));
@@ -258,6 +258,7 @@ mod tests {
                 stderr: "inherit".to_string(),
                 ..Default::default()
             },
+            false,
         )
         .expect("request");
 
@@ -280,6 +281,7 @@ mod tests {
                 stderr: "inherit".to_string(),
                 ..Default::default()
             },
+            false,
         )
         .expect("request");
 

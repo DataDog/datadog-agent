@@ -1678,22 +1678,26 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_spawn_does_not_inherit_parent_env() {
-        let _env = test_helpers::EnvGuard::set(&[("PROCMGRD_TEST_SECRET", "leaked")]).await;
+    async fn test_spawn_same_user_inherits_parent_env_except_supervisor_vars() {
+        let _env = test_helpers::EnvGuard::set(&[
+            ("PROCMGRD_TEST_VISIBLE", "yes"),
+            ("DD_PM_TEST_SECRET", "hidden"),
+        ])
+        .await;
         let (sh, flag) = test_helpers::shell_cmd();
         #[cfg(unix)]
-        let script = "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1";
+        let script = "test \"$PROCMGRD_TEST_VISIBLE\" = yes && test -z \"$DD_PM_TEST_SECRET\"";
         #[cfg(windows)]
-        let script = "if defined PROCMGRD_TEST_SECRET (exit 1) else (exit 0)";
+        let script = "if not \"%PROCMGRD_TEST_VISIBLE%\"==\"yes\" exit 1 & if defined DD_PM_TEST_SECRET exit 1 & exit 0";
         let cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         let mut proc =
-            ManagedProcess::new_config("clean-env".into(), test_helpers::test_uuid(), cfg);
+            ManagedProcess::new_config("same-user-env".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
         let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
             Some(0),
-            "child should NOT see PROCMGRD_TEST_SECRET"
+            "same-user child should see PROCMGRD_TEST_VISIBLE and not DD_PM_TEST_SECRET"
         );
     }
 
@@ -1715,9 +1719,9 @@ pub mod tests {
 
         let (sh, flag) = test_helpers::shell_cmd();
         #[cfg(unix)]
-        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test -z \"$NOT_INHERITED\"";
+        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test \"$NOT_INHERITED\" = secret && test -z \"$DD_PM_INHERIT_ENV_PREFIXES\"";
         #[cfg(windows)]
-        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if defined NOT_INHERITED exit 1 & exit 0";
+        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if not \"%NOT_INHERITED%\"==\"secret\" exit 1 & if defined DD_PM_INHERIT_ENV_PREFIXES exit 1 & exit 0";
         let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
         cfg.env
