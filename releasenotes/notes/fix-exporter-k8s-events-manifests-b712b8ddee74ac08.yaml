@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The Datadog exporter (in DDOT and in the OpenTelemetry Collector) no longer sends
+    Kubernetes ``Event`` objects collected by the ``k8sobjects`` receiver to the
+    Kubernetes Explorer as custom resources. Kinds of the Kubernetes core API group
+    that the Kubernetes Explorer does not support are no longer reported as custom
+    resources either.

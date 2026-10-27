@@ -9,9 +9,6 @@ package kubernetesapiserver
 
 import (
 	"context"
-	"fmt"
-	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -25,9 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,208 +36,6 @@ type eventHostInfo struct {
 	hostname   string
 	nodename   string
 	providerID string
-}
-
-// controllerToIntegration is a mapping of Kubernetes controller names to integrations
-var controllerToIntegration = map[string]string{
-	"targetgroupbinding":                             "amazon elb",
-	"cilium-sidekick":                                "cilium",
-	"datadogagent":                                   "datadog operator",
-	"ExtendedDaemonSet":                              "datadog operator",
-	"datadog-operator-manager":                       "datadog operator",
-	"source-controller":                              "fluxcd",
-	"kustomize-controller":                           "fluxcd",
-	"karpenter":                                      "karpenter",
-	"deployment-controller":                          "kubernetes",
-	"job-controller":                                 "kubernetes",
-	"node-controller":                                "kubernetes",
-	"PodTemplate":                                    "kubernetes",
-	"taint-controller":                               "kubernetes",
-	"cronjob-controller":                             "kubernetes",
-	"draino":                                         "kubernetes",
-	"attachdetach-controller":                        "kubernetes",
-	"horizontal-pod-autoscaler":                      "kubernetes",
-	"daemonset-controller":                           "kubernetes",
-	"cloud-node-controller":                          "kubernetes",
-	"service-controller":                             "kubernetes",
-	"taint-eviction-controller":                      "kubernetes",
-	"cloud-controller-manager":                       "kubernetes",
-	"wpa_controller":                                 "kubernetes",
-	"workflow-controller":                            "kubernetes",
-	"persistentvolume-controller":                    "kubernetes",
-	"compute-diagnostics":                            "kubernetes",
-	"disruption-budget-manager":                      "kubernetes",
-	"vpa-updater":                                    "kubernetes",
-	"serviceaccount-token-controller":                "kubernetes",
-	"endpoints-controller":                           "kubernetes",
-	"endpointslice-controller":                       "kubernetes",
-	"endpointslice-mirroring-controller":             "kubernetes",
-	"replicationcontroller-controller":               "kubernetes",
-	"pod-garbage-collector-controller":               "kubernetes",
-	"resourcequota-controller":                       "kubernetes",
-	"namespace-controller":                           "kubernetes",
-	"serviceaccount-controller":                      "kubernetes",
-	"garbage-collector-controller":                   "kubernetes",
-	"horizontal-pod-autoscaler-controller":           "kubernetes",
-	"disruption-controller":                          "kubernetes",
-	"statefulset-controller":                         "kubernetes",
-	"certificatesigningrequest-signing-controller":   "kubernetes",
-	"certificatesigningrequest-approving-controller": "kubernetes",
-	"certificatesigningrequest-cleaner-controller":   "kubernetes",
-	"ttl-controller":                                 "kubernetes",
-	"bootstrap-signer-controller":                    "kubernetes",
-	"token-cleaner-controller":                       "kubernetes",
-	"node-ipam-controller":                           "kubernetes",
-	"node-lifecycle-controller":                      "kubernetes",
-	"persistentvolume-binder-controller":             "kubernetes",
-	"persistentvolume-attach-detach-controller":      "kubernetes",
-	"persistentvolume-expander-controller":           "kubernetes",
-	"clusterrole-aggregation-controller":             "kubernetes",
-	"persistentvolumeclaim-protection-controller":    "kubernetes",
-	"persistentvolume-protection-controller":         "kubernetes",
-	"ttl-after-finished-controller":                  "kubernetes",
-	"storageversion-garbage-collector-controller":    "kubernetes",
-	"resourceclaim-controller":                       "kubernetes",
-	"legacy-serviceaccount-token-cleaner-controller": "kubernetes",
-	"validatingadmissionpolicy-status-controller":    "kubernetes",
-	"service-cidr-controller":                        "kubernetes",
-	"storage-version-migrator-controller":            "kubernetes",
-	"kubelet":                                        "kubernetes",
-	"cluster-autoscaler":                             "kubernetes cluster autoscaler",
-	"endpoint-controller":                            "kubernetes controller manager",
-	"endpoint-slice-controller":                      "kubernetes controller manager",
-	"replicaset-controller":                          "kubernetes controller manager",
-	"kube-controller-manager":                        "kubernetes controller manager",
-	"default-scheduler":                              "kube_scheduler",
-	"spark-operator":                                 "spark",
-	"vaultd":                                         "vault",
-}
-
-// defaultEventSource is the source that should be used for kubernetes events emitted by
-// a controller not in the controllerToIntegration map.
-const defaultEventSource = "kubernetes"
-
-// kubernetesEventSource is the name of the source for kubernetes events
-const kubernetesEventSource = "kubernetes"
-
-// customEventSourceSuffix is the suffix that will be added to the event source type when
-// filtering is enabled and the event does not exist within integrationToCollectedEventTypes.
-const customEventSourceSuffix = "custom"
-
-var integrationToCollectedEventTypes = map[string][]collectedEventType{
-	"kubernetes": {
-		{
-			Kind:    "Pod",
-			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
-		},
-		{
-			Kind:    "Node",
-			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
-		},
-		{
-			Kind:    "CronJob",
-			Reasons: []string{"SawCompletedJob"},
-		},
-	},
-	"kube_scheduler": {
-		{
-			Kind:    "Pod",
-			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
-		},
-		{
-			Kind:    "Node",
-			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
-		},
-		{
-			Kind:    "CronJob",
-			Reasons: []string{"SawCompletedJob"},
-		},
-	},
-	"kubernetes controller manager": {
-		{
-			Kind:    "Pod",
-			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
-		},
-		{
-			Kind:    "Node",
-			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
-		},
-		{
-			Kind:    "CronJob",
-			Reasons: []string{"SawCompletedJob"},
-		},
-	},
-	"karpenter": {
-		{
-			Source: "karpenter",
-			Reasons: []string{
-				"DisruptionBlocked",
-				"DisruptionLaunching",
-				"DisruptionTerminating",
-				"DisruptionWaitingReadiness",
-				"FailedDraining",
-				"InstanceTerminating",
-				"SpotInterrupted",
-				"SpotRebalanceRecommendation",
-				"TerminatingOnInterruption",
-			},
-		},
-	},
-	"datadog-operator": {
-		{
-			Source: "datadog-operator",
-		},
-	},
-	"amazon elb": {
-		{
-			Source: "amazon elb",
-		},
-	},
-	"cilium": {
-		{
-			Source: "cilium",
-		},
-	},
-	"fluxcd": {
-		{
-			Source: "fluxcd",
-		},
-	},
-	"kubernetes cluster autoscaler": {
-		{
-
-			Source: "kubernetes cluster autoscaler",
-		},
-	},
-	"spark": {
-		{
-			Source: "spark",
-		},
-	},
-	"vault": {
-
-		{
-			Source: "vault",
-		},
-	},
-	"default": {
-		{
-			Reasons: []string{"BackOff"}, // Change tracking consumes all CLB events
-		},
-	},
-}
-
-// getDDAlertType converts kubernetes event types into datadog alert types
-func getDDAlertType(k8sType string) event.AlertType {
-	switch k8sType {
-	case v1.EventTypeNormal:
-		return event.AlertTypeInfo
-	case v1.EventTypeWarning:
-		return event.AlertTypeWarning
-	default:
-		log.Debugf("Unknown event type '%s'", k8sType)
-		return event.AlertTypeInfo
-	}
 }
 
 func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tagger.Component) []string {
@@ -322,26 +117,6 @@ func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
 	return getEventHostInfoImpl(getHostProviderID, clusterName, ev)
 }
 
-// scheduledMessageRe matches the message the kube-scheduler (and schedulers
-// reusing its wording, e.g. GKE's high-throughput scheduler) attaches to a
-// Pod's "Scheduled" event: "Successfully assigned <namespace>/<pod> to <node>".
-var scheduledMessageRe = regexp.MustCompile(`^Successfully assigned \S+ to (\S+)$`)
-
-// nodeFromScheduledMessage returns the node named in a Pod "Scheduled" event's
-// message, or "" when the event is not such an event or its message does not
-// have the scheduler's wording. Scheduler events carry no Source.Host, and the
-// message already says where the pod went, so this saves a Pod GET.
-func nodeFromScheduledMessage(ev *v1.Event) string {
-	if ev.Reason != "Scheduled" {
-		return ""
-	}
-	m := scheduledMessageRe.FindStringSubmatch(strings.TrimSpace(ev.Message))
-	if len(m) < 2 {
-		return ""
-	}
-	return m[1]
-}
-
 // getEventHostInfoImpl get the host information (hostname,nodename) from where the event has been generated.
 // This function takes `hostProviderIDFunc` function to ease unit-testing by mocking the
 // providers logic
@@ -354,7 +129,7 @@ func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName st
 	case podKind:
 		sourceHost := ev.Source.Host
 		if sourceHost == "" {
-			sourceHost = nodeFromScheduledMessage(ev)
+			sourceHost = events.NodeFromScheduledMessage(events.FromCoreV1(ev))
 		}
 		if sourceHost != "" {
 			info.nodename = sourceHost
@@ -434,59 +209,19 @@ func getKindTag(kind, name string) string {
 	return tagName + ":" + name
 }
 
-func buildReadableKey(obj v1.ObjectReference) string {
-	if obj.Namespace != "" {
-		return fmt.Sprintf("%s %s/%s", obj.Kind, obj.Namespace, obj.Name)
-	}
-
-	return fmt.Sprintf("%s %s", obj.Kind, obj.Name)
-}
-
 func init() {
 	hostProviderIDCache = cache.New(time.Hour, time.Hour)
 }
 
+// getEventSource returns the integration a Kubernetes event is attributed to.
 func getEventSource(controllerName string, sourceComponent string) string {
-	if !pkgconfigsetup.Datadog().GetBool("kubernetes_events_source_detection.enabled") {
-		return kubernetesEventSource
-	}
-
-	if v, ok := controllerToIntegration[controllerName]; ok {
-		return v
-	}
-	if v, ok := controllerToIntegration[sourceComponent]; ok {
-		return v
-	}
-	return defaultEventSource
+	return events.SourceType(controllerName, sourceComponent, pkgconfigsetup.Datadog().GetBool("kubernetes_events_source_detection.enabled"))
 }
 
 func shouldCollectByDefault(ev *v1.Event) bool {
-	if v, ok := integrationToCollectedEventTypes[getEventSource(ev.ReportingController, ev.Source.Component)]; ok {
-		return shouldCollect(ev, append(v, integrationToCollectedEventTypes["default"]...))
-	}
-	return shouldCollect(ev, integrationToCollectedEventTypes["default"])
+	return events.ShouldCollectByDefault(events.FromCoreV1(ev), pkgconfigsetup.Datadog().GetBool("kubernetes_events_source_detection.enabled"))
 }
 
 func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
-	involvedObject := ev.InvolvedObject
-
-	for _, f := range collectedTypes {
-		if f.Kind != "" && f.Kind != involvedObject.Kind {
-			continue
-		}
-
-		if f.Source != "" && f.Source != ev.Source.Component {
-			continue
-		}
-
-		if len(f.Reasons) == 0 {
-			return true
-		}
-
-		if slices.Contains(f.Reasons, ev.Reason) {
-			return true
-		}
-	}
-
-	return false
+	return events.ShouldCollect(events.FromCoreV1(ev), collectedTypes)
 }

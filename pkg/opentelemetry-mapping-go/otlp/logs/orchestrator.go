@@ -31,6 +31,10 @@ const (
 
 var (
 	k8sTypeMap map[string]int
+
+	// errResourceNotSent is returned, wrapped, for resources that are deliberately not turned into manifests.
+	// It is not a failure: callers log it at debug level.
+	errResourceNotSent = errors.New("resource not sent as a manifest")
 )
 
 func init() {
@@ -159,6 +163,10 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 	if shouldSkipResourceKind(kind, group) {
 		return nil, fmt.Errorf("skipping unsupported resource kind: %s (contains sensitive data)", kind)
 	}
+	if isEventKind(kind, group) {
+		// Events are not resources the Kubernetes Explorer shows, and are not custom resources either
+		return nil, fmt.Errorf("%w: %s %s is an event", errResourceNotSent, group, kind)
+	}
 
 	// Extract metadata
 	metadata, ok := k8sResource["metadata"].(map[string]interface{})
@@ -196,7 +204,10 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 	}
 
 	// Determine manifest type based on the Kubernetes resource kind
-	manifestType := getManifestType(kind)
+	manifestType := getManifestType(kind, apiVersion)
+	if kind != "" && manifestType == int(orchestratormodel.K8sUnsetType) {
+		return nil, fmt.Errorf("%w: %s %s is not a kind the Kubernetes Explorer supports", errResourceNotSent, apiVersion, kind)
+	}
 
 	// Build tags from resource and log record attributes
 	tags := buildCommonTags()
@@ -405,6 +416,10 @@ func translateClusterLogs(clusterID, clusterName string, rls []plog.ResourceLogs
 			for k := 0; k < sl.LogRecords().Len(); k++ {
 				lr := sl.LogRecords().At(k)
 				manifest, isWatch, err := ToManifest(lr, resource)
+				if errors.Is(err, errResourceNotSent) {
+					logger.Debug("Skipping resource", zap.Error(err))
+					continue
+				}
 				if err != nil {
 					logger.Error("Failed to convert to manifest", zap.Error(err))
 					continue
@@ -444,15 +459,34 @@ func translateClusterLogs(clusterID, clusterName string, rls []plog.ResourceLogs
 	}
 }
 
-func getManifestType(kind string) int {
+// getManifestType returns the orchestrator manifest type of a resource, from its kind and its apiVersion.
+// K8sUnsetType is returned for resources that have no type: no kind, or a kind of the core group
+// that the type map does not know.
+func getManifestType(kind, apiVersion string) int {
 	if _, ok := k8sTypeMap[kind]; ok {
 		return k8sTypeMap[kind]
 	}
-	// Anything not in the built-in K8s type map is a CRD-defined kind; route it as K8sCR
-	if kind != "" {
-		return int(orchestratormodel.K8sCR)
+	if kind == "" || isCoreGroup(apiVersion) {
+		// Only kinds of other API groups can be CRD-defined: a kind of the core group
+		// that the built-in type map does not know is not a custom resource.
+		return int(orchestratormodel.K8sUnsetType)
 	}
-	return int(orchestratormodel.K8sUnsetType)
+	// Anything else not in the built-in K8s type map is a CRD-defined kind; route it as K8sCR
+	return int(orchestratormodel.K8sCR)
+}
+
+// isCoreGroup returns whether an apiVersion, such as "v1" or "apps/v1", belongs to the core API group,
+// which has no group prefix. An empty apiVersion is not known to be in the core group.
+func isCoreGroup(apiVersion string) bool {
+	return apiVersion != "" && !strings.Contains(apiVersion, "/")
+}
+
+// isEventKind returns whether the resource is a Kubernetes event, of the core or of the events.k8s.io API group.
+func isEventKind(kind, apiVersion string) bool {
+	if kind != "Event" {
+		return false
+	}
+	return isCoreGroup(apiVersion) || strings.HasPrefix(apiVersion, "events.k8s.io/")
 }
 
 func buildCommonTags() []string {

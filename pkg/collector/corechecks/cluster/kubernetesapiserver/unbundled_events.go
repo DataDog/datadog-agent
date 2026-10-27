@@ -8,14 +8,13 @@
 package kubernetesapiserver
 
 import (
-	"fmt"
-
 	v1 "k8s.io/api/core/v1"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,14 +53,14 @@ type unbundledTransformer struct {
 	filteringEnabled        bool
 }
 
-func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
+func (c *unbundledTransformer) Transform(evs []*v1.Event) ([]event.Event, []error) {
 	var (
 		eventsToBundle []*v1.Event
 		datadogEvs     []event.Event
 		errors         []error
 	)
 
-	for _, ev := range events {
+	for _, ev := range evs {
 
 		source := getEventSource(ev.ReportingController, ev.Source.Component)
 
@@ -76,7 +75,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		collectedByDefault := false
 		if c.filteringEnabled {
 			if !shouldCollectByDefault(ev) {
-				source = source + "_" + customEventSourceSuffix
+				source = source + "_" + events.CustomSourceSuffix
 			} else {
 				collectedByDefault = true
 			}
@@ -92,7 +91,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 
 		involvedObject := ev.InvolvedObject
 		hostInfo := getEventHostInfo(c.clusterName, ev)
-		readableKey := buildReadableKey(involvedObject)
+		evt := events.FromCoreV1(ev)
 
 		tags := c.buildEventTags(ev, involvedObject, hostInfo)
 
@@ -111,15 +110,15 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		}
 
 		event := event.Event{
-			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
+			Title:          events.Title(evt),
 			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: source,
 			EventType:      CheckName,
 			Ts:             timestamp,
 			Tags:           tags,
-			AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", involvedObject.UID),
-			AlertType:      getDDAlertType(ev.Type),
+			AggregationKey: events.AggregationKey(string(involvedObject.UID)),
+			AlertType:      events.AlertType(ev.Type),
 			Text:           ev.Message,
 		}
 		datadogEvs = append(datadogEvs, event)

@@ -52,5 +52,6 @@ dd_agent_go_test(
         "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
         "@org_uber_go_zap//:zap",
         "@org_uber_go_zap//zaptest",
+        "@org_uber_go_zap//zaptest/observer",
     ],
 )

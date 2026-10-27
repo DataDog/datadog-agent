@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -38,35 +39,108 @@ func TestGetManifestType(t *testing.T) {
 	tests := []struct {
 		name         string
 		kind         string
+		apiVersion   string
 		expectedType int
 	}{
 		{
 			name:         "known kind Pod",
 			kind:         "Pod",
+			apiVersion:   "v1",
 			expectedType: int(orchestratormodel.K8sPod),
 		},
 		{
 			name:         "known kind Deployment",
 			kind:         "Deployment",
+			apiVersion:   "apps/v1",
 			expectedType: int(orchestratormodel.K8sDeployment),
 		},
 		{
-			name:         "unknown kind treated as custom resource",
+			name:         "unknown kind of another group treated as custom resource",
+			kind:         "MyCustomResource",
+			apiVersion:   "example.com/v1",
+			expectedType: int(orchestratormodel.K8sCR),
+		},
+		{
+			name:         "unknown kind with no apiVersion treated as custom resource",
 			kind:         "MyCustomResource",
 			expectedType: int(orchestratormodel.K8sCR),
 		},
 		{
+			name:         "unknown kind of the core group is not a custom resource",
+			kind:         "Event",
+			apiVersion:   "v1",
+			expectedType: int(orchestratormodel.K8sUnsetType),
+		},
+		{
 			name:         "empty kind treated as unset",
 			kind:         "",
+			apiVersion:   "v1",
 			expectedType: int(orchestratormodel.K8sUnsetType),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedType, getManifestType(tt.kind))
+			assert.Equal(t, tt.expectedType, getManifestType(tt.kind, tt.apiVersion))
 		})
 	}
+}
+
+func TestBuildManifestFromK8sResource_NotSent(t *testing.T) {
+	resource := func(apiVersion, kind string) map[string]interface{} {
+		return map[string]interface{}{
+			"apiVersion": apiVersion,
+			"kind":       kind,
+			"metadata":   map[string]interface{}{"uid": "uid-1", "resourceVersion": "1", "name": "n"},
+		}
+	}
+
+	t.Run("events are not sent", func(t *testing.T) {
+		for _, apiVersion := range []string{"v1", "events.k8s.io/v1"} {
+			manifest, err := BuildManifestFromK8sResource(resource(apiVersion, "Event"), false)
+			assert.Nil(t, manifest, apiVersion)
+			assert.ErrorIs(t, err, errResourceNotSent, apiVersion)
+		}
+	})
+
+	t.Run("unknown kinds of the core group are not sent", func(t *testing.T) {
+		manifest, err := BuildManifestFromK8sResource(resource("v1", "ComponentStatus"), false)
+		assert.Nil(t, manifest)
+		assert.ErrorIs(t, err, errResourceNotSent)
+	})
+
+	t.Run("an Event custom resource of another group is sent as a custom resource", func(t *testing.T) {
+		manifest, err := BuildManifestFromK8sResource(resource("example.com/v1", "Event"), false)
+		require.NoError(t, err)
+		assert.Equal(t, int32(orchestratormodel.K8sCR), manifest.Type)
+	})
+
+	t.Run("pods are sent", func(t *testing.T) {
+		manifest, err := BuildManifestFromK8sResource(resource("v1", "Pod"), false)
+		require.NoError(t, err)
+		assert.Equal(t, int32(orchestratormodel.K8sPod), manifest.Type)
+	})
+}
+
+// TestTranslateK8sObjects_SkipsEvents verifies that events are dropped without affecting
+// the other objects of the batch, nor being reported as errors.
+func TestTranslateK8sObjects_SkipsEvents(t *testing.T) {
+	core, logs := observer.New(zap.DebugLevel)
+	logger := zap.New(core)
+
+	ld := buildK8sLogs("cluster-1-uid", "cluster-1", "pod-1", "v1", false)
+	sl := ld.ResourceLogs().At(0).ScopeLogs().At(0)
+	sl.LogRecords().AppendEmpty().Body().SetStr(`{"apiVersion":"v1","kind":"Event","metadata":{"uid":"event-1","resourceVersion":"1","name":"e"}}`)
+	sl.LogRecords().AppendEmpty().Body().SetStr(`{"type":"ADDED","object":{"apiVersion":"events.k8s.io/v1","kind":"Event","metadata":{"uid":"event-2","resourceVersion":"1","name":"e"}}}`)
+
+	results := TranslateK8sObjects(ld, nil, logger, 0)
+	require.Len(t, results, 1)
+	require.Len(t, results[0].Chunks, 1)
+	require.Len(t, results[0].Chunks[0], 1, "only the pod should be sent")
+	assert.Equal(t, "pod-1", results[0].Chunks[0][0].Uid)
+
+	assert.Zero(t, logs.FilterLevelExact(zap.ErrorLevel).Len(), "skipped events must not be logged as errors")
+	assert.Equal(t, 2, logs.FilterMessage("Skipping resource").Len())
 }
 
 func TestBuildManifestFromK8sResource_NodeName(t *testing.T) {

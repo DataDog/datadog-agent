@@ -20,6 +20,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/events"
 )
 
 const (
@@ -64,7 +65,7 @@ func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesE
 		component:           event.Source.Component,
 		reportingController: event.ReportingController,
 		countByAction:       make(map[string]int),
-		alertType:           getDDAlertType(event.Type),
+		alertType:           events.AlertType(event.Type),
 		hostInfo:            getEventHostInfo(clusterName, event),
 		estimatedSize:       bundleFixedOverhead + escapedLength(event.Source.Component),
 	}
@@ -110,7 +111,7 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 		return event.Event{}, errors.New("no event to export")
 	}
 
-	readableKey := buildReadableKey(b.involvedObject)
+	readableKey := events.ReadableKey(events.ObjectReferenceFromCoreV1(b.involvedObject))
 	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, "source_component:"+b.component)
 	tags = append(tags, "orchestrator:kubernetes")
@@ -132,7 +133,7 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 		EventType:      CheckName,
 		Ts:             int64(b.lastTimestamp),
 		Tags:           tags,
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.involvedObject.UID),
+		AggregationKey: events.AggregationKey(string(b.involvedObject.UID)),
 		AlertType:      b.alertType,
 		Text:           b.formatEventText(),
 	}
@@ -246,5 +247,5 @@ func describeKubernetesEvent(event *v1.Event) string {
 	if source == "" {
 		source = event.ReportingController
 	}
-	return fmt.Sprintf("reason: %s, source: %s, involved_object: %s", event.Reason, source, buildReadableKey(event.InvolvedObject))
+	return fmt.Sprintf("reason: %s, source: %s, involved_object: %s", event.Reason, source, events.ReadableKey(events.ObjectReferenceFromCoreV1(event.InvolvedObject)))
 }

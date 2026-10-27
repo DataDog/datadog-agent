@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -118,11 +119,7 @@ type KubeASConfig struct {
 	FilteringEnabled    bool                 `yaml:"filtering_enabled"`
 }
 
-type collectedEventType struct {
-	Kind    string   `yaml:"kind"`
-	Source  string   `yaml:"source"`
-	Reasons []string `yaml:"reasons"`
-}
+type collectedEventType = events.CollectedType
 
 type eventTransformer interface {
 	Transform([]*v1.Event) ([]event.Event, []error)

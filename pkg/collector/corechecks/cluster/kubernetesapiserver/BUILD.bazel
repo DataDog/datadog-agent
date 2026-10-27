@@ -37,6 +37,7 @@ go_library(
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/clustername",
+        "//pkg/util/kubernetes/events",
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/prometheus",

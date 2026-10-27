@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "events",
+    srcs = [
+        "doc.go",
+        "event.go",
+        "filter.go",
+        "source.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/events",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics/event",
+        "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
+    ],
+)
+
+dd_agent_go_test(
+    name = "events_test",
+    srcs = [
+        "event_test.go",
+        "filter_test.go",
+        "source_test.go",
+    ],
+    embed = [":events"],
+    deps = [
+        "//pkg/metrics/event",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
