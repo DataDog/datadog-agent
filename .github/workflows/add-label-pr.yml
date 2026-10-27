@@ -2,8 +2,8 @@
 name: "Add labels to PR"
 
 on:
-  # Run the workflow from the base branch, so that it labels PRs from forks and PRs with
-  # merge conflicts, and so that no code from the PR runs with the token.
+  # Run the workflow from the PR's target branch, so that it labels PRs from forks and PRs
+  # with merge conflicts, and so that no code from the PR runs with the token.
   # Never check out or run code from the PR in this workflow.
   pull_request_target:
     types: [opened, synchronize, reopened]

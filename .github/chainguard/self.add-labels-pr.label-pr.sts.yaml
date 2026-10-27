@@ -3,12 +3,13 @@ issuer: https://token.actions.githubusercontent.com
 
 subject: repo:DataDog/datadog-agent:pull_request
 
-# Only the add-label-pr workflow as merged on main can get this token: it runs on
-# pull_request_target, so a pull request cannot change the code that uses it.
+# Only the add-label-pr workflow running on pull_request_target can get this token. That
+# workflow comes from the PR's target branch, which is any branch of this repository for
+# stacked and release PRs, so a PR (including from a fork) cannot change it.
 claim_pattern:
   event_name: pull_request_target
-  ref: refs/heads/main
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add-label-pr\.yml@refs/heads/main
+  ref: refs/heads/.+
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add-label-pr\.yml@refs/heads/.+
 
 permissions:
   contents: read
