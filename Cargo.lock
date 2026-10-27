@@ -981,9 +981,9 @@ dependencies = [
 
 [[package]]
 name = "dd-sensitive-data-scanner"
-version = "0.1.0-20261022-17ed08ff95cb"
+version = "0.1.0-20261022-f906e9b36550"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58f979593ada261f546323870b696133d60ea0e751a874567556892d29af2b67"
+checksum = "ec82488bed89a7947457e2b4bdb2a9650b0e6c134b22334b8fcf70be4f451411"
 dependencies = [
  "ahash",
  "base62",
