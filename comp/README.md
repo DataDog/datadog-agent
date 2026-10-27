@@ -967,6 +967,12 @@ Package networkconfigmanagement provides the component for retrieving network de
 
 Package networkdevices provides the Agent-side component for NDM.
 
+### [comp/networkpcap/uploader](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpcap/uploader)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package uploader sends network packet captures to the networkpcap intake as streamed multipart uploads
+
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
 *Datadog Team*: windows-products
