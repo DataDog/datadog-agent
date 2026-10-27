@@ -73,6 +73,18 @@ func (m *mockTraceStopper) Stop() {
 	}
 }
 
+// mockTraceAgent counts Flush, FlushAll and Stop calls. Like
+// ServerlessTraceAgent, it satisfies Flusher, ForceFlusher and TraceStopper.
+type mockTraceAgent struct {
+	flushCount    atomic.Int32
+	flushAllCount atomic.Int32
+	stopCount     atomic.Int32
+}
+
+func (m *mockTraceAgent) Flush()    { m.flushCount.Add(1) }
+func (m *mockTraceAgent) FlushAll() { m.flushAllCount.Add(1) }
+func (m *mockTraceAgent) Stop()     { m.stopCount.Add(1) }
+
 // mockLogsAgent counts how many times Flush was called and records when each
 // call returned. onFlush, if set, is invoked after each Flush.
 type mockLogsAgent struct {
@@ -450,6 +462,60 @@ func TestHandleSuspend_UsesFlushNotFlushAll(t *testing.T) {
 	assert.Equal(t, int32(0), metric.flushAllCount.Load(), "/suspend must not call FlushAll")
 }
 
+// TestHandleSuspend_ForceFlushesTraceAgentWithoutStopping pins that /suspend
+// calls FlushAll on a trace agent that supports both FlushAll and Stop. Stats
+// have to go out, but the VM can resume and must keep tracing.
+func TestHandleSuspend_ForceFlushesTraceAgentWithoutStopping(t *testing.T) {
+	trace := &mockTraceAgent{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, int32(1), trace.flushAllCount.Load(), "/suspend must call FlushAll")
+	assert.Equal(t, int32(0), trace.stopCount.Load(), "/suspend must not call Stop")
+	assert.Equal(t, int32(0), trace.flushCount.Load(), "/suspend must not call Flush")
+}
+
+// TestHandleSuspend_WithForwarder_ForceFlushesTraceAgentWithoutStopping pins
+// that the forwarded /suspend path also calls FlushAll, not Stop, on a trace
+// agent that supports both.
+func TestHandleSuspend_WithForwarder_ForceFlushesTraceAgentWithoutStopping(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	trace := &mockTraceAgent{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+	srv.fwd = &Forwarder{
+		target:               upstream.URL,
+		client:               &http.Client{},
+		forwardTimeout:       2 * time.Second,
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
+	}
+	srv.enabledHooks.Suspend = true
+
+	srv.handleSuspend(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathSuspend, nil))
+
+	assert.Equal(t, int32(1), trace.flushAllCount.Load(), "/suspend must call FlushAll")
+	assert.Equal(t, int32(0), trace.stopCount.Load(), "/suspend must not call Stop")
+	assert.Equal(t, int32(0), trace.flushCount.Load(), "/suspend must not call Flush")
+}
+
+// TestHandleTerminate_StopsTraceAgentWithoutForceFlushing pins that /terminate
+// calls only Stop on a trace agent that also supports FlushAll: Stop already
+// force-flushes the stats (see TraceStopper).
+func TestHandleTerminate_StopsTraceAgentWithoutForceFlushing(t *testing.T) {
+	trace := &mockTraceAgent{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
+	assert.Equal(t, int32(0), trace.flushAllCount.Load(), "/terminate must not call FlushAll when Stop is available")
+	assert.Equal(t, int32(0), trace.flushCount.Load(), "/terminate must not call Flush")
+}
+
 // TestHandleTerminate_UsesFlushAllNotFlush pins that /terminate calls
 // FlushAll, not Flush (see ForceFlusher for why).
 func TestHandleTerminate_UsesFlushAllNotFlush(t *testing.T) {
@@ -473,6 +539,18 @@ func TestHandleTerminate_StopsTraceAgentInsteadOfFlushing(t *testing.T) {
 
 	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
 	assert.Equal(t, int32(0), trace.flushCount.Load(), "/terminate must not call Flush when Stop is available")
+}
+
+// TestHandleTerminate_ForceFlushesTraceFlusherWithoutStop pins that a trace
+// flusher with FlushAll but no Stop still gets FlushAll on /terminate.
+func TestHandleTerminate_ForceFlushesTraceFlusherWithoutStop(t *testing.T) {
+	trace := &mockForceFlusher{}
+	srv := NewServer(0, &mockFlusher{}, trace, &mockLogsAgent{}, &mockMetricEmitter{}, &mockSampleDrainer{}, metrics.MetricSourceAWSMicroVMEnhanced, 2*time.Second, nil, nil, HookToggles{}, nil)
+
+	srv.handleTerminate(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathTerminate, nil))
+
+	assert.Equal(t, int32(1), trace.flushAllCount.Load(), "/terminate must call FlushAll")
+	assert.Equal(t, int32(0), trace.flushCount.Load(), "/terminate must not call Flush")
 }
 
 // TestHandleTerminate_BlockedTraceStopReturnsWithinBudget pins that a Stop that
