@@ -32,7 +32,9 @@ const (
 	// larger, e.g. with a raised snapLen.
 	defaultMaxBytes = 160 * 1024 * 1024
 	minDurationSecs = 1
-	maxDurationSecs = 120
+	// maxDurationSecs leaves room for the upload within the runner's default
+	// 60 s task timeout. The backend never requests more than 30 s.
+	maxDurationSecs = 30
 )
 
 // captureTrigger triggers a packet capture on system-probe and returns its

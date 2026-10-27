@@ -241,12 +241,22 @@ func TestRunCaptureValidation_DurationTooHigh(t *testing.T) {
 	handler := newTestHandler()
 	task := newTask(map[string]interface{}{
 		"bpfFilter":    "tcp port 80",
-		"durationSecs": 121,
+		"durationSecs": maxDurationSecs + 1,
 	})
 
 	_, err := handler.Run(context.Background(), task, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "durationSecs")
+}
+
+func TestRunCaptureValidation_MaxDurationIsAccepted(t *testing.T) {
+	handler := newTestHandler()
+	task := newTask(map[string]interface{}{
+		"durationSecs": maxDurationSecs,
+	})
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
 }
 
 func TestRunCaptureValidation_ValidInputs(t *testing.T) {

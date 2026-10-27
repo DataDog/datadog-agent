@@ -48,7 +48,7 @@ const trailerGracePeriod = 5 * time.Second
 // Limits enforced here, where the capture runs, whatever the caller sends.
 // They match the Private Action Runner's, which validates first.
 const (
-	maxDurationSecs   = 120
+	maxDurationSecs   = 30
 	defaultMaxPackets = 2_000_000
 	defaultMaxBytes   = 160 << 20
 )
