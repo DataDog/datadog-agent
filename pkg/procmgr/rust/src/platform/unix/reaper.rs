@@ -276,13 +276,33 @@ mod tests {
         assert!(result.is_err());
     }
 
+    fn crate_src_root() -> std::path::PathBuf {
+        #[cfg(bazel)]
+        {
+            let marker = std::env::var("DD_PROCMGRD_LIB_RS")
+                .expect("DD_PROCMGRD_LIB_RS must be set by the Bazel test target");
+            let runfiles = runfiles::Runfiles::create()
+                .expect("lib.rs is a runfile, so this test needs `bazel test`");
+            let path = runfiles
+                .rlocation_from(&marker, option_env!("REPOSITORY_NAME").unwrap_or(""))
+                .unwrap_or_else(|| panic!("no runfile for {marker}"));
+            path.parent()
+                .unwrap_or_else(|| panic!("{} has no parent", path.display()))
+                .to_path_buf()
+        }
+        #[cfg(not(bazel))]
+        {
+            // Do not retain env!("CARGO_MANIFEST_DIR") under --cfg=bazel:
+            // rules_rust process_wrapper rejects that absolute path in the binary.
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")
+        }
+    }
+
     #[test]
     fn tokio_child_spawn_stays_on_the_registration_path() {
-        use std::path::PathBuf;
-
-        let src_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let src_root = crate_src_root();
         let mut offenders = Vec::new();
-        let mut stack = vec![src_root];
+        let mut stack = vec![src_root.clone()];
         while let Some(dir) = stack.pop() {
             for entry in std::fs::read_dir(&dir).expect("read_dir") {
                 let entry = entry.expect("dir entry");
@@ -298,7 +318,7 @@ mod tests {
                     continue;
                 }
                 let rel = path
-                    .strip_prefix(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src"))
+                    .strip_prefix(&src_root)
                     .expect("src-relative")
                     .to_string_lossy()
                     .replace('\\', "/");
