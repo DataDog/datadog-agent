@@ -7,14 +7,32 @@
 #define TASK_COMM_LEN 16
 #endif
 
-typedef struct {} oom_stats_v1;
+typedef struct {} oom_stats_v2;
+
+struct cgroup_memory_stats {
+    __u64 usage;
+    __u64 active_anon;
+    __u64 inactive_anon;
+    __u64 active_file;
+    __u64 inactive_file;
+    __u64 unevictable;
+    __u64 kernel;
+};
+
+struct stats_key {
+    __u64 ts;
+    __u64 pid_tgid;
+    __u32 cpu;
+};
 
 struct oom_stats {
     // version marker to ensure compatibility
     // between a new oom kill map vs the pinned map.
     // Bump it whenever this struct changes, see
     // pkg/collector/corechecks/ebpf/probe/oomkill/oom_stats_layout_linux.go
-    oom_stats_v1 oom_stats_version;
+    oom_stats_v2 oom_stats_version;
+    // cgroup memory statistics at the point of OOM
+    struct cgroup_memory_stats mem;
     // Pid of killed process
     __u32 victim_pid;
     // Pid of triggering process

@@ -4,7 +4,8 @@
 package oomkill
 
 type oomStats struct {
-	Oom_stats_version oomStatsV1
+	Oom_stats_version oomStatsV2
+	Mem               cgroupMemoryStats
 	Victim_pid        uint32
 	Trigger_pid       uint32
 	Victim_comm       [16]byte
@@ -18,5 +19,22 @@ type oomStats struct {
 	Pad_cgo_0         [7]byte
 }
 
-type oomStatsV1 struct {
+type oomStatsV2 struct {
+}
+
+type cgroupMemoryStats struct {
+	Usage         uint64
+	Active_anon   uint64
+	Inactive_anon uint64
+	Active_file   uint64
+	Inactive_file uint64
+	Unevictable   uint64
+	Kernel        uint64
+}
+
+type statsKey struct {
+	Ts        uint64
+	Tgid      uint64
+	Cpu       uint32
+	Pad_cgo_0 [4]byte
 }

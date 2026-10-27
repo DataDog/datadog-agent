@@ -14,5 +14,9 @@ import "C"
 
 type oomStats C.struct_oom_stats
 
-// oomStatsV1 is the version marker of struct oom_stats, see oom_stats_layout_linux.go
-type oomStatsV1 C.oom_stats_v1
+// oomStatsV2 is the version marker of struct oom_stats, see oom_stats_layout_linux.go
+type oomStatsV2 C.oom_stats_v2
+
+type cgroupMemoryStats C.struct_cgroup_memory_stats
+
+type statsKey C.struct_stats_key

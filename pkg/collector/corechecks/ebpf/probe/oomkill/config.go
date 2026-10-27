@@ -19,12 +19,17 @@ type Config struct {
 	// PersistMonitoring pins the probe to bpffs so that it keeps recording OOM kills after
 	// system-probe exits without a graceful shutdown
 	PersistMonitoring bool
+
+	// EmitCgroupMemoryStats collects the memory statistics of the cgroup at the time of a cgroup
+	// OOM kill
+	EmitCgroupMemoryStats bool
 }
 
 // NewConfig creates a [Config] from the system-probe configuration
 func NewConfig() *Config {
 	return &Config{
-		Config:            *ebpf.NewConfig(),
-		PersistMonitoring: pkgconfigsetup.SystemProbe().GetBool("oom_kill.persist_monitoring"),
+		Config:                *ebpf.NewConfig(),
+		PersistMonitoring:     pkgconfigsetup.SystemProbe().GetBool("oom_kill.persist_monitoring"),
+		EmitCgroupMemoryStats: pkgconfigsetup.SystemProbe().GetBool("oom_kill.emit_cgroup_memory_stats"),
 	}
 }

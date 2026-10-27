@@ -48,6 +48,9 @@ const (
 	// oomStatsVersionField is the member of struct oom_stats whose type name, e.g. oom_stats_v1,
 	// is bumped whenever the layout of the struct changes
 	oomStatsVersionField = "oom_stats_version"
+	// emitCgroupMemoryStatsConst is the LOAD_CONSTANT of the eBPF program set from
+	// oom_kill.emit_cgroup_memory_stats
+	emitCgroupMemoryStatsConst = "emit_cgroup_memory_stats"
 )
 
 var supportsFentry = features.SupportsFentry
@@ -63,7 +66,7 @@ type Probe struct {
 	// progName is the program attached to oom_kill_process: oomFentryName or oomKprobeName
 	progName string
 	link     link.Link
-	oomMap   *maps.GenericMap[uint64, oomStats]
+	oomMap   *maps.GenericMap[statsKey, oomStats]
 	// pinned is true if this probe owns the bpffs pins of the link and map
 	pinned bool
 }
@@ -149,6 +152,12 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 		return nil, err
 	}
 
+	emitStats := uint64(0)
+	if cfg.EmitCgroupMemoryStats {
+		emitStats = 1
+	}
+	rewriteConstant(spec, emitCgroupMemoryStatsConst, emitStats)
+
 	// Pins left by a previous system-probe are taken over and cleaned up below even when this one
 	// does not pin, so that they are not left running forever.
 	pinning := pinningFeaturesSupported(progSpec) && cfg.PersistMonitoring
@@ -189,7 +198,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 	}
 
 	p := &Probe{coll: coll, progName: progSpec.Name}
-	if p.oomMap, err = maps.Map[uint64, oomStats](coll.Maps[oomMapName]); err != nil {
+	if p.oomMap, err = maps.Map[statsKey, oomStats](coll.Maps[oomMapName]); err != nil {
 		coll.Close()
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
 	}
@@ -354,6 +363,19 @@ func (k *Probe) attach() error {
 	return nil
 }
 
+// rewriteConstant sets the value loaded by every LOAD_CONSTANT(name) of the programs in spec.
+func rewriteConstant(spec *bpflib.CollectionSpec, name string, value uint64) {
+	ldDWImm := asm.LoadImmOp(asm.DWord)
+	for _, p := range spec.Programs {
+		for i := range p.Instructions {
+			ins := &p.Instructions[i]
+			if ins.Reference() == name && ins.OpCode == ldDWImm {
+				ins.Constant = int64(value)
+			}
+		}
+	}
+}
+
 // selectProgram keeps the fentry program in spec if the kernel supports fentry on oom_kill_process,
 // and the kprobe program otherwise.
 // Both run the same logic; fentry is preferred because its link can be pinned from 5.7 instead of
@@ -391,8 +413,8 @@ func (k *Probe) Close() {
 
 // GetAndFlush gets the stats
 func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
-	var allTimestamps []uint64
-	var ts uint64
+	var allKeys []statsKey
+	var ts statsKey
 	var stat oomStats
 	it := k.oomMap.Iterate()
 	for it.Next(&ts, &stat) {
@@ -401,14 +423,14 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 		} else {
 			results = append(results, out)
 		}
-		allTimestamps = append(allTimestamps, ts)
+		allKeys = append(allKeys, ts)
 	}
 
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on OOM stats while flushing: %s", err)
 	}
 
-	for _, ts := range allTimestamps {
+	for _, ts := range allKeys {
 		if err := k.oomMap.Delete(&ts); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
 		}
@@ -421,14 +443,14 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 // an unknown version, whose value cannot be decoded.
 func convertStats(in oomStats) (model.OOMKillStats, error) {
 	switch v := any(in.Oom_stats_version).(type) {
-	case oomStatsV1:
-		return convertStatsV1(oomStatsV1Layout(in)), nil
+	case oomStatsV2:
+		return convertStatsV2(oomStatsV2Layout(in)), nil
 	default:
-		return model.OOMKillStats{}, fmt.Errorf("unknown oom_stats version %T, dropping OOM kill of pid %d", v, in.Victim_pid)
+		return model.OOMKillStats{}, fmt.Errorf("unsupported oom_stats version %T, dropping OOM kill of pid %d", v, in.Victim_pid)
 	}
 }
 
-func convertStatsV1(in oomStatsV1Layout) (out model.OOMKillStats) {
+func convertStatsV2(in oomStatsV2Layout) (out model.OOMKillStats) {
 	out.CgroupName = unix.ByteSliceToString(in.Cgroup_name[:])
 	out.VictimPid = in.Victim_pid
 	out.TriggerPid = in.Trigger_pid
@@ -438,6 +460,15 @@ func convertStatsV1(in oomStatsV1Layout) (out model.OOMKillStats) {
 	out.TriggerComm = unix.ByteSliceToString(in.Trigger_comm[:])
 	out.Pages = in.Pages
 	out.MemCgOOM = in.Memcg_oom
+	out.CgroupMemory = model.CgroupMemoryStats{
+		Usage:        in.Mem.Usage,
+		ActiveAnon:   in.Mem.Active_anon,
+		InactiveAnon: in.Mem.Inactive_anon,
+		ActiveFile:   in.Mem.Active_file,
+		InactiveFile: in.Mem.Inactive_file,
+		Unevictable:  in.Mem.Unevictable,
+		Kernel:       in.Mem.Kernel,
+	}
 	return
 }
 
