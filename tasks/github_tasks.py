@@ -22,6 +22,11 @@ from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLAC
 from tasks.libs.types.types import PermissionCheck
 
 ALL_TEAMS = '@datadog/agent-community-eng'
+QA_LABELS = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
+QA_SKIP_LABEL = 'qa/no-code-change'
+CHANGELOG_SKIP_LABEL = 'changelog/no-changelog'
+# Identity of the GitHub app token used by the add-label-pr workflows
+LABEL_BOT = 'dd-octo-sts[bot]'
 
 
 @task
@@ -177,6 +182,42 @@ def _assign_pr_team_labels(gh, pr_id, teams):
                 print(label_name, 'label assigned to the pull request')
             except github.GithubException:
                 print(f'Failed to assign label {label_name}')
+
+
+@task
+def assign_no_shipped_change_labels(_, pr_id=-1):
+    """
+    Assigns the 'changelog/no-changelog' and 'qa/no-code-change' labels if the PR
+    changes no file used to build an Agent package or image.
+    Removes them if they were assigned by this task and the PR now changes shipped files.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.common.shipped_files import touches_shipped_files
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    pr = gh.get_pr(pr_id)
+    files = gh.get_pr_files(pr_id)
+    labels = set(gh.get_pr_labels(pr_id))
+    # The API lists at most 3000 files, consider the remaining ones as shipped
+    shipped = len(files) < pr.changed_files or touches_shipped_files(files)
+
+    if not shipped:
+        has_release_note = any(file.startswith(('releasenotes/notes/', 'releasenotes-dca/notes/')) for file in files)
+        if CHANGELOG_SKIP_LABEL not in labels and not has_release_note:
+            gh.add_pr_label(pr_id, CHANGELOG_SKIP_LABEL)
+            print(CHANGELOG_SKIP_LABEL, 'label assigned to the pull request')
+        if not labels & QA_LABELS:
+            gh.add_pr_label(pr_id, QA_SKIP_LABEL)
+            print(QA_SKIP_LABEL, 'label assigned to the pull request')
+        return
+
+    # Bot authored PRs set these labels themselves, with the same identity as this task
+    if pr.user.login.endswith('[bot]'):
+        return
+    for label in (CHANGELOG_SKIP_LABEL, QA_SKIP_LABEL):
+        if label in labels and gh.get_pr_label_author(pr_id, label) == LABEL_BOT:
+            _remove_pr_label(gh, pr_id, label)
+            print(label, 'label removed from the pull request as it now changes shipped files')
 
 
 @task
@@ -373,8 +414,7 @@ def pr_merge_dd_event_sender(
 
     tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
     labels = set(github.get_pr_labels(pr.number))
-    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
-    qa_labels = all_qa_labels.intersection(labels)
+    qa_labels = QA_LABELS.intersection(labels)
     if len(qa_labels) == 0:
         tags.append('qa_label:missing')
     else:
@@ -508,8 +548,7 @@ def check_qa_labels(_, labels: str):
     Check if the PR has one of qa/[done|no-code-change|rc-required] label
     """
     labels = set(labels.split(" "))
-    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
-    qa_labels = all_qa_labels.intersection(labels)
+    qa_labels = QA_LABELS.intersection(labels)
     docs = "\n".join(
         [
             "You must set one of:",

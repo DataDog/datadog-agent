@@ -258,6 +258,8 @@ For internal PRs (from people in the Datadog organization), you have few extra l
     - Changing the CI configuration without impacting the Agent packaging.
     - Changing the documentation.
     - Changing the developer tooling.
+
+    When a PR changes no file used to build an Agent package or image (see `tasks/libs/common/shipped_files.py`), the `changelog/no-changelog` and `qa/no-code-change` labels are set automatically.
     ///
 
 - `major_change`: to flag the PR as a major change impacting many/all teams working on the agent and will require deeper QA (example: when we change the Python version shipped in the agent).

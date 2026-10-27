@@ -10,6 +10,7 @@ import tasks
 from tasks.github_tasks import (
     Exit,
     _get_teams,
+    assign_no_shipped_change_labels,
     assign_team_label,
     check_permissions,
     check_qa_labels,
@@ -134,6 +135,60 @@ class TestAssignTeamLabelMock(unittest.TestCase):
         expected_labels = ['team/triage']
 
         self.make_test(changed_files, expected_labels, pr_labels=['team/triage'])
+
+
+class TestAssignNoShippedChangeLabels(unittest.TestCase):
+    def make_test(
+        self, changed_files, expected_labels, pr_labels=None, label_author='dd-octo-sts[bot]', pr_author='someone'
+    ):
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock:
+            pr = unittest.mock.Mock(spec=GithubAPIMock.PullRequest)
+            pr.changed_files = len(changed_files)
+            pr.user.login = pr_author
+            gh = GithubAPIMock(list(pr_labels or []), changed_files, pr=pr)
+            gh.pr.remove_from_labels = gh.remove_pr_label
+            gh.get_pr_label_author = MagicMock(return_value=label_author)
+            gh_mock.return_value = gh
+            assign_no_shipped_change_labels(Context())
+
+            self.assertEqual(sorted(gh.get_pr_labels()), sorted(expected_labels))
+
+    def test_not_shipped(self):
+        self.make_test(['doc/index.md', 'pkg/a_test.go'], ['changelog/no-changelog', 'qa/no-code-change'])
+
+    def test_not_shipped_keep_existing_qa_label(self):
+        self.make_test(['pkg/a_test.go'], ['changelog/no-changelog', 'qa/done'], pr_labels=['qa/done'])
+
+    def test_not_shipped_already_labeled(self):
+        labels = ['changelog/no-changelog', 'qa/no-code-change']
+        self.make_test(['pkg/a_test.go'], labels, pr_labels=labels)
+
+    def test_not_shipped_with_release_note(self):
+        self.make_test(['releasenotes/notes/a-0123456789abcdef.yaml'], ['qa/no-code-change'])
+
+    def test_shipped(self):
+        self.make_test(['pkg/a.go', 'pkg/a_test.go'], [])
+
+    def test_truncated_files(self):
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock:
+            pr = unittest.mock.Mock(spec=GithubAPIMock.PullRequest)
+            pr.changed_files = 3001
+            gh = GithubAPIMock([], ['pkg/a_test.go'], pr=pr)
+            gh_mock.return_value = gh
+            assign_no_shipped_change_labels(Context())
+
+            self.assertEqual(gh.get_pr_labels(), [])
+
+    def test_shipped_remove_auto_labels(self):
+        self.make_test(['pkg/a.go'], [], pr_labels=['changelog/no-changelog', 'qa/no-code-change'])
+
+    def test_shipped_keep_human_labels(self):
+        labels = ['changelog/no-changelog', 'qa/no-code-change']
+        self.make_test(['pkg/a.go'], labels, pr_labels=labels, label_author='someone')
+
+    def test_shipped_keep_bot_pr_labels(self):
+        labels = ['changelog/no-changelog', 'qa/no-code-change']
+        self.make_test(['pkg/a.go'], labels, pr_labels=labels, pr_author='dd-octo-sts[bot]')
 
 
 class TestExtractQADescriptionFromPR(unittest.TestCase):

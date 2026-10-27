@@ -370,6 +370,18 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
+    def get_pr_label_author(self, pr_id: int, label: str) -> str | None:
+        """
+        Returns the login of the last actor who added the label to the pull request
+        """
+        pr = self.get_pr(pr_id)
+        author = None
+        for event in pr.as_issue().get_events():
+            if event.event == "labeled" and event.label and event.label.name == label:
+                author = event.actor.login if event.actor else None
+
+        return author
+
     def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
         """
         Updates the review complexity label of a pull request

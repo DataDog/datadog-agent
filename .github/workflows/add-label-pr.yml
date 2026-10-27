@@ -50,3 +50,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: dda inv -- -e github.assign-team-label --pr-id="${PR_NUMBER}"
+      - name: Assign no-changelog and no-code-change labels when nothing shipped is changed
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: dda inv -- -e github.assign-no-shipped-change-labels --pr-id="${PR_NUMBER}"
