@@ -22,6 +22,7 @@ properties:
         - health_check
         - ddflare
         - datadog
+        - opamp
         - cumulativetodelta
         items:
           type: string
@@ -59,6 +60,20 @@ properties:
     node_type: setting
     type: string
     default: ''
+  opamp:
+    node_type: section
+    type: object
+    properties:
+      endpoint:
+        node_type: setting
+        type: string
+        default: ''
+        comment: OpAMP server endpoint; when empty, defaults to https://opamp.<site>/v1/opamp
+      reports_raw_config:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: report the unexpanded configuration, preserving references such as ${env:FOO}
   standalone:
     node_type: section
     type: object
