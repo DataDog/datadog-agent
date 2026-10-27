@@ -153,9 +153,10 @@ type ntmConfig struct {
 
 	// warnings contains a list of warnings about the config.
 	warnings []string
-	// configFileError holds the last config file parse problem, if any, so status
-	// and the GUI can surface it without string-matching warnings.
-	configFileError string
+	// configFileErrors holds one entry per config file with a parse problem, so
+	// status and the GUI can surface them without string-matching warnings. A
+	// later source must not mask an earlier one.
+	configFileErrors []string
 
 	// deprecation maps setting to their deprecated names
 	deprecations map[string]deprecation
@@ -1324,7 +1325,7 @@ func (c *ntmConfig) Warnings() []string {
 }
 
 func (c *ntmConfig) ConfigFileError() string {
-	return c.configFileError
+	return strings.Join(c.configFileErrors, "\n\n")
 }
 
 func (c *ntmConfig) StartTime() time.Time {

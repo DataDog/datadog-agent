@@ -102,7 +102,14 @@ func TextFmap() pkgtexttemplate.FuncMap {
 // after its first line.
 func indentLines(n int, s string) string {
 	pad := strings.Repeat(" ", n)
-	return pad + strings.ReplaceAll(s, "\n", "\n"+pad)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		// Padding a blank line would leave trailing whitespace in the output.
+		if line != "" {
+			lines[i] = pad + line
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"

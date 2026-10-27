@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,4 +166,57 @@ func TestValidConfigFileRecordsNoParseWarning(t *testing.T) {
 	assert.Equal(t, "abc123", conf.GetString("api_key"))
 	assert.Equal(t, "datadoghq.eu", conf.GetString("site"))
 	assert.Empty(t, conf.Warnings())
+}
+
+// writeYAMLFile writes content to a named file in a fresh temp dir.
+func writeYAMLFile(t *testing.T, name, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), name)
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	return path
+}
+
+// TestConfigFileErrorKeepsEveryFailingSource guards against a later source masking
+// an earlier one. readConfigurationContent also serves MergeFleetPolicy and
+// MergeConfig, so a broken fleet policy must not hide a broken datadog.yaml.
+func TestConfigFileErrorKeepsEveryFailingSource(t *testing.T) {
+	conf, mainPath := newFileConfig(t, syntaxErrorYAML)
+	require.Error(t, conf.ReadInConfig())
+
+	// Duplicate keys are the strict-only class, so this merge is non-fatal.
+	policyPath := writeYAMLFile(t, "datadog.yaml", "api_key: first\napi_key: second\n")
+	require.NoError(t, conf.MergeFleetPolicy(policyPath))
+
+	got := conf.ConfigFileError()
+	assert.Contains(t, got, mainPath, "the datadog.yaml error must survive")
+	assert.Contains(t, got, policyPath, "the fleet policy error must also be reported")
+}
+
+// TestConfigFileErrorWordsNonMainSourceConsequence checks the consequence clause.
+// Only the main config file falling away means defaults are in use; for a fleet
+// policy or an extra file, datadog.yaml is still applied.
+func TestConfigFileErrorWordsNonMainSourceConsequence(t *testing.T) {
+	conf, _ := newFileConfig(t, "api_key: abc123\n")
+	require.NoError(t, conf.ReadInConfig())
+
+	policyPath := writeYAMLFile(t, "datadog.yaml", "foo: bar: baz\n")
+	require.Error(t, conf.MergeFleetPolicy(policyPath))
+
+	got := conf.ConfigFileError()
+	assert.Contains(t, got, "other sources are unaffected")
+	assert.NotContains(t, got, "defaults are in use",
+		"datadog.yaml still applies, so this wording would be wrong")
+}
+
+// TestFormatYAMLErrorContextNoTrailingWhitespace covers a blank line inside the
+// quoted window, which would otherwise emit "  2 | " with a dangling space.
+func TestFormatYAMLErrorContextNoTrailingWhitespace(t *testing.T) {
+	got := formatYAMLErrorContext([]byte("api_key: abc\n\nfoo: bar: baz\n"),
+		errors.New("yaml: line 3: mapping values are not allowed in this context"))
+
+	require.NotEmpty(t, got)
+	for _, line := range strings.Split(got, "\n") {
+		assert.Equal(t, strings.TrimRight(line, " "), line, "line must not have trailing whitespace: %q", line)
+	}
 }

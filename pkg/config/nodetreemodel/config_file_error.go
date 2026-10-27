@@ -35,7 +35,17 @@ func (c *ntmConfig) recordConfigFileError(msg string) {
 
 	log.Error(scrubbed)
 	c.warnings = append(c.warnings, scrubbed)
-	c.configFileError = scrubbed
+	c.configFileErrors = append(c.configFileErrors, scrubbed)
+}
+
+// configErrorConsequence describes what dropping the file means. Only losing the
+// main config file falls back to defaults; for a fleet policy or an extra config
+// file, datadog.yaml still applies.
+func (c *ntmConfig) configErrorConsequence(filePath string) string {
+	if filePath != "" && filePath == c.configFile {
+		return "All settings from this file are ignored and defaults are in use."
+	}
+	return "All settings from this file are ignored; other sources are unaffected."
 }
 
 // describeConfigSource names the config source for error messages.
@@ -98,7 +108,9 @@ func formatYAMLErrorContext(content []byte, err error) string {
 		if n == target {
 			marker = "> "
 		}
-		fmt.Fprintf(&out, "\n%s%*d | %s", marker, width, n, lines[n-1])
+		// TrimRight keeps a blank source line from emitting a dangling space.
+		out.WriteString("\n")
+		out.WriteString(strings.TrimRight(fmt.Sprintf("%s%*d | %s", marker, width, n, lines[n-1]), " "))
 	}
 	return out.String()
 }

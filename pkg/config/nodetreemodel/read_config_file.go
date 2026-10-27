@@ -130,10 +130,11 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 
 	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
 		if err := yaml.Unmarshal(content, &inData); err != nil {
-			// Unparseable: the whole file is dropped and defaults apply, so say so loudly.
+			// Unparseable: the whole file is dropped, so say so loudly.
 			c.recordConfigFileError(fmt.Sprintf(
-				"could not parse %s: %v\nAll settings from this file are ignored and defaults are in use.%s",
-				describeConfigSource(filePath), err, formatYAMLErrorContext(content, err),
+				"could not parse %s: %v\n%s%s",
+				describeConfigSource(filePath), err, c.configErrorConsequence(filePath),
+				formatYAMLErrorContext(content, err),
 			))
 			return err
 		}
