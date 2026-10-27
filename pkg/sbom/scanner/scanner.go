@@ -330,6 +330,11 @@ func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, img
 		scanContext, cancel := context.WithTimeout(ctx, timeout(collector))
 		defer cancel()
 		result = s.PerformScan(scanContext, request, collector)
+		// The image collectors file a result under ImgMeta, which a scan that
+		// fails before it reads the image leaves nil.
+		if result.ImgMeta == nil {
+			result.ImgMeta = imgMeta
+		}
 		errorType = "scan"
 	}
 	osFallback := result.Error == nil && sbom.IsOSFallback(result.Report)

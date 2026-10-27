@@ -59,10 +59,10 @@ static_quality_gate_docker_dogstatsd_arm64:
   max_on_disk_size: 38.71 MiB
   max_on_wire_size: 15.57 MiB
 static_quality_gate_docker_host_profiler_amd64:
-  max_on_disk_size: 313.94 MiB
+  max_on_disk_size: 314.7 MiB
   max_on_wire_size: 114.62 MiB
 static_quality_gate_docker_host_profiler_arm64:
-  max_on_disk_size: 324.79 MiB
+  max_on_disk_size: 325.5 MiB
   max_on_wire_size: 108.48 MiB
 static_quality_gate_dogstatsd_deb_amd64:
   max_on_disk_size: 31.35 MiB

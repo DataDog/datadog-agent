@@ -1151,6 +1151,17 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 		}
 	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
+	// KubeRay adds the Serve label only to RayService pods. Its value tracks
+	// traffic readiness, so both true and false identify the same workload.
+	_, isRayService := pod.Labels[kubernetes.RayServeLabelKey]
+	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && isRayService && isRayLLMPod(pod) {
+		tagList.AddLow(tags.InferenceWorkload, rayClusterWorkloadName(cluster))
+		component := pod.Labels[kubernetes.RayNodeTypeLabelKey]
+		if component == "worker" && pod.Labels[kubernetes.RayNodeGroupLabelKey] != "" {
+			component = pod.Labels[kubernetes.RayNodeGroupLabelKey]
+		}
+		tagList.AddLow(tags.InferenceWorkloadComponent, component)
+	}
 
 	for name, value := range pod.Labels {
 		switch name {
@@ -1179,6 +1190,30 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
 	}
+}
+
+// rayClusterWorkloadName follows the backend rule for generated RayCluster names.
+func rayClusterWorkloadName(name string) string {
+	if suffix := strings.LastIndex(name, "-"); suffix > 0 {
+		value := name[suffix+1:]
+		// Kubernetes generates five characters from this alphabet.
+		if len(value) == 5 && strings.Trim(value, "bcdfghjklmnpqrstvwxz2456789") == "" {
+			return name[:suffix]
+		}
+	}
+	return name
+}
+
+func isRayLLMPod(pod *workloadmeta.KubernetesPod) bool {
+	// KubeRay uses the first spec container for Ray, regardless of its name.
+	// Pod containers retain spec order across the kubelet and API-server parsers.
+	if len(pod.Containers) == 0 {
+		return false
+	}
+	// Image.Name excludes the tag and digest. Match only the repository basename.
+	name := pod.Containers[0].Image.Name
+	name = strings.ToLower(name[strings.LastIndex(name, "/")+1:])
+	return strings.Contains(name, "ray-llm") || strings.Contains(name, "vllm")
 }
 
 // addResourceLabelsAndAnnotationsAsTags applies the labels-as-tags and

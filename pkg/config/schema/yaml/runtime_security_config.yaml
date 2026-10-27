@@ -115,6 +115,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    description: Flag to enable or disable runtime security.
   endpoints:
     node_type: section
     type: object

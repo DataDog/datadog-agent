@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	wmetautil "github.com/DataDog/datadog-agent/pkg/util/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -142,8 +142,8 @@ func RunCheckCmd(deps dependencies) error {
 
 		names = append(names, ch.Name())
 
-		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
-		_, networkTracerModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.NetworkTracerModule]
+		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfigtypes.ProcessModule]
+		_, networkTracerModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfigtypes.NetworkTracerModule]
 		cfg := &checks.SysProbeConfig{
 			MaxConnsPerMessage:         deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:         deps.Syscfg.SysProbeObject().SocketAddress,

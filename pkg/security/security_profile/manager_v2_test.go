@@ -303,9 +303,15 @@ func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 	})
 }
 
-func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
-	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
+func newTestManagerV2(t *testing.T) (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+	t.Helper()
+
+	cookieMap, err := lru.New[uint64, sampleCookieEntry](128)
+	require.NoError(t, err)
+	timeResolver, err := ktime.NewResolver()
+	require.NoError(t, err)
 	m := &ManagerV2{
+		resolvers:             &resolvers.EBPFResolvers{TimeResolver: timeResolver},
 		sampleCookieMap:       cookieMap,
 		sampleRefreshReceived: atomic.NewUint64(0),
 		sampleRefreshHits:     atomic.NewUint64(0),
@@ -316,14 +322,14 @@ func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
 
 func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	t.Run("unknown_cookie", func(t *testing.T) {
-		m, _ := newTestManagerV2()
+		m, _ := newTestManagerV2(t)
 		m.HandleSampleRefresh(42)
 		assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
 	})
 
 	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
-		prof := profile.New()
+		m, cookieMap := newTestManagerV2(t)
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
 		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
 
 		processNode := &activity_tree.ProcessNode{}
@@ -353,8 +359,8 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	})
 
 	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
-		prof := profile.New()
+		m, cookieMap := newTestManagerV2(t)
+		prof := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "img", Tag: "v1"}))
 		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
 
 		processNode := &activity_tree.ProcessNode{}
@@ -378,7 +384,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	})
 
 	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
+		m, cookieMap := newTestManagerV2(t)
 		prof := profile.New()
 
 		cookieMap.Add(uint64(2), sampleCookieEntry{
@@ -392,7 +398,7 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 	})
 
 	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
-		m, cookieMap := newTestManagerV2()
+		m, cookieMap := newTestManagerV2(t)
 		prof := profile.New()
 		processNode := &activity_tree.ProcessNode{}
 		processNode.NodeBase = activity_tree.NewNodeBase()
@@ -541,6 +547,7 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
 				SecurityProfileEnabled:                          true,
 				SecurityProfileV2Enabled:                        true,
+				SecurityProfileMaxImageTags:                     20,
 				AnomalyDetectionEnabled:                         true,
 				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
 				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
@@ -564,6 +571,9 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
 		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:        cookieMap,
+		sampleRefreshReceived:  atomic.NewUint64(0),
+		sampleRefreshHits:      atomic.NewUint64(0),
+		sampleRefreshMisses:    atomic.NewUint64(0),
 		cleanupProfilesRemoved: atomic.NewUint64(0),
 		imageExcluder:          imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
@@ -697,6 +707,157 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
 		})
 	}
+}
+
+func TestManagerV2_insertEventIntoProfile_maxImageTags(t *testing.T) {
+	for _, limit := range []int{20, 3, 1, 0, -1} {
+		t.Run(fmt.Sprintf("limit_%d", limit), func(t *testing.T) {
+			m, _ := newInsertionTestManagerV2(t)
+			m.config.RuntimeSecurity.SecurityProfileMaxImageTags = limit
+			wantLimit := max(1, limit)
+
+			for i := 0; i < wantLimit+5; i++ {
+				tag := fmt.Sprintf("v%d", i)
+				p, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+				require.NotNil(t, p)
+				assert.Len(t, p.GetVersions(), min(i+1, wantLimit))
+				assert.Contains(t, p.GetVersions(), tag, "the current version must not be evicted")
+			}
+		})
+	}
+}
+
+func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			m, _ := newInsertionTestManagerV2(t)
+			m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
+
+			p, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			require.NotNil(t, p)
+			_, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			require.True(t, inserted)
+
+			v1, ok := p.GetVersionContext("v1")
+			require.True(t, ok)
+			v2, ok := p.GetVersionContext("v2")
+			require.True(t, ok)
+			// Explicit timestamps make eviction order independent of clock resolution.
+			v1.FirstSeenNano, v1.LastSeenNano = 1, 1
+			v2.LastSeenNano = 2
+			originalTags := append([]string(nil), v1.Tags...)
+
+			event := newTestEventV2(eventType, "v1", "known")
+			event.ProcessContext.Process.ContainerContext.Tags = append(event.ProcessContext.Process.ContainerContext.Tags, "service:another-container")
+			_, inserted = m.insertEventIntoProfile(event)
+			require.False(t, inserted)
+			assert.Greater(t, v1.LastSeenNano, uint64(2), "known activities must refresh the version's last seen time")
+			assert.Equal(t, uint64(1), v1.FirstSeenNano)
+			assert.Equal(t, originalTags, v1.Tags, "refreshing a version must keep the tags of its first workload")
+
+			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
+			assert.False(t, inserted, "activities shared with a retained version must stay learned")
+			assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+			assert.Zero(t, p.ActivityTree.GetImageTagID("v2"))
+			assert.Nil(t, findTestEventNode(p, eventType, "new"), "activities exclusive to the evicted version must be removed")
+
+			node := findTestEventNode(p, eventType, "known")
+			require.NotNil(t, node)
+			assert.True(t, node.HasImageTag(p.ActivityTree.GetImageTagID("v1")))
+			assert.True(t, node.HasImageTag(p.ActivityTree.GetImageTagID("v3")))
+		})
+	}
+}
+
+func TestManagerV2_versionEviction_freesSpaceBeforeSizeCheck(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 1
+
+	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.NotNil(t, p)
+	require.True(t, inserted)
+	maxSize := int(p.ComputeHeapSize())
+	require.Positive(t, maxSize)
+	m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return maxSize }
+
+	for i := 2; i < 25; i++ {
+		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i), "known"))
+		require.NotNil(t, p, "evicting the previous version must free room for the next one")
+		require.True(t, inserted)
+		assert.Len(t, p.GetVersions(), 1)
+		assert.Positive(t, p.ComputeHeapSize())
+	}
+}
+
+func TestManagerV2_insertEventIntoProfile_limitsPersistedVersions(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	var p *profile.Profile
+	for i, tag := range []string{"v1", "v2", "v3"} {
+		p, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+		require.NotNil(t, p)
+		ctx, ok := p.GetVersionContext(tag)
+		require.True(t, ok)
+		// A saved profile can carry larger monotonic timestamps from a previous boot.
+		ctx.LastSeenNano = ^uint64(0) - 2 + uint64(i)
+	}
+	encoded, err := p.Encode(config.Profile)
+	require.NoError(t, err)
+	require.NoError(t, m.localStorage.Persist(config.StorageRequest{Format: config.Profile}, p, encoded))
+	delete(m.profiles, testSelector)
+	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
+
+	// The incoming tag already exists in the saved profile: it still needs trimming.
+	reloaded, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.NotNil(t, reloaded)
+	require.NotSame(t, p, reloaded)
+	assert.False(t, inserted)
+	assert.ElementsMatch(t, []string{"v1", "v3"}, reloaded.GetVersions())
+	assert.Zero(t, reloaded.ActivityTree.GetImageTagID("v2"))
+
+	encoded, err = reloaded.Encode(config.Profile)
+	require.NoError(t, err)
+	roundtrip := profile.New()
+	require.NoError(t, roundtrip.DecodeFromReader(encoded, config.Profile))
+	assert.ElementsMatch(t, []string{"v1", "v3"}, roundtrip.GetVersions(), "evicted versions must not be persisted again")
+}
+
+func TestManagerV2_versionEviction_sampleRefresh(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
+
+	for i, tag := range []string{"v1", "v2"} {
+		event := newTestEventV2(model.FileOpenEventType, tag, "known")
+		event.Open.SampleCookie = uint64(i + 1)
+		p, _ := m.insertEventIntoProfile(event)
+		require.NotNil(t, p)
+		ctx, ok := p.GetVersionContext(tag)
+		require.True(t, ok)
+		ctx.LastSeenNano = uint64(i + 1)
+	}
+	p := m.profiles[testSelector]
+	v1Cookie, ok := m.sampleCookieMap.Peek(1)
+	require.True(t, ok)
+	v2Cookie, ok := m.sampleCookieMap.Peek(2)
+	require.True(t, ok)
+	require.Same(t, v1Cookie.eventNodeBase, v2Cookie.eventNodeBase, "the cookies refresh a shared node")
+	otherProfile := profile.New()
+	m.sampleCookieMap.Add(3, sampleCookieEntry{profile: otherProfile, imageTag: "v2"})
+
+	m.HandleSampleRefresh(1)
+	v1, ok := p.GetVersionContext("v1")
+	require.True(t, ok)
+	assert.Greater(t, v1.LastSeenNano, uint64(2), "sample refreshes must count as version activity")
+
+	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v3", "known"))
+	assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+	assert.True(t, m.sampleCookieMap.Contains(1), "cookies of retained versions must stay cached")
+	assert.False(t, m.sampleCookieMap.Contains(2), "cookies of an evicted version must be purged even when their node is shared")
+	assert.True(t, m.sampleCookieMap.Contains(3), "cookies belonging to another profile must not be purged")
+
+	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v2", "known"))
+	assert.False(t, m.sampleCookieMap.Contains(2), "a returning version must not revive old cookies")
+	m.HandleSampleRefresh(2)
+	assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
 }
 
 func TestManagerV2_onEventTagsResolved(t *testing.T) {
