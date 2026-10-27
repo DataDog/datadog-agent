@@ -10,7 +10,8 @@
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   before_script:
-    - go install gotest.tools/gotestsum@v1.11.0
+    # v1.12.1+ reports Go 1.24+ build/setup failure output; later versions need a newer Go than the build image
+    - go install gotest.tools/gotestsum@v1.12.2
     - command -v aws >/dev/null 2>&1 || (apt-get update && apt-get install -y unzip && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip && unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/awscliv2.zip /tmp/aws)
     # Mint a short-lived, read-only GitHub token so Pulumi's plugin downloads use
     # the authenticated (5000/hr) rate limit instead of the unauthenticated
