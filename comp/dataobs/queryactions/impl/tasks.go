@@ -62,7 +62,6 @@ const (
 
 	taskErrorKindNoMatchingInstance = "no_matching_instance"
 	taskErrorKindExpired            = "expired"
-	taskErrorPhaseSchedule          = "schedule"
 
 	// taskCheckPollInterval is how often the collector is asked whether running task checks have
 	// completed their run, which lets the next task for the same database start.
@@ -532,7 +531,6 @@ func buildTaskCheckConfig(configID string, payload *DOTaskPayload, baseCfg *inte
 	fields["do_task"] = map[string]any{
 		"config_id":  configID,
 		"task_id":    payload.Task.TaskID,
-		"expires_at": payload.Task.ExpiresAt,
 		"statements": statements,
 	}
 
@@ -568,7 +566,6 @@ type taskErrorEvent struct {
 	DurationS  float64    `json:"duration_s"`
 	Error      string     `json:"error"`
 	ErrorKind  string     `json:"error_kind"`
-	ErrorPhase string     `json:"error_phase"`
 }
 
 // sendTaskError sends a task-level error result so the backend fails the task in seconds instead of
@@ -589,7 +586,6 @@ func (c *component) sendTaskError(configID string, payload *DOTaskPayload, dbTyp
 		Rows:       [][]string{},
 		Error:      taskErr.Error(),
 		ErrorKind:  errorKind,
-		ErrorPhase: taskErrorPhaseSchedule,
 	})
 	if err != nil {
 		c.log.Errorf("Failed to marshal task error event for %s: %v", configID, err)
