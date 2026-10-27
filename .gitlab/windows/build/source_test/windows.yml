@@ -18,5 +18,35 @@ tests_windows-x64:
       - junit-*.tgz
       - bazel-bep.json
       - coverage-bazel-*.out
+
+# Runs the MSI installer unit tests. These C# suites have no Bazel targets, so they can't run
+# in the Bazel-based tests_windows-x64 job.
+tests_windows_msi_x64:
+  stage: source_test
+  rules:
+    - !reference [.except_light_pipeline]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  needs: ["setup_agent_version"]
+  extends: .windows_docker_default
+  retry: !reference [.retry_only_infra_failure, retry]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - Invoke-Expression "$S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache ."
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - >
+      docker run --rm
+      -m 24576M
+      -v "$(Get-Location):c:\mnt"
+      -e GITLAB_CI
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e AWS_NETWORKING=true
+      -e PIP_INDEX_URL
+      ${WINBUILDIMAGE}
+      powershell -C "Set-Location c:\mnt; dda self dep sync -f legacy-build; dda inv -- -e msi.test; exit `$LASTEXITCODE"
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
   variables:
     ARCH: "x64"
