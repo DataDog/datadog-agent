@@ -160,10 +160,8 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 			}
 		}
 		if p.Mode != 0 {
-			// os.Chmod follows symlinks, so applying a mode to a symlink would
-			// change the target's mode instead. There is no portable lchmod, so
-			// skip symlinks entirely: a lower-privileged user must not be able to
-			// retarget a root chmod onto a file it does not own.
+			// os.Chmod follows symlinks and there is no portable lchmod, so skip
+			// symlinks rather than retarget the mode onto their destination.
 			info, lerr := os.Lstat(file)
 			if lerr != nil {
 				if errors.Is(lerr, os.ErrNotExist) {
@@ -254,13 +252,9 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	return uid, gid, nil
 }
 
-// Chown changes the ownership of a file to the specified owner and group.
-//
-// It uses Lchown so that, when path is a symlink, the link itself is retargeted
-// rather than its destination. Following the link here would let a
-// lower-privileged user (e.g. dd-agent) plant a symlink inside a tree the
-// installer chowns as root and redirect the ownership change onto an arbitrary
-// file it does not own.
+// Chown changes the ownership of a file to the specified owner and group. It
+// uses Lchown so a symlink is not followed (which would retarget the chown onto
+// its destination).
 func Chown(ctx context.Context, path string, username string, group string) (err error) {
 	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {

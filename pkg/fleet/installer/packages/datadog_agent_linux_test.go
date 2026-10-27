@@ -30,11 +30,9 @@ func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
 		"the policy directory must not be below the dd-agent-owned config directory")
 }
 
-// TestAgentPackagePermissionsRootOwnRootRunPaths encodes the VULN-4673
-// invariant: every binary a root context executes, and every directory that
-// contains one, must be root-owned so dd-agent cannot replace it and have root
-// run its code. The tree still defaults to dd-agent ownership, applied before
-// the root carve-outs.
+// TestAgentPackagePermissionsRootOwnRootRunPaths checks the VULN-4673 invariant:
+// root-run binaries and their directories are root-owned, on top of the
+// recursive dd-agent default.
 func TestAgentPackagePermissionsRootOwnRootRunPaths(t *testing.T) {
 	ddAgentDefaultIndex := -1
 	rootOwned := map[string]bool{}
@@ -50,8 +48,6 @@ func TestAgentPackagePermissionsRootOwnRootRunPaths(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, ddAgentDefaultIndex, 0, "the package tree must default to dd-agent ownership")
 
-	// Directories that contain root-run binaries (rename/replace vector) and the
-	// root-run binaries themselves.
 	for _, path := range []string{
 		".",
 		"embedded",

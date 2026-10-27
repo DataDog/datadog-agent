@@ -17,10 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestEnsureRecursiveDoesNotChmodThroughSymlink verifies that a recursive
-// Permission.Ensure does not change the mode of a file a symlink points to. A
-// lower-privileged user could otherwise plant a symlink inside a tree the
-// installer chmods as root and have the mode applied to an arbitrary target.
+// TestEnsureRecursiveDoesNotChmodThroughSymlink checks a recursive Ensure does
+// not chmod a symlink's target.
 func TestEnsureRecursiveDoesNotChmodThroughSymlink(t *testing.T) {
 	tree := t.TempDir()
 	target := filepath.Join(t.TempDir(), "target")
@@ -28,7 +26,7 @@ func TestEnsureRecursiveDoesNotChmodThroughSymlink(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tree, "real"), []byte("x"), 0600))
 	require.NoError(t, os.Symlink(target, filepath.Join(tree, "planted")))
 
-	// Owner/Group left empty so the test needs no privileges; only Mode applies.
+	// Owner/Group empty so the test needs no privileges; only Mode applies.
 	p := Permission{Path: ".", Mode: 0755, Recursive: true}
 	require.NoError(t, p.Ensure(context.Background(), tree))
 
@@ -43,8 +41,8 @@ func TestEnsureRecursiveDoesNotChmodThroughSymlink(t *testing.T) {
 		"chmod must not follow a planted symlink onto its target")
 }
 
-// TestEnsureRecursiveMissingFileIsIgnored verifies that a file disappearing
-// mid-walk (e.g. a transient runtime file) does not fail the pass.
+// TestEnsureRecursiveMissingFileIsIgnored checks a file missing mid-walk does
+// not fail the pass.
 func TestEnsureRecursiveMissingFileIsIgnored(t *testing.T) {
 	tree := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(tree, "real"), []byte("x"), 0600))
