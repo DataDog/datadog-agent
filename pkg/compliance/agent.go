@@ -589,7 +589,7 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (typ
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
-	resourceLog.CCRID = a.opts.HostCCRID
+	resourceLog.CCRID = CCRIDForResource(a.opts.HostCCRID, string(resourceLog.ResourceType))
 	if a.wmeta != nil && resourceLog.Container != nil {
 		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
@@ -604,7 +604,7 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
-		event.CCRID = a.opts.HostCCRID
+		event.CCRID = CCRIDForResource(a.opts.HostCCRID, event.ResourceType)
 		// Mutate event fully before updateEvent() publishes it into a.statuses.
 		if event.Result != CheckSkipped {
 			if a.wmeta != nil && event.Container != nil {

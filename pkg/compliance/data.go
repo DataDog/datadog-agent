@@ -116,6 +116,22 @@ func (e *CheckEvent) String() string {
 	return s
 }
 
+// CCRIDForResource returns the CCRID to report for a resource of the given
+// type, given the CCRID of the host running the agent. The host CCRID only
+// identifies host level resources: containers, databases and Kubernetes
+// clusters have a CCRID of their own, which the agent does not resolve, so
+// the field is left empty for them rather than pointing at the host.
+func CCRIDForResource(hostCCRID, resourceType string) string {
+	switch types.ResourceType(resourceType) {
+	case types.ResourceTypeDockerContainer, types.ResourceTypeKubernetesCluster:
+		return ""
+	}
+	if strings.HasPrefix(resourceType, "db_") {
+		return ""
+	}
+	return hostCCRID
+}
+
 // NewCheckError returns a CheckEvent with error status and associated error
 // reason.
 func NewCheckError(
