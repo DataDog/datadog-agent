@@ -206,6 +206,7 @@ func (c *traceToMetricConnector) ConsumeTraces(_ context.Context, traces ptrace.
 	// conversion in pkg/trace/transform, so the Concentrator scales stats by the
 	// head-sampling weight without any connector-local logic.
 	var inputs []stats.Input
+	// rootFilter applies apm_config.ignore_resources as the trace-agent behind the datadog exporter does
 	if c.rootFilter != nil {
 		inputs = otelstats.OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, c.tcfg, c.ctagKeys, c.concentrator.PeerTagKeys(), c.primaryTagKeys, c.obfuscator, ignoredRootsFilter(traces, c.tcfg, c.rootFilter))
 	} else {
