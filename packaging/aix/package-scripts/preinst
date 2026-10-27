@@ -3,13 +3,13 @@
 # new files are installed. On upgrades it runs after prerm, once the old
 # files have been removed.
 
-# Agent 7 cannot coexist with the legacy Unix Agent: both install into
-# /opt/datadog-agent and use the dd-agent user and the datadog-agent SRC
-# subsystem. installp has no "conflicts with" requisite, so enforce it here;
-# a non-zero exit aborts the fileset install. Upgrades are covered by prerm,
-# which aborts before any teardown; exiting here after the old files were
-# removed would leave the host without a working Agent, so only abort when
-# Agent 7 is not already installed.
+# Abort a fresh install if the legacy Unix Agent is present: it cannot
+# coexist with Agent 7 (shared /opt/datadog-agent, dd-agent user, and
+# datadog-agent SRC subsystem). installp has no "conflicts with"
+# requisite, so enforce it here; a non-zero exit aborts the fileset install.
+# The coexistence state is assumed unreachable on upgrades, so only abort
+# when Agent 7 is not already installed — exiting here after the old files
+# were removed would leave the host without a working Agent.
 if ! /usr/bin/lslpp -Lq datadog-agent >/dev/null 2>&1 \
     && /usr/bin/lslpp -Lq datadog-unix-agent >/dev/null 2>&1; then
     echo "The legacy Datadog Unix Agent (datadog-unix-agent) is installed." >&2

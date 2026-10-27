@@ -3,19 +3,6 @@
 # the incoming package, before the old files are removed. It never runs at
 # deinstall (installp -u): unconfig handles that.
 
-# Refuse the upgrade while the legacy Unix Agent is present (it cannot
-# coexist with Agent 7). Aborting here leaves the currently-running Agent 7
-# untouched; aborting later (in preinst) would happen after this script
-# already tore it down. Since this never runs at deinstall, it cannot block
-# removing Agent 7 itself.
-if /usr/bin/lslpp -Lq datadog-unix-agent >/dev/null 2>&1; then
-    echo "The legacy Datadog Unix Agent (datadog-unix-agent) is installed; refusing to upgrade Agent 7." >&2
-    echo "Uninstalling it also removes its configuration under /etc/datadog-agent," >&2
-    echo "so save a copy first if you want to reference it. Then remove it and retry:" >&2
-    echo "  installp -u datadog-unix-agent" >&2
-    exit 1
-fi
-
 # Stop the services
 stopsrc -g datadog-agent 2>/dev/null || true
 # Stop services which existed before the group was created to be safe on updates
