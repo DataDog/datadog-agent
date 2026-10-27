@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +24,7 @@ func init() { registerModule(OOMKillProbe) }
 
 // OOMKillProbe Factory
 var OOMKillProbe = &module.Factory{
-	Name: config.OOMKillProbeModule,
+	Name: sysconfigtypes.OOMKillProbeModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := oomkill.NewProbe(oomkill.NewConfig())

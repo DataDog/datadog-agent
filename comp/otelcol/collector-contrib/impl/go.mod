@@ -17,6 +17,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.163.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.163.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.163.0
@@ -215,6 +216,7 @@ require (
 	github.com/edsrzf/mmap-go v1.2.1-0.20241212181136-fad1cd13edbd // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/lunes v0.2.2 // indirect
+	github.com/elastic/proxy-connect-dialer-go v0.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.39.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
@@ -344,7 +346,9 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.33.1 // indirect
 	github.com/onsi/gomega v1.44.0 // indirect
+	github.com/open-telemetry/opamp-go v0.25.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.163.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampcustommessages v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.163.0 // indirect
@@ -567,7 +571,7 @@ require (
 	google.golang.org/api v0.297.0 // indirect
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -591,8 +595,6 @@ require (
 )
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
-
-replace github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver => github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

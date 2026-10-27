@@ -4,8 +4,6 @@ go 1.26.0
 
 require go.opentelemetry.io/collector/otelcol v0.163.0
 
-require go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
-
 require (
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -83,6 +81,7 @@ require (
 	go.opentelemetry.io/collector/receiver/xreceiver v0.163.0 // indirect
 	go.opentelemetry.io/collector/service v0.163.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.163.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.25.0 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.22.0 // indirect
@@ -112,7 +111,7 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

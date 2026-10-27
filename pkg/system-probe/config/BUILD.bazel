@@ -61,6 +61,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/system-probe/config/types",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
