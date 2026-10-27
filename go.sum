@@ -130,8 +130,8 @@ github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceive
 github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d/go.mod h1:BSLlxDNQ5Yn6gXzn9tYrUXnuh6HFTPhjLerdykT2tZo=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261007130743-0c7e198c5db5 h1:J+E6oCdGnNZP12ZHg76P5d7/lTDXzlDJe68Kdcp6WWQ=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261007130743-0c7e198c5db5/go.mod h1:YHZoUQvsqL7aWSIBMHE2zVQU2VSEVzEIIR7t8sX1x0w=
-github.com/DataDog/rshell v0.0.31-0.20261027170324-d57cc35c5040 h1:KdAmhqjHghHJb6rr4BjXrYOmdOo2GZqh3NsBpQJ+T7w=
-github.com/DataDog/rshell v0.0.31-0.20261027170324-d57cc35c5040/go.mod h1:2vGMdL2WRACtk0BPgC94z/DanMQxjRiQNkunoVt053s=
+github.com/DataDog/rshell v0.0.31-0.20261027191057-b63183659b81 h1:sfQSYvlGTyox0FcSmNIB78yquXJsgTYiW1HzItXEXuk=
+github.com/DataDog/rshell v0.0.31-0.20261027191057-b63183659b81/go.mod h1:2vGMdL2WRACtk0BPgC94z/DanMQxjRiQNkunoVt053s=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/trivy v0.0.0-20261022080258-5b475dab9838 h1:aADXdqUp+dcMk1GYjFvq7rTKp1KXOg3OxyVw2wtQLUY=
