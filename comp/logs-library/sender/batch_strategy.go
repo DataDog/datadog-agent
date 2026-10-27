@@ -40,6 +40,7 @@ type batchStrategy struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+	terminalLoss    func([]*message.MessageMetadata)
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -57,6 +58,27 @@ func NewBatchStrategy(
 	instanceID string,
 ) Strategy {
 	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID)
+}
+
+// NewBatchStrategyWithTerminalLoss reports records discarded by local batch
+// errors. It leaves the existing strategy and payload format unchanged.
+func NewBatchStrategyWithTerminalLoss(
+	inputChan chan *message.Message,
+	outputChan chan *message.Payload,
+	flushChan chan struct{},
+	serverlessMeta ServerlessMeta,
+	batchWait time.Duration,
+	maxBatchSize int,
+	maxContentSize int,
+	pipelineName string,
+	compression compression.Compressor,
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string,
+	terminalLoss func([]*message.MessageMetadata),
+) Strategy {
+	s := newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID)
+	s.(*batchStrategy).terminalLoss = terminalLoss
+	return s
 }
 
 func newBatchStrategyWithClock(
@@ -115,6 +137,11 @@ func (s *batchStrategy) Start() {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
+				if done := m.RoutingBarrier(); done != nil {
+					s.flushAllBatches("flush")
+					close(done)
+					continue
+				}
 
 				if m.IsMRFAllow {
 					s.getBatch(mrfBatch).processMessage(m, s.outputChan)
@@ -139,6 +166,7 @@ func (s *batchStrategy) getBatch(key string) *batch {
 
 	log.Debugf("Creating batch for key: %s", key)
 	s.batches[key] = makeBatch(s.compression, s.maxBatchSize, s.maxContentSize, s.pipelineName, s.serverlessMeta, s.pipelineMonitor, s.utilization, s.instanceID)
+	s.batches[key].terminalLoss = s.terminalLoss
 	return s.batches[key]
 }
 

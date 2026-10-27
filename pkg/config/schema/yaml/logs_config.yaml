@@ -769,6 +769,21 @@ properties:
     default: 4
     comment: Number of logs pipeline instances. Defaults to number of logical CPU
       cores as defined by GOMAXPROCS or 4, whichever is lower.
+  routing:
+    node_type: section
+    type: object
+    visibility: public
+    description: Limits for log delivery groups supplied by an integration.
+    properties:
+      max_groups:
+        node_type: setting
+        type: integer
+        default: 4
+        visibility: public
+        description: |-
+          Maximum number of log delivery groups accepted when an integration starts.
+          This setting does not activate a routing policy.
+        minimum: 1
   process_exclude_agent:
     node_type: setting
     type: boolean
