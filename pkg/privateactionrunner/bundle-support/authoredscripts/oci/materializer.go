@@ -24,6 +24,8 @@ import (
 const (
 	materializationLayoutVersion          = "authored-script-layout-v1"
 	datadogPackageExtensionNameAnnotation = "com.datadoghq.package.extension.name"
+	// A package can bundle a large CLI or runtime.
+	maxAuthoredScriptPackageSize uint64 = 2 << 30 // 2 GiB
 )
 
 // Materializer materializes authored-script packages from OCI images.
@@ -82,6 +84,12 @@ func (m *Materializer) Materialize(ctx context.Context, descriptor authoredscrip
 	}
 	if downloadedPackage.Version != descriptor.Version {
 		return fmt.Errorf("OCI package version %q does not match catalog version %q", downloadedPackage.Version, descriptor.Version)
+	}
+	if downloadedPackage.Size == 0 {
+		return errors.New("authored-script OCI package is missing a nonzero size annotation")
+	}
+	if downloadedPackage.Size > maxAuthoredScriptPackageSize {
+		return fmt.Errorf("authored-script OCI package size %d bytes exceeds the %d-byte limit", downloadedPackage.Size, maxAuthoredScriptPackageSize)
 	}
 
 	dependencyNames, err := dependencyLayerNames(downloadedPackage)
