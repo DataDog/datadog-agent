@@ -170,19 +170,13 @@ namespace Datadog.AgentCustomActions
         [CustomAction]
         public static ActionResult StopDDServicesRollback(Session session)
         {
-            return Datadog.CustomActions.ServiceStartupCustomAction.Restore(session);
+            return Datadog.CustomActions.ServiceCustomAction.StopDDServicesRollback(session);
         }
 
         [CustomAction]
         public static ActionResult EnableDDServices(Session session)
         {
-            return Datadog.CustomActions.ServiceStartupCustomAction.Enable(session);
-        }
-
-        [CustomAction]
-        public static ActionResult CleanupServiceStartup(Session session)
-        {
-            return Datadog.CustomActions.ServiceStartupCustomAction.Cleanup(session);
+            return Datadog.CustomActions.ServiceCustomAction.EnableDDServices(session);
         }
 
         [CustomAction]

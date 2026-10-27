@@ -86,8 +86,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction EnableDDServices { get; }
 
-        public ManagedAction CleanupServiceStartup { get; }
-
         public ManagedAction StopDDServices { get; }
 
         public ManagedAction StartDDServices { get; }
@@ -672,8 +670,7 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID], " +
-                            "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+            }.SetProperties("UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
                             "RollbackDisabled=[RollbackDisabled]");
 
             StopDDServicesRollback = new CustomAction<CustomActions>(
@@ -682,15 +679,7 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.rollback,
                 Impersonate = false
-            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
-
-            CleanupServiceStartup = new CustomAction<CustomActions>(
-                new Id(nameof(CleanupServiceStartup)), CustomActions.CleanupServiceStartup,
-                Return.ignore, When.Before, Step.InstallFinalize, ownsServiceStartup)
-            {
-                Execute = Execute.commit,
-                Impersonate = false
-            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
+            };
 
             EnableDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(EnableDDServices)), CustomActions.EnableDDServices,

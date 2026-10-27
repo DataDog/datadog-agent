@@ -4,13 +4,15 @@ using System.Linq;
 using System.ServiceProcess;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Rollback;
 using Moq;
+using Newtonsoft.Json;
 using Xunit;
 using WixToolset.Dtf.WindowsInstaller;
 
 namespace CustomActions.Tests.Service
 {
-    public class ServiceStartupCustomActionTests : ServiceCustomActionsTestSetup
+    public class ServiceStartupTests : ServiceCustomActionsTestSetup
     {
         private void SetServices(params string[] names)
         {
@@ -27,15 +29,37 @@ namespace CustomActions.Tests.Service
         }
 
         [Fact]
+        public void SerializedRollbackDataRestoresStartupSettingsWithoutStartingServices()
+        {
+            SetServices(Constants.AgentServiceName);
+            var data = new ServiceStartupRollbackData(new List<ServiceCustomAction.StartupSettings>
+            {
+                new ServiceCustomAction.StartupSettings
+                {
+                    Name = Constants.AgentServiceName,
+                    StartType = ServiceStartMode.Automatic,
+                    DelayedAutoStart = true
+                }
+            });
+
+            var restored = JsonConvert.DeserializeObject<ServiceStartupRollbackData>(JsonConvert.SerializeObject(data));
+            restored.Restore(Session.Object, FileSystemServices.Object, ServiceController.Object);
+
+            ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
+            ServiceController.Verify(c => c.SetDelayedAutoStart(Constants.AgentServiceName, true), Times.Once);
+            ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+        }
+
+        [Fact]
         public void PersistsSettingsAndDisablesEvenStoppedServicesBeforeStopping()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            SetServices(ServiceCustomAction.ProtectedServices);
             var events = new List<string>();
-            List<ServiceStartupCustomAction.StartupSettings> saved = null;
+            List<ServiceCustomAction.StartupSettings> saved = null;
             ServiceController.Setup(c => c.SetStartType(It.IsAny<string>(), ServiceStartMode.Disabled))
                 .Callback<string, ServiceStartMode>((name, _) => events.Add(name));
 
-            ServiceStartupCustomAction.Disable(ServiceController.Object, settings =>
+            ServiceCustomAction.DisableServices(ServiceController.Object, settings =>
             {
                 saved = settings;
                 events.Add("saved");
@@ -82,7 +106,7 @@ namespace CustomActions.Tests.Service
         [InlineData(true)]
         public void StopActionDoesNotMutateServicesWithoutRollbackProtection(bool rollbackDisabled)
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            SetServices(ServiceCustomAction.ProtectedServices);
             Session.Object["RollbackDisabled"] = rollbackDisabled ? "1" : "";
             var saveAttempted = false;
 
@@ -101,12 +125,12 @@ namespace CustomActions.Tests.Service
         [Fact]
         public void EnableRestoresPackageDefaultsWithCoreAgentLastWithoutStartingServices()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            SetServices(ServiceCustomAction.ProtectedServices);
             var enabled = new List<string>();
             ServiceController.Setup(c => c.SetStartType(It.IsAny<string>(), It.IsAny<ServiceStartMode>()))
                 .Callback<string, ServiceStartMode>((name, _) => enabled.Add(name));
 
-            Assert.Equal(ActionResult.Success, ServiceStartupCustomAction.Enable(Session.Object, ServiceController.Object));
+            Assert.Equal(ActionResult.Success, ServiceCustomAction.EnableDDServices(Session.Object, ServiceController.Object));
             Assert.Equal(new[] { Constants.InstallerServiceName, Constants.ProcmgrServiceName, Constants.AgentServiceName }, enabled);
             ServiceController.Verify(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual), Times.Once);
             ServiceController.Verify(c => c.SetStartType(Constants.InstallerServiceName, ServiceStartMode.Manual), Times.Once);
@@ -119,17 +143,17 @@ namespace CustomActions.Tests.Service
         public void EnableSkipsMissingProcmgr()
         {
             SetServices(Constants.AgentServiceName);
-            Assert.Equal(ActionResult.Success, ServiceStartupCustomAction.Enable(Session.Object, ServiceController.Object));
+            Assert.Equal(ActionResult.Success, ServiceCustomAction.EnableDDServices(Session.Object, ServiceController.Object));
             ServiceController.Verify(c => c.SetStartType(Constants.ProcmgrServiceName, It.IsAny<ServiceStartMode>()), Times.Never);
         }
 
         [Fact]
         public void EnableFailureFailsTheActionWithoutEnablingCoreAgent()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            SetServices(ServiceCustomAction.ProtectedServices);
             ServiceController.Setup(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual))
                 .Throws(new System.ComponentModel.Win32Exception(5));
-            Assert.Equal(ActionResult.Failure, ServiceStartupCustomAction.Enable(Session.Object, ServiceController.Object));
+            Assert.Equal(ActionResult.Failure, ServiceCustomAction.EnableDDServices(Session.Object, ServiceController.Object));
             ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, It.IsAny<ServiceStartMode>()), Times.Never);
         }
 
@@ -137,7 +161,7 @@ namespace CustomActions.Tests.Service
         public void MissingServicesAreNotDisabled()
         {
             SetServices(Constants.AgentServiceName);
-            ServiceStartupCustomAction.Disable(ServiceController.Object,
+            ServiceCustomAction.DisableServices(ServiceController.Object,
                 settings => Assert.Single(settings), () => { });
             ServiceController.Verify(c => c.SetStartType(Constants.ProcmgrServiceName, It.IsAny<ServiceStartMode>()), Times.Never);
             ServiceController.Verify(c => c.SetStartType(Constants.InstallerServiceName, It.IsAny<ServiceStartMode>()), Times.Never);
@@ -146,9 +170,9 @@ namespace CustomActions.Tests.Service
         [Fact]
         public void SnapshotFailureDoesNotChangeOrStopServices()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            SetServices(ServiceCustomAction.ProtectedServices);
             var stopped = false;
-            Assert.Throws<InvalidOperationException>(() => ServiceStartupCustomAction.Disable(ServiceController.Object,
+            Assert.Throws<InvalidOperationException>(() => ServiceCustomAction.DisableServices(ServiceController.Object,
                 _ => throw new InvalidOperationException("disk full"), () => stopped = true));
             ServiceController.Verify(c => c.SetStartType(It.IsAny<string>(), It.IsAny<ServiceStartMode>()), Times.Never);
             Assert.False(stopped);
@@ -157,16 +181,16 @@ namespace CustomActions.Tests.Service
         [Fact]
         public void PartialDisableFailureLeavesOriginalSettingsAvailableForRollback()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
-            List<ServiceStartupCustomAction.StartupSettings> saved = null;
+            SetServices(ServiceCustomAction.ProtectedServices);
+            List<ServiceCustomAction.StartupSettings> saved = null;
             var stopped = false;
             ServiceController.Setup(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Disabled))
                 .Throws(new InvalidOperationException("access denied"));
-            Assert.Throws<InvalidOperationException>(() => ServiceStartupCustomAction.Disable(ServiceController.Object,
+            Assert.Throws<InvalidOperationException>(() => ServiceCustomAction.DisableServices(ServiceController.Object,
                 settings => saved = settings, () => stopped = true));
             Assert.False(stopped);
 
-            ServiceStartupCustomAction.Restore(Session.Object, ServiceController.Object, saved);
+            ServiceCustomAction.RestoreServiceStartup(Session.Object, ServiceController.Object, saved);
             ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
             ServiceController.Verify(c => c.SetDelayedAutoStart(Constants.AgentServiceName, true), Times.Once);
             ServiceController.Verify(c => c.SetStartType(Constants.ProcmgrServiceName, ServiceStartMode.Manual), Times.Once);
@@ -176,11 +200,11 @@ namespace CustomActions.Tests.Service
         [Fact]
         public void StopFailureCanRestoreSettingsWithoutRestarting()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
-            List<ServiceStartupCustomAction.StartupSettings> saved = null;
-            Assert.Throws<TimeoutException>(() => ServiceStartupCustomAction.Disable(ServiceController.Object,
+            SetServices(ServiceCustomAction.ProtectedServices);
+            List<ServiceCustomAction.StartupSettings> saved = null;
+            Assert.Throws<TimeoutException>(() => ServiceCustomAction.DisableServices(ServiceController.Object,
                 settings => saved = settings, () => throw new TimeoutException("service did not stop")));
-            Assert.True(ServiceStartupCustomAction.Restore(Session.Object, ServiceController.Object, saved));
+            Assert.True(ServiceCustomAction.RestoreServiceStartup(Session.Object, ServiceController.Object, saved));
             ServiceController.Verify(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic), Times.Once);
             ServiceController.Verify(c => c.StartService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
         }
@@ -188,14 +212,14 @@ namespace CustomActions.Tests.Service
         [Fact]
         public void RollbackPreservesOriginallyDisabledServiceAndContinuesAfterRestoreFailure()
         {
-            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            SetServices(ServiceCustomAction.ProtectedServices);
             ServiceController.Setup(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Automatic))
                 .Throws(new InvalidOperationException("access denied"));
-            ServiceStartupCustomAction.Restore(Session.Object, ServiceController.Object, new[]
+            ServiceCustomAction.RestoreServiceStartup(Session.Object, ServiceController.Object, new[]
             {
-                new ServiceStartupCustomAction.StartupSettings { Name = Constants.InstallerServiceName, StartType = ServiceStartMode.Disabled },
-                new ServiceStartupCustomAction.StartupSettings { Name = "missing", StartType = ServiceStartMode.Manual },
-                new ServiceStartupCustomAction.StartupSettings { Name = Constants.AgentServiceName, StartType = ServiceStartMode.Automatic }
+                new ServiceCustomAction.StartupSettings { Name = Constants.InstallerServiceName, StartType = ServiceStartMode.Disabled },
+                new ServiceCustomAction.StartupSettings { Name = "missing", StartType = ServiceStartMode.Manual },
+                new ServiceCustomAction.StartupSettings { Name = Constants.AgentServiceName, StartType = ServiceStartMode.Automatic }
             });
             ServiceController.Verify(c => c.SetStartType(Constants.InstallerServiceName, ServiceStartMode.Disabled), Times.Once);
             ServiceController.Verify(c => c.SetStartType("missing", It.IsAny<ServiceStartMode>()), Times.Never);
