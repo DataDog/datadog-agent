@@ -58,12 +58,28 @@ type Processor struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+	terminalLoss    func(*message.Message)
+	disableMRF      bool
 }
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+	return NewWithTerminalLoss(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, nil)
+}
+
+// NewWithTerminalLoss reports records removed before they reach a batcher.
+// The default constructor leaves this hook unset.
+func NewWithTerminalLoss(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message)) *Processor {
+	return newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, true)
+}
+
+func newProcessor(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message), enableMRF bool) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -79,17 +95,28 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		terminalLoss:              terminalLoss,
+		disableMRF:                !enableMRF,
 	}
 
-	// Initialize cached failover config
-	p.updateFailoverConfig()
-
-	// Register for config change notifications
-	if config != nil {
-		config.OnUpdate(p.onLogsFailoverSettingChanged)
+	if enableMRF {
+		// Initialize cached failover config and register for updates only for
+		// the existing default path. Routed group selection is injected.
+		p.updateFailoverConfig()
+		if config != nil {
+			config.OnUpdate(p.onLogsFailoverSettingChanged)
+		}
 	}
 
 	return p
+}
+
+// NewForRouting keeps processing and encoding shared while leaving MRF
+// activation and allowlist classification out of injected group routing.
+func NewForRouting(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, terminalLoss func(*message.Message)) *Processor {
+	return newProcessor(config, inputChan, outputChan, processingRules, tagFilters, encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, instanceID, terminalLoss, false)
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
@@ -144,6 +171,9 @@ func (p *Processor) Start() {
 	go p.run()
 }
 
+// InputChan returns the processor's input for provider owned dispatch.
+func (p *Processor) InputChan() chan *message.Message { return p.inputChan }
+
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
@@ -193,6 +223,16 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	if msg.RoutingBarrier() != nil {
+		p.outputChan <- msg
+		return
+	}
+	forwarded := false
+	defer func() {
+		if !forwarded && p.terminalLoss != nil {
+			p.terminalLoss(msg)
+		}
+	}()
 	p.utilization.Start()
 	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
@@ -224,8 +264,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
-		if p.failoverConfig.isFailoverActive {
+		if p.failoverConfig.isFailoverActive && !p.disableMRF {
 			p.filterMRFMessages(msg)
+		} else if p.disableMRF {
+			msg.IsMRFAllow = false
 		}
 
 		// encode the message to its final format, it is done in-place
@@ -236,6 +278,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
+		forwarded = true
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
 }

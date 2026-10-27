@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add ``logs_config.routing.max_groups`` to limit the number of log delivery
+    groups accepted by integrations that inject routes. The default is four.
+    This setting does not activate a routing policy.

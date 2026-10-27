@@ -65,6 +65,19 @@ func (e *errorSerializer) Finish(_ io.Writer) error {
 }
 func (e *errorSerializer) Reset() {}
 
+type finishErrorSerializer struct{ Serializer }
+
+func (s *finishErrorSerializer) Finish(io.Writer) error {
+	return errors.New("synthetic finish error")
+}
+
+type closeErrorCompressor struct{ compression.StreamCompressor }
+
+func (c *closeErrorCompressor) Close() error {
+	_ = c.StreamCompressor.Close()
+	return errors.New("synthetic close error")
+}
+
 func createTestBatch() *batch {
 	return makeBatch(
 		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
@@ -87,6 +100,48 @@ func TestBatchAddMessage(t *testing.T) {
 	assert.True(t, added)
 	assert.NoError(t, err)
 	assert.False(t, b.buffer.IsEmpty())
+}
+
+func TestBatchTerminalLossReportsDiscardedRecordIdentities(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		breakBatch func(*batch)
+	}{
+		{"serialization", func(b *batch) { b.serializer = &errorSerializer{} }},
+		{"finish", func(b *batch) { b.serializer = &finishErrorSerializer{Serializer: b.serializer} }},
+		{"compressor close", func(b *batch) { b.compressor = &closeErrorCompressor{StreamCompressor: b.compressor} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := createTestBatch()
+			msg := message.NewMessage([]byte("a"), nil, "", 0)
+			msg.SetRoutingToken(17)
+			var lost []uint64
+			b.terminalLoss = func(metas []*message.MessageMetadata) {
+				for _, meta := range metas {
+					lost = append(lost, meta.RoutingToken())
+				}
+			}
+			output := make(chan *message.Payload, 1)
+			if tc.name == "serialization" {
+				tc.breakBatch(b)
+				b.processMessage(msg, output)
+			} else {
+				if added, err := b.addMessage(msg); !added || err != nil {
+					t.Fatalf("add message: %v", err)
+				}
+				tc.breakBatch(b)
+				b.flushBuffer(output, "test")
+			}
+			if len(lost) != 1 || lost[0] != 17 {
+				t.Fatalf("discarded record identities: %v", lost)
+			}
+			select {
+			case <-output:
+				t.Fatal("discarded batch reached sender")
+			default:
+			}
+		})
+	}
 }
 
 func TestBatchAddMessageOverflow(t *testing.T) {
