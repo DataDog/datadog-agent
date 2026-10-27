@@ -6,15 +6,30 @@
 //! Orphan reaping for the container-init role.
 //!
 //! Peeks with `WNOWAIT` so supervised catalog children stay for Tokio's
-//! `Child.wait`. [`spawn_registered`] and the reap pass share one lock so a
-//! just-spawned pid cannot be reaped before it is registered. Linux only;
-//! other Unix builds keep the registry for uniform spawn code.
+//! [`ProcessHandle::wait`](crate::handle::ProcessHandle::wait).
+//! [`spawn_registered`] and the reap pass share one lock so a just-spawned
+//! pid cannot be reaped before it is registered. Linux only; other Unix
+//! builds keep the registry for uniform spawn code.
+//!
+//! # Spawn contract
+//!
+//! This process has two exit-status collectors: Tokio (via [`ProcessHandle`])
+//! for catalog children, and this reaper for every other child. Only one
+//! waiter may collect a given status.
+//!
+//! Any child whose exit status must reach the supervisor must be spawned
+//! with [`spawn_registered`] and waited through [`ProcessHandle`]. Do not
+//! call `tokio::process::Command::spawn` / `Child::wait` for catalog (or
+//! other waited) children outside that path: the reaper can steal the
+//! status. Unregistered children are treated as orphans and reaped.
 
 use std::collections::BTreeMap;
 use std::io;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use tokio::process::Child;
+
+use crate::handle::ProcessHandle;
 
 static SUPERVISED: Mutex<BTreeMap<u32, usize>> = Mutex::new(BTreeMap::new());
 
@@ -53,14 +68,30 @@ impl Drop for SupervisedPid {
     }
 }
 
+/// Opaque registered child: the only Unix path into [`ProcessHandle`].
+///
+/// Keeps the raw [`Child`] private so callers wait through [`ProcessHandle`]
+/// instead of bypassing the supervised-pid registry.
+#[derive(Debug)]
+pub(crate) struct RegisteredChild {
+    child: Child,
+    supervised: Option<SupervisedPid>,
+}
+
+impl RegisteredChild {
+    pub(crate) fn into_process_handle(self) -> ProcessHandle {
+        ProcessHandle::from_registered(self.child, self.supervised)
+    }
+}
+
 /// Spawn under the supervised lock so the reaper cannot see the pid first.
 pub(crate) fn spawn_registered(
     spawn: impl FnOnce() -> io::Result<Child>,
-) -> io::Result<(Child, Option<SupervisedPid>)> {
+) -> io::Result<RegisteredChild> {
     let mut map = supervised();
     let child = spawn()?;
-    let guard = child.id().map(|pid| SupervisedPid::acquire(&mut map, pid));
-    Ok((child, guard))
+    let supervised = child.id().map(|pid| SupervisedPid::acquire(&mut map, pid));
+    Ok(RegisteredChild { child, supervised })
 }
 
 #[cfg(test)]
@@ -223,16 +254,15 @@ mod tests {
 
     #[tokio::test]
     async fn spawn_registered_tracks_the_child_pid() {
-        let (child, guard) = spawn_registered(|| {
+        let mut handle = spawn_registered(|| {
             let (cmd, args) = crate::test_helpers::true_cmd();
             tokio::process::Command::new(cmd).args(args).spawn()
         })
-        .expect("spawn");
-        let pid = child.id().expect("pid");
+        .expect("spawn")
+        .into_process_handle();
+        let pid = handle.id().expect("pid");
         assert!(is_supervised(pid));
-        let mut child = child;
-        child.wait().await.expect("wait");
-        drop(guard);
+        handle.wait().await.expect("wait");
         assert!(!is_supervised(pid));
     }
 
@@ -240,5 +270,61 @@ mod tests {
     fn spawn_registered_failure_registers_nothing() {
         let result = spawn_registered(|| Err(io::Error::other("boom")));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn tokio_child_spawn_stays_on_the_registration_path() {
+        use std::path::PathBuf;
+
+        let src_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut offenders = Vec::new();
+        let mut stack = vec![src_root];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).expect("read_dir") {
+                let entry = entry.expect("dir entry");
+                let path = entry.path();
+                if path.is_dir() {
+                    if path.file_name().is_some_and(|n| n == "windows") {
+                        continue;
+                    }
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().is_none_or(|ext| ext != "rs") {
+                    continue;
+                }
+                let rel = path
+                    .strip_prefix(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src"))
+                    .expect("src-relative")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                // Only these files may call Command::spawn for waited children.
+                // handle.rs: Windows unit tests use std::process::Command::spawn.
+                if matches!(
+                    rel.as_str(),
+                    "platform/unix/reaper.rs" | "platform/unix/spawn/mod.rs" | "handle.rs"
+                ) {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).expect("read");
+                if !text.contains("tokio::process") {
+                    continue;
+                }
+                for (idx, line) in text.lines().enumerate() {
+                    let trimmed = line.trim_start();
+                    if trimmed.starts_with("//") {
+                        continue;
+                    }
+                    if trimmed.contains(".spawn()") {
+                        offenders.push(format!("{rel}:{}:{trimmed}", idx + 1));
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "tokio child .spawn() must go through spawn_registered; move or wrap these call sites:\n{}",
+            offenders.join("\n")
+        );
     }
 }

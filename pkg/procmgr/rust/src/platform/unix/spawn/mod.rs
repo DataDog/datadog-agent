@@ -23,13 +23,13 @@ impl ManagedProcess {
         let request = SpawnRequest::from_config(process_name, self.config())?;
         let mut cmd = request.to_command(stdout_inheritable(), stderr_inheritable());
         setup_process_group(&mut cmd);
-        let (child, supervised) = spawn_registered(|| cmd.spawn()).with_context(|| {
+        let child = spawn_registered(|| cmd.spawn()).with_context(|| {
             format!(
                 "[{process_name}] failed to spawn: {}",
                 self.config().command
             )
         })?;
-        Ok(ProcessHandle::from_child(child, supervised))
+        Ok(child.into_process_handle())
     }
 }
 

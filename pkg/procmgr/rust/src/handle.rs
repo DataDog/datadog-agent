@@ -159,8 +159,12 @@ pub(crate) struct ProcessHandle {
 }
 
 impl ProcessHandle {
+    /// Build a handle from [`crate::platform::spawn_registered`].
+    ///
+    /// On Unix this is the only supported constructor: raw `Child` values must
+    /// not be waited outside a registered handle while the reaper is running.
     #[cfg(not(windows))]
-    pub(crate) fn from_child(
+    pub(crate) fn from_registered(
         child: Child,
         supervised: Option<crate::platform::SupervisedPid>,
     ) -> Self {
