@@ -94,19 +94,14 @@ var (
 		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
-	// agentPackagePermissions enforce ownership on the agent package files. The
-	// tree defaults to dd-agent (the daemon runs as dd-agent); paths root
-	// executes, and the directories holding them, are re-pinned to root on top so
-	// dd-agent cannot replace them (VULN-4673). Runtime-writable paths (run/,
-	// embedded/lib, logs) stay dd-agent.
+	// agentPackagePermissions enforce ownership on the agent package files.
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		// Directories holding root-run binaries: owning the dir alone lets
-		// dd-agent replace entries inside it, so pin the dirs too.
+		// Root-executed binaries and the directories holding them must not be
+		// writable by dd-agent, so they are re-pinned to root on top of the default.
 		{Path: ".", Owner: "root", Group: "root"},
 		{Path: "embedded", Owner: "root", Group: "root"},
 		{Path: "embedded/bin", Owner: "root", Group: "root"},
-		// installer is run as root by datadog-agent-installer.service and the postinst.
 		{Path: "embedded/bin/installer", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},

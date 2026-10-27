@@ -160,8 +160,7 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 			}
 		}
 		if p.Mode != 0 {
-			// os.Chmod follows symlinks and there is no portable lchmod, so skip
-			// symlinks rather than retarget the mode onto their destination.
+			// Skip symlinks: there is no portable lchmod and os.Chmod follows them.
 			info, lerr := os.Lstat(file)
 			if lerr != nil {
 				if errors.Is(lerr, os.ErrNotExist) {
@@ -253,8 +252,7 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 }
 
 // Chown changes the ownership of a file to the specified owner and group. It
-// uses Lchown so a symlink is not followed (which would retarget the chown onto
-// its destination).
+// does not follow symlinks.
 func Chown(ctx context.Context, path string, username string, group string) (err error) {
 	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {

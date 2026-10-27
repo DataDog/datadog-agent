@@ -30,9 +30,8 @@ func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
 		"the policy directory must not be below the dd-agent-owned config directory")
 }
 
-// TestAgentPackagePermissionsRootOwnRootRunPaths checks the VULN-4673 invariant:
-// root-run binaries and their directories are root-owned, on top of the
-// recursive dd-agent default.
+// TestAgentPackagePermissionsRootOwnRootRunPaths checks that root-run binaries
+// and their directories are root-owned, on top of the dd-agent default.
 func TestAgentPackagePermissionsRootOwnRootRunPaths(t *testing.T) {
 	ddAgentDefaultIndex := -1
 	rootOwned := map[string]bool{}

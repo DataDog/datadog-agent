@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestEnsureRecursiveDoesNotChmodThroughSymlink checks a recursive Ensure does
-// not chmod a symlink's target.
+// TestEnsureRecursiveDoesNotChmodThroughSymlink checks that a recursive Ensure
+// does not follow symlinks when applying a mode.
 func TestEnsureRecursiveDoesNotChmodThroughSymlink(t *testing.T) {
 	tree := t.TempDir()
 	target := filepath.Join(t.TempDir(), "target")
