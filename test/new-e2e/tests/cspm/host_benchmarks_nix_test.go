@@ -43,7 +43,7 @@ const hostBenchmarksConfig = `compliance_config:
 
 // xccdfRuleTimeout is the compliance_config.host_benchmarks.rule_timeout of the host
 // benchmarks suites.
-const xccdfRuleTimeout = "10m"
+const xccdfRuleTimeout = "5m"
 
 // event is the part of a compliance CheckEvent the assertions need.
 type event struct {
