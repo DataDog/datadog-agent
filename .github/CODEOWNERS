@@ -163,9 +163,6 @@
 /.gitlab/build/source_test/*                                              @DataDog/agent-devx
 /.gitlab/build/source_test/linux.yml                                      @DataDog/agent-devx @Datadog/agent-build
 /.gitlab/build/source_test/macos.yml                                      @DataDog/agent-devx @Datadog/agent-build @DataDog/windows-products
-/.gitlab/build/source_test/notify.yml                                     @DataDog/agent-devx
-/.gitlab/build/source_test/slack.yml                                      @DataDog/agent-devx
-/.gitlab/build/source_test/tooling_unit_tests.yml                         @DataDog/agent-devx
 /.gitlab/build/source_test/kmt_tasks.yml                                  @DataDog/ebpf-platform
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml                @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/cluster_agent.yml                             @DataDog/container-platform @DataDog/agent-build
