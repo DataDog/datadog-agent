@@ -1,0 +1,35 @@
+--- a/extensions/llvm_toolchain_minimal.bzl
++++ b/extensions/llvm_toolchain_minimal.bzl
+@@ -28,6 +28,16 @@
+         return Label("//toolchain/llvm:llvm_release_windows.BUILD.bazel")
+     return Label("//toolchain/llvm:llvm_release.BUILD.bazel")
+ 
++# Windows containers cannot start executables through symlinks on bind mounts (microsoft/Windows-Containers#634)
++_SYMLINKS_TO_HARDLINKS = " ".join([
++    "$ErrorActionPreference = 'Stop';",
++    "Get-ChildItem -Path bin -Filter *.exe | Where-Object { $_.LinkType -eq 'SymbolicLink' } | ForEach-Object {",
++    "$target = (Resolve-Path -LiteralPath ([IO.Path]::Combine($_.DirectoryName, [string]$_.Target))).Path;",
++    "Remove-Item -LiteralPath $_.FullName;",
++    "New-Item -ItemType HardLink -Path $_.FullName -Target $target | Out-Null",
++    "}",
++])
++
+ def _get_index(module_ctx):
+     index_file = Label(DEFAULT_LLVM_TOOLCHAIN_MINIMAL_INDEX_FILE)
+     dependency_index_file = None
+@@ -81,6 +91,7 @@
+     return {
+         _repo_name(target): struct(
+             build_file = _build_file(target),
++            patch_cmds_win = [_SYMLINKS_TO_HARDLINKS] if target.startswith("windows-") else [],
+             sha256 = archives[target]["sha256"],
+             urls = [archives[target]["url"]],
+         )
+@@ -95,6 +106,7 @@
+         http_archive(
+             name = repo_name,
+             build_file = spec.build_file,
++            patch_cmds_win = spec.patch_cmds_win,
+             sha256 = spec.sha256,
+             urls = spec.urls,
+         )
