@@ -4,7 +4,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
-sqlite_ver = ("3", "53", "02")
+sqlite_ver = ("3", "54", "01")
 
 sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
@@ -14,7 +14,7 @@ http_archive(
         "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
         "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
     },
-    sha256 = "8a310d0a16c7a90cacd4c884e70faa51c902afed2a89f63aaa0126ab83558a32",
+    sha256 = "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9",
     strip_prefix = sqlite_amalgamation,
     url = "https://www.sqlite.org/2026/{}.zip".format(sqlite_amalgamation),
 )
