@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -67,16 +68,20 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	if !Enabled(cfg) {
 		return
 	}
+	mode, err := deployment.Resolve(cfg)
+	// Intentional ungated modes take precedence over gate-specific configuration warnings.
+	bypass := runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent ||
+		(err == nil && mode != deployment.Split)
+	logState := newStateLogger(bypass)
 	emit := func(s State) {
 		publish(s)
 		report(s)
+		logState(s)
 	}
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
-	mode, err := deployment.Resolve(cfg)
-	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || mode != deployment.Split ||
-		!filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+	if bypass || err != nil || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
@@ -115,6 +120,11 @@ type controller struct {
 }
 
 func (c *controller) run(ctx context.Context) {
+	defer func() {
+		if ctx.Err() != nil {
+			log.Debug("PAR startup gate: canceled")
+		}
+	}()
 	delay := time.Duration(rand.Int64N(int64(pollInterval)))
 	c.emit(State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonStartupJitter})
 	for {
@@ -174,6 +184,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		if generation[0] == c.generation[0] || generation[1] == c.generation[1] {
 			return set(phonehomedef.StateWaiting, phonehomedef.ReasonSupervisorRegistrationChangePending, pollInterval)
 		}
+		log.Info("PAR startup gate: fresh supervisor lifecycle detected; new startup requires RC and fresh AAA authorization")
 		c.attempted = false
 		c.generation = [2]string{}
 	}
@@ -215,6 +226,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer startCancel()
 	c.attempted = true
+	log.Infof("PAR startup gate: requesting supervisor Start: process=%s", controlProcess)
 	if _, err := c.pm.Start(startCtx, &pb.StartRequest{NameOrUuid: children[0].Uuid}); err != nil {
 		if grpcstatus.Code(err) == codes.NotFound {
 			// The supervisor resolves the UUID before spawning: this response proves no start.
@@ -229,6 +241,11 @@ func (c *controller) step(ctx context.Context) time.Duration {
 func (c *controller) handoff(generation [2]string, reason phonehomedef.Reason) time.Duration {
 	c.generation, c.handoffReason = generation, reason
 	c.source.Release()
+	if reason == phonehomedef.ReasonSupervisorStartAcknowledged {
+		log.Info("PAR startup gate: supervisor Start acknowledged; handoff is not enrollment or readiness")
+	} else {
+		log.Info("PAR startup gate: existing children left untouched; supervisor retains ownership")
+	}
 	c.emit(State{State: phonehomedef.StateHandedOff, Reason: reason})
 	return pollInterval
 }
