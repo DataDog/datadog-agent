@@ -54,10 +54,11 @@ func TestRunnerRealtime(t *testing.T) {
 		)
 
 		rtChan <- types.RTResponse{
-			&model.CollectorStatus{
+			Statuses: []*model.CollectorStatus{{
 				ActiveClients: 1,
 				Interval:      10,
-			},
+			}},
+			Sequence: 1,
 		}
 		assert.Eventually(t, func() bool {
 			return deps.Runner.(*runnerImpl).IsRealtimeEnabled()
@@ -79,10 +80,11 @@ func TestRunnerRealtime(t *testing.T) {
 		)
 
 		rtChan <- types.RTResponse{
-			&model.CollectorStatus{
+			Statuses: []*model.CollectorStatus{{
 				ActiveClients: 1,
 				Interval:      10,
-			},
+			}},
+			Sequence: 1,
 		}
 		assert.Never(t, func() bool {
 			return deps.Runner.(*runnerImpl).IsRealtimeEnabled()

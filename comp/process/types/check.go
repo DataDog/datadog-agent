@@ -31,5 +31,8 @@ type ProvidesCheck struct {
 	CheckComponent CheckComponent `group:"check"`
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-type RTResponse []*model.CollectorStatus
+// RTResponse is the merged realtime status published by the submitter.
+type RTResponse struct {
+	Statuses []*model.CollectorStatus
+	Sequence uint64
+}

@@ -50,6 +50,7 @@ reno --rel-notes-dir <directory> new <topic>
 The `new` command is non-interactive by default; do not pass `--no-edit` (it is not a supported reno option).
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
+Reno does not open an editor unless `--edit` is passed.
 
 > **Always create the file with `reno`. The `<hash>` suffix is reno's unique note ID** — it must be a real, unique 16-character hex string that `reno` generates for you. Never hand-write a placeholder like `a1b2c3d4e5f6a7b8` or any sequential/guessed value: reno treats the suffix as the note's UID and fails `release-note-check` with a "UID collision" when two notes share one (this placeholder has broken `main` more than once).
 >
