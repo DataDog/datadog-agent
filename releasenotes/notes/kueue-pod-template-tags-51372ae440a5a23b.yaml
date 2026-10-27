@@ -11,4 +11,7 @@ enhancements:
     Add ``cluster_agent.kueue.pod_template_tags``, enabled by default. Labels and
     annotations that are identical on every pod set template of a Kueue
     Workload are added as tags using ``kubernetes_pod_labels_as_tags`` and
-    ``kubernetes_pod_annotations_as_tags``.
+    ``kubernetes_pod_annotations_as_tags``, plus
+    ``kubernetes_resources_labels_as_tags`` and
+    ``kubernetes_resources_annotations_as_tags`` for pods. A key in the
+    resources maps overrides the same key in the pod maps.

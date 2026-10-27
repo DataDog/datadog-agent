@@ -1693,6 +1693,8 @@ func (w KubernetesKueueWorkload) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Queue:", w.QueueName)
 	_, _ = fmt.Fprintln(&sb, "Cluster Queue:", w.ClusterQueueName)
 	_, _ = fmt.Fprintln(&sb, "Pod Set Assignments:", w.PodSetAssignments)
+	_, _ = fmt.Fprintln(&sb, "Pod Template Labels:", mapToScrubbedJSONString(w.PodTemplateLabels))
+	_, _ = fmt.Fprintln(&sb, "Pod Template Annotations:", mapToScrubbedJSONString(w.PodTemplateAnnotations))
 	return sb.String()
 }
 
