@@ -5,7 +5,7 @@ go_library(
     name = "watermarkpodautoscaler",
     srcs = [
         "entrypoint.go",
-        "update_watermark_autoscaler_limits.go",
+        "update_wpa_limits.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/watermarkpodautoscaler",
     visibility = ["//visibility:public"],
@@ -25,7 +25,7 @@ go_library(
 dd_agent_go_test(
     name = "watermarkpodautoscaler_test",
     srcs = [
-        "update_watermark_autoscaler_limits_test.go",
+        "update_wpa_limits_test.go",
         "watermarkpodautoscaler_test.go",
     ],
     embed = [":watermarkpodautoscaler"],
