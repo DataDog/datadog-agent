@@ -114,10 +114,23 @@ bazel:test:macos-arm64:
 bazel:test:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   variables:
-    POWERSHELL_SCRIPT: >-
-      bazel test --config=no-dd-agent-go-tests --keep_going //... --
-      -//bazel/rules/dd_packaging/...
-      -//packages/agent/linux/...
+    POWERSHELL_SCRIPT:
+      value: |-
+        try { whoami /priv | Out-String } catch { Write-Output "whoami: $_" }
+        bazel build @llvm//tools:llvm-windres @llvm//tools:clang
+        foreach ($root in (bazel info output_base), (bazel info execution_root)) {
+          $repo = "$root\external\llvm++llvm_toolchain_minimal+llvm-toolchain-minimal-windows-amd64"
+          foreach ($path in $repo, "$repo\bin\llvm.exe", "$repo\bin\llvm-windres.exe", "$repo\bin\clang.exe") {
+            Write-Output "=== $path"
+            try { Get-Item $path | Format-List FullName, LinkType, Target, Length | Out-String } catch { Write-Output "Get-Item: $_" }
+            try { fsutil reparsepoint query $path | Out-String } catch { Write-Output "fsutil: $_" }
+            if ($path -like '*.exe') {
+              try { & $path --version | Out-String } catch { Write-Output "run: $_" }
+            }
+          }
+        }
+        bazel test --config=no-dd-agent-go-tests --keep_going //... -- -//bazel/rules/dd_packaging/... -//packages/agent/linux/...
+      expand: false  # keeps the PowerShell $variables
 
 bazel:test:windows-amd64:go:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
