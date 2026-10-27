@@ -1102,26 +1102,46 @@ func TestDeleted_SidecarForeignPolicyStillDeletesOurBackend(t *testing.T) {
 	assert.True(t, apierrors.IsNotFound(err), "Backend created by the injector must still be deleted")
 }
 
-func TestAddNamespaceToGrant_LeavesForeignGrant(t *testing.T) {
-	ctx := context.Background()
-	grant := newTestReferenceGrant("datadog", "other-ns")
-	grant.SetLabels(map[string]string{"app": "someone-else"})
-	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+func TestAddNamespaceToGrant_ForeignGrant(t *testing.T) {
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
 			Processor: appsecconfig.Processor{ServiceName: "appsec-processor", Namespace: "datadog", Port: 8080},
 		},
 	}
-	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+	newClient := func() *dynamicfake.FakeDynamicClient {
+		grant := newTestReferenceGrant("datadog", "other-ns")
+		grant.SetLabels(map[string]string{"app": "someone-else"})
+		return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds(), grant)
+	}
+	grantNamespaces := func(t *testing.T, client *dynamicfake.FakeDynamicClient) []any {
+		got, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(context.Background(), referenceGrantName, metav1.GetOptions{})
+		require.NoError(t, err)
+		from, _, err := unstructured.NestedSlice(got.Object, "spec", "from")
+		require.NoError(t, err)
+		return from
+	}
 
-	require.NoError(t, pattern.AddNamespaceToGrant(ctx, "test-ns"))
+	t.Run("namespace not listed: no policy is created and the grant is untouched", func(t *testing.T) {
+		ctx := context.Background()
+		client := newClient()
+		pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
 
-	got, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-	require.NoError(t, err)
-	from, _, err := unstructured.NestedSlice(got.Object, "spec", "from")
-	require.NoError(t, err)
-	require.Len(t, from, 1, "ReferenceGrant not created by the injector must be left untouched")
-	ref, ok := from[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "other-ns", ref["namespace"])
+		require.Error(t, pattern.Added(ctx, newTestGateway("test-ns", "test-gateway")))
+
+		_, err := client.Resource(extensionGVR).Namespace("test-ns").Get(ctx, extProcName, metav1.GetOptions{})
+		assert.True(t, apierrors.IsNotFound(err), "no EnvoyExtensionPolicy may reference the processor without a grant")
+		assert.Len(t, grantNamespaces(t, client), 1, "ReferenceGrant not created by the injector must be left untouched")
+	})
+
+	t.Run("namespace already listed: the policy is created", func(t *testing.T) {
+		ctx := context.Background()
+		client := newClient()
+		pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+		require.NoError(t, pattern.Added(ctx, newTestGateway("other-ns", "test-gateway")))
+
+		_, err := client.Resource(extensionGVR).Namespace("other-ns").Get(ctx, extProcName, metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.Len(t, grantNamespaces(t, client), 1, "ReferenceGrant not created by the injector must be left untouched")
+	})
 }

@@ -105,15 +105,14 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 	// Skip namespaces already listed, e.g. when Added is retried after the policy creation failed
 	grant, err := g.client.Resource(referenceGrantGVR).Namespace(g.namespace).Get(ctx, referenceGrantName, metav1.GetOptions{})
 	if err == nil {
-		if !appsecconfig.IsManagedByDatadog(grant.GetLabels()) {
-			g.logger.Warnf("Not updating ReferenceGrant %s/%s: it was not created by the Datadog Cluster Agent", g.namespace, referenceGrantName)
-			return nil
-		}
 		from, _, _ := unstructured.NestedSlice(grant.Object, "spec", "from")
 		for _, entry := range from {
 			if ref, ok := entry.(map[string]any); ok && ref["namespace"] == namespace {
 				return nil
 			}
+		}
+		if !appsecconfig.IsManagedByDatadog(grant.GetLabels()) {
+			return fmt.Errorf("ReferenceGrant %s/%s was not created by the Datadog Cluster Agent and does not list namespace %s", g.namespace, referenceGrantName, namespace)
 		}
 	}
 
