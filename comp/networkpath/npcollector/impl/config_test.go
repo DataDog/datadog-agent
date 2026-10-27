@@ -266,14 +266,17 @@ func TestNewConfigFiltersFromEnv(t *testing.T) {
 
 func TestNewConfigBasicTestsRequireCNM(t *testing.T) {
 	logger := logmock.New(t)
-	empty := map[string]any{"network_path.collector.filters": []map[string]any{}}
+	basic := map[string]any{
+		"network_path.connections_monitoring.basic_tests_enabled": true,
+		"network_path.collector.filters":                          []map[string]any{},
+	}
 
-	withoutCNM := newConfig(config.NewMockWithOverrides(t, empty), testSysprobe(t, false), logger)
+	withoutCNM := newConfig(config.NewMockWithOverrides(t, basic), testSysprobe(t, false), logger)
 	assert.False(t, withoutCNM.basicTestsEnabled)
 	assert.False(t, withoutCNM.connectionsMonitoringEnabled)
 	assert.False(t, withoutCNM.networkPathCollectorEnabled())
 
-	withCNM := newConfig(config.NewMockWithOverrides(t, empty), testSysprobe(t, true), logger)
+	withCNM := newConfig(config.NewMockWithOverrides(t, basic), testSysprobe(t, true), logger)
 	assert.True(t, withCNM.basicTestsEnabled)
 	assert.False(t, withCNM.connectionsMonitoringEnabled)
 	assert.True(t, withCNM.networkPathCollectorEnabled())

@@ -353,9 +353,13 @@ reverse_dns_enrichment:
 }
 
 func TestConfigBasicTestsRequireCNM(t *testing.T) {
-	empty := mock.NewFromYAML(t, ``)
-	assert.False(t, newConfig(empty, testSysprobe(t, false)).enabled)
-	assert.True(t, newConfig(empty, testSysprobe(t, true)).enabled)
+	basic := mock.NewFromYAML(t, `
+network_path:
+  connections_monitoring:
+    basic_tests_enabled: true
+`)
+	assert.False(t, newConfig(basic, testSysprobe(t, false)).enabled)
+	assert.True(t, newConfig(basic, testSysprobe(t, true)).enabled)
 
 	optOut := mock.NewFromYAML(t, `
 network_path:

@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    Basic Network Path dynamic tests are disabled by default again. To keep
+    them, set ``network_path.connections_monitoring.basic_tests_enabled: true``.
