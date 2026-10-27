@@ -421,7 +421,6 @@ func runInstall(cliParams *cliParams, ev *installEvent) error {
 			return err
 		}
 		integration = normalizePackageName(strings.TrimSpace(integration))
-		ev.Integration = integration
 
 		// Install the wheel
 		ev.Stage = stagePipInstall

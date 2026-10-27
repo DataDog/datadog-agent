@@ -68,6 +68,10 @@ func newInstallEvent(cliParams *cliParams) installEvent {
 
 func (ev *installEvent) finish(err error, duration time.Duration) {
 	ev.DurationMs = duration.Milliseconds()
+	// A local wheel can be a customer's own check, so its name is never reported.
+	if ev.Source == "local" {
+		ev.Integration = ""
+	}
 	switch {
 	case err != nil:
 		ev.Result = "failure"
