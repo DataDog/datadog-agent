@@ -2,6 +2,5 @@
 enhancements:
   - |
     Enable jemalloc by default in Linux Agent container images, including JMX
-    and FIPS variants, to reduce native memory fragmentation. The default
-    ``MALLOC_CONF`` is ``background_thread:true,dirty_decay_ms:5000``. To disable
+    and FIPS variants, to reduce native memory fragmentation. To disable
     jemalloc, override ``LD_PRELOAD`` with ``/opt/lib/nosys.so``.
