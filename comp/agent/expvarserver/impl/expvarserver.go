@@ -14,6 +14,7 @@ import (
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/expvarcompat"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
@@ -37,7 +38,7 @@ func NewComponent(reqs Requires) Provides {
 		OnStart: func(context.Context) error {
 			expvarServer = &http.Server{
 				Addr:    "127.0.0.1:" + expvarPort,
-				Handler: http.DefaultServeMux,
+				Handler: expvarcompat.Handler(http.DefaultServeMux),
 			}
 			go func() {
 				if err := expvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

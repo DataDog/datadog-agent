@@ -9,12 +9,16 @@ import (
 	"context"
 	"encoding/json"
 	"expvar"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/expvarcompat"
 )
 
 const compatibilityTelemetry = `
@@ -120,63 +124,6 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(25), values["aggregator_service_check_flush_time"])
 	assert.NotContains(t, values, "forwarder_dropped_on_input", "the broader ADP dropped counter is not equivalent to the legacy expvar")
 	assert.Len(t, values, len(expvarMappings))
-}
-
-func TestMergeDynamicExpvarValuesAddsRemoteValuesToNestedStats(t *testing.T) {
-	local := map[string]any{
-		"Series": map[string]any{
-			"LastFlush": int64(8),
-			"Name":      "Series",
-		},
-	}
-	mappings := []dynamicExpvarMapping{{id: "series_flush_count", path: []string{"Series", "LastFlush"}}}
-	remote := map[string]map[string]int64{
-		"adp-1": {"series_flush_count": 3},
-		"adp-2": {"series_flush_count": 2},
-	}
-
-	merged, ok := mergeDynamicExpvarValues(local, mappings, remote).(map[string]any)
-	require.True(t, ok)
-	series, ok := merged["Series"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, int64(13), series["LastFlush"])
-	assert.Equal(t, "Series", series["Name"])
-	assert.Equal(t, int64(8), local["Series"].(map[string]any)["LastFlush"], "the local expvar snapshot must not be mutated")
-}
-
-func TestWrapDynamicExpvarOverlaysRemoteValues(t *testing.T) {
-	rootName := "remote-expvar-dynamic-compat-test"
-	root := expvar.NewMap(rootName)
-	root.Set("FlushCount", expvar.Func(func() any {
-		return map[string]any{
-			"Series": map[string]any{
-				"LastFlush": int64(8),
-				"Name":      "Series",
-			},
-		}
-	}))
-
-	provides, _, _, _, ipcComp := buildComponent(t)
-	component := provides.Comp.(*remoteAgentRegistry)
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, adpAgentFlavor, "Agent Data Plane", "123",
-		withTelemetryProvider(compatibilityTelemetry),
-	)
-	component.expvarCache.values = nil
-	previousRegistry := remoteExpvarRegistry.Swap(component)
-	t.Cleanup(func() { remoteExpvarRegistry.Store(previousRegistry) })
-
-	mapping := expvarMapping{
-		id:         "aggregator_flush_count_series",
-		expvarPath: []string{rootName, "FlushCount", "Series", "LastFlush"},
-	}
-	require.True(t, wrapExpvar(mapping))
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal([]byte(root.String()), &got))
-	series, ok := got["FlushCount"].(map[string]any)["Series"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, float64(27), series["LastFlush"])
-	assert.Equal(t, "Series", series["Name"])
 }
 
 func TestExpvarSeriesFromPromTextRejectsTypeMismatchAndMalformedText(t *testing.T) {
@@ -329,29 +276,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	assert.Equal(t, int64(10), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_metric_packets"])
 }
 
-func TestWrapExpvarCreatesMissingCompatibilityPath(t *testing.T) {
-	mapping := expvarMapping{
-		id:              "test_new_compatibility_expvar",
-		expvarPath:      []string{"remote-expvar-compat-test", "Transactions", "DroppedOnInput"},
-		createIfMissing: true,
-	}
-	require.True(t, wrapExpvar(mapping))
-
-	root, ok := expvar.Get("remote-expvar-compat-test").(*expvar.Map)
-	require.True(t, ok)
-	transactions, ok := root.Get("Transactions").(*expvar.Map)
-	require.True(t, ok)
-	assert.Equal(t, "0", transactions.Get("DroppedOnInput").String())
-}
-
-func TestExpvarMappingsResolve(t *testing.T) {
-	for _, mapping := range expvarMappings {
-		ensureExpvarInt(t, mapping.expvarPath)
-		require.Truef(t, wrapExpvar(mapping), "mapping %q did not resolve", mapping.id)
-	}
-}
-
-func TestRegisterExpvarsCombinesLocalValueAndPublishesRemoteValues(t *testing.T) {
+func TestRegisterExpvarsPublishesRemoteValuesWithoutChangingLocalExpvars(t *testing.T) {
 	local := ensureExpvarInt(t, []string{"dogstatsd-udp", "Packets"})
 	local.Set(8)
 
@@ -367,7 +292,14 @@ func TestRegisterExpvarsCombinesLocalValueAndPublishesRemoteValues(t *testing.T)
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(expvar.Get("dogstatsd-udp").String()), &got))
-	assert.Equal(t, float64(13), got["Packets"])
+	assert.Equal(t, float64(8), got["Packets"], "the legacy root is combined when rendered, not mutated at registration")
+
+	response := httptest.NewRecorder()
+	expvarcompat.Handler(expvar.Handler()).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/vars", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	var snapshot map[string]any
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &snapshot))
+	assert.Equal(t, float64(13), snapshot["dogstatsd-udp"].(map[string]any)["Packets"])
 
 	var remote map[string]any
 	require.NoError(t, json.Unmarshal([]byte(expvar.Get(remoteAgentsExpvarName).String()), &remote))

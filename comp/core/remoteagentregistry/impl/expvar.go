@@ -6,9 +6,7 @@
 package remoteagentregistryimpl
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"expvar"
 	"math"
 	"sort"
@@ -39,12 +37,11 @@ const (
 // The metric names are the names emitted by ADP's RAR remapping, not the names from ADP's direct /compat/metrics
 // endpoint.
 type expvarMapping struct {
-	id              string
-	metricName      string
-	expvarPath      []string
-	selectors       []labelSelector
-	metricType      dto.MetricType
-	createIfMissing bool
+	id         string
+	metricName string
+	expvarPath []string
+	selectors  []labelSelector
+	metricType dto.MetricType
 }
 
 type labelSelector struct {
@@ -328,98 +325,7 @@ func selectors(values ...labelSelector) []labelSelector {
 var (
 	remoteExpvarRegistry atomic.Pointer[remoteAgentRegistry]
 	publishRemoteExpvars sync.Once
-	wrappedExpvarsMu     sync.Mutex
-	wrappedExpvars       = make(map[string]struct{})
-	wrappedExpvarFuncsMu sync.Mutex
-	wrappedExpvarFuncs   = make(map[string]*dynamicExpvarWrapper)
 )
-
-// Aggregator expvar subtrees such as FlushCount and Flush are snapshots exposed as expvar.Func,
-// not mutable expvar.Maps. Wrap each snapshot once and overlay remote values at mapped leaves.
-type dynamicExpvarMapping struct {
-	id   string
-	path []string
-}
-
-type dynamicExpvarWrapper struct {
-	original expvar.Func
-	mu       sync.RWMutex
-	mappings []dynamicExpvarMapping
-}
-
-func (wrapper *dynamicExpvarWrapper) addMapping(mapping dynamicExpvarMapping) {
-	wrapper.mu.Lock()
-	defer wrapper.mu.Unlock()
-	mapping.path = append([]string(nil), mapping.path...)
-	wrapper.mappings = append(wrapper.mappings, mapping)
-}
-
-func (wrapper *dynamicExpvarWrapper) value() any {
-	local := wrapper.original()
-	wrapper.mu.RLock()
-	mappings := append([]dynamicExpvarMapping(nil), wrapper.mappings...)
-	wrapper.mu.RUnlock()
-
-	registry := remoteExpvarRegistry.Load()
-	if registry == nil {
-		return local
-	}
-	return mergeDynamicExpvarValues(local, mappings, registry.getRemoteExpvarValues())
-}
-
-func mergeDynamicExpvarValues(local any, mappings []dynamicExpvarMapping, remoteValues map[string]map[string]int64) any {
-	if len(remoteValues) == 0 || len(mappings) == 0 {
-		return local
-	}
-	encoded, err := json.Marshal(local)
-	if err != nil {
-		return local
-	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return local
-	}
-
-	for _, mapping := range mappings {
-		if len(mapping.path) == 0 {
-			continue
-		}
-		var remote int64
-		for _, agentValues := range remoteValues {
-			remote = saturatingAdd(remote, agentValues[mapping.id])
-		}
-		if remote == 0 {
-			continue
-		}
-
-		parent, ok := value.(map[string]any)
-		if !ok {
-			continue
-		}
-		for _, key := range mapping.path[:len(mapping.path)-1] {
-			parent, ok = parent[key].(map[string]any)
-			if !ok {
-				break
-			}
-		}
-		if !ok {
-			continue
-		}
-		leaf := mapping.path[len(mapping.path)-1]
-		localNumber, ok := parent[leaf].(json.Number)
-		if !ok {
-			continue
-		}
-		localValue, err := localNumber.Int64()
-		if err != nil {
-			continue
-		}
-		parent[leaf] = saturatingAdd(localValue, remote)
-	}
-	return value
-}
 
 type remoteExpvarCache struct {
 	mu        sync.Mutex
@@ -447,8 +353,8 @@ type remoteCounterState struct {
 	hasOrigin   bool
 }
 
-// registerExpvars publishes remote agent values and wraps compatible local expvars. The Go expvar registry is global,
-// so the published functions resolve the registry that is active when they are evaluated.
+// registerExpvars publishes mapped ADP values separately. Legacy Core expvars are
+// combined with them only when /debug/vars or an Agent status section is read.
 func (ra *remoteAgentRegistry) registerExpvars() {
 	remoteExpvarRegistry.Store(ra)
 	publishRemoteExpvars.Do(func() {
@@ -463,117 +369,6 @@ func (ra *remoteAgentRegistry) registerExpvars() {
 			return registry.getRemoteAgentExpvars()
 		}))
 	})
-
-	wrappedExpvarsMu.Lock()
-	defer wrappedExpvarsMu.Unlock()
-	for _, mapping := range expvarMappings {
-		key := strings.Join(mapping.expvarPath, "/")
-		if _, wrapped := wrappedExpvars[key]; wrapped {
-			continue
-		}
-		if wrapExpvar(mapping) {
-			wrappedExpvars[key] = struct{}{}
-		}
-	}
-}
-
-// Increment ExpVar quantity
-func wrapExpvar(mapping expvarMapping) bool {
-	if wrapDynamicExpvar(mapping) {
-		return true
-	}
-	if len(mapping.expvarPath) < 2 {
-		return false
-	}
-
-	rootName := mapping.expvarPath[0]
-	root := expvar.Get(rootName)
-	parent, ok := root.(*expvar.Map)
-	if root == nil && mapping.createIfMissing {
-		parent = expvar.NewMap(rootName)
-		ok = true
-	}
-	if !ok {
-		return false
-	}
-	for _, key := range mapping.expvarPath[1 : len(mapping.expvarPath)-1] {
-		child := parent.Get(key)
-		if child == nil && mapping.createIfMissing {
-			childMap := new(expvar.Map).Init()
-			parent.Set(key, childMap)
-			parent = childMap
-			continue
-		}
-		parent, ok = child.(*expvar.Map)
-		if !ok {
-			return false
-		}
-	}
-
-	leaf := mapping.expvarPath[len(mapping.expvarPath)-1]
-	leafVar := parent.Get(leaf)
-	local, ok := leafVar.(*expvar.Int)
-	if leafVar == nil && mapping.createIfMissing {
-		local = new(expvar.Int)
-		parent.Set(leaf, local)
-		ok = true
-	}
-	if !ok {
-		log.Warnf("Not exposing remote agent values at expvar %q: expected an *expvar.Int", strings.Join(mapping.expvarPath, "/"))
-		return false
-	}
-
-	// Wrap the local leaf so reads return the combined Core Agent and remote ADP value.
-	parent.Set(leaf, expvar.Func(func() any {
-		total := local.Value()
-		if registry := remoteExpvarRegistry.Load(); registry != nil {
-			for _, values := range registry.getRemoteExpvarValues() {
-				total = saturatingAdd(total, values[mapping.id])
-			}
-		}
-		return total
-	}))
-	return true
-}
-
-func wrapDynamicExpvar(mapping expvarMapping) bool {
-	if len(mapping.expvarPath) < 3 {
-		return false
-	}
-
-	root, ok := expvar.Get(mapping.expvarPath[0]).(*expvar.Map)
-	if !ok {
-		return false
-	}
-	parent := root
-	for index := 1; index < len(mapping.expvarPath)-1; index++ {
-		key := mapping.expvarPath[index]
-		child := parent.Get(key)
-		function, isFunction := child.(expvar.Func)
-		if isFunction {
-			prefix := strings.Join(mapping.expvarPath[:index+1], "/")
-			wrappedExpvarFuncsMu.Lock()
-			wrapper := wrappedExpvarFuncs[prefix]
-			if wrapper == nil {
-				wrapper = &dynamicExpvarWrapper{original: function}
-				wrappedExpvarFuncs[prefix] = wrapper
-				parent.Set(key, expvar.Func(wrapper.value))
-			}
-			wrapper.addMapping(dynamicExpvarMapping{
-				id:   mapping.id,
-				path: mapping.expvarPath[index+1:],
-			})
-			wrappedExpvarFuncsMu.Unlock()
-			return true
-		}
-
-		childMap, isMap := child.(*expvar.Map)
-		if !isMap {
-			return false
-		}
-		parent = childMap
-	}
-	return false
 }
 
 // getRemoteAgentExpvars formats remote compatibility values as nested expvar data grouped by remote-agent name.

@@ -4,9 +4,11 @@ features:
     Expose DogStatsD, forwarder, and aggregator telemetry from the Agent Data Plane through the
     Core Agent's ``go_expvar`` paths when ADP is enabled. Existing ``go_expvar`` users can continue
     using their current configuration while the compatibility layer combines Core Agent and ADP
-    values. Aggregator coverage includes DogStatsD contexts and samples, processed and flushed
-    events/service checks, per-flush counts, and available flush timings. ADP's ``NumberOfFlush``
-    analogue counts non-empty aggregation flushes. ADP's broader ``transactions__dropped`` counter
+    values on each ``/debug/vars`` read, including Core Agent expvars created after startup.
+    ADP contributions are also available separately under ``remote_agents``. Expvars without an
+    equivalent ADP metric remain Core Agent-only. Aggregator coverage includes DogStatsD contexts
+    and samples, processed and flushed events/service checks, per-flush counts, and available flush
+    timings. ADP's ``NumberOfFlush`` analogue counts non-empty aggregation flushes. ADP's broader ``transactions__dropped`` counter
     is not mapped to ``forwarder/Transactions/DroppedOnInput`` because its meaning is not equivalent
     to the legacy expvar. Legacy splitter expvars were removed in Agent PR #38834 and are not
     reintroduced.
