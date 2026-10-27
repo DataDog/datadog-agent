@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.78.0
 	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
-	github.com/godbus/dbus/v5 v5.2.2
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/klauspost/compress v1.20.3
 	github.com/landlock-lsm/go-landlock v0.10.1
 	github.com/pierrec/lz4/v4 v4.1.33
