@@ -248,9 +248,8 @@ func TestBootoutNamesTheServiceTarget(t *testing.T) {
 	assert.Equal(t, []string{"bootout", "system/com.datadoghq.agent"}, rec.calls[0].args)
 }
 
-// TestBootoutWaitsForTheJobToLeaveTheDomain guards the fix for the race documented in
-// priv_notes/TO_BE_FIXED_MACOS_LAUNCHD_BOOTOUT_BOOTSTRAP_RACE.md: launchctl bootout can return
-// before the label has actually left the domain, and a Bootstrap that follows immediately can hit
+// TestBootoutWaitsForTheJobToLeaveTheDomain guards against a launchd race: launchctl bootout can
+// return before the label has actually left the domain, and a Bootstrap that follows immediately can hit
 // a bare "Input/output error". Bootout must not return until a print poll confirms the label is
 // gone.
 func TestBootoutWaitsForTheJobToLeaveTheDomain(t *testing.T) {

@@ -38,10 +38,9 @@ import (
 //
 // Unlike configSuite (Linux/Windows), every state change here goes through Remote Config via
 // fakeintake -- never the installer daemon's local CLI (backend.Backend's runDaemonCommand). That
-// CLI path skips the verifyState reconciliation that only Remote Config exercises;
-// see priv_notes/TESTING_MACOS_CONFIG_EXPERIMENT.md's Test 5 discussion. Consequently this suite
-// does not embed suite.FleetSuite or use its Backend: FleetSuite's dispatch methods are CLI-only by
-// design, and this suite never calls them.
+// CLI path skips the verifyState reconciliation that only Remote Config exercises. Consequently
+// this suite does not embed suite.FleetSuite or use its Backend: FleetSuite's dispatch methods are
+// CLI-only by design, and this suite never calls them.
 //
 // The suite installs the Agent itself (see SetupSuite) rather than relying on the provisioner's
 // agent install, because it needs the Agent *and* the installer daemon pointed at fakeintake for
@@ -294,8 +293,8 @@ func (s *configMacOSSuite) packageState(status backend.RemoteConfigState) backen
 
 // currentExpectedState builds an expected_state that matches the daemon's real state right now, so
 // a task built from it passes verifyState. /status's values must be copied verbatim -- including
-// the literal "empty" stable_config_version substitution -- never translated; see
-// priv_notes/TESTING_MACOS_CONFIG_EXPERIMENT.md's 0.7 for why.
+// the literal "empty" stable_config_version substitution -- never translated, since verifyState
+// compares them byte for byte.
 func (s *configMacOSSuite) currentExpectedState() expectedState {
 	pkg := s.packageState(s.readStatus())
 	return expectedState{
