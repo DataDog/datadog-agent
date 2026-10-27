@@ -20,7 +20,6 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/capture"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -84,7 +83,7 @@ type packetCapture struct{}
 // short-lived, header-only libpcap packet capture over the system-probe unix
 // socket.
 var PacketCapture = &module.Factory{
-	Name: config.PacketCaptureModule,
+	Name: sysconfigtypes.PacketCaptureModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &packetCapture{}, nil
 	},

@@ -170,7 +170,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 
 	stackManager := infra.GetStackManager()
 
-	if opts.Local {
+	// The local sudo password is only consumed by Linux-only resources (NFS iptables rules, ramfs pools).
+	// On macOS, libvirtd is reachable without root and the network is managed by vmnet, so don't prompt.
+	if opts.Local && runtime.GOOS == "linux" {
 		sudoPassword, err = credentials()
 		if err != nil {
 			return nil, fmt.Errorf("Unable to get password: %w", err)

@@ -22,7 +22,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
@@ -113,7 +113,7 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(inputs.DurationSecs)*time.Second+setupGracePeriod)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.PacketCaptureModule, "/capture")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.PacketCaptureModule, "/capture")
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(reqBody))
 	if err != nil {
 		return captureOutcome{}, fmt.Errorf("creating request: %w", err)

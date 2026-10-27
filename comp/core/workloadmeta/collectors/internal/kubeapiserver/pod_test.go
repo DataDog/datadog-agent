@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -183,7 +186,8 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 		Spec: MinimalPodSpec{
 			Containers: []MinimalContainer{
 				{
-					Name: "test-container-1",
+					Name:  "test-container-1",
+					Image: "rayproject/ray-llm:latest",
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU: *resource.NewMilliQuantity(100, resource.DecimalSI),
@@ -248,6 +252,9 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 
 	copiedPod.Spec.Containers[0].Name = "modified-container"
 	assert.NotEqual(t, copiedPod.Spec.Containers[0].Name, original.Spec.Containers[0].Name)
+
+	copiedPod.Spec.Containers[0].Image = "rayproject/ray:latest"
+	assert.NotEqual(t, copiedPod.Spec.Containers[0].Image, original.Spec.Containers[0].Image)
 
 	copiedPod.Status.PodIP = "10.0.0.2"
 	assert.NotEqual(t, copiedPod.Status.PodIP, original.Status.PodIP)
@@ -386,4 +393,79 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 	minimalParserResult := minimalParser.Parse(minimalPod)
 
 	assert.Equal(t, fullParserResult, minimalParserResult)
+}
+
+// Exercise the API-server parsers rather than constructing image-bearing workloadmeta pods.
+func TestPodParsersRayInferenceTags(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		containerName string
+		image         string
+		imageName     string
+		nodeType      string
+		group         string
+		wantComponent string
+		sidecarImage  string
+		serveFalse    bool
+	}{
+		{name: "head", containerName: "ray-head", image: "rayproject/ray-llm:latest", imageName: "rayproject/ray-llm", nodeType: "head", group: "headgroup", wantComponent: "head"},
+		{name: "private worker", containerName: "ray-worker", image: "example.com/team/ray-llm-service:vllm-stable", imageName: "example.com/team/ray-llm-service", nodeType: "worker", group: "decode", wantComponent: "decode"},
+		{name: "vllm digest", containerName: "ray-worker", image: "example.com/team/vllm@sha256:0123456789abcdef", imageName: "example.com/team/vllm", nodeType: "worker", wantComponent: "worker"},
+		{name: "generic Ray", containerName: "ray-worker", image: "rayproject/ray:latest", imageName: "rayproject/ray", nodeType: "worker"},
+		{name: "LLM tag only", containerName: "ray-worker", image: "example.com/team/ray:vllm-stable", imageName: "example.com/team/ray", nodeType: "worker"},
+		{name: "LLM namespace only", containerName: "ray-worker", image: "example.com/vllm/ray:latest", imageName: "example.com/vllm/ray", nodeType: "worker"},
+		{name: "LLM registry only", containerName: "ray-worker", image: "ray-llm.example.com/team/ray:latest", imageName: "ray-llm.example.com/team/ray", nodeType: "worker"},
+		{name: "sidecar only", containerName: "ray-worker", image: "rayproject/ray:latest", imageName: "rayproject/ray", sidecarImage: "vllm/vllm-openai:latest", nodeType: "worker"},
+		{name: "custom worker", containerName: "llm", image: "rayproject/ray-llm:2.56.0-py312-cu130", imageName: "rayproject/ray-llm", nodeType: "worker", group: "gpu-group", wantComponent: "gpu-group"},
+		{name: "head excluded from traffic", containerName: "ray-head", image: "rayproject/ray-llm:latest", imageName: "rayproject/ray-llm", nodeType: "head", wantComponent: "head", serveFalse: true},
+		{name: "missing image", containerName: "ray-worker", nodeType: "worker"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "ray-pod", UID: "ray-pod-uid",
+					Labels: map[string]string{
+						"ray.io/cluster": "nlq-mixed-nqlnx", "ray.io/serve": "true",
+						"ray.io/node-type": tt.nodeType, "ray.io/group": tt.group,
+					},
+				},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: tt.containerName, Image: tt.image}}},
+			}
+			if tt.serveFalse {
+				pod.Labels["ray.io/serve"] = "false"
+			}
+			if tt.sidecarImage != "" {
+				pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: "sidecar", Image: tt.sidecarImage})
+			}
+			// The minimal informer decodes API JSON and deep-copies its objects.
+			raw, err := json.Marshal(pod)
+			require.NoError(t, err)
+			var minimalPod MinimalPod
+			require.NoError(t, json.Unmarshal(raw, &minimalPod))
+			fullParser, err := kubernetesresourceparsers.NewPodParser(nil)
+			require.NoError(t, err)
+			for name, entity := range map[string]workloadmeta.Entity{
+				"full":    fullParser.Parse(pod),
+				"minimal": (minimalPodParser{}).Parse(minimalPod.DeepCopyObject()),
+			} {
+				t.Run(name, func(t *testing.T) {
+					parsedPod := entity.(*workloadmeta.KubernetesPod)
+					require.Len(t, parsedPod.Containers, len(pod.Spec.Containers))
+					assert.Equal(t, tt.imageName, parsedPod.Containers[0].Image.Name)
+					extractor := collectors.NewPodTagExtractor(config.NewMock(t), nil)
+					var got []string
+					for _, tag := range extractor.Extract(parsedPod, taggertypes.LowCardinality) {
+						if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+							got = append(got, tag)
+						}
+					}
+					var want []string
+					if tt.wantComponent != "" {
+						want = []string{"inference_workload:nlq-mixed", "inference_workload_component:" + tt.wantComponent}
+					}
+					assert.ElementsMatch(t, want, got)
+				})
+			}
+		})
+	}
 }

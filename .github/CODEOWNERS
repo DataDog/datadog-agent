@@ -135,7 +135,6 @@
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
-/.gitlab/.post/do_not_merge.yml                                           @DataDog/agent-devx
 /.gitlab/deploy*/*                                                        @DataDog/agent-delivery
 /.gitlab/.pre/deps_fetch/*                                                @DataDog/agent-devx
 /.gitlab/test/e2e/*                                                       @DataDog/agent-devx
@@ -144,7 +143,6 @@
 /.gitlab/test/kernel_matrix_testing/*                                     @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/build/lint/*                                                     @DataDog/agent-devx
 /.gitlab/.pre/maintenance_jobs/*                                          @DataDog/agent-devx
-/.gitlab/.post/notify/*                                                   @DataDog/agent-devx
 /.gitlab/build/pkg_metrics/*                                              @DataDog/agent-devx
 /.gitlab/.pre/setup/*                                                     @DataDog/agent-devx
 /.gitlab/deploy/trigger_distribution.yml                                  @DataDog/agent-delivery
@@ -165,9 +163,6 @@
 /.gitlab/build/source_test/*                                              @DataDog/agent-devx
 /.gitlab/build/source_test/linux.yml                                      @DataDog/agent-devx @Datadog/agent-build
 /.gitlab/build/source_test/macos.yml                                      @DataDog/agent-devx @Datadog/agent-build @DataDog/windows-products
-/.gitlab/build/source_test/notify.yml                                     @DataDog/agent-devx
-/.gitlab/build/source_test/slack.yml                                      @DataDog/agent-devx
-/.gitlab/build/source_test/tooling_unit_tests.yml                         @DataDog/agent-devx
 /.gitlab/build/source_test/kmt_tasks.yml                                  @DataDog/ebpf-platform
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml                @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/cluster_agent.yml                             @DataDog/container-platform @DataDog/agent-build
@@ -950,6 +945,7 @@
 /comp/core/workloadmeta/collectors/internal/kubemetadata              @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/amdgpu                    @DataDog/container-platform @DataDog/accelerator-telemetry
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/accelerator-telemetry
+/comp/core/workloadmeta/collectors/internal/nodefilter                @DataDog/opentelemetry-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences
 /comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security

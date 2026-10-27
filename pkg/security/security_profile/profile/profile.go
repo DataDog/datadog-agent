@@ -625,7 +625,20 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	return ctx, ok
 }
 
-// GetVersions returns the number of versions stored in the profile (debug purpose only)
+// UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
+// It returns false if the version has already been evicted.
+func (p *Profile) UpdateVersionContextLastSeen(imageTag string, nowTimestamp uint64) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	ctx, ok := p.versionContexts[imageTag]
+	if ok {
+		ctx.LastSeenNano = nowTimestamp
+	}
+	return ok
+}
+
+// GetVersions returns the versions stored in the profile (debug purpose only)
 func (p *Profile) GetVersions() []string {
 	p.Lock()
 	defer p.Unlock()
@@ -683,22 +696,29 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 	return globalState // AutoLearning or StableEventType
 }
 
-// PrepareNewVersion prepares a new version of the profile
-func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
+// PrepareNewVersion creates a version context or refreshes its last seen timestamp.
+// It evicts the least recently seen versions to enforce maxImageTags, retaining at
+// least one version and never evicting the version being observed.
+func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
 	p.Lock()
 	defer p.Unlock()
 
-	// prepare new profile context to be inserted
-	newProfileCtx := &VersionContext{
-		EventTypeState: make(map[model.EventType]*EventTypeState),
-		FirstSeenNano:  nowTimestamp,
-		LastSeenNano:   nowTimestamp,
-		Tags:           tags,
+	ctx, ok := p.versionContexts[imageTag]
+	if !ok {
+		ctx = &VersionContext{
+			EventTypeState: make(map[model.EventType]*EventTypeState),
+			FirstSeenNano:  nowTimestamp,
+			Tags:           slices.Clone(tags),
+		}
+		p.versionContexts[imageTag] = ctx
 	}
+	ctx.LastSeenNano = nowTimestamp
 
-	// add the new profile context to the list
-	evictedVersions := p.makeRoomForNewVersion(maxImageTags)
-	p.versionContexts[newImageTag] = newProfileCtx
+	// Also trim profiles loaded from disk with more versions than the current limit.
+	var evictedVersions []string
+	for len(p.versionContexts) > max(1, maxImageTags) {
+		evictedVersions = append(evictedVersions, p.evictProfileVersion(imageTag))
+	}
 	return evictedVersions
 }
 
@@ -710,21 +730,7 @@ func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
 	p.versionContexts[version] = ctx
 }
 
-func (p *Profile) makeRoomForNewVersion(maxImageTags int) []string {
-	evictedVersions := []string{}
-	// if we reached the max number of versions, we should evict the surplus
-	surplus := len(p.versionContexts) - maxImageTags + 1
-	for surplus > 0 {
-		evictedVersion := p.evictProfileVersion()
-		if evictedVersion != "" {
-			evictedVersions = append(evictedVersions, evictedVersion)
-		}
-		surplus--
-	}
-	return evictedVersions
-}
-
-func (p *Profile) evictProfileVersion() string {
+func (p *Profile) evictProfileVersion(retainedImageTag string) string {
 	if len(p.versionContexts) <= 0 {
 		return "" // should not happen
 	}
@@ -732,10 +738,12 @@ func (p *Profile) evictProfileVersion() string {
 	oldest := uint64(math.MaxUint64)
 	oldestImageTag := ""
 
-	// select the oldest image tag
-	// TODO: not 100% sure to select the first or the lastSeenNano
+	// Select the least recently seen image tag other than the current version.
 	for imageTag, profileCtx := range p.versionContexts {
-		if profileCtx.LastSeenNano < oldest {
+		if imageTag == retainedImageTag {
+			continue
+		}
+		if oldestImageTag == "" || profileCtx.LastSeenNano < oldest {
 			oldest = profileCtx.LastSeenNano
 			oldestImageTag = imageTag
 		}
