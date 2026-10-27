@@ -882,6 +882,31 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 }
 
+// TestStandaloneTelemetryResourceClusterName verifies that, in standalone mode,
+// the k8s.cluster.name attribute of service.telemetry.resource, with its
+// ${env:...} references resolved, reaches the cluster name resolution even
+// without a dogtel extension.
+func (suite *ConfigTestSuite) TestStandaloneTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-cluster", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
+}
+
+// TestConnectedTelemetryResourceClusterName verifies that service.telemetry.resource
+// is ignored outside standalone mode, where the core Agent provides the cluster name.
+func (suite *ConfigTestSuite) TestConnectedTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
+}
+
 // TestDogtelExtensionConfig_PartialConfig verifies that only the dogtelextension
 // fields that are explicitly set override the corresponding DD agent config keys.
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
@@ -1054,6 +1079,70 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 
 // TestGetDogtelExtensionConfig_NilExtensionSection verifies that getDogtelExtensionConfig
 // returns nil without error when the extensions section is absent.
+func TestTelemetryResourceAttribute(t *testing.T) {
+	tests := []struct {
+		name      string
+		telemetry any
+		want      string
+	}{
+		{
+			name:      "inline map",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": "inline", "k8s.node.name": "node"}},
+			want:      "inline",
+		},
+		{
+			name: "attributes list",
+			telemetry: map[string]any{"resource": map[string]any{
+				"schema_url": "https://opentelemetry.io/schemas/1.27.0",
+				"attributes": []any{
+					map[string]any{"name": "k8s.node.name", "value": "node"},
+					map[string]any{"name": "k8s.cluster.name", "value": "listed"},
+				},
+			}},
+			want: "listed",
+		},
+		{
+			name: "the attributes list wins over the inline map",
+			telemetry: map[string]any{"resource": map[string]any{
+				"k8s.cluster.name": "inline",
+				"attributes":       []any{map[string]any{"name": "k8s.cluster.name", "value": "listed"}},
+			}},
+			want: "listed",
+		},
+		{
+			name:      "a null inline value leaves it unset",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": nil}},
+			want:      "",
+		},
+		{
+			name:      "whitespace is trimmed",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": " spaced \n"}},
+			want:      "spaced",
+		},
+		{
+			name:      "not set",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.node.name": "node"}},
+			want:      "",
+		},
+		{
+			name:      "no resource",
+			telemetry: map[string]any{"logs": map[string]any{"level": "debug"}},
+			want:      "",
+		},
+		{
+			name:      "no telemetry section",
+			telemetry: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, telemetryResourceAttribute(tt.telemetry, "k8s.cluster.name"))
+		})
+	}
+}
+
 func TestGetDogtelExtensionConfig_NilExtensionSection(t *testing.T) {
 	cfg := confmap.NewFromStringMap(map[string]any{
 		"exporters": map[string]any{},

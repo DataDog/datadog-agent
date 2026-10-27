@@ -141,18 +141,19 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			log.Infof("Using cluster name %s from the node label", data.clusterName)
 		}
 
-		// otel-agent: OTel deployment tools (the OTel Helm charts) give the
-		// collector its cluster's name in the k8s.cluster.name resource
-		// attribute, which is also where the cluster_name host tag of the
-		// telemetry it exports comes from. It comes last, after the cloud
-		// providers' APIs and the node labels, because charts fill it with a
+		// otel-agent: OTel deployment tools (the OTel Helm charts) and users give
+		// the collector its cluster's name in the k8s.cluster.name attribute of
+		// its own telemetry resource, which is also where the cluster_name host
+		// tag of the telemetry it exports comes from. It comes last, after the
+		// cloud providers' APIs and the node labels, because charts fill it with a
 		// placeholder by default (unknown_k8s_cluster), which the EKS and AKS node
 		// labels wouldn't override. Unlike cluster_name, it is free-form, so it is
 		// lowercased before being validated.
 		if data.clusterName == "" && flavor.GetFlavor() == flavor.OTelAgent {
-			if attrClusterName := strings.ToLower(otelResourceAttribute(otelClusterNameAttribute)); attrClusterName != "" {
-				log.Infof("Got cluster name %s from the %s resource attribute in %s", attrClusterName, otelClusterNameAttribute, otelResourceAttributesEnv)
-				data.clusterName = validateClusterName(attrClusterName, hostname, "the "+otelResourceAttributesEnv+" environment variable")
+			if resourceClusterName, source := otelResourceClusterName(); resourceClusterName != "" {
+				resourceClusterName = strings.ToLower(resourceClusterName)
+				log.Infof("Got cluster name %s from the %s resource attribute in %s", resourceClusterName, otelClusterNameAttribute, source)
+				data.clusterName = validateClusterName(resourceClusterName, hostname, source)
 			}
 		}
 
@@ -191,6 +192,21 @@ func validateClusterName(clusterName, hostname, source string) string {
 		return RFC1123CompliantClusterName
 	}
 	return clusterName
+}
+
+// otelResourceClusterName returns the k8s.cluster.name attribute of the
+// collector's telemetry resource and where it was read from, resolved as the
+// collector does: service.telemetry.resource in the collector config, which
+// otel-agent copies to otelcollector.standalone.telemetry_resource_cluster_name,
+// takes precedence over OTEL_RESOURCE_ATTRIBUTES.
+func otelResourceClusterName() (clusterName, source string) {
+	if clusterName = pkgconfigsetup.Datadog().GetString("otelcollector.standalone.telemetry_resource_cluster_name"); clusterName != "" {
+		return clusterName, "service.telemetry.resource in the collector config"
+	}
+	if clusterName = otelResourceAttribute(otelClusterNameAttribute); clusterName != "" {
+		return clusterName, "the " + otelResourceAttributesEnv + " environment variable"
+	}
+	return "", ""
 }
 
 // otelResourceAttribute returns the value of the key resource attribute in the

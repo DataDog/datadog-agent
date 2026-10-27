@@ -21,5 +21,6 @@ enhancements:
     no longer queries the kubelet for node labels either. When no other
     source gives a cluster name (``DD_CLUSTER_NAME``, the cloud provider,
     node labels), the hostname suffix now comes from the ``k8s.cluster.name``
-    resource attribute in ``OTEL_RESOURCE_ATTRIBUTES``, which the
-    OpenTelemetry Helm charts populate.
+    attribute of the collector's telemetry resource: from
+    ``service.telemetry.resource`` in the collector configuration, or else from
+    ``OTEL_RESOURCE_ATTRIBUTES``, which the OpenTelemetry Helm charts populate.

@@ -108,8 +108,9 @@ func TestGetClusterNameCLCRunner(t *testing.T) {
 }
 
 // TestGetClusterNameOTelResourceAttributes verifies that otel-agent falls
-// back on the k8s.cluster.name resource attribute that OTel deployment tools
-// set in OTEL_RESOURCE_ATTRIBUTES, and that other flavors ignore it.
+// back on the k8s.cluster.name attribute of its telemetry resource, from
+// service.telemetry.resource in the collector config or else from
+// OTEL_RESOURCE_ATTRIBUTES, and that other flavors ignore it.
 func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -119,8 +120,11 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 		// nodeLabelClusterName is what an EKS or AKS node label holds: it only
 		// applies when no cluster name was found before.
 		nodeLabelClusterName string
-		resourceAttributes   string
-		want                 string
+		// telemetryResourceClusterName is what otel-agent read from
+		// service.telemetry.resource in the collector config.
+		telemetryResourceClusterName string
+		resourceAttributes           string
+		want                         string
 	}{
 		{
 			name:               "otel-agent reads k8s.cluster.name",
@@ -168,6 +172,26 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			want:                 "eks-cluster",
 		},
 		{
+			name:                         "service.telemetry.resource alone",
+			flavor:                       flavor.OTelAgent,
+			telemetryResourceClusterName: "From-Config",
+			want:                         "from-config",
+		},
+		{
+			name:                         "service.telemetry.resource takes precedence over OTEL_RESOURCE_ATTRIBUTES",
+			flavor:                       flavor.OTelAgent,
+			telemetryResourceClusterName: "from-config",
+			resourceAttributes:           "k8s.cluster.name=unknown_k8s_cluster",
+			want:                         "from-config",
+		},
+		{
+			name:                         "a cloud provider takes precedence over service.telemetry.resource",
+			flavor:                       flavor.OTelAgent,
+			cloudClusterName:             "eks-cluster",
+			telemetryResourceClusterName: "from-config",
+			want:                         "eks-cluster",
+		},
+		{
 			name:               "unset",
 			flavor:             flavor.OTelAgent,
 			resourceAttributes: "k8s.node.name=node",
@@ -186,6 +210,7 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("cloud_provider_metadata", []string{})
 			mockConfig.SetInTest("cluster_name", tt.configClusterName)
+			mockConfig.SetInTest("otelcollector.standalone.telemetry_resource_cluster_name", tt.telemetryResourceClusterName)
 			env.SetFeatures(t, env.Kubernetes)
 			flavor.SetTestFlavor(t, tt.flavor)
 			catalog := map[string]Provider{}

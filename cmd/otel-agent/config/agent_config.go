@@ -271,6 +271,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			}
 		}
 
+		// The cluster name resolution reads the k8s.cluster.name attribute of
+		// the collector's own telemetry resource, which the OpenTelemetry Helm
+		// charts and users set in the collector config rather than in
+		// OTEL_RESOURCE_ATTRIBUTES.
+		if clusterName := telemetryResourceAttribute(sc.Telemetry, "k8s.cluster.name"); clusterName != "" {
+			pkgconfig.Set("otelcollector.standalone.telemetry_resource_cluster_name", clusterName, pkgconfigmodel.SourceFile)
+		}
+
 		// Resolve ENC[] secrets after dogtelextension config is applied so that
 		// secret_backend_command set via extensions.dogtel is visible here.
 		// Check both secret_backend_command (custom script) and secret_backend_type
@@ -434,6 +442,39 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal pipeline config %w", err)
 	}
 	return pipelineConfig, nil
+}
+
+// telemetryResourceAttribute returns the value of the key attribute of the
+// collector's own telemetry resource, service.telemetry.resource, or an empty
+// string when it isn't set. telemetry is the service.telemetry section. The
+// resource takes either form the collector accepts: an inline map of attribute
+// names to values (legacy), where a null value leaves the attribute unset, or
+// an attributes list of name/value entries, which wins over the inline map as
+// it does in the collector.
+func telemetryResourceAttribute(telemetry any, key string) string {
+	telemetryMap, ok := telemetry.(map[string]any)
+	if !ok {
+		return ""
+	}
+	resource, ok := telemetryMap["resource"].(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	var value string
+	if v, ok := resource[key]; ok && v != nil {
+		value = fmt.Sprint(v)
+	}
+	if attributes, ok := resource["attributes"].([]any); ok {
+		for _, a := range attributes {
+			attribute, ok := a.(map[string]any)
+			if !ok || attribute["name"] != key || attribute["value"] == nil {
+				continue
+			}
+			value = fmt.Sprint(attribute["value"])
+		}
+	}
+	return strings.TrimSpace(value)
 }
 
 // getDogtelExtensionConfig parses the first "dogtel*" entry in the
