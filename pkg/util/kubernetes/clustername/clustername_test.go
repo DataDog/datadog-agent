@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
 func TestGetClusterName(t *testing.T) {
@@ -113,12 +112,15 @@ func TestGetClusterNameCLCRunner(t *testing.T) {
 // set in OTEL_RESOURCE_ATTRIBUTES, and that other flavors ignore it.
 func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 	tests := []struct {
-		name               string
-		flavor             string
-		configClusterName  string
-		cloudClusterName   string
-		resourceAttributes string
-		want               string
+		name              string
+		flavor            string
+		configClusterName string
+		cloudClusterName  string
+		// nodeLabelClusterName is what an EKS or AKS node label holds: it only
+		// applies when no cluster name was found before.
+		nodeLabelClusterName string
+		resourceAttributes   string
+		want                 string
 	}{
 		{
 			name:               "otel-agent reads k8s.cluster.name",
@@ -159,6 +161,13 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			want:               "eks-cluster",
 		},
 		{
+			name:                 "a node label takes precedence over the chart's placeholder",
+			flavor:               flavor.OTelAgent,
+			nodeLabelClusterName: "eks-cluster",
+			resourceAttributes:   "k8s.cluster.name=unknown_k8s_cluster",
+			want:                 "eks-cluster",
+		},
+		{
 			name:               "unset",
 			flavor:             flavor.OTelAgent,
 			resourceAttributes: "k8s.node.name=node",
@@ -184,6 +193,12 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 				catalog["dummyProvider"] = func(context.Context) (string, error) { return tt.cloudClusterName, nil }
 			}
 			setProviderCatalog(catalog)
+			stubNodeClusterNameLabel(t, func(_ context.Context, clusterName string) (string, error) {
+				if clusterName == "" {
+					return tt.nodeLabelClusterName, nil
+				}
+				return clusterName, nil
+			})
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.resourceAttributes)
 
 			assert.Equal(t, tt.want, getClusterName(context.Background(), newClusterNameData(), "hostname"))
@@ -217,16 +232,14 @@ func TestGetClusterNameNodeLabelsWithoutKubelet(t *testing.T) {
 			setProviderCatalog(map[string]Provider{})
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "k8s.cluster.name=laika")
 
-			calledNodeInfo := false
-			previousNewNodeInfo := newNodeInfo
-			t.Cleanup(func() { newNodeInfo = previousNewNodeInfo })
-			newNodeInfo = func() (*hostinfo.NodeInfo, error) {
-				calledNodeInfo = true
-				return nil, errors.New("no kubelet")
-			}
+			calledNodeLabels := false
+			stubNodeClusterNameLabel(t, func(context.Context, string) (string, error) {
+				calledNodeLabels = true
+				return "", errors.New("no kubelet")
+			})
 
 			clusterName := getClusterName(context.Background(), newClusterNameData(), "hostname")
-			assert.Equal(t, tt.wantNodeLabels, calledNodeInfo)
+			assert.Equal(t, tt.wantNodeLabels, calledNodeLabels)
 			if tt.flavor == flavor.OTelAgent {
 				assert.Equal(t, "laika", clusterName)
 			}
@@ -285,6 +298,15 @@ func TestGetClusterIDClusterAgent(t *testing.T) {
 			assert.Equal(t, tc.id, id)
 		})
 	}
+}
+
+// stubNodeClusterNameLabel replaces the node-label discovery with stub for the
+// duration of the test.
+func stubNodeClusterNameLabel(t *testing.T, stub func(context.Context, string) (string, error)) {
+	t.Helper()
+	previous := nodeClusterNameLabel
+	t.Cleanup(func() { nodeClusterNameLabel = previous })
+	nodeClusterNameLabel = stub
 }
 
 func clearClusterIDCache(t *testing.T) {

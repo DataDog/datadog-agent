@@ -62,9 +62,16 @@ func newClusterNameData() *clusterNameData {
 
 var defaultClusterNameData *clusterNameData
 
-// newNodeInfo reads the local node's labels for the node-label discovery. Tests
-// replace it.
-var newNodeInfo = hostinfo.NewNodeInfo
+// nodeClusterNameLabel returns the cluster name read from the local node's
+// labels, which may or may not override clusterName, the one found so far, or
+// clusterName itself when no label applies. Tests replace it.
+var nodeClusterNameLabel = func(ctx context.Context, clusterName string) (string, error) {
+	nodeInfo, err := hostinfo.NewNodeInfo()
+	if err != nil {
+		return "", err
+	}
+	return nodeInfo.GetNodeClusterNameLabel(ctx, clusterName)
+}
 
 func init() {
 	defaultClusterNameData = newClusterNameData()
@@ -113,20 +120,6 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 		}
 
-		// otel-agent: OTel deployment tools (the OTel Helm charts) give the
-		// collector its cluster's name in the k8s.cluster.name resource
-		// attribute, which is also where the cluster_name host tag of the
-		// telemetry it exports comes from. It comes after the cloud providers'
-		// APIs because charts fill it with a placeholder by default
-		// (unknown_k8s_cluster). Unlike cluster_name, it is free-form, so it is
-		// lowercased before being validated.
-		if data.clusterName == "" && flavor.GetFlavor() == flavor.OTelAgent {
-			if clusterName := strings.ToLower(otelResourceAttribute(otelClusterNameAttribute)); clusterName != "" {
-				log.Infof("Got cluster name %s from the %s resource attribute in %s", clusterName, otelClusterNameAttribute, otelResourceAttributesEnv)
-				data.clusterName = validateClusterName(clusterName, hostname, "the "+otelResourceAttributesEnv+" environment variable")
-			}
-		}
-
 		// Cluster check runners aren't scheduled on a specific node and don't have a
 		// reachable local kubelet, so skip the node-label based auto discovery to avoid
 		// noisy "Impossible to reach Kubelet" warnings. Neither does otel-agent when its
@@ -134,14 +127,10 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 		// only fail, possibly after waiting on connection timeouts.
 		var clusterName string
 		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) && !nodename.KubeletDisabled(pkgconfigsetup.Datadog()) {
-			nodeInfo, err := newNodeInfo()
+			var err error
+			clusterName, err = nodeClusterNameLabel(ctx, data.clusterName)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-			} else {
-				clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
-				if err != nil {
-					log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-				}
 			}
 		}
 		if len(clusterName) > 0 {
@@ -150,6 +139,21 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 			data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
 			log.Infof("Using cluster name %s from the node label", data.clusterName)
+		}
+
+		// otel-agent: OTel deployment tools (the OTel Helm charts) give the
+		// collector its cluster's name in the k8s.cluster.name resource
+		// attribute, which is also where the cluster_name host tag of the
+		// telemetry it exports comes from. It comes last, after the cloud
+		// providers' APIs and the node labels, because charts fill it with a
+		// placeholder by default (unknown_k8s_cluster), which the EKS and AKS node
+		// labels wouldn't override. Unlike cluster_name, it is free-form, so it is
+		// lowercased before being validated.
+		if data.clusterName == "" && flavor.GetFlavor() == flavor.OTelAgent {
+			if attrClusterName := strings.ToLower(otelResourceAttribute(otelClusterNameAttribute)); attrClusterName != "" {
+				log.Infof("Got cluster name %s from the %s resource attribute in %s", attrClusterName, otelClusterNameAttribute, otelResourceAttributesEnv)
+				data.clusterName = validateClusterName(attrClusterName, hostname, "the "+otelResourceAttributesEnv+" environment variable")
+			}
 		}
 
 		if data.clusterName != "" {

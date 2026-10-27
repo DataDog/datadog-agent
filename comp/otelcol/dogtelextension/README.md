@@ -78,7 +78,7 @@ env:
 
 When no hostname is configured and no cloud provider (GCE, Azure) gives one, the hostname is `<node name>-<cluster name>`, or the bare node name when no cluster name is found. In standalone mode, the node name is read from the same `node_from_env_var` environment variables as above, so neither kubelet access nor a reachable kubelet is needed, which also covers Kubernetes running in containers (k3d, kind). It falls back to the kubelet only when `use_kubelet_collector` is `true`.
 
-The cluster name comes from `DD_CLUSTER_NAME`, then from the cloud provider's API (GKE, AKS, EKS). Failing both, it is the `k8s.cluster.name` resource attribute in `OTEL_RESOURCE_ATTRIBUTES`, which the OTel Helm charts populate from their `clusterName` value (`unknown_k8s_cluster` by default in `opentelemetry-kube-stack`), lowercased and with its `_` replaced by `-`. To set it by hand:
+The cluster name comes from `DD_CLUSTER_NAME`, then from the cloud provider's API (GKE, AKS, EKS), then from the node's labels (only through the Cluster Agent, when `cluster_agent.enabled` is set). Failing those, it is the `k8s.cluster.name` resource attribute in `OTEL_RESOURCE_ATTRIBUTES`, which the OTel Helm charts populate from their `clusterName` value (`unknown_k8s_cluster` by default in `opentelemetry-kube-stack`), lowercased and with its `_` replaced by `-`. To set it by hand:
 ```yaml
 env:
   - name: OTEL_RESOURCE_ATTRIBUTES
