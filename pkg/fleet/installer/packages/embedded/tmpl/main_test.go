@@ -12,7 +12,6 @@ import (
 	"os"
 	"regexp"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,23 +19,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
-func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T) {
+func TestPrivilegedRshellUnit(t *testing.T) {
 	units := unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)
+	assert.Len(t, units, 2, "the helper creates its own socket: no socket unit")
 
-	for _, service := range []string{
-		"datadog-agent-rshell-privileged.service",
-		"datadog-agent-rshell-privileged-exp.service",
+	for name, want := range map[string]struct{ agent, installDir, etcDir string }{
+		"datadog-agent-rshell-privileged.service":     {"datadog-agent.service", "/opt/datadog-packages/datadog-agent/stable", "/etc/datadog-agent"},
+		"datadog-agent-rshell-privileged-exp.service": {"datadog-agent-exp.service", "/opt/datadog-packages/datadog-agent/experiment", "/etc/datadog-agent-exp"},
 	} {
-		assert.Contains(t, string(units[service]), "--policy=/etc/datadog-agent-rshell/policy.json")
+		unit := string(units[name])
+		assert.Contains(t, unit, "PartOf="+want.agent+"\n", name)
+		assert.NotContains(t, unit, "datadog-agent-action", name+": the helper must not depend on the PAR frontend")
+		assert.NotContains(t, unit, "[Install]", name+": the Agent unit's Wants= pulls the helper in")
+		// The socket lives outside /run/datadog, the Agent's RuntimeDirectory.
+		assert.Contains(t, unit, "RuntimeDirectory=datadog-agent-rshell\n", name)
+		assert.Contains(t, unit, "RuntimeDirectoryMode=0755\n", name)
+		assert.Contains(t, unit, "EnvironmentFile=-"+want.etcDir+"/environment\n", name)
+		assert.Contains(t, unit, "ExecStart="+want.installDir+"/embedded/bin/privateactionrunner privileged-helper"+
+			" --cfgpath="+want.etcDir+"/datadog.yaml"+
+			" --helper="+want.installDir+"/embedded/bin/rshell"+
+			" --socket=/run/datadog-agent-rshell/privileged.sock"+
+			" --policy=/etc/datadog-agent-rshell/policy.json\n", name)
+		assert.Contains(t, unit, "Restart=on-failure\n", name)
 	}
+	assert.Contains(t, string(units["datadog-agent-rshell-privileged-exp.service"]), "After=datadog-agent-rshell-privileged.service\n",
+		"the experiment helper must wait for the stable one to release the socket")
+}
 
-	stableSocket := string(units["datadog-agent-rshell-privileged.socket"])
-	experimentSocket := string(units["datadog-agent-rshell-privileged-exp.socket"])
-	assert.Contains(t, stableSocket, "WantedBy=sockets.target datadog-agent-action.service")
-	assert.Contains(t, experimentSocket, "WantedBy=sockets.target datadog-agent-action-exp.service")
-	assert.Equal(t, 1, strings.Count(stableSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
-	assert.Equal(t, 1, strings.Count(experimentSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
-	assert.NotContains(t, experimentSocket, "rshell-privileged-exp.sock")
+func TestAgentUnitsWantPrivilegedRshell(t *testing.T) {
+	for _, procmgr := range []bool{false, true} {
+		stable := string(mustReadUnit("datadog-agent.service", stableDataOCI, true, procmgr))
+		experiment := string(mustReadUnit("datadog-agent.service", expDataOCI, true, procmgr))
+		assert.Regexp(t, regexp.MustCompile(`(?m)^Wants=.* datadog-agent-rshell-privileged\.service( |$)`), stable)
+		assert.Regexp(t, regexp.MustCompile(`(?m)^Wants=.* datadog-agent-rshell-privileged-exp\.service( |$)`), experiment)
+		assert.Regexp(t, regexp.MustCompile(`(?m)^After=.* datadog-agent-rshell-privileged\.service$`), stable)
+		assert.Regexp(t, regexp.MustCompile(`(?m)^After=.* datadog-agent-rshell-privileged-exp\.service$`), experiment)
+	}
 }
 
 //go:embed gen

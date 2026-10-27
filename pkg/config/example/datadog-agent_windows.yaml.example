@@ -4766,7 +4766,7 @@ api_key:
 #       - /
 #     privileged:
 #       enabled: false
-#       socket: /run/datadog/rshell-privileged.sock
+#       socket: /run/datadog-agent-rshell/privileged.sock
 
 #   # @param http_timeout_seconds - integer - optional - default: 30
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_TIMEOUT_SECONDS - integer - optional - default: 30

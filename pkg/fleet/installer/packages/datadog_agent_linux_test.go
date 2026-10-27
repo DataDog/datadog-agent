@@ -7,10 +7,8 @@ package packages
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	installerFile "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
@@ -30,11 +28,41 @@ func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
 		"the policy directory must not be below the dd-agent-owned config directory")
 }
 
+// TestAgentPackagePermissionsRootOwnRootRunPaths checks that root-run binaries
+// and their directories are root-owned, on top of the dd-agent default.
+func TestAgentPackagePermissionsRootOwnRootRunPaths(t *testing.T) {
+	ddAgentDefaultIndex := -1
+	rootOwned := map[string]bool{}
+	for i, p := range agentPackagePermissions {
+		if p.Path == "." && p.Owner == "dd-agent" && p.Recursive {
+			ddAgentDefaultIndex = i
+		}
+		if p.Owner == "root" && p.Group == "root" {
+			rootOwned[p.Path] = true
+			assert.Greater(t, i, ddAgentDefaultIndex,
+				"root pin %q must be applied after the recursive dd-agent default", p.Path)
+		}
+	}
+	require.GreaterOrEqual(t, ddAgentDefaultIndex, 0, "the package tree must default to dd-agent ownership")
+
+	for _, path := range []string{
+		".",
+		"embedded",
+		"embedded/bin",
+		"embedded/bin/installer",
+		"embedded/bin/system-probe",
+		"embedded/bin/security-agent",
+	} {
+		assert.Truef(t, rootOwned[path], "%q is run by or contains a root binary and must be root-owned", path)
+	}
+}
+
 func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T) {
 	assert.Equal(t, installerFile.Permissions{
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
 		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root", Mode: 0755},
 	}, privilegedRshellPackagePermissions)
 	for _, permission := range privilegedRshellPackagePermissions {
 		assert.NotEqual(t, ".", permission.Path, "the package root must keep dd-agent ownership")
@@ -51,118 +79,36 @@ func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
 	require.ErrorContains(t, err, "privileged rshell helper is not a regular file")
 }
 
-func TestPrivilegedRshellSupported(t *testing.T) {
-	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
-		t.Skip("privileged rshell is supported only on amd64 and arm64")
+func TestPrivilegedRshellUnitIsAlwaysWritten(t *testing.T) {
+	// The helper reads the configuration when it starts, so every systemd
+	// install writes its unit instead of filtering on the configuration.
+	for _, units := range [][]string{agentService.SystemdUnitsStable, agentService.ProcmgrUnitsStable} {
+		assert.Contains(t, units, "datadog-agent-rshell-privileged.service")
+		assert.NotContains(t, units, legacyPrivilegedRshellSocket, "the helper creates its own socket")
 	}
-
-	packagePath := t.TempDir()
-	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
-	require.NoError(t, os.WriteFile(binaryPath, []byte("rshell"), 0755))
-
-	originalGetLandlockABIVersion := getLandlockABIVersion
-	t.Cleanup(func() { getLandlockABIVersion = originalGetLandlockABIVersion })
-
-	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
-	assert.True(t, privilegedRshellSupported(packagePath))
-
-	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI - 1, nil }
-	assert.False(t, privilegedRshellSupported(packagePath))
-
-	getLandlockABIVersion = func() (int, error) { return 0, errors.New("landlock unavailable") }
-	assert.False(t, privilegedRshellSupported(packagePath))
-
-	require.NoError(t, os.Remove(binaryPath))
-	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
-	assert.False(t, privilegedRshellSupported(packagePath))
+	for _, units := range [][]string{agentService.SystemdUnitsExp, agentService.ProcmgrUnitsExp} {
+		assert.Contains(t, units, "datadog-agent-rshell-privileged-exp.service")
+		assert.NotContains(t, units, legacyPrivilegedRshellSocketExp, "the helper creates its own socket")
+	}
 }
 
-func TestPrivilegedRshellEnabled(t *testing.T) {
-	configDir := t.TempDir()
-	originalConfigDir := privilegedRshellConfigDir
-	privilegedRshellConfigDir = func(HookContext) string { return configDir }
-	t.Cleanup(func() { privilegedRshellConfigDir = originalConfigDir })
-
-	originalEnv, envWasSet := os.LookupEnv(privilegedRshellEnabledEnv)
-	require.NoError(t, os.Unsetenv(privilegedRshellEnabledEnv))
-	t.Cleanup(func() {
-		if envWasSet {
-			require.NoError(t, os.Setenv(privilegedRshellEnabledEnv, originalEnv))
-		} else {
-			require.NoError(t, os.Unsetenv(privilegedRshellEnabledEnv))
-		}
-	})
-
-	ctx := HookContext{Context: context.Background()}
-	assert.False(t, privilegedRshellEnabled(ctx), "the helper must be disabled when config is absent")
-
-	require.NoError(t, os.WriteFile(filepath.Join(configDir, "datadog.yaml"), []byte(`
-private_action_runner:
-  restricted_shell:
-    privileged:
-      enabled: true
-`), 0640))
-	assert.True(t, privilegedRshellEnabled(ctx))
-
-	managedDir := filepath.Join(configDir, "managed", agentPackage, "stable")
-	require.NoError(t, os.MkdirAll(managedDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), []byte(`
-private_action_runner:
-  restricted_shell:
-    privileged:
-      enabled: false
-`), 0640))
-	assert.False(t, privilegedRshellEnabled(ctx), "managed config must override the base config")
-
-	require.NoError(t, os.Setenv(privilegedRshellEnabledEnv, "true"))
-	assert.True(t, privilegedRshellEnabled(ctx), "the environment must override file config")
-}
-
-func TestInstallableUnitsFiltersPrivilegedRshell(t *testing.T) {
-	units := []string{
-		"datadog-agent.service",
-		"datadog-agent-rshell-privileged.service",
-		privilegedRshellSocketStable,
-		"datadog-agent-action.service",
+func TestLegacyPrivilegedRshellSocketLinksAreRemoved(t *testing.T) {
+	root := t.TempDir()
+	for _, link := range legacyPrivilegedRshellSocketLinks {
+		linkPath := filepath.Join(root, string(link))
+		require.NoError(t, os.MkdirAll(filepath.Dir(linkPath), 0755))
+		// Dangling, as after a DEB to OCI migration removed the target.
+		require.NoError(t, os.Symlink("/lib/systemd/system/"+legacyPrivilegedRshellSocket, linkPath))
 	}
+	unrelated := filepath.Join(root, "sockets.target.wants", "dbus.socket")
+	require.NoError(t, os.Symlink("/lib/systemd/system/dbus.socket", unrelated))
 
-	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
-	assert.Equal(t, []string{"datadog-agent.service", "datadog-agent-action.service"}, installableUnits(ctx, units))
-	assert.Len(t, units, 4, "filtering must not mutate the lifecycle cleanup list")
-}
+	require.NoError(t, legacyPrivilegedRshellSocketLinks.EnsureAbsent(context.Background(), root))
 
-func TestExperimentStartUnits(t *testing.T) {
-	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
-		t.Skip("privileged rshell is supported only on amd64 and arm64")
+	for _, link := range legacyPrivilegedRshellSocketLinks {
+		_, err := os.Lstat(filepath.Join(root, string(link)))
+		assert.ErrorIs(t, err, os.ErrNotExist, string(link))
 	}
-
-	packagePath := t.TempDir()
-	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
-	require.NoError(t, os.WriteFile(binaryPath, []byte("rshell"), 0755))
-
-	originalGetLandlockABIVersion := getLandlockABIVersion
-	t.Cleanup(func() { getLandlockABIVersion = originalGetLandlockABIVersion })
-
-	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
-	t.Setenv(privilegedRshellEnabledEnv, "true")
-	ctx := HookContext{Context: context.Background(), PackagePath: packagePath}
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service", privilegedRshellSocketExp},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
-
-	t.Setenv(privilegedRshellEnabledEnv, "false")
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
-
-	t.Setenv(privilegedRshellEnabledEnv, "true")
-	getLandlockABIVersion = func() (int, error) { return 0, errors.New("landlock unavailable") }
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	_, err := os.Lstat(unrelated)
+	assert.NoError(t, err, "unrelated socket links must be kept")
 }

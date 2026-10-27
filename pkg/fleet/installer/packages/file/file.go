@@ -160,6 +160,17 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 			}
 		}
 		if p.Mode != 0 {
+			// Skip symlinks: there is no portable lchmod and os.Chmod follows them.
+			info, lerr := os.Lstat(file)
+			if lerr != nil {
+				if errors.Is(lerr, os.ErrNotExist) {
+					continue
+				}
+				return fmt.Errorf("error stating file: %w", lerr)
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
 			if err := os.Chmod(file, p.Mode); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file mode: %w", err)
 			}
@@ -240,13 +251,14 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	return uid, gid, nil
 }
 
-// Chown changes the ownership of a file to the specified owner and group.
+// Chown changes the ownership of a file to the specified owner and group. It
+// does not follow symlinks.
 func Chown(ctx context.Context, path string, username string, group string) (err error) {
 	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
-	err = os.Chown(path, uid, gid)
+	err = os.Lchown(path, uid, gid)
 	if err != nil {
 		return fmt.Errorf("error changing file ownership: %w", err)
 	}

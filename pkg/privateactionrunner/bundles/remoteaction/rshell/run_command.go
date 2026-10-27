@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"google.golang.org/protobuf/types/known/structpb"
 	"mvdan.cc/sh/v3/syntax"
@@ -101,6 +102,7 @@ type RunCommandHandler struct {
 	operatorElevatableCommands        []string
 	operatorAllowedCommandsConfigured bool
 	operatorAllowedPathsConfigured    bool
+	privilegedFallbackWarned          atomic.Bool
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -309,12 +311,13 @@ func (h *RunCommandHandler) Run(
 	if inputs.EffectivePermissions != "" {
 		switch inputs.EffectivePermissions {
 		case privilegedhelper.EscalationAllowed:
-			if h.privilegedEnabled {
+			if h.privilegedEnabled && h.privilegedHelperAvailable() {
 				return h.runPrivileged(ctx, task, inputs)
 			}
 			// Permission to elevate does not require elevation. Without local
-			// opt-in, the ordinary interpreter runs commands and rejects sudo
-			// if it is invoked, including through shell expansion.
+			// opt-in, or when the helper is not running, the ordinary
+			// interpreter runs commands and rejects sudo if it is invoked,
+			// including through shell expansion.
 		case "Root":
 			return nil, errors.New("whole-script root execution is not supported")
 		default:
@@ -450,6 +453,31 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 		return nil, fmt.Errorf("privileged rshell helper: %w", err)
 	}
 	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
+}
+
+// privilegedHelperAvailable reports whether a task can be handed to the
+// privileged helper. The helper only creates its socket once it starts with
+// the setting enabled on a host that can run it, and the socket is removed
+// when it stops, so an absent socket means no helper can run the task and it
+// is safe to run in the ordinary interpreter. Any later failure is returned
+// without retrying locally.
+func (h *RunCommandHandler) privilegedHelperAvailable() bool {
+	if h.privilegedSocket == "" {
+		return true // runPrivileged reports the misconfiguration
+	}
+	if _, err := os.Stat(h.privilegedSocket); errors.Is(err, os.ErrNotExist) {
+		h.warnPrivilegedFallback("rshell privileged helper is enabled but its socket %s does not exist; running without elevation", h.privilegedSocket)
+		return false
+	}
+	return true
+}
+
+// warnPrivilegedFallback logs the first fallback only, since every elevated
+// task would otherwise repeat it.
+func (h *RunCommandHandler) warnPrivilegedFallback(format string, args ...interface{}) {
+	if h.privilegedFallbackWarned.CompareAndSwap(false, true) {
+		log.Warnf(format, args...)
+	}
 }
 
 // buildAgentPolicy forwards configured local restrictions.

@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -40,6 +41,14 @@ const (
 	procmgrUnitXP   = "datadog-agent-procmgr-exp.service"
 
 	ddotProcess = "datadog-agent-ddot.yaml"
+
+	rshellServiceUnit = "datadog-agent-rshell-privileged.service"
+	rshellBinary      = "/opt/datadog-agent/embedded/bin/rshell"
+	rshellSocketDir   = "/run/datadog-agent-rshell"
+	rshellSocketPath  = rshellSocketDir + "/privileged.sock"
+	// rshellLegacySocketPath lived in /run/datadog, the Agent's
+	// RuntimeDirectory, which forced the socket to be ordered after the Agent.
+	rshellLegacySocketPath = "/run/datadog/rshell-privileged.sock"
 )
 
 type packageAgentSuite struct {
@@ -88,7 +97,8 @@ func (s *packageBaseSuite) testInstall() {
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
-	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+	// Root executes binaries under the package root, so dd-agent must not own it.
+	state.AssertDirExists(agentDir, 0755, "root", "root")
 
 	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
@@ -146,6 +156,152 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 	for _, unit := range loadedUnits {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
+}
+
+// TestPrivilegedRshellHelperLifecycle verifies the privileged rshell helper
+// follows the core Agent and only runs when the configuration enables it. The
+// installer writes its unit on every host; the Agent starts it, and it exits
+// without creating its socket unless the setting is enabled.
+//
+// Previously the installer parsed datadog.yaml at install time and only wrote
+// the units when the setting was already enabled, so enabling it needed a
+// reinstall, and the socket was bound to datadog-agent-action.service, which
+// exits whenever the monolithic runner is not used (split mode, or PAR not
+// enabled, as here) and took the socket down with it.
+func (s *packageAgentSuite) TestPrivilegedRshellHelperLifecycle() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.waitForCoreUnitsActive()
+	s.requireRshellBinary()
+
+	// Disabled by default: the helper exits without creating its socket.
+	s.assertRshellHelper(false)
+	s.Equal("Result=success", strings.TrimSpace(s.host.Run("systemctl show -p Result "+rshellServiceUnit)))
+	// Pulled in by the Agent, never enabled, so no symlinks drift across upgrades.
+	s.Equal("static", strings.TrimSpace(s.host.Run("systemctl is-enabled "+rshellServiceUnit+" || true")))
+
+	// Enabling it only needs an Agent restart.
+	defer s.enableRshellHelper()()
+	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.requireRshellHelperSupported()
+	s.assertRshellHelper(true)
+	s.Equal("dd-agent:dd-agent 600 socket", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a %F' "+rshellSocketPath)))
+	// systemd creates the directory with the unit's Group=dd-agent.
+	s.Equal("root:dd-agent 755", strings.TrimSpace(s.host.Run("sudo stat -c '%U:%G %a' "+rshellSocketDir)),
+		"dd-agent must reach the socket but not replace it")
+	s.False(s.socketExists(rshellLegacySocketPath))
+	// The launcher replaced itself with the rshell helper, which keeps real
+	// uid root and serves requests as dd-agent.
+	pid := strings.TrimPrefix(strings.TrimSpace(s.host.Run("systemctl show -p MainPID "+rshellServiceUnit)), "MainPID=")
+	s.Equal("rshell", strings.TrimSpace(s.host.Run("cat /proc/"+pid+"/comm")))
+	ids := strings.Fields(s.host.Run("ps -o ruid=,euid= -p " + pid))
+	s.Require().Len(ids, 2)
+	s.Equal("0", ids[0])
+	s.Equal(strings.TrimSpace(s.host.Run("id -u dd-agent")), ids[1])
+
+	// The helper does not depend on the PAR unit, which exits whenever the
+	// monolithic runner is not in use.
+	s.host.Run("sudo systemctl stop datadog-agent-action.service")
+	s.assertRshellHelper(true)
+
+	// Stopping the Agent stops the helper and removes its socket.
+	s.host.Run("sudo systemctl stop " + agentUnit)
+	s.assertRshellHelper(false)
+	s.host.Run("sudo systemctl start " + agentUnit)
+	s.assertRshellHelper(true)
+}
+
+// TestPrivilegedRshellSurvivesReboot verifies that an enabled helper comes
+// back after a reboot. Previously the helper socket kept the implicit
+// Before=sockets.target of socket units while being ordered after the Agent,
+// itself ordered after basic.target and so after sockets.target: a boot-time
+// ordering cycle that made systemd drop the socket or sockets.target.
+func (s *packageAgentSuite) TestPrivilegedRshellSurvivesReboot() {
+	// A reboot takes up to 20 minutes in CI; one flavor covers the systemd
+	// dependency graph, which does not vary between distributions.
+	if s.os.Flavor != e2eos.Ubuntu || s.os.Version != e2eos.Ubuntu2404.Version {
+		s.T().Skip("reboot coverage runs on Ubuntu 24.04 only")
+	}
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.waitForCoreUnitsActive()
+	s.requireRshellBinary()
+
+	defer s.enableRshellHelper()()
+	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.requireRshellHelperSupported()
+	s.assertRshellHelper(true)
+	// The exit status is zero even with a cycle: check the diagnostics.
+	verify := s.host.Run("sudo systemd-analyze verify --man=no default.target 2>&1 || true")
+	s.NotContains(verify, "cycle", "systemd reports an ordering cycle:\n%s", verify)
+
+	s.reboot()
+
+	s.waitForCoreUnitsActive()
+	s.assertRshellHelper(true)
+	cycles := s.host.Run("sudo journalctl -b 0 --no-pager -o cat | grep -i 'ordering cycle' || true")
+	s.Empty(strings.TrimSpace(cycles), "the boot journal reports an ordering cycle")
+}
+
+// requireRshellBinary skips hosts whose package does not ship the helper.
+func (s *packageAgentSuite) requireRshellBinary() {
+	exists, err := s.host.FileExists(rshellBinary)
+	s.Require().NoError(err)
+	if !exists {
+		s.T().Skip("this package does not ship the privileged rshell helper")
+	}
+}
+
+// enableRshellHelper enables the helper in datadog.yaml and returns a
+// function that restores the original file.
+func (s *packageAgentSuite) enableRshellHelper() func() {
+	const configPath = "/etc/datadog-agent/datadog.yaml"
+	// Not /tmp: TestPrivilegedRshellSurvivesReboot reboots, which clears it.
+	const backupPath = "/var/tmp/datadog.yaml.rshell-backup"
+	s.host.Run(fmt.Sprintf("sudo cp -p %s %s", configPath, backupPath))
+	s.Require().Equal("0", strings.TrimSpace(s.host.Run(fmt.Sprintf("sudo grep -c '^private_action_runner:' %s || true", configPath))), "the test appends this section")
+	s.host.Run(fmt.Sprintf(`printf 'private_action_runner:\n  restricted_shell:\n    privileged:\n      enabled: true\n' | sudo tee -a %s > /dev/null`, configPath))
+	return func() { s.host.Run(fmt.Sprintf("sudo mv %s %s", backupPath, configPath)) }
+}
+
+// requireRshellHelperSupported waits for the enabled helper to start, and
+// skips the test where the kernel cannot run it: the launcher then declines,
+// creating no socket. Its own log line decides, rather than a kernel version
+// guess, since distributions backport Landlock.
+func (s *packageAgentSuite) requireRshellHelperSupported() {
+	const unsupported = "not starting the rshell privileged helper: it needs Landlock ABI"
+	declined := false
+	s.Require().Eventually(func() bool {
+		if strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+rshellServiceUnit)) == "ActiveState=active" && s.socketExists(rshellSocketPath) {
+			return true
+		}
+		declined = strings.Contains(s.host.Run("sudo journalctl -u "+rshellServiceUnit+" --no-pager -o cat | tail -n 20"), unsupported)
+		return declined
+	}, time.Minute, time.Second, "the enabled helper neither started nor declined the kernel")
+	if declined {
+		s.False(s.socketExists(rshellSocketPath), "a declined helper must not leave its socket")
+		s.T().Skip("this kernel lacks the Landlock support the privileged helper needs")
+	}
+}
+
+// socketExists reports whether path is a Unix socket. host.FileExists only
+// reports regular files.
+func (s *packageAgentSuite) socketExists(path string) bool {
+	_, err := s.Env().RemoteHost.Execute("test -S " + path)
+	return err == nil
+}
+
+// assertRshellHelper waits for the helper to be running with its socket, or
+// stopped with its socket removed.
+func (s *packageAgentSuite) assertRshellHelper(running bool) {
+	want := "ActiveState=inactive"
+	if running {
+		want = "ActiveState=active"
+	}
+	s.Require().Eventually(func() bool {
+		state := strings.TrimSpace(s.host.Run("systemctl show -p ActiveState " + rshellServiceUnit))
+		return state == want && s.socketExists(rshellSocketPath) == running
+	}, time.Minute, time.Second, "expected %s %s with %s present=%t", rshellServiceUnit, want, rshellSocketPath, running)
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
@@ -531,7 +687,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	state.AssertGroupExists("dd-agent")
 
 	// Verify agent files have correct ownership
-	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-agent", 0755, "root", "root")
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
 	s.T().Log("Successfully installed agent with NSS-managed user/group")
@@ -564,7 +720,8 @@ func (s *packageAgentSuite) TestInstallFips() {
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
-	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+	// Root executes binaries under the package root, so dd-agent must not own it.
+	state.AssertDirExists(agentDir, 0755, "root", "root")
 
 	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
