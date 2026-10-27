@@ -5,7 +5,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.tool import Exit, info
+from tasks.kernel_matrix_testing.tool import Exit, ensure_sudo_privileges, info
 
 
 def get_home_linux():
@@ -60,8 +60,9 @@ class Linux:
         ctx.run(f"dpkg -l > {flare_folder / 'packages.txt'}", warn=True)
         ctx.run(f"ip r > {flare_folder / 'ip_r.txt'}", warn=True)
         ctx.run(f"ip a > {flare_folder / 'ip_a.txt'}", warn=True)
-        ctx.run(f"sudo cp /etc/libvirt/qemu.conf {flare_folder / 'qemu.conf'}", warn=True)
-        ctx.run(f"sudo ls -lhR /home/kernel-version-testing/ > {flare_folder / 'kmt.files'}", warn=True)
+        ensure_sudo_privileges(ctx, "KMT flare")
+        ctx.run(f"sudo -n cp /etc/libvirt/qemu.conf {flare_folder / 'qemu.conf'}", warn=True)
+        ctx.run(f"sudo -n ls -lhR /home/kernel-version-testing/ > {flare_folder / 'kmt.files'}", warn=True)
 
 
 class MacOS:
@@ -113,7 +114,8 @@ def flare(ctx: Context, tmp_flare_folder: Path, dest_folder: Path, keep_uncompre
     )
     ctx.run(f"ps aux | grep -i appgate | grep -v grep > {tmp_flare_folder}/ps_appgate.txt", warn=True)
     if kmt_os is Linux:
-        ctx.run(f"sudo chmod a+rw {tmp_flare_folder}/*", warn=True)
+        ensure_sudo_privileges(ctx, "KMT flare")
+        ctx.run(f"sudo -n chmod a+rw {tmp_flare_folder}/*", warn=True)
 
     ctx.run(f"mkdir -p {dest_folder}")
     now_ts = datetime.now().strftime("%Y%m%d-%H%M%S")

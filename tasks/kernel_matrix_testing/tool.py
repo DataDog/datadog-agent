@@ -64,6 +64,7 @@ def ensure_sudo_privileges(ctx: Context, reason: str):
 
     res = ctx.run("id -Gn", hide=True, warn=True)
     if res is not None and res.ok and "admin" in res.stdout.split():
+        authenticate_sudo()
         return
 
     info(f"[+] Requesting administrator privileges through Privileges app: {reason}")
