@@ -52,6 +52,8 @@ rshell:checks:
 
 rshell:bash:
   extends: .rshell:base
+  # The linux build image has no Docker CLI; docker_x64 has both Docker and Bazel.
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["docker-in-docker:amd64"]
   timeout: 30m
   script:
