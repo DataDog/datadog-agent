@@ -15,13 +15,13 @@ import (
 
 // Default configuration values
 const (
-	DefaultSymbolQueryInterval     = 5 * time.Second
-	DefaultUploadSymbolsDryRun     = false
-	DefaultUploadSymbolsHTTP2      = false
-	DefaultUploadSymbols           = true
-	DefaultUploadDynamicSymbols    = false
-	DefaultUploadGoPCLnTab         = true
-	DefaultReportInterval          = 5 * time.Minute
+	DefaultSymbolQueryInterval  = 5 * time.Second
+	DefaultUploadSymbolsDryRun  = false
+	DefaultUploadSymbolsHTTP2   = false
+	DefaultUploadSymbols        = true
+	DefaultUploadDynamicSymbols = false
+	DefaultUploadGoPCLnTab      = true
+	DefaultReportInterval       = 5 * time.Minute
 	// DefaultReportIntervalSeconds is DefaultReportInterval expressed in seconds,
 	// matching ReportConfig.Interval's wire unit.
 	DefaultReportIntervalSeconds   = int(DefaultReportInterval / time.Second)
