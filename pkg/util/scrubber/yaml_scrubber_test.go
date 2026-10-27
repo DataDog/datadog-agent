@@ -405,8 +405,6 @@ additional_endpoints:
 		assert.NotContains(t, scrubbed, "XYZ")
 	})
 
-	// The same list-of-endpoint-structs shape sits under deeply nested security keys;
-	// the leaf-key matcher must cover them too.
 	t.Run("map-of-endpoint-structs: orchestrator additional_endpoints scrubbed", func(t *testing.T) {
 		// The orchestrator leaf key differs from additional_endpoints; the matcher must
 		// cover it so flare scrubs both static keys and DELA fallbacks.
@@ -422,6 +420,8 @@ additional_endpoints:
 		assert.NotContains(t, scrubbed, "supersecretXYZ")
 	})
 
+	// The same list-of-endpoint-structs shape sits under deeply nested security keys;
+	// the leaf-key matcher must cover them too.
 	t.Run("list-of-endpoint-structs: security keys scrub DELA fallback", func(t *testing.T) {
 		input := `compliance_config:
   endpoints:

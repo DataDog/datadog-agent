@@ -298,7 +298,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			}
 			return data
 		},
-		LastUpdated: parseVersion("7.78.5"),
+		LastUpdated: parseVersion("7.86.0"),
 	}
 
 	privateActionRunnerYaml := Replacer{
