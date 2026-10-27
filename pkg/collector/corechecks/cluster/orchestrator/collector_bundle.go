@@ -11,13 +11,17 @@ package orchestrator
 import (
 	"context"
 	"expvar"
-	"strings"
-	"sync"
+	"slices"
+	"sync/atomic"
 	"time"
 
+	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sdiscovery "k8s.io/client-go/discovery"
+	"k8s.io/client-go/tools/cache"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -30,13 +34,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
+	maxDiscoveryRetryDelay  = 15 * time.Minute
 	datadogAPIGroup         = "datadoghq.com"
 	ArgoAPIGroup            = "argoproj.io"
 	FluxAPIGroup            = "source.toolkit.fluxcd.io"
@@ -81,18 +84,26 @@ var (
 // CollectorBundle is a container for a group of collectors. It provides a way
 // to easily run them all.
 type CollectorBundle struct {
-	check                    *OrchestratorCheck
-	collectors               []collectors.K8sCollector
-	discoverCollectors       bool
-	extraSyncTimeout         time.Duration
-	inventory                *inventory.CollectorInventory
-	stopCh                   chan struct{}
-	runCfg                   *collectors.CollectorRunConfig
-	manifestBuffer           *ManifestBuffer
-	collectorDiscovery       *discovery.DiscoveryCollector
-	activatedCollectors      map[string]struct{}
+	check                 *OrchestratorCheck
+	collectors            []collectors.K8sCollector
+	collectedGroups       map[string]struct{}
+	discoverCollectors    bool
+	discoveryRetrier      *retrier
+	extraSyncTimeout      time.Duration
+	inventory             *inventory.CollectorInventory
+	stopCh                chan struct{}
+	runCfg                *collectors.CollectorRunConfig
+	manifestBuffer        *ManifestBuffer
+	collectorDiscovery    *discovery.DiscoveryCollector
+	activatedCollectors   map[string]struct{}
+	initializedCollectors map[string]struct{}
+	// startedInformers makes sure an informer shared by several collectors is started once.
+	// It is keyed by the informer store because client-go typed informer factories return a
+	// new wrapper around the same shared informer on each Informer() call.
+	startedInformers         map[cache.Store]struct{}
 	terminatedResourceBundle *TerminatedResourceBundle
-	initializeOnce           sync.Once
+	// crdsChanged is set by the CRD informer when a CRD of a collected group starts serving new versions.
+	crdsChanged atomic.Bool
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -138,7 +149,10 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		stopCh:                   chk.stopCh,
 		manifestBuffer:           manifestBuffer,
 		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
+		discoveryRetrier:         newRetrier(collectionInterval, maxDiscoveryRetryDelay),
 		activatedCollectors:      map[string]struct{}{},
+		initializedCollectors:    map[string]struct{}{},
+		startedInformers:         map[cache.Store]struct{}{},
 		terminatedResourceBundle: terminatedResourceBundle,
 	}
 
@@ -149,12 +163,29 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 
 // prepare initializes the collector bundle internals before it can be used.
 func (cb *CollectorBundle) prepare() {
-	cb.prepareCollectors()
 	cb.prepareExtraSyncTimeout()
+	cb.prepareCollectedGroups()
+
+	if _, err := cb.collectorDiscovery.Refresh(); !cb.isDiscoveryComplete() {
+		cb.discoveryRetrier.Fail(err)
+		_ = cb.check.Warnf("Kubernetes API discovery failed, skipping %d check run(s) before retrying: %s", cb.discoveryRetrier.RunsToSkip(), err)
+	}
+
+	cb.prepareCollectors()
 }
 
-// prepareCollectors initializes the bundle collector list.
+// prepareCollectors selects the bundle collectors and merges them with the ones selected before.
 func (cb *CollectorBundle) prepareCollectors() {
+	previous := cb.collectors
+	cb.collectors = nil
+	cb.activatedCollectors = map[string]struct{}{}
+
+	cb.selectCollectors()
+	cb.mergeCollectors(previous)
+}
+
+// selectCollectors fills the bundle collector list.
+func (cb *CollectorBundle) selectCollectors() {
 	// we still need to collect non crd resources except if otherwise configured
 	if ok := cb.importCRDCollectorsFromCheckConfig(); ok {
 		if cb.skipImportingDefaultCollectors() {
@@ -172,6 +203,29 @@ func (cb *CollectorBundle) prepareCollectors() {
 	}
 
 	cb.importCollectorsFromInventory()
+}
+
+// mergeCollectors merges the newly selected collectors into the ones selected before, which take precedence. A newly
+// selected collector is dropped when one selected before collects the same group and resource, whatever their
+// versions.
+func (cb *CollectorBundle) mergeCollectors(previous []collectors.K8sCollector) {
+	if len(previous) == 0 {
+		return
+	}
+
+	previousByResourceKey := make(map[string]struct{}, len(previous))
+	for _, collector := range previous {
+		previousByResourceKey[collectorResourceKey(collector)] = struct{}{}
+	}
+
+	merged := slices.Clone(previous)
+	for _, collector := range cb.collectors {
+		if _, found := previousByResourceKey[collectorResourceKey(collector)]; !found {
+			merged = append(merged, collector)
+		}
+	}
+
+	cb.collectors = merged
 }
 
 // skipImportingDefaultCollectors skips importing the default collectors if the collector list is explicitly set to an
@@ -204,14 +258,13 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 		err       error
 	)
 
+	groupVersion, resource := utilTypes.SplitCollectorName(collectorName)
+
 	if isCRD {
-		idx := strings.LastIndex(collectorName, "/")
-		if idx == -1 {
+		if groupVersion == "" {
 			_ = cb.check.Warnf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
 			return
 		}
-		groupVersion := collectorName[:idx]
-		resource := collectorName[idx+1:]
 
 		if cb.skipResources(groupVersion, resource) {
 			return
@@ -223,12 +276,8 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 			return
 		}
 		collector, err = cb.collectorDiscovery.VerifyForCRDInventory(resource, groupVersion)
-	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
-		groupVersion := collectorName[:idx]
-		name := collectorName[idx+1:]
-		collector, err = cb.collectorDiscovery.VerifyForInventory(name, groupVersion, cb.inventory)
 	} else {
-		collector, err = cb.collectorDiscovery.VerifyForInventory(collectorName, "", cb.inventory)
+		collector, err = cb.collectorDiscovery.VerifyForInventory(resource, groupVersion, cb.inventory)
 	}
 
 	if err != nil {
@@ -284,22 +333,22 @@ func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
 	return true
 }
 
-// importCollectorsFromDiscovery tries to fill the bundle with the list of
-// collectors discovered through resources available from the API server.
-// Returns true if at least one collector was set, false otherwise.
+// importCollectorsFromDiscovery fills the bundle with the collectors discovered
+// through resources available from the API server. Returns false only when
+// collector discovery is disabled.
 func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 	if !cb.discoverCollectors {
 		return false
 	}
+	if !cb.collectorDiscovery.IsNotEmpty() {
+		return true
+	}
 
-	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
+	groups, resources := cb.collectorDiscovery.GroupsAndResources()
+	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory, groups, resources)
 	if err != nil {
 		_ = cb.check.Warnf("Kubernetes collector discovery failed: %s", err)
-		return false
-	}
-	if len(collectors) == 0 {
-		_ = cb.check.Warn("Kubernetes collector discovery returned no collector")
-		return false
+		return true
 	}
 
 	cb.collectors = append(cb.collectors, collectors...)
@@ -326,21 +375,19 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 	cb.extraSyncTimeout = time.Duration(cb.check.instance.ExtraSyncTimeoutSeconds) * time.Second
 }
 
-// Initialize is used to initialize collectors part of the bundle.
+// Initialize is used to initialize collectors part of the bundle that are not
+// initialized yet.
 // During initialization informers are created, started and their cache is
 // synced.
 func (cb *CollectorBundle) Initialize() {
-	cb.initializeOnce.Do(cb.initialize)
-}
-
-func (cb *CollectorBundle) initialize() {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
-	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
-	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
-	informerSynced := map[cache.SharedInformer]struct{}{}
 
 	for _, collector := range cb.collectors {
 		collectorFullName := collector.Metadata().FullName()
+		if _, found := cb.initializedCollectors[collectorFullName]; found {
+			continue
+		}
+		cb.initializedCollectors[collectorFullName] = struct{}{}
 
 		// init metrics
 		skippedResources[collectorFullName] = &expvar.String{}
@@ -349,15 +396,16 @@ func (cb *CollectorBundle) initialize() {
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
-		// special case of improved terminated pod collector that is not using an informer
+		// collectors without an informer have nothing to sync
 		// TODO: improve the initialization logic to avoid leaking collector implementation details to the bundle.
 		if informer == nil {
 			continue
 		}
 
-		if _, found := informerSynced[informer]; !found {
+		store := informer.GetStore()
+		if _, found := cb.startedInformers[store]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
-			informerSynced[informer] = struct{}{}
+			cb.startedInformers[store] = struct{}{}
 
 			// add event handlers for terminated resources
 			if collector.Metadata().SupportsTerminatedResourceCollection {
@@ -365,6 +413,12 @@ func (cb *CollectorBundle) initialize() {
 					DeleteFunc: cb.terminatedResourceHandler(collector),
 				}); err != nil {
 					log.Warnf("Failed to add delete event handler for %s: %s", collectorFullName, err)
+				}
+			}
+
+			if collector.Metadata().Name == utilTypes.CrdName {
+				if _, err := informer.AddEventHandler(cb.crdChangeHandler()); err != nil {
+					log.Warnf("Failed to add CRD change handler, custom resources added later will not be collected until the check restarts: %s", err)
 				}
 			}
 
@@ -397,6 +451,90 @@ func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, er
 			tlmSkippedResources.Inc(collectorFullName)
 		}
 	}
+}
+
+// RefreshDiscovery refreshes the API discovery while [CollectorBundle.isDiscoveryComplete] reports false or after a CRD
+// change, and adds the collectors it makes available, following the backoff of [CollectorBundle.discoveryRetrier].
+func (cb *CollectorBundle) RefreshDiscovery() {
+	if cb.isDiscoveryComplete() && !cb.crdsChanged.Load() {
+		return
+	}
+
+	if !cb.discoveryRetrier.CanRun() {
+		cb.discoveryRetrier.SkipRun()
+		log.Debugf("Kubernetes API discovery is incomplete or a CRD changed, skipping %d more check run(s) before refreshing: %s", cb.discoveryRetrier.RunsToSkip(), cb.discoveryRetrier.LastError())
+		return
+	}
+
+	// Swap before refreshing so a CRD changing during the refresh triggers another one.
+	crdsChanged := cb.crdsChanged.Swap(false)
+
+	updated, err := cb.collectorDiscovery.Refresh()
+	// A total failure leaves the cache untouched, so count it as failed to retry a CRD change instead of dropping it.
+	failed := !cb.isDiscoveryComplete() || (err != nil && !k8sdiscovery.IsGroupDiscoveryFailedError(err))
+	if updated || !failed {
+		cb.discoveryRetrier.Reset()
+	}
+	if failed {
+		if crdsChanged {
+			cb.crdsChanged.Store(true)
+		}
+		cb.discoveryRetrier.Fail(err)
+		_ = cb.check.Warnf("Kubernetes API discovery retry failed, skipping %d check run(s) before retrying: %s", cb.discoveryRetrier.RunsToSkip(), err)
+	}
+
+	if updated {
+		cb.prepareCollectors()
+	}
+}
+
+// crdChangeHandler returns the CRD informer handler flagging the bundle for a custom resource refresh.
+func (cb *CollectorBundle) crdChangeHandler() cache.ResourceEventHandler {
+	return cache.ResourceEventHandlerFuncs{
+		// Initial list CRDs count too: CRDs installed between preparing the bundle and leading are only reported there.
+		AddFunc: func(obj interface{}) {
+			if cb.servesNewVersions(nil, obj) {
+				cb.crdsChanged.Store(true)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if cb.servesNewVersions(oldObj, newObj) {
+				cb.crdsChanged.Store(true)
+			}
+		},
+	}
+}
+
+// servesNewVersions reports whether a CRD of a collected group is established and serves versions it did not before.
+// CRDs are only in the API discovery once established, so a newly created CRD triggers on the update establishing it.
+func (cb *CollectorBundle) servesNewVersions(oldObj, newObj interface{}) bool {
+	newCRD, ok := newObj.(*apiextensionsv1.CustomResourceDefinition)
+	if !ok || !apihelpers.IsCRDConditionTrue(newCRD, apiextensionsv1.Established) {
+		return false
+	}
+	if _, found := cb.collectedGroups[newCRD.Spec.Group]; !found {
+		return false
+	}
+
+	// A CRD seen for the first time, or becoming established, serves all its versions newly.
+	oldCRD, ok := oldObj.(*apiextensionsv1.CustomResourceDefinition)
+	if !ok || !apihelpers.IsCRDConditionTrue(oldCRD, apiextensionsv1.Established) {
+		return true
+	}
+	oldVersions := servedCRDVersions(oldCRD)
+	return slices.ContainsFunc(servedCRDVersions(newCRD), func(version string) bool {
+		return !slices.Contains(oldVersions, version)
+	})
+}
+
+func servedCRDVersions(crd *apiextensionsv1.CustomResourceDefinition) []string {
+	versions := make([]string, 0, len(crd.Spec.Versions))
+	for _, version := range crd.Spec.Versions {
+		if version.Served {
+			versions = append(versions, version.Name)
+		}
+	}
+	return versions
 }
 
 // Run is used to sequentially run all collectors in the bundle.
@@ -441,6 +579,45 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 	}
 
 	cb.terminatedResourceBundle.Run()
+}
+
+// isDiscoveryComplete reports whether resources have been discovered and the discovery did not fail for an API group
+// that can hold collected resources.
+func (cb *CollectorBundle) isDiscoveryComplete() bool {
+	return cb.collectorDiscovery.IsNotEmpty() && len(cb.relevantFailedGroupVersions()) == 0
+}
+
+// prepareCollectedGroups initializes the API groups the bundle can collect resources from.
+func (cb *CollectorBundle) prepareCollectedGroups() {
+	cb.collectedGroups = cb.inventory.Groups()
+
+	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
+		if builtinCustomResource.enabled {
+			cb.collectedGroups[builtinCustomResource.group] = struct{}{}
+		}
+	}
+
+	for _, collectorName := range cb.check.instance.CRDCollectors {
+		groupVersion, _ := utilTypes.SplitCollectorName(collectorName)
+		if groupVersion == "" {
+			continue
+		}
+		if gv, err := schema.ParseGroupVersion(groupVersion); err == nil {
+			cb.collectedGroups[gv.Group] = struct{}{}
+		}
+	}
+}
+
+// relevantFailedGroupVersions returns the API group versions the discovery failed for that can hold collected
+// resources.
+func (cb *CollectorBundle) relevantFailedGroupVersions() []schema.GroupVersion {
+	var relevant []schema.GroupVersion
+	for _, gv := range cb.collectorDiscovery.FailedGroupVersions() {
+		if _, found := cb.collectedGroups[gv.Group]; found {
+			relevant = append(relevant, gv)
+		}
+	}
+	return relevant
 }
 
 func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
@@ -715,7 +892,7 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 
 // isForbidden runs a single List request to check if cluster agent is forbidden to list the given resource
 func (cb *CollectorBundle) isForbidden(gvr schema.GroupVersionResource) bool {
-	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{Limit: 1})
 	return errors.IsForbidden(err)
 }
 
@@ -732,4 +909,9 @@ func filterCRCollectorsByPermission(crCollectors []collectors.K8sCollector, isFo
 		}
 	}
 	return filteredCollectors
+}
+
+// collectorResourceKey identifies the resource a collector collects, whatever its version.
+func collectorResourceKey(collector collectors.K8sCollector) string {
+	return collector.Metadata().Group + "/" + collector.Metadata().Name
 }

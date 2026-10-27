@@ -76,10 +76,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteInstallInfo { get; }
 
-        public ManagedAction ReportInstallFailure { get; }
-
-        public ManagedAction ReportInstallSuccess { get; }
-
         public ManagedAction EnsureNpmServiceDepdendency { get; }
 
         public ManagedAction ConfigureServices { get; }
@@ -207,20 +203,6 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             };
-
-            ReportInstallFailure = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallFailure)),
-                    CustomActions.ReportFailure,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallInitialize
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -637,20 +619,6 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
                                "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
-
-            // Hitting this CustomAction always means the install succeeded
-            // because when an install fails, it rollbacks from the `InstallFinalize`
-            // step.
-            ReportInstallSuccess = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallSuccess)),
-                    CustomActions.ReportSuccess,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-                )
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted

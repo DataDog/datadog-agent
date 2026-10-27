@@ -770,15 +770,31 @@ int test_bind(int argc, char** argv) {
 
 int test_connect_af_inet(int argc, char** argv) {
 
-    if (argc != 4) {
+    if (argc != 4 && argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
         fprintf(stderr, "Arg3: the port number to connect to\n");
+        fprintf(stderr, "Arg4 (optional, udp only): the number of times the socket connects (default: 1)\n");
         return EXIT_FAILURE;
     }
 
     char* proto = argv[2];
+
+    int count = 1;
+    if (argc == 5) {
+        count = atoi(argv[4]);
+        if (count <= 0) {
+            fprintf(stderr, "Invalid connect count: %s\n", argv[4]);
+            return EXIT_FAILURE;
+        }
+        // connecting an already connected TCP socket fails with EISCONN
+        if (count > 1 && strcmp(proto, "udp")) {
+            fprintf(stderr, "A connect count is only supported with udp\n");
+            return EXIT_FAILURE;
+        }
+    }
+
     int s;
 
     if (!strcmp(proto, "udp"))
@@ -812,10 +828,12 @@ int test_connect_af_inet(int argc, char** argv) {
 
     addr.sin_port = htons(atoi(argv[3]));
 
-    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        close(s);
-        perror("Failed to connect to port");
-        return EXIT_FAILURE;
+    for (int i = 0; i < count; i++) {
+        if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            close(s);
+            perror("Failed to connect to port");
+            return EXIT_FAILURE;
+        }
     }
 
     close (s);
@@ -1070,6 +1088,22 @@ int test_exec_in_pthread(int argc, char **argv) {
 
     pthread_t thread;
     if (pthread_create(&thread, NULL, thread_exec, &argv[1]) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    return EXIT_SUCCESS;
+}
+
+void *thread_coredump(void *arg) {
+    // send the signal to the current thread only, so that the core is dumped by a thread that isn't the thread group leader
+    syscall(SYS_tgkill, getpid(), syscall(SYS_gettid), SIGQUIT);
+    return NULL;
+}
+
+int test_coredump_in_pthread(int argc, char **argv) {
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_coredump, NULL) != 0) {
         return EXIT_FAILURE;
     }
     pthread_join(thread, NULL);
@@ -2519,6 +2553,8 @@ int main(int argc, char **argv) {
             exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "coredump-in-pthread") == 0) {
+            exit_code = test_coredump_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {

@@ -14,6 +14,7 @@ go_library(
         "scheduler_provider.go",
         "serverless.go",
         "status.go",
+        "tagfilter_subscriber.go",
     ],
     embedsrcs = [
         "status_templates/logsagent.tmpl",
@@ -40,7 +41,9 @@ go_library(
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs-library/pipeline",
+        "//comp/logs-library/processor",
         "//comp/logs-library/quota",
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//comp/logs/agent/def",
         "//comp/logs/agent/flare",

@@ -21,7 +21,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -344,7 +344,8 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     _check_valid_mods()
     timings = []
-    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
+    use_bazel = shutil.which("bazel") and is_bazel_workspace()
+    (_bazel_tidy if use_bazel else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
         print(f"{result.duration:6.2f}s  {result.name}", file=sys.stderr)
 
@@ -358,7 +359,9 @@ def _timed_step(name, timings, f):
 
 
 def _go_only_tidy(ctx, verbose: bool, timings=None):
-    _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
+    # Pre-Bazel branches don't use a Go workspace either
+    if os.path.exists("go.work"):
+        _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
 
     if os.name != 'nt':  # not windows
         import resource
@@ -385,7 +388,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
 
     _timed_step("go mod tidy (all modules)", timings, _tidy_all_modules)
 
-    print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
+    if is_bazel_workspace():
+        print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
 
 
 def _bazel_tidy(ctx, verbose: bool, timings=None):
@@ -428,7 +432,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.7 linux/amd64"
+    # result is like "go version go1.26.10 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

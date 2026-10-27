@@ -55,8 +55,34 @@ func (o *Origin) HasTag(tag string) bool {
 	return ok && category != "" && category == o.LogSource.Config.SourceCategory
 }
 
+// TransportTags returns tags after filtering for intake encoders. Tags remains unfiltered.
+// The returned slice must not be modified by the caller.
+func (o *Origin) TransportTags() []string {
+	if o == nil || o.LogSource == nil {
+		return nil
+	}
+	f, _ := o.LogSource.TagFilter()
+	if f == nil {
+		return o.Tags()
+	}
+	return f.Keep(o.tagsToStringArray())
+}
+
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
+	return o.tagsPayload(nil, processingTags)
+}
+
+// TransportTagsPayload filters ddtags and ddsourcecategory. It never filters ddsource.
+func (o *Origin) TransportTagsPayload(processingTags []string) []byte {
+	if o == nil || o.LogSource == nil {
+		return []byte{}
+	}
+	f, _ := o.LogSource.TagFilter()
+	return o.tagsPayload(f, processingTags)
+}
+
+func (o *Origin) tagsPayload(f sources.TagFilter, processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
 	}
@@ -68,7 +94,7 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
 	}
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
+	if sourceCategory != "" && (f == nil || f.RetainsTag("sourcecategory", sourceCategory)) {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
@@ -76,6 +102,9 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, o.tags...)
 	tags = append(tags, processingTags...)
+	if f != nil {
+		tags = f.Keep(tags)
+	}
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)

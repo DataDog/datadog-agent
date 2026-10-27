@@ -16,7 +16,7 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	notableeventtypes "github.com/DataDog/datadog-agent/pkg/notableevents/types"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,12 +40,12 @@ type ackRequest struct {
 
 // GetEvents retrieves the current pending notable events from system-probe.
 func (c *sysProbeClient) GetEvents(ctx context.Context) ([]notableeventtypes.Event, error) {
-	return sysprobeclient.GetCheckWithContext[[]notableeventtypes.Event](ctx, c.client, sysconfig.NotableEventsModule)
+	return sysprobeclient.GetCheckWithContext[[]notableeventtypes.Event](ctx, c.client, sysconfigtypes.NotableEventsModule)
 }
 
 // Ack tells system-probe which notable events the forwarding pipeline accepted.
 func (c *sysProbeClient) Ack(ctx context.Context, ids []string) error {
-	_, err := sysprobeclient.PostWithContext[struct{}](ctx, c.client, "/ack", ackRequest{IDs: ids}, sysconfig.NotableEventsModule)
+	_, err := sysprobeclient.PostWithContext[struct{}](ctx, c.client, "/ack", ackRequest{IDs: ids}, sysconfigtypes.NotableEventsModule)
 	return err
 }
 

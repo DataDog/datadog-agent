@@ -5,7 +5,8 @@ type: object
 visibility: public
 description: |-
   Configuration for GPU Monitoring on non-containerized Linux hosts.
-  Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+  NVIDIA kernel-level monitoring also requires gpu_monitoring in system-probe.yaml.
+  AMD sysfs monitoring does not require system-probe.
 tags:
 - template_section:Common
 properties:
@@ -17,7 +18,8 @@ properties:
     description: |-
       Set to true to enable the GPU check in the core Agent.
       Required for GPU monitoring on non-containerized Linux hosts.
-      Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+      Enable gpu_monitoring.enabled in system-probe.yaml for NVIDIA kernel-level metrics.
+      AMD sysfs metrics require only the core Agent.
   legacy_sm_active:
     node_type: setting
     type: boolean
@@ -27,6 +29,15 @@ properties:
       Set to true to restore the legacy mapping of GPM SM utilization to
       gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
       reported as both gpu.sm_active and gpu.sm_utilization.
+  prefer_gr_engine_sm_active:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+      when no other source is available. Set to true to report it with priority over the sampling and
+      eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
   nccl:
     node_type: section
     type: object
@@ -88,6 +99,19 @@ properties:
       early are dropped and missing intervals are filled. Use the same value on every
       host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
       Set to 0 to report on every check run.
+  amd:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Enables AMD GPU monitoring. Only applies when gpu.enabled is true.
+          Metrics are read from the amdgpu driver's sysfs files; ROCm is not required.
+          In containers, per-process metrics require the container runtime to grant
+          access to the GPU render nodes.
   disabled_collectors:
     node_type: setting
     type: array
@@ -171,6 +195,27 @@ properties:
             description: |-
               Where key is read from: a pod `label`, a pod `annotation`, or an `env`
               (environment variable of the process using the GPU).
+  kai_scheduler:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Support for workloads scheduled by KAI Scheduler, which lets several pods
+      share one GPU. A pod asking for a fraction of a GPU does not request
+      `nvidia.com/gpu`, so the GPU it uses cannot be identified from the pod's
+      own resource requests; the assignment is read from the reservation pod KAI
+      creates for the shared GPU.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to report which GPU each KAI Scheduler fractional workload
+          is using, the fraction of it assigned to the workload and the memory
+          of that fraction (`gpu.device.sharing_fraction`,
+          `gpu.device.sharing_memory`, `gpu_sharing_mode:kai_fraction`).
   nvlink:
     node_type: section
     type: object
@@ -224,6 +269,81 @@ properties:
         example: |2-
 
             c: "0.24.0"
+  unschedulable_nodes:
+    node_type: section
+    type: object
+    description: |-
+      Report the GPUs of an unschedulable Kubernetes node as gpu.device.unavailable
+      with unavailable_reason:unschedulable. A node is unschedulable when it is
+      cordoned, not Ready, or when one of its labels or conditions matches a rule
+      below.
+      Requires the cluster agent.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+      labels:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
+          properties:
+            key:
+              type: string
+              minLength: 1
+            value:
+              type:
+              - string
+              - boolean
+              minLength: 1
+          required:
+          - key
+          - value
+        description: |-
+          Node labels that make the node unschedulable, as a list of key and value,
+          for example [{"key": "example.com/drain", "value": "true"}]. Both are
+          required; the value is a string or a boolean, compared case-insensitively.
+          List a key several times to match several values. Reported as
+          unschedulable_reason:<key>:<value>.
+      conditions:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+              minLength: 1
+            status:
+              enum:
+              - 'True'
+              - 'False'
+              - Unknown
+              - true
+              - false
+          required:
+          - type
+          - status
+        description: |-
+          Node conditions that make the node unschedulable, as a list of type and
+          status (True, False or Unknown), for example
+          [{"type": "Maintenance", "status": "True"}]. Reported as
+          unschedulable_reason:<type>:<status>.
+      refresh_interval:
+        node_type: setting
+        type: string
+        default: 1m
+        format: duration
+        tags:
+        - golang_type:duration
+        description: |-
+          How often the node is read from the cluster agent. A failed read keeps the
+          last known state.
   use_sp_process_metrics:
     node_type: setting
     type: boolean

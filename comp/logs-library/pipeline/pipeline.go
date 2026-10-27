@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -34,6 +35,7 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(
 	processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters,
 	endpoints *config.Endpoints,
 	senderImpl sender.PipelineComponent,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
@@ -63,7 +65,7 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		tagFilters, encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 	processor.SetQuotaEnforcer(quota.Default())
 
 	return &Pipeline{

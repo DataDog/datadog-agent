@@ -449,6 +449,21 @@ type RuntimeSecurityConfig struct {
 	// default_value: 40
 	EventSamplingConnectThreshold int
 
+	// description: EventSamplingBindEnabled defines if the agent should sample bind events
+	// visibility: private
+	// default_value: true
+	EventSamplingBindEnabled bool
+
+	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
+	// visibility: private
+	// default_value: 500
+	EventSamplingBindRate int
+
+	// description: EventSamplingBindThreshold defines the ring buffer pressure percentage below which bind events are always admitted when dynamic sampling is enabled
+	// visibility: private
+	// default_value: 60
+	EventSamplingBindThreshold int
+
 	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
 	// visibility: private
 	// default_value: true
@@ -559,6 +574,16 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SecurityProfileV2ClearLocalProfilesOnStart bool
 
+	// description: SecurityProfileV2TagResolutionMaxPendingEvents is the maximum number of events, across all cgroups, queued while waiting for tag resolution.
+	// visibility: private
+	// default_value: 4096
+	SecurityProfileV2TagResolutionMaxPendingEvents int
+
+	// description: SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup is the maximum number of events per cgroup queued while waiting for tag resolution.
+	// visibility: private
+	// default_value: 512
+	SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup int
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -624,24 +649,29 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SBOMResolverEnabled bool
 
-	// description: SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
+	// description: SBOMResolverWorkloadsCacheSize defines the count of unused image scans to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
 	// visibility: private
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
 
-	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	// description: SBOMResolverUsageEnabled defines if the SBOM resolver should report the runtime usage of packages
+	// visibility: private
+	// default_value: false
+	SBOMResolverUsageEnabled bool
+
+	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM, which the runtime usage enrichment of the host SBOM needs too
 	// visibility: private
 	// default_value: false
 	SBOMResolverHostEnabled bool
 
 	// description: SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	// visibility: private
-	// default_value: 1m
+	// default_value: 30m
 	SBOMResolverEnrichmentInterval time.Duration
 
 	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	// visibility: private
-	// default_value: 20s
+	// default_value: 1m
 	SBOMResolverForwardInterval time.Duration
 
 	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
@@ -1013,11 +1043,13 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverUsageEnabled:       pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
 		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
-		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
+		SBOMResolverHostEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled") ||
+			pkgconfigsetup.Datadog().GetBool("sbom.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.host.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
+		SBOMResolverGeneratePolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -1046,6 +1078,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingConnectEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
 		EventSamplingConnectRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
 		EventSamplingConnectThreshold:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
 		EventSamplingSyscallsEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
 		EventSamplingSyscallsRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
 		EventSamplingSyscallsThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.threshold"),
@@ -1073,6 +1108,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
 		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
 		SecurityProfileV2ClearLocalProfilesOnStart:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.clear_local_profiles_on_start"),
+
+		SecurityProfileV2TagResolutionMaxPendingEvents:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events"),
+		SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -1142,6 +1180,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
+
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
+		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
+			if !slices.Contains(rsConfig.SecurityProfileV2EventTypes, et) {
+				rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, et)
+			}
+		}
+	}
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
@@ -1242,15 +1288,20 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
-// EventSamplingEnabledFor reports whether the V2 sampler for the given event type is active: its
-// per-type knob is on, security profile V2 is enabled, and the type is in the V2 event types.
+// EventSamplingEnabledFor reports whether the sampler of eventType runs: its knob is on, and
+// security profile V2 is on for the type or, for opens, the SBOM resolver reports runtime usage.
 func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventType) bool {
 	var enabled bool
 	switch eventType {
 	case model.FileOpenEventType:
+		if c.EventSamplingOpenEnabled && c.SBOMResolverUsageEnabled {
+			return true
+		}
 		enabled = c.EventSamplingOpenEnabled
 	case model.ConnectEventType:
 		enabled = c.EventSamplingConnectEnabled
+	case model.BindEventType:
+		enabled = c.EventSamplingBindEnabled
 	case model.SyscallsEventType:
 		enabled = c.EventSamplingSyscallsEnabled
 	default:
@@ -1284,6 +1335,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}{
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
+		{"bind", c.EventSamplingBindThreshold},
 		{"syscalls", c.EventSamplingSyscallsThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
@@ -1297,6 +1349,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.SecurityProfileV2ProfilingStartupDelay < 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profiling_startup_delay: %s, must not be negative", c.SecurityProfileV2ProfilingStartupDelay)
+	}
+
+	if c.SecurityProfileV2TagResolutionMaxPendingEvents < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEvents)
+	}
+
+	if c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup)
 	}
 
 	c.sanitizePlatform()

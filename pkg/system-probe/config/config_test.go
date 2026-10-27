@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 func TestEventMonitor(t *testing.T) {
@@ -58,7 +59,7 @@ func TestEventMonitor(t *testing.T) {
 			cfg, err := New("/doesnotexist", "")
 			t.Logf("%+v\n", cfg)
 			require.NoError(t, err)
-			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
+			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(types.EventMonitorModule))
 		})
 	}
 }
@@ -102,7 +103,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.False(t, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
 
 	discoveryDefaultEnabled := runtime.GOOS == "linux"
@@ -115,7 +116,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
 
 	t.Run("default enabled with NPM", func(t *testing.T) {
@@ -126,7 +127,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
 
 	t.Run("default enabled standalone on linux", func(t *testing.T) {
@@ -136,7 +137,7 @@ func TestEnableDiscovery(t *testing.T) {
 		// No other modules enabled — discovery should still auto-enable on Linux
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
 
 	t.Run("force disabled with USM via env var", func(t *testing.T) {
@@ -148,7 +149,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.False(t, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
 
 	t.Run("force disabled with USM via config file", func(t *testing.T) {
@@ -160,6 +161,6 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.False(t, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
 }

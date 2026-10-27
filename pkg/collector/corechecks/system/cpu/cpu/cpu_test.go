@@ -300,6 +300,34 @@ func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
 	m.AssertMetric(t, "Gauge", "system.cpu.guest", 0.0, "", []string(nil))
 }
 
+// TestSystemCpuUserNoPrivateInfraTags confirms the cpu check never injects
+// infra_mode tags itself. Under cloud_cost_only the mark is applied by the
+// infratags/sender path (see aggregator TestCheckSenderInfraTagger_*).
+func TestSystemCpuUserNoPrivateInfraTags(t *testing.T) {
+	setupDefaultMocks()
+	firstCall := true
+	getCPUTimes = func(perCpu bool) ([]cpu.TimesStat, error) {
+		if perCpu {
+			return perCPUSamples, nil
+		}
+		if firstCall {
+			firstCall = false
+			return []cpu.TimesStat{firstTotalSample}, nil
+		}
+		return []cpu.TimesStat{secondTotalSample}, nil
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(t, cpuCheck.ID())
+	m.SetupAcceptAll()
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	cpuCheck.Run()
+	err := cpuCheck.Run()
+
+	assert.NoError(t, err)
+	m.AssertMetric(t, "Gauge", "system.cpu.user", 3.640295548747522, "", []string(nil))
+}
+
 func TestSystemCpuMetricsPerCpuError(t *testing.T) {
 	setupDefaultMocks()
 	cpuTimesError := errors.New("cpu.Check: could not query CPU times")

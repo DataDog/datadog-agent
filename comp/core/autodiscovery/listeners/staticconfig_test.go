@@ -81,3 +81,30 @@ func TestStaticConfigListenerSysProbeChecks(t *testing.T) {
 		})
 	}
 }
+
+// The AMD GPU check only applies with GPU monitoring enabled: scheduling it
+// without gpu.enabled would only report a check that refuses to load.
+func TestStaticConfigListenerAMDGPURequiresGPU(t *testing.T) {
+	for name, tc := range map[string]struct {
+		gpu, amd bool
+		expected bool
+	}{
+		"both enabled":    {gpu: true, amd: true, expected: true},
+		"amd only":        {amd: true},
+		"gpu only":        {gpu: true},
+		"neither enabled": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("gpu.enabled", tc.gpu)
+			cfg.SetInTest("gpu.amd.enabled", tc.amd)
+
+			ids := collectStaticConfigServices(&StaticConfigListener{})
+			if tc.expected {
+				assert.Contains(t, ids, "_gpu_amd")
+			} else {
+				assert.NotContains(t, ids, "_gpu_amd")
+			}
+		})
+	}
+}

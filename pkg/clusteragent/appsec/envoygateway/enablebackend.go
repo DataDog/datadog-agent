@@ -80,7 +80,7 @@ func (e *envoyGatewayInjectionPattern) warnIfBackendDisabled(ctx context.Context
 	}
 
 	e.logger.Warnf("%s", msg)
-	e.recorder.Eventf(
+	e.recorder.Event(
 		&corev1.ObjectReference{
 			Kind:       "ConfigMap",
 			Name:       envoyGatewayConfigMapName,
