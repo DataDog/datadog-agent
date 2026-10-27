@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.26.5
+go 1.26.6
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -224,7 +224,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.4
-	github.com/Microsoft/hcsshim v0.14.1
+	github.com/Microsoft/hcsshim v0.15.0-rc.4
 	github.com/NVIDIA/go-nvml v0.13.1-0
 	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/acobaugh/osrelease v0.1.0
@@ -256,8 +256,8 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
-	github.com/containerd/containerd/api v1.11.1
-	github.com/containerd/containerd/v2 v2.2.9
+	github.com/containerd/containerd/api v1.12.0
+	github.com/containerd/containerd/v2 v2.4.2
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.1
@@ -633,13 +633,14 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/cloudflare/circl v1.6.5 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/containerd/continuity v0.4.5 // indirect
+	github.com/containerd/continuity v0.5.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
-	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/platforms v1.0.0-rc.2 // indirect
-	github.com/containerd/plugin v1.0.0 // indirect
-	github.com/containerd/ttrpc v1.2.7 // indirect
+	github.com/containerd/log v0.2.0 // indirect
+	github.com/containerd/log/otel v0.1.0 // indirect
+	github.com/containerd/platforms v1.0.0-rc.5 // indirect
+	github.com/containerd/plugin v1.1.0 // indirect
+	github.com/containerd/ttrpc v1.2.9 // indirect
 	github.com/containernetworking/plugins v1.9.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
@@ -878,7 +879,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.163.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.163.0 // indirect
-	github.com/opencontainers/selinux v1.13.1 // indirect
+	github.com/opencontainers/selinux v1.15.1 // indirect
 	github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
@@ -1019,7 +1020,7 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect
 	go.opentelemetry.io/contrib/detectors/ibmcloud/vpc v0.19.0 // indirect
 	go.opentelemetry.io/contrib/detectors/vultr v0.19.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.71.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.25.0 // indirect
