@@ -1,8 +1,9 @@
 ---
 fixes:
   - |
-    Fix Process Agent submissions to additional endpoints so that a slow endpoint
-    no longer delays subsequent process payloads or real-time status updates
-    from healthy endpoints.
+    Fix Process Agent response handling so that an unanswered request to an
+    additional endpoint does not make the submitter wait before sending later
+    payloads to a healthy endpoint. Endpoints still share forwarder resources,
+    so heavy overload can delay delivery.
     If every endpoint stops responding, real-time mode is disabled after 30
     seconds without a successful response instead of retaining stale status.
