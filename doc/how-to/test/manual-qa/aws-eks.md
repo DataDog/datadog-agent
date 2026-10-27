@@ -31,6 +31,7 @@ dda inv aws.create-eks
 | `--bottlerocket-node-group` | `true` | Include a Bottlerocket node group |
 | `--windows-node-group` | `false` | Include a Windows node group |
 | `--gpu-node-group` | `false` | Include a GPU node group (disables all other node groups) |
+| `--auto-mode` | `false` | Enable [EKS Auto Mode](#eks-auto-mode) (disables all node groups and Fargate) |
 | `--instance-type` | auto | EC2 instance type for cluster nodes |
 | `--agent-version` | latest | Container image tag (e.g. `7.58.0-rc.3`) |
 | `--full-image-path` | — | Full registry path to a custom agent image |
@@ -52,7 +53,39 @@ dda inv aws.create-eks --kube-version=1.31 --helm-config=./my-values.yaml
 
 # GPU-only cluster
 dda inv aws.create-eks --gpu-node-group=true
+
+# EKS Auto Mode cluster
+dda inv aws.create-eks --auto-mode
+
+# Auto Mode cluster without the Agent or the test workloads
+# (the standalone dogstatsd DaemonSet is independent and still deploys)
+dda inv aws.create-eks --auto-mode --no-install-agent --no-install-workload
 ```
+
+### EKS Auto Mode
+
+[Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/automode.html) lets
+AWS manage the data plane — compute, networking and storage — provisioning nodes
+on demand instead of from a fixed node group.
+
+```bash
+dda inv aws.create-eks --auto-mode
+```
+
+`--auto-mode` is a toggle, so pass it bare (not `--auto-mode=true`). Because AWS
+owns the data plane, enabling it turns off every managed node group and the
+Fargate profile; node-group flags are ignored.
+
+Two cluster settings differ from a standard cluster:
+
+- **Authentication mode** is set to `API_AND_CONFIG_MAP`. Auto Mode requires
+  access entries, which `CONFIG_MAP` alone does not support, and
+  `API_AND_CONFIG_MAP` keeps the existing SSO `aws-auth` role mappings working.
+- **The cluster IAM role** carries the extra Auto Mode managed policies
+  (`AmazonEKSComputePolicy`, `AmazonEKSBlockStoragePolicyV2`,
+  `AmazonEKSLoadBalancingPolicy`, `AmazonEKSNetworkingPolicy`) and a trust
+  policy granting `sts:TagSession` alongside `sts:AssumeRole`. See
+  [the AWS cluster role reference](https://docs.aws.amazon.com/eks/latest/userguide/auto-cluster-iam-role.html).
 
 ## Connect
 

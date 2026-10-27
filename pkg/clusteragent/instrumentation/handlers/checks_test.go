@@ -315,12 +315,25 @@ func TestHandle_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h, cs, ts := newHandler()
 			cr := newCR("test", "default", tt.targetKind, tt.targetName, []datadoghq.DatadogInstrumentationCheckConfig{
-				{Integration: "redisdb", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})}},
+				{
+					Integration:             "redisdb",
+					Instances:               []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					IgnoreAutodiscoveryTags: true,
+					CheckTagCardinality:     "high",
+				},
 			})
 
 			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
-			assert.Len(t, configsForCR(cr, cs, ts), 1)
+			configs := configsForCR(cr, cs, ts)
+			require.Len(t, configs, 1)
+			assert.True(t, configs[0].IgnoreAutodiscoveryTags)
+			assert.Equal(t, "high", configs[0].CheckTagCardinality)
+
+			// Removing options restores the inherited Agent settings.
+			cr.Spec.Config.Checks[0].IgnoreAutodiscoveryTags = false
+			cr.Spec.Config.Checks[0].CheckTagCardinality = ""
+			cr.Generation++
 
 			cr.Spec.Config.Checks = append(cr.Spec.Config.Checks, datadoghq.DatadogInstrumentationCheckConfig{
 				Integration: "nginx",
@@ -330,7 +343,12 @@ func TestHandle_Update(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Contains(t, status.Message, "2 check(s) configured")
-			assert.Len(t, configsForCR(cr, cs, ts), 2)
+			configs = configsForCR(cr, cs, ts)
+			require.Len(t, configs, 2)
+			for _, cfg := range configs {
+				assert.False(t, cfg.IgnoreAutodiscoveryTags)
+				assert.Empty(t, cfg.CheckTagCardinality)
+			}
 		})
 	}
 }
@@ -406,12 +424,14 @@ func TestServiceCheckTemplateStore_NotifyOnChange(t *testing.T) {
 
 func TestTranslateCheck(t *testing.T) {
 	tests := []struct {
-		name             string
-		check            datadoghq.DatadogInstrumentationCheckConfig
-		expectedInit     string
-		expectedInstLen  int
-		expectedADIDs    []string
-		instanceContains []string
+		name                string
+		check               datadoghq.DatadogInstrumentationCheckConfig
+		expectedInit        string
+		expectedInstLen     int
+		expectedADIDs       []string
+		instanceContains    []string
+		expectedIgnoreTags  bool
+		expectedCardinality string
 	}{
 		{
 			name: "empty init config defaults to {}",
@@ -451,22 +471,77 @@ func TestTranslateCheck(t *testing.T) {
 			expectedADIDs:    []string{adtypes.KubeContainerNameIdentifier("app")},
 			instanceContains: []string{"host1", "host2"},
 		},
+		{
+			name: "low cardinality",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:             "http_check",
+				ContainerName:           "app",
+				Instances:               []runtime.RawExtension{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+				IgnoreAutodiscoveryTags: false,
+				CheckTagCardinality:     "low",
+			},
+			expectedInit:        "{}",
+			expectedInstLen:     1,
+			expectedADIDs:       []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedIgnoreTags:  false,
+			expectedCardinality: "low",
+		},
+		{
+			name: "orchestrator cardinality",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:             "http_check",
+				ContainerName:           "app",
+				Instances:               []runtime.RawExtension{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+				IgnoreAutodiscoveryTags: true,
+				CheckTagCardinality:     "orchestrator",
+			},
+			expectedInit:        "{}",
+			expectedInstLen:     1,
+			expectedADIDs:       []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedIgnoreTags:  true,
+			expectedCardinality: "orchestrator",
+		},
+		{
+			name: "high cardinality",
+			check: datadoghq.DatadogInstrumentationCheckConfig{
+				Integration:             "http_check",
+				ContainerName:           "app",
+				Instances:               []runtime.RawExtension{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+				IgnoreAutodiscoveryTags: true,
+				CheckTagCardinality:     "high",
+			},
+			expectedInit:        "{}",
+			expectedInstLen:     1,
+			expectedADIDs:       []string{adtypes.KubeContainerNameIdentifier("app")},
+			expectedIgnoreTags:  true,
+			expectedCardinality: "high",
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cr := newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{tt.check})
-			h, cs, _ := newHandler()
-			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
-			require.NoError(t, err)
-
-			configs, _ := cs.ListConfigs()
-			require.Len(t, configs, 1)
-			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
-			require.Len(t, configs[0].Instances, tt.expectedInstLen)
-			require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
-
-			for i, substr := range tt.instanceContains {
-				assert.Contains(t, string(configs[0].Instances[i]), substr)
+	for _, targetKind := range []string{"Deployment", "Service"} {
+		t.Run(targetKind, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					cr := newCR("test", "default", targetKind, "app", []datadoghq.DatadogInstrumentationCheckConfig{tt.check})
+					h, cs, ts := newHandler()
+					status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+					require.NoError(t, err)
+					configs := configsForCR(cr, cs, ts)
+					require.Equal(t, metav1.ConditionTrue, status.Status)
+					require.Len(t, configs, 1)
+					cfg := configs[0]
+					assert.Equal(t, tt.expectedInit, string(cfg.InitConfig))
+					require.Len(t, cfg.Instances, tt.expectedInstLen)
+					if targetKind == "Service" {
+						assert.Empty(t, cfg.ADIdentifiers)
+					} else {
+						require.ElementsMatch(t, tt.expectedADIDs, cfg.ADIdentifiers)
+					}
+					for i, substr := range tt.instanceContains {
+						assert.Contains(t, string(cfg.Instances[i]), substr)
+					}
+					assert.Equal(t, tt.expectedIgnoreTags, cfg.IgnoreAutodiscoveryTags)
+					assert.Equal(t, tt.expectedCardinality, cfg.CheckTagCardinality)
+				})
 			}
 		})
 	}

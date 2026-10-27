@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	logscrub "github.com/DataDog/datadog-agent/pkg/util/log/scrub"
 	pkglogslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	slogHandlers "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,7 +72,7 @@ func setupStdoutLogger(_ *env.Env) {
 	formatter := func(_ context.Context, r slog.Record) string {
 		return r.Message + "\n"
 	}
-	handler := slogHandlers.NewFormat(formatter, os.Stdout)
+	handler := logscrub.NewHandler(slogHandlers.NewFormat(formatter, os.Stdout))
 	loggerInterface := pkglogslog.NewWrapper(handler)
 	pkglog.SetupLogger(loggerInterface, level)
 }
@@ -283,6 +284,7 @@ func RootCommands() []*cobra.Command {
 		installConfigExperimentCommand(),
 		removeConfigExperimentCommand(),
 		promoteConfigExperimentCommand(),
+		resumeConfigExperimentsCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
 		isInstalledCommand(),
@@ -570,6 +572,24 @@ func promoteConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteConfigExperiment(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func resumeConfigExperimentsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "resume-config-experiments",
+		Short:   "Recover any configuration experiment left running unsupervised by a prior, uncleanly shut down daemon process",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i, err := newInstallerCmd("resume_config_experiments")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			return i.ResumeConfigExperiments(i.ctx)
 		},
 	}
 	return cmd

@@ -147,6 +147,7 @@ type CoreAgentService struct {
 
 	clients         *clients
 	orgStatusPoller *orgStatusPoller
+	status          StatusInstance
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
@@ -238,6 +239,34 @@ type RcTelemetryReporter interface {
 	SetConfigSubscriptionClientsTracked(value int)
 }
 
+// StatusInstance receives the exported state of one service, so a process running
+// several of them can report each separately. Implementations own their locking.
+type StatusInstance interface {
+	SetOrgEnabled(enabled bool)
+	SetAPIKeyAuthorized(authorized bool)
+	// SetLastError reports the last refresh error, or nil on success
+	SetLastError(err error)
+}
+
+// expvarStatusInstance reports to the process-wide "remoteConfigStatus" expvars
+type expvarStatusInstance struct{}
+
+func (expvarStatusInstance) SetOrgEnabled(enabled bool) {
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(enabled))
+}
+
+func (expvarStatusInstance) SetAPIKeyAuthorized(authorized bool) {
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(authorized))
+}
+
+func (expvarStatusInstance) SetLastError(err error) {
+	if err == nil {
+		exportedLastUpdateErr.Set("")
+		return
+	}
+	exportedLastUpdateErr.Set(err.Error())
+}
+
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
 type orgStatusPoller struct {
 	refreshInterval time.Duration
@@ -261,14 +290,14 @@ func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
 }
 
 // start begins the periodic polling of org status
-func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType string) {
+func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType string, status StatusInstance) {
 	go func() {
 		timer := clock.Timer(0)
 		defer timer.Stop()
 		for {
 			select {
 			case <-timer.C:
-				p.poll(apiClient, rcType)
+				p.poll(apiClient, rcType, status)
 				timer.Reset(p.refreshInterval)
 			case <-p.stopChan:
 				log.Infof("[%s] Stopping Remote Config org status poller", rcType)
@@ -291,7 +320,7 @@ func (p *orgStatusPoller) getPreviousStatus() *pbgo.OrgStatusResponse {
 }
 
 // poll fetches and processes the current organization status
-func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
+func (p *orgStatusPoller) poll(apiClient api.API, rcType string, status StatusInstance) {
 	response, err := apiClient.FetchOrgStatus(context.Background())
 
 	p.mu.Lock()
@@ -339,8 +368,8 @@ func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
-	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
+	status.SetOrgEnabled(response.Enabled)
+	status.SetAPIKeyAuthorized(response.Authorized)
 }
 
 func init() {
@@ -368,6 +397,7 @@ type options struct {
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
 	orgStatusRefreshInterval       time.Duration
+	statusInstance                 StatusInstance
 	// for mocking creating db instance in test
 	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
 	// The allowed products for each subscription products value. Overridable
@@ -404,6 +434,7 @@ var defaultOptions = options{
 	clientTTL:                           defaultClientsTTL,
 	disableConfigPollLoop:               false,
 	orgStatusRefreshInterval:            defaultRefreshInterval,
+	statusInstance:                      expvarStatusInstance{},
 	subscriptionProductMappings:         defaultSubscriptionProductMappings,
 	maxConcurrentSubscriptions:          defaultMaxConcurrentSubscriptions,
 	maxTrackedRuntimeIDsPerSubscription: defaultMaxTrackedRuntimeIDsPerSubscription,
@@ -501,6 +532,17 @@ func WithRcKey(rcKey string) func(s *options) {
 // WithAPIKey sets the service API key
 func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
+}
+
+// WithStatusInstance sets the service status instance, so a second service in the
+// process does not overwrite the default one's status. A nil instance is ignored.
+func WithStatusInstance(instance StatusInstance) func(s *options) {
+	return func(s *options) {
+		if instance == nil {
+			return
+		}
+		s.statusInstance = instance
+	}
 }
 
 // WithPARJWT sets the JWT for the private action runner
@@ -658,6 +700,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
 		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
+		status:                              options.statusInstance,
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -688,7 +731,7 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 func (s *CoreAgentService) Start() {
 	refreshBypassCh := make(chan chan<- struct{})
 	s.refreshBypassCh = refreshBypassCh
-	s.orgStatusPoller.start(s.clock, s.api, s.rcType)
+	s.orgStatusPoller.start(s.clock, s.api, s.rcType, s.status)
 
 	go func() {
 		if s.disableConfigPollLoop {
@@ -764,7 +807,7 @@ func (s *CoreAgentService) logRefreshError(err error) {
 			defer s.mu.Unlock()
 			return s.mu.fetchConfigs503And504ErrCount
 		}()
-		exportedLastUpdateErr.Set(err.Error())
+		s.status.SetLastError(err)
 		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
@@ -904,7 +947,7 @@ func (s *CoreAgentService) refresh() error {
 
 	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
-	exportedLastUpdateErr.Set("")
+	s.status.SetLastError(nil)
 
 	return nil
 }

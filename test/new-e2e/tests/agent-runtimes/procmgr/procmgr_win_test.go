@@ -348,6 +348,51 @@ func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, c
 	}, timeout, 3*time.Second)
 }
 
+// requireUnspawnedWithLegacyDown requires the gate-closed half: name stays Skipped under
+// dd-procmgr and legacyService stays Stopped or Absent for procmgrHoldFor. Both are read
+// every tick and share one window, same as requireSupervisedOnlyByProcmgr. timeout is the
+// deadline for reaching that hold, not the length of it.
+func requireUnspawnedWithLegacyDown(t *testing.T, host *components.RemoteHost, cli, name, legacyService string, timeout time.Duration) {
+	t.Helper()
+
+	serviceQuery := fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		legacyService,
+	)
+
+	var heldSince time.Time
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err, "dd-procmgr describe %s", name) {
+			heldSince = time.Time{}
+			return
+		}
+		status, err := host.Execute(serviceQuery)
+		if !assert.NoError(ct, err, "Get-Service %s", legacyService) {
+			heldSince = time.Time{}
+			return
+		}
+
+		state := fieldValue(describe, "State")
+		serviceState := strings.TrimSpace(status)
+		skipped := assert.Equal(ct, "Skipped", state, "process %s: %s", name, describe)
+		legacyDown := assert.Contains(ct, []string{"Stopped", "Absent"}, serviceState,
+			"%s must stay down while %s is gated closed", legacyService, name)
+		if !skipped || !legacyDown {
+			heldSince = time.Time{}
+			return
+		}
+
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrHoldFor,
+			"%s has held Skipped with %s down for %s, needs %s",
+			name, legacyService, now.Sub(heldSince).Round(time.Second), procmgrHoldFor)
+	}, timeout, 3*time.Second)
+}
+
 func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
 }

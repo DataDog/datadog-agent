@@ -15,7 +15,12 @@ pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
     let mut builder =
         SslConnector::builder(SslMethod::tls()).context("creating the OpenSSL connector")?;
 
-    if matches!(conn.ssl, SslMode::VerifyCa | SslMode::VerifyFull) {
+    // Like libpq, `require` verifies the certificate chain (not the host name) when a root
+    // certificate is provided. This is what the postgres integration documents for `ssl`, see
+    // https://github.com/DataDog/integrations-core/blob/e5b2b9c9e1bcb2caa1a3de3a44a11bfa3678d6aa/postgres/assets/configuration/spec.yaml#L197-L198
+    let verify = matches!(conn.ssl, SslMode::VerifyCa | SslMode::VerifyFull)
+        || (conn.ssl == SslMode::Require && conn.ssl_root_cert.is_some());
+    if verify {
         builder.set_verify(SslVerifyMode::PEER);
         match conn.ssl_root_cert.as_deref() {
             // set_ca_file adds to the builder's system store; replace it so we trust only this CA.
@@ -73,4 +78,36 @@ fn load_private_key(
     builder
         .set_private_key(&pkey)
         .with_context(|| format!("loading ssl_key {path}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conn(ssl: SslMode, ssl_root_cert: Option<&str>) -> Connection {
+        Connection {
+            ssl,
+            ssl_root_cert: ssl_root_cert.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn disable_uses_no_tls() {
+        assert!(connector(&conn(SslMode::Disable, None)).unwrap().is_none());
+    }
+
+    #[test]
+    fn require_without_root_cert_does_not_verify() {
+        assert!(connector(&conn(SslMode::Require, None)).unwrap().is_some());
+    }
+
+    #[test]
+    fn require_with_root_cert_verifies_like_libpq() {
+        // The root certificate is loaded, so a missing file is an error.
+        let err = connector(&conn(SslMode::Require, Some("/nonexistent/root.crt")))
+            .err()
+            .unwrap();
+        assert!(format!("{err:#}").contains("ssl_root_cert"));
+    }
 }

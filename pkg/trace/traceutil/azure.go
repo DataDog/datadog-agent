@@ -12,19 +12,21 @@ import (
 	"strings"
 )
 
+// Exported AAS tag keys form the contract other packages read out of the map
+// returned by GetAppServicesTags.
 const (
-	aasInstanceID       = "aas.environment.instance_id"
-	aasInstanceName     = "aas.environment.instance_name"
-	aasOperatingSystem  = "aas.environment.os"
-	aasRuntime          = "aas.environment.runtime"
-	aasExtensionVersion = "aas.environment.extension_version"
-	aasFunctionRuntime  = "aas.environment.function_runtime"
-	aasResourceGroup    = "aas.resource.group"
-	aasResourceID       = "aas.resource.id"
-	aasSiteKind         = "aas.site.kind"
-	aasSiteName         = "aas.site.name"
-	aasSiteType         = "aas.site.type"
-	aasSubscriptionID   = "aas.subscription.id"
+	AASInstanceID       = "aas.environment.instance_id"
+	AASInstanceName     = "aas.environment.instance_name"
+	AASOperatingSystem  = "aas.environment.os"
+	AASRuntime          = "aas.environment.runtime"
+	AASExtensionVersion = "aas.environment.extension_version"
+	AASFunctionRuntime  = "aas.environment.function_runtime"
+	AASResourceGroup    = "aas.resource.group"
+	AASResourceID       = "aas.resource.id"
+	AASSiteKind         = "aas.site.kind"
+	AASSiteName         = "aas.site.name"
+	AASSiteType         = "aas.site.type"
+	AASSubscriptionID   = "aas.subscription.id"
 
 	dotnetFramework    = ".NET"
 	nodeFramework      = "Node.js"
@@ -57,34 +59,34 @@ func GetAppServicesTags() map[string]string {
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
 
 	tags := map[string]string{
-		aasInstanceID:      instanceID,
-		aasInstanceName:    computerName,
-		aasOperatingSystem: websiteOS,
-		aasRuntime:         currentRuntime,
-		aasResourceGroup:   resourceGroup,
-		aasResourceID:      resourceID,
-		aasSiteKind:        appService,
-		aasSiteName:        siteName,
-		aasSiteType:        appService,
-		aasSubscriptionID:  subscriptionID,
+		AASInstanceID:      instanceID,
+		AASInstanceName:    computerName,
+		AASOperatingSystem: websiteOS,
+		AASRuntime:         currentRuntime,
+		AASResourceGroup:   resourceGroup,
+		AASResourceID:      resourceID,
+		AASSiteKind:        appService,
+		AASSiteName:        siteName,
+		AASSiteType:        appService,
+		AASSubscriptionID:  subscriptionID,
 	}
 
 	// Remove the Java and .NET logic once non-universal extensions are deprecated
 	if websiteOS == "windows" {
 		if extensionVersion != "" {
-			tags[aasExtensionVersion] = extensionVersion
+			tags[AASExtensionVersion] = extensionVersion
 		} else if val := os.Getenv("DD_AAS_JAVA_EXTENSION_VERSION"); val != "" {
-			tags[aasExtensionVersion] = val
+			tags[AASExtensionVersion] = val
 		} else if val := os.Getenv("DD_AAS_DOTNET_EXTENSION_VERSION"); val != "" {
-			tags[aasExtensionVersion] = val
+			tags[AASExtensionVersion] = val
 		}
 	}
 
 	// Function Apps require a different runtime and kind
 	if rt, ok := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME"); ok {
-		tags[aasRuntime] = rt
-		tags[aasFunctionRuntime] = os.Getenv("FUNCTIONS_EXTENSION_VERSION")
-		tags[aasSiteKind] = "functionapp"
+		tags[AASRuntime] = rt
+		tags[AASFunctionRuntime] = os.Getenv("FUNCTIONS_EXTENSION_VERSION")
+		tags[AASSiteKind] = "functionapp"
 	}
 
 	return tags

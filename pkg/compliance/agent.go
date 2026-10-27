@@ -328,9 +328,10 @@ func (a *Agent) Stop() {
 	a.cancel()
 	select {
 	case <-time.After(20 * time.Second):
+		log.Warnf("compliance agent: checks still running after 20s, not stopping reporter")
 	case <-a.finish:
+		a.opts.Reporter.Stop()
 	}
-	a.opts.Reporter.Stop()
 	log.Infof("compliance agent shut down")
 }
 

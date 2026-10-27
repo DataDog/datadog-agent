@@ -63,6 +63,7 @@ job-owners:
   allowed-jobs:
     - index-consolidation
     - jev-dyntest-evaluate
+    - jev-pr-summary
     - benchmark
     - benchmark_commenter
     - build_dogstatsd-binary_arm64

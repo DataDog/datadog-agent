@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 )
 
 type rdnsQuerierConfig struct {
@@ -55,13 +56,15 @@ const (
 	defaultRateLimitRecoveryInterval       = 5 * time.Second
 )
 
-func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
+func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Component) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
 	isEUDM := agentConfig.GetString("infrastructure_mode") == "end_user_device"
-	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
+	cnmDynamicTestsEnabled := sysprobeConfig.GetBool("network_config.enabled") &&
 		(agentConfig.GetBool("network_path.connections_monitoring.enabled") ||
-			(!isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled")) ||
-			(isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")))
+			(!isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled")))
+	eudmDynamicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
+	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
+		(cnmDynamicTestsEnabled || eudmDynamicTestsEnabled)
 
 	c := &rdnsQuerierConfig{
 		enabled:  netflowRDNSEnrichmentEnabled || networkPathRDNSEnrichmentEnabled,

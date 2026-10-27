@@ -31,6 +31,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -472,7 +474,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
 	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
-		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+		if missing, err := ksyms.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
 			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
 		} else if len(missing) > 0 {
 			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
@@ -679,7 +681,7 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled || p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
@@ -1084,6 +1086,9 @@ func (p *EBPFProbe) ReplayEvents() {
 type replayEntry struct {
 	event       *model.Event
 	mmapedFiles []procfs.MmapedFile
+	// script is the script the process runs through an interpreter, see
+	// procfsScript.
+	script string
 }
 
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
@@ -1102,16 +1107,18 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		event.AddToFlags(model.EventFlagsFromReplay)
 
 		var mmapedFiles []procfs.MmapedFile
+		var script string
 
-		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		// Replay mmaped files and the script (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
 			var err error
 			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
 			}
+			script = procfsScript(entry)
 		}
 
-		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles, script: script})
 	}
 
 	p.Walk(entryToEvent)
@@ -1138,6 +1145,10 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	for _, re := range entries {
 		p.DispatchEvent(re.event, notifyConsumers)
 
+		if re.script != "" {
+			p.creditScript(re.event.ProcessCacheEntry, re.script)
+		}
+
 		for _, file := range re.mmapedFiles {
 			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
 			openEvent.Source = model.EventSourceReplay
@@ -1153,6 +1164,35 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	if !notifyConsumers {
 		p.removeFiltersNotUsedAndApplyPersistantOnes()
 	}
+}
+
+// procfsScript returns the path of the script that entry, a process read from
+// procfs, runs through an interpreter, or "". procfs gives the interpreter as
+// the executable of the process, where the exec event of a script names the
+// script.
+func procfsScript(entry *model.ProcessCacheEntry) string {
+	if (entry.Source != model.ProcessCacheEntryFromSnapshot && entry.Source != model.ProcessCacheEntryFromProcFS) || entry.ArgsEntry == nil {
+		return ""
+	}
+	// The scrubber of the arguments rewrites their values in place, under the
+	// lock.
+	entry.ArgsEntry.Lock()
+	defer entry.ArgsEntry.Unlock()
+	return procfs.ScriptPath(entry.Comm, entry.FileEvent.PathnameStr, entry.ArgsEntry.Values)
+}
+
+// creditScript records the run of script by entry, a process read from procfs,
+// as usage of the package that owns the script, behind the gate DispatchEvent
+// puts on the SBOM resolution of an event. The path comes from the arguments of
+// the process, resolved through its root, so it goes to the SBOM resolver alone
+// rather than to the rule engine and its discarders, which take the paths the
+// kernel resolves.
+func (p *EBPFProbe) creditScript(entry *model.ProcessCacheEntry, script string) {
+	if p.Resolvers.SBOMResolver == nil || (entry.ContainerContext.IsNull() && !p.config.RuntimeSecurity.SBOMResolverHostEnabled) {
+		return
+	}
+	file := procfs.StatScript(entry.Pid, script)
+	p.Resolvers.SBOMResolver.ResolvePackage(&entry.ProcessContext, &file)
 }
 
 // newSyntheticUnknownLoaderEntry returns a transient PCE used as the anchor for
@@ -1232,15 +1272,29 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle sbom resolution
 	if p.Resolvers.SBOMResolver != nil {
-		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
-			} else if event.GetEventType() == model.FileOpenEventType {
-				// force resolution of the file path
-				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
+				// Resolve the path on a copy of the file, which keeps the error of a
+				// path the SBOM resolver fails to resolve off the event: the v1
+				// profiles skip an event carrying an error, and the probe monitor
+				// reports it as an abnormal path.
+				file := event.Open.File
+				if !file.IsPathnameStrResolved && len(file.PathnameStr) == 0 {
+					if path, _, _, _, err := p.Resolvers.PathResolver.ResolveFullFilePath(&file.FileFields, &event.PIDContext); err == nil {
+						file.SetPathnameStr(path)
+					}
+				}
 
 				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+				if event.IsEventFromReplay() {
+					// A replayed open stands for an executable mapping of a
+					// running process, which runs whatever becomes of the file.
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &file)
+				} else {
+					p.Resolvers.SBOMResolver.ResolveOpen(event.ProcessContext, &file)
+				}
 			}
 		}
 	}
@@ -1278,6 +1332,12 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	}
 
 	p.monitors.ProcessEvent(event, p.probe.scrubber)
+}
+
+// readsFile reports whether an open succeeded and opened its file for reading,
+// as a process opens the libraries and data files of a package it uses.
+func readsFile(open *model.OpenEvent) bool {
+	return open.Retval >= 0 && open.Flags&unix.O_PATH == 0 && open.Flags&unix.O_ACCMODE != unix.O_WRONLY
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -1610,13 +1670,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	netNS := event.PIDContext.NetNS
-	pid := event.PIDContext.Pid
-	go func() {
-		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
-			return utils.NewNSPathFromPid(pid, utils.NetNsType)
-		})
-	}()
+	p.Resolvers.NamespaceResolver.PushNetworkNamespaceHandleRequest(event.PIDContext.NetNS, event.PIDContext.Pid)
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext) {
@@ -2161,6 +2215,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
+		// the process remains in its previous cgroup if the write failed
+		if event.CgroupWrite.Retval < 0 {
+			return false
+		}
 		pid := event.CgroupWrite.Pid
 
 		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, p.onNewPCE)
@@ -2580,6 +2638,8 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)
 	case model.ConnectEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)
+	case model.BindEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)
 	}
 	return false
 }
@@ -2821,6 +2881,9 @@ func (p *EBPFProbe) Stop() {
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
+	// the namespace resolver goroutines clone TC programs, they must be done before the manager stops
+	p.Resolvers.NamespaceResolver.Stop()
+
 	for i, col := range p.rawPacketFilterCollections {
 		if col != nil {
 			col.Close()
@@ -3378,6 +3441,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
@@ -3508,6 +3583,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
+		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType),
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
 		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
@@ -3614,6 +3690,13 @@ func (p *EBPFProbe) initManagerOptions() error {
 
 // NewEBPFProbe instantiates a new runtime security agent probe
 func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFProbe, error) {
+	// kernels < 5.11 account BPF memory against RLIMIT_MEMLOCK; the kernel
+	// feature checks below fail with EPERM unless the limit is raised, and
+	// CWS would then report those features as unsupported
+	if err := rlimit.RemoveMemlock(); err != nil {
+		seclog.Warnf("failed to remove the memlock limit: %v", err)
+	}
+
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -3936,7 +4019,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ksyms.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}
@@ -4236,7 +4319,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ProcessContext.Process.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && (len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0 || p.config.RuntimeSecurity.SBOMResolverHostEnabled):
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
 				seclog.Infof("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
@@ -4398,8 +4481,8 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 		event.LoadModule.File.FileFields.Inode = fileStats.Ino
 		event.LoadModule.File.FileFields.UID = fileStats.Uid
 		event.LoadModule.File.FileFields.GID = fileStats.Gid
-		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano())
 		event.LoadModule.File.Mode = fileStats.Mode
 		event.LoadModule.File.Inode = fileStats.Ino
 		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor

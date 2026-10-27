@@ -164,22 +164,22 @@ func TestFindMemFdFilePath(t *testing.T) {
 func TestIsZombiePid(t *testing.T) {
 	cases := []struct {
 		name     string
-		status   string
+		stat     string
 		expected bool
 	}{
 		{
 			name:     "Running",
-			status:   "Name:\tsleep\nState:\tR (running)\nPid:\t1234\n",
+			stat:     "1234 (sleep) R 1\n",
 			expected: false,
 		},
 		{
 			name:     "Sleeping",
-			status:   "Name:\tsleep\nState:\tS (sleeping)\nPid:\t1234\n",
+			stat:     "1234 (sleep) S 1\n",
 			expected: false,
 		},
 		{
 			name:     "Zombie",
-			status:   "Name:\tsleep\nState:\tZ (zombie)\nPid:\t1234\n",
+			stat:     "1234 (sleep) Z 1\n",
 			expected: true,
 		},
 	}
@@ -189,7 +189,7 @@ func TestIsZombiePid(t *testing.T) {
 			procRoot := t.TempDir()
 			pidDir := filepath.Join(procRoot, "1234")
 			require.NoError(t, os.MkdirAll(pidDir, 0o755))
-			require.NoError(t, os.WriteFile(filepath.Join(pidDir, "status"), []byte(tc.status), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(pidDir, "stat"), []byte(tc.stat), 0o644))
 
 			zombie, err := IsZombiePid(procRoot, 1234)
 			require.NoError(t, err)

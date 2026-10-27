@@ -32,15 +32,11 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 		if err != nil {
 			return err
 		}
-		dockerInstall, err := docker.InstallDocker(vm, pulumi.Parent(vm))
+		dockerInstall, err := vm.OS.PackageManager().RuntimeInstallDocker(os.WithPulumiResourceOptions(pulumi.Parent(vm)))
 		if err != nil {
 			return err
 		}
-		composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
-		if err != nil {
-			return err
-		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall))
 		if err != nil {
 			return err
 		}

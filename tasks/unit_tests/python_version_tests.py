@@ -284,6 +284,26 @@ class TestGetLatestPythonVersion(unittest.TestCase):
             version = _get_latest_python_version("3.13")
             self.assertEqual(version, "3.13.9")
 
+    def test_get_latest_python_version_skips_excluded(self):
+        from tasks.python_version import _get_latest_python_version
+
+        mock_html = '''<html><body>
+<a href="3.13.15/">3.13.15/</a>
+<a href="3.13.16/">3.13.16/</a>
+</body></html>'''
+
+        with (
+            unittest.mock.patch.dict(
+                'tasks.python_version.EXCLUDED_PYTHON_VERSIONS', {"3.13.16": "broken"}, clear=True
+            ),
+            unittest.mock.patch('tasks.python_version._url_get', return_value=mock_html) as mock_url_get,
+        ):
+            self.assertEqual(_get_latest_python_version("3.13"), "3.13.15")
+
+            # A later version is selected again
+            mock_url_get.return_value = mock_html.replace('</body>', '<a href="3.13.17/">3.13.17/</a>\n</body>')
+            self.assertEqual(_get_latest_python_version("3.13"), "3.13.17")
+
     def test_get_latest_python_version_not_found(self):
         from tasks.python_version import _get_latest_python_version
 

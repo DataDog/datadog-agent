@@ -37,38 +37,45 @@ jobs:
               ? context.issue.number
               : parseInt(context.payload.inputs.issue_number);
 
-            // Determine the username of the current comment's author depending on event type
-            let username = null;
+            // Determine the current comment's author depending on event type
+            let commenter = null;
             if (context.eventName === 'issue_comment') {
-              username = context.payload.comment.user.login;
+              commenter = context.payload.comment.user;
             } else if (context.payload.inputs && context.payload.inputs.issue_number) {
               // For workflow_dispatch, fetch the latest comment's author on the issue
 
-              const comments = await github.rest.issues.listComments({
+              const comments = await github.paginate(github.rest.issues.listComments, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: issueNumber,
+                issue_number: issueNumber
               });
-              if (comments.data.length === 0) {
+              if (comments.length === 0) {
                 // no comments, cannot determine user
                 return "false";
               }
-              username = comments.data[comments.data.length - 1].user.login;
+              commenter = comments[comments.length - 1].user;
             } else {
               return "false";
+            }
+
+            // Bot comments (for example the stale workflow's own warning, posted through
+            // the octo-sts GitHub App) are not author responses: remove no label.
+            if (commenter.type === 'Bot') {
+              return "bot";
             }
 
             try {
               const membership = await github.rest.orgs.checkMembershipForUser({
                 org: 'datadog',
-                username: username
+                username: commenter.login
               });
               if (membership.status === 204) {
                 return "true";
               }
               return "false";
             } catch (error) {
-              if (error.message.startsWith('User does not exist or is not a member')) {
+              // 404 is the documented non-member response, the error message is not: https://docs.github.com/en/rest/orgs/members#check-organization-membership-for-a-user
+              if (error.status === 404) {
                 // User is not a datadog member
                 return "false";
               }

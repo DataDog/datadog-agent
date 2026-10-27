@@ -8,6 +8,7 @@ package coat
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -72,6 +73,8 @@ func reportNotes() []string {
 			"workload failing rather than the spawn. See last_exit_code and last_signal, and " +
 			daemonLogLocation() + ".",
 		"state=crashed: the process died on a signal. See last_signal.",
+		"state=invalid_config: processes.d YAML did not load. See config_error and " +
+			daemonLogLocation() + ".",
 		"restart_count is not a verdict on its own. It counts restarts dd-procmgrd performed, so " +
 			"restart_policy bounds it: the default policy is never, which cannot retry and leaves " +
 			"the count at 0 however badly the process failed. It is also reset once a spawn stays " +
@@ -200,6 +203,7 @@ type ScrubOptions struct {
 // the cost of missing it is a leaked credential. It is safe to call more than once.
 func (r *SupportReport) Scrub(opts ScrubOptions) {
 	scrubProcessArgs(r.Processes, opts)
+	scrubConfigErrors(r.Processes, opts)
 }
 
 // redactedValue replaces a secret. It matches the placeholder procutil substitutes, so redactions
@@ -237,6 +241,45 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 
 	for i := range processes {
 		redactSecretValues(processes[i].Args, scrubber.SensitivePatterns)
+	}
+}
+
+// Serde quotes the value it rejected back into the message, in two spellings: a string goes in
+// double quotes, a number, boolean or character in backticks. Field and variant names are
+// backticked too, which is why the kind of the value has to precede the match: matching backticks
+// alone would take the name out of "unknown field `comand`", where the name is the whole diagnosis.
+//
+// An enum field spells its rejected value the same way, in "unknown variant `bogus`". Those stay:
+// the fields typed that way (stdout and stderr) take a fixed set of words rather than values worth
+// hiding, and printing back what was written is how an operator sees the typo.
+var (
+	echoedString = regexp.MustCompile(`(invalid (?:type|value): string )"(?:[^"\\]|\\.)*"`)
+	echoedScalar = regexp.MustCompile("(invalid (?:type|value): (?:integer|boolean|floating point|character) )`[^`]*`")
+)
+
+// scrubConfigErrors redacts secret sequences inside parse errors. Serde echoes the offending
+// scalar, so a processes.d value that failed to type-check can otherwise reach the flare as
+// config_error. AddFile's line scrubber still runs on the JSON, but SupportReport.Scrub is the
+// last point that sees this field as a structured string rather than a pretty-printed line.
+//
+// Under StripArguments the echo goes whether or not it names a secret. `args: "--token abc123"` is
+// an ordinary mistake, and the error quoting it back is the argument array the operator asked to
+// keep out of the flare, arriving by another route. Only the echoed value is removed: the file, the
+// field, the expected type and the position are the whole diagnostic value of this field, and
+// scrubProcessArgs drops arguments outright precisely because it has nothing else worth keeping.
+func scrubConfigErrors(processes []ProcessSnapshot, opts ScrubOptions) {
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Concat(hyphenSpelledSecretWords, opts.CustomSensitiveWords))
+
+	for i := range processes {
+		if processes[i].ConfigError == "" {
+			continue
+		}
+		if opts.StripArguments {
+			stripped := echoedString.ReplaceAllString(processes[i].ConfigError, `${1}"`+redactedValue+`"`)
+			processes[i].ConfigError = echoedScalar.ReplaceAllString(stripped, "${1}`"+redactedValue+"`")
+		}
+		processes[i].ConfigError = scrubSecretSequences(processes[i].ConfigError, scrubber.SensitivePatterns)
 	}
 }
 

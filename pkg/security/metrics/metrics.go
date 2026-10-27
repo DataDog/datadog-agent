@@ -213,6 +213,9 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverContainerContextCleared is the name of the metric used to report the number of container contexts cleared
+	// Tags: -
+	MetricProcessResolverContainerContextCleared = newRuntimeMetric(".process_resolver.container_context_cleared")
 	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
 	// Tags: -
 	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
@@ -256,6 +259,9 @@ var (
 	// MetricSpanContextProcessCtxSuccess is the counter of OTel process context read successes
 	// Tags: status:ok
 	MetricSpanContextProcessCtxSuccess = newRuntimeMetric(".span_context.process_ctx.success")
+	// MetricSpanContextProcessCtxQueueLatency is the distribution of seconds a pid waits in the OTel process context queue
+	// Tags: -
+	MetricSpanContextProcessCtxQueueLatency = newRuntimeMetric(".span_context.process_ctx.queue_latency")
 	// MetricSpanContextResolutionFailed is the counter of per-process span context reader install failures
 	// Tags: reader:otel_tls, reader:go_labels
 	//
@@ -267,6 +273,9 @@ var (
 	//
 	//       status:ok
 	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+	// MetricSpanContextResolutionLatency is the distribution of seconds a successful OTel TLS resolution takes
+	// Tags: elf:true, elf:false (offsets already registered)
+	MetricSpanContextResolutionLatency = newRuntimeMetric(".span_context.resolution.latency")
 	// MetricSpanContextEventFailed is the counter of per-event span context fill failures
 	// Tags: reader:otel_tls, reader:go_labels, reader:fill
 	//
