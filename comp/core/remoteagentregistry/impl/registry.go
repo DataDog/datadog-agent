@@ -48,11 +48,12 @@ type Requires struct {
 
 // Provides defines the output of the remoteagentregistry component
 type Provides struct {
-	Comp          remoteagentregistry.Component
-	ExpvarSource  expvarcompat.Source
-	FlareProvider flaretypes.Provider
-	Status        status.InformationProvider
-	ADPStatus     status.InformationProvider
+	Comp           remoteagentregistry.Component
+	ExpvarSource   expvarcompat.Source
+	FlareProvider  flaretypes.Provider
+	Status         status.InformationProvider
+	ADPStatus      status.InformationProvider
+	CombinedStatus status.InformationProvider
 }
 
 // NewComponent creates a new remoteagent component
@@ -63,15 +64,17 @@ func NewComponent(reqs Requires) Provides {
 	}
 
 	registry := newRegistry(reqs)
+	source := expvarcompat.Source(registry.getRemoteAgentExpvars)
 
 	provides := Provides{
 		Comp:          registry,
-		ExpvarSource:  registry.getRemoteAgentExpvars,
+		ExpvarSource:  source,
 		FlareProvider: flaretypes.NewProvider(registry.fillFlare),
 		Status:        status.NewInformationProvider(remoteagentregistryStatus.GetProvider(registry)),
 	}
 	if reqs.Config.GetBool("data_plane.enabled") {
-		provides.ADPStatus = status.NewInformationProvider(remoteagentregistryStatus.GetADPForwarderProvider())
+		provides.ADPStatus = status.NewInformationProvider(remoteagentregistryStatus.GetADPForwarderProvider(source))
+		provides.CombinedStatus = status.NewInformationProvider(remoteagentregistryStatus.GetCombinedForwarderProvider(source))
 	}
 	return provides
 }

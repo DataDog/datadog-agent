@@ -10,6 +10,8 @@ go_library(
     embedsrcs = [
         "status_templates/adp_forwarder.tmpl",
         "status_templates/adp_forwarder_html.tmpl",
+        "status_templates/combined_forwarder.tmpl",
+        "status_templates/combined_forwarder_html.tmpl",
         "status_templates/remote_agents.tmpl",
         "status_templates/remote_agents_html.tmpl",
     ],
@@ -17,6 +19,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/remoteagentregistry/def",
+        "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/core/status",
     ],
 )
@@ -26,6 +29,7 @@ dd_agent_go_test(
     srcs = ["adp_forwarder_test.go"],
     embed = [":status"],
     deps = [
+        "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/core/status",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

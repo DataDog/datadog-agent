@@ -1,6 +1,6 @@
 {{- with .forwarderStats -}}
 <div class="stat">
-  <span class="stat_title">Forwarder</span>
+  <span class="stat_title">Core Agent Forwarder</span>
   <span class="stat_data">
       {{- range $key, $value := .Transactions }}
           {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
@@ -10,7 +10,7 @@
       {{- if .Transactions.Success }}
         <span class="stat_subtitle">Transaction Successes</span>
           <span class="stat_subdata">
-            Total number (Core Agent + ADP): {{.Transactions.Success}}<br>
+            Total number (Core Agent): {{.Transactions.Success}}<br>
             Successes By Endpoint (Core Agent):<br>
             <span class="stat_subdata">
               {{- range $type, $count := .Transactions.SuccessByEndpoint }}
@@ -25,8 +25,8 @@
       {{- if .Transactions.Errors }}
         <span class="stat_subtitle">Transaction Errors</span>
           <span class="stat_subdata">
-            Total number (Core Agent + ADP): {{.Transactions.Errors}}<br>
-            Errors By Type (Core Agent + mapped ADP types):<br>
+            Total number (Core Agent): {{.Transactions.Errors}}<br>
+            Errors By Type (Core Agent):<br>
             <span class="stat_subdata">
               {{- range $type, $count := .Transactions.ErrorsByType }}
                 {{- if $count}}
@@ -40,7 +40,7 @@
       {{- if .Transactions.HTTPErrors }}
         <span class="stat_subtitle">HTTP Errors</span>
           <span class="stat_subdata">
-            Total number (Core Agent + ADP): {{.Transactions.HTTPErrors}}<br>
+            Total number (Core Agent): {{.Transactions.HTTPErrors}}<br>
             HTTP Errors By Code (Core Agent):<br>
             <span class="stat_subdata">
               {{- range $code, $count := .Transactions.HTTPErrorsByCode }}

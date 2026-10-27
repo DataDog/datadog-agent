@@ -1,7 +1,7 @@
 {{with .forwarderStats -}}
 {{ if .Transactions }}
-  Transactions
-  ============
+  Core Agent Transactions
+  =======================
   {{- range $key, $value := .Transactions }}
     {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
     {{$key}}: {{humanize $value}}
@@ -16,7 +16,7 @@
 
   Transaction Successes
   =====================
-    Total number (Core Agent + ADP): {{.Transactions.Success}}
+    Total number (Core Agent): {{.Transactions.Success}}
     Successes By Endpoint (Core Agent):
           {{- range $type, $count := .Transactions.SuccessByEndpoint }}
             {{- if $count }}
@@ -28,8 +28,8 @@
 
   Transaction Errors
   ==================
-    Total number (Core Agent + ADP): {{.Transactions.Errors}}
-    Errors By Type (Core Agent + mapped ADP types):
+    Total number (Core Agent): {{.Transactions.Errors}}
+    Errors By Type (Core Agent):
           {{- range $type, $count := .Transactions.ErrorsByType }}
             {{- if $count }}
       {{$type}}: {{humanize $count}}
@@ -40,7 +40,7 @@
 
   HTTP Errors
   ==================
-    Total number (Core Agent + ADP): {{.Transactions.HTTPErrors}}
+    Total number (Core Agent): {{.Transactions.HTTPErrors}}
     HTTP Errors By Code (Core Agent):
       {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
         {{- if $count}}

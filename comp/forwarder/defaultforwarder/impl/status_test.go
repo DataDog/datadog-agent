@@ -95,15 +95,19 @@ func TestForwarderStatusKeepsADPSectionSeparate(t *testing.T) {
 
 	var text bytes.Buffer
 	require.NoError(t, status.RenderText(templatesFS, "forwarder.tmpl", &text, statusInfo))
-	assert.Contains(t, text.String(), "Total number (Core Agent + ADP): 10")
+	assert.Contains(t, text.String(), "Core Agent Transactions")
+	assert.Contains(t, text.String(), "Total number (Core Agent): 10")
 	assert.Contains(t, text.String(), "Successes By Endpoint (Core Agent):")
-	assert.Contains(t, text.String(), "Errors By Type (Core Agent + mapped ADP types):")
+	assert.Contains(t, text.String(), "Errors By Type (Core Agent):")
+	assert.NotContains(t, text.String(), "Core Agent + ADP")
 	assert.NotContains(t, text.String(), "ADP Forwarder Transactions")
 
 	var html bytes.Buffer
 	require.NoError(t, status.RenderHTML(templatesFS, "forwarderHTML.tmpl", &html, statusInfo))
-	assert.Contains(t, html.String(), "Total number (Core Agent + ADP): 10")
+	assert.Contains(t, html.String(), "Core Agent Forwarder")
+	assert.Contains(t, html.String(), "Total number (Core Agent): 10")
 	assert.Contains(t, html.String(), "Successes By Endpoint (Core Agent):")
-	assert.Contains(t, html.String(), "Errors By Type (Core Agent + mapped ADP types):")
+	assert.Contains(t, html.String(), "Errors By Type (Core Agent):")
+	assert.NotContains(t, html.String(), "Core Agent + ADP")
 	assert.NotContains(t, html.String(), "ADP Forwarder Transactions")
 }

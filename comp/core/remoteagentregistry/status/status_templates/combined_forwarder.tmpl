@@ -1,0 +1,24 @@
+{{with .combinedForwarderStats}}
+  Transactions (Core Agent + ADP)
+  ===============================
+  {{- with .Transactions}}
+    {{- if .RetryQueueSize}}
+    Retry queue size: {{humanize .RetryQueueSize}}{{end}}
+    {{- if .Success}}
+    Success: {{humanize .Success}}{{end}}
+    {{- if .Errors}}
+    Errors: {{humanize .Errors}}{{end}}
+    {{- if .ErrorsByType}}
+      Errors by type:
+      {{- range $type, $count := .ErrorsByType}}
+        {{- if $count}}
+        {{$type}}: {{humanize $count}}
+        {{- end}}
+      {{- end}}
+    {{- end}}
+    {{- if .HTTPErrors}}
+    HTTP errors: {{humanize .HTTPErrors}}{{end}}
+  {{- end}}
+{{- else}}
+  No combined Forwarder telemetry available.
+{{- end}}

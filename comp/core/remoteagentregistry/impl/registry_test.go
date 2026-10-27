@@ -53,17 +53,20 @@ func TestRemoteAgentCreation(t *testing.T) {
 	assert.NoError(t, lc.Stop(ctx))
 }
 
-func TestADPForwarderStatusIsRegisteredOnlyWhenADPEnabled(t *testing.T) {
+func TestForwarderStatusViewsAreRegisteredOnlyWhenADPEnabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("remote_agent.registry.enabled", true)
 	cfg.SetInTest("data_plane.enabled", true)
 	provided, _, _, _ := buildComponentWithConfig(t, cfg)
 	require.NotNil(t, provided.ADPStatus.Provider)
 	assert.Equal(t, "ADP Forwarder", provided.ADPStatus.Provider.Section())
+	require.NotNil(t, provided.CombinedStatus.Provider)
+	assert.Equal(t, "Combined Forwarder", provided.CombinedStatus.Provider.Section())
 
 	cfg.SetInTest("data_plane.enabled", false)
 	provided, _, _, _ = buildComponentWithConfig(t, cfg)
 	assert.Nil(t, provided.ADPStatus.Provider)
+	assert.Nil(t, provided.CombinedStatus.Provider)
 }
 
 func TestRegistration(t *testing.T) {
