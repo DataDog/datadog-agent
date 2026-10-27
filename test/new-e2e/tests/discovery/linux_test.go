@@ -425,6 +425,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agen
 		scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 	)),
 	)
+	s.validateDiscoveryMode(discoveryModeSystemProbeLite)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()
 	require.NoError(t, err)

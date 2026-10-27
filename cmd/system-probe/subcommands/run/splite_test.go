@@ -70,6 +70,16 @@ func TestMaybeSPLite(t *testing.T) {
 			expectNil:  false,
 		},
 		{
+			name: "discovery and privileged logs modules",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.enabled":               true,
+				"privileged_logs.enabled":         true,
+			},
+			fakeBinary: true,
+			expectNil:  false,
+		},
+		{
 			name: "multiple modules",
 			overrides: map[string]interface{}{
 				"discovery.use_system_probe_lite": true,
@@ -137,10 +147,11 @@ func TestMaybeSPLite(t *testing.T) {
 
 			// Verify args match what the splite package produces (source of truth)
 			expectedArgs := (&splite.Config{
-				Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-				LogLevel: sysprobeConfig.GetString("log_level"),
-				LogFile:  sysprobeConfig.GetString("log_file"),
-				PIDFile:  "/test/sp.pid",
+				Socket:         sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+				LogLevel:       sysprobeConfig.GetString("log_level"),
+				LogFile:        sysprobeConfig.GetString("log_file"),
+				PIDFile:        "/test/sp.pid",
+				PrivilegedLogs: sysprobeConfig.GetBool("privileged_logs.enabled"),
 			}).Args()
 			assert.Equal(t, expectedArgs, cmd.Args[1:])
 			assert.NotEmpty(t, cmd.Env)

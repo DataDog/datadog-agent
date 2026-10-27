@@ -153,6 +153,8 @@ rust_binary(
         "@crates//:hyper",
         "@crates//:hyper-util",
         "@crates//:log",
+        "@crates//:nix",
+        "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:uzers",
