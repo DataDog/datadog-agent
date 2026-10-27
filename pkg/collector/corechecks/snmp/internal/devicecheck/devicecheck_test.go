@@ -18,6 +18,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -1269,11 +1270,11 @@ metrics:
 `)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	connMgr := NewConnectionManager(config, sessionFactory)
 	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	sender := mocksender.NewMockSender(t, "123")
 	sender.SetupAcceptAll()
