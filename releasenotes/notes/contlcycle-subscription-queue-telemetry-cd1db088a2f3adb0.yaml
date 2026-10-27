@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The container_lifecycle check now reports internal telemetry on its
+    workloadmeta subscription channels: ``container_lifecycle.subscription_queue_length``
+    (bundles waiting in the channel when a bundle is received) and
+    ``container_lifecycle.subscription_queue_latency_seconds`` (time a bundle
+    waited in the channel before the check received it), tagged by channel.

@@ -178,34 +178,48 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
+			observeSubscriptionQueue("cont", contEventsCh, eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceRuntime)
 		case eventBundle, ok := <-contCreateEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("cont-create", contCreateEventsCh, eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceAll)
 		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("cont-node-orchestrator-delete", contNodeOrchestratorDeleteEventsCh, eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-podEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("pod", podEventsCh, eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("task", taskEventsCh, eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case <-c.stopCh:
 			return nil
 		}
+	}
+}
+
+// observeSubscriptionQueue records the backlog of a workloadmeta subscription
+// channel: its current depth and the time the received bundle waited in it.
+func observeSubscriptionQueue(channel string, ch chan workloadmeta.EventBundle, bundle workloadmeta.EventBundle) {
+	queueLength.Set(float64(len(ch)), channel)
+	if !bundle.EnqueuedAt.IsZero() {
+		queueLatency.Observe(time.Since(bundle.EnqueuedAt).Seconds(), channel)
 	}
 }
 
