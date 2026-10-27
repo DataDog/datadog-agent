@@ -174,6 +174,9 @@ var TestProfiles = Map{
 			GetRunning: MkCommand("show running-config"),
 			GetStartup: MkCommand("show startup-config"),
 		},
+		Redactions: []RedactionRule{
+			MkRedaction(`(?m)^(enable (password|secret)( level \d+)? \d) .+`),
+		},
 	},
 	"p2": &NCMProfile{
 		Name: "p2",

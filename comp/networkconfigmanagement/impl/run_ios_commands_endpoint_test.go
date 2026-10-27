@@ -218,3 +218,46 @@ func TestRunIOSCommandsEndpointHandler_MissingCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestRunIOSCommandsEndpointHandler_RedactsOutput(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show running-config"] = ok("hostname r1\nenable secret 5 $1$abc$xyz\n")
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(`[{"type":"show running-config"}]`),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, resp.ErrorCode)
+	if assert.NotNil(t, resp.CommandResult) {
+		assert.Equal(t, "hostname r1\nenable secret 5 <secret hidden>", resp.CommandResult.Output)
+	}
+}
+
+func TestRunIOSCommandsEndpointHandler_RedactsFailedOutput(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestIOSDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show running-config"] = &result{
+		Output: "enable secret 5 $1$abc$xyz\n% Invalid input",
+		Error:  "Process exited with status 1",
+	}
+
+	w, resp := doRunIOSCommandsRequest(t, comp, RunIOSCommandsRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       json.RawMessage(`[{"type":"show running-config"}]`),
+		CredentialSet: "readonly",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NotEmpty(t, resp.ErrorCode)
+	assert.Contains(t, resp.ErrorMsg, "Process exited with status 1")
+	assert.NotContains(t, resp.ErrorMsg, "$1$abc$xyz")
+	if assert.NotNil(t, resp.CommandResult) {
+		assert.Equal(t, "enable secret 5 <secret hidden>\n% Invalid input", resp.CommandResult.Output)
+	}
+}

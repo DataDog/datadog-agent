@@ -54,5 +54,19 @@ func (n *networkDeviceConfigImpl) RunIOSCommands(ctx context.Context, deviceID s
 
 	// The lines are sent as a single exec payload, the same way
 	// PlainCommand.SetupCommands are.
-	return conn.ExecuteCommand(ctx, strings.Join(lines, "\n"))
+	result, eerr := conn.ExecuteCommand(ctx, strings.Join(lines, "\n"))
+	if result == nil {
+		return nil, eerr
+	}
+	redacted, rerr := dc.profile.RedactOutput([]byte(result.Output))
+	if rerr != nil {
+		return nil, types.WrapErrorf(types.ErrInternal, "unable to redact command output: %w", rerr)
+	}
+	result.Output = string(redacted)
+	if eerr != nil && result.Error != "" {
+		// A failed command's error embeds its raw output, so rebuild it from
+		// the redacted result.
+		eerr = types.WrapError(eerr.Type(), result.FormattedError())
+	}
+	return result, eerr
 }
