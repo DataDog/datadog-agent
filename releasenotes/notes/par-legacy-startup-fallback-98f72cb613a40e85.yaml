@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    SysV and Upstart launchers now run the monolithic Private Action Runner,
+    with an explanatory message, even when split mode is configured. These
+    launchers do not start the process manager required for split mode. The
+    SysV launcher also creates the PID file needed to track and stop the runner,
+    waits for early startup failures before reporting success, and checks the
+    executable as the runner user to avoid treating unreaped container zombies
+    as running processes.
