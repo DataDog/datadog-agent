@@ -72,6 +72,7 @@ dd_agent_go_test(
         "//pkg/process/checks/mocks",
         "//pkg/process/runner/endpoint",
         "//pkg/process/runner/mocks",
+        "//pkg/process/status",
         "//pkg/process/util/api/config",
         "//pkg/process/util/api/headers",
         "//pkg/util/flavor",
