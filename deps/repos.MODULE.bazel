@@ -227,10 +227,10 @@ http_archive(
         "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
         "BUILD.bazel": "//deps:gpg-error/gpg-error.BUILD.bazel",
     },
-    sha256 = "82c3d2deb4ad96ad3925d6f9f124fe7205716055ab50e291116ef27975d169c0",
-    strip_prefix = "libgpg-error-1.56",
+    sha256 = "7a85413f2bc354f4f8aa832b718af122e48965e9e0eb9012ee659c13c6385c93",
+    strip_prefix = "libgpg-error-1.61",
     urls = [
-        "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
+        "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.61.tar.bz2",
     ],
 )
 
