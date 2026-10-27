@@ -184,7 +184,8 @@ func TestNoAggStreamWorkerSerieFieldsAreAccountedFor(t *testing.T) {
 	//   - NoIndex: never set on DogStatsD samples, so always false.
 	//   - ContextKey, NameSuffix: internal to the time sampler's aggregation and
 	//     deduplication, meaningless without a context resolver.
-	unset := []string{"Device", "SourceTypeName", "Unit", "ContextKey", "NameSuffix", "NoIndex", "Resources"}
+	//   - TagFiltered: tag filterlist rules only apply to aggregated contexts.
+	unset := []string{"Device", "SourceTypeName", "Unit", "ContextKey", "NameSuffix", "NoIndex", "Resources", "TagFiltered"}
 
 	accountedFor := make(map[string]struct{}, len(copied)+len(unset))
 	for _, name := range append(append([]string{}, copied...), unset...) {

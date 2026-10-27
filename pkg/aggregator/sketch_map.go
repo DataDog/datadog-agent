@@ -49,6 +49,12 @@ func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upp
 	return err == nil
 }
 
+// has returns whether the map holds a sketch for the given (ts, contextKey)
+func (m sketchMap) has(ts int64, ck ckey.ContextKey) bool {
+	_, ok := m[ts][ck]
+	return ok
+}
+
 func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 	// level 1: ts -> ctx
 	byCtx, ok := m[ts]

@@ -21,6 +21,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -284,6 +285,7 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
+	checkOutputMerger      *checkOutputMerger // protected by mu, like checkSamplers
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -370,6 +372,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
+		checkOutputMerger:           newCheckOutputMerger(flushInterval),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -563,12 +566,16 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 	agg.getSeriesAndSketches(before, &series, &sketches)
+	agg.drainCheckOutputs(&series, &sketches)
 	return series, sketches
 }
 
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+//
+// Outputs of tag-filtered check metrics are kept by the check output merger instead, for the caller to
+// send with flushCheckOutputs or drainCheckOutputs.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	_ time.Time,
 	seriesSink metrics.SerieSink,
@@ -580,19 +587,40 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
-		for _, s := range checkSeries {
-			seriesSink.Append(s)
-		}
-
-		for _, sk := range sketches {
-			sketchesSink.Append(sk)
-		}
+		agg.checkOutputMerger.appendSeries(seriesSink, checkSeries)
+		agg.checkOutputMerger.appendSketches(sketchesSink, sketches)
 
 		if checkSampler.deregistered {
 			checkSampler.release()
 			delete(agg.checkSamplers, checkId)
 		}
 	}
+}
+
+// flushCheckOutputs sends the merged outputs of tag-filtered check metrics that no check instance can
+// still add to, holding the others for a later flush.
+func (agg *BufferedAggregator) flushCheckOutputs(now time.Time, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.flush(now.Unix(), agg.hasPendingSketch, seriesSink, sketchesSink)
+}
+
+// drainCheckOutputs sends every merged output of tag-filtered check metrics, for when no flush follows.
+func (agg *BufferedAggregator) drainCheckOutputs(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.drain(seriesSink, sketchesSink)
+}
+
+// hasPendingSketch returns whether a check sampler holds a sketch for the context and second that it has
+// not handed to the check output merger yet.
+func (agg *BufferedAggregator) hasPendingSketch(ck ckey.ContextKey, ts int64) bool {
+	for _, checkSampler := range agg.checkSamplers {
+		if checkSampler.hasSketch(ck, ts) {
+			return true
+		}
+	}
+	return false
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
@@ -686,6 +714,11 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	if trigger.forceFlushAll {
+		agg.drainCheckOutputs(trigger.seriesSink, trigger.sketchesSink)
+	} else {
+		agg.flushCheckOutputs(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	}
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 }
 

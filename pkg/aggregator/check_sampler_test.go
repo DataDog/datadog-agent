@@ -101,6 +101,36 @@ func TestCheckGaugeSampling(t *testing.T) {
 	testWithTagsStore(t, testCheckGaugeSampling)
 }
 
+func testCheckHasSketch(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), nooptagger.NewComponent())
+
+	checkSampler.addSample(&metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}, filterlistimpl.NewNoopTagMatcher())
+
+	var ck ckey.ContextKey
+	for key := range checkSampler.sketchMap[12345] {
+		ck = key
+	}
+	assert.True(t, checkSampler.hasSketch(ck, 12345), "uncommitted")
+	assert.False(t, checkSampler.hasSketch(ck, 12346))
+
+	matcher := metricname.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
+	assert.True(t, checkSampler.hasSketch(ck, 12345), "committed but not flushed")
+
+	checkSampler.flush()
+	assert.False(t, checkSampler.hasSketch(ck, 12345), "flushed")
+}
+
+func TestCheckHasSketch(t *testing.T) {
+	testWithTagsStore(t, testCheckHasSketch)
+}
+
 func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)

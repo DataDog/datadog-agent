@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
@@ -26,7 +27,9 @@ type DistributionMetadata struct {
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
 	DistributionMetadata
-	Points []SketchPoint `json:"points"`
+	Points      []SketchPoint   `json:"points"`
+	ContextKey  ckey.ContextKey `json:"-"`
+	TagFiltered bool            `json:"-"` // A metric_tag_filterlist rule applied to the context
 }
 
 // GetName returns the name of the SketchSeries

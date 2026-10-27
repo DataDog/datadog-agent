@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -109,7 +110,9 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 			Source: ctx.source,
 			// Interval: TODO: investigate
 		},
-		Points: points,
+		Points:      points,
+		ContextKey:  ck,
+		TagFiltered: ctx.filtered,
 	}
 
 	return ss
@@ -244,6 +247,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.M
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
+		serie.TagFiltered = context.filtered
 
 		cs.series = append(cs.series, serie)
 	}
@@ -302,6 +306,20 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	cs.updateMetrics()
 
 	return series, sketches
+}
+
+// hasSketch returns whether the sampler holds a sketch for the context and second that flush has not
+// returned yet, whether it is committed or not.
+func (cs *CheckSampler) hasSketch(ck ckey.ContextKey, ts int64) bool {
+	if cs.sketchMap.has(ts, ck) {
+		return true
+	}
+	for _, sketch := range cs.sketches {
+		if sketch.ContextKey == ck && slices.ContainsFunc(sketch.Points, func(p metrics.SketchPoint) bool { return p.Ts == ts }) {
+			return true
+		}
+	}
+	return false
 }
 
 func (cs *CheckSampler) clearStripCache() {

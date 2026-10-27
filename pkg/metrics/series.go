@@ -61,6 +61,7 @@ type Serie struct {
 	NoIndex        bool                 `json:"-"` // This is only used by api V2
 	Resources      []Resource           `json:"-"` // This is only used by api V2
 	Source         MetricSource         `json:"-"` // This is only used by api V2
+	TagFiltered    bool                 `json:"-"` // A metric_tag_filterlist rule applied to the context
 }
 
 // GetName returns the name of the Serie

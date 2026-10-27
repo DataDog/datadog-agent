@@ -29,6 +29,8 @@ type Context struct {
 	metricTags *tags.Entry
 	noIndex    bool
 	source     metrics.MetricSource
+	// filtered is whether a metric_tag_filterlist rule applied to the context when it was last tracked
+	filtered bool
 }
 
 // resolvedMetricView exposes the final metric identity to the anomaly-detection
@@ -139,8 +141,10 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
+	filtered := false
 	if filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
+			filtered = true
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
 	}
@@ -155,6 +159,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			mtype:      mtype,
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
+			filtered:   filtered,
 		}
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
@@ -166,6 +171,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
+		entry.context.filtered = filtered
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,

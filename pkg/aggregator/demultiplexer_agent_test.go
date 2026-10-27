@@ -654,6 +654,96 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	demux.Stop()
 }
 
+// TestTagFilterListMergesAcrossCheckInstances verifies that when a tag filterlist rule removes the tag
+// that distinguishes two check instances, their points for the same second are merged into one point,
+// since the intake keeps only the last point it receives for a series and second, even when one instance
+// commits its samples after a flush.
+func TestTagFilterListMergesAcrossCheckInstances(t *testing.T) {
+	require := require.New(t)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("metric_tag_filterlist_adp_only", false)
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
+		"dist.metric": {Action: "exclude", Tags: []string{"pod"}},
+	})
+
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		opts,
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		filterList,
+		"",
+	)
+	defer demux.Stop()
+
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	podA, podB := checkid.ID("openmetrics:pod-a"), checkid.ID("openmetrics:pod-b")
+	demux.aggregator.registerSender(podA)
+	demux.aggregator.registerSender(podB)
+
+	send := func(items ...*senderMetricSample) {
+		for _, item := range items {
+			demux.aggregator.checkItems <- item
+		}
+		require.Eventually(func() bool {
+			return len(demux.aggregator.checkItems) == 0
+		}, time.Second, time.Millisecond)
+	}
+	// Each instance reports for its own pod, in the same second.
+	samples := func(id checkid.ID) []*senderMetricSample {
+		return []*senderMetricSample{
+			{id: id, metricSample: &metrics.MetricSample{Name: "dist.metric", Value: 42, Mtype: metrics.DistributionType, Tags: []string{"pod:" + string(id), "env:prod"}, SampleRate: 1, Timestamp: 1.0}},
+			// Not filtered: identical instances are left as they are.
+			{id: id, metricSample: &metrics.MetricSample{Name: "other.metric", Value: 42, Mtype: metrics.DistributionType, Tags: []string{"env:prod"}, SampleRate: 1, Timestamp: 1.0}},
+		}
+	}
+	commit := func(id checkid.ID) *senderMetricSample {
+		return &senderMetricSample{id: id, metricSample: &metrics.MetricSample{}, commit: true}
+	}
+	flush := func() map[string][]*metrics.SketchSeries {
+		s.sketches = nil
+		demux.ForceFlushToSerializer(time.Now(), true, false)
+		byName := map[string][]*metrics.SketchSeries{}
+		for _, d := range s.sketches {
+			ss := d.(*metrics.SketchSeries)
+			byName[ss.Name] = append(byName[ss.Name], ss)
+		}
+		return byName
+	}
+
+	// pod-a commits, while pod-b has submitted samples for the same second but not committed them yet.
+	send(append(samples(podA), commit(podA))...)
+	send(samples(podB)...)
+
+	sketches := flush()
+	require.Empty(sketches["dist.metric"], "dist.metric should be held until pod-b commits")
+	require.Len(sketches["other.metric"], 1)
+
+	send(commit(podB))
+
+	sketches = flush()
+	require.Len(sketches["dist.metric"], 1)
+	require.Equal("env:prod", sketches["dist.metric"][0].Tags.Join(","))
+	require.Len(sketches["dist.metric"][0].Points, 1)
+	require.Equal(int64(2), sketches["dist.metric"][0].Points[0].Sketch.Basic.Cnt)
+	require.Len(sketches["other.metric"], 1)
+}
+
 func TestUpdateMetricFilterList(t *testing.T) {
 	require := require.New(t)
 
