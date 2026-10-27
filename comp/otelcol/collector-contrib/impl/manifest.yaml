@@ -34,6 +34,8 @@ extensions:
     v0.163.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector
     v0.163.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension
+    v0.163.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension
     v0.163.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage
