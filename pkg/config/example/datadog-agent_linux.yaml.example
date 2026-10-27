@@ -4692,9 +4692,9 @@ api_key:
 #
 # private_action_runner:
 
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: false
-#   # Set to true to enable the Private Action Runner.
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: true
+#   # Set to false to disable the Private Action Runner.
 #
 #   enabled: true
 
