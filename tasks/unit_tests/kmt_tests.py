@@ -1,8 +1,9 @@
 import os
 import unittest
-import invoke.exceptions as ie
 from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
+
+import invoke.exceptions as ie
 
 from tasks.kernel_matrix_testing import compiler, platforms, tool, vmconfig
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS

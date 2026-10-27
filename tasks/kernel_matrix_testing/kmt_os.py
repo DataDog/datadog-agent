@@ -42,7 +42,7 @@ class Linux:
     libvirt_dir = kmt_dir / "libvirt"
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
-    virsh = "sudo virsh"
+    virsh = "sudo -n virsh"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
     config_path = kmt_dir / "config.json"
 
