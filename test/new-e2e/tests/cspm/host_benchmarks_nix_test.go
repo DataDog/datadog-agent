@@ -31,11 +31,19 @@ const securityAgent = "/opt/datadog-agent/embedded/bin/security-agent"
 const rulePrefix = "xccdf_org.ssgproject.content_rule_"
 
 // The security-agent evaluates host benchmarks, so the config goes in security-agent.yaml.
+// The rules that walk every local file system, such as no_files_or_dirs_unowned_by_user,
+// take close to a minute on the test VMs. Past the 60s default rule_timeout, oscap-io is
+// killed and the rule is skipped, which fails TestDeterminism.
 const hostBenchmarksConfig = `compliance_config:
   enabled: true
   host_benchmarks:
     enabled: true
+    rule_timeout: ` + xccdfRuleTimeout + `
 `
+
+// xccdfRuleTimeout is the compliance_config.host_benchmarks.rule_timeout of the host
+// benchmarks suites.
+const xccdfRuleTimeout = "10m"
 
 // event is the part of a compliance CheckEvent the assertions need.
 type event struct {

@@ -45,6 +45,7 @@ func testContainerizedHostBenchmarks(t *testing.T, d distro) {
 				dockeragentparams.WithAgentServiceEnvVariable("HOST_ROOT", pulumi.String("/host")),
 				dockeragentparams.WithAgentServiceEnvVariable("DD_COMPLIANCE_CONFIG_ENABLED", pulumi.String("true")),
 				dockeragentparams.WithAgentServiceEnvVariable("DD_COMPLIANCE_CONFIG_HOST_BENCHMARKS_ENABLED", pulumi.String("true")),
+				dockeragentparams.WithAgentServiceEnvVariable("DD_COMPLIANCE_CONFIG_HOST_BENCHMARKS_RULE_TIMEOUT", pulumi.String(xccdfRuleTimeout)),
 			),
 		))),
 	)

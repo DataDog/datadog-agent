@@ -127,6 +127,7 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 		return fmt.Errorf("could not find any benchmark in %q", filepath.Join(benchDir, benchGlob))
 	}
 
+	xccdfTimeout := config.GetDuration("compliance_config.host_benchmarks.rule_timeout")
 	events := make([]*compliance.CheckEvent, 0)
 	for _, benchmark := range benchmarks {
 		var benchmarkEvents []*compliance.CheckEvent
@@ -142,7 +143,7 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 			}
 			benchmarkEvents = append(benchmarkEvents, compliance.EvaluateRegoRule(context.Background(), inputs, benchmark, rule)...)
 		}
-		err := compliance.EvaluateXCCDFRules(context.Background(), hname, compliance.XCCDFProbeRoot(), benchmark, 0, func(rule *compliance.Rule, event *compliance.CheckEvent, took time.Duration) {
+		err := compliance.EvaluateXCCDFRules(context.Background(), hname, compliance.XCCDFProbeRoot(), benchmark, 0, xccdfTimeout, func(rule *compliance.Rule, event *compliance.CheckEvent, took time.Duration) {
 			compliance.ReportXCCDFInput(statsdClient, rule.ID, took)
 			if event != nil {
 				benchmarkEvents = append(benchmarkEvents, event)

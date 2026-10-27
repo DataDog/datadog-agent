@@ -70,6 +70,7 @@ func StartCompliance(log log.Component,
 	configDir := config.GetString("compliance_config.dir")
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	checkInterval := config.GetDuration("compliance_config.check_interval")
+	xccdfTimeout := config.GetDuration("compliance_config.host_benchmarks.rule_timeout")
 
 	if !enabled {
 		return nil, nil
@@ -110,6 +111,7 @@ func StartCompliance(log log.Component,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,
 		CheckInterval:                 checkInterval,
+		XCCDFTimeout:                  xccdfTimeout,
 		EnabledConfigurationExporters: enabledConfigurationsExporters,
 		SysProbeClient:                sysProbeClient,
 	})

@@ -91,6 +91,11 @@ type AgentOptions struct {
 	// benchmarks.
 	CheckIntervalLowPriority time.Duration
 
+	// XCCDFTimeout is the longest wait for oscap-io to answer the next rule
+	// of an XCCDF benchmark, after which the rule is skipped.
+	// By default: 60 seconds.
+	XCCDFTimeout time.Duration
+
 	// EnabledConfigurationExporters lists configuration exporter that shall be
 	// enabled.
 	EnabledConfigurationExporters []ConfigurationExporter
@@ -417,7 +422,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 			if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, benchmark.FrameworkID) {
 				return
 			}
-			err := EvaluateXCCDFRules(ctx, a.opts.Hostname, XCCDFProbeRoot(), benchmark, defaultEvalThrottling, func(rule *Rule, event *CheckEvent, took time.Duration) {
+			err := EvaluateXCCDFRules(ctx, a.opts.Hostname, XCCDFProbeRoot(), benchmark, defaultEvalThrottling, a.opts.XCCDFTimeout, func(rule *Rule, event *CheckEvent, took time.Duration) {
 				ReportXCCDFInput(a.opts.StatsdClient, rule.ID, took)
 				if event != nil {
 					a.reportCheckEvents(checkInterval, event)

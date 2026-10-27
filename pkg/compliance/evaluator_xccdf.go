@@ -36,12 +36,9 @@ const (
 )
 
 const (
-	// xccdfTimeout is the longest wait for the next answer from oscap-io.
-	// The rules that walk every local file system, such as
-	// no_files_or_dirs_unowned_by_user, take close to a minute on a fresh
-	// cloud host and longer on a host with more files, and a rule the
-	// watchdog kills oscap-io on reports nothing.
-	xccdfTimeout = 10 * time.Minute
+	// defaultXCCDFTimeout is the default longest wait for the next answer
+	// from oscap-io, as compliance_config.host_benchmarks.rule_timeout.
+	defaultXCCDFTimeout = 60 * time.Second
 
 	// xccdfWaitDelay bounds the wait for the oscap-io output once the
 	// process has exited.
@@ -103,14 +100,18 @@ type oscapIO struct {
 // informational and fixed results. With a positive interval,
 // it sends a rule once oscap-io has answered the previous one, and at least
 // interval after it. With a zero interval, it sends them all at once. A rule
-// oscap-io stalls on, or dies on, is logged and skipped. EvaluateXCCDFRules
-// returns the errors that ended an evaluation early, or an error when the
-// XCCDF rules of benchmark produced zero events.
-func EvaluateXCCDFRules(ctx context.Context, hostname, root string, benchmark *Benchmark, interval time.Duration, report func(*Rule, *CheckEvent, time.Duration)) error {
+// oscap-io stalls on, staying silent for timeout, or dies on, is logged and
+// skipped. A timeout that is not positive stands for defaultXCCDFTimeout.
+// EvaluateXCCDFRules returns the errors that ended an evaluation early, or an
+// error when the XCCDF rules of benchmark produced zero events.
+func EvaluateXCCDFRules(ctx context.Context, hostname, root string, benchmark *Benchmark, interval, timeout time.Duration, report func(*Rule, *CheckEvent, time.Duration)) error {
 	newCmd := func(ctx context.Context, file string) (*exec.Cmd, error) {
 		return oscapIOCommand(ctx, file, root)
 	}
-	return evaluateXCCDF(ctx, hostname, benchmark, newCmd, interval, xccdfTimeout, report)
+	if timeout <= 0 {
+		timeout = defaultXCCDFTimeout
+	}
+	return evaluateXCCDF(ctx, hostname, benchmark, newCmd, interval, timeout, report)
 }
 
 // evaluateXCCDF is EvaluateXCCDFRules with the oscap-io command and the

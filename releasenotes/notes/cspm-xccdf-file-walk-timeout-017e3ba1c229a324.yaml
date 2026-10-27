@@ -1,9 +1,8 @@
 ---
-fixes:
+enhancements:
   - |
-    CSPM host benchmarks wait up to 10 minutes for an XCCDF rule, where they
-    used to skip a rule whose evaluation took more than 60 seconds. The rules
-    that walk every local file system, such as
-    ``no_files_or_dirs_unowned_by_user`` and
-    ``no_files_or_dirs_ungroupowned``, no longer go missing from a run on
-    hosts where the walk outlasts a minute.
+    CSPM host benchmarks add the ``compliance_config.host_benchmarks.rule_timeout``
+    setting, 60 seconds by default: the longest wait for an XCCDF rule before
+    the rule is skipped. Raise it on hosts where the rules that walk every
+    local file system, such as ``no_files_or_dirs_unowned_by_user``, take
+    longer and go missing from the results.
