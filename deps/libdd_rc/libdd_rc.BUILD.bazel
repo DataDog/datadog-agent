@@ -368,9 +368,9 @@ cc_library(
     }),
 )
 
-# bridge.go is intentionally omitted: it contains Cargo-relative #cgo paths.
-# Bazel supplies the header, Rust archive, and any platform-specific native
-# runtime libraries through rc_x509_ffi_cc.
+# The upstream cgo directives name the libraries to link but not their
+# locations. Bazel supplies the header, Rust archive, and any platform-specific
+# native runtime libraries through rc_x509_ffi_cc.
 # The optional log-sink API currently transports a Unix integer file descriptor
 # and cannot represent a 64-bit Windows HANDLE. Keep both Go wrappers out of the
 # Windows package; the x509 client itself does not depend on native tracing.
