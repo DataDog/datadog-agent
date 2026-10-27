@@ -111,6 +111,18 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	if oscapProbeRoot != "" {
 		cmd.Env = append(cmd.Env, "OSCAP_PROBE_ROOT="+oscapProbeRoot)
 	}
+	// OpenSCAP removes its temporary files only when it exits cleanly, so
+	// the process gets a TMPDIR of its own, removed once it has exited.
+	tmp, err := os.MkdirTemp("", "oscap-io-")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			log.Warnf("oscap-io: %v", err)
+		}
+	}()
+	cmd.Env = append(cmd.Env, "TMPDIR="+tmp)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
