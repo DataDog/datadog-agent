@@ -1164,8 +1164,8 @@ func promotedTagsClearEvent(containerID string) workloadmeta.CollectorEvent {
 	}
 }
 
-// promotedProcessTags returns each allowlisted tag whose value is set and equal
-// across every process in a container.
+// promotedProcessTags returns each allowlisted tag whose value is equal across
+// every process in a container that provides that tag.
 func promotedProcessTags(processes []*workloadmeta.Process) map[string]string {
 	tags := make(map[string]string)
 	for key := range promotableProcessTagKeys {
@@ -1182,20 +1182,25 @@ func promotedProcessTags(processes []*workloadmeta.Process) map[string]string {
 
 func agreedProcessTagValue(processes []*workloadmeta.Process, key string) (string, bool) {
 	var value string
-	for i, process := range processes {
+	var foundValue bool
+	for _, process := range processes {
 		values := processTagValues(process, key)
+		if len(values) == 0 {
+			continue
+		}
 		if len(values) != 1 {
 			return "", false
 		}
-		if i == 0 {
+		if !foundValue {
 			value = values[0]
+			foundValue = true
 			continue
 		}
 		if value != values[0] {
 			return "", false
 		}
 	}
-	return value, len(processes) > 0
+	return value, foundValue
 }
 
 func processTagValues(process *workloadmeta.Process, key string) []string {

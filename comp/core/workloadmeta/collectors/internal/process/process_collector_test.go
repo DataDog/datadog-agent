@@ -1078,11 +1078,23 @@ func TestPromotedProcessTags(t *testing.T) {
 			},
 		},
 		{
-			name: "missing tag blocks promotion",
+			name: "missing tags do not block promotion",
 			processes: []*workloadmeta.Process{
 				processWithTags("training_run_id:run-1"),
 				processWithTags("training_group_id:group-1"),
 			},
+			expected: map[string]string{
+				"training_group_id": "group-1",
+				"training_run_id":   "run-1",
+			},
+		},
+		{
+			name: "process without tags does not block promotion",
+			processes: []*workloadmeta.Process{
+				processWithTags("training_run_id:run-1"),
+				{},
+			},
+			expected: map[string]string{"training_run_id": "run-1"},
 		},
 		{
 			name: "different values block only that key",
