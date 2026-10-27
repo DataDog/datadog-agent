@@ -203,10 +203,10 @@ http_archive(
         "config-linux-x86_64.h": "//deps:attr/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:attr/config-linux-arm64.h",
     },
-    sha256 = "db448a626f9313a1a970d636767316a8da32aede70518b8050fa0de7947adc32",
-    strip_prefix = "attr-2.5.1",
+    sha256 = "6c8a2148a7b85043b68492bce43316b0e2e214fc4e628c7ede078e76e216330b",
+    strip_prefix = "attr-2.6.0",
     urls = [
-        "https://download.savannah.nongnu.org/releases/attr/attr-2.5.1.tar.xz",
+        "https://download.savannah.nongnu.org/releases/attr/attr-2.6.0.tar.xz",
     ],
 )
 
