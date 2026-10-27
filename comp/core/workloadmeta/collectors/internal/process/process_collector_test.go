@@ -30,6 +30,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -1057,6 +1058,113 @@ func TestContainerIDRaceCondition(t *testing.T) {
 			ID:   "container-abc",
 		}, actualProc.Owner)
 	}, time.Second, time.Millisecond*100)
+}
+
+func TestPromotedProcessTags(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		processes []*workloadmeta.Process
+		expected  map[string]string
+	}{
+		{
+			name: "all processes agree",
+			processes: []*workloadmeta.Process{
+				processWithTags("training_run_id:run-1,training_group_id:group-1"),
+				processWithTags("training_run_id:run-1,training_group_id:group-1"),
+			},
+			expected: map[string]string{
+				"training_group_id": "group-1",
+				"training_run_id":   "run-1",
+			},
+		},
+		{
+			name: "missing tag blocks promotion",
+			processes: []*workloadmeta.Process{
+				processWithTags("training_run_id:run-1"),
+				processWithTags("training_group_id:group-1"),
+			},
+		},
+		{
+			name: "different values block only that key",
+			processes: []*workloadmeta.Process{
+				processWithTags("training_run_id:run-1,training_group_id:group-1"),
+				processWithTags("training_run_id:run-2,training_group_id:group-1"),
+			},
+			expected: map[string]string{"training_group_id": "group-1"},
+		},
+		{
+			name: "non-allowlisted tags are not promoted",
+			processes: []*workloadmeta.Process{
+				processWithTags("service:worker"),
+				processWithTags("service:worker"),
+			},
+		},
+		{
+			name: "conflicting metadata in one process blocks promotion",
+			processes: []*workloadmeta.Process{
+				processWithTags("training_run_id:run-1", "training_run_id:run-2"),
+				processWithTags("training_run_id:run-1"),
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, promotedProcessTags(test.processes))
+		})
+	}
+}
+
+func TestProcessContainerID(t *testing.T) {
+	container := workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "owner"}
+	assert.Equal(t, "owner", processContainerID(&workloadmeta.Process{Owner: &container, ContainerID: "fallback"}))
+	assert.Equal(t, "fallback", processContainerID(&workloadmeta.Process{ContainerID: "fallback"}))
+	assert.Empty(t, processContainerID(&workloadmeta.Process{}))
+}
+
+func TestPromoteProcessTagsToContainersIsGatedByGPUTracing(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		enabled bool
+	}{
+		{name: "tracing enabled", enabled: true},
+		{name: "tracing disabled"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("gpu.tracing.enabled", test.enabled)
+			collectorTest := setUpCollectorTest(t, cfg, nil, nil)
+
+			containerID := "container-1"
+			owner := workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}
+			for pid := range 2 {
+				collectorTest.mockStore.Set(&workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(pid + 1)},
+					Pid:      int32(pid + 1),
+					Owner:    &owner,
+					Service: &workloadmeta.Service{TracerMetadata: []tracermetadata.TracerMetadata{
+						{ProcessTags: "training_run_id:run-1"},
+					}},
+				})
+			}
+
+			collectorTest.collector.promoteProcessTagsToContainers()
+
+			container, err := collectorTest.mockStore.GetContainer(containerID)
+			if !test.enabled {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, map[string]string{"training_run_id": "run-1"}, container.PromotedTags)
+		})
+	}
+}
+
+func processWithTags(tags ...string) *workloadmeta.Process {
+	metadata := make([]tracermetadata.TracerMetadata, 0, len(tags))
+	for _, processTags := range tags {
+		metadata = append(metadata, tracermetadata.TracerMetadata{ProcessTags: processTags})
+	}
+	return &workloadmeta.Process{Service: &workloadmeta.Service{TracerMetadata: metadata}}
 }
 
 func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {

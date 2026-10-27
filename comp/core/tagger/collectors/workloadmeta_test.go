@@ -3661,6 +3661,31 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
+			name: "promoted process tags",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				PromotedTags: map[string]string{"training_run_id": "run-1"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"training_run_id:run-1",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "resize policy",
 			container: workloadmeta.Container{
 				EntityID: entityID,

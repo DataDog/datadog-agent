@@ -276,6 +276,10 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
+	for key, value := range container.PromotedTags {
+		tagList.AddLow(key, value)
+	}
+
 	// resize policy tags
 	if container.ResizePolicy.CPURestartPolicy != "" {
 		tagList.AddLow(tags.CPURestartPolicy, container.ResizePolicy.CPURestartPolicy)
