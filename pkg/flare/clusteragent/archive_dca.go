@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	autoscalingrc "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/remoteconfig"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -115,6 +116,12 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(ctx, fb) //nolint:errcheck
+	}
+
+	// No-op unless autoscaling reads its configuration from its own endpoint.
+	if err := autoscalingrc.AddFlareFiles(fb, pkgconfigsetup.Datadog()); err != nil {
+		// Debug is fine since the file does not always exist
+		log.Debugf("Could not add the autoscaling remote configuration cache to the flare: %v", err)
 	}
 }
 

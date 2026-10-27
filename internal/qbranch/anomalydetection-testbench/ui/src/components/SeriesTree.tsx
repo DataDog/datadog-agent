@@ -10,6 +10,7 @@ interface SeriesInfo {
   displayName?: string;
   /** True when the metric group is log-derived (extractor); used for the cyan "v" badge. */
   virtual?: boolean;
+  metricTypes?: string[];
 }
 
 interface TreeNode {
@@ -17,13 +18,16 @@ interface TreeNode {
   fullPath: string;
   children: Map<string, TreeNode>;
   seriesKeys: string[];
+  leafSeriesKeys: string[];
   isLeaf: boolean;
 }
 
 interface SeriesTreeProps {
   series: SeriesInfo[];
   selectedSeries: Set<string>;
+  selectedMetricTypes: Set<string>;
   anomalousSources: Set<string>;
+  onToggleMetricType: (metricType: string) => void;
   onSelectionChange: (newSelection: Set<string>) => void;
 }
 
@@ -33,6 +37,7 @@ function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNod
     fullPath: '',
     children: new Map(),
     seriesKeys: [],
+    leafSeriesKeys: [],
     isLeaf: false,
   };
 
@@ -64,12 +69,14 @@ function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNod
           fullPath: pathSoFar,
           children: new Map(),
           seriesKeys: [],
+          leafSeriesKeys: [],
           isLeaf: false,
         });
       }
 
       current = current.children.get(part)!;
       current.seriesKeys.push(key);
+      if (i === parts.length - 1) current.leafSeriesKeys.push(key);
     }
 
     current.isLeaf = true;
@@ -82,8 +89,11 @@ interface TreeNodeComponentProps {
   node: TreeNode;
   depth: number;
   selectedSeries: Set<string>;
+  selectedMetricTypes: Set<string>;
   anomalousSources: Set<string>;
   virtualByKey: Map<string, boolean>;
+  metricTypesByKey: Map<string, string[]>;
+  onToggleMetricType: (metricType: string) => void;
   onToggleNode: (keys: string[]) => void;
   expandedPaths: Set<string>;
   onToggleExpanded: (path: string) => void;
@@ -93,8 +103,11 @@ function TreeNodeComponent({
   node,
   depth,
   selectedSeries,
+  selectedMetricTypes,
   anomalousSources,
   virtualByKey,
+  metricTypesByKey,
+  onToggleMetricType,
   onToggleNode,
   expandedPaths,
   onToggleExpanded,
@@ -105,6 +118,7 @@ function TreeNodeComponent({
   const uniqueKeys = [...new Set(keys)];
   const onlyVirtual =
     uniqueKeys.length > 0 && uniqueKeys.every((k) => virtualByKey.get(k) === true);
+  const metricTypes = [...new Set(node.leafSeriesKeys.flatMap((key) => metricTypesByKey.get(key) ?? []))].sort();
 
   const allSelected = keys.length > 0 && keys.every((k) => selectedSeries.has(k));
   const someSelected = keys.some((k) => selectedSeries.has(k));
@@ -157,6 +171,30 @@ function TreeNodeComponent({
           {node.name}
         </span>
 
+        {metricTypes.length > 0 && (
+          <span className="flex items-center gap-0.5 shrink-0 max-w-28 overflow-hidden" title={`Metric type${metricTypes.length === 1 ? '' : 's'}: ${metricTypes.join(', ')}`}>
+            {metricTypes.map((type) => {
+              const active = selectedMetricTypes.has(type);
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleMetricType(type);
+                  }}
+                  className={`text-[10px] px-1 py-0.5 rounded font-mono truncate transition-colors ${
+                    active ? 'bg-indigo-600/50 text-indigo-200 ring-1 ring-indigo-400/60' : 'bg-slate-700/80 text-indigo-300/90 hover:bg-indigo-600/40 hover:text-indigo-200'
+                  }`}
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </span>
+        )}
+
         {onlyVirtual && (
           <span className="text-[10px] font-semibold text-cyan-400/85 shrink-0 leading-none select-none">v</span>
         )}
@@ -176,8 +214,11 @@ function TreeNodeComponent({
               node={child}
               depth={depth + 1}
               selectedSeries={selectedSeries}
+              selectedMetricTypes={selectedMetricTypes}
               anomalousSources={anomalousSources}
               virtualByKey={virtualByKey}
+              metricTypesByKey={metricTypesByKey}
+              onToggleMetricType={onToggleMetricType}
               onToggleNode={onToggleNode}
               expandedPaths={expandedPaths}
               onToggleExpanded={onToggleExpanded}
@@ -192,7 +233,9 @@ function TreeNodeComponent({
 export function SeriesTree({
   series,
   selectedSeries,
+  selectedMetricTypes,
   anomalousSources,
+  onToggleMetricType,
   onSelectionChange,
 }: SeriesTreeProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -203,6 +246,14 @@ export function SeriesTree({
     const m = new Map<string, boolean>();
     for (const s of series) {
       m.set(s.key, s.virtual === true);
+    }
+    return m;
+  }, [series]);
+
+  const metricTypesByKey = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const s of series) {
+      if (s.metricTypes?.length) m.set(s.key, s.metricTypes);
     }
     return m;
   }, [series]);
@@ -333,8 +384,11 @@ export function SeriesTree({
             node={child}
             depth={0}
             selectedSeries={selectedSeries}
+            selectedMetricTypes={selectedMetricTypes}
             anomalousSources={anomalousSources}
             virtualByKey={virtualByKey}
+            metricTypesByKey={metricTypesByKey}
+            onToggleMetricType={onToggleMetricType}
             onToggleNode={toggleNode}
             expandedPaths={expandedPaths}
             onToggleExpanded={toggleExpanded}

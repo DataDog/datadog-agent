@@ -21,6 +21,7 @@ const (
 	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when a bounded observer admission queue is full.
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
 	telemetryLogsAcceptedBytes               = "observer.logs.accepted_bytes"                 // Total bytes accepted into observer log ingestion.
+	telemetryFilteredLogs                    = "observer.logs.filtered"                       // Number of logs filtered out by processing rules before/during admission.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
@@ -41,6 +42,7 @@ type observerTelemetry struct {
 	logPatternCount      telemetry.Gauge
 
 	logsAcceptedBytes    telemetry.Counter
+	filteredLogs         telemetry.Counter
 	filteredMetrics      telemetry.Counter
 	seriesCount          telemetry.Gauge
 	logsInFlight         telemetry.Gauge
@@ -84,6 +86,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryLogsAcceptedBytes,
 			[]string{"source"},
 			"Log content bytes accepted into the observer admission boundary",
+		),
+		filteredLogs: telemetryComp.NewCounter(
+			"observer",
+			telemetryFilteredLogs,
+			nil,
+			"Logs filtered out by processing rules before or during observer admission",
 		),
 		filteredMetrics: telemetryComp.NewCounter(
 			"observer",
@@ -188,6 +196,10 @@ func (t *observerTelemetry) recordMetricAccepted(source string) {
 	t.recordObservationAccepted("metrics", source)
 }
 
+func (t *observerTelemetry) recordFilteredLog() {
+	t.filteredLogs.Add(1)
+}
+
 func (t *observerTelemetry) recordFilteredMetric(source string) {
 	t.filteredMetrics.Add(1, source)
 }
@@ -268,6 +280,21 @@ func classifyLogSource(source string, tags []string) string {
 		}
 	}
 	return "containers"
+}
+
+// classifyLogSourceByOrigin resolves the log source category without inspecting
+// tags when either the handle source or the log's origin source is known.
+func classifyLogSourceByOrigin(handleSource, rawSource string) string {
+	if handleSource == "agent_logs" || rawSource == agentLogSource {
+		return "internal"
+	}
+	if rawSource == "kubelet" {
+		return "kubelet"
+	}
+	if rawSource != "" {
+		return "containers"
+	}
+	return ""
 }
 
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {

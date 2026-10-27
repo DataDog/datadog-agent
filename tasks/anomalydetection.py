@@ -133,6 +133,7 @@ def launch_testbench(
     timeout: int = 0,
     logs_only: bool = False,
     retain_parquet: bool = False,
+    allowed_types: str = "",
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -152,6 +153,7 @@ def launch_testbench(
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
         retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
+        allowed_types: Comma-separated allowed metric types (passed as --allowed_types).
     """
     if build:
         print("Building anomalydetection-testbench...")
@@ -169,6 +171,8 @@ def launch_testbench(
         flags += " --logs-only"
     if retain_parquet:
         flags += " --retain-parquet"
+    if allowed_types:
+        flags += f" --allowed_types {shlex.quote(allowed_types)}"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:

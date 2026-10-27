@@ -29,6 +29,15 @@ type Config struct {
 	PreferGrEngineSMActive bool
 	// StaticMetricsReportingInterval is the reporting interval for static GPU metrics.
 	StaticMetricsReportingInterval time.Duration
+	// GPUMonitoringEnabled indicates whether GPU monitoring is enabled in the core Agent. Not to be
+	// confused with Enabled, which is the system-probe setting.
+	GPUMonitoringEnabled bool
+	// IntegrateWithWorkloadmetaProcesses indicates whether the NVML workloadmeta collector should link
+	// GPUs to the processes reported by workloadmeta.
+	IntegrateWithWorkloadmetaProcesses bool
+	// KAISchedulerEnabled indicates whether the NVML workloadmeta collector should map KAI Scheduler
+	// fractional GPU workloads to their device.
+	KAISchedulerEnabled bool
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
@@ -196,5 +205,9 @@ func New() *Config {
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 		JobsConfig:                 NewJobsConfig(agentCfg),
 		TracingConfig:              NewTracingConfig(agentCfg),
+
+		GPUMonitoringEnabled:               agentCfg.GetBool("gpu.enabled"),
+		IntegrateWithWorkloadmetaProcesses: agentCfg.GetBool("gpu.integrate_with_workloadmeta_processes"),
+		KAISchedulerEnabled:                agentCfg.GetBool("gpu.kai_scheduler.enabled"),
 	}
 }

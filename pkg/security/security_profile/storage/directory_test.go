@@ -173,3 +173,26 @@ func TestClearLocalProfilesOnStart(t *testing.T) {
 		require.NoError(t, ClearLocalProfilesOnStart(filepath.Join(t.TempDir(), "profiles")))
 	})
 }
+
+func TestDirectoryPersistRejectsUnsafeNames(t *testing.T) {
+	rootDir := t.TempDir()
+	profilesDir := filepath.Join(rootDir, "profiles")
+
+	d, err := NewDirectory(profilesDir, 10)
+	require.NoError(t, err)
+
+	request := config.StorageRequest{
+		Type:   config.LocalStorage,
+		Format: config.Protobuf,
+	}
+
+	for _, name := range []string{"", ".", "..", "../escaped", "sub/dir", "..\\escaped", "nul\x00byte"} {
+		p := newProfileWithSelector(name, "image", "tag")
+		b, err := p.profile.Encode(request.Format)
+		require.NoError(t, err)
+		assert.Errorf(t, d.Persist(request, p.profile, b), "profile name %q should be rejected", name)
+	}
+
+	_, err = os.Stat(filepath.Join(rootDir, "escaped."+request.Format.String()))
+	assert.ErrorIs(t, err, os.ErrNotExist, "no file must be written outside of the profiles directory")
+}

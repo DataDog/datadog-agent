@@ -1,6 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("//packages/rules:agent_path.bzl", "etc_dir")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -56,10 +57,7 @@ pkg_files(
 pkg_files(
     name = "ai_usage_config_example",
     srcs = ["ai_usage_native_host.yaml.example"],
-    prefix = select({
-        "@platforms//os:macos": "etc",
-        "@platforms//os:windows": "etc/datadog-agent",
-    }),
+    prefix = etc_dir(),
     target_compatible_with = _MACOS_OR_WINDOWS,
     visibility = ["//packages:__subpackages__"],
 )

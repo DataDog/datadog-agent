@@ -12,6 +12,30 @@ package types
 // ModuleName is a typed alias for string, used only for module names
 type ModuleName string
 
+// system-probe module names
+const (
+	NetworkTracerModule          ModuleName = "network_tracer"
+	OOMKillProbeModule           ModuleName = "oom_kill_probe"
+	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
+	ProcessModule                ModuleName = "process"
+	EventMonitorModule           ModuleName = "event_monitor"
+	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
+	EBPFModule                   ModuleName = "ebpf"
+	LanguageDetectionModule      ModuleName = "language_detection"
+	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
+	ComplianceModule             ModuleName = "compliance"
+	PingModule                   ModuleName = "ping"
+	TracerouteModule             ModuleName = "traceroute"
+	DiscoveryModule              ModuleName = "discovery"
+	GPUMonitoringModule          ModuleName = "gpu"
+	SoftwareInventoryModule      ModuleName = "software_inventory"
+	NotableEventsModule          ModuleName = "notable_events"
+	PrivilegedLogsModule         ModuleName = "privileged_logs"
+	InjectorModule               ModuleName = "injector"
+	NoisyNeighborModule          ModuleName = "noisy_neighbor"
+	LogonDurationModule          ModuleName = "logon_duration"
+)
+
 // Config represents the configuration options for the system-probe
 type Config struct {
 	Enabled        bool

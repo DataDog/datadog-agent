@@ -323,11 +323,14 @@ func resolveSnapshotID(ctx context.Context, client *awsec2.Client, imageID strin
 }
 
 // replaceRootVolume creates a replace-root-volume task for instanceID from
-// snapshotID and blocks until it succeeds, fails, or times out.
+// snapshotID and blocks until it succeeds, fails, or times out. The replaced root
+// volume is deleted once the task completes; EC2 otherwise keeps it as an unattached
+// volume, leaking one per revert.
 func replaceRootVolume(ctx context.Context, client *awsec2.Client, instanceID, snapshotID string) error {
 	createOut, err := client.CreateReplaceRootVolumeTask(ctx, &awsec2.CreateReplaceRootVolumeTaskInput{
-		InstanceId: aws.String(instanceID),
-		SnapshotId: aws.String(snapshotID),
+		InstanceId:               aws.String(instanceID),
+		SnapshotId:               aws.String(snapshotID),
+		DeleteReplacedRootVolume: aws.Bool(true),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create replace-root-volume task: %w", err)

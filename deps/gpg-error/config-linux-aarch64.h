@@ -2,7 +2,7 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Git commit id used to build this package */
-#define BUILD_COMMITID "b3b68bde07b02dd2b6d78356ac90baa652a309fa"
+#define BUILD_COMMITID "687c9da501c21a64f7dcedfa73146a4670009cea"
 
 /* The time this package was configured for a build */
 #define BUILD_TIMESTAMP "<none>"
@@ -135,6 +135,9 @@
 /* Define to 1 if you have the <signal.h> header file. */
 #define HAVE_SIGNAL_H 1
 
+/* Define to 1 if you have the `snprintf' function. */
+#define HAVE_SNPRINTF 1
+
 /* Define to 1 if you have the `stat' function. */
 #define HAVE_STAT 1
 
@@ -227,7 +230,7 @@
 #define PACKAGE_NAME "libgpg-error"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libgpg-error 1.56"
+#define PACKAGE_STRING "libgpg-error 1.61"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libgpg-error"
@@ -236,7 +239,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.56"
+#define PACKAGE_VERSION "1.61"
 
 /* Define if the pthread_in_use() detection is hard. */
 /* #undef PTHREAD_IN_USE_DETECTION_HARD */
@@ -380,7 +383,7 @@
 /* #undef USE_WINDOWS_THREADS */
 
 /* Version number of package */
-#define VERSION "1.57"
+#define VERSION "1.61"
 
 /* Expose all libc features (__DARWIN_C_FULL). */
 #define _DARWIN_C_SOURCE 1
