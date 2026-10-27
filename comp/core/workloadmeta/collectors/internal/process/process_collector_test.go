@@ -1132,6 +1132,7 @@ func TestPromoteProcessTagsToContainersIsGatedByGPUTracing(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("gpu.tracing.enabled", test.enabled)
 			collectorTest := setUpCollectorTest(t, cfg, nil, nil)
+			collectorTest.collector.store = collectorTest.mockStore
 
 			containerID := "container-1"
 			owner := workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}

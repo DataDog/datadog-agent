@@ -1100,15 +1100,17 @@ func (c *collector) collectServicesCachedOnce(ctx context.Context) {
 // promoteProcessTagsToContainers copies allowlisted tracer process tags onto their
 // owner container when GPU tracing is enabled and every process agrees on the tag.
 func (c *collector) promoteProcessTagsToContainers() {
+	if !c.config.GetBool("gpu.tracing.enabled") {
+		return
+	}
+
 	processesByContainer := make(map[string][]*workloadmeta.Process)
-	if c.config.GetBool("gpu.tracing.enabled") {
-		for _, process := range c.store.ListProcesses() {
-			containerID := processContainerID(process)
-			if containerID == "" {
-				continue
-			}
-			processesByContainer[containerID] = append(processesByContainer[containerID], process)
+	for _, process := range c.store.ListProcesses() {
+		containerID := processContainerID(process)
+		if containerID == "" {
+			continue
 		}
+		processesByContainer[containerID] = append(processesByContainer[containerID], process)
 	}
 
 	events := make([]workloadmeta.CollectorEvent, 0, len(processesByContainer)+len(c.promotedTagContainers))
