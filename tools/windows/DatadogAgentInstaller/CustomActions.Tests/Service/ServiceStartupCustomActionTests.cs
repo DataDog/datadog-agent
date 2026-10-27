@@ -47,6 +47,57 @@ namespace CustomActions.Tests.Service
             Assert.True(saved[0].DelayedAutoStart);
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void StopActionOnlySnapshotsAndDisablesForTheOuterTransaction(bool nestedRemoval)
+        {
+            SetServices(Constants.AgentServiceName);
+            var service = Mock.Get(ServiceController.Object.Services.Single());
+            service.SetupGet(s => s.Status).Returns(ServiceControllerStatus.Running);
+            if (nestedRemoval)
+            {
+                Session.Object["UPGRADINGPRODUCTCODE"] = "{outer-product-code}";
+                // A future old MSI sees the temporary Disabled value left by the outer MSI.
+                service.SetupGet(s => s.StartType).Returns(ServiceStartMode.Disabled);
+            }
+            var events = new List<string>();
+            ServiceController.Setup(c => c.SetStartType(Constants.AgentServiceName, ServiceStartMode.Disabled))
+                .Callback(() => events.Add("disabled"));
+            ServiceController.Setup(c => c.StopService(Constants.AgentServiceName, It.IsAny<TimeSpan>()))
+                .Callback(() => events.Add("stopped"));
+
+            var result = Create().StopDDServicesWithSnapshot(settings =>
+            {
+                Assert.Equal(ServiceStartMode.Automatic, Assert.Single(settings).StartType);
+                events.Add("saved");
+            });
+
+            Assert.Equal(ActionResult.Success, result);
+            Assert.Equal(nestedRemoval ? new[] { "stopped" } : new[] { "saved", "disabled", "stopped" }, events);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void StopActionDoesNotMutateServicesWithoutRollbackProtection(bool rollbackDisabled)
+        {
+            SetServices(ServiceStartupCustomAction.ProtectedServices);
+            Session.Object["RollbackDisabled"] = rollbackDisabled ? "1" : "";
+            var saveAttempted = false;
+
+            var result = Create().StopDDServicesWithSnapshot(_ =>
+            {
+                saveAttempted = true;
+                throw new InvalidOperationException("Cannot persist snapshot");
+            });
+
+            Assert.Equal(ActionResult.Failure, result);
+            Assert.Equal(!rollbackDisabled, saveAttempted);
+            ServiceController.Verify(c => c.SetStartType(It.IsAny<string>(), It.IsAny<ServiceStartMode>()), Times.Never);
+            ServiceController.Verify(c => c.StopService(It.IsAny<string>(), It.IsAny<TimeSpan>()), Times.Never);
+        }
+
         [Fact]
         public void EnableRestoresPackageDefaultsWithCoreAgentLastWithoutStartingServices()
         {

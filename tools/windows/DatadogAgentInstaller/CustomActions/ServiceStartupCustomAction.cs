@@ -96,39 +96,9 @@ namespace Datadog.CustomActions
             return Path.Combine(directory, id.ToString("N") + ".json");
         }
 
-        public static ActionResult Prepare(Session session)
+        internal static void SaveSnapshot(ISession session, List<StartupSettings> settings)
         {
-            if (session["RollbackDisabled"] == "1")
-            {
-                session.Log("Service protection requires Windows Installer rollback to be enabled");
-                return ActionResult.Failure;
-            }
-            session["DD_SERVICE_STARTUP_ID"] = Guid.NewGuid().ToString("N");
-            return ActionResult.Success;
-        }
-
-        public static ActionResult Disable(Session session)
-        {
-            var wrapper = new SessionWrapper(session);
-            try
-            {
-                var path = SnapshotPath(wrapper);
-                Disable(new Native.ServiceController(),
-                    settings => File.WriteAllText(path, JsonConvert.SerializeObject(settings)),
-                    () =>
-                    {
-                        if (new ServiceCustomAction(wrapper).StopDDServices(false) != ActionResult.Success)
-                        {
-                            throw new InvalidOperationException("Could not stop Agent services");
-                        }
-                    });
-                return ActionResult.Success;
-            }
-            catch (Exception e)
-            {
-                session.Log($"Failed to disable and stop services: {e}");
-                return ActionResult.Failure;
-            }
+            File.WriteAllText(SnapshotPath(session), JsonConvert.SerializeObject(settings));
         }
 
         public static ActionResult Restore(Session session)
