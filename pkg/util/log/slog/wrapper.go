@@ -24,6 +24,12 @@ var _ types.LoggerInterface = (*Wrapper)(nil)
 
 const baseStackDepth = 4
 
+// logStackBaseDepth is the number of stack frames runtime.Callers skips to
+// reach the caller of Log/Logf: runtime.Callers itself, record, logMessage (or
+// logMessagef) and Log (or Logf). The extraDepth argument of Log/Logf counts
+// the frames to skip below that point.
+const logStackBaseDepth = 4
+
 // Wrapper is a wrapper around the slog.Handler interface.
 // It implements the LoggerInterface interface.
 type Wrapper struct {
@@ -105,6 +111,80 @@ func renderArgs(v ...interface{}) string {
 
 func renderFormat(format string, params ...interface{}) string {
 	return fmt.Sprintf(format, params...)
+}
+
+// Log formats message using the default formats for its operands
+// and writes it to log with the given level, skipping extraDepth call frames
+// below its own caller to compute the origin of the entry, and attaching the
+// context key/value pairs to the record.
+//
+// It returns an error containing the message for the warn, error and critical
+// levels, and nil for the trace, debug and info levels.
+func (w *Wrapper) Log(level types.LogLevel, message string, extraDepth int, context ...interface{}) error {
+	return w.logMessage(level, message, extraDepth, context)
+}
+
+func (w *Wrapper) logMessage(level types.LogLevel, message string, extraDepth int, contextPairs []interface{}) error {
+	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+		w.record(level, message, extraDepth, formatters.ToSlogAttrs(contextPairs))
+	}
+	if level >= types.WarnLvl {
+		return errors.New(message)
+	}
+	return nil
+}
+
+// Logf formats message according to format specifier and writes it to log
+// with the given level, skipping extraDepth call frames below its own caller
+// to compute the origin of the entry.
+//
+// It returns an error containing the formatted message for the warn, error and
+// critical levels, and nil for the trace, debug and info levels.
+func (w *Wrapper) Logf(level types.LogLevel, format string, extraDepth int, params ...interface{}) error {
+	return w.logMessagef(level, format, extraDepth, params)
+}
+
+func (w *Wrapper) logMessagef(level types.LogLevel, format string, extraDepth int, params []interface{}) error {
+	// warn and above always render the message to return it as an error, like
+	// the Warnf & co methods do
+	alwaysRender := level >= types.WarnLvl
+	message := ""
+	if alwaysRender {
+		message = renderFormat(format, params...)
+	}
+	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+		if !alwaysRender {
+			message = renderFormat(format, params...)
+		}
+		w.record(level, message, extraDepth, nil)
+	}
+	if alwaysRender {
+		return errors.New(message)
+	}
+	return nil
+}
+
+// record writes one log record, resolving the origin of the entry
+// logStackBaseDepth+extraDepth frames up the call stack, with the given
+// attributes attached to the record.
+func (w *Wrapper) record(level types.LogLevel, message string, extraDepth int, attrs []slog.Attr) {
+	var pc [1]uintptr
+	runtime.Callers(logStackBaseDepth+extraDepth, pc[:])
+	r := slog.NewRecord(
+		time.Now(),
+		types.ToSlogLevel(level),
+		message,
+		pc[0],
+	)
+
+	if len(attrs) > 0 {
+		r.AddAttrs(attrs...)
+	}
+
+	err := w.handler.Handle(context.Background(), r)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
+	}
 }
 
 // Trace formats message using the default formats for its operands
