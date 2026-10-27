@@ -466,7 +466,7 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
-	if p.config.RuntimeSecurity.EventSamplingSyscallsEnabled && !p.kernelVersion.HasBPFForEachMapElemHelper() {
+	if p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) && !p.kernelVersion.HasBPFForEachMapElemHelper() {
 		seclog.Warnf("The syscalls event sampling feature of CWS requires a kernel with support for the bpf_for_each_map_elem helper, disabling it")
 		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled = false
 	}

@@ -425,7 +425,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
   event_server:
     node_type: section
     type: object
@@ -755,6 +755,7 @@ properties:
             - mount
             - connect
             - capabilities
+            - syscalls
             items:
               type: string
           excluded_images:

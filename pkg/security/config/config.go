@@ -466,7 +466,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingSyscallsEnabled bool
 
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
@@ -531,7 +531,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
 	// visibility: private
-	// default_value: ["exec", "dns", "bind", "connect", "open"]
+	// default_value: ["exec", "open", "dns", "bind", "mount", "connect", "capabilities", "syscalls"]
 	SecurityProfileV2EventTypes []model.EventType
 
 	// description: SecurityProfileV2ExcludedImages defines the list of "image_name:image_tag" entries excluded from V2 profiling. The tag may be "*" to match any tag for the given image name.
