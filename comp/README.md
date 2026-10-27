@@ -995,7 +995,7 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: ndm-integrations
+*Datadog Team*: ndm-integrations network-path
 
 Package rdnsquerier provides the reverse DNS querier component.
 
