@@ -406,6 +406,19 @@ class GithubAPI:
 
         return [f.filename for f in pr.get_files()]
 
+    def get_pr_files_with_previous_names(self, pr_id: int) -> list[str]:
+        """
+        Returns the files involved in the PR, including the previous path of renamed files
+        """
+        pr = self.get_pr(pr_id)
+        files = []
+        for f in pr.get_files():
+            files.append(f.filename)
+            if f.previous_filename:
+                files.append(f.previous_filename)
+
+        return files
+
     def get_team_members(self, team_slug: str) -> Iterable[NamedUser]:
         """
         Get the members of a team.
