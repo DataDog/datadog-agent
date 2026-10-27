@@ -1,0 +1,26 @@
+[Unit]
+Before=datadog-agent.service datadog-agent-exp.service
+Description=Datadog rshell privileged helper experiment
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-rshell-privileged.service
+# Both variants share a runtime directory; stop the old helper before starting the new one.
+After=datadog-agent-rshell-privileged.service
+ConditionPathExists=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/rshell
+
+[Service]
+Type=simple
+Group=dd-agent
+UMask=0077
+RuntimeDirectory=datadog-agent-rshell
+RuntimeDirectoryMode=0755
+EnvironmentFile=-/etc/datadog-agent-exp/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/rshell privileged-helper --config=/etc/datadog-agent-exp/datadog.yaml --socket=/run/datadog-agent-rshell/privileged.sock --policy=/etc/datadog-agent-rshell/policy.json --idle-timeout=0
+Restart=on-failure
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+RestrictRealtime=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
