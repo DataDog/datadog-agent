@@ -13,18 +13,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
-// formatHostname returns "<name>-<serial>": lowercase ASCII letters, digits and
+// formatHostname returns "<name>" or "<name>-<serial>": lowercase ASCII letters, digits and
 // single hyphens, with no leading or trailing hyphen, at most 253 characters,
 // and accepted by validate.ValidHostname (the Agent's RFC 1123 check). Only the
 // name is truncated; the full serial is kept so truncation cannot collide.
-func formatHostname(name, serial string) (string, error) {
-	serial = normalize(serial)
-	switch serial {
-	case "", "unknown", "none", "na", "n-a", "not-applicable", "not-available", "not-specified", "default-string", "system-serial-number", "to-be-filled-by-o-e-m", "to-be-filled-by-oem":
-		return "", errors.New("device serial number is missing or a placeholder")
-	}
-	if strings.Trim(serial, "0-") == "" || strings.Trim(serial, "f-") == "" {
-		return "", errors.New("device serial number is a placeholder")
+func formatHostname(name, serial string, useSerial bool) (string, error) {
+	suffix := ""
+	if useSerial {
+		serial = normalize(serial)
+		switch serial {
+		case "", "unknown", "none", "na", "n-a", "not-applicable", "not-available", "not-specified", "default-string", "system-serial-number", "to-be-filled-by-o-e-m", "to-be-filled-by-oem":
+			return "", errors.New("device serial number is missing or a placeholder")
+		}
+		if strings.Trim(serial, "0-") == "" || strings.Trim(serial, "f-") == "" {
+			return "", errors.New("device serial number is a placeholder")
+		}
+		suffix = "-" + serial
 	}
 	name = normalize(name)
 	if name == "" {
@@ -32,7 +36,7 @@ func formatHostname(name, serial string) (string, error) {
 	}
 	// Keep the full serial suffix. Do not truncate it into a colliding identity.
 	const maxLength = 253
-	available := maxLength - len(serial) - 1
+	available := maxLength - len(suffix)
 	if available < 1 {
 		return "", errors.New("device serial number is too long")
 	}
@@ -42,7 +46,7 @@ func formatHostname(name, serial string) (string, error) {
 	if name == "" {
 		return "", errors.New("device name is empty after truncation")
 	}
-	hostname := name + "-" + serial
+	hostname := name + suffix
 	if err := validate.ValidHostname(hostname); err != nil {
 		return "", err
 	}

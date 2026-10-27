@@ -1,0 +1,11 @@
+---
+upgrade:
+  - |
+    On macOS and Windows in ``infrastructure_mode: end_user_device``, appending
+    the hardware serial number to the automatically detected hostname now requires
+    ``hostname_use_serial: true`` (or ``DD_HOSTNAME_USE_SERIAL=true``). The default
+    is ``false``. macOS continues to use the configured Computer Name, and Windows
+    uses the OS hostname. Explicit hostname overrides still take precedence.
+    If you already use a serial-suffixed hostname, enable this setting to retain
+    that identity. Restart the Agent after changing the setting; hostname changes
+    change the device identity in Datadog, and existing history is not migrated.

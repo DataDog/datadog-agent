@@ -20,10 +20,26 @@ func TestGetUsesOSHostname(t *testing.T) {
 		return &systeminfo.SystemInfo{ComputerName: "ignored", SerialNumber: "ABC123"}, nil
 	}
 	osHostname = func() (string, error) { return "MY-PC", nil }
-	got, err := Get()
+	got, err := Get(true)
 	require.NoError(t, err)
 	require.Equal(t, "my-pc-abc123", got)
 	osHostname = func() (string, error) { return "", errors.New("unavailable") }
-	_, err = Get()
+	_, err = Get(true)
 	require.Error(t, err)
+}
+
+func TestGetOSHostnameWithoutSerial(t *testing.T) {
+	oldCollect, oldHostname := collectSystemInfo, osHostname
+	t.Cleanup(func() { collectSystemInfo, osHostname = oldCollect, oldHostname })
+	osHostname = func() (string, error) { return "MY-PC", nil }
+	for _, serial := range []string{"ABC123", "", "Unknown"} {
+		t.Run(serial, func(t *testing.T) {
+			collectSystemInfo = func() (*systeminfo.SystemInfo, error) {
+				return &systeminfo.SystemInfo{ComputerName: "ignored", SerialNumber: serial}, nil
+			}
+			got, err := Get(false)
+			require.NoError(t, err)
+			require.Equal(t, "my-pc", got)
+		})
+	}
 }

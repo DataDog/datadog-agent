@@ -16,9 +16,9 @@ import (
 
 var collectSystemInfo = systeminfo.Collect
 
-// Get returns the normalized device name suffixed with its hardware serial.
+// Get returns the normalized device name, optionally suffixed with its hardware serial.
 // Missing identity is an error so callers can retain legacy hostname resolution.
-func Get() (string, error) {
+func Get(useSerial bool) (string, error) {
 	info, err := collectSystemInfo()
 	if err != nil {
 		return "", fmt.Errorf("collecting device identity: %w", err)
@@ -30,5 +30,5 @@ func Get() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return formatHostname(name, info.SerialNumber)
+	return formatHostname(name, info.SerialNumber, useSerial)
 }

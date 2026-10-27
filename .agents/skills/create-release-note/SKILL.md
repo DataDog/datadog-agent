@@ -39,12 +39,12 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic> --no-edit
+reno new <topic>
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic> --no-edit
+reno --rel-notes-dir <directory> new <topic>
 ```
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.
@@ -95,7 +95,8 @@ Release note content must follow these rules:
 Run the release note linter to validate:
 
 ```bash
-dda inv linter.releasenote
+dda inv linter.rst-releasenotes --files=<path-to-new-note>
+dda inv linter.releasenote-unique-ids --files=<path-to-new-note>
 ```
 
 This checks:

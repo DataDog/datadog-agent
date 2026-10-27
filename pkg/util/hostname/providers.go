@@ -146,7 +146,7 @@ var (
 // * Config (`hostname')
 // * Config (`hostname_file')
 // * Fargate/Sidecar (strips hostname for Fargate and managed instances in sidecar mode)
-// * EUDM device name and serial (macOS/Windows only)
+// * EUDM device name with optional serial (macOS/Windows only)
 // * GCE
 // * Azure
 // * FQDN
