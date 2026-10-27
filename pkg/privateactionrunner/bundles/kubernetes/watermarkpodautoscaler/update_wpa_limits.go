@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,16 +55,8 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 	if err != nil {
 		return nil, err
 	}
-	if inputs.MinReplicas == nil && inputs.MaxReplicas == nil {
-		return nil, errors.New("at least one of minReplicas or maxReplicas must be provided")
-	}
-	// A WatermarkPodAutoscaler cannot scale to zero: minReplicas is constrained to
-	// Minimum=1 by the CRD, unlike a HorizontalPodAutoscaler which permits 0.
-	if inputs.MinReplicas != nil && *inputs.MinReplicas < 1 {
-		return nil, errors.New("minReplicas must be greater than or equal to 1")
-	}
-	if inputs.MaxReplicas != nil && *inputs.MaxReplicas < 1 {
-		return nil, errors.New("maxReplicas must be greater than or equal to 1")
+	if err := inputs.validate(); err != nil {
+		return nil, err
 	}
 
 	client, err := h.getClient(credential)
@@ -72,40 +65,11 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 	}
 	resource := client.Resource(watermarkPodAutoscalerResource).Namespace(inputs.Namespace)
 
-	// Both bounds have to be checked against each other, even when only one is
-	// supplied. The CRD validates each field's minimum but has no cross-field
-	// validation, so a single-bound patch can persist maxReplicas < minReplicas.
-	// The WatermarkPodAutoscaler controller rejects such a resource through
-	// CheckWPAValidity and stops autoscaling the target, so the bound that is not
-	// being changed is read from the live object and validated first. A
-	// HorizontalPodAutoscaler needs none of this: the API server validates the
-	// pair for it.
-	minReplicas, maxReplicas := inputs.MinReplicas, inputs.MaxReplicas
-	if minReplicas == nil || maxReplicas == nil {
-		existing, err := h.getWatermarkPodAutoscaler(ctx, resource, inputs.Name)
-		if err != nil {
-			return nil, err
-		}
-		if minReplicas == nil {
-			minReplicas = existing.Spec.MinReplicas
-		}
-		if maxReplicas == nil {
-			maxReplicas = &existing.Spec.MaxReplicas
-		}
-	}
-	if minReplicas != nil && maxReplicas != nil && *minReplicas > *maxReplicas {
-		return nil, errors.New("minReplicas must be less than or equal to maxReplicas")
+	if err := h.validateAgainstExisting(ctx, resource, inputs); err != nil {
+		return nil, err
 	}
 
-	specPatch := map[string]interface{}{}
-	if inputs.MinReplicas != nil {
-		specPatch["minReplicas"] = *inputs.MinReplicas
-	}
-	if inputs.MaxReplicas != nil {
-		specPatch["maxReplicas"] = *inputs.MaxReplicas
-	}
-
-	body, err := json.Marshal(map[string]interface{}{"spec": specPatch})
+	body, err := inputs.specPatch()
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +91,75 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 	}
 
 	return &UpdateWatermarkAutoscalerLimitsOutputs{WatermarkPodAutoscaler: watermarkPodAutoscaler}, nil
+}
+
+// validate checks the bounds the caller supplied, without reading the cluster.
+func (inputs UpdateWatermarkAutoscalerLimitsInputs) validate() error {
+	if inputs.MinReplicas == nil && inputs.MaxReplicas == nil {
+		return errors.New("at least one of minReplicas or maxReplicas must be provided")
+	}
+	for _, bound := range []struct {
+		name  string
+		value *int32
+	}{
+		{"minReplicas", inputs.MinReplicas},
+		{"maxReplicas", inputs.MaxReplicas},
+	} {
+		if bound.value != nil && *bound.value < 1 {
+			return fmt.Errorf("%s must be greater than or equal to 1", bound.name)
+		}
+	}
+	return compareBounds(inputs.MinReplicas, inputs.MaxReplicas)
+}
+
+// validateAgainstExisting fills whichever bound the caller omitted from the live
+// object and compares the pair. The CRD has no cross-field validation, so a
+// single-bound patch would otherwise be able to persist maxReplicas below
+// minReplicas.
+func (h *UpdateWatermarkAutoscalerLimitsHandler) validateAgainstExisting(
+	ctx context.Context,
+	resource dynamic.ResourceInterface,
+	inputs UpdateWatermarkAutoscalerLimitsInputs,
+) error {
+	if inputs.MinReplicas != nil && inputs.MaxReplicas != nil {
+		return nil
+	}
+	existing, err := h.getWatermarkPodAutoscaler(ctx, resource, inputs.Name)
+	if err != nil {
+		return err
+	}
+	minReplicas, maxReplicas := inputs.MinReplicas, inputs.MaxReplicas
+	if minReplicas == nil {
+		minReplicas = existing.Spec.MinReplicas
+	}
+	if maxReplicas == nil {
+		maxReplicas = &existing.Spec.MaxReplicas
+	}
+	return compareBounds(minReplicas, maxReplicas)
+}
+
+// compareBounds enforces minReplicas <= maxReplicas, and is a no-op while either
+// bound is still unknown.
+func compareBounds(minReplicas, maxReplicas *int32) error {
+	if minReplicas == nil || maxReplicas == nil {
+		return nil
+	}
+	if *minReplicas > *maxReplicas {
+		return errors.New("minReplicas must be less than or equal to maxReplicas")
+	}
+	return nil
+}
+
+// specPatch builds the merge patch, carrying only the bounds that were supplied.
+func (inputs UpdateWatermarkAutoscalerLimitsInputs) specPatch() ([]byte, error) {
+	spec := map[string]interface{}{}
+	if inputs.MinReplicas != nil {
+		spec["minReplicas"] = *inputs.MinReplicas
+	}
+	if inputs.MaxReplicas != nil {
+		spec["maxReplicas"] = *inputs.MaxReplicas
+	}
+	return json.Marshal(map[string]interface{}{"spec": spec})
 }
 
 func (h *UpdateWatermarkAutoscalerLimitsHandler) getWatermarkPodAutoscaler(
