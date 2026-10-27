@@ -1017,23 +1017,28 @@ func TestRefreshIntervalValidation(t *testing.T) {
 }
 
 func TestMergeIntoAdditionalEndpointsReplacesDirectiveOnFirstWrite(t *testing.T) {
-	mockConfig := mock.New(t)
-	mockConfig.SetInTest("additional_endpoints", map[string][]string{
-		"https://second-org.datadoghq.com": {"DELA[second-org-uuid, aws]"},
-	})
+	for _, domain := range []string{"https://second-org.datadoghq.com", "//second-org.datadoghq.com"} {
+		t.Run(domain, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.SetInTest("additional_endpoints", map[string][]string{
+				domain: {"DELA[second-org-uuid, aws]"},
+			})
 
-	comp := &delegatedAuthComponent{config: mockConfig}
-	instance := &authInstance{
-		additionalEndpointDomain:     "https://second-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[second-org-uuid, aws]",
+			comp := &delegatedAuthComponent{config: mockConfig}
+			instance := &authInstance{
+				targetSite:                   "https://second-org.datadoghq.com",
+				additionalEndpointDomain:     domain,
+				additionalEndpointsConfigKey: "additional_endpoints",
+				lastWrittenValue:             "DELA[second-org-uuid, aws]",
+			}
+
+			require.NoError(t, comp.mergeIntoAdditionalEndpoints(instance, "real-api-key-1", false))
+
+			got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+			assert.Equal(t, map[string][]string{domain: {"real-api-key-1"}}, got)
+			assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
+		})
 	}
-
-	comp.mergeIntoAdditionalEndpoints(instance, "real-api-key-1", false)
-
-	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
-	assert.Equal(t, []string{"real-api-key-1"}, got["https://second-org.datadoghq.com"])
-	assert.Equal(t, "real-api-key-1", instance.lastWrittenValue)
 }
 
 func TestMergeIntoAdditionalEndpointsRotatesWithoutDuplicatesAndPreservesStaticKeys(t *testing.T) {

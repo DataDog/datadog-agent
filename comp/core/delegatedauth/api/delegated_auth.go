@@ -110,6 +110,9 @@ func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) (string, erro
 	if site == "" {
 		site = utils.GetInfraEndpoint(cfg)
 	}
+	if strings.HasPrefix(site, "//") {
+		site = "https:" + site
+	}
 	site = getAPIDomain(site)
 	if !strings.Contains(site, "://") {
 		site = "https://" + site
