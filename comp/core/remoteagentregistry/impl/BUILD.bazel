@@ -17,6 +17,7 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/ipc/def",
         "//comp/core/remoteagentregistry/def",
+        "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/core/remoteagentregistry/status",
         "//comp/core/remoteagentregistry/util",
         "//comp/core/secrets/def",

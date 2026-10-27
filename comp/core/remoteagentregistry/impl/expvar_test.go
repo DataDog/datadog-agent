@@ -276,7 +276,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	assert.Equal(t, int64(10), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_metric_packets"])
 }
 
-func TestRegisterExpvarsPublishesRemoteValuesWithoutChangingLocalExpvars(t *testing.T) {
+func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
 	local := ensureExpvarInt(t, []string{"dogstatsd-udp", "Packets"})
 	local.Set(8)
 
@@ -295,15 +295,16 @@ func TestRegisterExpvarsPublishesRemoteValuesWithoutChangingLocalExpvars(t *test
 	assert.Equal(t, float64(8), got["Packets"], "the legacy root is combined when rendered, not mutated at registration")
 
 	response := httptest.NewRecorder()
-	expvarcompat.Handler(expvar.Handler()).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/vars", nil))
+	expvarcompat.Handler(expvar.Handler(), provides.ExpvarSource).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/debug/vars", nil))
 	require.Equal(t, http.StatusOK, response.Code)
 	var snapshot map[string]any
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &snapshot))
 	assert.Equal(t, float64(13), snapshot["dogstatsd-udp"].(map[string]any)["Packets"])
 
-	var remote map[string]any
-	require.NoError(t, json.Unmarshal([]byte(expvar.Get(remoteAgentsExpvarName).String()), &remote))
-	assert.Equal(t, float64(5), remote["agent-data-plane"].(map[string]any)["dogstatsd-udp"].(map[string]any)["Packets"])
+	assert.NotContains(t, snapshot, "remote_agents")
+	assert.Nil(t, expvar.Get("remote_agents"), "do not register ADP telemetry as expvars")
+	remote := provides.ExpvarSource()
+	assert.Equal(t, int64(5), remote["agent-data-plane"].(map[string]any)["dogstatsd-udp"].(map[string]any)["Packets"])
 }
 
 func ensureExpvarInt(t *testing.T, path []string) *expvar.Int {

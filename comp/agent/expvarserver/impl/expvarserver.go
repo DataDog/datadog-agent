@@ -20,9 +20,10 @@ import (
 
 // Requires defines the dependencies for the expvarserver component.
 type Requires struct {
-	LC     compdef.Lifecycle
-	Config config.Component
-	Log    log.Component
+	LC           compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	ExpvarSource expvarcompat.Source `optional:"true"`
 }
 
 // Provides defines the output of the expvarserver component.
@@ -38,7 +39,7 @@ func NewComponent(reqs Requires) Provides {
 		OnStart: func(context.Context) error {
 			expvarServer = &http.Server{
 				Addr:    "127.0.0.1:" + expvarPort,
-				Handler: expvarcompat.Handler(http.DefaultServeMux),
+				Handler: expvarcompat.Handler(http.DefaultServeMux, reqs.ExpvarSource),
 			}
 			go func() {
 				if err := expvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

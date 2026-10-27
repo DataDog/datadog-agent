@@ -7,12 +7,10 @@ package remoteagentregistryimpl
 
 import (
 	"context"
-	"expvar"
 	"math"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
@@ -26,9 +24,8 @@ import (
 )
 
 const (
-	remoteAgentsExpvarName = "remote_agents"
-	adpAgentFlavor         = "agent_data_plane"
-	remoteExpvarCacheTTL   = time.Second
+	adpAgentFlavor       = "agent_data_plane"
+	remoteExpvarCacheTTL = time.Second
 	// Retire origin-labeled series after this long without appearing in a successful telemetry scrape.
 	remoteExpvarOriginIdleTTL = 10 * time.Minute
 )
@@ -322,11 +319,6 @@ func selectors(values ...labelSelector) []labelSelector {
 	return values
 }
 
-var (
-	remoteExpvarRegistry atomic.Pointer[remoteAgentRegistry]
-	publishRemoteExpvars sync.Once
-)
-
 type remoteExpvarCache struct {
 	mu        sync.Mutex
 	fetchedAt time.Time
@@ -353,26 +345,8 @@ type remoteCounterState struct {
 	hasOrigin   bool
 }
 
-// registerExpvars publishes mapped ADP values separately. Legacy Core expvars are
-// combined with them only when /debug/vars or an Agent status section is read.
-func (ra *remoteAgentRegistry) registerExpvars() {
-	remoteExpvarRegistry.Store(ra)
-	publishRemoteExpvars.Do(func() {
-		if expvar.Get(remoteAgentsExpvarName) != nil {
-			return
-		}
-		expvar.Publish(remoteAgentsExpvarName, expvar.Func(func() any {
-			registry := remoteExpvarRegistry.Load()
-			if registry == nil {
-				return map[string]any{}
-			}
-			return registry.getRemoteAgentExpvars()
-		}))
-	})
-}
-
-// getRemoteAgentExpvars formats remote compatibility values as nested expvar data grouped by remote-agent name.
-// The values are obtained through the shared cache and do not include local Core Agent values.
+// getRemoteAgentExpvars builds a fresh snapshot of mapped ADP values grouped by agent.
+// The underlying counter cache is synchronized; this snapshot is not an expvar.
 func (ra *remoteAgentRegistry) getRemoteAgentExpvars() map[string]any {
 	values := make(map[string]any)
 	for agentName, agentValues := range ra.getRemoteExpvarValues() {

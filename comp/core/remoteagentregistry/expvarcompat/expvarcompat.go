@@ -17,13 +17,15 @@ import (
 	"sort"
 )
 
-const remoteAgentsName = "remote_agents"
+// Source returns a fresh snapshot of mapped remote-agent values, grouped by agent.
+// The registry protects its underlying counter cache; consumers must not modify the snapshot.
+type Source func() map[string]any
 
 // Handler overlays remote values when /debug/vars is read, after local expvars
 // have been evaluated. Other routes and installations without a registry are unchanged.
-func Handler(next http.Handler) http.Handler {
+func Handler(next http.Handler, source Source) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/debug/vars" || expvar.Get(remoteAgentsName) == nil {
+		if r.URL.Path != "/debug/vars" || source == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -32,7 +34,7 @@ func Handler(next http.Handler) http.Handler {
 		next.ServeHTTP(capture, r)
 		body := capture.body.Bytes()
 		if capture.code == 0 || capture.code == http.StatusOK {
-			if merged, err := MergeJSON(body); err == nil {
+			if merged, err := MergeJSON(body, source()); err == nil {
 				body = merged
 			}
 		}
@@ -56,15 +58,14 @@ func (c *responseCapture) Header() http.Header         { return c.header }
 func (c *responseCapture) WriteHeader(code int)        { c.code = code }
 func (c *responseCapture) Write(b []byte) (int, error) { return c.body.Write(b) }
 
-// MergeJSON combines only paths published under remote_agents with the local
-// /debug/vars snapshot. The remote tree contains only explicitly mapped ADP
-// equivalents; unrelated expvars remain untouched.
-func MergeJSON(body []byte) ([]byte, error) {
+// MergeJSON combines the mapped ADP snapshot with the local /debug/vars body.
+// Unrelated expvars remain untouched; remote values are not published separately.
+func MergeJSON(body []byte, remote map[string]any) ([]byte, error) {
 	var snapshot map[string]any
 	if err := decode(body, &snapshot); err != nil {
 		return nil, err
 	}
-	merge(snapshot)
+	merge(snapshot, remote)
 	result, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ type RootViews struct {
 
 // ReadRoot takes one snapshot of the local expvar and the mapped RAR telemetry
 // for a root. Status providers can render Core, ADP, and total independently.
-func ReadRoot(name string) RootViews {
+func ReadRoot(name string, source Source) RootViews {
 	views := RootViews{
 		Core:          make(map[string]any),
 		RemoteByAgent: make(map[string]map[string]any),
@@ -98,22 +99,20 @@ func ReadRoot(name string) RootViews {
 			views.Core = statusView(root)
 		}
 	}
-	if remote := expvar.Get(remoteAgentsName); remote != nil {
-		var agents map[string]any
-		if err := decode([]byte(remote.String()), &agents); err == nil {
-			snapshot[remoteAgentsName] = agents
-			for agentName, raw := range agents {
-				roots, ok := raw.(map[string]any)
-				if !ok {
-					continue
-				}
-				if root, ok := roots[name].(map[string]any); ok {
-					views.RemoteByAgent[agentName] = statusView(root)
-				}
+	var remote map[string]any
+	if source != nil {
+		remote = source()
+		for agentName, raw := range remote {
+			roots, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if root, ok := roots[name].(map[string]any); ok {
+				views.RemoteByAgent[agentName] = statusView(root)
 			}
 		}
 	}
-	merge(snapshot)
+	merge(snapshot, remote)
 	if root, ok := snapshot[name].(map[string]any); ok {
 		views.Combined = statusView(root)
 	}
@@ -143,9 +142,8 @@ func decode(body []byte, out any) error {
 	return nil
 }
 
-func merge(snapshot map[string]any) {
-	agents, ok := snapshot[remoteAgentsName].(map[string]any)
-	if !ok {
+func merge(snapshot, agents map[string]any) {
+	if len(agents) == 0 {
 		return
 	}
 	// Saturation must not depend on Go map iteration order.
@@ -160,9 +158,6 @@ func merge(snapshot map[string]any) {
 			continue
 		}
 		for rootName, remote := range roots {
-			if rootName == remoteAgentsName {
-				continue
-			}
 			remoteMap, ok := remote.(map[string]any)
 			if !ok {
 				continue
