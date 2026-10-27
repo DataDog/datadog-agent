@@ -236,6 +236,14 @@ entries:
   function: TestSBOMKubeadmCrioSuite
   status: debt
   reason: Kubeadm bootstrap downloads CRI-O and Kubernetes packages, the Flannel manifest, and public container images; prebake or mirror these dependencies internally.
+- file: test/new-e2e/tests/sbom/eks_test.go
+  function: TestSBOMEKSSuite
+  status: debt
+  reason: Deploys the upstream Argo Rollouts chart without image overrides; mirror its images internally before removing this exception.
+- file: test/new-e2e/tests/cws/kind_test.go
+  function: TestKindSuite
+  status: justified
+  reason: 'No fakeintake: tests check Remote Config policy delivery and events and metrics sent to the real Datadog backend.'
 - file: test/e2e-framework/scenarios/aws/eks/args_test.go
   function: TestDefaultEKSOptions
   status: justified
