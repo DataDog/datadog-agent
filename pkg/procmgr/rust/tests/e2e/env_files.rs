@@ -74,14 +74,16 @@ fn test_cli_env_overrides_environment_file() {
 #[cfg(unix)]
 #[test]
 fn test_cli_child_inherits_same_user_env_except_supervisor_vars() {
+    // /bin/sh supplies its own PATH when none is inherited.
     let env = TestEnv::new()
+        .with_daemon_env(&[("PROCMGRD_SUPERVISOR_VAR", "copied")])
         .with_config(
             "same-user-env",
             concat!(
                 "command: /bin/sh\n",
                 "args:\n",
                 "  - '-c'\n",
-                "  - 'test -n \"$PATH\" && test -z \"$DD_PM_CONFIG_DIR\" && test -z \"$DD_PM_SOCKET_PATH\"'\n",
+                "  - 'test \"$PROCMGRD_SUPERVISOR_VAR\" = copied && test -z \"$DD_PM_CONFIG_DIR\" && test -z \"$DD_PM_SOCKET_PATH\"'\n",
                 "restart: never\n",
             ),
         )
