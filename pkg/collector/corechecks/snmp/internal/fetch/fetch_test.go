@@ -483,6 +483,47 @@ func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
 
+func Test_fetchColumnOidsBatch_getNextFallbackResumesAtFailedBatch(t *testing.T) {
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version2c
+
+	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{Name: "1.1.1.1", Type: gosnmp.TimeTicks, Value: 11},
+			{Name: "1.1.2.1", Type: gosnmp.TimeTicks, Value: 21},
+		},
+	}, nil)
+	sess.On("GetBulk", []string{"1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{Name: "1.1.2.1", Type: gosnmp.TimeTicks, Value: 21},
+			{Name: "1.1.3.1", Type: gosnmp.TimeTicks, Value: 31},
+		},
+	}, nil)
+	sess.On("GetBulk", []string{"1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("request timeout (after 3 retries)"))
+
+	sess.On("GetNext", []string{"1.1.3"}).Return(&gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{{Name: "1.1.3.1", Type: gosnmp.TimeTicks, Value: 31}},
+	}, nil)
+	sess.On("GetNext", []string{"1.1.3.1"}).Return(&gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{{Name: "1.1.9.1", Type: gosnmp.TimeTicks, Value: 91}},
+	}, nil)
+
+	columnValues, err := Fetch(sess, nil, []string{"1.1.1", "1.1.2", "1.1.3"}, NewOidBatchSizeOptimizers(1), checkconfig.DefaultBulkMaxRepetitions)
+	assert.Nil(t, err)
+
+	expectedColumnValues := &valuestore.ResultValueStore{
+		ScalarValues: valuestore.ScalarResultValuesType{},
+		ColumnValues: valuestore.ColumnResultValuesType{
+			"1.1.1": {"1": valuestore.ResultValue{Value: float64(11)}},
+			"1.1.2": {"1": valuestore.ResultValue{Value: float64(21)}},
+			"1.1.3": {"1": valuestore.ResultValue{Value: float64(31)}},
+		},
+	}
+	assert.Equal(t, expectedColumnValues, columnValues)
+	sess.AssertNotCalled(t, "GetNext", []string{"1.1.1"})
+	sess.AssertNotCalled(t, "GetNext", []string{"1.1.2"})
+}
+
 func Test_fetchOidBatchSize(t *testing.T) {
 	sess := session.CreateMockSession()
 

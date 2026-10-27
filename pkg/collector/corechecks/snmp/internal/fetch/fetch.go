@@ -7,7 +7,9 @@
 package fetch
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"time"
 
@@ -53,11 +55,20 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
+		columnResults = make(valuestore.ColumnResultValuesType)
+		remainingOIDs := columnOIDs
+		var batchErr *columnBatchError
+		if errors.As(err, &batchErr) {
+			columnResults = batchErr.fetchedValues
+			remainingOIDs = batchErr.unfetchedOIDs
+		}
+
+		getNextResults, err := fetchColumnOidsWithBatching(sess, remainingOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
 			bulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
+		maps.Copy(columnResults, getNextResults)
 	}
 
 	return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults}, nil
