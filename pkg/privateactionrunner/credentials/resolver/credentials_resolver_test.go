@@ -6,8 +6,12 @@
 package resolver
 
 import (
+	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,13 +19,14 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
 func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 	config := configmock.New(t)
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "secret-value"}}, model.SourceFile)
-	resolver, err := NewPrivateCredentialResolver(config)
+	resolver, err := NewPrivateCredentialResolver(config, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -60,7 +65,7 @@ func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 }
 
 func TestResolveConnectionTokensV2FromPlainText(t *testing.T) {
-	resolver, err := NewPrivateCredentialResolver(nil)
+	resolver, err := NewPrivateCredentialResolver(nil, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -98,7 +103,7 @@ func TestResolveConnectionTokensV2UsesOneSnapshot(t *testing.T) {
 	config := configmock.New(t)
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "original"}}, model.SourceFile)
 	liveConfig := &refreshOnReadConfig{Reader: config}
-	resolver, err := NewPrivateCredentialResolver(liveConfig)
+	resolver, err := NewPrivateCredentialResolver(liveConfig, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2}
 	for _, name := range []string{"first", "second"} {
@@ -133,7 +138,7 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	resolver, err := NewPrivateCredentialResolver(mockConfig)
+	resolver, err := NewPrivateCredentialResolver(mockConfig, nil)
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -181,7 +186,7 @@ func TestNewPrivateCredentialResolverInvalidCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml))
+			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml), nil)
 			require.Error(t, err)
 			assert.Nil(t, resolver)
 			assert.Contains(t, err.Error(), par.CredentialsValues)
@@ -189,3 +194,364 @@ func TestNewPrivateCredentialResolverInvalidCredentials(t *testing.T) {
 		})
 	}
 }
+
+func TestScriptCredentialFileResolution(t *testing.T) {
+	allowedRoot := t.TempDir()
+	validPath := filepath.Join(allowedRoot, "credentials.yaml")
+	validContents := "schemaId: script-credentials-v1\n"
+	require.NoError(t, os.WriteFile(validPath, []byte(validContents), 0o600))
+
+	outsideRoot := t.TempDir()
+	outsidePath := filepath.Join(outsideRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("outside secret"), 0o600))
+
+	emptyPath := filepath.Join(allowedRoot, "empty.yaml")
+	require.NoError(t, os.WriteFile(emptyPath, nil, 0o600))
+	oversizedPath := filepath.Join(allowedRoot, "oversized.yaml")
+	require.NoError(t, os.WriteFile(oversizedPath, bytes.Repeat([]byte("x"), maxCredentialsFileSize+1), 0o600))
+	missingPath := filepath.Join(allowedRoot, "missing.yaml")
+	traversalPath := allowedRoot + string(filepath.Separator) + "nested" + string(filepath.Separator) + ".." + string(filepath.Separator) + "credentials.yaml"
+
+	symlinkPath := filepath.Join(allowedRoot, "symlink.yaml")
+	symlinkErr := os.Symlink(outsidePath, symlinkPath)
+
+	tests := []struct {
+		name    string
+		path    string
+		want    string
+		wantErr bool
+	}{
+		{name: "regular file inside allowed root", path: validPath, want: validContents},
+		{name: "outside allowed roots", path: outsidePath, wantErr: true},
+		{name: "dot dot traversal", path: traversalPath, wantErr: true},
+		{name: "empty path", path: "", wantErr: true},
+		{name: "empty file", path: emptyPath, wantErr: true},
+		{name: "oversized file", path: oversizedPath, wantErr: true},
+		{name: "non regular file", path: allowedRoot, wantErr: true},
+		{name: "missing file", path: missingPath, wantErr: true},
+	}
+	if symlinkErr == nil {
+		tests = append(tests, struct {
+			name    string
+			path    string
+			want    string
+			wantErr bool
+		}{name: "symlink escape", path: symlinkPath, wantErr: true})
+	}
+
+	resolver := newTestResolver(t, []string{allowedRoot})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(tt.path), nil)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Equal(t, "could not load script credential file", err.Error())
+				if tt.path != "" {
+					assert.NotContains(t, err.Error(), tt.path)
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, credentials.AsTokenMap()["configFileLocation"])
+		})
+	}
+}
+
+func TestScriptCredentialFileResolutionIgnoresInvalidRoots(t *testing.T) {
+	validRoot := t.TempDir()
+	validPath := filepath.Join(validRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(validPath, []byte("credentials"), 0o600))
+	outsidePath := filepath.Join(t.TempDir(), "outside.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("outside secret"), 0o600))
+
+	regularFile := filepath.Join(t.TempDir(), "credentials.yaml")
+	require.NoError(t, os.WriteFile(regularFile, []byte("credentials"), 0o600))
+	filesystemRoot := filepath.VolumeName(t.TempDir()) + string(filepath.Separator)
+
+	tests := []struct {
+		name string
+		root string
+	}{
+		{name: "relative", root: "private-action-runner"},
+		{name: "filesystem root", root: filesystemRoot},
+		{name: "nonexistent", root: filepath.Join(t.TempDir(), "missing")},
+		{name: "regular file", root: regularFile},
+	}
+	symlinkToFilesystemRoot := filepath.Join(t.TempDir(), "filesystem-root")
+	if err := os.Symlink(filesystemRoot, symlinkToFilesystemRoot); err == nil {
+		tests = append(tests, struct {
+			name string
+			root string
+		}{name: "symlink to filesystem root", root: symlinkToFilesystemRoot})
+	} else {
+		t.Logf("skipping symlink case: %v", err)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver := newTestResolver(t, []string{tt.root, validRoot})
+
+			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(validPath), nil)
+			require.NoError(t, err)
+			assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
+
+			_, err = resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(outsidePath), nil)
+			require.ErrorIs(t, err, errCouldNotLoadScriptCredentialFile)
+		})
+	}
+}
+
+func TestNewPrivateCredentialResolverDeduplicatesRoots(t *testing.T) {
+	first := t.TempDir()
+	second := t.TempDir()
+
+	resolver := newTestResolver(t, []string{filepath.Join(second, "."), first + string(filepath.Separator), first})
+
+	assert.Equal(t, []string{second, first}, resolver.(*privateCredentialResolver).scriptCredentialFileRoots)
+}
+
+func TestScriptCredentialFileResolutionFollowsReplacedAllowedRoot(t *testing.T) {
+	parent := t.TempDir()
+	allowedRoot := filepath.Join(parent, "allowed")
+	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
+	path := filepath.Join(allowedRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o600))
+	resolver := newTestResolver(t, []string{allowedRoot})
+
+	require.NoError(t, os.Rename(allowedRoot, filepath.Join(parent, "moved")))
+	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
+	require.NoError(t, os.WriteFile(path, []byte("replacement"), 0o600))
+
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "replacement", credentials.AsTokenMap()["configFileLocation"])
+}
+
+func TestScriptCredentialFileResolutionPicksUpRootCreatedAfterStartup(t *testing.T) {
+	allowedRoot := filepath.Join(t.TempDir(), "allowed")
+	resolver := newTestResolver(t, []string{allowedRoot})
+
+	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
+	path := filepath.Join(allowedRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("credentials"), 0o600))
+
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
+}
+
+func TestScriptCredentialFileResolutionWithSymlinkedRoot(t *testing.T) {
+	realRoot := t.TempDir()
+	resolvedRealRoot, err := filepath.EvalSymlinks(realRoot)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(realRoot, "credentials.yaml"), []byte("credentials"), 0o600))
+	outsidePath := filepath.Join(t.TempDir(), "outside.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("outside secret"), 0o600))
+
+	linkedRoot := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(realRoot, linkedRoot); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(outsidePath, filepath.Join(realRoot, "escape.yaml")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{name: "configured form", path: filepath.Join(linkedRoot, "credentials.yaml")},
+		{name: "resolved form", path: filepath.Join(resolvedRealRoot, "credentials.yaml")},
+		{name: "symlink escape through resolved form", path: filepath.Join(resolvedRealRoot, "escape.yaml"), wantErr: true},
+	}
+
+	resolver := newTestResolver(t, []string{linkedRoot})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(tt.path), nil)
+			if tt.wantErr {
+				require.ErrorIs(t, err, errCouldNotLoadScriptCredentialFile)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
+		})
+	}
+}
+
+func TestScriptCredentialFileAllowed(t *testing.T) {
+	realRoot := t.TempDir()
+	resolvedRealRoot, err := filepath.EvalSymlinks(realRoot)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(realRoot, "credentials.yaml"), []byte("credentials"), 0o600))
+	otherRoot := t.TempDir()
+	missingRoot := filepath.Join(t.TempDir(), "missing")
+	filesystemRoot := filepath.VolumeName(realRoot) + string(filepath.Separator)
+	linkedRoot := filepath.Join(t.TempDir(), "linked")
+	symlinkErr := os.Symlink(realRoot, linkedRoot)
+	sep := string(filepath.Separator)
+
+	tests := []struct {
+		name    string
+		roots   []string
+		path    string
+		symlink bool
+		exists  bool
+		want    bool
+	}{
+		{name: "plain root", roots: []string{realRoot}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true, want: true},
+		{name: "symlinked root, configured form", roots: []string{linkedRoot}, path: filepath.Join(linkedRoot, "credentials.yaml"), symlink: true, exists: true, want: true},
+		{name: "symlinked root, resolved form", roots: []string{linkedRoot}, path: filepath.Join(resolvedRealRoot, "credentials.yaml"), symlink: true, exists: true, want: true},
+		{name: "path through symlink to root", roots: []string{realRoot}, path: filepath.Join(linkedRoot, "credentials.yaml"), symlink: true, exists: true},
+		{name: "missing root", roots: []string{missingRoot}, path: filepath.Join(missingRoot, "credentials.yaml"), want: true},
+		{name: "filesystem root", roots: []string{filesystemRoot}, path: filepath.Join(filesystemRoot, "credentials.yaml")},
+		{name: "relative root", roots: []string{"relative"}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true},
+		{name: "different directory", roots: []string{otherRoot}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true},
+		{name: "parent traversal", roots: []string{realRoot}, path: realRoot + sep + "nested" + sep + ".." + sep + "credentials.yaml"},
+		{name: "empty path", roots: []string{realRoot}},
+		{name: "no roots", roots: []string{}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.symlink && symlinkErr != nil {
+				t.Skipf("symlinks unavailable: %v", symlinkErr)
+			}
+			assert.Equal(t, tt.want, ScriptCredentialFileAllowed(tt.roots, tt.path))
+			if !tt.exists {
+				return
+			}
+			_, err := newTestResolver(t, tt.roots).ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(tt.path), nil)
+			assert.Equal(t, tt.want, err == nil, "predicate and resolver must agree")
+		})
+	}
+}
+
+func TestScriptCredentialFileResolutionRejectsAuthTokenPoC(t *testing.T) {
+	path := "/etc/datadog-agent/auth_token"
+	resolver := newTestResolver(t, []string{t.TempDir()})
+
+	_, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
+
+	require.Error(t, err)
+	assert.Equal(t, "could not load script credential file", err.Error())
+	assert.NotContains(t, err.Error(), path)
+}
+
+func TestGenericFileSecretRemainsIndependentFromScriptRoots(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "credentials.json")
+	require.NoError(t, os.WriteFile(secretPath, []byte(`{"auth_type":"Token Auth","credentials":[{"tokenName":"apiKey","tokenValue":"secret"}]}`), 0o600))
+	resolver := newTestResolver(t, []string{t.TempDir()})
+	conn := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+		Tokens: []*privateactionspb.ConnectionToken{
+			privateconnection.NewFileSecretToken([]string{privateconnection.RootTokenGroupName, "apiKey"}, secretPath),
+		},
+	}
+
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "secret", credentials.AsTokenMap()["apiKey"])
+}
+
+func TestGenericFileSecretErrorsAreSanitized(t *testing.T) {
+	tests := []struct {
+		name     string
+		contents string
+		missing  bool
+	}{
+		{name: "missing file", missing: true},
+		{name: "invalid JSON", contents: `{"secret":"sensitive-value"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "sensitive-path.json")
+			if !tt.missing {
+				require.NoError(t, os.WriteFile(path, []byte(tt.contents), 0o600))
+			}
+			resolver := newTestResolver(t, nil)
+			conn := &privateactionspb.ConnectionInfo{
+				CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+				Tokens: []*privateactionspb.ConnectionToken{
+					privateconnection.NewFileSecretToken([]string{privateconnection.RootTokenGroupName, "apiKey"}, path),
+				},
+			}
+
+			_, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), path)
+			assert.NotContains(t, err.Error(), "sensitive-value")
+		})
+	}
+}
+
+func TestReadCredentialFileUsesOneBoundedHandle(t *testing.T) {
+	file := &countingCredentialFile{}
+	openCalls := 0
+
+	_, err := readCredentialFile(context.Background(), func() (credentialFile, error) {
+		openCalls++
+		return file, nil
+	}, errCouldNotLoadCredentialFile)
+
+	require.ErrorIs(t, err, errCouldNotLoadCredentialFile)
+	assert.Equal(t, 1, openCalls)
+	assert.Equal(t, maxCredentialsFileSize+1, file.bytesRead)
+	assert.True(t, file.closed)
+}
+
+func scriptConnectionInfo(path string) *privateactionspb.ConnectionInfo {
+	return &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+		Tokens: []*privateactionspb.ConnectionToken{
+			privateconnection.NewYamlFileToken([]string{privateconnection.RootTokenGroupName, "configFileLocation"}, path),
+		},
+	}
+}
+
+func newTestResolver(t *testing.T, roots []string) PrivateCredentialResolver {
+	t.Helper()
+	resolver, err := NewPrivateCredentialResolver(nil, roots)
+	require.NoError(t, err)
+	return resolver
+}
+
+type countingCredentialFile struct {
+	bytesRead int
+	closed    bool
+}
+
+func (f *countingCredentialFile) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'x'
+	}
+	f.bytesRead += len(p)
+	return len(p), nil
+}
+
+func (f *countingCredentialFile) Stat() (os.FileInfo, error) {
+	return staticFileInfo{size: 1, mode: 0o600}, nil
+}
+
+func (f *countingCredentialFile) Close() error {
+	f.closed = true
+	return nil
+}
+
+type staticFileInfo struct {
+	size int64
+	mode os.FileMode
+}
+
+func (i staticFileInfo) Name() string       { return "credentials" }
+func (i staticFileInfo) Size() int64        { return i.size }
+func (i staticFileInfo) Mode() os.FileMode  { return i.mode }
+func (i staticFileInfo) ModTime() time.Time { return time.Time{} }
+func (i staticFileInfo) IsDir() bool        { return i.mode.IsDir() }
+func (i staticFileInfo) Sys() interface{}   { return nil }
