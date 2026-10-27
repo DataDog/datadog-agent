@@ -168,6 +168,8 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 	}
 	defaultPodLabels := append([]string{}, defaultStandardLabels...)
 	defaultPodLabels = append(defaultPodLabels, argoRolloutLabelName)
+	defaultReplicaSetLabels := append([]string{}, defaultStandardLabels...)
+	defaultReplicaSetLabels = append(defaultReplicaSetLabels, argoRolloutLabelName)
 
 	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
@@ -204,7 +206,7 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_replicaset_labels": {
 			LabelsToMatch: getLabelToMatchForKind("replicaset"),
-			LabelsToGet:   defaultStandardLabels,
+			LabelsToGet:   defaultReplicaSetLabels,
 		},
 		"kube_daemonset_labels": {
 			LabelsToMatch: getLabelToMatchForKind("daemonset"),

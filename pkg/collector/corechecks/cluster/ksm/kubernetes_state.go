@@ -72,6 +72,16 @@ const (
 	ownerNameKey = "owner_name"
 	// namespaceKey represents the KSM label key namespace
 	namespaceKey = "namespace"
+	// deploymentKey represents the KSM label key deployment
+	deploymentKey = "deployment"
+	// statefulSetKey represents the KSM label key statefulset
+	statefulSetKey = "statefulset"
+	// replicaSetKey represents the KSM label key replicaset
+	replicaSetKey = "replicaset"
+	// podKey represents the KSM label key pod
+	podKey = "pod"
+	// uidKey represents the KSM label key uid
+	uidKey = "uid"
 )
 
 var extendedCollectors = map[string]string{
@@ -1038,7 +1048,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(metricFamily.Name, m.Labels, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
@@ -1050,7 +1060,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(metricFamily.Name, m.Labels, labelJoiner, lMapperOverride)
 					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
@@ -1075,10 +1085,10 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	}
 }
 
-// hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
+// hostnameAndTags returns the tags and the hostname for a metric based on the metric name and labels and the check configuration.
 //
 // This function must always return a "fresh" slice of tags, that will not be accessed after return.
-func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
@@ -1088,11 +1098,22 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
 	isArgoRollout := false
+	// workload labels, used to find the autoscalers of the workload
+	deploymentLabel, statefulSetLabel, replicaSetLabel, podLabel := "", "", "", ""
 
 	for key, value := range labels {
 
-		if key == namespaceKey {
+		switch key {
+		case namespaceKey:
 			resourceNamespace = value
+		case deploymentKey:
+			deploymentLabel = value
+		case statefulSetKey:
+			statefulSetLabel = value
+		case replicaSetKey:
+			replicaSetLabel = value
+		case podKey:
+			podLabel = value
 		}
 
 		switch key {
@@ -1166,7 +1187,116 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tagList = append(tagList, namespaceTags...)
 	}
 
+	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		// Node agents don't have autoscaled workload entities, but they have
+		// the pods, tagged with the kinds of their autoscalers
+		if uid := labels[uidKey]; uid != "" {
+			tagList = append(tagList, k.podAutoscalerTags(uid)...)
+		}
+	} else if resourceNamespace != "" {
+		for _, entityID := range autoscaledWorkloadEntityIDs(metricName, resourceNamespace, ownerKind, ownerName, isArgoRollout, deploymentLabel, statefulSetLabel, replicaSetLabel, podLabel) {
+			// A missing entity means no autoscaler and returns no tags.
+			autoscalerTags, _ := k.tagger.Tag(entityID, types.LowCardinality)
+			tagList = append(tagList, autoscalerTags...)
+		}
+	}
+
 	return hostname, tagList
+}
+
+func (k *KSMCheck) podAutoscalerTags(uid string) []string {
+	podTags, _ := k.tagger.Tag(types.NewEntityID(types.KubernetesPodUID, uid), types.LowCardinality)
+	var autoscalerTags []string
+	for _, tag := range podTags {
+		if strings.HasPrefix(tag, tags.KubeAutoscalerKind+":") {
+			autoscalerTags = append(autoscalerTags, tag)
+		}
+	}
+	return autoscalerTags
+}
+
+// autoscaledWorkloadEntityIDs returns the IDs of the tagger entities that hold
+// the kube_autoscaler_kind tags of the workload a metric belongs to. Only pod,
+// container, ReplicaSet, Deployment and StatefulSet metrics get those tags.
+func autoscaledWorkloadEntityIDs(metricName, namespace, ownerKind, ownerName string, isArgoRollout bool, deploymentLabel, statefulSetLabel, replicaSetLabel, podLabel string) []types.EntityID {
+	entityID := func(kind workloadmeta.AutoscalerTargetKind, name string) types.EntityID {
+		return types.NewKubernetesAutoscaledWorkloadEntityID(string(kind), namespace, name)
+	}
+
+	// Aggregated metrics (e.g. pod.count) lose the labels that tell a
+	// Deployment from an Argo Rollout, so both are looked up. That gives the
+	// right tags when only one of them exists.
+	// Limitation: If a Deployment and an Argo Rollout have the same name in the
+	// same namespace, their tags are merged, so the aggregated series of one
+	// can get the autoscaler kinds of the other. The more likely scenario of
+	// this happening is when migrating deployments to Argo Rollouts.
+	deploymentOrArgoRollout := func(name string) []types.EntityID {
+		return []types.EntityID{
+			entityID(workloadmeta.AutoscalerTargetDeployment, name),
+			entityID(workloadmeta.AutoscalerTargetArgoRollout, name),
+		}
+	}
+
+	switch {
+	case strings.HasPrefix(metricName, "kube_pod_"):
+		switch ownerKind {
+		case kubernetes.ReplicaSetKind:
+			name := kubernetes.ParseDeploymentForReplicaSet(ownerName)
+			if name == "" {
+				return nil
+			}
+			if isArgoRollout {
+				return []types.EntityID{entityID(workloadmeta.AutoscalerTargetArgoRollout, name)}
+			}
+			// Series of a single pod have a pod label, so the kube_pod_labels
+			// join adds the Argo Rollout label to them when the pod has it
+			// (ensureArgoRolloutLabelJoin makes sure it's joined). Without
+			// it, the pod's ReplicaSet belongs to a Deployment.
+			if podLabel != "" {
+				return []types.EntityID{entityID(workloadmeta.AutoscalerTargetDeployment, name)}
+			}
+			// Aggregated metrics have no pod label
+			return deploymentOrArgoRollout(name)
+		case kubernetes.DeploymentKind:
+			// Pods aren't owned by Deployments, but the with_owner_tag
+			// metrics replace the ReplicaSet owner with a Deployment parsed
+			// from its name, also for Argo Rollouts
+			return deploymentOrArgoRollout(ownerName)
+		case kubernetes.StatefulSetKind:
+			return []types.EntityID{entityID(workloadmeta.AutoscalerTargetStatefulSet, ownerName)}
+		}
+
+	case strings.HasPrefix(metricName, "kube_replicaset_"):
+		// The ReplicaSet owner is only known for kube_replicaset_owner
+		switch ownerKind {
+		case kubernetes.DeploymentKind:
+			return []types.EntityID{entityID(workloadmeta.AutoscalerTargetDeployment, ownerName)}
+		case kubernetes.RolloutKind:
+			return []types.EntityID{entityID(workloadmeta.AutoscalerTargetArgoRollout, ownerName)}
+		}
+		// ReplicaSet series have a replicaset label, so the
+		// kube_replicaset_labels join adds the Argo Rollout label to them when
+		// the ReplicaSet has it. Without it, the ReplicaSet belongs to a
+		// Deployment.
+		if name := kubernetes.ParseDeploymentForReplicaSet(replicaSetLabel); name != "" {
+			if isArgoRollout {
+				return []types.EntityID{entityID(workloadmeta.AutoscalerTargetArgoRollout, name)}
+			}
+			return []types.EntityID{entityID(workloadmeta.AutoscalerTargetDeployment, name)}
+		}
+
+	case strings.HasPrefix(metricName, "kube_deployment_"):
+		if deploymentLabel != "" {
+			return []types.EntityID{entityID(workloadmeta.AutoscalerTargetDeployment, deploymentLabel)}
+		}
+
+	case strings.HasPrefix(metricName, "kube_statefulset_"):
+		if statefulSetLabel != "" {
+			return []types.EntityID{entityID(workloadmeta.AutoscalerTargetStatefulSet, statefulSetLabel)}
+		}
+	}
+
+	return nil
 }
 
 // familyFilter is a metric families filter for label joins
@@ -1224,17 +1354,19 @@ func (k *KSMCheck) mergeLabelsMapper(extra map[string]string) {
 }
 
 // ensureArgoRolloutLabelJoin makes sure the internal label the
-// kube_argo_rollout tag is derived from is joined for pod labels.
-// mergeLabelJoins only adds the default kube_pod_labels join when the key is
-// absent, so a user-defined kube_pod_labels join would otherwise silently
-// drop this required label.
+// kube_argo_rollout tag is derived from is joined for pod labels, and for
+// ReplicaSet labels (used for the kube_autoscaler_kind tag). mergeLabelJoins
+// only adds the default joins when the key is absent, so a user-defined join
+// would otherwise silently drop this required label.
 func (k *KSMCheck) ensureArgoRolloutLabelJoin() {
-	podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
-	if !found || podLabelJoin.GetAllLabels || slices.Contains(podLabelJoin.LabelsToGet, argoRolloutLabelName) {
-		return
-	}
+	for _, family := range []string{"kube_pod_labels", "kube_replicaset_labels"} {
+		labelJoin, found := k.instance.LabelJoins[family]
+		if !found || labelJoin.GetAllLabels || slices.Contains(labelJoin.LabelsToGet, argoRolloutLabelName) {
+			continue
+		}
 
-	podLabelJoin.LabelsToGet = append(podLabelJoin.LabelsToGet, argoRolloutLabelName)
+		labelJoin.LabelsToGet = append(labelJoin.LabelsToGet, argoRolloutLabelName)
+	}
 }
 
 // mergeLabelJoins adds extra label joins to the configured label joins
