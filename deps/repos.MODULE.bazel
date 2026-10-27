@@ -167,10 +167,10 @@ http_archive(
         "BUILD.bazel": "//deps:nghttp2/nghttp2.BUILD.bazel",
         "config.h": "//deps:nghttp2/config.h",
     },
-    sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
-    strip_prefix = "nghttp2-1.58.0",
+    sha256 = "aa317e2cf9dca6afa0aed68f8fad6ff303ec6982e25a78c75c0b65e2b9b3ded5",
+    strip_prefix = "nghttp2-1.70.0",
     urls = [
-        "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
+        "https://github.com/nghttp2/nghttp2/releases/download/v1.70.0/nghttp2-1.70.0.tar.gz",
     ],
 )
 
