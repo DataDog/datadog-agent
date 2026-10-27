@@ -399,6 +399,10 @@ func TestConfigHostname(t *testing.T) {
 			t.Setenv(hostnameHelperEnv, "1")
 			t.Setenv(hostnameHelperResponseEnv, response)
 			t.Setenv(hostnameHelperExitEnv, strconv.Itoa(code))
+			// With the test build tag, pkg/util/log's init sets up a debug logger
+			// on stdout, so package inits that log (e.g. pkg/util/defaultpaths on
+			// Windows) would end up in the child's output. Silence it.
+			t.Setenv("DD_LOG_LEVEL", "off")
 			exe, err := os.Executable()
 			require.NoError(t, err)
 			return exe
