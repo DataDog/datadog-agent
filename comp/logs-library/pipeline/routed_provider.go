@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -36,6 +37,7 @@ const (
 	routedProcessedCapacity = 256
 	routedStreamCapacity    = 128
 	routedPayloadCapacity   = 4
+	routedGroupCapacity     = 32
 	routedOutcomeCapacity   = 128
 	routedProgressCapacity  = 4096
 	routedDestinationBuffer = 128
@@ -78,12 +80,14 @@ type RoutedProvider struct {
 	processors    []*processor.Processor
 	streams       map[string]*routedStream
 	senders       map[string]*sender.Sender
+	groupInputs   map[string]chan *message.Payload
 	sinks         map[string]*routing.GroupSink
 	ctx           context.Context
 	cancel        context.CancelFunc
 	ingressDone   chan struct{}
 	processedDone chan struct{}
 	dispatchDone  sync.WaitGroup
+	groupDone     sync.WaitGroup
 	lifecycle     sync.RWMutex
 	stopOnce      sync.Once
 	stopRequested chan struct{}
@@ -111,7 +115,8 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 		ingress:   make(chan *message.Message, routedIngressCapacity),
 		processed: make(chan *message.Message, routedProcessedCapacity),
 		streams:   make(map[string]*routedStream), senders: make(map[string]*sender.Sender),
-		sinks: make(map[string]*routing.GroupSink), ctx: ctx, cancel: cancel,
+		groupInputs: make(map[string]chan *message.Payload),
+		sinks:       make(map[string]*routing.GroupSink), ctx: ctx, cancel: cancel,
 		ingressDone: make(chan struct{}), processedDone: make(chan struct{}),
 		stopRequested: make(chan struct{}),
 	}
@@ -144,6 +149,7 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 			concurrency = perEndpointCap
 		}
 		p.senders[group.ID] = httpsender.NewHTTPSender(opts.Config, groupSink, bufferSize, sender.NewServerlessMeta(false), group.Endpoints, opts.DestinationsContext, "logs-routing-"+group.ID, httpclient.JSONContentType, "", sender.DefaultQueuesCount, sender.DefaultWorkersPerQueue, concurrency, concurrency, opts.Secrets, metrics.NewTelemetryPipelineMonitor())
+		p.groupInputs[group.ID] = make(chan *message.Payload, routedGroupCapacity)
 		key := group.Stream
 		if key == "" {
 			key = "group:" + group.ID
@@ -210,6 +216,8 @@ func (p *RoutedProvider) Start() {
 	}()
 	for _, group := range p.defs.Groups() {
 		p.senders[group.ID].Start()
+		p.groupDone.Add(1)
+		go p.dispatchGroup(group.ID)
 	}
 	for _, stream := range p.streams {
 		stream.strategy.Start()
@@ -324,6 +332,7 @@ func (p *RoutedProvider) dispatchProcessed() {
 		}
 		groups := p.progress.Recipients(msg.RoutingToken())
 		seen := make(map[string]struct{}, len(groups))
+		offers := make([]channelOffer[*message.Message], 0, len(groups))
 		for _, id := range groups {
 			group, _ := p.defs.Group(id)
 			key := group.Stream
@@ -336,25 +345,73 @@ func (p *RoutedProvider) dispatchProcessed() {
 				continue
 			}
 			seen[key] = struct{}{}
-			select {
-			case p.streams[key].input <- msg:
-			case <-p.ctx.Done():
-				// No completion follows cancellation or queue rejection.
-			}
+			offers = append(offers, channelOffer[*message.Message]{input: p.streams[key].input, value: msg})
 		}
+		offerToChannels(p.ctx, offers)
 	}
 }
 
 func (p *RoutedProvider) dispatchPayloads(stream *routedStream) {
 	defer p.dispatchDone.Done()
 	for payload := range stream.output {
-		for _, id := range stream.groups {
-			copyForGroup := *payload // Encoded remains immutable and shared.
-			select {
-			case p.senders[id].In() <- &copyForGroup:
-			case <-p.ctx.Done():
-				// Unsent obligations remain pending.
-			}
+		offerPayloadToGroups(p.ctx, payload, stream.groups, p.groupInputs)
+	}
+}
+
+// offerPayloadToGroups preserves one independent copy for each selected group.
+// Queue admission is tracked by offerToChannels and never resolves delivery.
+func offerPayloadToGroups(ctx context.Context, payload *message.Payload, groups []string, inputs map[string]chan *message.Payload) {
+	offers := make([]channelOffer[*message.Payload], 0, len(groups))
+	for _, id := range groups {
+		copyForGroup := *payload // Encoded remains immutable and shared.
+		offers = append(offers, channelOffer[*message.Payload]{input: inputs[id], value: &copyForGroup})
+	}
+	offerToChannels(ctx, offers)
+}
+
+type channelOffer[T any] struct {
+	input chan T
+	value T
+}
+
+// offerToChannels first offers all selected recipients without waiting. It
+// then waits for whichever pending queue has room. Removing a successful send
+// from pending prevents duplicate admission without per-record goroutines.
+func offerToChannels[T any](ctx context.Context, offers []channelOffer[T]) {
+	pending := make([]channelOffer[T], 0, len(offers))
+	for _, offer := range offers {
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case offer.input <- offer.value:
+		default:
+			pending = append(pending, offer)
+		}
+	}
+	for len(pending) != 0 {
+		cases := make([]reflect.SelectCase, 1, len(pending)+1)
+		cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())}
+		for _, offer := range pending {
+			cases = append(cases, reflect.SelectCase{Dir: reflect.SelectSend, Chan: reflect.ValueOf(offer.input), Send: reflect.ValueOf(offer.value)})
+		}
+		chosen, _, _ := reflect.Select(cases)
+		if chosen == 0 {
+			return // Every unsent group remains unresolved on cancellation.
+		}
+		index := chosen - 1
+		pending[index] = pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+	}
+}
+
+func (p *RoutedProvider) dispatchGroup(id string) {
+	defer p.groupDone.Done()
+	for payload := range p.groupInputs[id] {
+		select {
+		case p.senders[id].In() <- payload:
+		case <-p.ctx.Done():
+			// Cancellation releases the copy without acknowledging its group.
 		}
 	}
 }
@@ -390,6 +447,10 @@ func (p *RoutedProvider) Stop() {
 		close(stream.output)
 	}
 	p.dispatchDone.Wait()
+	for _, input := range p.groupInputs {
+		close(input)
+	}
+	p.groupDone.Wait()
 	for _, group := range p.defs.Groups() {
 		p.senders[group.ID].Stop()
 		p.sinks[group.ID].Stop()
@@ -405,6 +466,13 @@ func (p *RoutedProvider) NextPipelineChan() chan *message.Message { return p.ing
 func (p *RoutedProvider) GuardRegistry(registry auditor.Registry) auditor.Registry {
 	return p.progress.GuardRegistry(registry)
 }
+
+// RetireSource releases a producer's generation ownership after it stops and
+// all of its decoder output has been admitted.
+func (p *RoutedProvider) RetireSource(identifier string, generation uint64) error {
+	return p.progress.RetireSource(identifier, generation)
+}
+
 func (p *RoutedProvider) GetOutputChan() chan *message.Message { return nil }
 func (p *RoutedProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return p.ingress, nil

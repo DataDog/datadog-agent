@@ -105,6 +105,135 @@ func routedTestEndpoint(t *testing.T, id, key string, requests chan<- routedRequ
 	return server, endpoints
 }
 
+func TestRoutedFanoutOffersHealthyGroupBeforeBlockedGroup(t *testing.T) {
+	blocked := make(chan *message.Payload, 1)
+	healthy := make(chan *message.Payload, 1)
+	blocked <- message.NewPayload(nil, nil, "", 0) // A's queue is already full.
+	sink := &routedTestSink{ch: make(chan *message.Payload, 1)}
+	progress, err := routing.NewProgress(2, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer progress.Close()
+	source := sources.NewLogSource("test", &config.LogsConfig{Type: config.StringChannelType})
+	msg := message.NewMessageWithSource([]byte("both"), "info", source, time.Now().UnixNano())
+	msg.Origin.Identifier = "file:fanout"
+	msg.Origin.Offset = "1"
+	if _, err := progress.Register(context.Background(), msg, routing.Selection{Groups: []string{"a", "b"}, Generation: 1}, []string{"a", "b"}); err != nil {
+		t.Fatal(err)
+	}
+	meta := msg.MessageMetadata
+	payload := message.NewPayload([]*message.MessageMetadata{&meta}, []byte("encoded"), "", 7)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		offerPayloadToGroups(ctx, payload, []string{"a", "b"}, map[string]chan *message.Payload{"a": blocked, "b": healthy})
+		close(done)
+	}()
+	select {
+	case got := <-healthy:
+		if got == payload || !bytes.Equal(got.Encoded, payload.Encoded) {
+			t.Fatal("healthy group received the wrong payload")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("healthy group waited for blocked A")
+	}
+	select {
+	case <-done:
+		t.Fatal("A's pending copy was discarded")
+	default:
+	}
+	select {
+	case checkpoint := <-sink.ch:
+		t.Fatalf("queue admission advanced checkpoint: %+v", checkpoint)
+	default:
+	}
+	progress.CompleteGroup("b", payload)
+	select {
+	case <-sink.ch:
+		t.Fatal("B completion advanced past pending A")
+	default:
+	}
+	<-blocked // Make room for A's retained copy.
+	select {
+	case got := <-blocked:
+		if !bytes.Equal(got.Encoded, payload.Encoded) {
+			t.Fatal("A's retained payload changed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("A's retained copy was not admitted")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("fanout did not finish after A had capacity")
+	}
+	select {
+	case <-healthy:
+		t.Fatal("B received a duplicate copy")
+	default:
+	}
+	progress.CompleteGroup("a", payload)
+	select {
+	case checkpoint := <-sink.ch:
+		if got := checkpoint.MessageMetas[0].Origin.Offset; got != "1" {
+			t.Fatalf("checkpoint offset = %q", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("completed A and B did not advance checkpoint")
+	}
+}
+
+func TestRoutedFanoutOffersHealthyStreamBeforeBlockedStream(t *testing.T) {
+	blocked := make(chan *message.Message, 1)
+	healthy := make(chan *message.Message, 1)
+	blocked <- &message.Message{}
+	msg := &message.Message{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		offerToChannels(ctx, []channelOffer[*message.Message]{
+			{input: blocked, value: msg},
+			{input: healthy, value: msg},
+		})
+		close(done)
+	}()
+	select {
+	case got := <-healthy:
+		if got != msg {
+			t.Fatal("healthy stream received a different record")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("healthy stream waited for blocked stream")
+	}
+	select {
+	case <-done:
+		t.Fatal("blocked stream's copy was discarded")
+	default:
+	}
+	<-blocked
+	select {
+	case got := <-blocked:
+		if got != msg {
+			t.Fatal("blocked stream received a different record")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("blocked stream's copy was not retained")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("fanout did not finish")
+	}
+	select {
+	case <-healthy:
+		t.Fatal("healthy stream received a duplicate record")
+	default:
+	}
+}
+
 func TestRoutedProviderExactHTTPRecipientsAndCheckpoints(t *testing.T) {
 	requests := make(chan routedRequest, 8)
 	serverA, endpointA := routedTestEndpoint(t, "a", "key-a", requests)

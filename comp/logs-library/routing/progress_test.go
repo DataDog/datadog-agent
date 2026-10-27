@@ -108,6 +108,9 @@ func TestProgressGenerationAndBoundedAdmission(t *testing.T) {
 	if got := nextCheckpoint(t, sink.ch); got != "10" {
 		t.Fatal(got)
 	}
+	if err := p.RetireSource("file", 1); err != nil {
+		t.Fatal(err)
+	}
 	newer := progressMessage("file", "20")
 	if _, err := p.Register(context.Background(), newer, Selection{Generation: 2}, []string{"a"}); err != nil {
 		t.Fatal(err)
@@ -169,6 +172,17 @@ func TestDirectBookmarkCannotBypassPendingGroup(t *testing.T) {
 	if got := nextCheckpoint(t, sink.ch); got != "event-1" {
 		t.Fatal(got)
 	}
+	guarded.SetOffset("eventlog", "late-unsafe")
+	if got := guarded.GetOffset("eventlog"); got != "initial" {
+		t.Fatalf("direct write bypassed active generation: %q", got)
+	}
+	if err := p.RetireSource("eventlog", 1); err != nil {
+		t.Fatal(err)
+	}
+	guarded.SetOffset("eventlog", "after-retirement")
+	if got := guarded.GetOffset("eventlog"); got != "after-retirement" {
+		t.Fatalf("retired source direct write: %q", got)
+	}
 }
 
 func TestReplacementGenerationIgnoresOldCompletion(t *testing.T) {
@@ -216,20 +230,103 @@ func TestObsoleteGenerationCannotBecomeCurrentAgain(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	stale := progressMessage("file", "old-11")
-	if _, err := p.Register(context.Background(), stale, Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrInvalidSelection) {
-		t.Fatalf("obsolete generation reappeared: %v", err)
-	}
-	if err := p.HoldInvalid(context.Background(), stale); err != nil {
-		t.Fatal(err)
-	}
 	p.CompleteGroup("a", terminalPayload(newer))
 	p.CompleteGroup("a", terminalPayload(old))
 	if got := nextCheckpoint(t, sink.ch); got != "new-1" {
 		t.Fatalf("replacement checkpoint: %q", got)
 	}
+	if p.Pending() != 0 {
+		t.Fatal("source queue did not drain")
+	}
+	if err := p.RetireSource("file", 42); err != nil {
+		t.Fatal(err)
+	}
+	stale := progressMessage("file", "old-11")
+	if _, err := p.Register(context.Background(), stale, Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrInvalidSelection) {
+		t.Fatalf("obsolete generation reappeared after queue drained: %v", err)
+	}
+	if err := p.HoldInvalid(context.Background(), stale); err != nil {
+		t.Fatal(err)
+	}
 	if len(sink.ch) != 0 || p.Pending() != 1 {
 		t.Fatal("stale source record changed the replacement checkpoint")
+	}
+	if err := p.RetireSource("file", 7); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Register(context.Background(), progressMessage("file", "old-12"), Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrInvalidSelection) {
+		t.Fatalf("invalid barrier released obsolete generation: %v", err)
+	}
+}
+
+func TestGenerationOwnershipIsBoundedUntilSourceRetires(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 3)}
+	p, err := NewProgress(2, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	for _, id := range []string{"a", "b"} {
+		m := progressMessage(id, "1")
+		if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"g"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := p.RetireSource(id, 1); !errors.Is(err, ErrSourcePending) {
+			t.Fatalf("retired pending source %q: %v", id, err)
+		}
+		p.CompleteGroup("g", terminalPayload(m))
+		if got := nextCheckpoint(t, sink.ch); got != "1" {
+			t.Fatalf("%s checkpoint: %q", id, got)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if _, err := p.Register(ctx, progressMessage("c", "1"), Selection{Generation: 1}, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("ownership capacity did not backpressure new source: %v", err)
+	}
+	if err := p.RetireSource("a", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Register(context.Background(), progressMessage("c", "1"), Selection{Generation: 1}, []string{"g"}); err != nil {
+		t.Fatalf("retirement did not release ownership capacity: %v", err)
+	}
+}
+
+func TestGenerationHistoryIsBoundedUntilSourceRetires(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 3)}
+	p, err := NewProgress(2, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	for generation := uint64(1); generation <= 2; generation++ {
+		m := progressMessage("file", "1")
+		if _, err := p.Register(context.Background(), m, Selection{Generation: generation}, []string{"g"}); err != nil {
+			t.Fatal(err)
+		}
+		p.CompleteGroup("g", terminalPayload(m))
+		if got := nextCheckpoint(t, sink.ch); got != "1" {
+			t.Fatalf("generation %d checkpoint: %q", generation, got)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if _, err := p.Register(ctx, progressMessage("file", "2"), Selection{Generation: 3}, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("generation history did not backpressure new generation: %v", err)
+	}
+	if err := p.RetireSource("file", 1); err != nil {
+		t.Fatal(err)
+	}
+	ctxAgain, cancelAgain := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelAgain()
+	if _, err := p.Register(ctxAgain, progressMessage("file", "2"), Selection{Generation: 3}, []string{"g"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("retiring only old generation released current ownership: %v", err)
+	}
+	if err := p.RetireSource("file", 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Register(context.Background(), progressMessage("file", "2"), Selection{Generation: 3}, []string{"g"}); err != nil {
+		t.Fatalf("retirement did not release generation history: %v", err)
 	}
 }
 

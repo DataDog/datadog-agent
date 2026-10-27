@@ -15,22 +15,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-var ErrStopped = errors.New("log routing progress stopped")
+var (
+	ErrStopped           = errors.New("log routing progress stopped")
+	ErrSourcePending     = errors.New("log routing source still has pending records")
+	ErrUnknownGeneration = errors.New("log routing source generation not owned")
+)
 
 // Progress coordinates terminal outcomes for original records. Its capacity
 // counts record references, not log bodies. Full capacity backpressures callers
 // before ownership transfers; it never acknowledges a rejected registration.
 type Progress struct {
-	mu       sync.Mutex
-	limit    int
-	next     uint64
-	records  map[uint64]*record
-	sources  map[string]*sourceProgress
-	space    chan struct{}
-	ready    chan *message.Payload
-	finished chan struct{}
-	sink     sender.Sink
-	stopped  bool
+	mu        sync.Mutex
+	limit     int
+	next      uint64
+	records   map[uint64]*record
+	sources   map[string]*sourceProgress
+	histories int
+	space     chan struct{}
+	ready     chan *message.Payload
+	finished  chan struct{}
+	sink      sender.Sink
+	stopped   bool
 }
 
 type record struct {
@@ -44,7 +49,7 @@ type record struct {
 
 type sourceProgress struct {
 	currentGeneration uint64
-	seenGenerations   map[uint64]struct{}
+	seenGenerations   map[uint64]bool // true after that producer retires
 	queue             []*record
 }
 
@@ -103,7 +108,20 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 			p.mu.Unlock()
 			return 0, ErrStopped
 		}
-		if len(p.records) < p.limit {
+		source := p.sources[identifier]
+		if identifier != "" && requireCompleteSource && source != nil {
+			if retired, seen := source.seenGenerations[selection.Generation]; seen && (retired || selection.Generation != source.currentGeneration) {
+				p.mu.Unlock()
+				return 0, fmt.Errorf("%w: obsolete source generation %d", ErrInvalidSelection, selection.Generation)
+			}
+		}
+		needsOwner := identifier != "" && source == nil
+		needsHistory := identifier != "" && requireCompleteSource
+		if source != nil {
+			_, seen := source.seenGenerations[selection.Generation]
+			needsHistory = requireCompleteSource && !seen
+		}
+		if len(p.records) < p.limit && (!needsOwner || len(p.sources) < p.limit) && (!needsHistory || p.histories < p.limit) {
 			break
 		}
 		space := p.space
@@ -112,14 +130,6 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		case <-ctx.Done():
 			return 0, ctx.Err()
 		case <-space:
-		}
-	}
-	if identifier != "" && requireCompleteSource {
-		if source := p.sources[identifier]; source != nil && selection.Generation != source.currentGeneration {
-			if _, seen := source.seenGenerations[selection.Generation]; seen {
-				p.mu.Unlock()
-				return 0, fmt.Errorf("%w: obsolete source generation %d", ErrInvalidSelection, selection.Generation)
-			}
 		}
 	}
 	p.next++
@@ -132,12 +142,15 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	if identifier != "" {
 		source := p.sources[identifier]
 		if source == nil {
-			source = &sourceProgress{seenGenerations: make(map[uint64]struct{})}
+			source = &sourceProgress{seenGenerations: make(map[uint64]bool)}
 			p.sources[identifier] = source
 		}
 		if requireCompleteSource {
+			if _, seen := source.seenGenerations[selection.Generation]; !seen {
+				p.histories++
+			}
 			source.currentGeneration = selection.Generation
-			source.seenGenerations[selection.Generation] = struct{}{}
+			source.seenGenerations[selection.Generation] = false
 		}
 		source.queue = append(source.queue, r)
 	}
@@ -227,9 +240,51 @@ func (p *Progress) advance(r *record) {
 		}
 		p.notifySpace()
 	}
-	if len(source.queue) == 0 {
-		delete(p.sources, r.identifier)
+}
+
+// RetireSource marks one producer stopped after all its decoder output has
+// been admitted. A drained queue alone is insufficient evidence of this. Old
+// generation retirement does not release newer ownership; history is released
+// only when every generation for the identifier has retired and the queue is
+// empty. Callers must not retire an active producer.
+func (p *Progress) RetireSource(identifier string, generation uint64) error {
+	if identifier == "" {
+		return nil
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped {
+		return ErrStopped
+	}
+	source := p.sources[identifier]
+	if source == nil {
+		return ErrUnknownGeneration
+	}
+	retired, seen := source.seenGenerations[generation]
+	if !seen {
+		return ErrUnknownGeneration
+	}
+	if retired {
+		return nil
+	}
+	for _, record := range source.queue {
+		if record.generation == generation {
+			return ErrSourcePending
+		}
+	}
+	source.seenGenerations[generation] = true
+	for _, retired := range source.seenGenerations {
+		if !retired {
+			return nil
+		}
+	}
+	if len(source.queue) != 0 {
+		return nil // An invalid-selection barrier still owns this identifier.
+	}
+	p.histories -= len(source.seenGenerations)
+	delete(p.sources, identifier)
+	p.notifySpace()
+	return nil
 }
 
 func (p *Progress) notifySpace() {
