@@ -126,6 +126,10 @@ def check_requirements(
                 missing_requirements.append(dep.__name__)
 
         if len(missing_requirements) == 0:
+            if not is_root():
+                # Earlier requirements (downloads, Homebrew installs...) can outlast sudo's
+                # credential timeout: refresh it through the terminal before each check.
+                authenticate_sudo()
             try:
                 result = requirement.check(ctx, fix)
             except Exception as e:
