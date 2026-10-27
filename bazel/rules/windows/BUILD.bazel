@@ -1,16 +1,32 @@
-alias(
-    name = "mc",
-    actual = select({
-        "//:linux_x86_64": "@wine_linux_x86_64//:wmc",
-        "@platforms//os:windows": "@winlibs_mingw64//:windmc",
-    }),
+load(":toolchain.bzl", "wine_llvm_toolchain", "winlibs_toolchain")
+
+toolchain_type(name = "toolchain_type")
+
+wine_llvm_toolchain(
+    name = "wine_llvm",
     tags = ["manual"],
 )
 
-filegroup(
-    name = "nls",
-    srcs = select({
-        "//:linux_x86_64": ["@wine_linux_x86_64//:nls"],
-        "//conditions:default": [],
-    }),
+toolchain(
+    name = "linux_x86_64_toolchain",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    toolchain = ":wine_llvm",
+    toolchain_type = ":toolchain_type",
+)
+
+winlibs_toolchain(
+    name = "winlibs",
+    tags = ["manual"],
+)
+
+toolchain(
+    name = "windows_toolchain",
+    exec_compatible_with = ["@platforms//os:windows"],
+    target_compatible_with = ["@platforms//os:windows"],
+    toolchain = ":winlibs",
+    toolchain_type = ":toolchain_type",
 )

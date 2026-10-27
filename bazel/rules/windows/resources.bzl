@@ -1,17 +1,39 @@
-"""Rules for compiling Windows resource files (.mc -> .rc/.res -> .syso).
+"""Rules for compiling Windows resource files (.mc -> .rc -> .syso).
 
-The message compiler depends on the exec platform: WinLibs' windmc on Windows, Wine's wmc on Linux.
+windres internally calls gcc -E to preprocess .rc files via popen().
+Under Bazel's --incompatible_strict_action_env the stripped environment
+breaks popen (windres is a MinGW64/CRT binary whose popen needs cmd.exe,
+which isn't in the MinGW-only PATH). We work around this with
+--use-temp-file, which bypasses popen entirely.
 
-LLVM's windres and its clang preprocessor run as `llvm windres` and `llvm clang`, since Windows containers cannot
-start them through their symlinks on bind mounts (microsoft/Windows-Containers#634).
+We still resolve the CC toolchain to get the correct PATH for gcc itself.
 """
 
 load("@bazel_lib//lib:copy_file.bzl", "COPY_FILE_TOOLCHAINS", "copy_file_action")
+load("@rules_cc//cc:action_names.bzl", "C_COMPILE_ACTION_NAME")
 load("@rules_cc//cc:defs.bzl", "CcInfo", "cc_common")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
 load("//bazel/rules:version_info.bzl", "agent_version_defines")
 
-def _syso_cc_info(ctx, syso_out):
+_TOOLCHAIN_TYPE = "//bazel/rules/windows:toolchain_type"
+
+def _cc_env(ctx):
+    """Returns (env, cc_toolchain, feature_configuration) from the resolved CC toolchain."""
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    env = cc_common.get_environment_variables(
+        feature_configuration = feature_configuration,
+        action_name = C_COMPILE_ACTION_NAME,
+        variables = cc_common.empty_variables(),
+    )
+    return env, cc_toolchain, feature_configuration
+
+def _syso_cc_info(ctx, syso_out, cc_toolchain, feature_configuration):
     """Wraps a .syso object file in a CcInfo so cc/rust link_deps can consume it.
 
     cc_common.create_library_to_link requires a prebuilt static/dynamic library
@@ -28,14 +50,7 @@ def _syso_cc_info(ctx, syso_out):
     archive member is never pulled in by the linker and the resources silently
     vanish from the binary.
     """
-    cc_toolchain = find_cc_toolchain(ctx)
-    feature_configuration = cc_common.configure_features(
-        ctx = ctx,
-        cc_toolchain = cc_toolchain,
-        requested_features = ctx.features,
-        unsupported_features = ctx.disabled_features,
-    )
-    obj_alias = ctx.actions.declare_file(ctx.label.name + "_syso_alias.o")
+    obj_alias = ctx.actions.declare_file("{}_syso_alias.o".format(ctx.label.name))
     copy_file_action(ctx, syso_out, obj_alias)
     objects = depset([obj_alias])
     compilation_outputs = cc_common.create_compilation_outputs(objects = objects, pic_objects = objects)
@@ -51,29 +66,28 @@ def _syso_cc_info(ctx, syso_out):
     return CcInfo(linking_context = linking_context)
 
 def _windres(ctx, src, syso_out, inputs, args):
+    env, cc_toolchain, feature_configuration = _cc_env(ctx)
+    toolchain = ctx.toolchains[_TOOLCHAIN_TYPE]
+
     windres_args = ctx.actions.args()
-    windres_args.add("windres")
+    windres_args.add_all(toolchain.windres_args)
     windres_args.add("--target", "pe-x86-64")
-    windres_args.add("--preprocessor", ctx.executable._llvm)
-    windres_args.add_all(
-        ["clang", "-target", "x86_64-w64-mingw32", "-E", "-xc", "-DRC_INVOKED"],
-        format_each = "--preprocessor-arg=%s",
-    )
     windres_args.add_all(args)
     windres_args.add("-i", src)
     windres_args.add("-O", "coff")
     windres_args.add("-o", syso_out)
 
     ctx.actions.run(
-        executable = ctx.executable._llvm,
+        executable = toolchain.windres,
         arguments = [windres_args],
-        inputs = [src] + inputs,
+        env = env,
+        inputs = depset([src] + inputs, transitive = [cc_toolchain.all_files]),
         outputs = [syso_out],
         mnemonic = "WindRes",
         progress_message = "Linking resource %{input}",
     )
 
-    return _syso_cc_info(ctx, syso_out)
+    return _syso_cc_info(ctx, syso_out, cc_toolchain, feature_configuration)
 
 # --- win_messagetable ---------------------------------------------------------
 
@@ -83,54 +97,11 @@ def _win_messagetable_impl(ctx):
     # Pick output names based on the input file name rather than the
     # canonical ctx.label.name. WindMC always writes output that matches
     # the input file name. There is no option to set the output name.
-    basename = src.basename.replace(".mc", "")
-    h_out = ctx.actions.declare_file(basename + ".h")
-
-    if ctx.files._nls:
-        res_out = ctx.actions.declare_file(basename + ".res")
-        nls_dir = "--nls-dir=" + ctx.files._nls[0].dirname
-        ctx.actions.run(
-            executable = ctx.executable._mc,
-            arguments = [nls_dir, "-O", "res", "-o", res_out.path, src.path],
-            inputs = [src] + ctx.files._nls,
-            outputs = [res_out],
-            mnemonic = "Wmc",
-            progress_message = "Compiling message table %{input} into %{output}",
-        )
-        ctx.actions.run(
-            executable = ctx.executable._mc,
-            arguments = [nls_dir, "-i", "-H", h_out.path, "-o", "/dev/null", src.path],  # discard .rc file
-            inputs = [src] + ctx.files._nls,
-            outputs = [h_out],
-            mnemonic = "Wmc",
-            progress_message = "Compiling message table %{input} into %{output}",
-        )
-        windres_src, windres_inputs = res_out, []
-    else:
-        rc_out = ctx.actions.declare_file(basename + ".rc")
-        bin_out = ctx.actions.declare_file("MSG00409.bin")
-        windmc_args = ctx.actions.args()
-        windmc_args.add("--target", "pe-x86-64")
-        windmc_args.add("-r", rc_out.dirname)
-        windmc_args.add("-h", rc_out.dirname)
-        windmc_args.add(src)
-
-        ctx.actions.run(
-            executable = ctx.executable._mc,
-            arguments = [windmc_args],
-            inputs = [src],
-            outputs = [rc_out, h_out, bin_out],
-            mnemonic = "WindMC",
-            progress_message = "Compiling message table %{input}",
-        )
-
-        #TODO(agent-build): drop expand_template step once `llvm` ships https://github.com/llvm/llvm-project/pull/234376
-        windres_src = ctx.actions.declare_file(basename + ".llvm.rc")
-        ctx.actions.expand_template(output = windres_src, substitutions = {" MESSAGETABLE ": " 11 "}, template = rc_out)
-        windres_inputs = [bin_out]
-
-    syso_out = ctx.actions.declare_file(basename + ".syso")
-    cc_info = _windres(ctx, windres_src, syso_out, windres_inputs, [])
+    basename = src.basename.removesuffix(".mc")
+    h_out = ctx.actions.declare_file("{}.h".format(basename))
+    resource, inputs = ctx.toolchains[_TOOLCHAIN_TYPE].compile_messagetable(ctx.actions, src, basename, h_out)
+    syso_out = ctx.actions.declare_file("{}.syso".format(basename))
+    cc_info = _windres(ctx, resource, syso_out, inputs, [])
     return [DefaultInfo(files = depset([syso_out, h_out])), cc_info]
 
 _win_messagetable = rule(
@@ -138,11 +109,8 @@ _win_messagetable = rule(
     doc = "Compiles a .mc message file into a .syso resource and .h header via windmc + windres.",
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".mc"]),
-        "_llvm": attr.label(default = "//:llvm", executable = True, cfg = "exec", allow_single_file = True),
-        "_mc": attr.label(default = "//bazel/rules/windows:mc", executable = True, cfg = "exec", allow_single_file = True),
-        "_nls": attr.label(default = "//bazel/rules/windows:nls", cfg = "exec", allow_files = True),
     } | CC_TOOLCHAIN_ATTRS,
-    toolchains = use_cc_toolchain() + COPY_FILE_TOOLCHAINS,
+    toolchains = use_cc_toolchain() + COPY_FILE_TOOLCHAINS + [_TOOLCHAIN_TYPE],
     fragments = ["cpp"],
 )
 
@@ -188,9 +156,8 @@ _win_resource = rule(
         "src": attr.label(mandatory = True, allow_single_file = [".rc"]),
         "deps": attr.label_list(allow_files = True),
         "defines": attr.string_dict(),
-        "_llvm": attr.label(default = "//:llvm", executable = True, cfg = "exec", allow_single_file = True),
     } | CC_TOOLCHAIN_ATTRS,
-    toolchains = use_cc_toolchain() + COPY_FILE_TOOLCHAINS,
+    toolchains = use_cc_toolchain() + COPY_FILE_TOOLCHAINS + [_TOOLCHAIN_TYPE],
     fragments = ["cpp"],
 )
 
