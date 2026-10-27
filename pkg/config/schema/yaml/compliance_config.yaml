@@ -184,6 +184,8 @@ properties:
           is then killed and the rule it hung on is skipped. Rules that walk every
           local file system can take longer on hosts with many files. Values below
           60s, including unitless ones, fall back to 60s.
+        tags:
+        - golang_type:duration
     tags:
     - full-agent-only:true
   metrics:
