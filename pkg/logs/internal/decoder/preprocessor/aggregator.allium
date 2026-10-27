@@ -48,7 +48,7 @@
 --     configuration concern, not part of the contract.
 
 use "./labeler.allium" as labeler
-use "./tokenizer.allium" as tokenizer
+use "../../../tokenizer/tokenizer.allium" as tokenizer
 
 ------------------------------------------------------------
 -- Value Types

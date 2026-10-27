@@ -62,6 +62,13 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+    enum:
+    - basic
+    - full
+    - end_user_device
+    - cloud_cost_only
+    - none
+    - null
   dd_url:
     node_type: setting
     type: string
@@ -78,6 +85,7 @@ properties:
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
     tags:
     - template_section:Common
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   proxy:
     node_type: section
     type: object
@@ -518,6 +526,39 @@ properties:
                 - true: v3 for every destination except Observability Pipelines Worker.
                 - datadog_only: v3 only when the destination URL is a Datadog endpoint.
                 - false: v2 everywhere.
+      distributions:
+        node_type: section
+        type: object
+        visibility: public
+        description: Controls the use of the v3 metrics intake for distribution
+          metrics.
+        tags:
+        - template_section:Common
+        properties:
+          enabled:
+            node_type: setting
+            type: string
+            default: 'false'
+            visibility: public
+            description: |-
+              Global default for the distribution metrics intake version. Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
+          endpoints:
+            node_type: setting
+            type: object
+            default: {}
+            additionalProperties:
+              type: string
+            visibility: public
+            description: |-
+              Per-URL override map for distribution metrics intake version. The URL
+              must match exactly what was configured under `dd_url` or `additional_endpoints`.
+              Accepted values:
+                - true: v3 for every destination except Observability Pipelines Worker.
+                - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+                - false: v2 everywhere.
   forwarder_retry_queue_payloads_max_size:
     node_type: setting
     type: integer
@@ -574,6 +615,103 @@ properties:
       each request can be sent before waiting for the response.
     tags:
     - template_section:Common
+  forwarder_concurrency_policy:
+    node_type: setting
+    type: string
+    default: static
+    description: |-
+      How the forwarder limits the number of concurrent requests to each domain.
+      Possible values are "static" or "dynamic".
+
+      With "static", each worker can have up to 'forwarder_max_concurrent_requests'
+      requests in flight.
+
+      With "dynamic", all workers of a domain share one limit that is scaled at
+      runtime. The limit starts at 'forwarder.dynamic_concurrency.initial_limit'
+      and grows, up to 'forwarder.dynamic_concurrency.max_concurrent_requests',
+      while the forwarder is fully occupied, meaning it cannot keep up with the
+      payload arrival rate.
+      It shrinks when the backend pushes back (HTTP 408/429/503 or timeouts) or
+      when the forwarder is rarely fully occupied.
+  forwarder:
+    node_type: section
+    type: object
+    description: Forwarder configuration.
+    properties:
+      dynamic_concurrency:
+        node_type: section
+        type: object
+        description: |-
+          Settings used by the forwarder when 'forwarder_concurrency_policy' is
+          set to "dynamic".
+        properties:
+          num_workers:
+            node_type: setting
+            type: integer
+            default: 1
+            description: The number of workers used by the forwarder.
+          max_concurrent_requests:
+            node_type: setting
+            type: integer
+            default: 10
+            description: |-
+              The maximum number of concurrent requests to each domain, shared by
+              all workers. The forwarder scales the limit at runtime up to this value.
+          initial_limit:
+            node_type: setting
+            type: integer
+            default: 1
+            description: |-
+              The concurrency limit the forwarder starts with, and resets to when
+              it restarts. Must be between 1 and 'max_concurrent_requests'.
+          eval_interval:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How often the forwarder evaluates whether to raise or lower the limit.
+              Set it to at least the interval at which payloads arrive, so that a
+              single batch does not look like a sustained backlog.
+          increase_threshold:
+            node_type: setting
+            type: number
+            default: 0.8
+            description: |-
+              Increase the limit if the forwarder is fully occupied for at least
+              this fraction (between 0 and 1) of an evaluation interval.
+          decrease_threshold:
+            node_type: setting
+            type: number
+            default: 0.2
+            description: |-
+              Decrease the limit if the forwarder is fully occupied for less than
+              this fraction (between 0 and 'increase_threshold') of an evaluation
+              interval. Set to 0 to disable.
+          increase_step:
+            node_type: setting
+            type: integer
+            default: 1
+            description: How much the limit is raised by after each saturated evaluation
+              interval.
+          min_decrease_interval:
+            node_type: setting
+            type: string
+            default: 1s
+            format: duration
+            description: |-
+              The minimum time between two decreases of the limit. The limit is
+              halved when the backend pushes back; pushback received within this
+              interval of the previous decrease is ignored, so a burst of errors
+              halves the limit only once.
+          increase_cooldown:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How long after a decrease the forwarder waits before raising the
+              limit again.
   forwarder_storage_max_size_in_bytes:
     node_type: setting
     type: integer
@@ -1148,6 +1286,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                description: Flag to use the v3 API for the metrics series payload.
       logs:
         node_type: section
         type: object
@@ -1260,6 +1399,8 @@ properties:
     - template_section:Agent
     - full-agent-only:true
     comment: Go_expvar server port
+    minimum: 1
+    maximum: 65535
   cmd_port:
     node_type: setting
     type: integer
@@ -1268,6 +1409,8 @@ properties:
     description: The port on which the IPC api listens.
     tags:
     - template_section:Agent
+    minimum: 1
+    maximum: 65535
   GUI_port:
     node_type: setting
     type: integer
@@ -1326,6 +1469,8 @@ properties:
     tags:
     - golang_type:int64
     - template_section:Agent
+    minimum: 1
+    maximum: 1000
   enable_metadata_collection:
     node_type: setting
     type: boolean
@@ -2112,6 +2257,7 @@ properties:
             visibility: public
             description: The `workers` refers to the number of concurrent workers
               available for synthetics tests execution.
+            minimum: 1
           flush_interval:
             node_type: setting
             type: string
@@ -2235,6 +2381,8 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: 'Notice: 0 means UDP port closed'
+    minimum: 1
+    maximum: 65535
   dogstatsd_require_listener:
     node_type: setting
     type: boolean
@@ -2394,6 +2542,8 @@ properties:
     description: The port for the go_expvar server.
     tags:
     - template_section:Dogstatsd
+    minimum: 1
+    maximum: 65535
   dogstatsd_so_rcvbuf:
     node_type: setting
     type: integer
@@ -3022,6 +3172,8 @@ properties:
       Set to 0 to not limit the number of files to create.
     tags:
     - template_section:Logging
+    minimum: 0
+    maximum: 1000
   log_to_syslog:
     node_type: setting
     type: boolean
@@ -6546,6 +6698,7 @@ properties:
           Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
           and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
           to also be true.
+        description: Flag to enable or disable Data Security.
       enforce_ssl:
         node_type: setting
         type: boolean
@@ -7369,6 +7522,7 @@ properties:
         type: boolean
         default: true
         comment: 'Serializer: allow user to blacklist any kind of payload to be sent'
+        description: Flag to enable or disable events payloads.
       json_to_v1_intake:
         node_type: setting
         type: boolean
@@ -7377,14 +7531,17 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable series payloads.
       service_checks:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable service checks payloads.
       sketches:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable sketches payloads.
   enabled_rfc1123_compliant_cluster_name_tag:
     node_type: setting
     type: boolean
@@ -7677,6 +7834,9 @@ properties:
     type: integer
     default: 0
     comment: in seconds, 0 means disabled
+    minimum: 0
+    description: Interval in seconds after which forwarder connections to Datadog are
+      reset. 0 disables the reset.
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
@@ -7848,6 +8008,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      persist_remotely_on_kubernetes:
+        node_type: setting
+        type: boolean
+        default: false
   heroku_dyno:
     node_type: setting
     type: boolean
@@ -7891,6 +8055,12 @@ properties:
         default: {}
         additionalProperties:
           type: string
+      send_error_frames:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |
+          Includes unwind error frames in profiles for troubleshooting.
       ddprofiling:
         node_type: section
         type: object
@@ -9404,6 +9574,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        description: Flag to enable or disable shared library checks.
       library_folder_path:
         node_type: setting
         type: string
@@ -9657,6 +9828,8 @@ properties:
     comment: |-
       If true, then new version of disk v2 check will be used.
       Otherwise, the python version of disk check will be used.
+    description: Flag to enable or disable the Go core disk check. When disabled, the
+      Python disk check is used instead.
   use_improved_cgroup_parser:
     node_type: setting
     type: boolean
@@ -9675,6 +9848,8 @@ properties:
       the darwin and bsd network check has not been ported from python
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
+    description: Flag to enable or disable the Go core network check. When disabled, the
+      Python network check is used instead.
   use_v2_api:
     node_type: section
     type: object

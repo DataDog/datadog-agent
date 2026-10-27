@@ -1275,6 +1275,10 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+				// The kernel runs a script through its interpreter, which LinuxBinprm names.
+				if event.Exec.Process.HasInterpreter() {
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.LinuxBinprm.FileEvent)
+				}
 			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
 				// Resolve the path on a copy of the file, which keeps the error of a
 				// path the SBOM resolver fails to resolve off the event: the v1

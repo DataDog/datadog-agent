@@ -29,7 +29,7 @@ import (
 )
 
 // runtimeDirLogState dedupes the runtime-directory warnings, which would
-// otherwise repeat once per asset compiled (secureRuntimeDir runs inside the
+// otherwise repeat once per asset compiled (secureDir runs inside the
 // per-asset compile()).
 var runtimeDirLogState struct {
 	sync.Mutex
@@ -57,7 +57,7 @@ func logRuntimeDirOnce(reason string) bool {
 // surfacing rather than doing it silently.
 func logRuntimeDirReclaimed(p string) {
 	if logRuntimeDirOnce("reclaimed:" + p) {
-		log.Warnf("recreated runtime compiler output directory component %s: it was not a root-owned directory", p)
+		log.Warnf("recreated runtime directory component %s: it was not a root-owned directory", p)
 	}
 }
 
@@ -117,7 +117,15 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 			YumReposDir:     config.YumReposDir,
 			ZypperReposDir:  config.ZypperReposDir,
 		}
-		kernelHeaders = headers.GetKernelHeaders(headerOpts)
+		// Called only if the header search reaches the downloaded-header path, and
+		// before that directory is read from, deleted in, or written to. Configured,
+		// /lib/modules and kheaders.tar.xz sources return without it, so supplying
+		// headers by those means does not require this directory to be securable.
+		// secureDir verifies every component of the path it is given, so passing the
+		// leaf checks "system-probe" and "kernel-headers" rather than assuming they
+		// are safe because the directory above them is. GetKernelHeaders wraps
+		// the error to say which directory it was.
+		kernelHeaders = headers.GetKernelHeaders(headerOpts, secureDir)
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
 			return nil, errors.New("unable to find kernel headers")
@@ -134,7 +142,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	}
 	defer f.Close()
 
-	if err := secureRuntimeDir(outputDir); err != nil {
+	if err := secureDir(outputDir); err != nil {
+		err = fmt.Errorf("unable to use compiler output directory: %w", err)
 		// Surface the policy refusal distinctly so operators can tell "runtime
 		// compilation disabled because the output directory is not under root's
 		// control" apart from an ordinary compilation failure. compile() runs
@@ -216,7 +225,7 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 // runtime_compiler_output_dir default (pkg/config/setup/system_probe_settings.go).
 const dedicatedDirName = "datadog-agent"
 
-// secureRuntimeDir ensures the runtime-compiler output directory exists, is
+// secureDir ensures the given directory exists, is
 // root-only (0700), and that it and every ancestor up to the filesystem root is
 // a real directory owned by root and not writable by other users. The compiler
 // writes object files here and system-probe later re-reads them to load into the
@@ -259,8 +268,8 @@ const dedicatedDirName = "datadog-agent"
 // or above the sticky boundary, and anything outside the datadog-agent subtree
 // are all still refused, so unexpected or broken layouts fail closed rather than
 // being silently rewritten.
-func secureRuntimeDir(outputDir string) error {
-	components, err := runtimeDirComponents(outputDir)
+func secureDir(dir string) error {
+	components, err := runtimeDirComponents(dir)
 	if err != nil {
 		return err
 	}
@@ -282,16 +291,16 @@ func secureRuntimeDir(outputDir string) error {
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("unable to secure compiler output directory %s after %d attempts: %w", outputDir, maxAttempts, lastErr)
+	return fmt.Errorf("unable to secure %s after %d attempts: %w", dir, maxAttempts, lastErr)
 }
 
 // runtimeDirComponents returns the absolute form of outputDir and every ancestor
 // up to the filesystem root, ordered root-first: index 0 is the filesystem root
 // ("/") and the last element is the leaf output directory.
-func runtimeDirComponents(outputDir string) ([]string, error) {
-	abs, err := filepath.Abs(outputDir)
+func runtimeDirComponents(dir string) ([]string, error) {
+	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("unable to resolve compiler output directory %s: %w", outputDir, err)
+		return nil, fmt.Errorf("unable to resolve %s: %w", dir, err)
 	}
 	var components []string
 	for p := filepath.Clean(abs); ; {
@@ -358,17 +367,17 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 			// directories and will not create through a symlink at p.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
 				// A racing actor may have created p first; re-walking re-checks it.
-				return true, fmt.Errorf("unable to create compiler output directory component %s: %w", p, mErr)
+				return true, fmt.Errorf("unable to create %s: %w", p, mErr)
 			}
 			continue
 		}
 		if lerr != nil {
-			return false, fmt.Errorf("unable to verify compiler output directory component %s: %w", p, lerr)
+			return false, fmt.Errorf("unable to verify %s: %w", p, lerr)
 		}
 
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
-			return false, fmt.Errorf("unable to read ownership of compiler output directory component %s", p)
+			return false, fmt.Errorf("unable to read ownership of %s", p)
 		}
 		// The last component is the leaf output directory, which is held to the
 		// stricter no-group/other-write rule (see verifyDirComponent).
@@ -389,7 +398,7 @@ func ensureRuntimeDirChain(components []string) (retryable bool, err error) {
 			// Recreate this component fresh; deeper components were removed with
 			// the reclaimed subtree and are created as the walk continues.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
-				return true, fmt.Errorf("unable to recreate compiler output directory component %s after reclaim: %w", p, mErr)
+				return true, fmt.Errorf("unable to recreate %s after reclaim: %w", p, mErr)
 			}
 			continue
 		}
@@ -452,16 +461,16 @@ func reclaimDirComponent(p string) error {
 // sticky bit; isLeaf selects that stricter rule.
 func verifyDirComponent(p string, mode os.FileMode, uid uint32, isLeaf bool) error {
 	if mode&os.ModeSymlink != 0 {
-		return fmt.Errorf("refusing to use compiler output directory: %s is a symlink", p)
+		return fmt.Errorf("%s is a symlink", p)
 	}
 	if !mode.IsDir() {
-		return fmt.Errorf("refusing to use compiler output directory: %s is not a directory", p)
+		return fmt.Errorf("%s is not a directory", p)
 	}
 	if uid != 0 {
-		return fmt.Errorf("refusing to use compiler output directory: %s is not owned by root (uid=%d)", p, uid)
+		return fmt.Errorf("%s is not owned by root (uid=%d)", p, uid)
 	}
 	if mode.Perm()&0022 != 0 && (isLeaf || mode&os.ModeSticky == 0) {
-		return fmt.Errorf("refusing to use compiler output directory: %s is writable by non-root (mode=%#o)", p, mode.Perm())
+		return fmt.Errorf("%s is writable by non-root (mode=%#o)", p, mode.Perm())
 	}
 	return nil
 }

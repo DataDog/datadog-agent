@@ -14,7 +14,7 @@ go_library(
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
         "//pkg/system-probe/api/client",
-        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
         "//pkg/util/funcs",
     ],
 )

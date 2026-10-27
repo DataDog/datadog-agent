@@ -206,6 +206,9 @@ Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extens
 content in sync with source files automatically. When a new language or generator is added to the binary, its rules
 become part of the same automated workflow — you do not need to know which extensions are loaded.
 
+After deleting a package's last test file, check for an obsolete `dd_agent_go_test` rule: Gazelle can retain the macro
+and its stale source references. Remove the obsolete rule and its unused load explicitly.
+
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
@@ -988,8 +991,9 @@ asserting on wall-clock time fail. Prefer waiting on a signal over a fixed durat
 external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
 `DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
 Linking tests depending on the Pulumi k8s SDK peaks at 25x to 35x their binary's on-disk footprint, beyond what `GoLink`
-books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` book more through the `go_link` exec group's
-`resources:memory`, honored locally since Bazel 9.2.0.
+books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` add the `resources:memory:6144` tag, honored
+locally since Bazel 9.2.0. Prefer that tag over a `resources:memory` entry in `exec_properties`: the latter is also sent
+as a remote execution platform property, and RBE workers that don't advertise it can't be scheduled.
 
 ## Testing
 

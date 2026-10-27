@@ -122,9 +122,6 @@ LIBS = {
 
 configure_make(
     name = "krb5",
-    args = [
-        "-j 16",
-    ],
     configure_options = [
         "--without-keyutils",  # this would require additional deps/system deps, disable it
         "--without-system-verto",  # do not prefer libverto from the system, if installed
@@ -148,6 +145,7 @@ configure_make(
         ) if spec["prefix"] else "{}.so".format(libname)
         for libname, spec in LIBS.items()
     ],
+    resource_size = "enormous",
     deps = [
         "@openssl",
     ],
