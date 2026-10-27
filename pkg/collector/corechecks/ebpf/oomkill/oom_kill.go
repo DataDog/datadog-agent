@@ -109,7 +109,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
 		if !entityID.Empty() {
-			tags, err = m.tagger.Tag(entityID, types.ChecksConfigCardinality)
+			tags, err = m.tagger.Tag(entityID, types.HighCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}
