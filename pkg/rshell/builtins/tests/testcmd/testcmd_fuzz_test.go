@@ -299,6 +299,10 @@ func FuzzTestNesting(f *testing.F) {
 	f.Add("1 -eq 2 -o 2 -eq 2 -o 3 -eq 4")
 	// Mixed -a and -o
 	f.Add("1 -eq 1 -o 1 -eq 2 -a 2 -eq 2")
+	// Brace sequence that expands over the ASCII '['..']' range and so forms an
+	// invalid glob character class ([1-0]); previously panicked mvdan's glob
+	// matcher during field expansion. Regression for that crash.
+	f.Add("{a..A}1-{a..A}0{a..A}")
 
 	// Shared base dir avoids per-iteration t.TempDir() cleanup overhead.
 	baseDir := f.TempDir()

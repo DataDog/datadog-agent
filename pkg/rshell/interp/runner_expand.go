@@ -307,7 +307,40 @@ func (c *fieldCollector) setCommandPrefixFields(n int) bool {
 	return true
 }
 
-func (c *fieldCollector) add(words ...*syntax.Word) bool {
+// isGlobPatternPanic reports whether rec is the panic raised by
+// mvdan.cc/sh/v3's glob matcher (internal.ExtendedPatternMatcher, which calls
+// regexp.MustCompile) on a pattern it produced but cannot compile — most
+// notably an invalid character-class range such as `[1-0]`. Brace expansion can
+// synthesize such a pattern from innocent-looking input: `{a..A}` expands over
+// the ASCII range that includes `[`, `\` and `]`, so a field like `[1-0]` can
+// appear and reach pathname expansion. mvdan panics instead of returning an
+// error, so field expansion must recognise and convert it; any other panic is
+// re-raised so genuine interpreter bugs still surface.
+func isGlobPatternPanic(rec any) bool {
+	// regexp.MustCompile (reached via mvdan's internal.ExtendedPatternMatcher)
+	// panics with a string beginning "regexp: Compile(".
+	var s string
+	switch v := rec.(type) {
+	case string:
+		s = v
+	case error:
+		s = v.Error()
+	default:
+		return false
+	}
+	return strings.HasPrefix(s, "regexp: Compile(")
+}
+
+func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if !isGlobPatternPanic(rec) {
+				panic(rec)
+			}
+			c.r.expandErr(fmt.Errorf("invalid glob pattern in expansion"))
+			ok = false
+		}
+	}()
 	for _, word := range words {
 		if c.r.stop(c.r.ectx) {
 			return false

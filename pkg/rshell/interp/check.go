@@ -501,6 +501,31 @@ func (c *scriptChecker) forgetCommandEffects(name string, state *checkState) {
 	}
 }
 
+// forEachCheckField iterates the fields produced by expanding word, calling
+// yield for each (field, err) until yield returns false or expansion ends. It
+// returns false only if mvdan.cc/sh's glob matcher panicked on a pattern it
+// could not compile (see isGlobPatternPanic) — e.g. an invalid class range a
+// brace expansion synthesized — so the caller can mark the result
+// indeterminate rather than let the panic reach the checker. Any other panic is
+// re-raised.
+func forEachCheckField(cfg *expand.Config, word *syntax.Word, yield func(string, error) bool) (ok bool) {
+	ok = true
+	defer func() {
+		if rec := recover(); rec != nil {
+			if !isGlobPatternPanic(rec) {
+				panic(rec)
+			}
+			ok = false
+		}
+	}()
+	for field, err := range expand.FieldsSeq(cfg, word) {
+		if !yield(field, err) {
+			return
+		}
+	}
+	return
+}
+
 func (c *scriptChecker) call(stmt *syntax.Stmt, call *syntax.CallExpr, state *checkState, depth int) {
 	entry := c.add(stmt.Pos())
 	if entry == nil {
@@ -514,18 +539,21 @@ func (c *scriptChecker) call(stmt *syntax.Stmt, call *syntax.CallExpr, state *ch
 			complete = false
 			break
 		}
-		for field, err := range expand.FieldsSeq(state.expansionConfig(), word) {
+		if !forEachCheckField(state.expansionConfig(), word, func(field string, err error) bool {
 			if err != nil {
 				complete = false
-				break
+				return false
 			}
 			bytes += len(field)
 			if len(fields) >= MaxExpandedArgumentsPerCommand+1 || bytes > MaxExpandedBytesPerCommand {
 				entry.issue(CheckLimitExceeded, "command expansion exceeds argument or byte limit")
 				complete = false
-				break
+				return false
 			}
 			fields = append(fields, field)
+			return true
+		}) {
+			complete = false
 		}
 		if !complete {
 			break
@@ -652,15 +680,15 @@ func (c *scriptChecker) redirects(entry *CommandCheck, redirects []*syntax.Redir
 		known := state.boundWord(redirect.Word, false, MaxExpandedBytesPerCommand)
 		var paths []string
 		if known {
-			for path, err := range expand.FieldsSeq(state.expansionConfig(), redirect.Word) {
+			if !forEachCheckField(state.expansionConfig(), redirect.Word, func(path string, err error) bool {
 				if err != nil || len(path) > MaxExpandedBytesPerCommand {
 					known = false
-					break
+					return false
 				}
 				paths = append(paths, path)
-				if len(paths) > 1 {
-					break
-				}
+				return len(paths) <= 1
+			}) {
+				known = false
 			}
 		}
 		if !known {
