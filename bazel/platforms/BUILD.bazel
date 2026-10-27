@@ -14,7 +14,15 @@ platform(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+        "@llvm//constraints/cxxstdlib:libstdcxx.11.4.0",
+        "@llvm//constraints/kernel/linux:6.4",
+        "@llvm//constraints/libc:gnu.2.17",  # RHEL/CentOS 7
     ],
+    # Part of every action key, local or remote: Linux hosts and RBE must agree on them to share cache entries.
+    exec_properties = {
+        "ISA": "x86-64",
+        "OSFamily": "Linux",
+    },
 )
 
 platform(
@@ -22,6 +30,9 @@ platform(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        "@llvm//constraints/cxxstdlib:libstdcxx.12.3.0",
+        "@llvm//constraints/kernel/linux:6.4",
+        "@llvm//constraints/libc:gnu.2.23",  # Ubuntu 16.04
     ],
 )
 
@@ -62,19 +73,17 @@ platform(
 platform(
     name = "linux_x86_64_fips",
     constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
         ":fips",
     ],
+    parents = [":linux_x86_64"],
 )
 
 platform(
     name = "linux_arm64_fips",
     constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:arm64",
         ":fips",
     ],
+    parents = [":linux_arm64"],
 )
 
 platform(

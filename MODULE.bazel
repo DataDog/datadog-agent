@@ -332,22 +332,6 @@ archive_override(
 )
 
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
-gcc_toolchains.toolchain(
-    name = "gcc_toolchain_x86_64",
-    binary_prefix = "x86_64-linux-gnu-",
-    enable_fortran = False,
-    extra_ldflags = ["-Wl,--build-id=sha1"],
-    gcc_version = "11.4.0",
-    target_arch = "x86_64",
-)
-gcc_toolchains.toolchain(
-    name = "gcc_toolchain_aarch64",
-    binary_prefix = "aarch64-linux-gnu-",
-    enable_fortran = False,
-    extra_ldflags = ["-Wl,--build-id=sha1"],
-    gcc_version = "12.3.0",
-    target_arch = "aarch64",
-)
 
 # Cross toolchain: runs on aarch64, targets armv7 (armhf). No native armv7 CI
 # runners exist, so unlike the other two entries this always cross-compiles.
@@ -366,8 +350,6 @@ gcc_toolchains.toolchain(
     }}}""",
     target_arch = "armv7",
 )
-use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
-use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 use_repo(gcc_toolchains, "gcc_toolchain_armv7")
 
 llvm_toolchain = use_extension("@llvm//extensions:toolchain.bzl", "toolchain")
@@ -389,7 +371,15 @@ llvm_toolchain.exec(
 )
 llvm_toolchain.target(
     arch = "aarch64",
+    os = "linux",
+)
+llvm_toolchain.target(
+    arch = "aarch64",
     os = "macos",
+)
+llvm_toolchain.target(
+    arch = "x86_64",
+    os = "linux",
 )
 llvm_toolchain.target(
     arch = "x86_64",
@@ -448,8 +438,6 @@ use_repo(msvc_toolchain, "msvc_toolchains")
 
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
 register_toolchains(
-    "@gcc_toolchain_x86_64//:cc_toolchain",
-    "@gcc_toolchain_aarch64//:cc_toolchain",
     "@gcc_toolchain_armv7//:cc_toolchain",
     "@winlibs_mingw64//:mingw_cc_toolchain",
     "@msvc_toolchains//:all",
