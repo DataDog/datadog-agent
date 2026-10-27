@@ -26,13 +26,19 @@ func newFileConfig(t *testing.T, content string) (model.BuildableConfig, string)
 	path := filepath.Join(t.TempDir(), "datadog.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 
-	conf := NewNodeTreeConfig("datadog", "DD", nil)
+	conf := NewNodeTreeConfig("datadog", model.CoreSchema)
 	conf.BindEnvAndSetDefault("api_key", "")
 	conf.BindEnvAndSetDefault("site", "datadoghq.com")
 	conf.BuildSchema()
 	conf.SetConfigFile(path)
 
 	return conf, path
+}
+
+// configFileError joins every recorded config error, for assertions that do not
+// care which entry a string landed in.
+func configFileError(conf model.BuildableConfig) string {
+	return strings.Join(conf.ConfigFileErrors(), "\n")
 }
 
 // syntaxErrorYAML reproduces FRAGENT-3726: a value where a key is expected.
@@ -83,8 +89,8 @@ func TestConfigFileErrorReportsParseFailure(t *testing.T) {
 
 	require.Error(t, conf.ReadInConfig())
 
-	assert.Contains(t, conf.ConfigFileError(), path)
-	assert.Contains(t, conf.ConfigFileError(), "ignored")
+	assert.Contains(t, configFileError(conf), path)
+	assert.Contains(t, configFileError(conf), "ignored")
 }
 
 func TestConfigFileErrorEmptyForValidFile(t *testing.T) {
@@ -92,7 +98,7 @@ func TestConfigFileErrorEmptyForValidFile(t *testing.T) {
 
 	require.NoError(t, conf.ReadInConfig())
 
-	assert.Empty(t, conf.ConfigFileError())
+	assert.Empty(t, conf.ConfigFileErrors())
 }
 
 // TestConfigFileErrorScrubsSecrets guards the quoted context: the surrounding
@@ -106,16 +112,16 @@ func TestConfigFileErrorScrubsSecrets(t *testing.T) {
 
 	require.Error(t, conf.ReadInConfig())
 
-	assert.NotContains(t, conf.ConfigFileError(), apiKey, "api_key must not be retained")
-	assert.NotContains(t, conf.ConfigFileError(), "hunter2", "password must not be retained")
+	assert.NotContains(t, configFileError(conf), apiKey, "api_key must not be retained")
+	assert.NotContains(t, configFileError(conf), "hunter2", "password must not be retained")
 
 	warnings := strings.Join(conf.Warnings(), "\n")
 	assert.NotContains(t, warnings, apiKey, "api_key must not reach flare via Warnings()")
 	assert.NotContains(t, warnings, "hunter2")
 
 	// The diagnostic must survive scrubbing, otherwise the message is useless.
-	assert.Contains(t, conf.ConfigFileError(), "mapping values are not allowed")
-	assert.Contains(t, conf.ConfigFileError(), "> 3 |")
+	assert.Contains(t, configFileError(conf), "mapping values are not allowed")
+	assert.Contains(t, configFileError(conf), "> 3 |")
 }
 
 // TestConfigFileErrorScrubsSecretsOnDuplicateKeys covers the strict-only class,
@@ -127,7 +133,7 @@ func TestConfigFileErrorScrubsSecretsOnDuplicateKeys(t *testing.T) {
 
 	require.NoError(t, conf.ReadInConfig())
 
-	assert.NotContains(t, conf.ConfigFileError(), apiKey)
+	assert.NotContains(t, configFileError(conf), apiKey)
 	assert.NotContains(t, strings.Join(conf.Warnings(), "\n"), apiKey)
 }
 
@@ -146,7 +152,7 @@ func TestConfigFileErrorScrubsAnchoredSecrets(t *testing.T) {
 
 	require.Error(t, conf.ReadInConfig())
 
-	got := conf.ConfigFileError()
+	got := configFileError(conf)
 	assert.NotContains(t, got, "plaintexttokenvalue", "auth_token must be redacted")
 	assert.NotContains(t, got, "supersecretvalue", "client_secret must be redacted")
 	assert.NotContains(t, got, "accesskeyvalue", "aws_access_key must be redacted")
@@ -188,7 +194,7 @@ func TestConfigFileErrorKeepsEveryFailingSource(t *testing.T) {
 	policyPath := writeYAMLFile(t, "datadog.yaml", "api_key: first\napi_key: second\n")
 	require.NoError(t, conf.MergeFleetPolicy(policyPath))
 
-	got := conf.ConfigFileError()
+	got := configFileError(conf)
 	assert.Contains(t, got, mainPath, "the datadog.yaml error must survive")
 	assert.Contains(t, got, policyPath, "the fleet policy error must also be reported")
 }
@@ -203,7 +209,7 @@ func TestConfigFileErrorWordsNonMainSourceConsequence(t *testing.T) {
 	policyPath := writeYAMLFile(t, "datadog.yaml", "foo: bar: baz\n")
 	require.Error(t, conf.MergeFleetPolicy(policyPath))
 
-	got := conf.ConfigFileError()
+	got := configFileError(conf)
 	assert.Contains(t, got, "other sources are unaffected")
 	assert.NotContains(t, got, "defaults are in use",
 		"datadog.yaml still applies, so this wording would be wrong")

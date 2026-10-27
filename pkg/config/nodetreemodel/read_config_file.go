@@ -132,7 +132,8 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 		if err := yaml.Unmarshal(content, &inData); err != nil {
 			// Unparseable: the whole file is dropped, so say so loudly.
 			c.recordConfigFileError(fmt.Sprintf(
-				"could not parse %s: %v\n%s%s",
+				"source: %s\ncould not parse %s: %v\n%s%s",
+				c.configSourceLabel(source, filePath),
 				describeConfigSource(filePath), err, c.configErrorConsequence(filePath),
 				formatYAMLErrorContext(content, err),
 			))
@@ -140,7 +141,8 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 		}
 		// Parsed leniently: values are applied, but duplicate keys silently resolve to the last one.
 		c.recordConfigFileError(fmt.Sprintf(
-			"invalid YAML in %s: %v\nThe file was re-parsed leniently; duplicate keys resolve to the last value.%s",
+			"source: %s\ninvalid YAML in %s: %v\nThe file was re-parsed leniently; duplicate keys resolve to the last value.%s",
+			c.configSourceLabel(source, filePath),
 			describeConfigSource(filePath), strictErr, formatYAMLErrorContext(content, strictErr),
 		))
 	}

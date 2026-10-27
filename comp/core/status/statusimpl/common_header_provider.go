@@ -87,7 +87,7 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["version"] = version.AgentVersion
 	data["flavor"] = flavor.GetFlavor()
 	data["conf_file"] = config.ConfigFileUsed()
-	data["conf_file_error"] = config.ConfigFileError()
+	data["conf_file_errors"] = config.ConfigFileErrors()
 	data["extra_conf_file"] = config.ExtraConfigFilesUsed()
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()

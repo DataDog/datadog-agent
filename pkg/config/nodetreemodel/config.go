@@ -1375,8 +1375,8 @@ func (c *ntmConfig) Warnings() []string {
 	return slices.Clone(c.warnings)
 }
 
-func (c *ntmConfig) ConfigFileError() string {
-	return strings.Join(c.configFileErrors, "\n\n")
+func (c *ntmConfig) ConfigFileErrors() []string {
+	return slices.Clone(c.configFileErrors)
 }
 
 func (c *ntmConfig) StartTime() time.Time {

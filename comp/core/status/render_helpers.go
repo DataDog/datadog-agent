@@ -91,10 +91,26 @@ func TextFmap() pkgtexttemplate.FuncMap {
 			"percent":             func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 			"complianceResult":    complianceResult,
 			"indent":              indentLines,
+			"bullet":              bulletLines,
 		}
 	})
 
 	return textFuncMap
+}
+
+// bulletLines renders s as a list item: "- " at indent n, continuation lines
+// aligned just past the bullet so multi-line entries stay visually grouped.
+func bulletLines(n int, s string) string {
+	pad := strings.Repeat(" ", n)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if i == 0 {
+			lines[i] = pad + "- " + line
+		} else if line != "" {
+			lines[i] = pad + "  " + line
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // indentLines prefixes every line of s with n spaces. Templates indent only the

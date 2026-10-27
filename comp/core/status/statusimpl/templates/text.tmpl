@@ -15,11 +15,13 @@
   {{- end }}
   Log Level: {{.config.log_level}}
 
-  {{- if .conf_file_error }}
+  {{- if .conf_file_errors }}
 
   Config File Error
   =================
-{{ indent 4 .conf_file_error }}
+  {{- range $_, $configError := .conf_file_errors }}
+{{ bullet 4 $configError }}
+  {{- end }}
   {{- end }}
 
   Paths

@@ -69,7 +69,7 @@ func TestCommonHeaderProviderConfigFileErrorAbsentWhenConfigIsValid(t *testing.T
 	stats := map[string]interface{}{}
 	require.NoError(t, provider.JSON(false, stats))
 
-	assert.Empty(t, stats["conf_file_error"])
+	assert.Empty(t, stats["conf_file_errors"])
 }
 
 // TestCommonHeaderProviderRendersConfigFileError covers both surfaces the Windows
@@ -80,7 +80,7 @@ func TestCommonHeaderProviderRendersConfigFileError(t *testing.T) {
 	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
-	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+	provider.(*headerProvider).constdata["conf_file_errors"] = []string{parseErr}
 
 	text := new(bytes.Buffer)
 	require.NoError(t, provider.Text(false, text))
@@ -103,16 +103,39 @@ func TestCommonHeaderProviderTextIndentsConfigFileError(t *testing.T) {
 	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
-	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+	provider.(*headerProvider).constdata["conf_file_errors"] = []string{parseErr}
 
 	text := new(bytes.Buffer)
 	require.NoError(t, provider.Text(false, text))
 
 	out := text.String()
-	assert.Contains(t, out, "\n    could not parse /etc/datadog-agent/datadog.yaml: boom.")
-	assert.Contains(t, out, "\n    All settings from this file are ignored")
-	assert.Contains(t, out, "\n      1 | api_key: redacted", "quoted lines keep their own padding on top of the indent")
-	assert.Contains(t, out, "\n    > 2 |   xx: yy", "the marker stays flush with the section indent")
+	assert.Contains(t, out, "\n    - could not parse /etc/datadog-agent/datadog.yaml: boom.")
+	assert.Contains(t, out, "\n      All settings from this file are ignored")
+	assert.Contains(t, out, "\n        1 | api_key: redacted", "quoted lines keep their own padding on top of the indent")
+	assert.Contains(t, out, "\n      > 2 |   xx: yy", "the marker stays aligned just past the bullet")
+}
+
+// TestCommonHeaderProviderTextListsEveryConfigError checks that several failing
+// sources are listed rather than collapsed, each citing where it came from.
+func TestCommonHeaderProviderTextListsEveryConfigError(t *testing.T) {
+	errs := []string{
+		"source: local datadog.yaml\ncould not parse /etc/datadog-agent/datadog.yaml: boom.",
+		"source: fleet policy\ncould not parse /etc/datadog-agent/managed/datadog.yaml: boom.",
+	}
+
+	config := config.NewMock(t)
+
+	provider := newCommonHeaderProvider(agentParams, config)
+	provider.(*headerProvider).constdata["conf_file_errors"] = errs
+
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(false, text))
+
+	out := text.String()
+	assert.Contains(t, out, "\n    - source: local datadog.yaml")
+	assert.Contains(t, out, "\n    - source: fleet policy")
+	assert.Equal(t, 2, strings.Count(out, "\n    - source: "), "each source gets its own list item")
+	assert.Equal(t, 1, strings.Count(out, "Config File Error"), "one section heading for all of them")
 }
 
 // TestCommonHeaderProviderHTMLPreservesConfigErrorLayout guards the quoted YAML
@@ -126,7 +149,7 @@ func TestCommonHeaderProviderHTMLPreservesConfigErrorLayout(t *testing.T) {
 	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
-	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+	provider.(*headerProvider).constdata["conf_file_errors"] = []string{parseErr}
 
 	html := new(bytes.Buffer)
 	require.NoError(t, provider.HTML(false, html))

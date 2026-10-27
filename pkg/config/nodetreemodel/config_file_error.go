@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -36,6 +37,21 @@ func (c *ntmConfig) recordConfigFileError(msg string) {
 	log.Error(scrubbed)
 	c.warnings = append(c.warnings, scrubbed)
 	c.configFileErrors = append(c.configFileErrors, scrubbed)
+}
+
+// configSourceLabel names where the config came from, so a reader can tell a
+// broken datadog.yaml from a broken fleet policy at a glance.
+func (c *ntmConfig) configSourceLabel(source model.Source, filePath string) string {
+	switch {
+	case source == model.SourceFleetPolicies:
+		return "fleet policy"
+	case filePath == "":
+		return "provided configuration content"
+	case filePath == c.configFile:
+		return "local datadog.yaml"
+	default:
+		return "extra config file"
+	}
 }
 
 // configErrorConsequence describes what dropping the file means. Only losing the
