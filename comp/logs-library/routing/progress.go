@@ -44,6 +44,7 @@ type record struct {
 
 type sourceProgress struct {
 	currentGeneration uint64
+	seenGenerations   map[uint64]struct{}
 	queue             []*record
 }
 
@@ -113,6 +114,14 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 		case <-space:
 		}
 	}
+	if identifier != "" && requireCompleteSource {
+		if source := p.sources[identifier]; source != nil && selection.Generation != source.currentGeneration {
+			if _, seen := source.seenGenerations[selection.Generation]; seen {
+				p.mu.Unlock()
+				return 0, fmt.Errorf("%w: obsolete source generation %d", ErrInvalidSelection, selection.Generation)
+			}
+		}
+	}
 	p.next++
 	token := p.next
 	meta := msg.MessageMetadata
@@ -123,10 +132,13 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 	if identifier != "" {
 		source := p.sources[identifier]
 		if source == nil {
-			source = &sourceProgress{}
+			source = &sourceProgress{seenGenerations: make(map[uint64]struct{})}
 			p.sources[identifier] = source
 		}
-		source.currentGeneration = selection.Generation
+		if requireCompleteSource {
+			source.currentGeneration = selection.Generation
+			source.seenGenerations[selection.Generation] = struct{}{}
+		}
 		source.queue = append(source.queue, r)
 	}
 	if r.done {

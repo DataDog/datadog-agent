@@ -199,6 +199,40 @@ func TestReplacementGenerationIgnoresOldCompletion(t *testing.T) {
 	}
 }
 
+func TestObsoleteGenerationCannotBecomeCurrentAgain(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 3)}
+	p, err := NewProgress(4, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	old := progressMessage("file", "old-10")
+	newer := progressMessage("file", "new-1")
+	for _, entry := range []struct {
+		message    *message.Message
+		generation uint64
+	}{{old, 42}, {newer, 7}} {
+		if _, err := p.Register(context.Background(), entry.message, Selection{Generation: entry.generation}, []string{"a"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stale := progressMessage("file", "old-11")
+	if _, err := p.Register(context.Background(), stale, Selection{Generation: 42}, []string{"a"}); !errors.Is(err, ErrInvalidSelection) {
+		t.Fatalf("obsolete generation reappeared: %v", err)
+	}
+	if err := p.HoldInvalid(context.Background(), stale); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteGroup("a", terminalPayload(newer))
+	p.CompleteGroup("a", terminalPayload(old))
+	if got := nextCheckpoint(t, sink.ch); got != "new-1" {
+		t.Fatalf("replacement checkpoint: %q", got)
+	}
+	if len(sink.ch) != 0 || p.Pending() != 1 {
+		t.Fatal("stale source record changed the replacement checkpoint")
+	}
+}
+
 func TestIndependentGroupKeepsPreviouslyPersistedPrefix(t *testing.T) {
 	sink := &progressTestSink{ch: make(chan *message.Payload, 3)}
 	p, err := NewProgress(3, sink)
