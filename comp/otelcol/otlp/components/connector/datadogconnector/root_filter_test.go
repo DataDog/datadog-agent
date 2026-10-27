@@ -163,7 +163,7 @@ func TestIgnoredRootsFilter(t *testing.T) {
 		kept := map[pcommon.SpanID]bool{}
 		for i := 0; i < traces.ResourceSpans().Len(); i++ {
 			rspans := traces.ResourceSpans().At(i)
-			forEachSpan(rspans, func(span ptrace.Span, _ pcommon.InstrumentationScope) {
+			forEachSpan(rspans, func(span ptrace.Span) {
 				kept[span.SpanID()] = spanFilter(rspans.Resource(), span)
 			})
 		}

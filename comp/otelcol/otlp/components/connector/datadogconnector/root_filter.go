@@ -19,11 +19,6 @@ type resourceTrace struct {
 	traceID  uint64
 }
 
-type scopedSpan struct {
-	span  ptrace.Span
-	scope pcommon.InstrumentationScope
-}
-
 // ignoredRootsFilter returns a span filter that excludes from stats the traces whose root resource rootFilter
 // denies, like the trace-agent does with apm_config.ignore_resources, or nil when no trace is ignored.
 func ignoredRootsFilter(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *filters.Blacklister) func(pcommon.Resource, ptrace.Span) bool {
@@ -39,23 +34,23 @@ func ignoredRootsFilter(traces ptrace.Traces, conf *config.AgentConfig, rootFilt
 
 // ignoredTraces returns the resource traces with a root that rootFilter denies. It builds the chunks of the
 // trace-agent's OTLP receiver, one per trace and resource, and picks their root with traceutil.GetRoot; the root
-// is matched on its converted Datadog span.
+// is matched on its resource name, computed as in the trace-agent's OTLP span conversion.
 func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *filters.Blacklister) map[resourceTrace]struct{} {
 	var ignored map[resourceTrace]struct{}
 	for i := 0; i < traces.ResourceSpans().Len(); i++ {
 		rspans := traces.ResourceSpans().At(i)
 		// traceutil.GetRoot only reads the span and parent IDs.
 		chunks := make(map[uint64]pb.Trace)
-		otelSpans := make(map[*pb.Span]scopedSpan)
-		forEachSpan(rspans, func(span ptrace.Span, scope pcommon.InstrumentationScope) {
+		otelSpans := make(map[*pb.Span]ptrace.Span)
+		forEachSpan(rspans, func(span ptrace.Span) {
 			ddspan := &pb.Span{SpanID: transform.OTelSpanIDToUint64(span.SpanID()), ParentID: transform.OTelSpanIDToUint64(span.ParentSpanID())}
 			traceID := transform.OTelTraceIDToUint64(span.TraceID())
 			chunks[traceID] = append(chunks[traceID], ddspan)
-			otelSpans[ddspan] = scopedSpan{span, scope}
+			otelSpans[ddspan] = span
 		})
 		for traceID, chunk := range chunks {
 			root := otelSpans[traceutil.GetRoot(chunk)]
-			if allowed, _ := rootFilter.Allows(transform.OtelSpanToDDSpan(root.span, rspans.Resource(), root.scope, conf)); allowed {
+			if allowed, _ := rootFilter.AllowsString(resourceName(conf, root, rspans.Resource())); allowed {
 				continue
 			}
 			if ignored == nil {
@@ -67,11 +62,19 @@ func ignoredTraces(traces ptrace.Traces, conf *config.AgentConfig, rootFilter *f
 	return ignored
 }
 
-func forEachSpan(rspans ptrace.ResourceSpans, f func(ptrace.Span, pcommon.InstrumentationScope)) {
+// resourceName returns the resource name of span, as transform.OtelSpanToDDSpan computes it.
+func resourceName(conf *config.AgentConfig, span ptrace.Span, res pcommon.Resource) string {
+	if transform.OperationAndResourceNameV2Enabled(conf) {
+		return transform.GetOTelResourceV2(span, res)
+	}
+	return transform.GetOTelResourceV1(span, res)
+}
+
+func forEachSpan(rspans ptrace.ResourceSpans, f func(ptrace.Span)) {
 	for j := 0; j < rspans.ScopeSpans().Len(); j++ {
-		scopeSpans := rspans.ScopeSpans().At(j)
-		for k := 0; k < scopeSpans.Spans().Len(); k++ {
-			f(scopeSpans.Spans().At(k), scopeSpans.Scope())
+		spans := rspans.ScopeSpans().At(j).Spans()
+		for k := 0; k < spans.Len(); k++ {
+			f(spans.At(k))
 		}
 	}
 }
