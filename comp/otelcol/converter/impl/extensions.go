@@ -72,6 +72,17 @@ var (
 		Config:       datadogConfig,
 	}
 
+	// opamp (standalone mode only; mutually exclusive with the datadog extension)
+	opampName         = "opamp"
+	opampEnhancedName = opampName + "/" + ddAutoconfiguredSuffix
+	opampConfig       any
+	opampComponent    = component{
+		Name:         opampName,
+		EnhancedName: opampEnhancedName,
+		Type:         "extensions",
+		Config:       opampConfig,
+	}
+
 	// dogtel (standalone mode only)
 	dogtelName         = "dogtel"
 	dogtelEnhancedName = dogtelName + "/" + ddAutoconfiguredSuffix
@@ -96,6 +107,8 @@ func createExtensions(enabledFeatures []string) []component {
 			components = append(components, ddflareComponent)
 		} else if feature == "datadog" {
 			components = append(components, datadogComponent)
+		} else if feature == "opamp" {
+			components = append(components, opampComponent)
 		}
 	}
 
