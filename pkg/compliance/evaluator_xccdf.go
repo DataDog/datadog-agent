@@ -101,16 +101,15 @@ type oscapIO struct {
 // it sends a rule once oscap-io has answered the previous one, and at least
 // interval after it. With a zero interval, it sends them all at once. A rule
 // oscap-io stalls on, staying silent for timeout, or dies on, is logged and
-// skipped. A timeout that is not positive stands for defaultXCCDFTimeout.
+// skipped. A timeout below defaultXCCDFTimeout stands for defaultXCCDFTimeout.
 // EvaluateXCCDFRules returns the errors that ended an evaluation early, or an
 // error when the XCCDF rules of benchmark produced zero events.
 func EvaluateXCCDFRules(ctx context.Context, hostname, root string, benchmark *Benchmark, interval, timeout time.Duration, report func(*Rule, *CheckEvent, time.Duration)) error {
 	newCmd := func(ctx context.Context, file string) (*exec.Cmd, error) {
 		return oscapIOCommand(ctx, file, root)
 	}
-	if timeout <= 0 {
-		timeout = defaultXCCDFTimeout
-	}
+	// A unitless config value reads as nanoseconds and would kill oscap-io before any answer.
+	timeout = max(timeout, defaultXCCDFTimeout)
 	return evaluateXCCDF(ctx, hostname, benchmark, newCmd, interval, timeout, report)
 }
 

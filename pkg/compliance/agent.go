@@ -93,7 +93,7 @@ type AgentOptions struct {
 
 	// XCCDFTimeout is the longest wait for oscap-io to answer the next rule
 	// of an XCCDF benchmark, after which the rule is skipped.
-	// By default: 60 seconds.
+	// By default, and at least: 60 seconds.
 	XCCDFTimeout time.Duration
 
 	// EnabledConfigurationExporters lists configuration exporter that shall be

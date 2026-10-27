@@ -5,4 +5,5 @@ enhancements:
     setting, 60 seconds by default: the longest wait for an XCCDF rule before
     the rule is skipped. Raise it on hosts where the rules that walk every
     local file system, such as ``no_files_or_dirs_unowned_by_user``, take
-    longer and go missing from the results.
+    longer and go missing from the results. Values below 60 seconds, including
+    values without a unit such as ``120``, fall back to 60 seconds.
