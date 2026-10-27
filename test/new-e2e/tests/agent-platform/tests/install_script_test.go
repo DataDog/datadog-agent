@@ -108,7 +108,7 @@ func DockerTest(t *testing.T) {
 			suite,
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E), ec2.WithInternetAccess())),
+					awshost.WithRunOptions(ec2.WithDocker(), ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204), ec2.WithInternetAccess())),
 				),
 			),
 		)
@@ -165,6 +165,7 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
 	common.CheckIntegrationInstall(is.T(), client)
+	common.CheckGstatus(is.T(), client)
 	if *majorVersion == "6" {
 		common.SetAgentPythonMajorVersion(is.T(), client, "2")
 		common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion2)

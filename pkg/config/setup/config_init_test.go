@@ -38,7 +38,7 @@ func TestPostProcessSystemProbeRunsAfterConfigIsReady(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, nil, 0o600))
 	Datadog().(pkgconfigmodel.BuildableConfig).SetConfigFile(configPath)
 
-	err := LoadDatadog(Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+	err := LoadDatadog(Datadog(), secretsmock.New(t), delegatedauthmock.New(t))
 	require.NoError(t, err)
 
 	for _, name := range []string{

@@ -25,6 +25,11 @@ func TestReporterInterval(t *testing.T) {
 	require.Equal(t, 60*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
 }
 
+func TestSendErrorFramesDefault(t *testing.T) {
+	cfg := defaultConfig(profilerName).(Config)
+	require.False(t, cfg.EbpfCollectorConfig.SendErrorFrames)
+}
+
 func TestInterpreters(t *testing.T) {
 	config := defaultConfig(profilerName)
 	cfg := config.(Config)

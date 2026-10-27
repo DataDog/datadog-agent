@@ -10,11 +10,14 @@ package kubeapiserver
 
 import (
 	"context"
+	"math"
 	"strings"
 	"time"
 
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -45,6 +48,12 @@ type dependencies struct {
 
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+
+// syncedStore is implemented by both the reflector stores and the informer
+// event handler registrations, so that the startup check can wait for them.
+type syncedStore interface {
+	HasSynced() bool
+}
 
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
@@ -222,7 +231,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Component) error {
-	var objectStores []cache.ResourceEventHandlerRegistration
+	var objectStores []syncedStore
 
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -343,7 +352,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			objectStores = append(objectStores, handlerRegistration)
 		}
 	}
-	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
+	go collectKubeCapabilities(ctx, apiserverClient.Cl.Discovery(), wlmetaStore)
 
 	go runStartupCheck(ctx, objectStores)
 
@@ -383,14 +392,45 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient, wlmetaStore workloadmeta.Component) {
-	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 15*time.Second)
+var (
+	// kubeCapabilitiesTimeout bounds the retries to get the cluster version and feature gates.
+	kubeCapabilitiesTimeout = 15 * time.Second
+	// kubeCapabilitiesBackoff is the retry policy to get the cluster version, until the collector stops.
+	kubeCapabilitiesBackoff = wait.Backoff{
+		Duration: 30 * time.Second,
+		Factor:   2,
+		Jitter:   0.1,
+		Steps:    math.MaxInt32,
+		Cap:      10 * time.Minute,
+	}
+)
+
+func collectKubeCapabilities(ctx context.Context, discoveryCl discovery.DiscoveryInterface, wlmetaStore workloadmeta.Component) {
+	var versionInfo *version.Info
+	err := kubeCapabilitiesBackoff.DelayFunc().Until(ctx, true, false, func(context.Context) (bool, error) {
+		var err error
+		versionInfo, err = common.KubeServerVersion(discoveryCl, kubeCapabilitiesTimeout)
+		if err != nil {
+			log.Infof("Couldn't collect cluster version, will retry: %v", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return
+	}
+
+	// Publish the version right away: feature gates need access to the API server
+	// /metrics endpoint and can take until the timeout to fail.
+	notifyKubeCapabilities(wlmetaStore, versionInfo, nil)
+
+	featureGates, err := common.ClusterFeatureGates(ctx, discoveryCl, kubeCapabilitiesTimeout)
 	if err != nil {
 		log.Infof("Couldn't collect cluster feature gates: %v", err)
 		return
 	}
 
-	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
+	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate, len(featureGates))
 	for name, featureGate := range featureGates {
 		wlmFeatureGates[name] = workloadmeta.FeatureGate{
 			Name:    featureGate.Name,
@@ -398,13 +438,10 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 			Enabled: featureGate.Enabled,
 		}
 	}
+	notifyKubeCapabilities(wlmetaStore, versionInfo, wlmFeatureGates)
+}
 
-	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 15*time.Second)
-	if err != nil {
-		log.Infof("Couldn't collect cluster version: %v", err)
-		return
-	}
-
+func notifyKubeCapabilities(wlmetaStore workloadmeta.Component, versionInfo *version.Info, featureGates map[string]workloadmeta.FeatureGate) {
 	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -418,13 +455,13 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 					Name: workloadmeta.KubeCapabilitiesName,
 				},
 				Version:      versionInfo,
-				FeatureGates: wlmFeatureGates,
+				FeatureGates: featureGates,
 			},
 		},
 	})
 }
 
-func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
+func runStartupCheck(ctx context.Context, stores []syncedStore) {
 	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the

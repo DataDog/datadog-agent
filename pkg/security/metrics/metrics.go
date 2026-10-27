@@ -213,6 +213,9 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverContainerContextCleared is the name of the metric used to report the number of container contexts cleared
+	// Tags: -
+	MetricProcessResolverContainerContextCleared = newRuntimeMetric(".process_resolver.container_context_cleared")
 	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
 	// Tags: -
 	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
@@ -621,6 +624,10 @@ var (
 	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
 	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
+
+	// MetricSecurityProfileV2TagResolutionEventsCapped is the name of the metric used to report events not queued because the tag resolution queue is full
+	// Tags: limit (cgroup or total)
+	MetricSecurityProfileV2TagResolutionEventsCapped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_capped")
 
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
 	// Tags: -

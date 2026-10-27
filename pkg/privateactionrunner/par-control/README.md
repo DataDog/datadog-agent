@@ -54,6 +54,15 @@ and headers — never log it (Rust's `Debug` impl redacts it). Retrieval require
 verified mTLS peer presenting the *exact* shared IPC certificate; a different
 certificate signed by the same CA can submit actions but not fetch credentials.
 
+The executor endpoint is also restricted at the OS level, since procmgr starts
+both processes as the same account: a `0600` socket on Unix, and on Windows a
+pipe DACL limited to Local System, Administrators, the pipe owner, and the
+`datadogagent` service account.
+
+Action failures are logged with their task ID and error code only. Both the
+internal and the external message can carry raw error text, so they are only
+published to OPMS.
+
 ## Build and test
 
 Linux/Windows only. On macOS, prefix with `dda env dev run --`.

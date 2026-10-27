@@ -323,7 +323,10 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
 
 static __always_inline int coredump_common() {
-    u64 key = bpf_get_current_pid_tgid();
+    // the core can be dumped by any thread of the process, but the flag is only read when the
+    // thread group leader exits, so key it with the pid_tgid of the leader
+    u64 tgid = bpf_get_current_pid_tgid() >> 32;
+    u64 key = (tgid << 32) | tgid;
     u8 in_coredump = 1;
 
     bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);

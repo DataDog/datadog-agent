@@ -13,6 +13,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
@@ -131,4 +132,32 @@ func TestAnomalyAPIEndpointsRenderTextAndKeepSourceMetadata(t *testing.T) {
 	require.Equal(t, "Anomaly detected: log_detector: log.errors", logEntries[0]["title"])
 	require.Equal(t, "", logEntries[0]["description"])
 	require.Equal(t, []any{"service:web"}, logEntries[0]["tags"])
+}
+
+func TestSeriesAPIUsesStoredMetricTypeForEverySource(t *testing.T) {
+	for _, namespace := range []string{"parquet", "check", "dogstatsd", "log_metrics_extractor"} {
+		for _, metricType := range []metrics.MetricType{observerdef.UnknownType, metrics.GaugeType, metrics.CountType} {
+			t.Run(namespace+"/"+metricType.String(), func(t *testing.T) {
+				state := anomalyAPIStateView{meta: observerdef.SeriesMeta{
+					Ref: 42, Namespace: namespace, Name: "requests", MetricType: metricType,
+				}}
+				api := NewBenchAPI(&Bench{debug: anomalyAPIDebugView{state: state}})
+				response := httptest.NewRecorder()
+				api.handleSeriesList(response, httptest.NewRequest(http.MethodGet, "/api/series", nil))
+				require.Equal(t, http.StatusOK, response.Code)
+				var series []struct {
+					MetricTypes []string `json:"metricTypes"`
+				}
+				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &series))
+				require.Len(t, series, 2) // average and count views share the input type
+				want := metricType.String()
+				if metricType == observerdef.UnknownType {
+					want = "Unknown"
+				}
+				for _, entry := range series {
+					require.Equal(t, []string{want}, entry.MetricTypes)
+				}
+			})
+		}
+	}
 }

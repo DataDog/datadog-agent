@@ -49,3 +49,28 @@ func GetClusterRole(e aws.Environment, name string) (*awsIam.Role, error) {
 		AssumeRolePolicy: pulumi.String(assumeRolePolicy.Json),
 	}, e.WithProviders(config.ProviderAWS))
 }
+
+// GetAutoModeClusterRole returns an EKS cluster service role for use with EKS Auto
+// Mode. Auto Mode requires additional managed policies on top of the standard cluster
+// policies, and a trust policy that grants "sts:TagSession" in addition to
+// "sts:AssumeRole". See https://docs.aws.amazon.com/eks/latest/userguide/automode-permissions.html
+func GetAutoModeClusterRole(e aws.Environment, name string) (*awsIam.Role, error) {
+	assumeRolePolicy, err := iam.GetAWSPrincipalAssumeRoleWithActions(e, []string{iam.EKSServicePrincipal}, []string{"sts:AssumeRole", "sts:TagSession"})
+	if err != nil {
+		return nil, err
+	}
+
+	return awsIam.NewRole(e.Ctx(), e.Namer.ResourceName(name), &awsIam.RoleArgs{
+		Name:        e.CommonNamer().DisplayName(64, pulumi.String(name)),
+		Description: pulumi.StringPtr("Auto Mode service role for EKS Cluster: " + e.Ctx().Stack()),
+		ManagedPolicyArns: pulumi.ToStringArray([]string{
+			"arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+			"arn:aws:iam::aws:policy/AmazonEKSVPCResourceController",
+			"arn:aws:iam::aws:policy/AmazonEKSComputePolicy",
+			"arn:aws:iam::aws:policy/AmazonEKSBlockStoragePolicyV2",
+			"arn:aws:iam::aws:policy/AmazonEKSLoadBalancingPolicy",
+			"arn:aws:iam::aws:policy/AmazonEKSNetworkingPolicy",
+		}),
+		AssumeRolePolicy: pulumi.String(assumeRolePolicy.Json),
+	}, e.WithProviders(config.ProviderAWS))
+}

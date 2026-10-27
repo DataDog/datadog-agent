@@ -107,9 +107,7 @@ cc_binary(
     ],
     defines = LOCAL_DEFINES,
     dynamic_deps = [
-        # Use :curl_shared directly, not :curl_pkg: curl is an installed_executable
-        # of curl_pkg, so using curl_pkg here would create a dependency cycle.
-        ":curl_shared",
+        ":curl_pkg",
         "@nghttp2//:nghttp2_pkg",
         "@openssl//:libssl_shared_pkg",
         "@openssl//:libcrypto_shared_pkg",
@@ -258,16 +256,19 @@ pkg_files(
 
 dd_cc_packaged(
     name = "curl_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":curl_shared",
-    installed_executables = {
-        ":curl": "embedded/bin",
-    },
-    installed_files = [
-        ":hdr_files",
-    ],
     libname = "libcurl",
     version = SO_VERSION,
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "curl_bin_pkg",
+    dest_dir = "embedded/bin",
+    mode = "0755",
+    input = ":curl",
     visibility = ["//visibility:public"],
 )
 
@@ -280,7 +281,7 @@ pkg_filegroup(
 
 dd_collect_dependencies(
     name = "_installed_libs",
-    srcs = [":curl_pkg"],
+    srcs = [":curl_bin_pkg"],
     visibility = ["//visibility:private"],
 )
 

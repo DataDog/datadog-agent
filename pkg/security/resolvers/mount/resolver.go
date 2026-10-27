@@ -225,7 +225,7 @@ func (mr *Resolver) SyncCache() error {
 }
 
 func (mr *Resolver) insertMoved(mount *model.Mount) {
-	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
+	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false, dentry.CallerMountPoint)
 
 	mr.insert(mount)
 	_, _, _, _ = mr.getMountPath(mount.MountID, 0)

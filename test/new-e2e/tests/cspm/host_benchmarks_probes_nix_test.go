@@ -36,11 +36,11 @@ var probeChecks = []probeCheck{
 	{name: "sshd", build: sshdCheck},
 	{name: "package", build: packageCheck},
 	{name: "accounts", build: accountsCheck},
+	{name: "partition", hostOnly: true, build: partitionCheck},
 	{name: "sysctl", hostOnly: true, build: sysctlCheck},
 	{name: "service", hostOnly: true, build: serviceCheck},
 	{name: "ufw", hostOnly: true, families: []family{debian}, build: ufwCheck},
 	{name: "nftables", hostOnly: true, families: []family{debian}, build: nftablesCheck},
-	{name: "partition", hostOnly: true, build: partitionCheck},
 	{name: "kernel_module", hostOnly: true, build: kernelModuleCheck},
 }
 
@@ -151,12 +151,13 @@ func nftablesCheck(distro) probe {
 }
 
 // partitionCheck exercises the partition probe via a separate /tmp. Host-only: it reads
-// the live mount table. The fix mounts a tmpfs /tmp, as the benchmark expects, and keeps
-// it executable, since OpenSCAP writes the SCE scripts of every later check there.
+// the live mount table. The fix mounts a tmpfs /tmp with nosuid, nodev and noexec, as
+// the benchmark expects. OpenSCAP writes the SCE scripts to /tmp, so the probes after
+// this one run their SCE checks as on a hardened host.
 func partitionCheck(distro) probe {
 	return probe{"partition", rulePrefix + "partition_for_tmp",
 		"sudo umount /tmp 2>/dev/null || true",
-		"echo 'tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0' | sudo tee -a /etc/fstab && sudo mount /tmp"}
+		"echo 'tmpfs /tmp tmpfs defaults,nosuid,nodev,noexec 0 0' | sudo tee -a /etc/fstab && sudo mount /tmp"}
 }
 
 // kernelModuleCheck exercises the textfilecontent54 probe via the cramfs modprobe

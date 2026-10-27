@@ -304,8 +304,14 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_security_inode_follow_link"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_cgroup_procs_write"),
-				hookFunc("hook_cgroup1_procs_write"),
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup_procs_write"),
+					hookFunc("rethook_cgroup_procs_write"),
+				}},
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup1_procs_write"),
+					hookFunc("rethook_cgroup1_procs_write"),
+				}},
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_cgroup_procs_open"),
@@ -318,8 +324,14 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_user_mode_thread"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_cgroup_tasks_write"),
-				hookFunc("hook_cgroup1_tasks_write"),
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup_tasks_write"),
+					hookFunc("rethook_cgroup_tasks_write"),
+				}},
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup1_tasks_write"),
+					hookFunc("rethook_cgroup1_tasks_write"),
+				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", hasFentry, EntryAndExit)},

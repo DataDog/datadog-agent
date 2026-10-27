@@ -14,7 +14,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_PATH = Path("test/new-e2e/internet-access.yaml")
 SCANNED_DIRS = (Path("test/new-e2e"), Path("test/e2e-framework"))
 POLICY_DOC = Path("test/new-e2e/codereview_guideline.md")
-TREE_SITTER_DEPS = ("tree-sitter==0.26.0", "tree-sitter-go==0.25.0")
 STATUSES = ("justified", "debt", "untriaged")
 
 _FIELDS = ("file", "function", "status", "reason")

@@ -6,9 +6,19 @@
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/system-probe/modules/eventmonitor.go
         - comp/core/workloadmeta/collectors/internal/remote/sbomcollector/**/*
+        - comp/core/workloadmeta/collectors/sbomutil/**/*
+        - pkg/collector/corechecks/sbom/**/*
         - pkg/sbom/**/*
+        - pkg/security/config/config.go
+        - pkg/security/module/server_linux.go
+        - pkg/security/module/usage_consumer.go
+        - pkg/security/probe/field_handlers_ebpf.go
+        - pkg/security/probe/probe_ebpf.go
+        - pkg/security/resolvers/resolvers_ebpf.go
         - pkg/security/resolvers/sbom/**/*
+        - pkg/security/rules/bundled/**/*
         - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
@@ -69,7 +79,18 @@ new-e2e-sbom:
       - EXTRA_PARAMS: --run "TestSBOMKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMKubeadmCrioSuite"
       - EXTRA_PARAMS: --run "TestSBOMPackageInUseKubeadmSuite"
+      - EXTRA_PARAMS: --run "TestSBOMUsageOnlyKubeadmSuite"
       - EXTRA_PARAMS: --run "TestSBOMDockerHostSuite"
+
+new-e2e-sbom-host:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_sbom_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/sbom
+    TEAM: csm-threats-agent
+    EXTRA_PARAMS: --run "TestSBOMHostInstallUsageSuite"
 
 new-e2e-cspm:
   extends: .new_e2e_template

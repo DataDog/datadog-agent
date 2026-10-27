@@ -46,7 +46,7 @@ Do not hardcode the registry host; read it from the runner parameter store. See 
 If your test requires a package unavailable on a bare VM, in order of preference:
 - Avoid it (e.g. you rarely need `jq`: parse JSON in go)
 - Use a containerized environment cached via the previous method. Many tools ship prebuilt container images you can run directly.
-- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [Custom AMIs](../../doc/how-to/test/e2e/custom-amis.md), which also lists what the `-e2e` images already ship.
+- Prebake it into the machine image: every `platforms.json` image is prebaked (built from ami-builder's `-e2e` entries, mapped to our suffix-less keys through `platforms_key`). See [Custom AMIs](../../doc/how-to/test/e2e/custom-amis.md) and [what the images already ship](../../doc/how-to/test/e2e/dependencies.md#prebake-into-the-machine-image).
 - Store your package installer on an internal package repository. See [Other dependencies](#other-dependencies)
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
@@ -60,7 +60,7 @@ Avoid web requests to external websites (`ping some-website.com`, `curl some-web
 Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
 
 #### Internet access exceptions
-Host provisioners create VMs without Internet access. A test that still needs it opts in with `WithInternetAccess()`, and every such usage must be listed in [`internet-access.yaml`](internet-access.yaml) with a `status` and a `reason`. The file is owned by agent-devx, so adding an entry requires our review; `dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access` enforces this in CI and pre-commit. The pre-commit hook does not see deleted files, so an entry left stale by a deletion is only caught in CI.
+Host provisioners create VMs without Internet access. A test that still needs it opts in with `WithInternetAccess()`, and every such usage must be listed in [`internet-access.yaml`](internet-access.yaml) with a `status` and a `reason`. The file is owned by agent-devx, so adding an entry requires our review; `dda inv linter.e2e-internet-access` enforces this in CI and pre-commit. The pre-commit hook does not see deleted files, so an entry left stale by a deletion is only caught in CI.
 
 Try every alternative above before requesting an exception. Package manager installs, image pulls that bypass the ECR pull-through cache, third-party downloads, and downloads of Datadog's own public install scripts and packages (use a mirror in the QA AWS account) are never valid reasons: such entries are recorded as `debt` and must be fixed.
 

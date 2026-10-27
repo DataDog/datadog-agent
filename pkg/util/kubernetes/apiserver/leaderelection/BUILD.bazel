@@ -39,7 +39,6 @@ go_library(
         "@io_k8s_client_go//tools/leaderelection",
         "@io_k8s_client_go//tools/leaderelection/resourcelock",
         "@io_k8s_client_go//tools/record",
-        "@org_golang_x_mod//semver",
     ],
 )
 

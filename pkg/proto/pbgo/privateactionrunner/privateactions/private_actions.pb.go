@@ -315,8 +315,10 @@ type PrivateActionTask struct {
 	ExpirationTime        *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=expiration_time,json=expirationTime,proto3" json:"expiration_time,omitempty"`
 	Client                actionsclient.Client   `protobuf:"varint,12,opt,name=client,proto3,enum=datadog.privateactionrunner.actionsclient.Client" json:"client,omitempty"`
 	SystemInputs          *SystemInputs          `protobuf:"bytes,13,opt,name=system_inputs,json=systemInputs,proto3" json:"system_inputs,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Optional runner execution FQN; when empty, use bundle_id and action_name.
+	ExecutionFqn  string `protobuf:"bytes,14,opt,name=execution_fqn,json=executionFqn,proto3" json:"execution_fqn,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PrivateActionTask) Reset() {
@@ -417,6 +419,13 @@ func (x *PrivateActionTask) GetSystemInputs() *SystemInputs {
 		return x.SystemInputs
 	}
 	return nil
+}
+
+func (x *PrivateActionTask) GetExecutionFqn() string {
+	if x != nil {
+		return x.ExecutionFqn
+	}
+	return ""
 }
 
 type SystemInputs struct {
@@ -1065,7 +1074,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\tSignature\x12N\n" +
 	"\bkey_type\x18\x01 \x01(\x0e23.datadog.privateactionrunner.privateactions.KeyTypeR\akeyType\x12\x15\n" +
 	"\x06key_id\x18\x02 \x01(\tR\x05keyId\x12\x1c\n" +
-	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xd1\x04\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xf6\x04\n" +
 	"\x11PrivateActionTask\x12\x1f\n" +
 	"\vaction_name\x18\x01 \x01(\tR\n" +
 	"actionName\x12\x1b\n" +
@@ -1078,7 +1087,8 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	" \x01(\v2:.datadog.privateactionrunner.privateactions.ConnectionInfoR\x0econnectionInfo\x12C\n" +
 	"\x0fexpiration_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\x0eexpirationTime\x12I\n" +
 	"\x06client\x18\f \x01(\x0e21.datadog.privateactionrunner.actionsclient.ClientR\x06client\x12]\n" +
-	"\rsystem_inputs\x18\r \x01(\v28.datadog.privateactionrunner.privateactions.SystemInputsR\fsystemInputsJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\rsystem_inputs\x18\r \x01(\v28.datadog.privateactionrunner.privateactions.SystemInputsR\fsystemInputs\x12#\n" +
+	"\rexecution_fqn\x18\x0e \x01(\tR\fexecutionFqnJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"\"x\n" +
 	"\fSystemInputs\x12_\n" +
 	"\rremote_action\x18\x01 \x01(\v28.datadog.privateactionrunner.privateactions.RemoteActionH\x00R\fremoteActionB\a\n" +

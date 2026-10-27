@@ -25,7 +25,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, ensure_sudo_privileges, error, info, warn
 from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT, VMCONFIG
 from tasks.libs.build.bazel import bazel
 
@@ -381,6 +381,11 @@ def remove_pool_directory(ctx: Context, stack: str):
         for d in dirs:
             if resource_in_stack(stack, d):
                 rm_path = os.path.join(pools_dir, d)
+                if platform.system() == "Darwin":
+                    # libvirtd already removed the pool directory through delete_pools
+                    if not os.path.exists(rm_path):
+                        continue
+                    ensure_sudo_privileges(ctx, f"KMT: remove libvirt pool directory {rm_path}")
                 ctx.run(f"sudo rm -r '{rm_path}'", hide=True)
                 info(f"[+] Removed libvirt pool directory {rm_path}")
 
@@ -397,7 +402,7 @@ def destroy_stack_force(ctx: Context, stack: str):
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
         delete_domains(conn, stack)
         delete_volumes(conn, stack)
-        delete_pools(conn, stack)
+        delete_pools(conn, stack, delete_storage=platform.system() == "Darwin")
         remove_pool_directory(ctx, stack)
         delete_networks(conn, stack)
         conn.close()

@@ -39,6 +39,22 @@ site: datadoghq.com
 	assert.Equal(t, "detailed", mgr.hostProfilerConfig.DebugVerbosity)
 }
 
+func TestSendErrorFrames(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		settings := ""
+		if enabled {
+			settings = "hostprofiler:\n  send_error_frames: true"
+		}
+		cfg := config.NewMockFromYAML(t, settings)
+		conf := confMap{}
+		buildReceivers(conf, newConfigManager(cfg))
+
+		receivers := conf["receivers"].(map[string]any)
+		profiling := receivers["profiling"].(map[string]any)
+		assert.Equal(t, enabled, profiling["send_error_frames"])
+	}
+}
+
 func TestNewConfigManagerAdditionalHTTPHeadersFromYAML(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key

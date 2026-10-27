@@ -119,6 +119,70 @@ func TestDecodeApplications_enterpriseSpecificIDs(t *testing.T) {
 	}, apps, "ids sharing their low 32 bits but differing in their enterprise number must decode to distinct ids")
 }
 
+func TestDecodeApplications_netflowV9(t *testing.T) {
+	// NetFlow v9 scope types are a separate namespace from field types: 1 is System (the exporter address)
+	systemScope := netflow.DataField{Type: 1, Value: []byte{10, 0, 0, 1}}
+	ciscoV9OptionField := func(fieldType uint16, value string) netflow.DataField {
+		// no PEN in v9: Cisco sets the enterprise bit on the field type instead
+		return netflow.DataField{Type: enterpriseBit | fieldType, Value: []byte(value + "\x00\x00")}
+	}
+
+	packet := netflow.NFv9Packet{
+		Version: 9,
+		FlowSets: []interface{}{
+			netflow.OptionsDataFlowSet{
+				FlowSetHeader: netflow.FlowSetHeader{Id: 257, Length: 20},
+				Records: []netflow.OptionsDataRecord{
+					{
+						ScopesValues: []netflow.DataField{systemScope},
+						OptionsValues: []netflow.DataField{
+							{Type: ipfixFieldApplicationID, Value: appIDtoBytes(100)},
+							{Type: ipfixFieldApplicationName, Value: []byte("HTTP\x00\x00")},
+							{Type: ipfixFieldApplicationDescription, Value: []byte("Hypertext Transfer Protocol\x00")},
+						},
+					},
+					{
+						ScopesValues: []netflow.DataField{systemScope},
+						OptionsValues: []netflow.DataField{
+							{Type: ipfixFieldApplicationID, Value: appIDtoBytes(100)},
+							ciscoV9OptionField(ciscoFieldApplicationCategory, "browsing"),
+							ciscoV9OptionField(ciscoFieldApplicationSubCategory, "other"),
+							ciscoV9OptionField(ciscoFieldApplicationGroup, "other"),
+							ciscoV9OptionField(ciscoFieldApplicationTrafficClass, "transactional-data"),
+							ciscoV9OptionField(ciscoFieldApplicationBusinessRelevance, "default"),
+							{Type: ipfixFieldP2PTechnology, Value: []byte("no\x00")},
+							{Type: ipfixFieldTunnelTechnology, Value: []byte("no\x00")},
+							{Type: ipfixFieldEncryptedTechnology, Value: []byte("yes\x00")},
+							ciscoV9OptionField(ciscoFieldApplicationSet, "general-browsing"),
+							ciscoV9OptionField(ciscoFieldApplicationFamily, "encrypted"),
+						},
+					},
+					{
+						ScopesValues:  []netflow.DataField{{Type: ipfixFieldApplicationID, Value: appIDtoBytes(200)}},
+						OptionsValues: []netflow.DataField{{Type: ipfixFieldApplicationName, Value: []byte("scope id")}},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, []dpi.Application{
+		{ID: 100, Name: "HTTP", Description: "Hypertext Transfer Protocol"},
+		{ID: 100, Metadata: dpi.Metadata{
+			Category:            "browsing",
+			SubCategory:         "other",
+			ApplicationGroup:    "other",
+			P2PTechnology:       "no",
+			TunnelTechnology:    "no",
+			EncryptedTechnology: "yes",
+			TrafficClass:        "transactional-data",
+			BusinessRelevance:   "default",
+			ApplicationSet:      "general-browsing",
+			ApplicationFamily:   "encrypted",
+		}},
+	}, DecodeApplications(packet), "the id is read from the option fields, Cisco fields are matched by their v9 numbers and scope values are ignored")
+}
+
 func TestDecodeApplications_noOptions(t *testing.T) {
 	dataPacket := netflow.IPFIXPacket{
 		Version: 10,
@@ -129,5 +193,5 @@ func TestDecodeApplications_noOptions(t *testing.T) {
 		},
 	}
 	assert.Nil(t, DecodeApplications(dataPacket), "data records are left to the additional fields mapping")
-	assert.Nil(t, DecodeApplications(netflow.NFv9Packet{}), "NFv9 is not supported")
+	assert.Nil(t, DecodeApplications(netflow.NFv9Packet{}), "packets without options records have no applications")
 }

@@ -103,6 +103,9 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     approve_syscall(syscall, open_approvers);
+    if (syscall->policy.mode == ACCEPT && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
+        syscall->resolver.flags |= RESOLVER_FLAG_SAMPLED;
+    }
 
     // the runtime itself opens cgroupfs paths during cgroup resolution; those reads
     // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
@@ -256,15 +259,14 @@ static __always_inline int _sys_open_ret_impl(void *ctx, struct syscall_cache_t 
         goto pop_and_exit;
     }
 
-    // emit a sample refresh if the dedup map flagged one
-    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
-        struct sample_refresh_event_t ev = {};
-        ev.cookie = syscall->sample_cookie;
-        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
-    }
-
     apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
+        // emit a sample refresh if the dedup map flagged one
+        if (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED) {
+            struct sample_refresh_event_t ev = {};
+            ev.cookie = syscall->sample_cookie;
+            send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+        }
         goto pop_and_exit;
     }
 

@@ -34,6 +34,7 @@ type hpFlareConfig struct {
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
 	DebugVerbosity        string
+	SendErrorFrames       bool
 	AdditionalHTTPHeaders map[string]string
 	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
@@ -101,6 +102,7 @@ func newConfigManager(config config.Component) configManager {
 		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
+		SendErrorFrames:       config.GetBool("hostprofiler.send_error_frames"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 		DDProfiling: ddProfilingConfig{
 			Enabled: config.GetBool("hostprofiler.ddprofiling.enabled"),

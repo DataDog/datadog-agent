@@ -113,7 +113,7 @@ import (
 
 var testTemplate = `
 func TestCgoAlignment_%[1]s(t *testing.T) {
-	ebpftest.TestCgoAlignment[%[1]s](t)
+	ebpftest.AssertCgoAlignment[%[1]s](t)
 }
 `
 

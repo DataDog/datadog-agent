@@ -171,6 +171,10 @@ func TestAnalyzeKSMConfig_EmptyCollectors(t *testing.T) {
 	assert.Equal(t, "others", groups[2].Name)
 	// others should have multiple default collectors
 	assert.Greater(t, len(groups[2].Collectors), 0, "others group should have collectors from DefaultResources")
+	// but not the KSM defaults the check leaves out of its own defaults
+	for _, c := range excludedDefaultKSMCollectors {
+		assert.NotContains(t, groups[2].Collectors, c)
+	}
 }
 
 func TestShouldShardKSMCheck(t *testing.T) {

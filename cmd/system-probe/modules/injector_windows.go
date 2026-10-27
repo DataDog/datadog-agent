@@ -18,7 +18,6 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector"
@@ -35,7 +34,7 @@ var _ module.Module = &injectorModule{}
 
 // Injector Factory
 var Injector = &module.Factory{
-	Name: config.InjectorModule,
+	Name: sysconfigtypes.InjectorModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating Windows Injector module")
 

@@ -54,6 +54,15 @@ func validateKubeVersionFormat(kubeVersion string) error {
 }
 
 func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion string, kindFlags KindConfigFlags, opts ...pulumi.ResourceOption) (*Cluster, error) {
+	// The cluster is reached from outside the VM at <vm address>:<port> (see the kubeconfig patch below),
+	// so the API server must be published on all IPv4 interfaces, not on loopback, and on a known port.
+	if kindFlags.APIServerAddress == "" {
+		kindFlags.APIServerAddress = "0.0.0.0"
+	}
+	if kindFlags.APIServerPort == 0 {
+		kindFlags.APIServerPort = 8443
+	}
+
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))

@@ -29,6 +29,7 @@ Before deploying, update the provided Helm values files for your environment. Th
    - Adapt the `DD_API_KEY` secret reference if you do not use the example `datadog-secret` Kubernetes Secret.
    - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the remaining pod settings, including resource requests and limits. For all supported values, see the [OpenTelemetry Collector Helm chart values](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/values.yaml). For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
+   - To tag profiles by cluster, see [Cluster name](#cluster-name).
 
 2. In [`helm/collector-config-values.yaml`](helm/collector-config-values.yaml):
    - Review the OpenTelemetry Collector pipelines and Datadog export configuration.
@@ -39,6 +40,15 @@ Before deploying, update the provided Helm values files for your environment. Th
    - If your cluster uses Cilium and you want FQDN-scoped egress enforcement, use [`helm/cilium-network-policy-values.yaml`](helm/cilium-network-policy-values.yaml) instead.
 
 If your cluster does not enforce NetworkPolicy resources, these values do not restrict egress; use your cluster's supported network controls instead.
+
+## Kubernetes cluster name
+
+In [`helm/collector-values.yaml`](helm/collector-values.yaml), set `presets.resourceDetection.enabled: true` and enable the needed detector.
+
+- **Explicit:** set `presets.resourceDetection.env.enabled: true` and `OTEL_RESOURCE_ATTRIBUTES` under `extraEnvs` to `k8s.cluster.name=<CLUSTER_NAME>`.
+- **Automatic:** enable `eks`, `aks`, or `gcp`. The preset enables `k8s.cluster.name` for these detectors.
+
+Cloud detector requirements vary by provider. See the [OpenTelemetry resource detection docs](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#supported-detectors) to enable one.
 
 ## Collector health metrics
 

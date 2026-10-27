@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CWS: bind events are now filtered in the kernel. Only the binds that
+    match the address families used by the loaded ``bind`` rules are sent
+    to user space, and the other binds are sampled to build Workload
+    Protection profiles. This reduces the number of events sent from the
+    kernel to the agent.

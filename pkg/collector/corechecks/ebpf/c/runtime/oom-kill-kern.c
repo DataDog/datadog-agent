@@ -27,8 +27,7 @@
 
 BPF_HASH_MAP(oom_stats, u64, struct oom_stats, 10240)
 
-SEC("kprobe/oom_kill_process")
-int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
+static __always_inline int handle_oom_kill(struct oom_control *oc) {
     struct oom_stats zero = {};
     struct oom_stats new = {};
     u64 ts = bpf_ktime_get_ns();
@@ -87,6 +86,21 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     bpf_memcpy(s, &new, sizeof(struct oom_stats));
 
     return 0;
+}
+
+/*
+ * Two entry points for the same logic: system-probe loads the fentry one when the kernel supports
+ * fentry on oom_kill_process, and the kprobe one otherwise.
+ */
+
+SEC("fentry/oom_kill_process")
+int BPF_PROG(fentry__oom_kill_process, struct oom_control *oc) {
+    return handle_oom_kill(oc);
+}
+
+SEC("kprobe/oom_kill_process")
+int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
+    return handle_oom_kill(oc);
 }
 
 char _license[] SEC("license") = "GPL";

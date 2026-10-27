@@ -8,13 +8,23 @@
 package module
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
@@ -57,4 +67,127 @@ func TestPendingMsgIsResolvedSSHSession(t *testing.T) {
 
 	// following events of that session must not be delayed
 	assert.True(t, newMsg(0).isResolved(), "events of an unresolved session must not be delayed")
+}
+
+// sbomStream hands over the messages GetSBOMStream sends, or fails to send
+// them when broken.
+type sbomStream struct {
+	grpc.ServerStream
+	sent   chan *sbompb.SBOMMessage
+	broken bool
+}
+
+func (s *sbomStream) Context() context.Context {
+	return context.Background()
+}
+
+func (s *sbomStream) Send(msg *sbompb.SBOMMessage) error {
+	if s.broken {
+		return errors.New("broken stream")
+	}
+	s.sent <- msg
+	return nil
+}
+
+// TestGetSBOMStreamKind checks that the report of the host, the one with an
+// empty container ID, reaches the core agent under the host kind, and the
+// report of a container under the container kind.
+func TestGetSBOMStreamKind(t *testing.T) {
+	tests := []struct {
+		requestID string
+		want      string
+	}{
+		{requestID: "", want: sbompkg.HostKind},
+		{requestID: "0123456789ab", want: string(workloadmeta.KindContainer)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			server := &SBOMAPIServer{
+				sboms:    newSBOMQueue(1),
+				stopChan: make(chan struct{}),
+			}
+			server.sboms.push(&sbompkg.ScanResult{
+				Report:    sbom.NewPackagesReport(nil, containerutils.ContainerID(tt.requestID)),
+				RequestID: tt.requestID,
+			})
+
+			stream := &sbomStream{sent: make(chan *sbompb.SBOMMessage, 1)}
+			done := make(chan error)
+			go func() {
+				done <- server.GetSBOMStream(&sbompb.SBOMStreamParams{}, stream)
+			}()
+
+			var msg *sbompb.SBOMMessage
+			select {
+			case msg = <-stream.sent:
+			case err := <-done:
+				t.Fatalf("GetSBOMStream returned before sending: %v", err)
+			}
+
+			close(server.stopChan)
+			if err := <-done; err != nil {
+				t.Fatalf("GetSBOMStream: %v", err)
+			}
+
+			if msg.Kind != tt.want {
+				t.Errorf("kind = %q, want %q", msg.Kind, tt.want)
+			}
+			if msg.ID != tt.requestID {
+				t.Errorf("ID = %q, want %q", msg.ID, tt.requestID)
+			}
+		})
+	}
+}
+
+// TestSendSBOMDropsUnmarshalableReport checks that a report that fails to
+// marshal goes nowhere and reads as unsent.
+func TestSendSBOMDropsUnmarshalableReport(t *testing.T) {
+	stream := &sbomStream{sent: make(chan *sbompb.SBOMMessage, 1)}
+	report := sbom.NewPackagesReport([]sbomtypes.Package{{Name: "\xff"}}, "0123456789ab")
+
+	sent, err := sendSBOM(stream, &sbompkg.ScanResult{Report: report, RequestID: "0123456789ab"})
+	require.NoError(t, err)
+	assert.False(t, sent)
+	assert.Empty(t, stream.sent)
+}
+
+// TestGetSBOMStreamRequeuesFailedSend checks that a report the stream fails to
+// send waits for the next stream, as the core agent reconnects.
+func TestGetSBOMStreamRequeuesFailedSend(t *testing.T) {
+	server := &SBOMAPIServer{
+		sboms:    newSBOMQueue(1),
+		stopChan: make(chan struct{}),
+	}
+	server.sboms.push(&sbompkg.ScanResult{
+		Report:    sbom.NewPackagesReport(nil, "0123456789ab"),
+		RequestID: "0123456789ab",
+	})
+
+	broken := &sbomStream{broken: true}
+	if err := server.GetSBOMStream(&sbompb.SBOMStreamParams{}, broken); err == nil {
+		t.Fatalf("GetSBOMStream returned no error on a broken stream")
+	}
+
+	stream := &sbomStream{sent: make(chan *sbompb.SBOMMessage, 1)}
+	done := make(chan error)
+	go func() {
+		done <- server.GetSBOMStream(&sbompb.SBOMStreamParams{}, stream)
+	}()
+
+	select {
+	case msg := <-stream.sent:
+		if msg.ID != "0123456789ab" {
+			t.Errorf("ID = %q, want 0123456789ab", msg.ID)
+		}
+	case err := <-done:
+		t.Fatalf("GetSBOMStream returned before sending: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatalf("the requeued report was never sent")
+	}
+
+	close(server.stopChan)
+	if err := <-done; err != nil {
+		t.Fatalf("GetSBOMStream: %v", err)
+	}
 }

@@ -45,7 +45,10 @@ dd_agent_go_test(
         "split_win_test.go",
     ],
     embed = [":privateactionrunner"],
-    embedsrcs = ["fixtures/self-enroll.yaml.tmpl"],
+    embedsrcs = [
+        "fixtures/self-enroll.yaml.tmpl",
+        "fixtures/windows-pipe-probe.ps1",
+    ],
     tags = ["manual"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/errorcode",

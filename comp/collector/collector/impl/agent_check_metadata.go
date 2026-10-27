@@ -9,9 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
+	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
+	autodiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -31,7 +35,104 @@ import (
 const (
 	defaultInterval   = 10 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
+
+	// maxCheckErrorLength caps the size of a single check error or warning message in the payload, so that
+	// large messages do not inflate the whole payload.
+	maxCheckErrorLength = 4096
+
+	truncatedMarkerFormat = "\n[... %d bytes truncated ...]\n"
 )
+
+// Kinds of message of the payload, used as tag of the oversized message telemetry.
+const (
+	kindError      = "error"
+	kindWarning    = "warning"
+	kindLoader     = "loader"
+	kindConfig     = "config"
+	kindJMXStartup = "jmx_startup"
+)
+
+// oversizedMetrics holds the telemetry of the check messages exceeding the size cap. Both metrics are part of the
+// cross-org agent telemetry, see the "checks" profile in comp/core/agenttelemetry/impl/defaultProfiles.yaml.
+//
+// The "truncated" tag tells whether the message was actually truncated or only measured, so the oversized messages
+// stay visible when the truncation is disabled.
+type oversizedMetrics struct {
+	messages telemetry.Counter
+	bytes    telemetry.Histogram
+}
+
+func newOversizedMetrics(tel telemetry.Component) *oversizedMetrics {
+	return &oversizedMetrics{
+		messages: tel.NewCounter("checks", "metadata_message_oversized",
+			[]string{"check_name", "kind", "truncated"},
+			"Check messages sent in the agent_checks metadata payload that exceed the size cap"),
+		bytes: tel.NewHistogram("checks", "metadata_message_oversized_bytes",
+			[]string{"check_name", "kind"},
+			"Original size, in bytes, of the check messages exceeding the size cap",
+			[]float64{8 << 10, 16 << 10, 64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20}),
+	}
+}
+
+var defaultOversizedMetrics = newOversizedMetrics(telemetryimpl.GetCompatComponent())
+
+// truncateCheckError limits msg to maxCheckErrorLength bytes, marker included. It keeps both the beginning and
+// the end of the message, as the end often holds the most useful part (e.g. the exception of a stack trace),
+// and never splits a UTF-8 character.
+func truncateCheckError(msg string) string {
+	if len(msg) <= maxCheckErrorLength {
+		return msg
+	}
+	// The marker for the actual number of dropped bytes can't be longer than this one.
+	budget := maxCheckErrorLength - len(fmt.Sprintf(truncatedMarkerFormat, len(msg)))
+	headEnd := budget / 2
+	tailStart := len(msg) - (budget - headEnd)
+	for i := 0; i < utf8.UTFMax && headEnd > 0 && !utf8.RuneStart(msg[headEnd]); i++ {
+		headEnd--
+	}
+	for i := 0; i < utf8.UTFMax && tailStart < len(msg) && !utf8.RuneStart(msg[tailStart]); i++ {
+		tailStart++
+	}
+	return msg[:headEnd] + fmt.Sprintf(truncatedMarkerFormat, tailStart-headEnd) + msg[tailStart:]
+}
+
+// messageTruncator applies the size cap to the check messages of the agent_checks metadata payload.
+type messageTruncator struct {
+	enabled bool
+	metrics *oversizedMetrics
+}
+
+// maybeTruncate returns msg, truncated if it exceeds maxCheckErrorLength and the truncation is enabled. An oversized
+// message is recorded in the telemetry whether it is truncated or not, checkName and kind being its tags.
+func (t messageTruncator) maybeTruncate(msg, checkName, kind string) string {
+	if len(msg) <= maxCheckErrorLength {
+		return msg
+	}
+	t.metrics.messages.Inc(checkName, kind, strconv.FormatBool(t.enabled))
+	t.metrics.bytes.Observe(float64(len(msg)), checkName, kind)
+	if !t.enabled {
+		return msg
+	}
+	return truncateCheckError(msg)
+}
+
+// truncateWarnings truncates each warning of a check.
+func (t messageTruncator) truncateWarnings(warnings []string, checkName string) []string {
+	truncated := make([]string, len(warnings))
+	for i, w := range warnings {
+		truncated[i] = t.maybeTruncate(w, checkName, kindWarning)
+	}
+	return truncated
+}
+
+// truncateLoaderErrors truncates each error of a loader name -> error map.
+func (t messageTruncator) truncateLoaderErrors(errs map[string]string, checkName string) map[string]string {
+	truncated := make(map[string]string, len(errs))
+	for loader, e := range errs {
+		truncated[loader] = t.maybeTruncate(e, checkName, kindLoader)
+	}
+	return truncated
+}
 
 // jmxInstanceData stores metadata about a JMX instance for building consistent check IDs
 type jmxInstanceData struct {
@@ -70,6 +171,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		ExternalhostTags: *externalhost.GetPayload(),
 	}
 
+	truncator := messageTruncator{
+		enabled: c.config.GetBool("agent_checks_metadata_message_truncation_enabled"),
+		metrics: defaultOversizedMetrics,
+	}
+
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
@@ -84,11 +190,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			var status []interface{}
 			if s.LastError != "" {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", truncator.maybeTruncate(s.LastError, s.CheckName, kindError), "", integrationTags,
 				}
 			} else if len(s.LastWarnings) != 0 {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "WARNING", truncator.truncateWarnings(s.LastWarnings, s.CheckName), "", integrationTags,
 				}
 			} else {
 				status = []interface{}{
@@ -101,7 +207,8 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 
 	loaderErrors := collector.GetLoaderErrors()
 	for check, errs := range loaderErrors {
-		jsonErrs, err := json.Marshal(errs)
+		// Truncate each error rather than the marshalled result, so the payload keeps a valid JSON document.
+		jsonErrs, err := json.Marshal(truncator.truncateLoaderErrors(errs, check))
 		if err != nil {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
@@ -114,7 +221,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
-			check, check, "initialization", "ERROR", e, []string{},
+			check, check, "initialization", "ERROR", truncator.maybeTruncate(e, check, kindConfig), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -122,7 +229,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
 		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError, []string{},
+			"jmx", "jmx", "initialization", "ERROR", truncator.maybeTruncate(jmxStartupError.LastError, "jmx", kindJMXStartup), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}

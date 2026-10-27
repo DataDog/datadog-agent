@@ -101,10 +101,34 @@ static int __attribute__((always_inline)) select_dr_key(enum TAIL_CALL_PROG_TYPE
     }
 }
 
-// cache_syscall checks the event policy in order to see if the syscall struct can be cached
+// cache_dentry_resolver_input caches the dentry resolver input of the current thread
 static void __attribute__((always_inline)) cache_dentry_resolver_input(struct dentry_resolver_input_t *input) {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        // bpf_task_storage_get doesn't overwrite an existing value
+        bpf_task_storage_delete(&dentry_resolver_inputs, task);
+        bpf_task_storage_get(&dentry_resolver_inputs, task, input, BPF_LOCAL_STORAGE_GET_F_CREATE);
+        return;
+    }
+#endif
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&dentry_resolver_inputs, &pid_tgid, input, BPF_ANY);
+}
+
+// get_dentry_resolver_input returns the dentry resolver input cached for the current thread
+static struct dentry_resolver_input_t *__attribute__((always_inline)) get_dentry_resolver_input() {
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        return (struct dentry_resolver_input_t *)bpf_task_storage_get(&dentry_resolver_inputs, bpf_get_current_task_btf(), NULL, 0);
+    }
+#endif
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return (struct dentry_resolver_input_t *)bpf_map_lookup_elem(&dentry_resolver_inputs, &pid_tgid);
 }
 
 #endif

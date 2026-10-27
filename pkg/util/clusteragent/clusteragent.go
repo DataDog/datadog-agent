@@ -67,6 +67,20 @@ type NodeSystemInfo struct {
 	Architecture            string
 }
 
+// NodeCondition is a node condition, type and status only.
+type NodeCondition struct {
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+// NodeStatus holds the conditions and the cordon state (spec.unschedulable) of a node.
+type NodeStatus struct {
+	// Conditions is nil when the answer has no conditions field: not an answer of
+	// the endpoint, rather than a node without conditions.
+	Conditions    *[]NodeCondition `json:"conditions"`
+	Unschedulable bool             `json:"unschedulable"`
+}
+
 // DCAClientInterface is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
 	Version(withRefresh bool) version.Version
@@ -450,6 +464,13 @@ func (c *DCAClient) GetNodeInfo(nodeName string, filter ...string) (*NodeSystemI
 
 	err = c.doJSONQuery(context.TODO(), path, "GET", nil, &ni, false)
 	return &ni, err
+}
+
+// GetNodeStatus returns the conditions and cordon state of a node from the Cluster Agent.
+func (c *DCAClient) GetNodeStatus(nodeName string) (*NodeStatus, error) {
+	var result NodeStatus
+	err := c.doJSONQuery(context.TODO(), "api/v1/info/node/"+nodeName+"/status", "GET", nil, &result, false)
+	return &result, err
 }
 
 // GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.

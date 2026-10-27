@@ -39,6 +39,7 @@ dd_agent_go_test(
         "clusteragent_test.go",
         "clusterchecks_test.go",
         "endpointschecks_test.go",
+        "node_status_test.go",
     ],
     embed = [":clusteragent"],
     deps = [
