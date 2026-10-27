@@ -14,7 +14,7 @@ import yaml
 from invoke.context import Context
 
 import tasks
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, is_bazel_workspace
 from tasks.libs.common.utils import _resolve_target_platform, agent_working_directory
 
 
@@ -243,10 +243,8 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        # Branches that predate the Bazel migration (e.g. Agent 6) have no MODULE.bazel,
-        # so `bazel run` cannot find a workspace. Fall back to `go run` on the modparser
-        # source, which those branches shipped and still works.
-        if os.path.exists("MODULE.bazel"):
+        # Pre-Bazel branches still ship the modparser source, so fall back to `go run` there
+        if is_bazel_workspace():
             output = bazel(
                 "run",
                 "//internal/tools/modparser",
