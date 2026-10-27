@@ -81,13 +81,6 @@ var (
 		expvarName:       "fargate",
 	}
 
-	eudmProvider = provider{
-		name:             eudmProviderName,
-		cb:               fromEUDM,
-		stopIfSuccessful: true,
-		expvarName:       "eudm",
-	}
-
 	gceProvider = provider{
 		name:             "gce",
 		cb:               fromGCE,
@@ -125,6 +118,13 @@ var (
 		expvarName:       "os",
 	}
 
+	eudmProvider = provider{
+		name:             eudmProviderName,
+		cb:               fromEUDM,
+		stopIfSuccessful: false,
+		expvarName:       "eudm",
+	}
+
 	ec2Provider = provider{
 		name:             "aws", // ie EC2
 		cb:               fromEC2,
@@ -146,24 +146,24 @@ var (
 // * Config (`hostname')
 // * Config (`hostname_file')
 // * Fargate/Sidecar (strips hostname for Fargate and managed instances in sidecar mode)
-// * EUDM device name with optional serial (macOS/Windows only)
 // * GCE
 // * Azure
 // * FQDN
 // * container (kube_apiserver, Docker, kubelet)
 // * OS hostname
+// * EUDM device name with optional serial (macOS/Windows only)
 // * EC2
 func getProviderCatalog(legacyHostnameResolution bool) []provider {
 	providerCatalog := []provider{
 		configProvider,
 		hostnameFileProvider,
 		fargateProvider,
-		eudmProvider,
 		gceProvider,
 		azureProvider,
 		fqdnProvider,
 		containerProvider,
 		osProvider,
+		eudmProvider,
 	}
 
 	if legacyHostnameResolution {

@@ -40,9 +40,8 @@ When calling a provider we always:
    about non canonical hostname.
 3. If running on **Fargate**: we set an empty hostname as the idea of a host doesn't exist. We **DO NOT** set hostname
    provider in `goexpvar` and `inventories`
-4. **EUDM**: on macOS and Windows in end-user-device mode, use device name with an optional serial suffix (see below).
-5. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
-6. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
+4. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
+5. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
 
 **The following providers behavior are linked to each other**
 
@@ -61,18 +60,20 @@ The notion of `isOSHostnameUsable` means:
 - Else if we're on k8s and running inside a container without `hostNetwork` set to true -> False
 - Else -> True
 
-7. **FQDN**
+6. **FQDN**
    1. If `isOSHostnameUsable` is false we return an error
    2. If `hostname_fqdn` config setting is set to true we fetch the FQDN:
       1. On Linux and macOS we use `/bin/hostname -f`
       2. On AIX we do a CNAME lookup
       3. On Windows we use `golang.org/x/sys/windows:GetHostByName`
    3. Else we return an error
-8. **CONTAINER**
+7. **CONTAINER**
    1. If we're running in a containerized environment we try to get the hostname from, in order: `kube_apiserver`,
       `docker` and `kubelet`.
-9. **OS**
+8. **OS**
    1. If `isOSHostnameUsable` is true and previous providers didn't detect a hostname we use `os.Hostname()`
+9. **EUDM**: on macOS and Windows in end-user-device mode, use device name with an optional serial suffix (see below).
+   Continue to EC2 so its instance-ID selection rules still apply.
 10. **EC2**
    1. We try to fetch the EC2 instance ID if one of the following condition is met:
       - we're running on a ECS instance.
@@ -87,8 +88,9 @@ The notion of `isOSHostnameUsable` means:
 
 ## End-user-device hostnames
 
-On macOS and Windows, `infrastructure_mode: end_user_device` selects the device name before cloud,
-FQDN, container or OS discovery. Explicit `hostname` and `hostname_file` settings still take precedence, and
+On macOS and Windows, `infrastructure_mode: end_user_device` selects the device name after local
+FQDN, container and OS discovery. GCE and Azure hostnames take precedence, and EC2 gets the final opportunity
+to select its instance ID according to its existing rules. Explicit `hostname` and `hostname_file` settings still take precedence, and
 sidecar hostname handling is unchanged. Other operating systems and modes keep the existing resolution order.
 
 Set `hostname_use_serial: true` (or `DD_HOSTNAME_USE_SERIAL=true`) to append the hardware serial number.
