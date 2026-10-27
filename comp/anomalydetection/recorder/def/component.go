@@ -13,20 +13,25 @@ import (
 // team: agent-anomaly-detection
 
 // Component is the recorder middleware component.
-// It wraps observer handles to record observations after forwarding them.
+// It wraps observer handles to record metrics after forwarding them and records
+// logs after observer admission.
 type Component interface {
 	// GetHandle wraps the provided handle factory with recording capability.
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
+	// RecordLog records a log observation that has passed observer admission.
+	RecordLog(source string, msg observer.LogView)
 }
 
 // MetricData is a recorded metric. Timestamp is in Unix seconds.
 type MetricData struct {
-	Source    string   // Source/namespace
-	Name      string   // Metric name
-	Value     float64  // Metric value
-	Timestamp int64    // Unix timestamp in seconds
-	Tags      []string // Tags in "key:value" format
-	Dropped   bool     // True if the live observer's channel dropped this observation
+	Source     string   // Source/namespace
+	Name       string   // Metric name
+	MetricType string   // Original metric type; empty for legacy recordings
+	SampleRate float64  // Original sample rate
+	Value      float64  // Metric value
+	Timestamp  int64    // Unix timestamp in seconds
+	Tags       []string // Tags in "key:value" format
+	Dropped    bool     // True if the live observer's channel dropped this observation
 }
 
 // LogData is a recorded log. TimestampMs is in Unix milliseconds.

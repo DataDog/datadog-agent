@@ -20,6 +20,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -137,7 +138,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func printAgentSchema() error {
-	s, err := schema.GetCoreSchema()
+	s, err := schema.GetRawSchema(model.CoreSchema)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
 	} else {
@@ -147,7 +148,7 @@ func printAgentSchema() error {
 }
 
 func printSystemProbeSchema() error {
-	s, err := schema.GetSystemProbeSchema()
+	s, err := schema.GetRawSchema(model.SystemProbeSchema)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
 	} else {

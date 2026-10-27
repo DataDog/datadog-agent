@@ -161,6 +161,9 @@ func runCreate(opts *createOptions) error {
 	// tags are merged automatically by the framework from ~/.test_infra_config.yaml.
 	cfg := runner.ConfigMap{}
 	cfg.Set(runner.InfraEnvironmentVariables, opts.infraEnv, false)
+	// Demo environments can be used for longer than test-infra-cleaner's threshold: keep their
+	// "last-activity" tag up to date so that they are not deleted while still in use
+	cfg.Set(runner.AWSTrackSSHActivity, "true", false)
 	cfg.Set(agentKey(commonconfig.DDAgentSite), opts.site, false)
 	cfg.Set(agentKey(commonconfig.DDAgentFakeintake), opts.fakeintake, false)
 	if opts.agentVersion != "" {

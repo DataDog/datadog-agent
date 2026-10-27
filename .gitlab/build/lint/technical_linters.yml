@@ -23,6 +23,12 @@ lint_rust_licenses:
   script:
     - dda inv -- -e lint-rust-licenses
 
+validate_modules:
+  extends: .lint
+  script:
+    - dda inv -- -e modules.validate
+    - dda inv -- -e modules.validate-used-by-otel
+
 check_modules_replace:
   extends: .lint
   needs: ["go_deps"]

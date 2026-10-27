@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "dupcheck",
+    srcs = [
+        "corpus.go",
+        "dupcheck.go",
+        "print.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/testutil/dupcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/semantics",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)
+
+dd_agent_go_test(
+    name = "dupcheck_test",
+    srcs = [
+        "dupcheck_test.go",
+        "pipeline_test.go",
+        "spantypes_test.go",
+    ],
+    data = ["//pkg/trace/agent:obfuscate.go"],  # keep
+    embed = [":dupcheck"],
+    env = {
+        "DUPCHECK_OBFUSCATE_GO": "$(rlocationpath //pkg/trace/agent:obfuscate.go)",  # keep
+    },
+    deps = [
+        "//comp/trace/compression/impl-gzip",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/agent",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/containertags",
+        "//pkg/trace/info",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/testutil",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

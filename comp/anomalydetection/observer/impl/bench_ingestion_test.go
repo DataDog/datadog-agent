@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -78,11 +79,11 @@ func BenchmarkCompositeTagsStorage(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			key := storageKeyForCompositeIdentity("ns", "metric", "", tc.tags)
 			storage := newTimeSeriesStorage()
-			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, 0, tc.tags, key)
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, 0, tc.tags, key, metrics.GaugeType)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i+1), tc.tags, key)
+				storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i+1), tc.tags, key, metrics.GaugeType)
 			}
 		})
 	}
@@ -95,9 +96,9 @@ func BenchmarkCompositeTagsStorage(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			storage := newTimeSeriesStorage()
-			storage.AddWithKeyAndHostComposite("ns", "anchor", "", 1, 0, tags, anchorKey)
+			storage.AddWithKeyAndHostComposite("ns", "anchor", "", 1, 0, tags, anchorKey, metrics.GaugeType)
 			b.StartTimer()
-			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i), tags, key)
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i), tags, key, metrics.GaugeType)
 		}
 	})
 }
