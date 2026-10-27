@@ -131,12 +131,30 @@ properties:
     - golang_type:duration
   runner_groups:
     node_type: setting
-    type: string
-    default: ''
-    comment: 'JSON object mapping each cluster checks runner group to the check names
-      it claims, e.g. {"kube": ["kubernetes_state_core", "orchestrator"]}. A claimed
+    type: array
+    default: []
+    env_parser: json
+    items:
+      type: object
+      unevaluatedProperties: false
+      required:
+      - name
+      - checks
+      properties:
+        name:
+          type: string
+        checks:
+          type: array
+          items:
+            type: string
+    comment: |-
+      Cluster checks runner groups, each with the check names it claims. A claimed
       check is only dispatched to runners of its group (clc_runner_group), and stays
-      undispatched while the group has no live runner.'
+      undispatched while the group has no live runner. A check claimed by several
+      groups stays with the first one listed. For example:
+        - name: kube
+          checks: [kubernetes_state_core, orchestrator]
+      DD_CLUSTER_CHECKS_RUNNER_GROUPS is a JSON-encoded list of objects.
   stickiness_enabled:
     node_type: setting
     type: boolean

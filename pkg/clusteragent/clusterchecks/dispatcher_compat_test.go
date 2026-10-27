@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -25,13 +26,17 @@ import (
 )
 
 // kubeGroups declares the "kube" runner group claiming the kube-family checks.
-const kubeGroups = `{"kube":["kubernetes_state_core","orchestrator"]}`
+const kubeGroups = `[{"name":"kube","checks":["kubernetes_state_core","orchestrator"]}]`
 
 // newGroupDispatcher returns a dispatcher with the given runner groups
-// declared (cluster_checks.runner_groups).
+// declared (cluster_checks.runner_groups, JSON-encoded as in its env var).
 func newGroupDispatcher(t *testing.T, groups string) *dispatcher {
 	t.Helper()
-	configmock.New(t).SetInTest("cluster_checks.runner_groups", groups)
+	declared := []interface{}{}
+	if groups != "" {
+		require.NoError(t, json.Unmarshal([]byte(groups), &declared))
+	}
+	configmock.New(t).SetInTest("cluster_checks.runner_groups", declared)
 	return newDispatcher(taggerfxmock.SetupFakeTagger(t))
 }
 
@@ -45,25 +50,60 @@ func registerWorker(t *testing.T, d *dispatcher, name, ip string, nodeType types
 func TestParseRunnerGroups(t *testing.T) {
 	tests := []struct {
 		name       string
-		raw        string
+		groups     []runnerGroup
 		wantChecks map[string]string
 		wantGroups []string
 	}{
-		{"not set", "", nil, nil},
-		{"invalid JSON is ignored", "not-json", nil, nil},
-		{"groups", `{"kube":["kubernetes_state_core","orchestrator"],"kafka":["kafka_consumer"]}`,
+		{"not set", nil, nil, nil},
+		{"groups", []runnerGroup{{"kube", []string{"kubernetes_state_core", "orchestrator"}}, {"kafka", []string{"kafka_consumer"}}},
 			map[string]string{"kubernetes_state_core": "kube", "orchestrator": "kube", "kafka_consumer": "kafka"}, []string{"kafka", "kube"}},
-		{"a check claimed twice stays with the first group in name order", `{"b":["x"],"a":["x","y"]}`,
-			map[string]string{"x": "a", "y": "a"}, []string{"a", "b"}},
-		{"unnamed group is ignored", `{"":["x"],"kube":["y"]}`, map[string]string{"y": "kube"}, []string{"kube"}},
+		{"a check claimed twice stays with the first group listed", []runnerGroup{{"b", []string{"x"}}, {"a", []string{"x", "y"}}},
+			map[string]string{"x": "b", "y": "a"}, []string{"a", "b"}},
+		{"unnamed group is ignored", []runnerGroup{{"", []string{"x"}}, {"kube", []string{"y"}}}, map[string]string{"y": "kube"}, []string{"kube"}},
+		{"duplicate group is ignored", []runnerGroup{{"kube", []string{"x"}}, {"kube", []string{"y"}}}, map[string]string{"x": "kube"}, []string{"kube"}},
+		{"group without checks", []runnerGroup{{"kube", nil}}, map[string]string{}, []string{"kube"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkGroup, runnerGroups := parseRunnerGroups(tt.raw)
+			checkGroup, runnerGroups := parseRunnerGroups(tt.groups)
 			assert.Equal(t, tt.wantChecks, checkGroup)
 			assert.ElementsMatch(t, tt.wantGroups, slices.Collect(maps.Keys(runnerGroups)))
 		})
 	}
+}
+
+func TestLoadRunnerGroups(t *testing.T) {
+	want := map[string]string{"kubernetes_state_core": "kube", "orchestrator": "kube"}
+
+	t.Run("yaml", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, `
+cluster_checks:
+  runner_groups:
+    - name: kube
+      checks: [kubernetes_state_core, orchestrator]
+`)
+		checkGroup, _ := loadRunnerGroups(cfg)
+		assert.Equal(t, want, checkGroup)
+	})
+
+	t.Run("env var", func(t *testing.T) {
+		t.Setenv("DD_CLUSTER_CHECKS_RUNNER_GROUPS", kubeGroups)
+		checkGroup, _ := loadRunnerGroups(configmock.New(t))
+		assert.Equal(t, want, checkGroup)
+	})
+
+	t.Run("unknown field disables runner groups", func(t *testing.T) {
+		t.Setenv("DD_CLUSTER_CHECKS_RUNNER_GROUPS", `[{"name":"kube","checksInclude":["orchestrator"]}]`)
+		checkGroup, runnerGroups := loadRunnerGroups(configmock.New(t))
+		assert.Nil(t, checkGroup)
+		assert.Nil(t, runnerGroups)
+	})
+
+	t.Run("not set", func(t *testing.T) {
+		checkGroup, runnerGroups := loadRunnerGroups(configmock.New(t))
+		assert.Nil(t, checkGroup)
+		assert.Nil(t, runnerGroups)
+	})
 }
 
 func TestDispatchRespectsRunnerGroups(t *testing.T) {
@@ -134,7 +174,7 @@ func TestUseUtilizationRebalance(t *testing.T) {
 	// Runner groups are declared: the busyness algorithm is not group-aware,
 	// so the utilization algorithm is used regardless.
 	assert.True(t, newGroupDispatcher(t, kubeGroups).useUtilizationRebalance())
-	assert.True(t, newGroupDispatcher(t, `{"kube":[]}`).useUtilizationRebalance())
+	assert.True(t, newGroupDispatcher(t, `[{"name":"kube","checks":[]}]`).useUtilizationRebalance())
 
 	// No groups declared, but a worker reports one.
 	d := newGroupDispatcher(t, "")
@@ -226,7 +266,7 @@ func placement(d *dispatcher) map[string]string {
 func TestRebalanceUsingUtilizationRespectsGroups(t *testing.T) {
 	// kube checks all on kube1 and http checks all on general1 (both
 	// overloaded), kube2 and general2 idle.
-	d := newRebalanceDispatcher(t, `{"kube":["kube_check"]}`,
+	d := newRebalanceDispatcher(t, `[{"name":"kube","checks":["kube_check"]}]`,
 		rebalanceWorker{"kube1", "kube", map[string]string{"kube_a": "kube_check", "kube_b": "kube_check"}},
 		rebalanceWorker{"kube2", "kube", nil},
 		rebalanceWorker{"general1", "", map[string]string{"http_a": "http_check", "http_b": "http_check"}},
