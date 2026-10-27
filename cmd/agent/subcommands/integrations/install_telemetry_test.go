@@ -110,6 +110,17 @@ echo "` + wheel + `"
 	assert.Equal(t, downloaderResult{Repository: "v1", V2Failure: "network error"}, result)
 }
 
+// A local wheel can be a customer's own check, so its name must never leave the host.
+func TestInstallEventOmitsLocalWheelName(t *testing.T) {
+	ev := newInstallEvent(&cliParams{localWheel: true})
+	ev.Integration = "datadog-acme-internal"
+
+	ev.finish(nil, time.Second)
+
+	assert.Empty(t, ev.Integration)
+	assert.Equal(t, "local", ev.Source)
+}
+
 // An unreachable intake must never hold the install for longer than the send budget.
 func TestSendInstallEventGivesUpAfterTimeout(t *testing.T) {
 	atel := &fakeAgentTelemetry{unblock: make(chan struct{})}
