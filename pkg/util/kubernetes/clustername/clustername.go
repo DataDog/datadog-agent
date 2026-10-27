@@ -9,6 +9,7 @@ package clustername
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -30,6 +31,9 @@ import (
 
 const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
+
+	otelResourceAttributesEnv = "OTEL_RESOURCE_ATTRIBUTES"
+	otelClusterNameAttribute  = "k8s.cluster.name"
 )
 
 // The cluster name can be up to 40 characters with the following restrictions:
@@ -78,22 +82,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 		data.clusterName = pkgconfigsetup.Datadog().GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			// the host alias "hostname-clustername" must not exceed 255 chars
-			hostAlias := hostname + "-" + data.clusterName
-			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
-				log.Errorf("\"%s\" isn't a valid cluster name. The cluster name can be up to 40 characters with the following restrictions:\n"+
-					"\t- must contain only lowercase letters, numbers, dots, hyphens and underscores, \n"+
-					"\t- must start with an alphanumeric character, \n"+
-					"\t- must end with an alphanumeric character, \n"+
-					"\t- must be FQDN-like, without a trailing period, \n"+
-					"and \"%s\" must not exceed 255 chars", data.clusterName, hostAlias)
-				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
-				data.clusterName = ""
-			} else if !IsRFC1123CompliantClusterName(data.clusterName) {
-				RFC1123CompliantClusterName := MakeClusterNameRFC1123Compliant(data.clusterName)
-				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted to \"%s\"", data.clusterName, RFC1123CompliantClusterName)
-				data.clusterName = RFC1123CompliantClusterName
-			}
+			data.clusterName = validateClusterName(data.clusterName, hostname, "the config")
 		}
 
 		// autodiscover clustername through k8s providers' API
@@ -116,6 +105,20 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 					data.clusterName = clusterName
 					break
 				}
+			}
+		}
+
+		// otel-agent: OTel deployment tools (the OTel Helm charts) give the
+		// collector its cluster's name in the k8s.cluster.name resource
+		// attribute, which is also where the cluster_name host tag of the
+		// telemetry it exports comes from. It comes after the cloud providers'
+		// APIs because charts fill it with a placeholder by default
+		// (unknown_k8s_cluster). Unlike cluster_name, it is free-form, so it is
+		// lowercased before being validated.
+		if data.clusterName == "" && flavor.GetFlavor() == flavor.OTelAgent {
+			if clusterName := strings.ToLower(otelResourceAttribute(otelClusterNameAttribute)); clusterName != "" {
+				log.Infof("Got cluster name %s from the %s resource attribute in %s", clusterName, otelClusterNameAttribute, otelResourceAttributesEnv)
+				data.clusterName = validateClusterName(clusterName, hostname, "the "+otelResourceAttributesEnv+" environment variable")
 			}
 		}
 
@@ -153,6 +156,51 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 	}
 
 	return data.clusterName
+}
+
+// validateClusterName returns clusterName, converted to be RFC 1123 compliant,
+// or an empty string, after logging an error, when it isn't a valid cluster
+// name. source names where it was read from, for that error.
+func validateClusterName(clusterName, hostname, source string) string {
+	// the host alias "hostname-clustername" must not exceed 255 chars
+	hostAlias := hostname + "-" + clusterName
+	if !validClusterName.MatchString(clusterName) || len(hostAlias) > 255 {
+		log.Errorf("\"%s\" isn't a valid cluster name. The cluster name can be up to 40 characters with the following restrictions:\n"+
+			"\t- must contain only lowercase letters, numbers, dots, hyphens and underscores, \n"+
+			"\t- must start with an alphanumeric character, \n"+
+			"\t- must end with an alphanumeric character, \n"+
+			"\t- must be FQDN-like, without a trailing period, \n"+
+			"and \"%s\" must not exceed 255 chars", clusterName, hostAlias)
+		log.Errorf("As a consequence, the cluster name provided by %s will be ignored", source)
+		return ""
+	}
+	if !IsRFC1123CompliantClusterName(clusterName) {
+		RFC1123CompliantClusterName := MakeClusterNameRFC1123Compliant(clusterName)
+		log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted to \"%s\"", clusterName, RFC1123CompliantClusterName)
+		return RFC1123CompliantClusterName
+	}
+	return clusterName
+}
+
+// otelResourceAttribute returns the value of the key resource attribute in the
+// OTEL_RESOURCE_ATTRIBUTES environment variable, or an empty string when it
+// isn't set. It parses the variable as the OTel SDK does (sdk/resource env.go):
+// comma-separated key=value pairs, with whitespace trimmed, percent-encoded
+// values, and the last pair winning when a key repeats.
+func otelResourceAttribute(key string) string {
+	var value string
+	for _, pair := range strings.Split(os.Getenv(otelResourceAttributesEnv), ",") {
+		k, v, found := strings.Cut(pair, "=")
+		if !found || strings.TrimSpace(k) != key {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if decoded, err := url.PathUnescape(v); err == nil {
+			v = decoded
+		}
+		value = v
+	}
+	return value
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered

@@ -107,6 +107,89 @@ func TestGetClusterNameCLCRunner(t *testing.T) {
 	assert.Equal(t, testClusterName, getClusterName(ctx, newClusterNameData(), "hostname"))
 }
 
+// TestGetClusterNameOTelResourceAttributes verifies that otel-agent falls
+// back on the k8s.cluster.name resource attribute that OTel deployment tools
+// set in OTEL_RESOURCE_ATTRIBUTES, and that other flavors ignore it.
+func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
+	tests := []struct {
+		name               string
+		flavor             string
+		configClusterName  string
+		cloudClusterName   string
+		resourceAttributes string
+		want               string
+	}{
+		{
+			name:               "otel-agent reads k8s.cluster.name",
+			flavor:             flavor.OTelAgent,
+			resourceAttributes: "k8s.pod.name=pod,k8s.cluster.name=laika,k8s.node.name=node",
+			want:               "laika",
+		},
+		{
+			name:               "the OTel Helm chart default is made RFC 1123 compliant",
+			flavor:             flavor.OTelAgent,
+			resourceAttributes: "k8s.cluster.name=unknown_k8s_cluster",
+			want:               "unknown-k8s-cluster",
+		},
+		{
+			name:               "parsed as the OTel SDK does",
+			flavor:             flavor.OTelAgent,
+			resourceAttributes: " k8s.cluster.name = first , k8s.cluster.name = My%2ECluster ",
+			want:               "my.cluster",
+		},
+		{
+			name:               "an invalid name is ignored",
+			flavor:             flavor.OTelAgent,
+			resourceAttributes: "k8s.cluster.name=my cluster",
+			want:               "",
+		},
+		{
+			name:               "cluster_name takes precedence",
+			flavor:             flavor.OTelAgent,
+			configClusterName:  "youri",
+			resourceAttributes: "k8s.cluster.name=laika",
+			want:               "youri",
+		},
+		{
+			name:               "a cloud provider takes precedence over the chart's placeholder",
+			flavor:             flavor.OTelAgent,
+			cloudClusterName:   "eks-cluster",
+			resourceAttributes: "k8s.cluster.name=unknown_k8s_cluster",
+			want:               "eks-cluster",
+		},
+		{
+			name:               "unset",
+			flavor:             flavor.OTelAgent,
+			resourceAttributes: "k8s.node.name=node",
+			want:               "",
+		},
+		{
+			name:               "other flavors ignore it",
+			flavor:             flavor.DefaultAgent,
+			resourceAttributes: "k8s.cluster.name=laika",
+			want:               "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("cloud_provider_metadata", []string{})
+			mockConfig.SetInTest("cluster_name", tt.configClusterName)
+			env.SetFeatures(t, env.Kubernetes)
+			flavor.SetTestFlavor(t, tt.flavor)
+			catalog := map[string]Provider{}
+			if tt.cloudClusterName != "" {
+				catalog["dummyProvider"] = func(context.Context) (string, error) { return tt.cloudClusterName, nil }
+			}
+			setProviderCatalog(catalog)
+			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.resourceAttributes)
+
+			assert.Equal(t, tt.want, getClusterName(context.Background(), newClusterNameData(), "hostname"))
+		})
+	}
+}
+
 func TestGetClusterID(t *testing.T) {
 	clearClusterIDCache(t)
 	// missing env

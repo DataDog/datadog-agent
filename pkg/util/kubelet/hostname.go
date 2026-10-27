@@ -12,8 +12,11 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,13 +30,9 @@ func GetHostname(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	ku, err := kubeUtilGet()
+	nodeName, err := getNodename(ctx)
 	if err != nil {
 		return "", err
-	}
-	nodeName, err := ku.GetNodename(ctx)
-	if err != nil {
-		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
 	clusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, nodeName)
@@ -45,6 +44,40 @@ func GetHostname(ctx context.Context) (string, error) {
 		log.Debugf("hostAlias: cluster name: '%s' contains `_`, replacing it with `-` to be RFC1123 compliant", clusterName)
 	}
 	return nodeName + "-" + clusterName, nil
+}
+
+// getNodename returns the name of the node the agent runs on.
+//
+// otel-agent in DDOT standalone mode first reads it from the environment
+// variables listed in otelcollector.standalone.node_from_env_var, as its
+// nodefilter workloadmeta collector does, so that it needs neither kubelet API
+// access nor a reachable kubelet, which Kubernetes running in containers (k3d,
+// kind) lacks. It falls back to the kubelet unless
+// otelcollector.standalone.use_kubelet_collector is false: a deployment set up
+// for the nodefilter collector lacks kubelet API access.
+func getNodename(ctx context.Context) (string, error) {
+	cfg := pkgconfigsetup.Datadog()
+	if cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent {
+		nodeName, envVar, err := nodename.FromEnv(cfg.GetString("otelcollector.standalone.node_from_env_var"))
+		if err == nil {
+			log.Debugf("Using kubernetes nodename %q from environment variable %q", nodeName, envVar)
+			return nodeName, nil
+		}
+		if !cfg.GetBool("otelcollector.standalone.use_kubelet_collector") {
+			return "", fmt.Errorf("couldn't read the host nodename from the environment: %w (otelcollector.standalone.node_from_env_var)", err)
+		}
+		log.Debugf("Couldn't read the host nodename from the environment, falling back to the kubelet: %s", err)
+	}
+
+	ku, err := kubeUtilGet()
+	if err != nil {
+		return "", err
+	}
+	nodeName, err := ku.GetNodename(ctx)
+	if err != nil {
+		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
+	}
+	return nodeName, nil
 }
 
 // getRFC1123CompliantClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered

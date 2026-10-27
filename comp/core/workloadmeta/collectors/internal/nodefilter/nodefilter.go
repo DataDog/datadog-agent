@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -40,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -143,23 +142,16 @@ func localNodeName(cfg config.Component) (nodeName, fromEnvVar string, err error
 	}
 
 	nodeFromEnvVars := cfg.GetString("otelcollector.standalone.node_from_env_var")
-	for _, envVar := range strings.Split(nodeFromEnvVars, ",") {
-		envVar = strings.TrimSpace(envVar)
-		if value := strings.TrimSpace(os.Getenv(envVar)); value != "" {
-			nodeName, fromEnvVar = value, envVar
-			break
+	nodeName, fromEnvVar, err = nodename.FromEnv(nodeFromEnvVars)
+	if err != nil {
+		if fromEnvVar == "" {
+			log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: none of the environment variables in %q (otelcollector.standalone.node_from_env_var) is set. Set one of them to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVars)
+		} else {
+			// An invalid node name can't match any pod's spec.nodeName, so the
+			// field selector would silently select no pods.
+			log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: %s (otelcollector.standalone.node_from_env_var). Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, err)
 		}
-	}
-	if nodeName == "" {
-		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: none of the environment variables in %q (otelcollector.standalone.node_from_env_var) is set. Set one of them to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVars)
-		return "", "", fmt.Errorf("none of the environment variables in %q (otelcollector.standalone.node_from_env_var) is set", nodeFromEnvVars)
-	}
-
-	// Node names are DNS subdomains: anything else can't match a pod's
-	// spec.nodeName, and the field selector would silently select no pods.
-	if problems := validation.IsDNS1123Subdomain(nodeName); len(problems) > 0 {
-		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) holds %q, which isn't a valid node name: %s. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, fromEnvVar, nodeName, strings.Join(problems, "; "))
-		return "", "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) holds an invalid node name %q", fromEnvVar, nodeName)
+		return "", "", fmt.Errorf("%w (otelcollector.standalone.node_from_env_var)", err)
 	}
 
 	return nodeName, fromEnvVar, nil
