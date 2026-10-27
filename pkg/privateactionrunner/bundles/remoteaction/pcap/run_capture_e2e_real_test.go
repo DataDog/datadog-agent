@@ -70,6 +70,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 
 	handler := &RunCaptureHandler{
 		uploader: newRealUploader(t, apiKey, site, intakeHost),
+		hostname: newTestHostname(),
 		capture:  &socketCaptureTrigger{},
 	}
 
@@ -84,7 +85,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	require.Greater(t, out.PacketCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
 
 	captureID := "e2e-test-" + uuid.New().String()
-	err = uploadCapture(context.Background(), handler.uploader, out.PcapPath, captureID)
+	err = uploadCapture(context.Background(), handler.uploader, handler.hostname, out.PcapPath, captureID)
 	require.NoError(t, err, "expected the real networkpcap intake to accept the upload (202); a failure here means the agent-side upload path is broken against a real, reachable intake, independent of any S3/Husky-landing question")
 
 	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, out.FileSizeBytes, intakeHost)
@@ -128,7 +129,7 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 	systemProbeConfig := configmock.NewSystemProbe(t)
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
-	handler := NewRunCaptureHandler(newRealUploader(t, apiKey, site, intakeHost))
+	handler := NewRunCaptureHandler(newRealUploader(t, apiKey, site, intakeHost), newTestHostname())
 
 	// Deliberately low so the cap, not the duration, is what ends the capture —
 	// otherwise a quiet host would pass without the bound ever being exercised.

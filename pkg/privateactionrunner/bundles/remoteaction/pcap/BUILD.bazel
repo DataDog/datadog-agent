@@ -14,11 +14,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/pcap",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/telemetry/impl",
         "//comp/networkpcap/uploader/def",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "//pkg/util/hostname",
         "//pkg/util/log",
         "@com_github_google_uuid//:uuid",
     ] + select({
@@ -102,6 +102,8 @@ dd_agent_go_test(
     ],
     embed = [":pcap"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/networkpcap/uploader/def",
         "//comp/networkpcap/uploader/mock",
         "//pkg/privateactionrunner/types",

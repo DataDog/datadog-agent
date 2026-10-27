@@ -14,8 +14,8 @@ import (
 	"os"
 	"time"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,16 +34,21 @@ type networkPcapEvent struct {
 // uploadCapture sends the pcap file at pcapPath to the networkpcap intake. The
 // uploader reopens the file on each attempt, so it is never held in memory.
 // A capture cannot be re-taken, so failures are returned rather than dropped.
-func uploadCapture(ctx context.Context, uploader pcapuploader.Component, pcapPath string, captureID string) error {
+func uploadCapture(ctx context.Context, uploader pcapuploader.Component, hostname hostnameinterface.Component, pcapPath string, captureID string) error {
 	if uploader == nil {
 		return errUploaderUnavailable
 	}
 
-	// The capture ran on this host. A hostname lookup failure is not fatal:
-	// the capture is uploaded without one rather than lost.
-	hostnameValue, err := hostname.Get(ctx)
-	if err != nil {
+	// The capture ran on this host. The hostname comes from the core agent, so
+	// it matches the host's other telemetry. A lookup failure is not fatal: the
+	// capture is uploaded without one rather than lost.
+	var hostnameValue string
+	if hostname == nil {
+		log.Warnf("networkpcap upload: no hostname provider for capture_id=%s", captureID)
+	} else if h, err := hostname.Get(ctx); err != nil {
 		log.Warnf("networkpcap upload: failed to resolve hostname for capture_id=%s: %s", captureID, err)
+	} else {
+		hostnameValue = h
 	}
 
 	event, err := json.Marshal(networkPcapEvent{

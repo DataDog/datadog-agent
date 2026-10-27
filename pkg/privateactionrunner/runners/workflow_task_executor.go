@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
@@ -52,6 +53,7 @@ func NewWorkflowTaskExecutor(
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
 	pcapUploader pcapuploader.Component,
+	hostname hostnameinterface.Component,
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
@@ -62,7 +64,7 @@ func NewWorkflowTaskExecutor(
 		return nil, err
 	}
 
-	registry, err := privatebundles.NewRegistry(configuration, rcClient, traceroute, eventPlatform, pcapUploader, ipcClient, encryptionStore, ha, ka)
+	registry, err := privatebundles.NewRegistry(configuration, rcClient, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
 	}

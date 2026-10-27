@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	pcapuploadermock "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -31,11 +33,34 @@ func (n *noopCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (cap
 	return captureOutcome{}, nil
 }
 
+const testHostname = "test-host"
+
+// newTestHostname returns a hostname component that resolves to testHostname.
+func newTestHostname() hostnameinterface.Component {
+	hostname, _ := hostnamemock.NewMock(testHostname)
+	return hostname
+}
+
+// failingHostname is a hostname component whose lookups always fail.
+type failingHostname struct{}
+
+func (failingHostname) Get(context.Context) (string, error) {
+	return "", errors.New("hostname unavailable")
+}
+
+func (failingHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{}, errors.New("hostname unavailable")
+}
+
+func (failingHostname) GetSafe(context.Context) string {
+	return "unknown host"
+}
+
 // newTestHandler builds a RunCaptureHandler wired to noopCaptureTrigger,
 // bypassing the platform-specific captureTrigger (which requires a live
 // system-probe socket on unix).
 func newTestHandler() *RunCaptureHandler {
-	handler := NewRunCaptureHandler(pcapuploadermock.New())
+	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
 	handler.capture = &noopCaptureTrigger{}
 	return handler
 }
@@ -70,7 +95,7 @@ func (r *recordingCaptureTrigger) Capture(_ context.Context, in RunCaptureInputs
 }
 
 func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
-	handler := NewRunCaptureHandler(pcapuploadermock.New())
+	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
 	rec := &recordingCaptureTrigger{}
 	handler.capture = rec
 	return handler, rec
@@ -261,13 +286,13 @@ func TestRunCaptureDefaults(t *testing.T) {
 }
 
 func TestGetAction_RunCapture(t *testing.T) {
-	bundle := NewPcap(pcapuploadermock.New())
+	bundle := NewPcap(pcapuploadermock.New(), newTestHostname())
 	action := bundle.GetAction("runCapture")
 	assert.NotNil(t, action, "GetAction('runCapture') should return a non-nil Action")
 }
 
 func TestGetAction_Unknown(t *testing.T) {
-	bundle := NewPcap(pcapuploadermock.New())
+	bundle := NewPcap(pcapuploadermock.New(), newTestHostname())
 	action := bundle.GetAction("nonexistent")
 	assert.Nil(t, action, "GetAction('nonexistent') should return nil")
 }
@@ -284,7 +309,7 @@ func writeCapture(t *testing.T, data []byte) string {
 // attachment, with the capture ID in the event, and then removed.
 func TestRunCapture_UploadsCapture(t *testing.T) {
 	uploader := pcapuploadermock.New()
-	handler := NewRunCaptureHandler(uploader)
+	handler := NewRunCaptureHandler(uploader, newTestHostname())
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
 
@@ -302,6 +327,7 @@ func TestRunCapture_UploadsCapture(t *testing.T) {
 	require.NoError(t, json.Unmarshal(upload.Event, &event))
 	assert.Equal(t, "networkpcap", event.DDSource)
 	assert.Equal(t, "cap-upload", event.CaptureID)
+	assert.Equal(t, testHostname, event.Hostname)
 	assert.NotZero(t, event.Timestamp)
 
 	require.Len(t, upload.Attachments, 1)
@@ -312,12 +338,39 @@ func TestRunCapture_UploadsCapture(t *testing.T) {
 	assert.NoFileExists(t, pcapPath, "the capture file must be removed after the upload")
 }
 
+// A capture cannot be re-taken, so a hostname that cannot be resolved must not
+// lose it: the capture is uploaded without a hostname.
+func TestRunCapture_UploadsWithoutHostnameWhenLookupFails(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		hostname hostnameinterface.Component
+	}{
+		{"lookup fails", failingHostname{}},
+		{"no hostname component", nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			uploader := pcapuploadermock.New()
+			handler := NewRunCaptureHandler(uploader, tt.hostname)
+			handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
+
+			_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+			require.NoError(t, err)
+
+			uploads := uploader.Uploads()
+			require.Len(t, uploads, 1)
+			var event networkPcapEvent
+			require.NoError(t, json.Unmarshal(uploads[0].Event, &event))
+			assert.Empty(t, event.Hostname)
+		})
+	}
+}
+
 // A failed upload fails the action: the capture cannot be re-taken, so the
 // caller must know it was lost. The file is still removed.
 func TestRunCapture_UploadFailureFailsTheAction(t *testing.T) {
 	uploader := pcapuploadermock.New()
 	uploader.SetError(errors.New("intake unavailable"))
-	handler := NewRunCaptureHandler(uploader)
+	handler := NewRunCaptureHandler(uploader, newTestHostname())
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
 
@@ -328,7 +381,7 @@ func TestRunCapture_UploadFailureFailsTheAction(t *testing.T) {
 }
 
 func TestRunCapture_NoUploaderFailsTheAction(t *testing.T) {
-	handler := NewRunCaptureHandler(nil)
+	handler := NewRunCaptureHandler(nil, newTestHostname())
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
 
 	_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
@@ -388,7 +441,7 @@ func TestRunCaptureOutcome_Reasons(t *testing.T) {
 			if tt.uploader != nil {
 				uploader = tt.uploader()
 			}
-			handler := NewRunCaptureHandler(uploader)
+			handler := NewRunCaptureHandler(uploader, newTestHostname())
 			handler.capture = &recordingCaptureTrigger{out: captureOutcome{
 				PcapPath: writeCapture(t, []byte("pcap")),
 				Socket:   socketCapture,
@@ -430,7 +483,7 @@ func TestRunCaptureOutcome_CaptureFailures(t *testing.T) {
 		{errors.New("writing pcap data: unexpected EOF"), reasonCaptureError},
 	} {
 		t.Run(tt.reason, func(t *testing.T) {
-			handler := NewRunCaptureHandler(pcapuploadermock.New())
+			handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
 			handler.capture = &failingCaptureTrigger{err: tt.err, socket: socketMain}
 
 			before := outcomeCount(tt.reason, socketMain)

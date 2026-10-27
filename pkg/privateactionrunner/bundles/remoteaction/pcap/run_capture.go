@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -60,13 +61,16 @@ type captureOutcome struct {
 // RunCaptureHandler handles the runCapture action.
 type RunCaptureHandler struct {
 	uploader pcapuploader.Component
+	hostname hostnameinterface.Component
 	capture  captureTrigger
 }
 
-// NewRunCaptureHandler constructs a RunCaptureHandler.
-func NewRunCaptureHandler(uploader pcapuploader.Component) *RunCaptureHandler {
+// NewRunCaptureHandler constructs a RunCaptureHandler. Uploaded captures are
+// tagged with the host name from hostname.
+func NewRunCaptureHandler(uploader pcapuploader.Component, hostname hostnameinterface.Component) *RunCaptureHandler {
 	return &RunCaptureHandler{
 		uploader: uploader,
+		hostname: hostname,
 		capture:  newCaptureTrigger(),
 	}
 }
@@ -155,7 +159,7 @@ func (h *RunCaptureHandler) Run(
 	if out.PcapPath != "" {
 		defer os.Remove(out.PcapPath)
 
-		if err := uploadCapture(ctx, h.uploader, out.PcapPath, captureID); err != nil {
+		if err := uploadCapture(ctx, h.uploader, h.hostname, out.PcapPath, captureID); err != nil {
 			reason = uploadFailureReason(err)
 			return nil, fmt.Errorf("sending capture %s to event platform: %w", captureID, err)
 		}

@@ -155,7 +155,7 @@ func TestCaptureSocketPath(t *testing.T) {
 func runOverSocket(t *testing.T, reason, socket string) (float64, error) {
 	t.Helper()
 	before := outcomeCount(reason, socket)
-	handler := NewRunCaptureHandler(pcapuploadermock.New())
+	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
 	_, err := handler.Run(context.Background(), newTask(map[string]interface{}{"durationSecs": 1}), nil)
 	return outcomeCount(reason, socket) - before, err
 }
