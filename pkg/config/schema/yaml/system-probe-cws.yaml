@@ -724,6 +724,11 @@ properties:
         node_type: setting
         type: integer
         default: 20
+        description: |
+          Maximum number of image tag versions retained per security profile,
+          for both v1 and v2. The least recently seen version and its exclusive
+          activities are evicted when the limit is exceeded. Values below 1
+          are treated as 1.
       node_eviction_timeout:
         node_type: setting
         type: string
