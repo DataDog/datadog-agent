@@ -1,16 +1,5 @@
-# Each section from every release note are combined when the
-# CHANGELOG.rst is rendered. So the text needs to be worded so that
-# it does not depend on any information only available in another
-# section. This may mean repeating some details, but each section
-# must be readable independently of the other.
-#
-# Each section note must be formatted as reStructuredText.
 ---
 fixes:
   - |
-    APM: Fix OTLP span conversion so that numeric span attributes take
-    precedence over resource attributes with the same key. Previously, an
-    integer or double span attribute was stored as a span metric while the
-    resource attribute value was also kept as a span tag with the same key.
-    The resource value is now dropped, matching the behavior for string span
-    attributes.
+    APM: In OTLP span conversion, numeric span attributes now take precedence over
+    resource attributes with the same key, instead of also keeping the resource value as a tag.

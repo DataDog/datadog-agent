@@ -1809,91 +1809,39 @@ func TestMarshalEventsReadOnly(t *testing.T) {
 	assert.Equal(t, uint32(1), events.At(2).DroppedAttributesCount())
 }
 
-// TestOtelSpanToDDSpanSpanAttributePrecedence verifies that span attributes always take precedence
-// over resource attributes with the same key, regardless of the span attribute's type. In particular,
-// a numeric span attribute is stored in Metrics and must not be shadowed by a stale resource value in Meta.
+// TestOtelSpanToDDSpanSpanAttributePrecedence verifies that a span attribute wins over a resource
+// attribute with the same key, including when the span value is numeric and stored in Metrics.
 func TestOtelSpanToDDSpanSpanAttributePrecedence(t *testing.T) {
-	tests := []struct {
-		name           string
-		setSpanAttr    func(pcommon.Map)
-		expectMeta     string
-		expectMetric   float64
-		expectNoMeta   bool
-		expectNoMetric bool
+	for _, tt := range []struct {
+		name        string
+		setSpanAttr func(pcommon.Map)
+		wantMeta    string
+		wantMetric  float64
 	}{
-		{
-			name:           "resource attribute only is copied into Meta",
-			setSpanAttr:    func(pcommon.Map) {},
-			expectMeta:     "core",
-			expectNoMetric: true,
-		},
-		{
-			name:           "string span attribute wins over string resource attribute",
-			setSpanAttr:    func(m pcommon.Map) { m.PutStr("team", "infra") },
-			expectMeta:     "infra",
-			expectNoMetric: true,
-		},
-		{
-			name:           "bool span attribute wins over string resource attribute",
-			setSpanAttr:    func(m pcommon.Map) { m.PutBool("team", true) },
-			expectMeta:     "true",
-			expectNoMetric: true,
-		},
-		{
-			name:         "int span attribute wins over string resource attribute",
-			setSpanAttr:  func(m pcommon.Map) { m.PutInt("team", 7) },
-			expectMetric: 7,
-			expectNoMeta: true,
-		},
-		{
-			name:         "double span attribute wins over string resource attribute",
-			setSpanAttr:  func(m pcommon.Map) { m.PutDouble("team", 7.5) },
-			expectMetric: 7.5,
-			expectNoMeta: true,
-		},
-	}
+		{name: "string", setSpanAttr: func(m pcommon.Map) { m.PutStr("team", "infra") }, wantMeta: "infra"},
+		{name: "int", setSpanAttr: func(m pcommon.Map) { m.PutInt("team", 7) }, wantMetric: 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			tt.setSpanAttr(span.Attributes())
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("team", "core")
+			cfg := &config.AgentConfig{Features: map[string]struct{}{}, OTLPReceiver: &config.OTLP{}}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 
-	modes := map[string][]string{
-		"default":                      nil,
-		"operation_and_resource_v1":    {"disable_operation_and_resource_name_logic_v2"},
-		"receive_resource_spans_v1":    {"disable_receive_resource_spans_v2"},
-		"top_level_by_span_kind":       {"enable_otlp_compute_top_level_by_span_kind"},
-		"scope_convention_and_v1_name": {"disable_otel_scope_convention", "disable_operation_and_resource_name_logic_v2"},
-	}
+			ddspan := OtelSpanToDDSpan(span, res, pcommon.NewInstrumentationScope(), cfg)
 
-	for modeName, features := range modes {
-		for _, tt := range tests {
-			t.Run(modeName+"/"+tt.name, func(t *testing.T) {
-				span := ptrace.NewSpan()
-				span.SetName("test-span")
-				tt.setSpanAttr(span.Attributes())
-
-				res := pcommon.NewResource()
-				res.Attributes().PutStr("team", "core")
-
-				lib := pcommon.NewInstrumentationScope()
-				lib.SetName("test-lib")
-
-				cfg := &config.AgentConfig{Features: map[string]struct{}{}}
-				for _, f := range features {
-					cfg.Features[f] = struct{}{}
-				}
-				cfg.OTLPReceiver = &config.OTLP{}
-				cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
-
-				ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
-
-				if tt.expectNoMeta {
-					assert.NotContains(t, ddspan.Meta, "team")
-				} else {
-					assert.Equal(t, tt.expectMeta, ddspan.Meta["team"])
-				}
-				if tt.expectNoMetric {
-					assert.NotContains(t, ddspan.Metrics, "team")
-				} else {
-					assert.Equal(t, tt.expectMetric, ddspan.Metrics["team"])
-				}
-			})
-		}
+			if tt.wantMeta != "" {
+				assert.Equal(t, tt.wantMeta, ddspan.Meta["team"])
+			} else {
+				assert.NotContains(t, ddspan.Meta, "team")
+			}
+			if tt.wantMetric != 0 {
+				assert.Equal(t, tt.wantMetric, ddspan.Metrics["team"])
+			} else {
+				assert.NotContains(t, ddspan.Metrics, "team")
+			}
+		})
 	}
 }

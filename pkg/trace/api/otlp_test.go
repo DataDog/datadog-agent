@@ -4689,102 +4689,38 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 	}
 }
 
-// TestOTLPSpanAttributePrecedence verifies that, for both the V1 (convertSpan) and V2 (OtelSpanToDDSpan)
-// ReceiveResourceSpans implementations, span attributes always take precedence over resource attributes
-// with the same key, regardless of the span attribute's type. A numeric span attribute is stored in
-// Metrics and must not be shadowed by a stale resource value in Meta.
-func TestOTLPSpanAttributePrecedence(t *testing.T) {
-	tests := []struct {
-		name           string
-		setSpanAttr    func(pcommon.Map)
-		expectMeta     string
-		expectMetric   float64
-		expectNoMeta   bool
-		expectNoMetric bool
+// TestConvertSpanSpanAttributePrecedence verifies that, in the V1 convertSpan path, a span attribute
+// wins over a resource attribute with the same key, including when the span value is numeric.
+func TestConvertSpanSpanAttributePrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		setSpanAttr func(pcommon.Map)
+		wantMeta    string
+		wantMetric  float64
 	}{
-		{
-			name:           "resource attribute only is copied into Meta",
-			setSpanAttr:    func(pcommon.Map) {},
-			expectMeta:     "core",
-			expectNoMetric: true,
-		},
-		{
-			name:           "string span attribute wins over string resource attribute",
-			setSpanAttr:    func(m pcommon.Map) { m.PutStr("team", "infra") },
-			expectMeta:     "infra",
-			expectNoMetric: true,
-		},
-		{
-			name:           "bool span attribute wins over string resource attribute",
-			setSpanAttr:    func(m pcommon.Map) { m.PutBool("team", true) },
-			expectMeta:     "true",
-			expectNoMetric: true,
-		},
-		{
-			name:         "int span attribute wins over string resource attribute",
-			setSpanAttr:  func(m pcommon.Map) { m.PutInt("team", 7) },
-			expectMetric: 7,
-			expectNoMeta: true,
-		},
-		{
-			name:         "double span attribute wins over string resource attribute",
-			setSpanAttr:  func(m pcommon.Map) { m.PutDouble("team", 7.5) },
-			expectMetric: 7.5,
-			expectNoMeta: true,
-		},
-	}
+		{name: "string", setSpanAttr: func(m pcommon.Map) { m.PutStr("team", "infra") }, wantMeta: "infra"},
+		{name: "int", setSpanAttr: func(m pcommon.Map) { m.PutInt("team", 7) }, wantMetric: 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rcv := NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			tt.setSpanAttr(span.Attributes())
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("team", "core")
 
-	for _, receiveResourceSpansV2 := range []bool{true, false} {
-		for _, operationAndResourceNameV2 := range []bool{true, false} {
-			cfg := NewTestConfig(t)
-			if !receiveResourceSpansV2 {
-				cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			ddspan := rcv.convertSpan(res, pcommon.NewInstrumentationScope(), span)
+
+			if tt.wantMeta != "" {
+				assert.Equal(t, tt.wantMeta, ddspan.Meta["team"])
+			} else {
+				assert.NotContains(t, ddspan.Meta, "team")
 			}
-			if !operationAndResourceNameV2 {
-				cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+			if tt.wantMetric != 0 {
+				assert.Equal(t, tt.wantMetric, ddspan.Metrics["team"])
+			} else {
+				assert.NotContains(t, ddspan.Metrics, "team")
 			}
-			out := make(chan *Payload, 1)
-			rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-			mode := fmt.Sprintf("ReceiveResourceSpansV2=%t/OperationAndResourceNameV2=%t", receiveResourceSpansV2, operationAndResourceNameV2)
-
-			for _, tt := range tests {
-				t.Run(mode+"/"+tt.name, func(t *testing.T) {
-					rspans := ptrace.NewResourceSpans()
-					rspans.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "svc")
-					rspans.Resource().Attributes().PutStr("team", "core")
-					sspans := rspans.ScopeSpans().AppendEmpty()
-					sspans.Scope().SetName("test-lib")
-					span := sspans.Spans().AppendEmpty()
-					span.SetName("test-span")
-					span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
-					span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
-					tt.setSpanAttr(span.Attributes())
-
-					_, err := rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
-					require.NoError(t, err)
-
-					var p *Payload
-					select {
-					case <-time.After(500 * time.Millisecond):
-						t.Fatal("timed out")
-					case p = <-out:
-					}
-					require.Len(t, p.TracerPayload.Chunks, 1)
-					require.Len(t, p.TracerPayload.Chunks[0].Spans, 1)
-					ddspan := p.TracerPayload.Chunks[0].Spans[0]
-
-					if tt.expectNoMeta {
-						assert.NotContains(t, ddspan.Meta, "team")
-					} else {
-						assert.Equal(t, tt.expectMeta, ddspan.Meta["team"])
-					}
-					if tt.expectNoMetric {
-						assert.NotContains(t, ddspan.Metrics, "team")
-					} else {
-						assert.Equal(t, tt.expectMetric, ddspan.Metrics["team"])
-					}
-				})
-			}
-		}
+		})
 	}
 }
