@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"os"
 	"slices"
 	"strings"
@@ -168,6 +169,75 @@ func TestWorkloadProfileDedicatedSyscalls(t *testing.T) {
 		chroot = chroot || strings.Contains(anomaly.json, `"chroot"`)
 	}
 	assert.True(t, chroot, "a new syscall should trigger an anomaly: %+v", anomalies)
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedSyscallsReporting)
+
+// TestWorkloadProfileDedicatedSyscallsReporting checks that the syscalls of a process land on its process node when they
+// are reported while it runs, and when it execs. The report on exit is checked by TestWorkloadProfileDedicatedSyscalls.
+func TestWorkloadProfileDedicatedSyscallsReporting(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+	checkKernelCompatibility(t, "Missing bpf_for_each_map_elem helper", func(kv *kernel.Version) bool {
+		return !kv.HasBPFForEachMapElemHelper()
+	})
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingSyscallsEnabled = true
+	opts.workloadProfileEventTypes = []string{"exec", "syscalls"}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// each subtest gets its own image, and so its own profile
+	t.Run("running-process", func(t *testing.T) {
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "latest")
+
+		// the process still sleeps when its syscalls are checked, so they can only come from the
+		// periodic report
+		cmd := dockerInstance.Command(workloadProfileSyscallTester, []string{"prctl-setname", "sampled", ";", "sleep", "30"}, nil)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}()
+
+		expectProfileSyscalls(t, test, selector, func(syscalls profileSyscalls) error {
+			return syscalls.expect(workloadProfileSyscallTester, model.SysPrctl)
+		})
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "latest")
+
+		// the process execs right after the syscall, before the first periodic report: the syscall
+		// belongs to the node of the process before the exec, not to the executed binary
+		if out, err := dockerInstance.Command(workloadProfileSyscallTester, []string{"prctl-setname", "sampled", ";", "exec", "/bin/true"}, nil).CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v", out, err)
+		}
+
+		expectProfileSyscalls(t, test, selector, func(syscalls profileSyscalls) error {
+			if err := syscalls.expect(workloadProfileSyscallTester, model.SysPrctl, model.SysExecve); err != nil {
+				return err
+			}
+			if err := syscalls.expect("/bin/true", model.SysExitGroup); err != nil {
+				return err
+			}
+			if syscalls["/bin/true"][int(model.SysPrctl)] {
+				return errors.New("prctl was reported on the node of the executed binary")
+			}
+			return nil
+		})
+	})
 }
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedDifferentiateArgs)

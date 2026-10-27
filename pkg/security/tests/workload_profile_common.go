@@ -517,6 +517,50 @@ func profileHasSocket(p *profile.Profile, port uint16, bind bool) bool {
 	})) > 0
 }
 
+// profileSyscalls holds the syscalls of the process nodes of a profile, by argv0
+type profileSyscalls map[string]map[int]bool
+
+// expect returns an error unless the process node of argv0 holds all the syscalls
+func (ps profileSyscalls) expect(argv0 string, syscalls ...model.Syscall) error {
+	got, ok := ps[argv0]
+	if !ok {
+		return fmt.Errorf("no process node for %s", argv0)
+	}
+	for _, s := range syscalls {
+		if !got[int(s)] {
+			return fmt.Errorf("%s missing from the syscalls of %s", s, argv0)
+		}
+	}
+	return nil
+}
+
+// expectProfileSyscalls waits until check accepts the syscalls of the profile of the selector
+func expectProfileSyscalls(t *testing.T, test *testModule, selector cgroupModel.WorkloadSelector, check func(profileSyscalls) error) {
+	t.Helper()
+	var checkErr error
+	_, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		syscalls := make(profileSyscalls)
+		for _, node := range walkProfileProcesses(p, func(*activity_tree.ProcessNode) bool { return true }) {
+			ids := syscalls[node.Process.Argv0]
+			if ids == nil {
+				ids = make(map[int]bool)
+				syscalls[node.Process.Argv0] = ids
+			}
+			for id := range node.Syscalls {
+				ids[id] = true
+			}
+		}
+		checkErr = check(syscalls)
+		return checkErr == nil
+	})
+	if err != nil {
+		if checkErr != nil {
+			err = checkErr
+		}
+		t.Error(err)
+	}
+}
+
 // workloadProfileEventTypeByName returns the event type of workloadProfileEventTypes with the provided name
 func workloadProfileEventTypeByName(t *testing.T, name string) workloadProfileEventType {
 	t.Helper()
