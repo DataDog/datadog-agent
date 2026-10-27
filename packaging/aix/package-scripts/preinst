@@ -2,4 +2,21 @@
 # Pre-installation Script — runs on fresh installs and upgrades, before the
 # new files are installed. On upgrades it runs after prerm, once the old
 # files have been removed.
+
+# Agent 7 cannot coexist with the legacy Unix Agent: both install into
+# /opt/datadog-agent and use the dd-agent user and the datadog-agent SRC
+# subsystem. installp has no "conflicts with" requisite, so enforce it here;
+# a non-zero exit aborts the fileset install. Upgrades are covered by prerm,
+# which aborts before any teardown; exiting here after the old files were
+# removed would leave the host without a working Agent, so only abort when
+# Agent 7 is not already installed.
+if ! /usr/bin/lslpp -Lq datadog-agent >/dev/null 2>&1 \
+    && /usr/bin/lslpp -Lq datadog-unix-agent >/dev/null 2>&1; then
+    echo "The legacy Datadog Unix Agent (datadog-unix-agent) is installed." >&2
+    echo "Uninstalling it also removes its configuration under /etc/datadog-agent," >&2
+    echo "so save a copy first if you want to reference it. Then remove it and retry:" >&2
+    echo "  installp -u datadog-unix-agent" >&2
+    exit 1
+fi
+
 stopsrc -g datadog-agent 2>/dev/null || true

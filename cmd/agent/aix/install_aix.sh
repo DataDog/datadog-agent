@@ -85,6 +85,20 @@ case "$arch" in
         ;;
 esac
 
+# Agent 7 cannot coexist with the legacy Unix Agent (datadog-unix-agent):
+# both install into /opt/datadog-agent and use the dd-agent user and the
+# datadog-agent SRC subsystem. Fail before downloading anything. The BFF's
+# preinst script enforces the same check for installs done without this script.
+if /usr/bin/lslpp -Lq datadog-unix-agent >/dev/null 2>&1; then
+    printf '%bERROR: the legacy Datadog Unix Agent (datadog-unix-agent) is installed, and Agent 7 cannot coexist with it.%b\n' "$RED" "$NC" >&2
+    printf 'Removing the Unix Agent also deletes its configuration, including /etc/datadog-agent/datadog.yaml\n' >&2
+    printf 'and conf.d. The Unix Agent and Agent 7 use different configuration formats, so save a copy\n' >&2
+    printf 'elsewhere first if you want to reference its settings (API key, tags, ...) when configuring Agent 7:\n' >&2
+    printf '\n  cp -rp /etc/datadog-agent /etc/datadog-agent.unix-agent.bak\n\n' >&2
+    printf 'Then remove the Unix Agent and re-run this script:\n\n  installp -u datadog-unix-agent\n' >&2
+    exit 1
+fi
+
 if [ "$(id -u)" = "0" ]; then
     sudo_cmd=
 else
