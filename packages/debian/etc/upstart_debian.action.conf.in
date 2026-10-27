@@ -18,6 +18,6 @@ setuid dd-agent
 script
   # Upstart does not start the process manager required by split mode.
   export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
-  echo "Upstart startup uses monolithic Private Action Runner; split mode is not supported by this launcher."
+  echo "Starting Datadog Private Action Runner in monolithic mode"
   exec {install_dir}/embedded/bin/privateactionrunner run --cfgpath={etc_dir}/datadog.yaml
 end script
