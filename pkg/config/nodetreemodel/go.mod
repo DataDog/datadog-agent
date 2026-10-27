@@ -24,7 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.10 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.11 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 

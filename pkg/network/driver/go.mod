@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.11
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.12.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
