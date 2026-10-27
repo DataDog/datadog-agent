@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
-	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
+	"github.com/DataDog/datadog-agent/internal/anomalydetection/testbench/bench"
 )
 
 func TestHeadlessStreamParquetMatchesRetainedOutput(t *testing.T) {
