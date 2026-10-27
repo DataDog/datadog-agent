@@ -70,7 +70,9 @@ func TestHeadPermissionDenied(t *testing.T) {
 
 		command := exec.Command(childExecutable, "-test.run=^TestHeadPermissionDenied$", "-test.v")
 		command.Dir = dir
-		command.Env = append(os.Environ(), "TMPDIR="+dir)
+		// Don't inherit the test runner's environment: under Bazel it points the
+		// child at root-owned coverage, XML report and runfiles paths.
+		command.Env = []string{"PATH=" + os.Getenv("PATH"), "TMPDIR=" + dir}
 		command.SysProcAttr = &syscall.SysProcAttr{
 			Credential: &syscall.Credential{Uid: 65534, Gid: 65534},
 		}
