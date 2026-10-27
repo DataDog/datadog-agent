@@ -18,6 +18,7 @@ dd_agent_go_test(
     srcs = ["materializer_test.go"],
     embed = [":oci"],
     deps = [
+        "//pkg/fleet/installer/oci",
         "@com_github_google_go_containerregistry//pkg/v1:pkg",
         "@com_github_google_go_containerregistry//pkg/v1/empty",
         "@com_github_google_go_containerregistry//pkg/v1/layout",
