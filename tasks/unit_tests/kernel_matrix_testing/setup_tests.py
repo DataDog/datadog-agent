@@ -126,7 +126,7 @@ intopt = 4
             temp_file.write(self.options_file_content.encode("utf-8"))
             temp_file.close()
 
-            ctx = MockContextWithTempFile(re.compile(rf"sudo mv ([^ ]+) {temp_file.name}"))
+            ctx = MockContextWithTempFile(re.compile(rf"sudo -n mv ([^ ]+) {temp_file.name}"))
 
             incorrect_options = ensure_options_in_config(
                 cast(Context, ctx), Path(temp_file.name), self.options, change=True, write_with_sudo=True
