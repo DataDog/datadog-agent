@@ -131,6 +131,9 @@ runtime_security_config:
     enabled: true
     rate_limiter:
       enabled: {{ .OnDemandRateLimiterEnabled}}
+  event_sampling:
+    syscalls:
+      enabled: {{ .EventSamplingSyscallsEnabled }}
   sbom:
     enabled: {{ .SBOMEnabled }}
     host:
@@ -164,6 +167,11 @@ runtime_security_config:
     enabled: {{ .EnableSecurityProfile }}
     v2:
       enabled: {{ .EnableSecurityProfileV2 }}
+{{if .SecurityProfileV2EventTypes}}
+      event_types: {{range .SecurityProfileV2EventTypes}}
+      - {{. -}}
+      {{- end}}
+{{end}}
 {{if .EnableSecurityProfile}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}

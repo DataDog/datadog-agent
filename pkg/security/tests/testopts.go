@@ -35,6 +35,8 @@ type testOpts struct {
 	activityDumpSyscallMonitorPeriod           time.Duration
 	enableSecurityProfile                      bool
 	disableSecurityProfileV2                   bool
+	securityProfileV2EventTypes                []string
+	eventSamplingSyscallsEnabled               bool
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
