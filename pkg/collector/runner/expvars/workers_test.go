@@ -127,7 +127,7 @@ func TestWorkersInstances(t *testing.T) {
 	// Sanity check to ensure that the output is exactly what we expect
 	require.Equal(
 		t,
-		"{\"stats1\": {\"Utilization\": 1.03}, \"stats2\": {\"Utilization\": 2.01}}",
+		"{\"stats1\": {\"Utilization\": 1.03, \"Excluded\": false}, \"stats2\": {\"Utilization\": 2.01, \"Excluded\": false}}",
 		getWorkerInstancesStats(t),
 	)
 

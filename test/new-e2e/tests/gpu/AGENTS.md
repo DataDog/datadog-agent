@@ -29,7 +29,8 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 4. **TestVectorAddProgramDetected**: Tests that GPU workloads are detected
 5. **TestNvmlMetricsPresent**: Verifies NVML metrics are collected
 6. **TestWorkloadmetaHasGPUs**: Checks workloadmeta contains GPU entities
-7. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
+7. **TestCOATMetricsReported**: Checks the COAT `gpu` profile selects the GPU check telemetry, using `diagnose show-metadata agent-telemetry` (core agent only)
+8. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
 
 ## Provisioning
 

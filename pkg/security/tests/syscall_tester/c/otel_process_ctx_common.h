@@ -42,7 +42,9 @@ struct otel_process_ctx_header {
 
 // Protobuf field numbers of the sliver of ProcessContext published here; see
 // pkg/security/otelprocessctx.
+#define OTEL_PB_RESOURCE 1
 #define OTEL_PB_EXTRA_ATTRIBUTES 2
+#define OTEL_PB_RESOURCE_ATTRIBUTES 1
 #define OTEL_PB_KV_KEY 1
 #define OTEL_PB_KV_VALUE 2
 #define OTEL_PB_ANY_STRING 1
@@ -79,13 +81,18 @@ static inline size_t otel_pb_string_value(uint8_t *out, const char *value) {
     return otel_pb_bytes(out, OTEL_PB_ANY_STRING, value, strlen(value));
 }
 
-// Appends one KeyValue of the extra attributes, its value already encoded as an
-// AnyValue in `value`.
-static inline size_t otel_pb_attribute(uint8_t *out, const char *key, const uint8_t *value, size_t value_len) {
+// Appends one KeyValue as `field`, its value already encoded as an AnyValue in
+// `value`.
+static inline size_t otel_pb_kv(uint8_t *out, int field, const char *key, const uint8_t *value, size_t value_len) {
     uint8_t kv[512];
     size_t kv_len = otel_pb_bytes(kv, OTEL_PB_KV_KEY, key, strlen(key));
     kv_len += otel_pb_bytes(kv + kv_len, OTEL_PB_KV_VALUE, value, value_len);
-    return otel_pb_bytes(out, OTEL_PB_EXTRA_ATTRIBUTES, kv, kv_len);
+    return otel_pb_bytes(out, field, kv, kv_len);
+}
+
+// Appends one KeyValue of the extra attributes.
+static inline size_t otel_pb_attribute(uint8_t *out, const char *key, const uint8_t *value, size_t value_len) {
+    return otel_pb_kv(out, OTEL_PB_EXTRA_ATTRIBUTES, key, value, value_len);
 }
 
 static inline size_t otel_pb_string_attribute(uint8_t *out, const char *key, const char *value) {
@@ -109,23 +116,55 @@ static inline size_t otel_pb_string_array_attribute(uint8_t *out, const char *ke
     return otel_pb_attribute(out, key, any, any_len);
 }
 
+static inline size_t otel_pb_resource_string_attribute(uint8_t *out, const char *key, const char *value) {
+    uint8_t any[256];
+    size_t any_len = otel_pb_string_value(any, value);
+    return otel_pb_kv(out, OTEL_PB_RESOURCE_ATTRIBUTES, key, any, any_len);
+}
+
+// The tracer metadata, published without the tracer memfd that would otherwise
+// take precedence over it; TestOTelSpan asserts these values.
+#define OTEL_TRACER_SERVICE_NAME "otel-tester"
+#define OTEL_TRACER_RUNTIME_ID "0b4a4d5e-7d3c-4f5e-9a2b-1c6d8e9f0a1b"
+#define OTEL_TRACER_LANGUAGE "php"
+#define OTEL_TRACER_VERSION "1.2.3"
+#define OTEL_TRACER_PROCESS_TAGS "entrypoint.name:otel-tester"
+
+static inline size_t otel_pb_tracer_metadata(uint8_t *out) {
+    uint8_t attrs[512];
+    size_t attrs_len = otel_pb_resource_string_attribute(attrs, "service.name", OTEL_TRACER_SERVICE_NAME);
+    attrs_len += otel_pb_resource_string_attribute(attrs + attrs_len, "service.instance.id", OTEL_TRACER_RUNTIME_ID);
+    attrs_len += otel_pb_resource_string_attribute(attrs + attrs_len, "telemetry.sdk.language", OTEL_TRACER_LANGUAGE);
+    attrs_len += otel_pb_resource_string_attribute(attrs + attrs_len, "telemetry.sdk.version", OTEL_TRACER_VERSION);
+
+    size_t off = otel_pb_bytes(out, OTEL_PB_RESOURCE, attrs, attrs_len);
+    off += otel_pb_string_attribute(out + off, "datadog.process_tags", OTEL_TRACER_PROCESS_TAGS);
+    return off;
+}
+
 // The published payload, which the header points at. Static because the header
 // keeps pointing at it for the life of the process, exactly as the publisher's
 // own buffer does.
 static uint8_t otel_process_ctx_payload[1024];
 
-// otel_process_ctx_publish publishes `payload` as the process context of this
-// process. The naming call is made last and its outcome ignored -- the kernel
-// rejects it on the file-backed mapping used here, and before 5.17 rejects the
-// option outright -- because making it is what tells a reader to come and read.
+// otel_process_ctx_publish publishes `payload`, followed by the tracer
+// metadata, as the process context of this process. The naming call is made
+// last and its outcome ignored -- the kernel rejects it on the file-backed
+// mapping used here, and before 5.17 rejects the option outright -- because
+// making it is what tells a reader to come and read.
 static inline int otel_process_ctx_publish(const uint8_t *payload, size_t payload_size) {
     long page_size = sysconf(_SC_PAGESIZE);
 
-    if (payload_size > sizeof(otel_process_ctx_payload)) {
-        fprintf(stderr, "process context payload too large: %zu\n", payload_size);
+    uint8_t metadata[512];
+    size_t metadata_size = otel_pb_tracer_metadata(metadata);
+
+    if (payload_size + metadata_size > sizeof(otel_process_ctx_payload)) {
+        fprintf(stderr, "process context payload too large: %zu\n", payload_size + metadata_size);
         return -1;
     }
     memcpy(otel_process_ctx_payload, payload, payload_size);
+    memcpy(otel_process_ctx_payload + payload_size, metadata, metadata_size);
+    payload_size += metadata_size;
 
     int fd = (int)syscall(SYS_memfd_create, "OTEL_CTX", 0);
     if (fd < 0) {

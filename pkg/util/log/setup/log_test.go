@@ -8,7 +8,9 @@ package logs
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sync"
 	"testing"
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkgslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func BenchmarkSlogParallel(b *testing.B) {
@@ -268,4 +271,40 @@ func TestBuildSlogLogger_NoForwardingWhenUnregistered(t *testing.T) {
 	// errortracking side.
 	sl.Error("error with nobody listening")
 	logger.Flush()
+}
+
+func TestBuildSlogLogger_ScrubsRecords(t *testing.T) {
+	// use a dedicated scrubber to avoid testing the default one's patterns here
+	oldScrubber := scrubber.DefaultScrubber
+	scrubber.DefaultScrubber = scrubber.New()
+	scrubber.DefaultScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+		Regex: regexp.MustCompile("SECRET"),
+		Repl:  []byte("******"),
+	})
+	t.Cleanup(func() { scrubber.DefaultScrubber = oldScrubber })
+
+	dir := t.TempDir()
+	ddCfg := pkgconfigsetup.Datadog()
+	logger, _, err := buildSlogLogger(
+		types.NewLevelRules(log.InfoLvl),
+		false,
+		filepath.Join(dir, "test.log"), 1000, 2,
+		"",
+		commonFormatter("TEST", ddCfg), nil,
+	)
+	require.NoError(t, err)
+	t.Cleanup(logger.Close)
+
+	wrapper, ok := logger.(*pkgslog.Wrapper)
+	require.True(t, ok, "expected *pkgslog.Wrapper, got %T", logger)
+	sl := slog.New(wrapper.Handler())
+
+	sl.Info("don't tell anyone: SECRET")
+	sl.Info("this is a SECRET password")
+	logger.Flush()
+
+	content, err := os.ReadFile(filepath.Join(dir, "test.log"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "SECRET")
+	assert.Contains(t, string(content), "******")
 }

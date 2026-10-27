@@ -46,6 +46,9 @@ type deviceOptions struct {
 	fieldValuesReturn  *nvml.Return
 	samplesUnsupported bool
 	processDetailList  *processDetailListResponse
+
+	// nvlinkErrorCountersForced keeps GetNvLinkErrorCounter supported on architectures that removed it.
+	nvlinkErrorCountersForced bool
 }
 
 type processDetailListResponse struct {
@@ -161,6 +164,15 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		},
 		GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
 			return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
+		GetPlatformInfoFunc: func() (nvml.PlatformInfo, nvml.Return) {
+			return nvml.PlatformInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
+		GetSerialFunc: func() (string, nvml.Return) {
+			return "", nvml.ERROR_NOT_SUPPORTED
+		},
+		GetNumaNodeIdFunc: func() (int, nvml.Return) {
+			return 0, nvml.ERROR_NOT_SUPPORTED
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
@@ -395,6 +407,11 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		},
 		GetNvLinkErrorCounterFunc: func(_ int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
 			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			// Blackwell+ does not report the data-link error counters: B200 returns NOT_SUPPORTED
+			// for all of them, and NVML documents the FI_DEV_NVLINK_ERROR_DL_* fields as unsupported.
+			if arch >= nvml.DEVICE_ARCH_BLACKWELL && !opts.nvlinkErrorCountersForced {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS

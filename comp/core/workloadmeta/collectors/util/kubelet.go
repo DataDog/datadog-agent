@@ -88,6 +88,8 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 			ephemeralContainerStatuses = convertContainerStatuses(pod.Status.EphemeralContainers)
 		}
 
+		podContainers = orderPodContainers(pod.Spec.Containers, podContainers)
+
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
 		podOwners := pod.Owners()
@@ -170,6 +172,32 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 	}
 
 	return events
+}
+
+// orderPodContainers retains spec order, including containers without runtime status.
+// Otherwise a sidecar can become the first container while the main container starts.
+func orderPodContainers(specs []kubelet.ContainerSpec, containers []workloadmeta.OrchestratorContainer) []workloadmeta.OrchestratorContainer {
+	byName := make(map[string]workloadmeta.OrchestratorContainer, len(containers))
+	for _, container := range containers {
+		byName[container.Name] = container
+	}
+	ordered := make([]workloadmeta.OrchestratorContainer, 0, len(specs))
+	for _, spec := range specs {
+		container, found := byName[spec.Name]
+		if !found {
+			image, _ := workloadmeta.NewContainerImage("", spec.Image)
+			container = workloadmeta.OrchestratorContainer{Name: spec.Name, Image: image}
+		}
+		ordered = append(ordered, container)
+		delete(byName, spec.Name)
+	}
+	// Preserve status-only containers if the spec is incomplete.
+	for _, container := range containers {
+		if _, found := byName[container.Name]; found {
+			ordered = append(ordered, container)
+		}
+	}
+	return ordered
 }
 
 func parsePodContainers(

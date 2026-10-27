@@ -17,17 +17,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -635,4 +639,211 @@ func TestRun_logsGenuineFailureAtError(t *testing.T) {
 	// Then it stays an error, so genuine misconfiguration is still surfaced
 	require.Equal(t, 1, logger.errorfCalls)
 	require.Zero(t, logger.infofCalls)
+}
+
+func TestCleanupAllowed(t *testing.T) {
+	istioGatewayGVR := schema.GroupVersionResource{Group: "networking.istio.io", Version: "v1", Resource: "gateways"}
+	gatewayClassGVR := schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"}
+	nativeGateway := func(name string, labels map[string]string) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion("networking.istio.io/v1")
+		obj.SetKind("Gateway")
+		obj.SetNamespace("default")
+		obj.SetName(name)
+		obj.SetLabels(labels)
+		return obj
+	}
+	gatewayClass := func(name, controller string) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion("gateway.networking.k8s.io/v1")
+		obj.SetKind("GatewayClass")
+		obj.SetName(name)
+		require.NoError(t, unstructured.SetNestedField(obj.Object, controller, "spec", "controllerName"))
+		return obj
+	}
+	proxies := func(types ...appsecconfig.ProxyType) map[appsecconfig.ProxyType]struct{} {
+		m := make(map[appsecconfig.ProxyType]struct{}, len(types))
+		for _, typ := range types {
+			m[typ] = struct{}{}
+		}
+		return m
+	}
+	optedOut := map[string]string{"appsec.datadoghq.com/enabled": "false"}
+	newClient := func(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
+		return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+			istioGatewayGVR: "GatewayList",
+			gatewayClassGVR: "GatewayClassList",
+		}, objects...)
+	}
+
+	for _, tc := range []struct {
+		name     string
+		typ      appsecconfig.ProxyType
+		enabled  map[appsecconfig.ProxyType]struct{}
+		objects  []runtime.Object
+		gateways []*unstructured.Unstructured // native Gateways, seeded through the tracker
+		want     bool
+	}{
+		{name: "istio, istio-gateway enabled with a native Gateway", typ: appsecconfig.ProxyTypeIstio, enabled: proxies(appsecconfig.ProxyTypeIstioGateway),
+			gateways: []*unstructured.Unstructured{nativeGateway("gw", nil)}, want: false},
+		{name: "istio, istio-gateway enabled without native Gateways", typ: appsecconfig.ProxyTypeIstio, enabled: proxies(appsecconfig.ProxyTypeIstioGateway),
+			objects: []runtime.Object{gatewayClass("istio", "istio.io/gateway-controller")}, want: true},
+		{name: "istio, istio-gateway enabled with only opted-out native Gateways", typ: appsecconfig.ProxyTypeIstio, enabled: proxies(appsecconfig.ProxyTypeIstioGateway),
+			gateways: []*unstructured.Unstructured{nativeGateway("gw", optedOut)}, want: true},
+		{name: "istio-gateway, istio enabled with an Istio GatewayClass", typ: appsecconfig.ProxyTypeIstioGateway, enabled: proxies(appsecconfig.ProxyTypeIstio),
+			objects: []runtime.Object{gatewayClass("istio", "istio.io/gateway-controller")}, want: false},
+		{name: "istio-gateway, istio enabled with only other GatewayClasses", typ: appsecconfig.ProxyTypeIstioGateway, enabled: proxies(appsecconfig.ProxyTypeIstio),
+			objects: []runtime.Object{gatewayClass("envoy", "gateway.envoyproxy.io/gatewayclass-controller")}, gateways: []*unstructured.Unstructured{nativeGateway("gw", nil)}, want: true},
+		{name: "istio, nothing enabled", typ: appsecconfig.ProxyTypeIstio, enabled: proxies(),
+			gateways: []*unstructured.Unstructured{nativeGateway("gw", nil)}, want: true},
+		{name: "envoy-gateway, istio types enabled", typ: appsecconfig.ProxyTypeEnvoyGateway, enabled: proxies(appsecconfig.ProxyTypeIstio, appsecconfig.ProxyTypeIstioGateway),
+			objects: []runtime.Object{gatewayClass("istio", "istio.io/gateway-controller")}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := newClient(tc.objects...)
+			for _, gw := range tc.gateways {
+				require.NoError(t, client.Tracker().Create(istioGatewayGVR, gw, gw.GetNamespace()))
+			}
+			assert.Equal(t, tc.want, cleanupAllowed(context.Background(), logmock.New(t), client, tc.typ, tc.enabled))
+		})
+	}
+
+	t.Run("keeps resources when the check fails", func(t *testing.T) {
+		client := newClient()
+		client.PrependReactor("list", "*", func(k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, errors.New("api unavailable")
+		})
+		assert.False(t, cleanupAllowed(context.Background(), logmock.New(t), client, appsecconfig.ProxyTypeIstio, proxies(appsecconfig.ProxyTypeIstioGateway)))
+	})
+}
+
+// TestStartupCleanup_SiblingWithoutResources covers the startup path for a disabled Istio proxy type
+// whose sibling is enabled: the shared EnvoyFilter is removed when the sibling has no resources that
+// need it, and kept otherwise.
+func TestStartupCleanup_SiblingWithoutResources(t *testing.T) {
+	istioGatewayGVR := schema.GroupVersionResource{Group: "networking.istio.io", Version: "v1", Resource: "gateways"}
+	gatewayClassGVR := schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"}
+	filterGVR := schema.GroupVersionResource{Group: "networking.istio.io", Version: "v1alpha3", Resource: "envoyfilters"}
+
+	for _, tc := range []struct {
+		name         string
+		nativeGW     bool
+		filterRemain bool
+	}{
+		{name: "no native Gateways", nativeGW: false, filterRemain: false},
+		{name: "native Gateway present", nativeGW: true, filterRemain: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			logger := logmock.New(t)
+
+			filter := &unstructured.Unstructured{}
+			filter.SetAPIVersion("networking.istio.io/v1alpha3")
+			filter.SetKind("EnvoyFilter")
+			filter.SetNamespace("istio-system")
+			filter.SetName("datadog-appsec-envoyfilter")
+			class := &unstructured.Unstructured{}
+			class.SetAPIVersion("gateway.networking.k8s.io/v1")
+			class.SetKind("GatewayClass")
+			class.SetName("istio")
+			require.NoError(t, unstructured.SetNestedField(class.Object, "istio.io/gateway-controller", "spec", "controllerName"))
+
+			client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+				istioGatewayGVR: "GatewayList",
+				gatewayClassGVR: "GatewayClassList",
+				filterGVR:       "EnvoyFilterList",
+			}, filter, class)
+			if tc.nativeGW {
+				gw := &unstructured.Unstructured{}
+				gw.SetAPIVersion("networking.istio.io/v1")
+				gw.SetKind("Gateway")
+				gw.SetNamespace("default")
+				gw.SetName("gw")
+				require.NoError(t, client.Tracker().Create(istioGatewayGVR, gw, "default"))
+			}
+
+			// The filter was created for the istio GatewayClass pattern, which is now disabled in favor of istio-gateway
+			config := appsecconfig.Config{Injection: appsecconfig.Injection{IstioNamespace: "istio-system"}}
+			pattern := istio.New(client, logger, config, record.NewFakeRecorder(10))
+			enabled := map[appsecconfig.ProxyType]struct{}{appsecconfig.ProxyTypeIstioGateway: {}}
+			if cleanupAllowed(ctx, logger, client, appsecconfig.ProxyTypeIstio, enabled) {
+				cleanupPattern(ctx, logger, client, pattern)
+			}
+
+			_, err := client.Resource(filterGVR).Namespace("istio-system").Get(ctx, "datadog-appsec-envoyfilter", metav1.GetOptions{})
+			if tc.filterRemain {
+				require.NoError(t, err, "EnvoyFilter must be kept while the enabled sibling has resources")
+			} else {
+				assert.True(t, apierrors.IsNotFound(err), "EnvoyFilter must be removed when the enabled sibling has no resources")
+			}
+		})
+	}
+}
+
+// cleanupRecordingPattern records whether each Deleted call received a cleanup context.
+type cleanupRecordingPattern struct {
+	mockInjectionPattern
+	cleanup []bool
+}
+
+func (p *cleanupRecordingPattern) Deleted(ctx context.Context, _ *unstructured.Unstructured) error {
+	p.cleanup = append(p.cleanup, appsecconfig.IsCleanup(ctx))
+	return nil
+}
+
+func TestCleanupPattern_MarksCleanupContext(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"}
+	newClass := func(name string) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion("gateway.networking.k8s.io/v1")
+		obj.SetKind("GatewayClass")
+		obj.SetName(name)
+		return obj
+	}
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), newClass("a"), newClass("b"))
+	pattern := &cleanupRecordingPattern{mockInjectionPattern: mockInjectionPattern{resource: gvr}}
+
+	cleanupPattern(context.Background(), logmock.New(t), client, pattern)
+
+	assert.Equal(t, []bool{true, true}, pattern.cleanup)
+}
+
+func TestCreateEventHandler(t *testing.T) {
+	gw := &unstructured.Unstructured{}
+	gw.SetAPIVersion("gateway.networking.k8s.io/v1")
+	gw.SetKind("Gateway")
+	gw.SetNamespace("default")
+	gw.SetName("gw")
+
+	for _, tc := range []struct {
+		name   string
+		call   func(h cache.ResourceEventHandler)
+		queued []workItem
+	}{
+		{name: "add", call: func(h cache.ResourceEventHandler) { h.OnAdd(gw, false) }, queued: []workItem{{typ: workItemAdded, obj: gw}}},
+		{name: "delete", call: func(h cache.ResourceEventHandler) { h.OnDelete(gw) }, queued: []workItem{{typ: workItemDeleted, obj: gw}}},
+		{name: "delete missed while the watch was down", call: func(h cache.ResourceEventHandler) {
+			h.OnDelete(cache.DeletedFinalStateUnknown{Key: "default/gw", Obj: gw})
+		}, queued: []workItem{{typ: workItemDeleted, obj: gw}}},
+		{name: "tombstone without an object", call: func(h cache.ResourceEventHandler) {
+			h.OnDelete(cache.DeletedFinalStateUnknown{Key: "default/gw"})
+		}},
+		{name: "unexpected add type", call: func(h cache.ResourceEventHandler) { h.OnAdd("not an object", false) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[workItem]())
+			defer queue.ShutDown()
+			si := &securityInjector{logger: logmock.New(t)}
+
+			tc.call(si.createEventHandler(queue))
+
+			require.Equal(t, len(tc.queued), queue.Len())
+			for _, want := range tc.queued {
+				got, _ := queue.Get()
+				assert.Equal(t, want.typ, got.typ)
+				assert.Same(t, want.obj, got.obj)
+				queue.Done(got)
+			}
+		})
+	}
 }

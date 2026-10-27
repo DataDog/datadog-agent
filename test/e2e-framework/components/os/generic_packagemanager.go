@@ -85,7 +85,22 @@ func (m *GenericPackageManager) EnsureUninstalled(packageRef string, transform c
 
 	return cmd, nil
 }
-func (m *GenericPackageManager) Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+func (m *GenericPackageManager) RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error) {
+	if err := failIfAWS(m.runner.Environment()); err != nil {
+		return nil, err
+	}
+	dockerInstall, err := m.install("docker", nil, "docker", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeInstallCompose(m.runner, dockerInstall, opts...)
+}
+
+func (m *GenericPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {
+	return m.install(packagePath, nil, "", append([]PackageManagerOption{AllowUnsignedPackages(true)}, opts...)...)
+}
+
+func (m *GenericPackageManager) install(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
 	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
 	if err != nil {
 		return nil, err

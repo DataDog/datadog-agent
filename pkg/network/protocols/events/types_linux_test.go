@@ -9,9 +9,9 @@ import (
 )
 
 func TestCgoAlignment_Batch(t *testing.T) {
-	ebpftest.TestCgoAlignment[Batch](t)
+	ebpftest.AssertCgoAlignment[Batch](t)
 }
 
 func TestCgoAlignment_batchKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[batchKey](t)
+	ebpftest.AssertCgoAlignment[batchKey](t)
 }

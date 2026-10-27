@@ -54,6 +54,8 @@ platform(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        "@llvm//constraints/windows/abi:gnu",
+        "@llvm//constraints/windows/crt:msvcrt",
     ],
 )
 
@@ -99,5 +101,7 @@ platform(
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
         ":fips",
+        "@llvm//constraints/windows/abi:gnu",
+        "@llvm//constraints/windows/crt:msvcrt",
     ],
 )

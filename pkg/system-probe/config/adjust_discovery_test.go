@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // discoveryKey is the config key guarding discovery service map mode.
@@ -283,5 +284,5 @@ func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 
 	cfg, err := New("", "")
 	require.NoError(t, err)
-	assert.True(t, cfg.ModuleIsEnabled(NetworkTracerModule))
+	assert.True(t, cfg.ModuleIsEnabled(types.NetworkTracerModule))
 }

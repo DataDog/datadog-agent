@@ -43,19 +43,41 @@ import (
 	statusfx "github.com/DataDog/datadog-agent/comp/healthplatform/status/fx"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
+	remotefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/fx"
+	remotenoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: fleet-remediation
 
+type bundleOptions struct {
+	remoteModule fx.Option
+}
+
+// Option changes the components included in the Health Platform bundle.
+type Option func(*bundleOptions)
+
+// WithRemoteIssueRestoration enables restoration from the Agent Health API.
+func WithRemoteIssueRestoration() Option {
+	return func(options *bundleOptions) {
+		options.remoteModule = remotefx.Module()
+	}
+}
+
 // Bundle defines the fx options for the health platform bundle.
-func Bundle() fxutil.BundleOptions {
+func Bundle(options ...Option) fxutil.BundleOptions {
+	params := &bundleOptions{remoteModule: remotenoopfx.Module()}
+	for _, option := range options {
+		option(params)
+	}
+
 	return fxutil.Bundle(
 		registryfx.Module(),
 		runnerfx.Module(),
 		schedulerfx.Module(),
 		forwarderfx.Module(),
 		egressfx.Module(),
+		params.remoteModule,
 		corefx.Module(),
 		statusfx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),

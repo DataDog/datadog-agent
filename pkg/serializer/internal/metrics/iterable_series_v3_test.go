@@ -307,7 +307,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 		V3:     true,
 	}
 	pipelineContext := &PipelineContext{}
-	pb, err := newPayloadsBuilderV3(188, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	pb, err := newPayloadsBuilderV3(208, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -319,7 +319,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 	r.Len(payloads, 3)
 
 	r.Equal(2, payloads[0].GetPointCount())
-	r.Less(len(payloads[1].GetContent()), 188)
+	r.Less(len(payloads[1].GetContent()), 208)
 	r.Equal(1, payloads[1].GetPointCount())
 	r.Equal(1, payloads[2].GetPointCount())
 	r.NotContains("foo", payloads[1].GetContent())
@@ -351,7 +351,7 @@ func TestPayloadsBuilderV3_SplitTooBig(t *testing.T) {
 		V3:     true,
 	}
 	pipelineContext := &PipelineContext{}
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	pb, err := newPayloadsBuilderV3(200, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))

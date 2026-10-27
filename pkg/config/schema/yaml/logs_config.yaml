@@ -38,6 +38,7 @@ properties:
       As of agent version 7.70.0, proxy paths are supported. To forward logs to a
       specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
     example: <ENDPOINT>:<PORT>
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   logs_no_ssl:
     node_type: setting
     type: boolean
@@ -130,6 +131,8 @@ properties:
       The compression_level parameter accepts values from 0 (no compression)
       to 9 (maximum compression but higher resource usage). Only takes effect if
       `use_compression` is set to `true`.
+    minimum: 0
+    maximum: 9
   batch_wait:
     node_type: setting
     type: number
@@ -165,6 +168,8 @@ properties:
 
       There is no effective limit for windows due to use of CreateFile win32 API
       The OS default for most linux distributions is 1024
+    minimum: 0
+    maximum: 1000000
   file_wildcard_selection_mode:
     node_type: setting
     type: string
@@ -195,6 +200,10 @@ properties:
 
       WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
       more disk I/O at the wildcard log paths
+    enum:
+    - by_name
+    - by_modification_time
+    - null
   max_message_size_bytes:
     node_type: setting
     type: integer
@@ -389,6 +398,9 @@ properties:
     default: 1000
     tags:
     - generate_const:DefaultBatchMaxSize
+    minimum: 1
+    maximum: 10000
+    description: Maximum number of log events per HTTP batch.
   compression_kind:
     node_type: setting
     type: string
@@ -399,6 +411,9 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    minimum: 0
+    description: Interval in seconds after which the logs forwarder connection to Datadog
+      is reset. 0 disables the reset.
   container_runtime_waiting_timeout:
     node_type: setting
     type: string
@@ -500,6 +515,8 @@ properties:
     default: false
     comment: Opt-in recursive glob for file log paths (supports **). Default false
       to preserve current behavior.
+    description: Opt-in recursive glob for file log paths (supports **). Default false
+      to preserve current behavior.
   expected_tags_duration:
     node_type: setting
     type: string
@@ -508,7 +525,8 @@ properties:
     tags:
     - golang_type:duration
     comment: |-
-      Duration during which the host tags will be submitted with log events.
+      Duration during which host tags are submitted with log events.
+      The ``infra_mode`` host tag is never copied onto logs this way.
       duration-formatted string (parsed by `time.ParseDuration`)
   experimental_adaptive_sampling:
     node_type: section
@@ -689,6 +707,9 @@ properties:
     type: integer
     default: 9000
     comment: 'increase the read buffer size of the UDP sockets:'
+    minimum: 1024
+    maximum: 2097152
+    description: Maximum size in bytes for log frames.
   http_connectivity_retry_interval_max:
     node_type: setting
     type: string
@@ -796,6 +817,36 @@ properties:
     node_type: setting
     type: integer
     default: 30
+  tag_filters:
+    node_type: setting
+    type: object
+    default: {}
+    visibility: public
+    env_parser: json
+    unevaluatedProperties: false
+    properties:
+      include:
+        type: array
+        items:
+          type: string
+      exclude:
+        type: array
+        items:
+          type: string
+    description: |-
+      Filter tags from logs before sending them to Datadog. Each pattern must use "key:value"
+      syntax. Keys are matched exactly; values may contain "*" to match zero or more characters.
+      Matching ignores ASCII letter case. Exclude removes matching tags, while include preserves
+      exceptions to exclusions. Per-source filters override global filters. Excluding source,
+      service, or host logs a warning because those attributes are sent separately and remain.
+    example: |2-
+
+        exclude:
+          - "container_id:*"
+          - "kube_namespace:*"
+        include:
+          # Keep namespace tags for production workloads.
+          - "kube_namespace:production-*"
   tag_multi_line_logs:
     node_type: setting
     type: boolean
@@ -868,6 +919,7 @@ properties:
     type: boolean
     default: false
     comment: DEPRECATED in favor of `logs_config.force_use_http`.
+    description: DEPRECATED in favor of `logs_config.force_use_http`.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -886,6 +938,8 @@ properties:
     type: boolean
     default: true
     comment: If true, then a source_host tag (IP Address) will be added to TCP/UDP
+      logs.
+    description: If true, then a source_host tag (IP Address) will be added to TCP/UDP
       logs.
   use_tcp:
     node_type: setting

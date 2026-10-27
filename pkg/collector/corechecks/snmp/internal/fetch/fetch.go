@@ -56,7 +56,8 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
 			bulkMaxRepetitions, useGetNext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
+			scalarsOnly := &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: valuestore.ColumnResultValuesType{}}
+			return scalarsOnly, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
 	}
 

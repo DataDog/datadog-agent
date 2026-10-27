@@ -179,8 +179,10 @@ http_archive(
     build_file = "//deps:popt.BUILD.bazel",
     sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
     strip_prefix = "popt-1.19",
+    # ftp.osuosl.org chains to emSign Root CA - G1, which Bazel's JDK does not trust.
+    # Fedora's lookaside serves this exact tarball (sha256 above) on a DigiCert chain.
     urls = [
-        "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-1.19.tar.gz",
+        "https://src.fedoraproject.org/repo/pkgs/rpms/popt/popt-1.19.tar.gz/sha512/5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639d55ee77ca31f29bb631c0b53368c1893bd96cf76422d257f7997a11f6466/popt-1.19.tar.gz",
     ],
 )
 
@@ -225,10 +227,10 @@ http_archive(
         "config-linux-aarch64.h": "//deps:gpg-error/config-linux-aarch64.h",
         "BUILD.bazel": "//deps:gpg-error/gpg-error.BUILD.bazel",
     },
-    sha256 = "82c3d2deb4ad96ad3925d6f9f124fe7205716055ab50e291116ef27975d169c0",
-    strip_prefix = "libgpg-error-1.56",
+    sha256 = "7a85413f2bc354f4f8aa832b718af122e48965e9e0eb9012ee659c13c6385c93",
+    strip_prefix = "libgpg-error-1.61",
     urls = [
-        "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.56.tar.bz2",
+        "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.61.tar.bz2",
     ],
 )
 
@@ -239,10 +241,10 @@ http_archive(
         "config-linux-aarch64.h": "//deps:gcrypt/config-linux-aarch64.h",
         "BUILD.bazel": "//deps:gcrypt/gcrypt.BUILD.bazel",
     },
-    sha256 = "7ce33c2492221a0436f96a8500215e9f3e3dcb5fd26a757cd415e7a843babd5e",
-    strip_prefix = "libgcrypt-1.12.2",
+    sha256 = "d77f68f48879510e79a2f65977ccc68981781ea0923e5bdffac2a193ea3d660e",
+    strip_prefix = "libgcrypt-1.12.4",
     urls = [
-        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.2.tar.bz2",
+        "https://gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.12.4.tar.bz2",
     ],
 )
 

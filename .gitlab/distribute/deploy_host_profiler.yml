@@ -1,0 +1,31 @@
+---
+#
+# Full Host Profiler (ddot-ebpf) image tagging & manifest publication
+#
+
+.deploy_containers-host-profiler-release-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - export IMG_BASE_SRC="${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+    - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
+    - export IMG_DESTINATIONS="${DDOT_EBPF_REPOSITORY}:${VERSION}"
+
+deploy_containers-host-profiler:
+  extends: .deploy_containers-host-profiler-release-base
+  rules: !reference [.on_deploy_manual_auto_on_rc]
+  needs: []
+
+# Jobs to publish images to our internal registries.
+
+deploy_containers-host-profiler_internal-rc:
+  extends: .deploy_containers-host-profiler-release-base
+  rules: !reference [.on_deploy_internal_rc]
+  needs: []
+
+deploy_containers-host-profiler_internal:
+  extends: .deploy_containers-host-profiler-release-base
+  rules: !reference [.on_deploy_internal_manual_final]
+  needs: []

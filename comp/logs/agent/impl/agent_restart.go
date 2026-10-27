@@ -130,12 +130,12 @@ func (a *logAgent) rollbackToPreviousTransport(previousEndpoints *config.Endpoin
 // This preserves persistent components (sources, auditor, tracker, schedulers)
 // and only recreates components that need to be updated for the new configuration.
 func (a *logAgent) setupAgentForRestart() error {
-	processingRules, fingerprintConfig, err := a.configureAgent()
+	processingRules, tagFilters, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
 		return err
 	}
 
-	a.rebuildTransientComponents(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
+	a.rebuildTransientComponents(processingRules, tagFilters, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 	return nil
 }
 
@@ -144,6 +144,10 @@ func (a *logAgent) setupAgentForRestart() error {
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
+
+	// Tag filters are immutable and retain the same compiled instance across a
+	// transport restart, so existing source caches remain valid.
+	a.reportTagFilterWarnings()
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()

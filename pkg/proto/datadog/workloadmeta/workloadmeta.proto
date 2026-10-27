@@ -182,6 +182,7 @@ message Container {
   ContainerResources resources = 14;
   WorkloadmetaEntityId owner = 15;
   ContainerSecurityContext securityContext = 16;
+  repeated string gpuDeviceIDs = 17;
 }
 
 message PodSecurityContext {

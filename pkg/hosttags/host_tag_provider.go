@@ -8,7 +8,6 @@ package hosttags
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"time"
 
@@ -42,7 +41,9 @@ func newHostTagProviderWithClock(clock clock.Clock, duration time.Duration) *Hos
 
 	log.Debugf("Adding host tags to metrics for %v", duration)
 	if duration > 0 {
-		p.hostTags = slices.Clone(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System)
+		// Expected tags ride onto metric payloads: omit infra_mode so intake
+		// cannot rename customer series (e.g. infra_mode:cloud_cost_only).
+		p.hostTags = hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog(), false).System
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()

@@ -1,7 +1,5 @@
 # comp/anomalydetection/observer — AI Agent Guide
 
-Subsystem overview, wiring, and config: see `../AGENTS.md`.
-
 ## What This Component Does
 
 The observer watches data flowing through the agent and runs anomaly detection
@@ -15,8 +13,10 @@ Data enters through lightweight **Handles** (non-blocking scalar snapshot on
 send). Metric handles reject name/source/host-only processing rules before
 enqueueing, retain immutable resolved-tag views, and defer tag-dependent
 filtering, muting, and context-key generation when needed to the dispatch
-goroutine; log handles still copy caller-owned content and tags before
-enqueueing.
+goroutine; log handles reject conclusive source-only rules and below-threshold
+severities before copying caller-owned content and tags, then defer tag-based
+`processing_rules`, per-source priority rate limiting, and log recording to the
+dispatch goroutine.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -36,7 +36,7 @@ and the testbench use the same engine.
 
 | File | Purpose |
 |------|---------|
-| `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
+| `def/component.go` | Component interface (GetHandle, DumpMetrics, SubscribeSeverityEvents) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
@@ -122,13 +122,39 @@ current level is already known, bootstrap emits `Low -> current level` for
 ### Data-driven scheduling ("complete seconds" rule)
 
 Detection is NOT on a timer. When data at time T arrives, the engine advances
-analysis to T-1. This ensures deterministic replay: same data → same anomalies.
+analysis to T-1. Replay must expose the same completed buckets at each step.
+Scan scheduling must use newly visible observations, not storage-write generations
+(which already include future points in preloaded replay) or retained point counts
+(which stop growing under eviction). Retained replay must feed raw metrics and
+logs chronologically through the same scheduler as streaming. Pre-extracting all
+logs can evict earlier patterns before detection; analyzing metrics separately
+can make baseline qualification remove data before the actual replay.
 
 ### Read-time aggregation
 
 Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
+
+### Bounded series admission
+
+Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,
+the incoming identity wins admission: storage evicts the least-recently-active
+existing series to the configured floor before allocating it, then synchronously
+clears evicted detector and auxiliary state before the next detection pass.
+During materialized log-count flushing, remove evicted bucketizer entries before
+visiting another series so scheduled zero buckets cannot resurrect them.
+
+### Metric types
+
+Input metric types flow through both live handles and synchronous replay into
+`SeriesMeta.MetricType`; storage retains one type per series, never per point.
+The first known type wins. An unknown type can become known later without
+changing the series identity or catalog generation. Type changes do not create new series.
+Log pattern frequencies and connection-error totals use `metrics.CountType`;
+numeric JSON fields use `metrics.GaugeType`. `metrics.CounterType` is the
+DogStatsD counter normalized to a rate, not the type for log event totals.
+Only `metrics.CountType` outputs enter fixed-width log count buckets.
 
 ### Non-blocking ingestion
 
@@ -246,7 +272,7 @@ scoring, or deduplication.
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
-dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
+dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args="-test.run=^$ -test.bench=."
 ```
 
 **Testbench** (algorithm iteration + scenario replay):
@@ -255,9 +281,9 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 
-# The testbench reporter requires its own build tag, passed through extra args
-# because it is not part of the Agent's selectable build-tag set.
-dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
+# The testbench has no Bazel targets yet; use the legacy task and include
+# the testbench reporter build tag through extra args.
+dda inv test-legacy --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.

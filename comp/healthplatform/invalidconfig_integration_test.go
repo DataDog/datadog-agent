@@ -44,7 +44,7 @@ import (
 // dev builds do not unless explicitly generated.
 func requireSchema(t *testing.T) {
 	t.Helper()
-	if _, err := pkgconfigschema.GetCoreSchema(); err != nil {
+	if _, err := pkgconfigschema.GetRawSchema(model.CoreSchema); err != nil {
 		t.Skipf("embedded schema not available (%v); run `dda inv schema.compress`", err)
 	}
 }

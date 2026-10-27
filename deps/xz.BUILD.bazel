@@ -147,12 +147,12 @@ pkg_files(
 
 dd_cc_packaged(
     name = "lzma_pkg",
+    data = [
+        ":api_headers",
+        ":main_header",
+    ],
     dest_dir = "embedded/lib",
     input = ":lzma",
-    installed_files = [
-        ":main_header",
-        ":api_headers",
-    ],
     version = VERSION,
     visibility = ["//visibility:public"],
 )

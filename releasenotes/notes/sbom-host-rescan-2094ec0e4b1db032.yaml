@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The CWS SBOM resolver scans the host packages again every hour, so the
+    runtime usage enrichment of the host SBOM follows the packages installed
+    or upgraded after system-probe started, with CWS disabled too. A scan
+    that finds the packages unchanged leaves the host SBOM to its heartbeats.

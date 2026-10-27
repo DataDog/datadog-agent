@@ -444,6 +444,44 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/no-extensions/dd-no-hostname/acfg.yaml",
 			hostnameErr:    true,
 		},
+		// opamp auto-injection: standalone only, and mutually exclusive with the
+		// datadog extension.
+		{
+			name:           "extensions/standalone/opamp-injected",
+			provided:       "extensions/standalone/opamp-injected/config.yaml",
+			expectedResult: "extensions/standalone/opamp-injected/config-result.yaml",
+			agentConfig:    "extensions/standalone/opamp-injected/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/opamp-eu-site",
+			provided:       "extensions/standalone/opamp-eu-site/config.yaml",
+			expectedResult: "extensions/standalone/opamp-eu-site/config-result.yaml",
+			agentConfig:    "extensions/standalone/opamp-eu-site/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/opamp-overrides",
+			provided:       "extensions/standalone/opamp-overrides/config.yaml",
+			expectedResult: "extensions/standalone/opamp-overrides/config-result.yaml",
+			agentConfig:    "extensions/standalone/opamp-overrides/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/opamp-no-api-key",
+			provided:       "extensions/standalone/opamp-no-api-key/config.yaml",
+			expectedResult: "extensions/standalone/opamp-no-api-key/config-result.yaml",
+			agentConfig:    "extensions/standalone/opamp-no-api-key/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/opamp-present",
+			provided:       "extensions/standalone/opamp-present/config.yaml",
+			expectedResult: "extensions/standalone/opamp-present/config-result.yaml",
+			agentConfig:    "extensions/standalone/opamp-present/acfg.yaml",
+		},
+		{
+			name:           "extensions/no-extensions/opamp-connected",
+			provided:       "extensions/no-extensions/opamp-connected/config.yaml",
+			expectedResult: "extensions/no-extensions/opamp-connected/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/opamp-connected/acfg.yaml",
+		},
 		{
 			name:           "extensions/standalone/dogtel-injected",
 			provided:       "extensions/standalone/dogtel-injected/config.yaml",

@@ -27,12 +27,6 @@ dd_agent_go_binary(
         "@platforms//os:windows": ["//cmd/installer/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
-    cgo = select({
-        "//packages/agent:fips_flavor": True,
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
-    }),
     embed = [":installer_lib"],
     gc_linkopts = select({
         "@platforms//os:linux": [
@@ -42,6 +36,10 @@ dd_agent_go_binary(
         "//conditions:default": [],
     }),
     gotags = INSTALLER_TAGS,
+    pure = select({
+        "@platforms//os:linux": "on",
+        "//conditions:default": "auto",
+    }),
     visibility = ["//visibility:public"],
 )
 

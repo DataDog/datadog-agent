@@ -193,7 +193,7 @@ func (tc *ProcessCache) Remove(process *Process) {
 		}
 		delete(tc.tgid2Pid, process.Pid)
 
-		for pid := range pids {
+		for _, pid := range pids {
 			delete(tc.pid2Process, pid)
 		}
 	} else {

@@ -322,7 +322,8 @@ func (cs *CheckSampler) releaseMetrics() {
 	for i := 0; i < int(metrics.NumMetricTypes); i++ {
 		mtype := metrics.MetricType(i).String()
 		tlmChecksContextsByMtype.Delete(idString, mtype)
-		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindStruct)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindData)
 	}
 }
 

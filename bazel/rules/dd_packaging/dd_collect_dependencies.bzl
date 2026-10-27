@@ -1,6 +1,6 @@
 """dd_collect_dependencies — collect transitive DdPackagingInfo for installation."""
 
-load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
+load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 
 _CollectedPackagingInfo = provider(
@@ -34,6 +34,12 @@ def _collect_dd_packaging_aspect_impl(target, ctx):
         # component declaring static assets it needs installed alongside
         # it, without going through the dd_cc_packaged wrapper.
         direct = [target[PackageFilegroupInfo]]
+    elif PackageFilesInfo in target:
+        direct = [PackageFilegroupInfo(
+            pkg_files = ((target[PackageFilesInfo], target.label),),
+            pkg_dirs = (),
+            pkg_symlinks = (),
+        )]
     else:
         direct = []
     transitive = [
