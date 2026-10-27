@@ -40,7 +40,7 @@ genrule(
 
 go_binary(
     name = "integrity",
-    srcs = [":integrity_src"],  # keep
+    srcs = [":integrity_src"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/template/text",
@@ -70,7 +70,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime",
     tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
