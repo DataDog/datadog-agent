@@ -20,7 +20,10 @@
 .aix_remote:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: []
+  # Wait for the setup job that uploads the agent-version cache, which the
+  # template ships to the AIX host in before_script.
+  needs:
+    - setup_agent_version
   # Only one job may use the AIX host at a time.
   resource_group: aix_ci_host
   timeout: 2h
@@ -52,6 +55,15 @@
 
     # Ensure the agent source is cloned on the AIX host at the commit under test.
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
+
+    # Ship the pipeline's agent-version cache into the host source tree.
+    # The host has no AWS credentials, so env.sh's version detection
+    # (invoke agent.version) must find the cache file locally instead of
+    # trying to fetch it from S3. The file is fetched on the runner, which
+    # has credentials; the setup stage guarantees it was uploaded.
+    - 'echo "=== AIX: shipping agent-version cache to the host ==="'
+    - $S3_CP_CMD "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID/agent-version.cache" "$CI_PROJECT_DIR/agent-version.cache"
+    - copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache"
 
     # IBM MQ Client (required by setup-host.sh for the packaging build).
     # Fetch the installp archive from MASS on the runner and transfer it to the host.
@@ -104,10 +116,6 @@ tests_aix-ppc64:
 package_aix-ppc64:
   stage: packaging
   extends: .aix_remote
-  # Wait for the setup job that creates and uploads the agent-version cache,
-  # which the version computation below resolves from.
-  needs:
-    - setup_agent_version
   # avoid blocking nightly pipelines on errors
   allow_failure: true
   rules:
@@ -121,25 +129,13 @@ package_aix-ppc64:
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   script:
-    # Compute the canonical version on the runner, from the pipeline's
-    # agent-version cache, and pass it to the remote build: the BFF filename
-    # then embeds the same version string (including the .pipeline.<id> suffix
-    # for nightly/dev builds) as the one used by the release promotions in
-    # agent-release-management, like for the deb/rpm/dmg packages.
-    # Use the url-safe (dashed) form, which is the BFF filename convention:
-    # the omnibus (deb) form replaces dashes with tildes, and the tilde form
-    # only matches after agent-release-management converts it back to dashes.
-    # Assign before exporting: a plain assignment propagates the command's
-    # failure status, `export` would mask it.
-    - AGENT_VERSION="$(dda inv agent.version --url-safe --include-git --pipeline-id $CI_PIPELINE_ID)" || exit $?
-    - export AGENT_VERSION
     - 'echo "=== AIX: running packaging build (build.sh) ==="'
     - |
       aix_run_cmd <<EOF
       set -eux
       cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
       cd $AIX_AGENT_SRC
-      env AGENT_BUILD=1 AGENT_VERSION="$AGENT_VERSION" sh $AIX_AGENT_SRC/packaging/aix/build.sh
+      env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
       EOF
     # Retrieve the built .bff from the AIX host and expose it as a job artifact.
     - 'echo "=== AIX: retrieving .bff artifact ==="'
