@@ -9,7 +9,9 @@ package head_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,13 +51,48 @@ func TestHeadDevNull(t *testing.T) {
 }
 
 func TestHeadPermissionDenied(t *testing.T) {
+	if os.Geteuid() == 0 {
+		// The original executable and TMPDIR may be inside root-only directories.
+		dir, err := os.MkdirTemp("/tmp", "rshell-head-permission-")
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, os.RemoveAll(dir)) })
+
+		executable, err := os.Executable()
+		require.NoError(t, err)
+		binary, err := os.ReadFile(executable)
+		require.NoError(t, err)
+		childExecutable := filepath.Join(dir, "head.test")
+		require.NoError(t, os.WriteFile(childExecutable, binary, 0o755))
+		require.NoError(t, os.Chmod(childExecutable, 0o755))
+		// Hand the directory over only after root's writes, so an unprivileged
+		// process cannot plant a symlink for root to write through.
+		require.NoError(t, os.Chown(dir, 65534, 65534))
+
+		command := exec.Command(childExecutable, "-test.run=^TestHeadPermissionDenied$", "-test.v")
+		command.Dir = dir
+		command.Env = append(os.Environ(), "TMPDIR="+dir)
+		command.SysProcAttr = &syscall.SysProcAttr{
+			Credential: &syscall.Credential{Uid: 65534, Gid: 65534},
+		}
+		output, err := command.CombinedOutput()
+		require.NoError(t, err, "%s", output)
+		t.Logf("unprivileged child:\n%s", output)
+		return
+	}
+
 	dir := t.TempDir()
 	writeFile(t, dir, "noperms.txt", "secret\n")
+	stdout, stderr, code := cmdRun(t, "head noperms.txt", dir)
+	require.Equal(t, 0, code)
+	require.Equal(t, "secret\n", stdout)
+	require.Empty(t, stderr)
 	require.NoError(t, os.Chmod(filepath.Join(dir, "noperms.txt"), 0000))
 	t.Cleanup(func() {
 		_ = os.Chmod(filepath.Join(dir, "noperms.txt"), 0644)
 	})
-	_, stderr, code := cmdRun(t, "head noperms.txt", dir)
+	stdout, stderr, code = cmdRun(t, "head noperms.txt", dir)
 	assert.Equal(t, 1, code)
+	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "head:")
+	assert.Contains(t, stderr, "permission denied")
 }

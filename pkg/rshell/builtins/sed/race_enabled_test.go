@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux && race
+//go:build race
 
-package landlock
+package sed
 
 const raceEnabled = true

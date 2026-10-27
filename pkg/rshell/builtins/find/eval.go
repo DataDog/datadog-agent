@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
+	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/boundedreplace"
 )
 
 // evalResult captures the outcome of evaluating an expression on a file.
@@ -300,6 +301,21 @@ func evalExec(ec *evalContext, e *expr) evalResult {
 func evalExecLike(ec *evalContext, e *expr, name, replacement, dir string) evalResult {
 	if ec.callCtx.RunCommand == nil {
 		ec.callCtx.Errf("find: %s: command execution not available\n", name)
+		ec.failed = true
+		return evalResult{}
+	}
+	// Size the generated command line before substituting: a template that
+	// repeats {} many times would otherwise be expanded in full, before the
+	// allowlist check below, no matter how large the result.
+	b := boundedreplace.NewBudget(boundedreplace.MaxCommandLineBytes)
+	b.AddReplaceAll(e.execCmd, "{}", replacement)
+	b.Add(1)
+	for _, a := range e.execArgs {
+		b.AddReplaceAll(a, "{}", replacement)
+		b.Add(1)
+	}
+	if b.Exceeded() {
+		ec.callCtx.Errf("find: %s: argument list too long\n", name)
 		ec.failed = true
 		return evalResult{}
 	}

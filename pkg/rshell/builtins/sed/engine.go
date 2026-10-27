@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
+	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/boundedreplace"
 )
 
 // restoreTimeout bounds the best-effort restore write attempted by
@@ -1421,6 +1422,14 @@ func (eng *engine) execSubstitute(cmd *sedCmd) error {
 		}
 	}
 
+	// Size the result before building it: a short replacement applied to
+	// many matches can describe a result far beyond MaxSpaceBytes, and
+	// regexp.ReplaceAllString would allocate all of it before the length
+	// check below could reject it.
+	if !substituteFits(re, eng.patternSpace, cmd, MaxSpaceBytes) {
+		return errors.New("pattern space exceeded size limit")
+	}
+
 	var result string
 	var matched bool
 	if cmd.subGlobal && cmd.subNth > 0 {
@@ -1477,6 +1486,235 @@ func (eng *engine) execSubstitute(cmd *sedCmd) error {
 	return nil
 }
 
+// replacementShape describes the output of one sed replacement: lit is the
+// number of literal bytes it writes, and refs[n] counts its references to
+// capture group n (\0 and & are group 0). It mirrors expandReplacement.
+func replacementShape(repl string) (lit int, refs [10]int) {
+	for i := 0; i < len(repl); i++ {
+		ch := repl[i]
+		switch {
+		case ch == '&':
+			refs[0]++
+		case ch == '\\' && i+1 < len(repl):
+			next := repl[i+1]
+			if next >= '0' && next <= '9' {
+				refs[next-'0']++
+			} else {
+				lit++
+			}
+			i++
+		default:
+			lit++
+		}
+	}
+	return lit, refs
+}
+
+// substituteFits reports whether applying cmd's substitution to ps keeps
+// the pattern space within limit bytes. It never builds the result, so
+// its own allocation is bounded by len(ps) regardless of the outcome.
+//
+// A cheap static bound settles the common case. Otherwise the matches are
+// walked with callbacks that return "" for each match, charging the size of
+// every replacement the real substitution would make. The charge is exact
+// unless a group reference meets an empty-width assertion, in which case it
+// is an upper bound.
+func substituteFits(re *regexp.Regexp, ps string, cmd *sedCmd, limit int) bool {
+	lit, refs := replacementShape(cmd.subReplacement)
+	totalRefs, groupRefs := 0, 0
+	for n, c := range refs {
+		totalRefs += c
+		if n > 0 {
+			groupRefs += c
+		}
+	}
+
+	// Plain s///g expands each match in context. Every other path expands
+	// a match with re.ReplaceAllString(m, ...), re-matching m in isolation.
+	// Without empty-width assertions the two agree: the isolated re-match
+	// takes the same path over the whole of m, so it replaces m exactly
+	// once with the same groups. With an assertion in play (or a false
+	// positive of the textual check), the isolated re-match can replace
+	// several pieces of m, so walk those pieces too.
+	inContext := cmd.subGlobal && cmd.subNth == 0
+	assertions := mayHaveAssertion(re.String())
+	isolated := assertions && !inContext
+
+	// Static bound: every byte of ps is kept, and each replaced match adds
+	// lit bytes plus at most len(ps) per group reference (a group is never
+	// longer than its match, and the matches do not overlap). It assumes
+	// each selected match is replaced once, so it does not apply when an
+	// isolated re-match can split a match into several replacements.
+	if !isolated {
+		maxMatches := 1
+		if cmd.subGlobal {
+			maxMatches = len(ps) + 1
+		}
+		static := boundedreplace.NewBudget(limit)
+		static.Add(len(ps))
+		static.AddMul(maxMatches, lit)
+		static.AddMul(totalRefs, len(ps))
+		if !static.Exceeded() {
+			return true
+		}
+	}
+
+	budget := boundedreplace.NewBudget(limit)
+
+	// charge charges one replacement of the match text m. sub holds the
+	// capture spans for m, or is nil to bound every group by len(m).
+	charge := func(m string, sub []int) {
+		budget.Add(lit)
+		budget.AddMul(refs[0], len(m))
+		for n := 1; n < len(refs); n++ {
+			if refs[n] == 0 {
+				continue
+			}
+			groupLen := len(m)
+			if sub != nil {
+				groupLen = 0
+				if 2*n+1 < len(sub) && sub[2*n] >= 0 {
+					groupLen = sub[2*n+1] - sub[2*n]
+				}
+			}
+			budget.AddMul(refs[n], groupLen)
+		}
+	}
+
+	replacedBytes := 0
+	count := 0
+	re.ReplaceAllStringFunc(ps, func(m string) string {
+		if budget.Exceeded() {
+			return ""
+		}
+		count++
+		var selected bool
+		switch {
+		case cmd.subGlobal && cmd.subNth > 0:
+			selected = count >= cmd.subNth
+		case cmd.subGlobal:
+			selected = true
+		case cmd.subNth > 0:
+			selected = count == cmd.subNth
+		default:
+			selected = count == 1
+		}
+		if !selected {
+			return ""
+		}
+		replacedBytes += len(m)
+		switch {
+		case !assertions:
+			var sub []int
+			if groupRefs > 0 {
+				sub = re.FindStringSubmatchIndex(m)
+			}
+			charge(m, sub)
+		case inContext:
+			charge(m, nil)
+		default:
+			innerReplaced := 0
+			re.ReplaceAllStringFunc(m, func(inner string) string {
+				innerReplaced += len(inner)
+				charge(inner, nil)
+				return ""
+			})
+			budget.Add(len(m) - innerReplaced)
+		}
+		return ""
+	})
+	budget.Add(len(ps) - replacedBytes)
+	if !budget.Exceeded() {
+		return true
+	}
+	if !assertions || groupRefs == 0 {
+		// The walk above was exact, so the result really is too large.
+		return false
+	}
+	// The walk bounded each group reference by its whole match, which can
+	// reject far more than it needs to (s/^(a)b*/\1\1\1/g on a long line).
+	// Size again from the real capture spans before rejecting.
+	return substituteFitsExact(re, ps, cmd, limit, lit, refs, inContext)
+}
+
+// maxExactIndexBytes caps the capture-index slices substituteFitsExact may
+// allocate. Above it, the exact pass is skipped and the conservative
+// rejection stands.
+const maxExactIndexBytes = MaxSpaceBytes
+
+// substituteFitsExact sizes cmd's substitution from the capture spans of
+// every replacement it makes, mirroring execSubstitute. It is the slow path
+// for group references that meet an empty-width assertion, where
+// substituteFits can only bound each group by its match.
+func substituteFitsExact(re *regexp.Regexp, ps string, cmd *sedCmd, limit, lit int, refs [10]int, inContext bool) bool {
+	budget := boundedreplace.NewBudget(limit)
+	perMatch := 24 + 16*(re.NumSubexp()+1) // slice header + index pairs
+
+	// addReplaceAll charges re.ReplaceAllString(text, expanded) and
+	// reports false when the spans would cost too much to collect.
+	addReplaceAll := func(text string) bool {
+		count := 0
+		re.ReplaceAllStringFunc(text, func(string) string {
+			count++
+			return ""
+		})
+		if count > maxExactIndexBytes/perMatch {
+			return false
+		}
+		replaced := 0
+		for _, sub := range re.FindAllStringSubmatchIndex(text, -1) {
+			replaced += sub[1] - sub[0]
+			budget.Add(lit)
+			for n, c := range refs {
+				if c > 0 && 2*n+1 < len(sub) && sub[2*n] >= 0 {
+					budget.AddMul(c, sub[2*n+1]-sub[2*n])
+				}
+			}
+		}
+		budget.Add(len(text) - replaced)
+		return true
+	}
+
+	if inContext {
+		return addReplaceAll(ps) && !budget.Exceeded()
+	}
+
+	ok := true
+	replacedBytes := 0
+	count := 0
+	re.ReplaceAllStringFunc(ps, func(m string) string {
+		if !ok || budget.Exceeded() {
+			return ""
+		}
+		count++
+		var selected bool
+		switch {
+		case cmd.subGlobal:
+			selected = count >= cmd.subNth
+		case cmd.subNth > 0:
+			selected = count == cmd.subNth
+		default:
+			selected = count == 1
+		}
+		if selected {
+			replacedBytes += len(m)
+			ok = addReplaceAll(m)
+		}
+		return ""
+	})
+	budget.Add(len(ps) - replacedBytes)
+	return ok && !budget.Exceeded()
+}
+
+// mayHaveAssertion reports whether a Go regexp source string could contain
+// an empty-width assertion (^, $, \A, \z, \b, \B). It may report true for
+// an escaped literal, which only makes substituteFits more conservative.
+func mayHaveAssertion(src string) bool {
+	return strings.ContainsAny(src, "^$") ||
+		strings.Contains(src, `\A`) || strings.Contains(src, `\z`) ||
+		strings.Contains(src, `\b`) || strings.Contains(src, `\B`)
+}
+
 // validateBackrefs checks that all \N backreferences in the replacement string
 // refer to capture groups that exist in the regex. GNU sed errors on invalid
 // references like \1 when there are no capture groups.
@@ -1528,6 +1766,12 @@ func expandReplacement(repl string) string {
 				i++
 			} else if next == '\\' {
 				sb.WriteByte('\\')
+				i++
+			} else if next == '$' {
+				// \$ is a literal dollar, so it needs the same escaping
+				// as a bare $; otherwise \$1 would reach Go's replacement
+				// parser as the capture reference $1.
+				sb.WriteString("$$")
 				i++
 			} else {
 				// GNU sed drops the backslash for non-special escapes

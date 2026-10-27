@@ -82,6 +82,7 @@ go_library(
 dd_agent_go_test(
     name = "allowedpaths_test",
     srcs = [
+        "alias_readonly_root_test.go",
         "check_test.go",
         "context_file_linux_test.go",
         "context_file_test.go",

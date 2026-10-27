@@ -11,7 +11,10 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/find",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/rshell/builtins"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/boundedreplace",
+    ],
 )
 
 dd_agent_go_test(
@@ -21,6 +24,7 @@ dd_agent_go_test(
         "builtin_find_pentest_test.go",
         "eval_test.go",
         "expr_test.go",
+        "find_exec_bound_test.go",
         "find_test.go",
         "match_test.go",
         "now_test.go",

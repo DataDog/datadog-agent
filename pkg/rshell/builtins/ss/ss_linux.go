@@ -9,6 +9,8 @@ package ss
 
 import (
 	"context"
+	"errors"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/procnetsocket"
@@ -30,12 +32,16 @@ func run(ctx context.Context, callCtx *builtins.CallContext, opts options) built
 	var entries []socketEntry
 	var firstErr error
 
-	collect := func(fn func(context.Context, string) ([]procnetsocket.SocketEntry, error)) {
+	collect := func(fn func(context.Context, string) ([]procnetsocket.SocketEntry, error), optionalIPv6 bool) {
 		if firstErr != nil {
 			return
 		}
 		got, err := fn(ctx, ProcPath)
 		if err != nil {
+			// Kernels without IPv6 support may omit tcp6 and udp6 entirely.
+			if optionalIPv6 && errors.Is(err, syscall.ENOENT) {
+				return
+			}
 			firstErr = err
 			return
 		}
@@ -46,22 +52,22 @@ func run(ctx context.Context, callCtx *builtins.CallContext, opts options) built
 
 	if opts.showTCP {
 		if !opts.ipv6Only {
-			collect(procnetsocket.ReadTCP4)
+			collect(procnetsocket.ReadTCP4, false)
 		}
 		if !opts.ipv4Only {
-			collect(procnetsocket.ReadTCP6)
+			collect(procnetsocket.ReadTCP6, true)
 		}
 	}
 	if opts.showUDP {
 		if !opts.ipv6Only {
-			collect(procnetsocket.ReadUDP4)
+			collect(procnetsocket.ReadUDP4, false)
 		}
 		if !opts.ipv4Only {
-			collect(procnetsocket.ReadUDP6)
+			collect(procnetsocket.ReadUDP6, true)
 		}
 	}
 	if opts.showUnix {
-		collect(procnetsocket.ReadUnix)
+		collect(procnetsocket.ReadUnix, false)
 	}
 
 	if firstErr != nil {

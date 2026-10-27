@@ -108,7 +108,7 @@ import (
 // Cmd is the ss builtin command descriptor.
 var Cmd = builtins.Command{
 	Name:        "ss",
-	Description: "display socket statistics",
+	Description: "display available socket statistics",
 	MakeFlags:   registerFlags,
 }
 

@@ -573,7 +573,7 @@ func (c *scriptChecker) call(stmt *syntax.Stmt, call *syntax.CallExpr, state *ch
 		if complete && len(fields) > 0 {
 			// argv and redirects expand against the original environment, but
 			// the builtin sees inline assignments (notably HOME/OLDPWD for cd).
-			c.arguments(entry, fields[1:], assignmentState)
+			c.arguments(entry, fields[1:], elevated, assignmentState)
 		}
 		if len(fields) == 0 && complete && entry.Status != CheckDenied {
 			state.values = assignmentState.values

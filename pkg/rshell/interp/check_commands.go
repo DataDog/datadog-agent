@@ -22,7 +22,7 @@ func checkFlag(fs *builtins.FlagSet, name string) bool {
 // It deliberately does not call a handler, even with stubbed capabilities:
 // several inspection builtins read the host directly. Unknown commands and
 // content-driven operations fail closed to an indeterminate report.
-func (c *scriptChecker) arguments(entry *CommandCheck, args []string, state *checkState) {
+func (c *scriptChecker) arguments(entry *CommandCheck, args []string, elevated bool, state *checkState) {
 	flags, operands, err := builtins.InspectArgs(entry.Command, args)
 	if err != nil {
 		entry.issue(CheckInvalidArguments, err.Error())
@@ -209,7 +209,9 @@ func (c *scriptChecker) arguments(entry *CommandCheck, args []string, state *che
 			entry.issue(CheckRequiresExecution, "xargs command name depends on input")
 		} else {
 			child := &CommandCheck{Command: name, Status: CheckAllowed}
-			c.commandPolicy(child, false, state.pipeline)
+			// Children of an elevated xargs run inside its elevation
+			// window, so they need their own elevation grant.
+			c.commandPolicy(child, elevated, state.pipeline)
 			entry.Status = combineCheckStatus(entry.Status, child.Status)
 			entry.Issues = append(entry.Issues, child.Issues...)
 		}

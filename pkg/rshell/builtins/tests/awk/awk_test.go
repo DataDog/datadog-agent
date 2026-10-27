@@ -423,9 +423,9 @@ func TestAwkIfNextPrintfAndScalarBuiltins(t *testing.T) {
 
 func TestAwkSingleCharacterRecordSeparator(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "nul.txt"), []byte("alpha\x00beta\x00"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "records.txt"), []byte("alpha\x00beta\x00"), 0o644))
 	writeFile(t, dir, "comma.txt", "x,y,z")
-	stdout, stderr, code := cmdRun(t, `awk -v RS='\0' '{ print NR ":" $0 }' nul.txt; awk -v RS=, '{ print NR ":" $0 }' comma.txt`, dir)
+	stdout, stderr, code := cmdRun(t, `awk -v RS='\0' '{ print NR ":" $0 }' records.txt; awk -v RS=, '{ print NR ":" $0 }' comma.txt`, dir)
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "", stderr)
 	assert.Equal(t, "1:alpha\n2:beta\n1:x\n2:y\n3:z\n", stdout)

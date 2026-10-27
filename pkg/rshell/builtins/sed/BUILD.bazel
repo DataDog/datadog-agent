@@ -13,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/boundedreplace",
         "//pkg/rshell/builtins/internal/flagparser",
     ],
 )
@@ -21,8 +22,11 @@ dd_agent_go_test(
     name = "sed_test",
     srcs = [
         "engine_test.go",
+        "race_disabled_test.go",
+        "race_enabled_test.go",
         "sed_inplace_operand_loop_test.go",
         "sed_vuln_hunt_test.go",
+        "substitute_bound_test.go",
     ],
     embed = [":sed"],
     deps = [

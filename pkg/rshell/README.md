@@ -206,6 +206,8 @@ Shell expansion is bounded independently of the execution timeout: a command may
 
 Redirect targets undergo shell expansion and must resolve to exactly one field; ambiguous targets fail before the file is opened. Quoting preserves literal spaces and wildcard characters.
 
+On Linux, `ss` treats absent IPv6 socket tables as empty, including for `-6`; other read errors still fail the command.
+
 Some inspection builtins read fixed kernel interfaces outside `AllowedPaths`, and trusted systemd target paths intentionally bypass the filesystem sandbox. Their platform limits, data exposure, and authorization rules are documented in the [feature reference](SHELL_FEATURES.md).
 
 ## Features and platforms

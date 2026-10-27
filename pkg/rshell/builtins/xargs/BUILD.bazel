@@ -6,7 +6,10 @@ go_library(
     srcs = ["xargs.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/xargs",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/rshell/builtins"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/boundedreplace",
+    ],
 )
 
 dd_agent_go_test(
@@ -16,6 +19,7 @@ dd_agent_go_test(
         "xargs_gnu_compat_test.go",
         "xargs_hardening_test.go",
         "xargs_internal_test.go",
+        "xargs_replace_bound_test.go",
         "xargs_test.go",
         "xargs_vuln_hunt_test.go",
     ],

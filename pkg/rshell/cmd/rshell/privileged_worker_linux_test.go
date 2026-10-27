@@ -302,6 +302,12 @@ func TestRejectElevatedPipelines(t *testing.T) {
 		"$(echo sudo) cat f | grep x",
 		"sud? cat f | grep x",
 		"echo x | grep x; sudo cat f",
+		"s{u..u}do cat f | grep x",
+		"s{u,}do cat f | grep x",
+		"{sudo,} cat f | grep x",
+		"{,} sudo cat f | grep x",
+		"echo x | grep x; s{u..u}do cat f",
+		"~ cat f | grep x",
 	}
 	for _, script := range rejected {
 		program, err := interp.ParseScript(script, "")
@@ -313,6 +319,7 @@ func TestRejectElevatedPipelines(t *testing.T) {
 		"(sudo cat f)",
 		"cat f | grep x",
 		"marker=sudo; $marker cat f",
+		"cat f | grep x; /usr/bin/x-y_z.1 f",
 	}
 	for _, script := range allowed {
 		program, err := interp.ParseScript(script, "")

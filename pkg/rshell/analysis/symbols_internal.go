@@ -160,6 +160,9 @@ var internalPerPackageSymbols = map[string][]string{
 		"golang.org/x/sys/unix.Stat",     // 🟠 stats an fd's magic symlink path to get Type/Device/Size/Node, including for deleted-but-open files; read-only, no write capability.
 		"golang.org/x/sys/unix.Stat_t",   // 🟢 struct type carrying stat(2) data; pure data type.
 	},
+	"boundedreplace": {
+		"strings.Count", // 🟢 counts template markers to size a replacement before building it; pure function, no I/O.
+	},
 	"sizeparse": {
 		"errors.New",       // 🟢 creates sentinel parse errors; pure function, no I/O.
 		"strconv.ParseInt", // 🟢 string-to-int conversion with base/bit-size; pure function, no I/O.
@@ -486,6 +489,7 @@ var internalAllowedSymbols = []string{
 	"strings.Builder",                            // 🟢 procnetsocket/diskstats: efficient string concatenation; pure in-memory buffer, no I/O.
 	"strings.Contains",                           // 🟢 procnetroute/diskstats: substring check; pure function, no I/O.
 	"strings.ContainsRune",                       // 🟢 diskstats: fast-path check for backslash before unescape; pure function, no I/O.
+	"strings.Count",                              // 🟢 boundedreplace: counts template markers to size a replacement before building it; pure function, no I/O.
 	"strings.Cut",                                // 🟢 diskstats: splits a string at the first separator; pure function, no I/O.
 	"strings.Fields",                             // 🟢 procinfo/procnetroute/procnetsocket/diskstats: splits a string on whitespace; pure function, no I/O.
 	"strings.Join",                               // 🟢 procnetsocket: reconstructs space-containing Unix socket paths from Fields tokens; pure function, no I/O.

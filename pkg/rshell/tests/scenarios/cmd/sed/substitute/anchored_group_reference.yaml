@@ -1,0 +1,16 @@
+description: Anchored group references copy only the captured text.
+setup:
+  files:
+    - path: input.txt
+      content: "abbbbbbbb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -E 's/^(a)b*/\1\1\1/g' input.txt
+    sed -E 's/\Ba.*|b/X/' input.txt
+expect:
+  stdout: |+
+    aaa
+    aXbbbbbbb
+  stderr: |+
+  exit_code: 0

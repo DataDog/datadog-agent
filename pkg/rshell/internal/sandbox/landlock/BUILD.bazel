@@ -30,9 +30,8 @@ go_library(
 dd_agent_go_test(
     name = "landlock_test",
     srcs = [
+        "enforcement_purego_linux_test.go",
         "policy_test.go",
-        "race_disabled_test.go",
-        "race_enabled_test.go",
         "restrict_linux_test.go",
     ],
     embed = [":landlock"],

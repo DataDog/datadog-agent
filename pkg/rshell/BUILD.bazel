@@ -36,6 +36,7 @@ filegroup(
         "//pkg/rshell/builtins/grep:source_files",
         "//pkg/rshell/builtins/head:source_files",
         "//pkg/rshell/builtins/help:source_files",
+        "//pkg/rshell/builtins/internal/boundedreplace:source_files",
         "//pkg/rshell/builtins/internal/diskstats:source_files",
         "//pkg/rshell/builtins/internal/flagparser:source_files",
         "//pkg/rshell/builtins/internal/loopctl:source_files",

@@ -35,6 +35,28 @@ When adding a Go package, include its `source_files` filegroup in
 `pkg/rshell/BUILD.bazel` so the source-scanning tests see it. CI checks that every
 Go source file outside `testdata` is included.
 
+The Linux selective-elevation seccomp test and both Landlock enforcement tests
+require `CGO_ENABLED=0`, matching the production privileged helper. The other
+sandbox tests and the external-helper integration driver also run in cgo/race
+builds. CI has a dedicated root job that requires all four enforcement and
+integration checks to pass; skipped checks fail that job. The helper binary must
+be executable and its parent directories traversable by the service account
+(`nobody` in the integration test).
+
+To exercise these checks locally on a Linux host with Landlock ABI 3+ and seccomp,
+from `pkg/rshell`:
+
+```bash
+CGO_ENABLED=0 go test -c -o /tmp/rshell-landlock.test ./internal/sandbox/landlock
+CGO_ENABLED=0 go test -c -o /tmp/rshell-seccomp.test ./internal/sandbox/seccomp
+CGO_ENABLED=0 go build -o /tmp/rshell-root-helper ./cmd/rshell
+go test -race -c -o /tmp/rshell-root-integration.test ./cmd/rshell
+sudo /tmp/rshell-landlock.test -test.v
+sudo /tmp/rshell-seccomp.test -test.v
+sudo env RSHELL_ROOT_INTEGRATION=1 RSHELL_BINARY=/tmp/rshell-root-helper \
+  /tmp/rshell-root-integration.test -test.v -test.run='^TestPrivilegedHelperRootIntegration$'
+```
+
 ## Code Review
 
 Follow the Agent repository's code review guidelines.

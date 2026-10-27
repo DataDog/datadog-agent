@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -191,6 +192,31 @@ func TestRunSpanDetailedTelemetryDisabled(t *testing.T) {
 	}
 	assert.NotEmpty(t, runSpan.Meta["rshell.version"])
 	assert.Equal(t, float64(0), runSpan.Metrics["rshell.run.exit_code"])
+}
+
+// TestRunSpanCommandIsBounded verifies that a large script supplied via
+// [Script] is reported on the run span as a bounded prefix rather than in full,
+// so queued spans cannot retain megabytes of script text.
+func TestRunSpanCommandIsBounded(t *testing.T) {
+	tel, ct := newCapturingTelemetry(t)
+
+	script := "echo hi\n# " + strings.Repeat("x", 1<<20) + "\n"
+	r, err := New(allowAllCommandsOpt(), Script(script), StdIO(nil, io.Discard, io.Discard))
+	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	traceID := newTestTraceID()
+	require.NoError(t, runWithTracedContext(t, r, traceID, script))
+	tel.Stop()
+
+	spans := ct.spansForTrace(t, traceID)
+	runSpan := findOneSpanByResource(spans, "run")
+	require.NotNil(t, runSpan, "expected a run span")
+
+	command := runSpan.Meta["rshell.run.command"]
+	assert.LessOrEqual(t, len(command), maxRunCommandTagBytes+len(telemetryTruncatedMark))
+	assert.True(t, strings.HasPrefix(command, "echo hi\n# xxx"), "the start of the script should be kept")
+	assert.True(t, strings.HasSuffix(command, telemetryTruncatedMark), "truncation should be marked")
 }
 
 // TestRunSpanOutcome verifies the outcome classification on the run span:
@@ -535,6 +561,39 @@ func TestCommandSpanFlagsPaddingAvoidsSubstringCollision(t *testing.T) {
 	flags := cmd.Meta["rshell.command.flags"]
 	assert.Equal(t, ",--filename,", flags)
 	assert.NotContains(t, flags, ",-n,", "a bare -n query must not match a call that only used --filename")
+}
+
+// TestCommandSpanFlagsIsBounded verifies that the flags tag stays within
+// maxCommandFlagsTagBytes for commands with many or very long flags, and that
+// flags are dropped whole rather than cut mid-name.
+func TestCommandSpanFlagsIsBounded(t *testing.T) {
+	tel, ct := newCapturingTelemetry(t)
+
+	r, err := New(allowAllCommandsOpt(), StdIO(nil, io.Discard, io.Discard))
+	require.NoError(t, err)
+	t.Cleanup(func() { r.Close() })
+
+	many := "echo" + strings.Repeat(" --flag-name", 10_000)
+	huge := "printf x --" + strings.Repeat("a", 1<<20)
+
+	traceID := newTestTraceID()
+	require.NoError(t, runWithTracedContext(t, r, traceID, many+"\n"+huge))
+	tel.Stop()
+
+	spans := ct.spansForTrace(t, traceID)
+	echo := findSpanByCommand(spans, "echo")
+	require.NotNil(t, echo)
+	flags := echo.Meta["rshell.command.flags"]
+	assert.LessOrEqual(t, len(flags), maxCommandFlagsTagBytes)
+	assert.True(t, strings.HasPrefix(flags, ",--flag-name,"), "leading flags should be kept")
+	for _, flag := range strings.Split(strings.Trim(flags, ","), ",") {
+		assert.Equal(t, "--flag-name", flag, "flags must not be cut mid-name")
+	}
+
+	printf := findSpanByCommand(spans, "printf")
+	require.NotNil(t, printf)
+	_, ok := printf.Meta["rshell.command.flags"]
+	assert.False(t, ok, "a flag longer than the whole budget should be omitted")
 }
 
 // TestCommandFlagsNoValueLeak is a table-driven test over commandFlags

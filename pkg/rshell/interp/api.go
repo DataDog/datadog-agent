@@ -628,7 +628,7 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) (retErr error) {
 	span.SetTag("rshell.version", version.Version)
 	span.SetTag("rshell.run.invoked_via_cli", r.invokedViaCLI)
 	if !r.disableDetailedTelemetry {
-		span.SetTag("rshell.run.command", scrubCommandText(r.commandText))
+		span.SetTag("rshell.run.command", truncateTelemetryTag(scrubCommandText(r.commandText), maxRunCommandTagBytes))
 		r.setRunOptionTags(span)
 	}
 	defer func() {
@@ -953,6 +953,8 @@ func parseAllowedCommands(names []string) (map[string]bool, error) {
 
 // SelectiveElevation enables the "sudo <command>" marker for an explicit
 // namespaced command allowlist. It does not add commands to AllowedCommands.
+// Commands that an elevated find -exec/-execdir or xargs runs execute inside
+// the same elevation window, so each must also be in this allowlist.
 func SelectiveElevation(names []string, elevate ElevateFunc) RunnerOption {
 	return func(r *Runner) error {
 		if elevate == nil {
@@ -1008,8 +1010,9 @@ func ProcPath(path string) RunnerOption {
 }
 
 // Script attaches the raw script text to report on the "run" telemetry span.
-// It has no effect on parsing or execution; omit it to keep the raw script
-// out of telemetry.
+// The reported text is scrubbed of common secret shapes and cut to its first
+// 4 KiB. It has no effect on parsing or execution; omit it to keep the raw
+// script out of telemetry.
 func Script(text string) RunnerOption {
 	return func(r *Runner) error {
 		r.commandText = text

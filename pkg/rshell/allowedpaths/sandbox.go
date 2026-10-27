@@ -51,12 +51,19 @@ const MaxGlobEntries = 10_000
 // paths (e.g. pwd -P) use this to translate the configured-root prefix back
 // to its on-disk canonical form, which os.Root has already followed
 // implicitly when opening the root.
+//
+// identity is the opened root directory's own metadata. Read-write targets
+// are compared against the identities of read-only roots so that an alias
+// spelling (letter case on a case-insensitive volume, an NTFS 8.3 short
+// name, a bind mount) cannot reach a read-only root's directory through a
+// writable parent root that lexical matching selected instead.
 type root struct {
 	absPath          string
 	canonicalAbsPath string
 	mode             pathMode
 	root             *os.Root
 	writeRoot        *os.File
+	identity         fs.FileInfo
 }
 
 // Sandbox restricts filesystem access to a set of allowed directories.
@@ -105,6 +112,12 @@ func New(paths []string) (sb *Sandbox, warnings []byte, err error) {
 			fmt.Fprintf(&buf, "AllowedPaths: skipping %q: %v\n", abs, err)
 			continue
 		}
+		identity, err := r.Stat(".")
+		if err != nil {
+			r.Close()
+			fmt.Fprintf(&buf, "AllowedPaths: skipping %q: %v\n", abs, err)
+			continue
+		}
 		var writeRoot *os.File
 		if mode == pathModeReadWrite {
 			writeRoot, err = openWriteRoot(r)
@@ -114,7 +127,7 @@ func New(paths []string) (sb *Sandbox, warnings []byte, err error) {
 				continue
 			}
 		}
-		roots = append(roots, root{absPath: abs, canonicalAbsPath: canonical, mode: mode, root: r, writeRoot: writeRoot})
+		roots = append(roots, root{absPath: abs, canonicalAbsPath: canonical, mode: mode, root: r, writeRoot: writeRoot, identity: identity})
 	}
 	return &Sandbox{roots: roots, readOnly: true}, buf.Bytes(), nil
 }
@@ -375,7 +388,67 @@ func (s *Sandbox) resolveModeCheckedTarget(absPath string, preserveLast bool) (*
 			return nil, "", false
 		}
 	}
+	// All checks above are lexical. On a case-insensitive volume (or via an
+	// NTFS 8.3 name or a bind mount) a spelling that misses a nested
+	// read-only root lexically can still name that root's directory on
+	// disk, so also compare the directories the target walks through by
+	// filesystem identity.
+	if s.reachesReadOnlyRoot(ar, relPath, preserveLast) ||
+		s.reachesReadOnlyRoot(resolved, resolvedRel, preserveLast) {
+		return nil, "", false
+	}
 	return ar, relPath, true
+}
+
+// reachesReadOnlyRoot reports whether walking relPath from ar passes through,
+// or ends at, the directory of any read-only root, compared by filesystem
+// identity rather than spelling. Each existing prefix of relPath, including
+// ar's own directory, is stat'ed through ar's os.Root; the walk stops at the
+// first missing component, since nothing below it can exist yet. The final
+// component is lstat'ed when preserveLast is set, matching Remove's
+// semantics of acting on the directory entry itself.
+func (s *Sandbox) reachesReadOnlyRoot(ar *root, relPath string, preserveLast bool) bool {
+	var readOnly []fs.FileInfo
+	for i := range s.roots {
+		if s.roots[i].mode == pathModeReadOnly && s.roots[i].identity != nil {
+			readOnly = append(readOnly, s.roots[i].identity)
+		}
+	}
+	if len(readOnly) == 0 {
+		return false
+	}
+	matches := func(info fs.FileInfo) bool {
+		for _, ro := range readOnly {
+			if os.SameFile(ro, info) {
+				return true
+			}
+		}
+		return false
+	}
+	if ar.identity != nil && matches(ar.identity) {
+		return true
+	}
+	components := strings.Split(filepath.Clean(relPath), string(filepath.Separator))
+	for i := range components {
+		if components[i] == "." {
+			continue
+		}
+		prefix := strings.Join(components[:i+1], string(filepath.Separator))
+		var info fs.FileInfo
+		var err error
+		if preserveLast && i == len(components)-1 {
+			info, err = ar.root.Lstat(prefix)
+		} else {
+			info, err = ar.root.Stat(prefix)
+		}
+		if err != nil {
+			return false
+		}
+		if matches(info) {
+			return true
+		}
+	}
+	return false
 }
 
 // openWithSymlinkFallback opens relPath through root, falling back to

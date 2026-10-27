@@ -613,16 +613,16 @@ func TestTailAllNonexistentFiles(t *testing.T) {
 func TestTailZeroTerminatedLines(t *testing.T) {
 	dir := t.TempDir()
 	// Three NUL-delimited records.
-	writeFile(t, dir, "nul.txt", "alpha\x00beta\x00gamma\x00")
-	stdout, _, code := cmdRun(t, "tail -z -n 2 nul.txt", dir)
+	writeFile(t, dir, "records.txt", "alpha\x00beta\x00gamma\x00")
+	stdout, _, code := cmdRun(t, "tail -z -n 2 records.txt", dir)
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "beta\x00gamma\x00", stdout)
 }
 
 func TestTailZeroTerminatedOffsetMode(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "nul.txt", "alpha\x00beta\x00gamma\x00")
-	stdout, _, code := cmdRun(t, "tail -z -n +2 nul.txt", dir)
+	writeFile(t, dir, "records.txt", "alpha\x00beta\x00gamma\x00")
+	stdout, _, code := cmdRun(t, "tail -z -n +2 records.txt", dir)
 	assert.Equal(t, 0, code)
 	assert.Equal(t, "beta\x00gamma\x00", stdout)
 }

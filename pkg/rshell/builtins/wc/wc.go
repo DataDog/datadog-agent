@@ -279,30 +279,13 @@ func countReader(ctx context.Context, r io.Reader) (counts, error) {
 			chunk := buf[:n]
 			c.bytes += int64(n)
 
-			// Handle incomplete UTF-8 at end of chunk.
-			// When tail >= n (e.g., n == 1 with a single invalid byte), the
-			// condition below is false, so the byte stays in chunk and
-			// DecodeRune processes it as a replacement character — this is
-			// correct and matches utf8.DecodeRune semantics.
-			tail := 0
-			if !utf8.Valid(chunk) {
-				for tail = 1; tail <= 3 && tail < n; tail++ {
-					if utf8.Valid(chunk[:n-tail]) {
-						break
-					}
-				}
-				if tail > 0 && tail <= 3 && tail < n {
-					carryN = copy(carry[:], chunk[n-tail:])
-					chunk = chunk[:n-tail]
-				} else {
-					tail = 0
-				}
-			}
-			// carryN bytes are subtracted here and will be re-added via
-			// n += carryN at the top of the next iteration.
-			c.bytes -= int64(carryN)
-
 			for i := 0; i < len(chunk); {
+				if !utf8.FullRune(chunk[i:]) {
+					// Preserve a split rune even when earlier bytes were invalid.
+					carryN = copy(carry[:], chunk[i:])
+					c.bytes -= int64(carryN)
+					break
+				}
 				ch, size := utf8.DecodeRune(chunk[i:])
 				i += size
 				// Invalid UTF-8 byte: not a character in C.UTF-8 locale.
@@ -336,8 +319,8 @@ func countReader(ctx context.Context, r io.Reader) (counts, error) {
 					}
 					lineLen = 0
 					inWord = false
-				} else if ch == '\v' {
-					// vertical tab: zero display width, but breaks words
+				} else if ch == '\v' || ch == '\u2060' {
+					// GNU wc treats vertical tab and WORD JOINER as zero-width word separators.
 					inWord = false
 				} else if unicode.Is(unicode.Cc, ch) {
 					// Control characters are transparent to word counting:

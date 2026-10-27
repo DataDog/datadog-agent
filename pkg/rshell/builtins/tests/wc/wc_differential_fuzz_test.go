@@ -130,6 +130,13 @@ func FuzzWcDifferentialWords(f *testing.F) {
 	f.Add([]byte("a\x00b c\n"))
 	f.Add([]byte("word"))
 	f.Add(bytes.Repeat([]byte("a b "), 50))
+	f.Add([]byte("0\u20600"))
+	f.Add([]byte("\u2060\u2060"))
+	f.Add([]byte("\u2060a\u2060\u2060b\u2060"))
+	f.Add(append(bytes.Repeat([]byte("a"), 32*1024-1), []byte("\u2060b")...))
+	invalidPrefix := bytes.Repeat([]byte("a"), 32*1024-1)
+	invalidPrefix[0] = 0xff
+	f.Add(append(invalidPrefix, []byte("\u2060b")...))
 
 	baseDir := f.TempDir()
 	var counter atomic.Int64

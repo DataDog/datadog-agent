@@ -23,6 +23,7 @@ go_library(
 dd_agent_go_test(
     name = "seccomp_test",
     srcs = [
+        "elevation_purego_linux_test.go",
         "policy_test.go",
         "race_disabled_test.go",
         "race_enabled_test.go",

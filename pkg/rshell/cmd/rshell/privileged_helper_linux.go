@@ -455,10 +455,14 @@ func rejectElevatedPipelines(program *syntax.File) error {
 }
 
 // mayBeSudo reports whether a command-name word could evaluate to "sudo".
-// Anything other than a plain, unescaped literal (quotes, escapes, parameter
-// expansion, command substitution, globs) is treated as a possible marker so
-// that indirection such as `m=sudo; $m cat f | ...` cannot slip past the
-// precheck. The interpreter's runtime pipeline guard remains authoritative.
+// Anything other than a plain literal made only of characters with no
+// expansion meaning (quotes, escapes, parameter expansion, command
+// substitution, globs, brace expansion, tilde) is treated as a possible marker
+// so that indirection such as `m=sudo; $m cat f | ...` or `s{u..u}do cat f`
+// cannot slip past the precheck. Brace expansion also covers words such as
+// `{,}` that expand to no fields and promote a following `sudo` word to the
+// command name. The interpreter's runtime pipeline guard remains
+// authoritative.
 func mayBeSudo(word *syntax.Word) bool {
 	if len(word.Parts) != 1 {
 		return true
@@ -467,7 +471,22 @@ func mayBeSudo(word *syntax.Word) bool {
 	if !ok {
 		return true
 	}
-	return lit.Value == "sudo" || strings.ContainsAny(lit.Value, "\\*?[")
+	if lit.Value == "sudo" {
+		return true
+	}
+	for _, c := range lit.Value {
+		if !isInertCommandNameChar(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// isInertCommandNameChar reports whether c never takes part in shell
+// expansion. It is an allowlist so that new expansion syntax fails closed.
+func isInertCommandNameChar(c rune) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+		c == '_' || c == '-' || c == '.' || c == '/' || c == '+' || c == ':'
 }
 
 type workerElevator struct{ unprivilegedUID int }

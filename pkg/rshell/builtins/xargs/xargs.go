@@ -99,6 +99,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
+	"github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/boundedreplace"
 )
 
 // Cmd is the xargs builtin command descriptor.
@@ -120,7 +121,7 @@ const (
 	DefaultMaxChars = 128 * 1024
 
 	// HardMaxChars is the upper clamp applied to user-provided -s values.
-	HardMaxChars = 1 << 20 // 1 MiB
+	HardMaxChars = boundedreplace.MaxCommandLineBytes // 1 MiB
 
 	// HardMaxArgs is the upper clamp on -n / -L values.
 	HardMaxArgs = 1 << 20
@@ -759,21 +760,16 @@ func invokeCommand(ctx context.Context, callCtx *builtins.CallContext, o options
 		return exitUsage, true
 	}
 
-	finalCmd, finalArgs := resolveCmd(o, batch)
-
 	// With -I the template may repeat the marker, so the resolved command
 	// line can exceed -s even though the raw template + raw item fit.
-	// GNU xargs aborts in that case with "command too long".
-	if o.useReplace() {
-		resolved := len(finalCmd) + 1
-		for _, a := range finalArgs {
-			resolved += len(a) + 1
-		}
-		if resolved > o.maxChars {
-			callCtx.Errf("xargs: argument line too long\n")
-			return exitUsage, true
-		}
+	// GNU xargs aborts in that case with "command too long". The size is
+	// predicted before substituting so an oversized line is never built.
+	if o.useReplace() && !replaceFits(o, batch) {
+		callCtx.Errf("xargs: argument line too long\n")
+		return exitUsage, true
 	}
+
+	finalCmd, finalArgs := resolveCmd(o, batch)
 
 	if o.verbose {
 		printVerbose(callCtx, finalCmd, finalArgs)
@@ -832,8 +828,27 @@ func invokeCommand(ctx context.Context, callCtx *builtins.CallContext, o options
 	}
 }
 
+// replaceFits reports whether the -I command line for batch, counted the
+// same way as commandLineLen, fits within -s. It computes the size without
+// performing the substitution.
+func replaceFits(o options, batch []string) bool {
+	var item string
+	if len(batch) > 0 {
+		item = batch[0]
+	}
+	b := boundedreplace.NewBudget(o.maxChars)
+	b.AddReplaceAll(o.cmdName, o.replStr, item)
+	b.Add(1)
+	for _, a := range o.initialArgs {
+		b.AddReplaceAll(a, o.replStr, item)
+		b.Add(1)
+	}
+	return !b.Exceeded()
+}
+
 // resolveCmd assembles the (cmdName, args) pair for a batch, applying -I
-// substitution when active.
+// substitution when active. Callers must check replaceFits first when -I
+// is active.
 func resolveCmd(o options, batch []string) (string, []string) {
 	if o.useReplace() {
 		// -I forces one item per invocation; substitute the single item

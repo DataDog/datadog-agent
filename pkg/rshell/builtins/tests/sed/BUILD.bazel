@@ -3,9 +3,12 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "sed_test",
     srcs = [
+        "race_disabled_test.go",
+        "race_enabled_test.go",
         "sed_hardening_test.go",
         "sed_inplace_fifo_unix_test.go",
         "sed_pentest_test.go",
+        "sed_substitute_bound_test.go",
         "sed_test.go",
     ],
     deps = [

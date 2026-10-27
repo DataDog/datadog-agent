@@ -771,11 +771,11 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 	span.SetTag("rshell.command.is_known", isKnown)
 	setArgAttrs := func(args []string) {
 		span.SetTag("rshell.command.argc", len(args)-1)
-		if flags := commandFlags(args[1:]); len(flags) > 0 {
-			// Padded with a leading and trailing comma so a query for one exact
-			// flag (e.g. `*,-n,*`) can't false-positive match a longer flag that
-			// merely contains the same substring (e.g. "-name").
-			span.SetTag("rshell.command.flags", ","+strings.Join(flags, ",")+",")
+		// Padded with a leading and trailing comma so a query for one exact
+		// flag (e.g. `*,-n,*`) can't false-positive match a longer flag that
+		// merely contains the same substring (e.g. "-name").
+		if flags := commandFlagsTag(commandFlags(args[1:])); flags != "" {
+			span.SetTag("rshell.command.flags", flags)
 		}
 	}
 	// has_stdin_pipe / has_output_redirect reflect whether the command's
@@ -873,6 +873,16 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 			cmdFn, ok := builtins.Lookup(cmdName)
 			if !ok {
 				return 127, fmt.Errorf("rshell: %s: unknown command", cmdName)
+			}
+			// An elevated find -exec / -execdir / xargs dispatches its
+			// children synchronously inside the parent's elevation window,
+			// and elevation changes the effective UID of the whole process,
+			// so every child runs elevated too. Apply the same per-command
+			// grant as the top-level sudo dispatch so an elevatable spawning
+			// builtin cannot pass its privileges to a command that is not in
+			// ElevatableCommands.
+			if elevated && !r.elevatableCommands[cmdName] {
+				return 126, fmt.Errorf("rshell: sudo: %s: elevation not allowed", cmdName)
 			}
 			// Same remediation gate as the top-level dispatch above, applied
 			// to grandchildren spawned by find -exec / -execdir / xargs.

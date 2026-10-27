@@ -420,3 +420,35 @@ func TestCheckAssignmentStorageAccounting(t *testing.T) {
 		assert.Equal(t, test.status, checkRemoteScript(t, test.script, policy).Status, test.script)
 	}
 }
+
+// Children of an elevated xargs run inside its elevation window, so the
+// preview requires the child's own elevation grant, matching execution.
+func TestCheckElevatedXargsChildRequiresGrant(t *testing.T) {
+	allowed := []string{"rshell:xargs", "rshell:truncate"}
+	for _, test := range []struct {
+		name       string
+		script     string
+		elevatable []string
+		denied     bool
+	}{
+		{"child not elevatable", "sudo xargs truncate -s 0", []string{"rshell:xargs"}, true},
+		{"child elevatable", "sudo xargs truncate -s 0", []string{"rshell:xargs", "rshell:truncate"}, false},
+		{"unelevated parent", "xargs truncate -s 0", []string{"rshell:xargs"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runner := checkRunner(t, AllowedCommands(allowed), WithMode(ModeRemediation),
+				SelectiveElevation(test.elevatable, func(context.Context, string, func()) error {
+					panic("check must never elevate")
+				}))
+			result := checkScript(t, runner, test.script)
+			remote, err := CheckRemote(context.Background(), test.script, RemotePolicy{
+				AllowedCommands: allowed, ElevatableCommands: test.elevatable, Mode: ModeRemediation,
+			})
+			require.NoError(t, err)
+			for _, report := range []*CheckResult{result, remote} {
+				assert.Equal(t, test.denied, report.Status == CheckDenied, "%+v", report)
+				assert.Equal(t, test.denied, checkHasIssue(report, CheckElevationNotAllowed), "%+v", report)
+			}
+		})
+	}
+}
