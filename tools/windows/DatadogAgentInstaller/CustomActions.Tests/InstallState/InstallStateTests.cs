@@ -11,6 +11,24 @@ namespace CustomActions.Tests.InstallState
     {
         public InstallStateTestSetup Test { get; } = new();
 
+        [Fact]
+        public void ReadInstallStateCreatesUniqueServiceSnapshotIdsForOuterTransactions()
+        {
+            Assert.Equal(ActionResult.Success, Test.Create().ReadInstallState());
+            var firstId = System.Guid.ParseExact(Test.Properties["DD_SERVICE_STARTUP_ID"], "N");
+            Assert.Equal(ActionResult.Success, Test.Create().ReadInstallState());
+            var secondId = System.Guid.ParseExact(Test.Properties["DD_SERVICE_STARTUP_ID"], "N");
+            Assert.NotEqual(firstId, secondId);
+        }
+
+        [Fact]
+        public void ReadInstallStateDoesNotCreateServiceSnapshotIdDuringNestedRemoval()
+        {
+            Test.Session.Object["UPGRADINGPRODUCTCODE"] = "{outer-product-code}";
+            Assert.Equal(ActionResult.Success, Test.Create().ReadInstallState());
+            Assert.False(Test.Properties.ContainsKey("DD_SERVICE_STARTUP_ID"));
+        }
+
         [Theory]
         [AutoData]
         public void ReadInstallState_Default_Values()

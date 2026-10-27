@@ -445,9 +445,42 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
+        internal ActionResult StopDDServicesWithSnapshot(Action<List<ServiceStartupCustomAction.StartupSettings>> save)
+        {
+            // The outer MSI owns startup settings. The old MSI still stops services,
+            // but must not replace the snapshot with the temporary Disabled values.
+            if (!string.IsNullOrEmpty(_session.Property("UPGRADINGPRODUCTCODE")))
+            {
+                return StopDDServices(false);
+            }
+            if (_session.Property("RollbackDisabled") == "1")
+            {
+                _session.Log("Service protection requires Windows Installer rollback to be enabled");
+                return ActionResult.Failure;
+            }
+            try
+            {
+                ServiceStartupCustomAction.Disable(_serviceController, save, () =>
+                {
+                    if (StopDDServices(false) != ActionResult.Success)
+                    {
+                        throw new InvalidOperationException("Could not stop Agent services");
+                    }
+                });
+                return ActionResult.Success;
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to disable and stop services: {e}");
+                return ActionResult.Failure;
+            }
+        }
+
         public static ActionResult StopDDServices(Session session)
         {
-            return new ServiceCustomAction(new SessionWrapper(session)).StopDDServices(false);
+            var wrapper = new SessionWrapper(session);
+            return new ServiceCustomAction(wrapper).StopDDServicesWithSnapshot(
+                settings => ServiceStartupCustomAction.SaveSnapshot(wrapper, settings));
         }
 
         private ActionResult StartDDServices()

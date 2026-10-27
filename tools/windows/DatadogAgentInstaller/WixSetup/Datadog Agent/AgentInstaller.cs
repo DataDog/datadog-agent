@@ -70,6 +70,12 @@ namespace WixSetup.Datadog_Agent
                 MinimumSupportedWindowsVersion.Windows10,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
+                // ReadInstallState can run in the UI sequence; carry its snapshot ID
+                // into the elevated execute sequence for stop/rollback/commit actions.
+                new Property("DD_SERVICE_STARTUP_ID")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"

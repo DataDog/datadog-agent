@@ -82,11 +82,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureServicesRollback { get; }
 
-        public ManagedAction PrepareServiceStartup { get; }
-
-        public ManagedAction DisableDDServices { get; }
-
-        public ManagedAction RestoreServiceStartup { get; }
+        public ManagedAction StopDDServicesRollback { get; }
 
         public ManagedAction EnableDDServices { get; }
 
@@ -668,23 +664,23 @@ namespace WixSetup.Datadog_Agent
             // RemoveExistingProducts. The corresponding rollback runs after the old MSI's
             // removal has been rolled back. Never take a second snapshot in the nested MSI.
             var ownsServiceStartup = Condition.NOT(Conditions.RemovingForUpgrade);
-            PrepareServiceStartup = new CustomAction<CustomActions>(
-                new Id(nameof(PrepareServiceStartup)), CustomActions.PrepareServiceStartup,
-                Return.check, When.Before, Step.InstallInitialize, ownsServiceStartup);
-
-            RestoreServiceStartup = new CustomAction<CustomActions>(
-                new Id(nameof(RestoreServiceStartup)), CustomActions.RestoreServiceStartup,
-                Return.ignore, When.After, Step.InstallInitialize, ownsServiceStartup)
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
-
-            DisableDDServices = new CustomAction<CustomActions>(
-                new Id(nameof(DisableDDServices)), CustomActions.DisableDDServices,
-                Return.check, When.After, new Step(RestoreServiceStartup.Id), ownsServiceStartup)
+            // Stop services even when their MSI components are not changing (repair/change).
+            // The outer MSI snapshots and disables first; a nested removal only stops.
+            StopDDServices = new CustomAction<CustomActions>(
+                new Id(nameof(StopDDServices)), CustomActions.StopDDServices,
+                Return.check, When.After, Step.InstallInitialize, Condition.Always)
             {
                 Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID], " +
+                            "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                            "RollbackDisabled=[RollbackDisabled]");
+
+            StopDDServicesRollback = new CustomAction<CustomActions>(
+                new Id(nameof(StopDDServicesRollback)), CustomActions.StopDDServicesRollback,
+                Return.ignore, When.Before, new Step(StopDDServices.Id), ownsServiceStartup)
+            {
+                Execute = Execute.rollback,
                 Impersonate = false
             }.SetProperties("DD_SERVICE_STARTUP_ID=[DD_SERVICE_STARTUP_ID]");
 
@@ -700,21 +696,6 @@ namespace WixSetup.Datadog_Agent
                 new Id(nameof(EnableDDServices)), CustomActions.EnableDDServices,
                 Return.check, When.Before, new Step(nameof(StartDDServices)),
                 Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade))
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            };
-
-            // WiX built-in StopServices only stops services if the component is changing.
-            // This means that the services associated with MainApplication won't be restarted
-            // during change operations.
-            StopDDServices = new CustomAction<CustomActions>(
-                new Id(nameof(StopDDServices)),
-                CustomActions.StopDDServices,
-                Return.check,
-                When.Before,
-                Step.StopServices
-            )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
