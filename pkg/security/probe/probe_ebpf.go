@@ -3382,14 +3382,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType)),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_syscalls_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsThreshold),
-		},
-		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
