@@ -6119,6 +6119,16 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
+  clc_runner_group:
+    node_type: setting
+    type: string
+    default: ''
+    tags:
+    - full-agent-only:true
+    comment: Cluster checks runner group of this runner, advertised to the Cluster
+      Agent. The runner only receives the checks its group claims in the Cluster
+      Agent's cluster_checks.runner_groups. When empty, it is a general worker and
+      receives the checks no group claims.
   clc_runner_port:
     node_type: setting
     type: integer
