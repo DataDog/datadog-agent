@@ -14,14 +14,19 @@
 
 #![allow(non_camel_case_types)] // C ABI types use C naming conventions
 
-use std::ffi::c_char;
+use std::any::Any;
+use std::ffi::{OsStr, c_char};
+use std::os::fd::{IntoRawFd, OwnedFd};
+use std::os::unix::ffi::OsStrExt;
 use std::panic::{self, AssertUnwindSafe};
+use std::path::Path;
 use std::ptr;
 
 use log::error;
 
 use crate::language::Language;
 use crate::params::Params;
+use crate::privileged_logs;
 use crate::services::{self, Service, ServicesResponse};
 use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
@@ -488,13 +493,7 @@ pub unsafe extern "C" fn dd_discovery_get_services(
     })) {
         Ok(ptr) => ptr,
         Err(e) => {
-            let msg = if let Some(s) = e.downcast_ref::<&str>() {
-                *s
-            } else if let Some(s) = e.downcast_ref::<String>() {
-                s.as_str()
-            } else {
-                "<unknown>"
-            };
+            let msg = panic_message(&*e);
             error!("dd_discovery_get_services: caught internal panic: {msg}");
             ptr::null_mut()
         }
@@ -561,15 +560,70 @@ pub unsafe extern "C" fn dd_discovery_free(result: *mut dd_discovery_result) {
     })) {
         Ok(()) => {}
         Err(e) => {
-            let msg = if let Some(s) = e.downcast_ref::<&str>() {
-                *s
-            } else if let Some(s) = e.downcast_ref::<String>() {
-                s.as_str()
-            } else {
-                "<unknown>"
-            };
+            let msg = panic_message(&*e);
             error!("dd_discovery_free: caught internal panic, memory may have leaked: {msg}");
         }
+    }
+}
+
+/// Open a log file for the privileged logs module, if it is allowed (see
+/// `privileged_logs::open_log_file`).
+///
+/// # Returns
+/// A file descriptor owned by the caller, or -1 on error, with the error
+/// message written to `err` as a NUL-terminated string, truncated to fit in
+/// `err_cap` bytes.
+///
+/// # Safety
+/// - If `path` is non-NULL, it must point to `path_len` readable bytes.
+/// - `err` must point to `err_cap` writable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn dd_privileged_logs_open(
+    path: *const c_char,
+    path_len: usize,
+    no_follow: bool,
+    err: *mut c_char,
+    err_cap: usize,
+) -> i32 {
+    // SAFETY: Wrapping in catch_unwind prevents a Rust panic from unwinding across
+    // the C ABI boundary, which would be undefined behaviour.
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        let path = if path.is_null() {
+            &[][..]
+        } else {
+            // SAFETY: caller guarantees path points to path_len readable bytes.
+            unsafe { std::slice::from_raw_parts(path.cast::<u8>(), path_len) }
+        };
+        privileged_logs::open_log_file(Path::new(OsStr::from_bytes(path)), no_follow)
+    }));
+    let message = match result {
+        Ok(Ok(file)) => return OwnedFd::from(file).into_raw_fd(),
+        Ok(Err(e)) => format!("{e:#}"),
+        Err(e) => {
+            let msg = panic_message(&*e);
+            error!("dd_privileged_logs_open: caught internal panic: {msg}");
+            format!("internal error: {msg}")
+        }
+    };
+    if let Some(len) = err_cap.checked_sub(1) {
+        let len = len.min(message.len());
+        // SAFETY: caller guarantees err points to err_cap writable bytes, and len < err_cap.
+        unsafe {
+            ptr::copy_nonoverlapping(message.as_ptr(), err.cast::<u8>(), len);
+            *err.add(len) = 0;
+        }
+    }
+    -1
+}
+
+/// Message of a panic caught with `catch_unwind`.
+fn panic_message(payload: &(dyn Any + Send)) -> &str {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.as_str()
+    } else {
+        "<unknown>"
     }
 }
 
