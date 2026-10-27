@@ -256,7 +256,7 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
-	github.com/containerd/containerd/api v1.11.1
+	github.com/containerd/containerd/api v1.12.0
 	github.com/containerd/containerd/v2 v2.2.9
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
@@ -623,7 +623,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.2 // indirect
 	github.com/containerd/plugin v1.0.0 // indirect
-	github.com/containerd/ttrpc v1.2.7 // indirect
+	github.com/containerd/ttrpc v1.2.9 // indirect
 	github.com/containernetworking/plugins v1.9.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
