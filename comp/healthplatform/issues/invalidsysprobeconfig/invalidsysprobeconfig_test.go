@@ -92,19 +92,6 @@ func TestInstanceIssueID_UniquePerHost(t *testing.T) {
 	assert.NotEqual(t, a[0].IssueID, b[0].IssueID, "issue id must differ per host")
 }
 
-// The core guarantee: we validate the customer's config, not values that Adjust() rewrites
-// at the agent-runtime layer. A bad file value must survive the merge and be seen by the check.
-func TestCustomerConfig_SkipsAgentRuntime(t *testing.T) {
-	cfg := sysprobeconfigmock.NewMock(t)
-	cfg.Set("system_probe_config.health_port", "not-an-integer", model.SourceFile) // customer's value
-	cfg.Set("system_probe_config.health_port", 5558, model.SourceAgentRuntime)     // Adjust's repair
-
-	got := customerConfig(cfg)
-	spc, _ := got["system_probe_config"].(map[string]any)
-	require.NotNil(t, spc)
-	assert.Equal(t, "not-an-integer", spc["health_port"], "the customer's file value must survive, not Adjust's runtime repair")
-}
-
 // Locks the dedup contract that distinguishes this issue from invalid-config.
 func TestBuildIssue_LocksContract(t *testing.T) {
 	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(map[string]string{

@@ -1,0 +1,9 @@
+enhancements:
+  - |
+    Enable the alpha feature gate ``datadog.serializerexporter.EnableGaugeInterval`` to use the
+    datapoint attribute ``datadog.gauge.interval`` as the reporting interval
+    for number metrics mapped to Datadog gauges, including cumulative
+    non-monotonic sums. A positive integer specifies seconds without changing
+    the value. The attribute remains a metric tag with the gate on or off.
+    The gate is disabled by default. Missing or invalid declarations leave
+    the gauge interval unset; count and rate interval inference is unchanged.

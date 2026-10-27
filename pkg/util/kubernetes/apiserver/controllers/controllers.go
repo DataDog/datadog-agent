@@ -144,6 +144,12 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 	// same goes for the apiextension informer factory
 	ctx.APIExentionsInformerFactory.Start(ctx.StopCh)
 
+	// and for the dynamic informer factory, used by the autoscalers controller
+	// on clusters that don't serve autoscaling/v2 HPAs (Kubernetes < 1.23)
+	if ctx.DynamicInformerFactory != nil {
+		ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	}
+
 	// Wait for the cache to sync
 	if err := apiserver.SyncInformers(ctx.informers, 0); err != nil {
 		errs = append(errs, err)
@@ -185,11 +191,15 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 		return
 	}
 
+	if err := autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory, ctx.DynamicInformerFactory); err != nil {
+		c <- err
+		return
+	}
+
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") {
 		go autoscalersController.runWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
 	}
 
-	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
 	go autoscalersController.runHPA(ctx.StopCh)
 
 	autoscalersController.runControllerLoop(ctx.StopCh)

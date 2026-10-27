@@ -75,6 +75,7 @@ func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provid
 		numberOfPipelines,
 		&diagnostic.BufferedMessageReceiver{},
 		nil,
+		nil,
 		endpoints,
 		nil,
 		cfg,
@@ -180,6 +181,7 @@ func TestProviderStopStopsSamplerBeforePipelines(t *testing.T) {
 	p := newProvider(
 		1,
 		&diagnostic.BufferedMessageReceiver{},
+		nil,
 		nil,
 		endpoints,
 		nil,
