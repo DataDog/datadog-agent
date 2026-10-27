@@ -1,9 +1,13 @@
 ---
 upgrade:
   - |
-    Windows devices using ``infrastructure_mode: end_user_device`` now use
-    ``<hostname>-<serial-number>`` as their automatically detected Agent hostname.
-    On macOS, EUDM now uses ``<Computer-Name>-<serial-number>``, using the
-    configured Computer Name instead of the network-derived hostname.
-    Explicit hostname overrides are preserved. Devices without a usable serial
-    retain the existing hostname behavior. Existing device history is not migrated.
+    On macOS, devices using ``infrastructure_mode: end_user_device`` now use
+    the configured Computer Name instead of the network-derived hostname.
+    Windows devices use the OS hostname. On both platforms, set
+    ``hostname_use_serial: true`` (or ``DD_HOSTNAME_USE_SERIAL=true``) to append
+    the hardware serial number. This setting defaults to ``false``; macOS uses
+    Computer Name regardless of its value. Explicit hostname overrides are
+    preserved. If serial appending is enabled but the serial is unusable, the
+    Agent falls back to existing hostname resolution. Restart the Agent after
+    changing the setting. Hostname changes change the device identity in Datadog;
+    existing device history is not migrated.
