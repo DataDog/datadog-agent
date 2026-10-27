@@ -50,9 +50,23 @@ impl SpawnRequest {
         self.inherit_supervisor_env
     }
 
+    /// The copied supervisor environment, or the allowlisted vars, in front of
+    /// `environment_file`/`env:` entries.
     #[cfg(windows)]
-    pub(crate) fn config_env_start(&self) -> usize {
-        self.config_env_start
+    pub(crate) fn inherited_env(&self) -> &[(String, String)] {
+        &self.env[..self.config_env_boundary()]
+    }
+
+    #[cfg(windows)]
+    fn config_env_boundary(&self) -> usize {
+        self.config_env_start.min(self.env.len())
+    }
+
+    /// Only the `environment_file`/`env:` entries, excluding the copied supervisor
+    /// environment or the allowlist.
+    #[cfg(windows)]
+    pub(crate) fn config_env(&self) -> &[(String, String)] {
+        &self.env[self.config_env_boundary()..]
     }
 
     pub(crate) fn working_dir(&self) -> Option<&PathBuf> {

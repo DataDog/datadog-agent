@@ -91,8 +91,7 @@ fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result
     // supervisor environment is that process's own environment. YAML `env:`
     // and `environment_file` are still refused.
     let configured = if request.inherit_supervisor_env() {
-        let start = request.config_env_start().min(request.env().len());
-        &request.env()[start..]
+        request.config_env()
     } else {
         request.env()
     };
@@ -285,6 +284,9 @@ mod tests {
 
     #[test]
     fn privileged_env_rejects_yaml_env() {
+        // inherit_supervisor_env: true also copies the real test-process
+        // environment (PATH, HOME, ...). The validator must report only
+        // DD_FOO, the entry that came from `env:`, not the copied part.
         let request = SpawnRequest::from_config(
             DATADOG_AGENT_PROCESS,
             &ProcessConfig {
@@ -298,9 +300,11 @@ mod tests {
         .expect("request");
 
         let err = validate_privileged_env(DATADOG_AGENT_PROCESS, &request).unwrap_err();
-        let message = err.to_string();
-        assert!(message.contains("disallowed env vars"), "{message}");
-        assert!(message.contains("DD_FOO"), "{message}");
+        assert!(
+            err.to_string()
+                .ends_with("disallowed env vars for privileged process: [\"DD_FOO\"]"),
+            "{err}"
+        );
     }
 
     #[test]
