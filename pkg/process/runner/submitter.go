@@ -6,13 +6,13 @@
 package runner
 
 import (
-	"fmt"
 	"hash/fnv"
 	"net/http"
 	"os"
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -47,6 +47,11 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
+type endpointRTStatus struct {
+	generation uint64
+	status     *model.CollectorStatus
+}
+
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
 	log            log.Component
@@ -71,8 +76,13 @@ type CheckSubmitter struct {
 
 	forwarderRetryMaxQueueBytes int
 
-	// Channel for notifying the submitter to enable/disable realtime mode
-	rtNotifierChan chan types.RTResponse
+	// The latest status for each endpoint and the newest published merged snapshot
+	// are updated together. A buffered event wakes the runner without blocking drains.
+	rtStatusMu         sync.Mutex
+	endpointRTStatuses map[string]endpointRTStatus
+	latestRTResponse   types.RTResponse
+	rtGeneration       atomic.Uint64
+	rtNotifierChan     chan types.RTResponse
 
 	agentStartTime int64
 
@@ -166,7 +176,8 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 
 		forwarderRetryMaxQueueBytes: queueBytes,
 
-		rtNotifierChan: make(chan types.RTResponse, 1), // Buffer the channel so we don't block submissions
+		endpointRTStatuses: make(map[string]endpointRTStatus),
+		rtNotifierChan:     make(chan types.RTResponse, 1),
 
 		wg:   &sync.WaitGroup{},
 		exit: make(chan struct{}),
@@ -280,37 +291,78 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 		}
 		result := item.(*checkResult)
 		for _, payload := range result.payloads {
-			var (
-				forwarderPayload = transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})
-				responses        chan forwarder.Response
-				err              error
-				updateRTStatus   bool
-			)
-
 			if s.shouldDropPayload(result.name) {
 				continue
 			}
 
 			submitFn, ok := s.submitFuncs[result.name]
-			updateRTStatus = s.realtimeUpdate[result.name]
 			if !ok {
-				err = fmt.Errorf("unsupported payload type: %s", result.name)
-			} else {
-				responses, err = submitFn(forwarderPayload, payload.headers)
+				s.log.Errorf("Unable to submit payload: unsupported payload type: %s", result.name)
+				continue
 			}
 
+			// Both asynchronous queues use the same counter, so responses from
+			// older submissions cannot overwrite an endpoint's newer status.
+			var generation uint64
+			if result.name != checks.ConnectionsCheckName {
+				generation = s.rtGeneration.Add(1)
+			}
+			forwarderPayload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})
+			responses, err := submitFn(forwarderPayload, payload.headers)
 			if err != nil {
 				s.log.Errorf("Unable to submit payload: %s", err)
 				continue
 			}
 
-			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				if updateRTStatus {
-					notifyRTStatusChange(s.rtNotifierChan, statuses)
-				}
+			if result.name == checks.ConnectionsCheckName {
+				// Connections retain ordered, blocking delivery across payloads.
+				readResponseStatuses(result.name, responses)
+				continue
 			}
+
+			s.wg.Add(1)
+			go func() {
+				defer s.wg.Done()
+				s.drainResponses(result.name, responses, generation)
+			}()
 		}
 	}
+}
+
+func (s *CheckSubmitter) drainResponses(checkName string, responses <-chan forwarder.Response, generation uint64) {
+	var submissionErrors int64
+	for response := range responses {
+		collectorStatus, hasError := decodeResponseStatus(checkName, response)
+		if hasError {
+			submissionErrors++
+		}
+		if collectorStatus != nil && s.realtimeUpdate[checkName] {
+			s.updateRTStatus(response.Domain, generation, collectorStatus)
+		}
+	}
+	status.AddSubmissionErrorCount(submissionErrors)
+}
+
+// updateRTStatus publishes the newest known status of every endpoint as soon
+// as one endpoint responds. Its generation guard is per domain, not per check.
+func (s *CheckSubmitter) updateRTStatus(domain string, generation uint64, collectorStatus *model.CollectorStatus) {
+	s.rtStatusMu.Lock()
+	defer s.rtStatusMu.Unlock()
+
+	if previous, ok := s.endpointRTStatuses[domain]; ok && previous.generation > generation {
+		return
+	}
+	s.endpointRTStatuses[domain] = endpointRTStatus{generation: generation, status: collectorStatus}
+
+	statuses := make([]*model.CollectorStatus, 0, len(s.endpointRTStatuses))
+	for _, current := range s.endpointRTStatuses {
+		statuses = append(statuses, current.status)
+	}
+	s.latestRTResponse = types.RTResponse{
+		Statuses: statuses,
+		Sequence: s.latestRTResponse.Sequence + 1,
+	}
+	notifyRTStatusChange(s.rtNotifierChan, s.latestRTResponse)
 }
 
 func (s *CheckSubmitter) logQueuesSize() {
@@ -441,9 +493,24 @@ func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 	}
 }
 
-func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {
+// notifyRTStatusChange replaces a pending event instead of dropping the newest
+// status when the runner is busy. Publications are serialized by rtStatusMu.
+func notifyRTStatusChange(rtNotifierChan chan types.RTResponse, latest types.RTResponse) {
 	select {
-	case rtNotifierChan <- statuses:
-	default: // Never block on the rtNotifierChan in case the runner has somehow stopped
+	case rtNotifierChan <- latest:
+		return
+	default:
+	}
+
+	select {
+	case pending := <-rtNotifierChan:
+		if pending.Sequence > latest.Sequence {
+			latest = pending
+		}
+	default: // The runner consumed the previous event in the meantime.
+	}
+	select {
+	case rtNotifierChan <- latest:
+	default: // Never wait for the runner to consume an update.
 	}
 }
