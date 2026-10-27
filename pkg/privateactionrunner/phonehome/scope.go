@@ -35,6 +35,13 @@ type scopedSource struct {
 // NewScopedSource adds AAA approval to every new start, regardless of saved identity.
 func NewScopedSource(rc Source, scope ScopeSource) Source { return &scopedSource{rc: rc, scope: scope} }
 
+// Release invalidates the current grant and stops requests while watching registrations.
+func (s *scopedSource) Release() {
+	if s.scope != nil {
+		s.scope.SetPARDiscoveryDemand(false)
+	}
+}
+
 func (s *scopedSource) Read(now time.Time) Observation {
 	rc := s.rc.Read(now)
 	if s.scope != nil {

@@ -54,6 +54,8 @@ func TestStateWireVocabulary(t *testing.T) {
 		ReasonPARScopeUnchecked:                   "par_scope_unchecked",
 		ReasonPARScopeWaitingForRCOrDemand:        "par_scope_waiting_for_rc_or_demand",
 		ReasonScopePresent:                        "scope_present",
+		ReasonSupervisorRegistrationChangePending: "supervisor_registration_change_pending",
+		ReasonSupervisorRegistrationUnavailable:   "supervisor_registration_unavailable",
 	}
 	for reason, want := range reasons {
 		got, err := json.Marshal(State{Reason: reason})
