@@ -49,6 +49,13 @@ else
   fi
 fi
 
+if [ "$(uname -s)" = Linux ]; then
+  case "$(uname -m)" in
+    aarch64) extra_args+=(--config=linux_arm64) ;;
+    x86_64) extra_args+=(--config=linux_x86_64) ;;
+  esac
+fi
+
 # Local developer remote cache selection (CI selects its own endpoint above).
 if [ -z "${CI-}" ]; then
   remote_cache_select="$(dirname "$0")/../bazel/tools/remote-cache-select.sh"
