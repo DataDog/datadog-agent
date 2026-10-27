@@ -374,6 +374,10 @@ The registry is the single source of truth for issue templates and built-in heal
 It is built once at startup from all registered issue modules and shared by the runner
 (for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
 
+### [comp/healthplatform/store/remote](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store/remote)
+
+Package remote defines the remote health-platform issue loader component.
+
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
@@ -394,7 +398,7 @@ Package status defines the interface for the health platform status component.
 
 Package store provides the interface for the health platform store component.
 The store is the central state owner: it receives issue reports, owns the
-in-memory issue map, persists state to disk, and exposes the local
+in-memory issue map, persists lifecycle state, and exposes the local
 /health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)

@@ -19,7 +19,11 @@ package(
     ],
 )
 
-VERSION = "1.4.5"
+# RELEASE names the release of github.com/0intro/openscap that
+# openscap.MODULE.bazel downloads, VERSION the upstream release it holds.
+RELEASE = "1.4.6-dd.20261022.1"
+
+VERSION = RELEASE.split("-")[0]
 
 package_metadata(
     name = "package_metadata",
@@ -28,9 +32,9 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
-        download_url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz",
+        download_url = "https://github.com/0intro/openscap/releases/download/v{version}/openscap-{version}.tar.gz",
         package = "openscap",
-        version = VERSION,
+        version = RELEASE,
     ),
 )
 
@@ -539,9 +543,7 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
-        # Use :openscap directly, not :openscap_pkg: these binaries are
-        # installed_files of openscap_pkg, so using it here would create a cycle.
-        ":openscap",
+        ":openscap_pkg",
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
         "@curl//:curl_pkg",
@@ -588,9 +590,7 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
-        # Use :openscap directly, not :openscap_pkg: these binaries are
-        # installed_files of openscap_pkg, so using it here would create a cycle.
-        ":openscap",
+        ":openscap_pkg",
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
         "@curl//:curl_pkg",
@@ -645,17 +645,30 @@ pkg_files(
 
 dd_cc_packaged(
     name = "openscap_pkg",
+    data = [
+        ":cpe_files",
+        ":openscap_sce_pkg",
+        ":xccdf-resources",
+    ],
     dest_dir = "embedded/lib",
     input = ":openscap",
-    installed_executables = {
-        ":oscap": "embedded/bin",
-        ":oscap-io": "embedded/bin",
-    },
-    installed_files = [
-        ":xccdf-resources",
-        ":cpe_files",
-    ],
-    version = "33.1.4",
+    version = "33.1.5",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "oscap_pkg",
+    dest_dir = "embedded/bin",
+    input = ":oscap",
+    mode = "0755",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "oscap-io_pkg",
+    dest_dir = "embedded/bin",
+    input = ":oscap-io",
+    mode = "0755",
     visibility = ["//visibility:public"],
 )
 
@@ -663,15 +676,15 @@ dd_cc_packaged(
     name = "openscap_sce_pkg",
     dest_dir = "embedded/lib",
     input = ":openscap_sce",
-    version = "33.1.4",
+    version = "33.1.5",
     visibility = ["//visibility:public"],
 )
 
 dd_collect_dependencies(
     name = "_dep_libs",
     srcs = [
-        ":openscap_pkg",
-        ":openscap_sce_pkg",
+        ":oscap-io_pkg",
+        ":oscap_pkg",
     ],
     visibility = ["//visibility:private"],
 )

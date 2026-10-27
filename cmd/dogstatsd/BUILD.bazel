@@ -139,3 +139,13 @@ dd_agent_go_binary(
     gotags = DOGSTATSD_TAGS,
     visibility = ["//visibility:public"],
 )
+
+dd_agent_go_binary(
+    name = "dogstatsd_static",
+    embed = [":dogstatsd_lib"],
+    gotags = DOGSTATSD_TAGS,
+    static = "on",
+    # Only needed for the Linux container images.
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

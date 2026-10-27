@@ -11,32 +11,31 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 var all []*module.Factory
 
 var moduleOrder = []types.ModuleName{
-	config.EBPFModule,
-	config.NetworkTracerModule,
-	config.TCPQueueLengthTracerModule,
-	config.OOMKillProbeModule,
-	config.EventMonitorModule, // there is a dependency from EventMonitor -> NetworkTracer, so EventMonitor has to follow NetworkTracer
-	config.ProcessModule,
-	config.DynamicInstrumentationModule, // dynamic instrumentation needs to be after EventMonitor
-	config.LanguageDetectionModule,
-	config.ComplianceModule,
-	config.PingModule,
-	config.TracerouteModule,
-	config.DiscoveryModule,
-	config.GPUMonitoringModule, // GPU monitoring needs to be initialized after EventMonitor, so that we have the event consumer ready
-	config.SoftwareInventoryModule,
-	config.NotableEventsModule,
-	config.PrivilegedLogsModule,
-	config.InjectorModule,
-	config.NoisyNeighborModule,
-	config.LogonDurationModule,
+	types.EBPFModule,
+	types.NetworkTracerModule,
+	types.TCPQueueLengthTracerModule,
+	types.OOMKillProbeModule,
+	types.EventMonitorModule, // there is a dependency from EventMonitor -> NetworkTracer, so EventMonitor has to follow NetworkTracer
+	types.ProcessModule,
+	types.DynamicInstrumentationModule, // dynamic instrumentation needs to be after EventMonitor
+	types.LanguageDetectionModule,
+	types.ComplianceModule,
+	types.PingModule,
+	types.TracerouteModule,
+	types.DiscoveryModule,
+	types.GPUMonitoringModule, // GPU monitoring needs to be initialized after EventMonitor, so that we have the event consumer ready
+	types.SoftwareInventoryModule,
+	types.NotableEventsModule,
+	types.PrivilegedLogsModule,
+	types.InjectorModule,
+	types.NoisyNeighborModule,
+	types.LogonDurationModule,
 }
 
 //nolint:unused // may be unused with certain build tag combinations

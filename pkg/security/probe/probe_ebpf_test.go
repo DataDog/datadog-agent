@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -157,6 +159,24 @@ func TestGetAndPutBackPoolEventRoundTrip(t *testing.T) {
 		assert.Equal(t, uint64(0), event2.TimestampRaw)
 		assert.Equal(t, p.fieldHandlers, event2.FieldHandlers)
 	})
+}
+
+func TestNewLoadModuleEventFromProcFSSnapshotTimes(t *testing.T) {
+	modulePath := filepath.Join(t.TempDir(), "mod.ko")
+	require.NoError(t, os.WriteFile(modulePath, nil, 0o644))
+	mtime := time.Date(2024, 5, 6, 7, 8, 9, 123456789, time.UTC)
+	require.NoError(t, os.Chtimes(modulePath, mtime, mtime))
+	var st unix.Stat_t
+	require.NoError(t, unix.Stat(modulePath, &st))
+
+	timeResolver, err := ktime.NewResolver()
+	require.NoError(t, err)
+	p := newTestEBPFProbe()
+	p.Resolvers = &resolvers.EBPFResolvers{TimeResolver: timeResolver}
+
+	event := p.newLoadModuleEventFromProcFSSnapshot(utils.ProcFSModule{Name: "mod"}, modulePath, newSyntheticUnknownLoaderEntry())
+	assert.Equal(t, uint64(st.Ctim.Nano()), event.LoadModule.File.CTime)
+	assert.Equal(t, uint64(st.Mtim.Nano()), event.LoadModule.File.MTime)
 }
 
 func TestSameProcessAsCached(t *testing.T) {

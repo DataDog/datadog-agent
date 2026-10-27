@@ -1275,6 +1275,10 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+				// The kernel runs a script through its interpreter, which LinuxBinprm names.
+				if event.Exec.Process.HasInterpreter() {
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.LinuxBinprm.FileEvent)
+				}
 			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
 				// Resolve the path on a copy of the file, which keeps the error of a
 				// path the SBOM resolver fails to resolve off the event: the v1
@@ -2213,6 +2217,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		// the process remains in its previous cgroup if the write failed
+		if event.CgroupWrite.Retval < 0 {
 			return false
 		}
 		pid := event.CgroupWrite.Pid
@@ -4477,8 +4485,8 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 		event.LoadModule.File.FileFields.Inode = fileStats.Ino
 		event.LoadModule.File.FileFields.UID = fileStats.Uid
 		event.LoadModule.File.FileFields.GID = fileStats.Gid
-		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano())
 		event.LoadModule.File.Mode = fileStats.Mode
 		event.LoadModule.File.Inode = fileStats.Ino
 		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor

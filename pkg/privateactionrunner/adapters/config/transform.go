@@ -145,10 +145,11 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		}
 	}
 
-	// When the kubeactions subsystem is enabled, auto-allow its bundle so the
-	// kubernetes-actions backend (dispatching via wf-actions-server) works
-	// without operators having to set actions_allowlist manually.
-	if config.GetBool("kubeactions.enabled") {
+	// When the kubeactions subsystem is enabled and its Private Action Runner
+	// delivery path is on, auto-allow its bundle so the kubernetes-actions
+	// backend (dispatching via wf-actions-server) works without operators having
+	// to set actions_allowlist manually.
+	if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.private_action_runner.enabled") {
 		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 

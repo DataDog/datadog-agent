@@ -41,6 +41,7 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | Name                                   | Values            | Default   | Description                                                                                                |
 |:---------------------------------------|:------------------|:----------|:-----------------------------------------------------------------------------------------------------------|
 | `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
+| `hostprofiler.send_error_frames` | bool   | `false` | Includes unwind error frames in profiles for troubleshooting. |
 
 ### Host Profiler self-profiling
 

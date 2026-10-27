@@ -499,7 +499,7 @@ func wrapHPAFunc(f func(*autoscalingv2.HorizontalPodAutoscaler) *metric.Family) 
 // enrichment.
 func NewExtendedHorizontalPodAutoscalerFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &extendedHPAFactory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

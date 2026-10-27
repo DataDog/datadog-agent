@@ -14,7 +14,7 @@ require (
 
 require (
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect

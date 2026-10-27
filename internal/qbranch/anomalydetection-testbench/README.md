@@ -94,6 +94,14 @@ behavior across two runs without being affected by the correlator output.
 | `holt_residual` | disabled | Holt forecasting residual detector |
 | `tukey_biweight` | disabled | Robust location and scale detector using Tukey biweight |
 
+Headless streaming uses production's detector-derived point-count and time
+retention limits (120 points and 1,816 seconds for the default BOCPD window).
+Slowly sampled metrics can therefore retain fewer points, just as in production.
+Retained replay remains unbounded and serves as a diagnostic reference; identical
+detections between the two modes are not guaranteed.
+For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
+replay profile; an explicit component config otherwise uses production defaults.
+
 ### Correlators
 
 | Name | Default | Description |
@@ -321,25 +329,35 @@ Headless runs stream by default. Metric and log parquet readers are merged into
 one timestamp-ordered observation stream. Each observation is ingested
 synchronously, detector/correlator analysis advances with the same scheduler as
 the live Observer, and an end-of-input flush analyzes the final timestamp. The
-stream uses the production storage limits, including the default 120-second
-point-retention window, so observation memory is bounded by the active window
-and series cardinality rather than total scenario length.
+stream uses both production point-count and time limits derived from the enabled
+detectors, retaining one additional pending scheduler bucket. Observation memory
+remains bounded by detector windows and series cardinality. Streaming also uses
+production defaults for series capacity, the eviction floor, inactivity TTL, and
+inactivity-check cadence (five minutes for both inactivity settings). Idle-series
+eviction removes the associated detector state through the same engine path.
+These are production defaults; deployment-specific Agent storage overrides are
+not automatically imported into the testbench.
 
 Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an
 extreme number of results can therefore still require significant memory.
 
-Streaming keeps metric rows in a bounded five-second reorder window because
-concurrent GenSim collection can write slightly late samples. Log ordering is
-validated at the Observer's one-second scheduling resolution. Recordings with
-disorder beyond those bounds fail descriptively instead of silently producing
-late points.
+Streaming keeps metric and log rows in five-second reorder windows, then merges
+both streams chronologically. Logs are ordered at millisecond precision; equal
+timestamps retain their input order within each stream. Rows more than five
+seconds behind the latest timestamp in their stream fail descriptively. Use
+`--retain-parquet` for recordings requiring a larger reorder window. This
+normalizes event-time order rather than reproducing live arrival order.
 
 Interactive runs, and headless runs with `--retain-parquet`, use the retained
 replay pipeline:
 
-1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.
-2. **Replay** — `ReplayStoredData` resets analysis state and walks every stored timestamp.
+1. **Load** — retain and sort the raw parquet rows in memory.
+2. **Replay** — merge metrics and logs chronologically, advancing the same scheduler as streaming while retaining unbounded metric history. Extractor cleanup and baseline qualification happen during replay, so future logs cannot delete series before detectors analyze them.
+
+ScanMW and ScanWelch schedule scans from newly visible completed buckets, not
+storage-write counters or retained point counts. Their counters survive point
+eviction, and preloaded future observations do not advance the scan schedule.
 
 The retained path supports interactive component toggles and remains available
 as a compatibility fallback, but its memory scales with the full scenario.
