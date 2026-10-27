@@ -10,7 +10,7 @@ package capture
 import (
 	"bytes"
 	"context"
-	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -72,9 +72,7 @@ func TestApplyDefaults(t *testing.T) {
 // Done must close when the capture ends on its own, so callers return as soon
 // as the duration elapses instead of waiting out their own timeout.
 func TestDoneClosesWhenDurationElapses(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skip("opening a libpcap handle requires root")
-	}
+	skipUnlessCanCapture(t)
 
 	c, err := newCapturer(CaptureConfig{Output: &bytes.Buffer{}, Interface: "lo", Duration: time.Second})
 	require.NoError(t, err)
@@ -86,4 +84,17 @@ func TestDoneClosesWhenDurationElapses(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Done was not closed after the capture duration elapsed")
 	}
+}
+
+// skipUnlessCanCapture skips t unless the process can open a live capture.
+// libpcap captures through an AF_PACKET socket, so the test opens one first.
+// Running as root is not enough: Bazel's test sandbox runs tests as root in a
+// user namespace, which cannot open such a socket on the host's interfaces.
+func skipUnlessCanCapture(t *testing.T) {
+	t.Helper()
+	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, 0)
+	if err != nil {
+		t.Skipf("opening a live capture requires CAP_NET_RAW: %s", err)
+	}
+	syscall.Close(fd)
 }

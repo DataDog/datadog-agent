@@ -13,8 +13,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -26,9 +26,7 @@ import (
 // quiet interface answers within the caller's response-header timeout instead
 // of holding the headers until the first packet or the end of the capture.
 func TestHandleCaptureSendsHeadersBeforeFirstPacket(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skip("opening a capture handle requires root")
-	}
+	skipUnlessCanCapture(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(handleCapture))
 	t.Cleanup(srv.Close)
@@ -51,9 +49,7 @@ func TestHandleCaptureSendsHeadersBeforeFirstPacket(t *testing.T) {
 // -race: on a busy interface the first packets are written while the handler
 // is still flushing the response headers.
 func TestHandleCaptureFlushDoesNotRaceWithPackets(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skip("opening a capture handle requires root")
-	}
+	skipUnlessCanCapture(t)
 
 	conn, err := net.Dial("udp", "127.0.0.1:9")
 	require.NoError(t, err)
@@ -128,4 +124,17 @@ func TestSetWriteDeadline(t *testing.T) {
 
 	// A writer without deadline support is left as is.
 	setWriteDeadline(httptest.NewRecorder(), deadline)
+}
+
+// skipUnlessCanCapture skips t unless the process can open a live capture.
+// libpcap captures through an AF_PACKET socket, so the test opens one first.
+// Running as root is not enough: Bazel's test sandbox runs tests as root in a
+// user namespace, which cannot open such a socket on the host's interfaces.
+func skipUnlessCanCapture(t *testing.T) {
+	t.Helper()
+	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, 0)
+	if err != nil {
+		t.Skipf("opening a live capture requires CAP_NET_RAW: %s", err)
+	}
+	syscall.Close(fd)
 }
