@@ -18,6 +18,7 @@ import (
 	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	localKubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -50,7 +51,13 @@ func Apply(ctx *pulumi.Context) error {
 
 	// Deploy testing workload
 	if awsEnv.TestingWorkloadDeploy() {
-		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", true, agentDependency); err != nil {
+		// The redis workload creates a VerticalPodAutoscaler, whose CRD isn't installed in a kind cluster by default
+		vpaCrd, err := vpa.DeployCRD(awsEnv, kindKubeProvider)
+		if err != nil {
+			return fmt.Errorf("failed to deploy VPA CRD: %w", err)
+		}
+
+		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", true, agentDependency, utils.PulumiDependsOn(vpaCrd)); err != nil {
 			return fmt.Errorf("failed to install redis: %w", err)
 		}
 	}
