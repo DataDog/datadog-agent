@@ -46,13 +46,6 @@ namespace Datadog.AgentCustomActions
                     RegistryValueProperty(_session, ConfigureUserCustomActions.KeepRightsPropertyName, subkey, KeepRightsRegistryValueName);
                 }
 
-                // Each outer transaction owns its service-startup snapshot. The old MSI
-                // invoked by RemoveExistingProducts must not create a second snapshot.
-                if (string.IsNullOrEmpty(_session["UPGRADINGPRODUCTCODE"]))
-                {
-                    _session["DD_SERVICE_STARTUP_ID"] = Guid.NewGuid().ToString("N");
-                }
-
                 GetWindowsBuildVersion();
                 SetDDDriverRollback();
                 SetRemoveFolderExProperties();
