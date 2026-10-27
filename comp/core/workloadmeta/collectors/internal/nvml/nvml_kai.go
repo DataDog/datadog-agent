@@ -286,61 +286,91 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 //
 // KAI assigns the same share of every GPU a pod gets. The fraction is read
 // from the gpu-fraction annotation when the pod requested one, as that is the
-// fraction the pod asked for and KAI accounts for. Otherwise the pod requested an amount of memory,
-// which is turned into a fraction of each GPU's memory, capped at the whole
-// GPU: from the per-container gpu-memory.request annotation, or from the
-// gpu-memory annotation on KAI versions that do not write the former. An
+// fraction the pod asked for and KAI accounts for. The memory is read from the
+// per-container gpu-memory.request annotation, or from the gpu-memory
+// annotation on KAI versions that do not write the former, as that is the
+// memory KAI limits the container to. Whichever of the two the pod did not
+// request is derived from the other and the GPU's memory, see kaiGPUShare. An
 // invalid value is skipped in favour of the next source. A GPU whose share
-// cannot be determined still gets an entry, with a zero fraction, so that the
-// container is not taken for having it whole.
+// cannot be fully determined still gets an entry, with the unknown part left
+// at zero, so that the container is not taken for having it whole.
 func kaiGPUShares(pod *workloadmeta.KubernetesPod, containerName string, uuids []string, deviceCache ddnvml.DeviceCache) map[string]workloadmeta.GPUShare {
+	var fraction float64
+	if raw := pod.Annotations[kaiGPUFractionAnnotation]; raw != "" {
+		parsed, err := strconv.ParseFloat(raw, 64)
+		if err == nil && parsed > 0 && parsed <= 1 {
+			fraction = parsed
+		} else {
+			warnInvalidKAIShare(pod, kaiGPUFractionAnnotation, raw)
+		}
+	}
+	memory := kaiRequestedGPUMemory(pod, containerName)
+
 	shares := make(map[string]workloadmeta.GPUShare, len(uuids))
 	for _, uuid := range uuids {
-		shares[uuid] = workloadmeta.GPUShare{}
-	}
-
-	if raw := pod.Annotations[kaiGPUFractionAnnotation]; raw != "" {
-		fraction, err := strconv.ParseFloat(raw, 64)
-		if err == nil && fraction > 0 && fraction <= 1 {
-			for _, uuid := range uuids {
-				shares[uuid] = workloadmeta.GPUShare{Fraction: fraction}
-			}
-			return shares
-		}
-		warnInvalidKAIShare(pod, kaiGPUFractionAnnotation, raw)
-	}
-
-	requested, found := kaiRequestedGPUMemory(pod, containerName)
-	if !found {
-		return shares
-	}
-	for _, uuid := range uuids {
-		// The UUIDs were validated against NVML by kaiGPUGroupReservations, so
-		// a lookup failure here means the device left between the two calls.
-		device, err := deviceCache.GetByUUID(uuid)
-		if err != nil {
-			log.Debugf("KAI: cannot get GPU %s to compute the share of pod %s/%s: %v", uuid, pod.Namespace, pod.Name, err)
-			continue
-		}
-		total := device.GetDeviceInfo().Memory
-		if total == 0 {
-			log.Debugf("KAI: GPU %s reports no memory, so the share of pod %s/%s on it cannot be computed", uuid, pod.Namespace, pod.Name)
-			continue
-		}
-		shares[uuid] = workloadmeta.GPUShare{Fraction: min(1, float64(requested)/float64(total))}
+		shares[uuid] = kaiGPUShare(pod, uuid, fraction, memory, deviceCache)
 	}
 	return shares
 }
 
+// kaiGPUShare returns the share of the given GPU assigned to a container that
+// requested the given fraction or memory, either of them 0 when not requested.
+// The missing one is derived from the GPU's memory: a fraction of it, rounded
+// down to a byte, or a memory request turned into a fraction as KAI does, see
+// kaiAssignedFraction. Both are capped at the whole GPU.
+func kaiGPUShare(pod *workloadmeta.KubernetesPod, uuid string, fraction float64, memory uint64, deviceCache ddnvml.DeviceCache) workloadmeta.GPUShare {
+	share := workloadmeta.GPUShare{Fraction: fraction, Memory: memory}
+	if (fraction > 0) == (memory > 0) {
+		// Both requested, so there is nothing to derive, or neither, so
+		// there is nothing to derive from.
+		return share
+	}
+
+	// The UUIDs were validated against NVML by kaiGPUGroupReservations, so a
+	// lookup failure here means the device left between the two calls.
+	device, err := deviceCache.GetByUUID(uuid)
+	if err != nil {
+		log.Debugf("KAI: cannot get GPU %s to compute the share of pod %s/%s: %v", uuid, pod.Namespace, pod.Name, err)
+		return share
+	}
+	total := device.GetDeviceInfo().Memory
+	if total == 0 {
+		log.Debugf("KAI: GPU %s reports no memory, so the share of pod %s/%s on it cannot be computed", uuid, pod.Namespace, pod.Name)
+		return share
+	}
+
+	if fraction > 0 {
+		share.Memory = uint64(fraction * float64(total))
+	} else {
+		share.Memory = min(memory, total)
+		share.Fraction = kaiAssignedFraction(memory, total)
+	}
+	return share
+}
+
+// kaiAssignedFraction returns the fraction of a GPU with the given total memory
+// that KAI assigns to a container requesting the given memory, both in bytes.
+// KAI rounds the exact fraction up to two decimals, and computes it from MiB
+// (getGpuMemoryFractionalOnNode in its scheduler); doing the same keeps the
+// fraction equal to the one KAI assigned rather than to the one requested.
+func kaiAssignedFraction(memory, total uint64) float64 {
+	totalMiB := total >> 20
+	if totalMiB == 0 {
+		return 0
+	}
+	exactFraction := float64(memory>>20) / float64(totalMiB)
+	return min(1, math.Ceil(exactFraction*100)/100)
+}
+
 // kaiRequestedGPUMemory returns the memory, in bytes, that the pod's
-// fractional container requests on each of its GPUs, and whether it could be
+// fractional container requests on each of its GPUs, or 0 when it cannot be
 // read: from the per-container gpu-memory.request annotation, else from the
 // gpu-memory annotation.
-func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string) (uint64, bool) {
+func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string) uint64 {
 	key := kaiContainerAnnotationPrefix + containerName + kaiGPUMemoryRequestSuffix
 	if raw := pod.Annotations[key]; raw != "" {
 		if requested, ok := parseMemoryQuantity(raw); ok {
-			return requested, true
+			return requested
 		}
 		warnInvalidKAIShare(pod, key, raw)
 	}
@@ -348,12 +378,12 @@ func kaiRequestedGPUMemory(pod *workloadmeta.KubernetesPod, containerName string
 	if raw := pod.Annotations[kaiGPUMemoryAnnotation]; raw != "" {
 		mib, err := strconv.ParseUint(raw, 10, 64)
 		if err == nil && mib > 0 && mib <= math.MaxUint64>>20 {
-			return mib << 20, true
+			return mib << 20
 		}
 		warnInvalidKAIShare(pod, kaiGPUMemoryAnnotation, raw)
 	}
 
-	return 0, false
+	return 0
 }
 
 // parseMemoryQuantity parses a positive memory amount written as a Kubernetes

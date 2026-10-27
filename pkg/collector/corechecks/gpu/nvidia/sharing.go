@@ -15,13 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// sharingFractionMetricName is the metric holding the fraction of a device
-// assigned to a container.
-const sharingFractionMetricName = "device.sharing_fraction"
+const (
+	// sharingFractionMetricName is the metric holding the fraction of a device
+	// assigned to a container.
+	sharingFractionMetricName = "device.sharing_fraction"
+	// sharingMemoryMetricName is the metric holding the memory of a device
+	// that a container is allowed to use.
+	sharingMemoryMetricName = "device.sharing_memory"
+)
 
 // sharingCollector reports the share of its device assigned to each container
 // that shares it with other workloads, as the NVML workloadmeta collector
-// publishes it in workloadmeta.Container.GPUShares.
+// publishes it in workloadmeta.Container.GPUShares: its fraction of the device
+// and the memory it is allowed to use.
 type sharingCollector struct {
 	device ddnvml.Device
 	wmeta  workloadmeta.Component
@@ -48,18 +54,23 @@ func (c *sharingCollector) Device() ddnvml.Device {
 	return c.device
 }
 
-// Collect returns, for each container assigned a share of the device, a sample
-// with that share, associated with that container only, so that each fraction
-// is attributable to one container. Containers without a known share get
-// nothing: whether they have the device to themselves or share it some other
-// way, such as time-slicing, cannot be told apart reliably.
+// Collect returns, for each container assigned a share of the device, samples
+// with its fraction and its memory, associated with that container only, so
+// that each share is attributable to one container. Containers without a known
+// share get nothing: whether they have the device to themselves or share it
+// some other way, such as time-slicing, cannot be told apart reliably.
 func (c *sharingCollector) Collect() ([]Sample, error) {
 	deviceUUID := c.device.GetDeviceInfo().UUID
 
 	var samples []Sample
 	for _, container := range c.wmeta.ListContainersWithFilter(hasGPUShares) {
-		if share := container.GPUShares[deviceUUID]; share.Fraction > 0 {
-			samples = append(samples, NewMetric(sharingFractionMetricName, share.Fraction, metrics.GaugeType, Low, nil, []workloadmeta.EntityID{container.EntityID}))
+		share := container.GPUShares[deviceUUID]
+		workloads := []workloadmeta.EntityID{container.EntityID}
+		if share.Fraction > 0 {
+			samples = append(samples, NewMetric(sharingFractionMetricName, share.Fraction, metrics.GaugeType, Low, nil, workloads))
+		}
+		if share.Memory > 0 {
+			samples = append(samples, NewMetric(sharingMemoryMetricName, float64(share.Memory), metrics.GaugeType, Low, nil, workloads))
 		}
 	}
 	return samples, nil

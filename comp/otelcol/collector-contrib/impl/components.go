@@ -19,6 +19,7 @@ import (
 	ecsobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver"
 	hostobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver"
 	k8sobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver"
+	opampextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension"
 	pprofextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
 	filestorage "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
 	attributesprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
@@ -95,6 +96,7 @@ func components() (otelcol.Factories, error) {
 		hostobserver.NewFactory(),
 		k8sobserver.NewFactory(),
 		k8sleaderelector.NewFactory(),
+		opampextension.NewFactory(),
 		datadogextension.NewFactory(),
 		filestorage.NewFactory(),
 	)
@@ -110,6 +112,7 @@ func components() (otelcol.Factories, error) {
 		hostobserver.NewFactory().Type():         "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.163.0",
 		k8sobserver.NewFactory().Type():          "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.163.0",
 		k8sleaderelector.NewFactory().Type():     "github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.163.0",
+		opampextension.NewFactory().Type():       "github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension v0.163.0",
 		datadogextension.NewFactory().Type():     "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.0",
 		filestorage.NewFactory().Type():          "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.163.0",
 	})
