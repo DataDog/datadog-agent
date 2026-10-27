@@ -130,8 +130,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261021152136-830ea404b524 h1:l/EuC/dgoewewZ7fH8v9Vmn/tRae4a3hbLAft373grs=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261021152136-830ea404b524/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2 h1:DMcXVtUo0r4nkrWveBpGVJh4IpV8c0/2Dhn7b2eX3uQ=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
 github.com/DataDog/rshell v0.0.30 h1:EKMbkW0TBs+McC5XM6Ixt4gMOfTz1nLm1QDL6vgn3h4=
 github.com/DataDog/rshell v0.0.30/go.mod h1:a3/ZRNrMB/MQFuTIJf/xCtnBdnQZY9w3goeU1yEWKyU=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
