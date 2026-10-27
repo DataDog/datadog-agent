@@ -6,6 +6,8 @@
 // Package phonehome defines the core-owned PAR startup gate.
 package phonehome
 
+import "strconv"
+
 // team: action-platform
 
 // Component owns the core phone-home lifecycle.
@@ -51,4 +53,19 @@ const (
 	ReasonSupervisorStartAcknowledged         Reason = "supervisor_start_acknowledged"
 	ReasonSupervisorUnavailable               Reason = "supervisor_unavailable"
 	ReasonUnsupportedConfiguration            Reason = "unsupported_configuration"
+	ReasonDiscoveryRateLimited                Reason = "discovery_rate_limited"
+	ReasonDiscoveryUnavailable                Reason = "discovery_unavailable"
+	ReasonInvalidCredentials                  Reason = "invalid_credentials"
+	ReasonInvalidDiscoveryResponse            Reason = "invalid_discovery_response"
+	ReasonInvalidEndpoint                     Reason = "invalid_endpoint"
+	ReasonMissingEnrollmentScope              Reason = "missing_enrollment_scope"
+	ReasonPARScopeExpired                     Reason = "par_scope_expired"
+	ReasonPARScopeUnchecked                   Reason = "par_scope_unchecked"
+	ReasonPARScopeWaitingForRCOrDemand        Reason = "par_scope_waiting_for_rc_or_demand"
+	ReasonScopePresent                        Reason = "scope_present"
 )
+
+// DiscoveryHTTPReason preserves the status code for unexpected discovery responses.
+func DiscoveryHTTPReason(statusCode int) Reason {
+	return Reason("discovery_http_" + strconv.Itoa(statusCode))
+}
