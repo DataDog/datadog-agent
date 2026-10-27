@@ -86,8 +86,7 @@ case "$arch" in
 esac
 
 # The legacy Unix Agent cannot coexist with Agent 7; fail before downloading
-# anything. The BFF's preinst enforces the same check for installs without
-# this script.
+# anything.
 if /usr/bin/lslpp -Lq datadog-unix-agent >/dev/null 2>&1; then
     printf '%bERROR: the legacy Datadog Unix Agent (datadog-unix-agent) is installed, and Agent 7 cannot coexist with it.%b\n' "$RED" "$NC" >&2
     printf 'Removing the Unix Agent also deletes its configuration, including /etc/datadog-agent/datadog.yaml\n' >&2
