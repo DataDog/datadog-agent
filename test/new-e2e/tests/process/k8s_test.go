@@ -223,19 +223,29 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 }
 
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
-	agent := getAgentPod(t, cluster.Client())
 	// set the wait interval as workloadmeta takes some time to initialize for container data
 	// https://datadoghq.atlassian.net/browse/PROCS-4157
 	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF agent processchecks %s -w 10s --json", check)
 
-	// The log level needs to be overridden as the pod has an ENV var set.
-	// This is so we get just json back from the check
-	stdout, stderr, err := cluster.KubernetesClient.
-		PodExec(agent.Namespace, agent.Name, "agent", []string{"bash", "-c", cmd})
-	assert.NoError(t, err)
-	assert.Empty(t, stderr)
+	// The exec occasionally returns an empty stdout without any error, so retry until the check
+	// returns valid JSON
+	// https://datadoghq.atlassian.net/browse/CXP-2804
+	var checkOutput string
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		agent := getAgentPod(c, cluster.Client())
 
-	return stdout
+		// The log level needs to be overridden as the pod has an ENV var set.
+		// This is so we get just json back from the check
+		stdout, stderr, err := cluster.KubernetesClient.
+			PodExec(agent.Namespace, agent.Name, "agent", []string{"bash", "-c", cmd})
+		require.NoError(c, err, "failed to exec %q\nstdout: %q\nstderr: %q", cmd, stdout, stderr)
+		require.Empty(c, stderr, "unexpected stderr from %q\nstdout: %q", cmd, stdout)
+		require.True(c, json.Valid([]byte(stdout)), "invalid JSON output from %q\nstdout: %q\nstderr: %q", cmd, stdout, stderr)
+
+		checkOutput = stdout
+	}, 2*time.Minute, 10*time.Second)
+
+	return checkOutput
 }
 
 func k8sAgentStatus(t assert.TestingT, cluster *components.KubernetesCluster) AgentStatus {

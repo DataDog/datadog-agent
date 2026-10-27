@@ -1311,13 +1311,17 @@ type ImageProcessKey struct {
 
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string) int {
 	totalEvicted := 0
 
-	// Resolve once here so every node uses the same ID without querying the registry repeatedly.
-	// If the tag is not registered (e.g. no events have been seen for it), ID is 0 and the
-	// process-cache protection path is a no-op — consistent with nodes having no entry for that tag.
-	profileImageTagID := at.GetImageTagID(profileImageTag)
+	// A profile is shared by all the tags of an image: the process cache is looked up with the tag of each
+	// seen entry of a node, so map the IDs back to their tags once for the whole tree.
+	imageTags := make(map[uint64]string, len(at.imageTagIDs))
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse {
+			imageTags[uint64(i)+1] = entry.tag
+		}
+	}
 
 	// Iterate through all process nodes and evict unused nodes
 	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
@@ -1326,7 +1330,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			continue
 		}
 
-		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
 

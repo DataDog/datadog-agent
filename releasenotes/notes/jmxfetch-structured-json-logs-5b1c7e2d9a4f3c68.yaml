@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    When ``log_format_json`` is enabled, JMXFetch logs now include separate
+    ``agent``, ``time``, ``level``, ``thread``, ``logger`` and ``msg`` fields,
+    instead of embedding the timestamp and log level in the ``msg`` field.

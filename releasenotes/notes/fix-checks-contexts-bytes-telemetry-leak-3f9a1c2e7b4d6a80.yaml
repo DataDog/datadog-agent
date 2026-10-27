@@ -1,0 +1,5 @@
+fixes:
+  - |
+    When ``check_sampler_context_metrics`` is enabled, the
+    ``aggregator.checks_contexts_bytes_by_mtype`` telemetry metric no longer
+    keeps series for check instances that have been unscheduled.

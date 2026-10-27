@@ -34,6 +34,7 @@ const (
 // these.
 const (
 	OpenSamplesMaxEntries    = 20000
+	BindSamplesMaxEntries    = 10000
 	ConnectSamplesMaxEntries = 10000
 	SyscallSamplesMaxEntries = 20000
 	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
@@ -225,6 +226,7 @@ type MapSpecEditorOpts struct {
 	CgroupSocketEnabled           bool
 	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
+	EventSamplingBindEnabled      bool
 	EventSamplingConnectEnabled   bool
 	EventSamplingSyscallsEnabled  bool
 	BasenameApproversSize         int
@@ -318,6 +320,13 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
 			MaxEntries: OpenSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingBindEnabled {
+		editors["bind_samples"] = manager.MapSpecEditor{
+			MaxEntries: BindSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -451,6 +460,22 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 
 	if opts.UseSyscallTaskStorage {
 		editors["syscalls"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+		editors["capabilities_contexts"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+		editors["dentry_resolver_inputs"] = manager.MapSpecEditor{
 			Type:       ebpf.TaskStorage,
 			MaxEntries: 0,
 			KeySize:    4, // sizeof(unsigned int)
