@@ -1725,8 +1725,22 @@ snmp_traps:
 		"my_key",
 	}, handles)
 
+	// paths from origins other than datadog.yaml are prefixed with the origin, and listed after datadog.yaml
+	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), "postgres.yaml", "", "", false)
+	require.NoError(t, err)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), "apache.yaml", "", "", false)
+	require.NoError(t, err)
+
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"apache.yaml:token", "postgres.yaml:instances.0.password"}, paths[13:])
+	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
+
 	// removing the origin removes its paths and handles
 	resolver.RemoveOrigin("datadog.yaml")
+	resolver.RemoveOrigin("postgres.yaml")
+	resolver.RemoveOrigin("apache.yaml")
 	paths, handles = resolver.GetPathsAndHandles()
 	assert.Empty(t, paths)
 	assert.Empty(t, handles)

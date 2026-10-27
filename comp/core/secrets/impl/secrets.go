@@ -821,12 +821,16 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 	}
 }
 
+// mainConfigOrigin is the origin of secrets found in the main Agent configuration
+const mainConfigOrigin = "datadog.yaml"
+
 // GetPathsAndHandles returns the setting path and handle of every place a secret appears in the configuration
 func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
 	type pathAndHandle struct {
+		origin string
 		path   []string
 		handle string
 	}
@@ -834,13 +838,23 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	entries := []pathAndHandle{}
 	for handle, contexts := range r.origin {
 		for _, secretCtx := range contexts {
-			entries = append(entries, pathAndHandle{path: secretCtx.path, handle: handle})
+			entries = append(entries, pathAndHandle{origin: secretCtx.origin, path: secretCtx.path, handle: handle})
 		}
 	}
 
 	// sort for a deterministic output
+	// NOTE: entries from datadog.yaml come first, followed by other origins sorted by name
 	// NOTE: numeric indexes are compared numerically (example: "list.2" precedes "list.10")
 	slices.SortStableFunc(entries, func(a, b pathAndHandle) int {
+		if a.origin != b.origin {
+			if a.origin == mainConfigOrigin {
+				return -1
+			}
+			if b.origin == mainConfigOrigin {
+				return 1
+			}
+			return strings.Compare(a.origin, b.origin)
+		}
 		for i := 0; i < len(a.path) && i < len(b.path); i++ {
 			if a.path[i] == b.path[i] {
 				continue
@@ -861,7 +875,12 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	paths := make([]string, 0, len(entries))
 	handles := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		paths = append(paths, strings.Join(entry.path, "."))
+		path := strings.Join(entry.path, ".")
+		// paths from datadog.yaml are kept as is, other origins are prefixed with "<origin>:"
+		if entry.origin != mainConfigOrigin {
+			path = entry.origin + ":" + path
+		}
+		paths = append(paths, path)
 		handles = append(handles, entry.handle)
 	}
 	return paths, handles
