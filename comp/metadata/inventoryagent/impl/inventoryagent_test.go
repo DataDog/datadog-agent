@@ -444,9 +444,9 @@ func TestInitData(t *testing.T) {
 		"eks_fargate":                      true,
 		"synthetics.collector.enabled":     true,
 
-		"fips.enabled":              true,
-		"logs_enabled":              true,
-		"compliance_config.enabled": true,
+		"fips.enabled":                                true,
+		"logs_enabled":                                true,
+		"compliance_config.enabled":                   true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
 		"ec2_prefer_imdsv2":                           true,
@@ -1023,7 +1023,7 @@ func TestGetPayloadFilesMetadata(t *testing.T) {
 	defer func() {
 		fetchSystemProbeFilename = originalFetchSystemProbeFilename
 	}()
-	fetchSystemProbeFilename = func(opt option.Option[sysprobeconfig.Component]) string {
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
 		return filepath.Join(tmpDir, "system-probe.yaml")
 	}
 
@@ -1088,7 +1088,7 @@ func TestGetPayloadFilesMetadataWithoutMainConfig(t *testing.T) {
 	defer func() {
 		fetchSystemProbeFilename = originalFetchSystemProbeFilename
 	}()
-	fetchSystemProbeFilename = func(opt option.Option[sysprobeconfig.Component]) string {
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string {
 		return systemProbeConfigPath
 	}
 
