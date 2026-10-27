@@ -1,6 +1,6 @@
 # Add and document Agent settings
 
-Read the [schema overview](../../architecture/agent-schema/index.md) for node types and the [keyword reference](../../reference/agent-schema/keywords.md) for supported fields. Use the [interactive wizard](../../reference/agent-schema/cli.md#schemaadd-setting) to add a setting, or follow the manual steps below.
+Read the [schema overview](index.md) for node types and the [keyword reference](keywords.md) for supported fields. Use the [interactive wizard](cli.md#schemaadd-setting) to add a setting, or follow the manual steps below.
 
 ## How do I add a new setting?
 

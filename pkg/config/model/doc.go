@@ -8,5 +8,5 @@
 // For config-related documentation (like adding new config items) check out the
 // [config documentation].
 //
-// [config documentation]: https://datadoghq.dev/datadog-agent/architecture/agent-schema/
+// [config documentation]: https://datadoghq.dev/datadog-agent/reference/agent-schema/
 package model
