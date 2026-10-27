@@ -1094,6 +1094,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
+		imageTag = "latest"
+	}
+	// Evict surplus versions before the size check, since eviction can free enough space.
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
+
 	// Build workloadID for cache entry lookup
 	workloadID := getWorkloadIDFromEvent(event)
 
@@ -1111,14 +1120,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
-
-	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if imageTag == "" {
-		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
-		imageTag = "latest"
-	}
-	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
 	// Insert the event into the profile's activity tree
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
@@ -1489,25 +1490,14 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
-// workload that introduced this tag
+// ensureVersionContext creates or refreshes a version context and evicts surplus versions.
+// Existing contexts keep the tags of the workload that introduced the version.
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
+	if len(evictedVersions) > 0 {
+		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           slices.Clone(workloadTags),
-	}
-
-	secprof.AddVersionContext(tag, vCtx)
 }
 
 // seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
@@ -1793,6 +1783,13 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	if !entry.profile.UpdateVersionContextLastSeen(entry.imageTag, nowNano) {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
@@ -1806,17 +1803,19 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 		return
 	}
 
-	now := time.Now()
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 
-func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+// purgeCookiesForProfile removes cookies for a profile, optionally restricted to the given versions.
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile, imageTags ...string) {
 	for _, key := range m.sampleCookieMap.Keys() {
 		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
-			m.sampleCookieMap.Remove(key)
+			if len(imageTags) == 0 || slices.Contains(imageTags, entry.imageTag) {
+				m.sampleCookieMap.Remove(key)
+			}
 		}
 	}
 }

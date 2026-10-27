@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -37,7 +38,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -88,6 +89,7 @@ type Check struct {
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
 	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
+	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil when gpu.unschedulable_nodes.enabled is false; refreshed before the collectors run
 }
 
 type checkTelemetry struct {
@@ -240,6 +242,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
+	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -280,6 +283,7 @@ func (c *Check) ensureInitCollectors() error {
 		DeviceEventsGatherer: c.deviceEvtGatherer,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
+		NodeUnschedulable:    c.nodeUnschedulable,
 		Telemetry:            c.telemetry.collectorTelemetry,
 		Workloadmeta:         c.wmeta,
 		Config:               *c.gpuConfig,
@@ -453,6 +457,10 @@ func (c *Check) Run() error {
 		if err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing PRM cache: %v", err)
 		}
+	}
+
+	if c.nodeUnschedulable != nil {
+		c.nodeUnschedulable.Refresh(currentExecutionTime)
 	}
 
 	// start device event gatherer if we have not already
@@ -933,7 +941,7 @@ func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 			Released:   state,
 			TTLSeconds: int(ttl / time.Second),
 		}
-		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfig.GPUMonitoringModule)
+		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfigtypes.GPUMonitoringModule)
 		return err
 	}
 }
