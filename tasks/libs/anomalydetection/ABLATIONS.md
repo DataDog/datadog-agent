@@ -60,18 +60,28 @@ The hook has a separate two-minute budget after the script timeout, but cannot r
 if the runner is lost or the overall job deadline is reached.
 
 Set `RESUME_JOB_ID` to the interrupted job's numeric GitLab ID, keeping the same
-source revision, binary, seed, dataset selection, and study settings. The job
-downloads its artifacts using `CI_JOB_TOKEN` and reuses the binary in `testbench.json`
-without rebuilding or uploading again. Completed results are replayed
+binary, seed, dataset selection, and study settings. The job downloads its
+artifacts using `CI_JOB_TOKEN` and restores the **complete saved study settings**;
+normal dataset/search/config CI variables do not override a resumed study. Only
+`WORKFLOW_TIMEOUT` can change its polling budget. It verifies and reuses the
+binary in `testbench.json` without rebuilding or uploading again. Completed results are replayed
 locally to reconstruct the optimizer; in-flight workflows are polled using their
-original IDs. Optuna is pinned in CI, and checkpoint fingerprints reject changed
-inputs or search code. No pickle is loaded from artifacts.
+original IDs. Resume rejects changed evaluation inputs, Optuna versions, or
+regenerated trial configurations, but not a changed driver commit/code hash.
+Original study/binary provenance is retained. No pickle is loaded from artifacts.
 
 Checkpoints are written before submission and immediately after each result.
 If a submission response is lost, the driver only looks up the saved workflow ID;
 it never blindly submits again. If the request never reached Atlas, polling will
 eventually stop and report the ID to investigate. A workflow that definitively
 fails stops the study to avoid selecting a winner from incomplete evaluations.
+On an explicit resume, a failed trial is retried with the **same configuration**
+after the previous workflow is confirmed closed. Its prior workflow ID, result,
+error, and duration remain in the trial's `attempts` history. The retry gets a new
+workflow ID, checkpointed before submission. A lost retry response is recovered
+by polling that ID, not submitting another attempt. Completed trials are never
+rerun, failed trials are never skipped, and another failure stops the study again
+until the next explicit resume. Each retry has its own elapsed duration.
 
 The seven-hour job reserves ten minutes for the resume hook and artifact upload.
 Resume requires its artifacts

@@ -81,6 +81,20 @@ def fingerprint(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
+def checkpoint_resume_spec(output: Path) -> dict:
+    """CI resumes the original settings and binary, not this job's defaults."""
+    import optuna
+
+    saved = read_json(output / "study.json")["spec"]
+    if saved.get("optimizer_version") != optuna.__version__:
+        raise ValueError("Cannot resume: installed Optuna version differs from the checkpoint")
+    artifact = read_json(output / "testbench.json")["executor_config"]["binary_artifacts"]["testbench"]
+    original = saved["experiment_config"]["executor_config"]["binary_artifacts"]["testbench"]
+    if any(artifact.get(key) != original.get(key) for key in ("uri", "sha256")):
+        raise ValueError("Cannot resume: binary manifest differs from the checkpoint")
+    return saved
+
+
 def metric(metrics: dict, name: str) -> float:
     for key in (f"summary:mean_{name}", name):
         value = metrics.get(key)
@@ -133,6 +147,7 @@ class RemoteStudy:
         self.spec = spec
         self.client = client
         self.timeout = timeout
+        self.retry_failed: set[str] = set()
         self.output.mkdir(parents=True, exist_ok=True)
         self.lock = sqlite3.connect(str(output / ".lock.sqlite"), timeout=0)
         try:
@@ -143,8 +158,16 @@ class RemoteStudy:
                 if not resume:
                     raise ValueError(f"{output} already contains a study; use --resume or a new output directory")
                 self.state = read_json(path)
-                if self.state["spec"] != spec:
-                    raise ValueError("Cannot resume: dataset, binary, search settings, or driver version changed")
+                # Commits/code hashes describe provenance; only evaluated inputs must match.
+                provenance = {"source_commit", "driver_hash"}
+                if {k: v for k, v in self.state["spec"].items() if k not in provenance} != {
+                    k: v for k, v in spec.items() if k not in provenance
+                }:
+                    raise ValueError("Cannot resume: dataset, binary, search settings, or optimizer version changed")
+                self.spec = self.state["spec"]
+                self.retry_failed = {
+                    label for label, trial in self.state["trials"].items() if trial["status"] == "failed"
+                }
             else:
                 if resume:
                     raise ValueError(f"No study checkpoint in {output}")
@@ -233,7 +256,31 @@ class RemoteStudy:
         if entry["status"] == "completed":
             return entry["score"]
         if entry["status"] == "failed":
-            raise RuntimeError(f"{label} previously failed: {entry['error']}. Start a new study after resolving it.")
+            if label not in self.retry_failed:
+                raise RuntimeError(f"{label} failed in this invocation; resume explicitly to retry it")
+            previous = self.client.post(
+                {"workflow_id": entry["workflow_id"], "run_id": entry.get("run_id", ""), "wait_seconds": 1},
+                result=True,
+            )
+            if not previous.get("completed") or previous.get("status") not in {"failed", "completed"}:
+                raise RuntimeError(f"Cannot retry {label}: the previous workflow is not confirmed closed")
+            attempts = entry.get("attempts", []) + [{key: value for key, value in entry.items() if key != "attempts"}]
+            workflow_id = str(uuid.uuid5(uuid.UUID(self.state["id"]), f"{label}/attempt_{len(attempts):03d}"))
+            request = {**entry["request"], "workflow_id": workflow_id}
+            entry = {
+                "config": entry["config"],
+                "request": request,
+                "workflow_id": workflow_id,
+                "status": "prepared",
+                "created_at": time.time(),
+                "attempts": attempts,
+            }
+            trials[label] = entry
+            self.retry_failed.remove(label)
+            self.save()
+            print(
+                f"{label}: retrying failed trial (attempt {len(attempts) + 1}); previous attempt retained", flush=True
+            )
 
         workflow_id = entry["workflow_id"]
         print(f"{label}: workflow {workflow_id}", flush=True)
@@ -328,6 +375,7 @@ def run_bayesian(remote: RemoteStudy, prefix: str, components: list[str], n_tria
 def run_ablation(output: Path, spec: dict, client: AgentCIClient, *, resume=False, timeout=7200):
     """Run combination search and tune its winner, never overlapping experiments."""
     with RemoteStudy(output, spec, client, resume=resume, timeout=timeout) as remote:
+        spec = remote.spec
         rng = random.Random(spec["seed"])
         if spec.get("components"):
             winner = run_bayesian(

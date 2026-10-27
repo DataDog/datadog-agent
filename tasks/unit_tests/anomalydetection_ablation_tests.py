@@ -17,9 +17,11 @@ from tasks.libs.anomalydetection.ablation import (
     AgentCIClient,
     RemoteStudy,
     TransientError,
+    checkpoint_resume_spec,
     metric,
     read_json,
     restore_checkpoint,
+    write_json,
 )
 
 
@@ -108,8 +110,9 @@ class TestRemoteStudy(unittest.TestCase):
     def test_resume_rejects_changed_inputs_and_trial_config(self):
         with RemoteStudy(self.output, spec(), self.client) as remote:
             remote.evaluate("trial", {})
-        with self.assertRaisesRegex(ValueError, "Cannot resume"):
-            RemoteStudy(self.output, spec(dataset="Other"), self.client, resume=True)
+        for changed in (spec(dataset="Other"), spec(seed=7), spec(optimizer_version="different")):
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, "Cannot resume"):
+                RemoteStudy(self.output, changed, self.client, resume=True)
         with RemoteStudy(self.output, spec(), self.client, resume=True) as remote:
             with self.assertRaisesRegex(ValueError, "different config"):
                 remote.evaluate("trial", {"new": True})
@@ -119,7 +122,7 @@ class TestRemoteStudy(unittest.TestCase):
             with self.assertRaises(sqlite3.OperationalError):
                 RemoteStudy(self.output, spec(), self.client, resume=True)
 
-    def test_failed_workflow_stops_and_cannot_be_silently_restarted(self):
+    def fail_trial(self):
         self.client.post.side_effect = lambda attrs, result=False, **_: (
             completed(status="failed", error="testbench failed") if result else {"id": attrs["workflow_id"]}
         )
@@ -129,9 +132,107 @@ class TestRemoteStudy(unittest.TestCase):
         ):
             remote.evaluate("trial", {})
         self.assertEqual(read_json(self.output / "report.json")["status"], "incomplete")
+        return read_json(self.output / "study.json")["trials"]["trial"]
+
+    def test_resume_retries_failed_trial_and_preserves_attempt(self):
+        failed = self.fail_trial()
+        self.client.post.reset_mock(side_effect=True)
+
+        def post(attrs, *, result=False, **_):
+            if result:
+                return completed(status="failed") if attrs["workflow_id"] == failed["workflow_id"] else completed()
+            return {"id": attrs["workflow_id"], "run_id": "new-run"}
+
+        self.client.post.side_effect = post
         with RemoteStudy(self.output, spec(), self.client, resume=True) as remote:
-            with self.assertRaisesRegex(RuntimeError, "previously failed"):
+            self.assertEqual(remote.evaluate("trial", {}), 0.75)
+        retried = read_json(self.output / "study.json")["trials"]["trial"]
+        self.assertEqual(retried["attempts"], [failed])
+        self.assertNotEqual(retried["workflow_id"], failed["workflow_id"])
+        self.assertEqual(retried["config"], failed["config"])
+        self.assertEqual({**retried["request"], "workflow_id": failed["workflow_id"]}, failed["request"])
+        self.assertEqual(self.client.post.call_count, 3)
+
+    def test_retry_requires_confirmation_previous_workflow_is_closed(self):
+        failed = self.fail_trial()
+        self.client.post.reset_mock(side_effect=True)
+        self.client.post.return_value = {"completed": False, "status": "running"}
+        with RemoteStudy(self.output, spec(), self.client, resume=True) as remote:
+            with self.assertRaisesRegex(RuntimeError, "not confirmed closed"):
                 remote.evaluate("trial", {})
+        self.client.post.assert_called_once()
+        self.assertTrue(self.client.post.call_args.kwargs["result"])
+        self.assertEqual(read_json(self.output / "study.json")["trials"]["trial"], failed)
+
+    def test_retry_failure_stops_again_without_automatic_retry_loop(self):
+        failed = self.fail_trial()
+        self.client.post.reset_mock()
+        with (
+            self.assertRaisesRegex(RuntimeError, "testbench failed"),
+            RemoteStudy(self.output, spec(), self.client, resume=True) as remote,
+        ):
+            remote.evaluate("trial", {})
+        after = read_json(self.output / "study.json")["trials"]["trial"]
+        self.assertEqual(after["status"], "failed")
+        self.assertEqual(after["attempts"], [failed])
+        self.assertEqual(self.client.post.call_count, 3)  # Confirm closed, submit once, collect the failure.
+        with (
+            self.assertRaisesRegex(RuntimeError, "testbench failed"),
+            RemoteStudy(self.output, spec(), self.client, resume=True) as remote,
+        ):
+            remote.evaluate("trial", {})
+        third = read_json(self.output / "study.json")["trials"]["trial"]
+        self.assertEqual(len(third["attempts"]), 2)
+        self.assertEqual(third["attempts"][0], failed)
+        self.assertEqual(third["attempts"][1]["workflow_id"], after["workflow_id"])
+        self.assertNotEqual(third["workflow_id"], after["workflow_id"])
+
+    def test_lost_retry_submission_response_only_polls_on_next_resume(self):
+        self.fail_trial()
+        self.client.post.side_effect = [
+            completed(status="failed"),
+            TransientError("lost response"),
+            KeyboardInterrupt(),
+        ]
+        with self.assertRaises(KeyboardInterrupt), RemoteStudy(self.output, spec(), self.client, resume=True) as remote:
+            remote.evaluate("trial", {})
+        saved = read_json(self.output / "study.json")["trials"]["trial"]
+        self.assertEqual(saved["status"], "submitted")
+        self.client.post.reset_mock(side_effect=True)
+        self.client.post.return_value = completed()
+        with RemoteStudy(self.output, spec(), self.client, resume=True) as remote:
+            self.assertEqual(remote.evaluate("trial", {}), 0.75)
+        self.client.post.assert_called_once()
+        self.assertTrue(self.client.post.call_args.kwargs["result"])
+        self.assertEqual(self.client.post.call_args.args[0]["workflow_id"], saved["workflow_id"])
+
+    def test_resume_does_not_retry_invalid_trial_config(self):
+        self.fail_trial()
+        self.client.post.reset_mock()
+        with RemoteStudy(self.output, spec(), self.client, resume=True) as remote:
+            with self.assertRaisesRegex(ValueError, "different config"):
+                remote.evaluate("trial", {"changed": True})
+        self.client.post.assert_not_called()
+
+    def test_resume_after_driver_change_preserves_original_spec_and_results(self):
+        saved_spec = spec(driver_hash="original-driver")
+        with RemoteStudy(self.output, saved_spec, self.client) as remote:
+            remote.evaluate("completed", {})
+        before = read_json(self.output / "study.json")
+        updated = {**saved_spec, "source_commit": "new-driver-commit", "driver_hash": "updated-driver"}
+        self.client.post.reset_mock()
+        with RemoteStudy(self.output, updated, self.client, resume=True) as remote:
+            self.assertEqual(remote.evaluate("completed", {}), 0.75)
+            self.assertEqual(remote.spec, saved_spec)
+        after = read_json(self.output / "study.json")
+        self.assertEqual(after["spec"], before["spec"])
+        self.assertEqual(after["trials"], before["trials"])
+        self.client.post.assert_not_called()
+
+    def test_failed_trial_cannot_be_retried_without_explicit_resume(self):
+        self.fail_trial()
+        with self.assertRaisesRegex(ValueError, "use --resume"):
+            RemoteStudy(self.output, spec(), self.client)
 
     def test_invalid_or_incomplete_results_are_not_scored(self):
         bad_results = [
@@ -231,12 +332,16 @@ class TestAblationArtifacts(unittest.TestCase):
             publish.assert_called_once_with(ctx)
             evaluate.assert_called_once()
 
+    @unittest.skipUnless(importlib.util.find_spec("optuna"), "Requires the anomalydetection dependency group")
     def test_resume_ci_job_reuses_original_binary_without_publishing(self):
+        import optuna
+
         published = spec()["experiment_config"]
+        saved_spec = spec(optimizer_version=optuna.__version__)
 
         def restore(_job, output):
-            output.mkdir()
-            (output / "testbench.json").write_text(json.dumps(published))
+            write_json(output / "testbench.json", published)
+            write_json(output / "study.json", {"spec": saved_spec})
 
         with (
             tempfile.TemporaryDirectory() as directory,
@@ -244,14 +349,34 @@ class TestAblationArtifacts(unittest.TestCase):
             patch.dict("os.environ", {"OBSERVER_ABLATION_RESUME_JOB_ID": "123"}, clear=True),
             patch("tasks.libs.anomalydetection.ablation.restore_checkpoint", side_effect=restore) as checkpoint,
             patch("tasks.anomalydetection._publish_ddeval_testbench") as publish,
-            patch("tasks.anomalydetection.eval_pipeline") as evaluate,
+            patch("tasks.anomalydetection.run_ablation") as evaluate,
         ):
-            ablation_ci.body(Mock())
+            ctx = Mock()
+            ctx.run.return_value.stdout = "new-driver-commit"
+            ablation_ci.body(ctx)
             checkpoint.assert_called_once_with("123", Path("observer-ablation-ddeval"))
             publish.assert_not_called()
             self.assertTrue(evaluate.call_args.kwargs["resume"])
-            self.assertEqual(evaluate.call_args.kwargs["ddeval_testbench_sha256"], "a" * 64)
-            self.assertEqual(evaluate.call_args.kwargs["ddeval_testbench_binary_s3_uri"], "s3://bucket/binary")
+            requested = evaluate.call_args.args[1]
+            self.assertEqual(requested, saved_spec)
+
+    @unittest.skipUnless(importlib.util.find_spec("optuna"), "Requires the anomalydetection dependency group")
+    def test_ci_resume_rejects_changed_binary_manifest_or_installed_optimizer(self):
+        import optuna
+
+        saved_spec = spec(optimizer_version=optuna.__version__)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            write_json(output / "study.json", {"spec": saved_spec})
+            manifest = deepcopy(saved_spec["experiment_config"])
+            manifest["executor_config"]["binary_artifacts"]["testbench"]["sha256"] = "b" * 64
+            write_json(output / "testbench.json", manifest)
+            with self.assertRaisesRegex(ValueError, "binary manifest"):
+                checkpoint_resume_spec(output)
+            write_json(output / "testbench.json", saved_spec["experiment_config"])
+            with patch.object(optuna, "__version__", "different"):
+                with self.assertRaisesRegex(ValueError, "installed Optuna"):
+                    checkpoint_resume_spec(output)
 
     def test_restore_only_reads_checkpoint_artifacts_and_excludes_sqlite_lock(self):
         archive = io.BytesIO()
@@ -285,6 +410,8 @@ class TestAblationHTTPIntegration(unittest.TestCase):
     def test_search_tune_and_resume_use_real_http_without_duplicate_submissions(self):
         requests_seen = []
         experiments = {}
+        failed_workflows = set()
+        failed_label = "search/combo_000/run_000/trial_005"
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *_):  # noqa: called by BaseHTTPRequestHandler
@@ -301,6 +428,9 @@ class TestAblationHTTPIntegration(unittest.TestCase):
                     # Tuning can underperform the search: retain the best observed result.
                     score = 0.5 if label.startswith("tune/") else 0.75
                     data = completed(metrics_json=json.dumps({"f1": score, "precision": 0.8, "recall": 0.7}))
+                    if workflow in failed_workflows or (label == failed_label and not failed_workflows):
+                        failed_workflows.add(workflow)
+                        data = completed(status="failed", error="DeploymentRevisionMismatch")
                 else:
                     if workflow in experiments:
                         self.send_error(409)
@@ -335,9 +465,22 @@ class TestAblationHTTPIntegration(unittest.TestCase):
                 }
                 ctx = Mock()
                 ctx.run.return_value.stdout = "test-commit\n"
+                with (
+                    patch("tasks.anomalydetection.AgentCIClient", return_value=client),
+                    self.assertRaisesRegex(RuntimeError, "DeploymentRevisionMismatch"),
+                ):
+                    eval_pipeline.body(ctx, **settings)
+                checkpoint = read_json(output / "study.json")
+                first_five = {k: v for k, v in checkpoint["trials"].items() if v["status"] == "completed"}
+                self.assertEqual(len(first_five), 5)
+                self.assertEqual(len(experiments), 6)  # Failure in trial 6 stops before trial 7.
                 with patch("tasks.anomalydetection.AgentCIClient", return_value=client):
-                    report = eval_pipeline.body(ctx, **settings)
-                self.assertEqual(len(experiments), 13)
+                    report = eval_pipeline.body(ctx, **settings, resume=True)
+                resumed_state = read_json(output / "study.json")
+                for label, trial in first_five.items():
+                    self.assertEqual(resumed_state["trials"][label], trial)
+                self.assertEqual(len(resumed_state["trials"][failed_label]["attempts"]), 1)
+                self.assertEqual(len(experiments), 14)  # 13 successful trials plus the preserved failed attempt.
                 self.assertEqual(len(report["searches"]), 1)
                 self.assertEqual(report["dataset_version"], 7)
                 self.assertEqual(report["best"]["score"], 0.75)
@@ -350,7 +493,7 @@ class TestAblationHTTPIntegration(unittest.TestCase):
                 self.assertTrue((output / "best_config.json").exists())
                 self.assertIn("Precision", (output / "summary.md").read_text())
                 versions = [a["dataset_version"] for path, a in requests_seen if not path.endswith("/result")]
-                self.assertEqual(versions, [0] + [7] * 12)
+                self.assertEqual(versions, [0] + [7] * 13)
         finally:
             server.shutdown()
             server.server_close()

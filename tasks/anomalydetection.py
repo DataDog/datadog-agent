@@ -1615,13 +1615,25 @@ def _publish_ddeval_testbench(ctx):
 @task
 def ablation_ci(ctx):
     """Build/publish once, then run or resume the manual CI ablation."""
-    from tasks.libs.anomalydetection.ablation import restore_checkpoint
+    from tasks.libs.anomalydetection.ablation import checkpoint_resume_spec, restore_checkpoint
 
     output = Path("observer-ablation-ddeval")
     manifest = output / "testbench.json"
     resume_job = os.environ.get("OBSERVER_ABLATION_RESUME_JOB_ID", "")
     if resume_job:
         restore_checkpoint(resume_job, output)
+        spec = checkpoint_resume_spec(output)
+        print("Resuming saved study settings and binary; completed trials will not be rerun", flush=True)
+        client = AgentCIClient(
+            lambda: datadog_infra_token(ctx, audience="rapid-agent-devx", datacenter="us1.ddbuild.io")
+        )
+        return run_ablation(
+            output,
+            spec,
+            client,
+            resume=True,
+            timeout=int(os.environ.get("OBSERVER_ABLATION_WORKFLOW_TIMEOUT", "7200")),
+        )
     else:
         if output.exists():
             raise Exit(f"Refusing to overwrite existing ablation output: {output}")
