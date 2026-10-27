@@ -34,6 +34,36 @@
         # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
         # policy bump must run the suite before it can break the main pipeline.
         - release.json
+        # OpenSCAP and the libraries it links, whose probes the suite evaluates.
+        - deps/acl/**/*
+        - deps/attr/**/*
+        - deps/bzip2/**/*
+        - deps/curl/**/*
+        - deps/dbus/**/*
+        - deps/gcrypt/**/*
+        - deps/gpg-error/**/*
+        - deps/libselinux.BUILD.bazel
+        - deps/libsepol.BUILD.bazel
+        - deps/libxml2/**/*
+        - deps/libxslt/**/*
+        - deps/libyaml.BUILD.bazel
+        - deps/lua/**/*
+        - deps/nghttp2/**/*
+        - deps/openscap/**/*
+        - deps/openssl.BUILD.bazel
+        - deps/openssl/**/*
+        - deps/pcre2.BUILD.bazel
+        - deps/popt.BUILD.bazel
+        - deps/repos.MODULE.bazel
+        - deps/rpm/**/*
+        - deps/sqlite3.BUILD.bazel
+        - deps/util-linux.BUILD.bazel
+        - deps/util-linux/**/*
+        - deps/xmlsec/**/*
+        - deps/xz.BUILD.bazel
+        - deps/xz/**/*
+        - deps/zlib.BUILD.bazel
+        - deps/zstd.BUILD.bazel
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

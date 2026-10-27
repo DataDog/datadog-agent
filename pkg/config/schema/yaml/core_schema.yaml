@@ -538,7 +538,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'false'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the distribution metrics intake version. Accepted values:
@@ -2226,6 +2226,114 @@ properties:
             node_type: setting
             type: boolean
             default: false
+  network_pcap:
+    node_type: section
+    title: Network Pcap Configuration
+    type: object
+    description: Settings for the Private Action Runner's remote packet
+      capture action.
+    tags:
+    - full-agent-only:true
+    - platform_only:linux
+    properties:
+      forwarder:
+        node_type: section
+        type: object
+        description: Endpoints packet captures are uploaded to, read like the
+          event platform forwarders' endpoint settings. logs_dd_url (host:port)
+          or dd_url override the default "cnm-intake.<site>" host, and
+          additional_endpoints adds more. Uploads are neither batched nor
+          compressed per these settings, so the batch_* and compression keys
+          have no effect.
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+            tags:
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -6119,6 +6227,16 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
+  clc_runner_group:
+    node_type: setting
+    type: string
+    default: ''
+    tags:
+    - full-agent-only:true
+    comment: Cluster checks runner group of this runner, advertised to the Cluster
+      Agent. The runner only receives the checks its group claims in the Cluster
+      Agent's cluster_checks.runner_groups. When empty, it is a general worker and
+      receives the checks no group claims.
   clc_runner_port:
     node_type: setting
     type: integer
@@ -6648,7 +6766,7 @@ properties:
           healthy host into a finding.
 
           The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
-          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          -- see test/regression/container/quality_gates/quality_gate_* -- rather than for tuning on real hosts, where the only
           knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
@@ -9372,7 +9490,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0.001
+            default: 0
           shadow_sites:
             node_type: setting
             type: array

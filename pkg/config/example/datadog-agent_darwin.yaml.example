@@ -387,8 +387,8 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
-## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - float - optional - default: 0.8
+## @param forwarder_storage_max_disk_ratio - integer - optional - default: 0.8
+## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - integer - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
 ## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
@@ -423,16 +423,16 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_base - integer - optional - default: 2
-## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
+## @param forwarder_backoff_base - float - optional - default: 2
+## @env DD_FORWARDER_BACKOFF_BASE - float - optional - default: 2
 ## Defines the rate of exponential growth, and the first retry interval range.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher rate of exponential growth.
 #
 # forwarder_backoff_base: 2
 
-## @param forwarder_backoff_max - integer - optional - default: 64
-## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
+## @param forwarder_backoff_max - float - optional - default: 64
+## @env DD_FORWARDER_BACKOFF_MAX - float - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher maximum backoff time.
@@ -608,6 +608,14 @@ api_key:
 #
 #   enabled: false
 
+#   # @param legacy_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_LEGACY_SM_ACTIVE - boolean - optional - default: false
+#   # Set to true to restore the legacy mapping of GPM SM utilization to
+#   # gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
+#   # reported as both gpu.sm_active and gpu.sm_utilization.
+#
+#   legacy_sm_active: false
+
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
 #   # Unix domain socket for events emitted by the NCCL profiler plugin in
@@ -636,6 +644,16 @@ api_key:
 #     # Must be under host_socket_path.
 #
 #     socket_path: "/var/run/datadog/nccl.socket"
+
+#   # @param static_metrics_reporting_interval - duration - optional - default: "15s"
+#   # @env DD_GPU_STATIC_METRICS_REPORTING_INTERVAL - duration - optional - default: "15s"
+#   # Reporting interval for static GPU metrics, including gpu.device.total,
+#   # gpu.memory.limit, gpu.core.limit, and gpu.memory.bar1.total. Samples received
+#   # early are dropped and missing intervals are filled. Use the same value on every
+#   # host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
+#   # Set to 0 to report on every check run.
+#
+#   static_metrics_reporting_interval: "15s"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -1063,7 +1081,8 @@ api_key:
 
 ## @param secret_refresh_interval - integer - optional - default: 0
 ## @env DD_SECRET_REFRESH_INTERVAL - integer - optional - default: 0
-## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.
+## `secret_refresh_interval` is the interval (in seconds) at which eligible Agent and integration secrets are refreshed.
+## This also retries integration secrets that could not be resolved initially. A 0 value means the feature is disabled.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
 #
 # secret_refresh_interval: 0
@@ -1295,8 +1314,8 @@ api_key:
 #
 #   compression_level: 6
 
-#   # @param batch_wait - float - optional - default: 5
-#   # @env DD_LOGS_CONFIG_BATCH_WAIT - float - optional - default: 5
+#   # @param batch_wait - integer - optional - default: 5
+#   # @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
 #   # The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
 #
 #   batch_wait: 5
@@ -1381,6 +1400,51 @@ api_key:
 #
 #     streamlogs_log_file: "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
 
+#   # @param unreliable_mount - custom object - optional
+#   # Node-wide profile for log files on mounts with stale page-cache or file-handle
+#   # behavior during rotation, such as CIFS/SMB and Azure Files. It selects direct
+#   # fingerprint reads on Linux, smaller fingerprint defaults, a separate
+#   # rotation drain timeout, and a sequential handoff after rotation. Normal log
+#   # tailing keeps buffered reads.
+#
+#   unreliable_mount:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED - boolean - optional - default: false
+#     # Enable the unreliable-mount profile for all file log sources on this Agent.
+#     # Restart the Agent after changing this setting. On Linux, fingerprint reads
+#     # use O_DIRECT, including when a source overrides the checksum settings.
+#     # Other platforms keep buffered fingerprint reads.
+#     # If no global fingerprint strategy is explicitly set, use line_checksum with
+#     # one line. In line mode, global max_bytes defaults to 4096 unless explicitly
+#     # configured. Explicit checksum settings, including disabled, are preserved.
+#     # Use rotation_drain_timeout in place of close_timeout for rotated files.
+#     # After a rotation detected by fingerprint, the replacement tailer does not
+#     # open the path until the rotated tailer has closed it. The rotated tailer
+#     # stops once its file has gone 30 seconds without new reads, or at
+#     # rotation_drain_timeout. The path is not collected until then, so a file
+#     # rotated away sooner than that after the previous rotation is not read.
+#     # A failed fingerprint prevents a new tailer from starting. An active tailer
+#     # keeps collecting, but cannot check fingerprint rotation until a later read
+#     # succeeds. Failures appear in the Agent log and status; status clears on recovery.
+#     # Linux does not retry a failed direct read using buffered I/O.
+#     # Direct reads fetch the whole fingerprint window on each scan. Scan frequency
+#     # is unchanged; consider raising logs_config.file_scan_period to reduce I/O.
+#
+#     enabled: false
+
+#     # @param rotation_drain_timeout - integer - optional - default: 60
+#     # @env DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ROTATION_DRAIN_TIMEOUT - integer - optional - default: 60
+#     # Maximum seconds a tailer keeps reading a rotated file through its
+#     # already-open descriptor before closing it, used in place of close_timeout
+#     # when unreliable_mount.enabled is true. A rotated file that a replacement
+#     # tailer is waiting on closes earlier, once it has gone 30 seconds without
+#     # new reads. On these mounts a fresh open of the
+#     # path can fail while the open descriptor still drains. Values at or below
+#     # zero use the 60-second default.
+#
+#     rotation_drain_timeout: 60
+
 ####################################
 ## Trace Collection Configuration ##
 ####################################
@@ -1439,9 +1503,9 @@ api_key:
 #
 #   apm_dd_url: <ENDPOINT>:<PORT>
 
-#   # @param max_traces_per_second - float - optional - default: 10
-#   # @env DD_APM_MAX_TPS - float - optional - default: 10
-#   # @env DD_MAX_TPS - float - optional - default: 10
+#   # @param max_traces_per_second - integer - optional - default: 10
+#   # @env DD_APM_MAX_TPS - integer - optional - default: 10
+#   # @env DD_MAX_TPS - integer - optional - default: 10
 #   # DEPRECATED - please use `target_traces_per_second` instead.
 #   #
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -1452,8 +1516,8 @@ api_key:
 #
 #   max_traces_per_second: 10
 
-#   # @param target_traces_per_second - float - optional - default: 10
-#   # @env DD_APM_TARGET_TPS - float - optional - default: 10
+#   # @param target_traces_per_second - integer - optional - default: 10
+#   # @env DD_APM_TARGET_TPS - integer - optional - default: 10
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
 #   # the received traffic and communicated to tracers. This configures head-based sampling.
 #   # As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
@@ -1462,17 +1526,17 @@ api_key:
 #
 #   target_traces_per_second: 10
 
-#   # @param errors_per_second - float - optional - default: 10
-#   # @env DD_APM_ERROR_TPS - float - optional - default: 10
+#   # @param errors_per_second - integer - optional - default: 10
+#   # @env DD_APM_ERROR_TPS - integer - optional - default: 10
 #   # The target error trace chunks to receive per second. The TPS is spread
 #   # to catch all combinations of service, name, resource, http.status, and error.type.
 #   # Set to 0 to disable the errors sampler.
 #
 #   errors_per_second: 10
 
-#   # @param max_events_per_second - float - optional - default: 200
-#   # @env DD_APM_MAX_EPS - float - optional - default: 200
-#   # @env DD_MAX_EPS - float - optional - default: 200
+#   # @param max_events_per_second - integer - optional - default: 200
+#   # @env DD_APM_MAX_EPS - integer - optional - default: 200
+#   # @env DD_MAX_EPS - integer - optional - default: 200
 #   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
 #   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
 #   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
@@ -1480,8 +1544,8 @@ api_key:
 #
 #   max_events_per_second: 200
 
-#   # @param max_memory - float - optional - default: "5e+08"
-#   # @env DD_APM_MAX_MEMORY - float - optional - default: "5e+08"
+#   # @param max_memory - integer - optional - default: 500000000.0
+#   # @env DD_APM_MAX_MEMORY - integer - optional - default: 500000000.0
 #   # This value is what the Agent aims to use in terms of memory. If surpassed, the API
 #   # rate limits incoming requests to aim and stay below this value.
 #   # Note: The Agent process is killed if it uses more than 150% of `max_memory`.
@@ -1489,8 +1553,8 @@ api_key:
 #
 #   max_memory: 500000000.0
 
-#   # @param max_cpu_percent - float - optional - default: 50
-#   # @env DD_APM_MAX_CPU_PERCENT - float - optional - default: 50
+#   # @param max_cpu_percent - integer - optional - default: 50
+#   # @env DD_APM_MAX_CPU_PERCENT - integer - optional - default: 50
 #   # The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
 #   # incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
 #   # Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -1975,8 +2039,8 @@ api_key:
 #
 #     enabled: false
 
-#     # @param sampling_percentage - float - optional - default: 0
-#     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
+#     # @param sampling_percentage - integer - optional - default: 0
+#     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - integer - optional - default: 0
 #     # Samples this percentage (0-100) of traffic
 #
 #     sampling_percentage: 0
@@ -2025,6 +2089,18 @@ api_key:
 #   # DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
 #   additional_profile_tags: {}
+
+#   # @param traces_send_to_main_endpoint - boolean - optional - default: true
+#   # @env DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT - boolean - optional - default: true
+#   # For internal use. We expect to remove this setting in a future version.
+#   #
+#   # When false, the trace-agent trace and stats writers skip the main endpoint
+#   # (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.
+#   # The main endpoint's API key is still used by the other trace-agent proxies.
+#   # The configuration is rejected if no additional endpoint would remain. This is
+#   # the traces/stats counterpart of apm_config.profiling_send_to_main_endpoint.
+#
+#   traces_send_to_main_endpoint: true
 
 ######################################
 ## Process Collection Configuration ##
@@ -2577,8 +2653,8 @@ api_key:
 #
 #     evaluation_interval: "30s"
 
-#     # @param range_epsilon - float - optional - default: 0
-#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # @param range_epsilon - integer - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - integer - optional - default: 0
 #     # Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
 #     # The monitor computes a window range as the maximum retained point value minus the minimum
 #     # retained point value in each completed evaluation window, or in each configured tag partition.
@@ -2675,8 +2751,8 @@ api_key:
 #
 # jmx_use_container_support: false
 
-## @param jmx_max_ram_percentage - float - optional - default: 25
-## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25
+## @param jmx_max_ram_percentage - integer - optional - default: 25
+## @env DD_JMX_MAX_RAM_PERCENTAGE - integer - optional - default: 25
 ## When running in a container with jmx_use_container_support enabled, the JVM can
 ## automatically declare the maximum heap size based off of a percentage of
 ## total container allocated memory. This option is overwritten if
@@ -3670,6 +3746,18 @@ api_key:
 #
 #     collect_vpn: true
 
+#     # @param device_tags_source - string - optional - default: "resource"
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_DEVICE_TAGS_SOURCE - string - optional - default: "resource"
+#     # Where the device tags on metrics come from.
+#     # `resource`: only the resource tag is sent and the backend attaches the device tags from
+#     # the metadata payload.
+#     # `agent`: the Agent attaches the device tags to every metric it submits and no resource
+#     # tag is sent, so the backend does not enrich the metrics.
+#     # `both`: the Agent attaches the device tags and the backend enrichment applies on top.
+#     # This has no effect when `collect_device_metadata` is disabled.
+#
+#     device_tags_source: "resource"
+
 #     # @param ping - custom object - optional
 #     # Configure ICMP pings for all hosts in SNMP autodiscovery
 #     # Devices will be pinged with these settings each time the SNMP
@@ -4285,6 +4373,20 @@ api_key:
 #
 #     enabled: true
 
+#     # @param infra_attributes - custom object - optional
+#     # Controls how the infraattributes processor promotes custom tagger-derived tags onto OTLP metrics ingested by the Agent. Known infrastructure attributes are attached regardless of this section.
+#
+#     infra_attributes:
+
+#       # @param as_tags - boolean - optional - default: false
+#       # @env DD_OTLP_CONFIG_METRICS_INFRA_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
+#       # Controls whether the Infra-Attribute-Processor promotes custom tags (for example, from
+#       # kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they survive the metrics translator's
+#       # allowlist and are emitted as metric tags. Without it, custom tags that are not known Datadog
+#       # or OpenTelemetry conventions are dropped.
+#
+#       as_tags: false
+
 #     # @param resource_attributes_as_tags - boolean - optional - default: false
 #     # @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
 #     # Set to true to add resource attributes of a metric to its metric tags. Please note that any of
@@ -4450,8 +4552,8 @@ api_key:
 #
 #     probabilistic_sampler:
 
-#       # @param sampling_percentage - float - optional - default: 100
-#       # @env DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 100
+#       # @param sampling_percentage - integer - optional - default: 100
+#       # @env DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - integer - optional - default: 100
 #       # If `apm_config.probabilistic_sampler.enabled` is enabled, this config is ignored, `apm_config.probabilistic_sampler.enabled.sampling_percentage`
 #       # is used instead.
 #       # Percentage of traces to ingest (0 100]. Invalid values (<= 0 || > 100) are disconsidered and the default is used.
@@ -4535,6 +4637,9 @@ api_key:
 #   # This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
 #   # for a full list of available settings:
 #   # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
+#   # The debugexporter is off by default; it is attached only when this debug section
+#   # is configured. Declaring the section (even empty) enables it with the default
+#   # verbosity; set verbosity to none to leave it detached.
 #
 #   debug:
 
@@ -4542,6 +4647,8 @@ api_key:
 #     # @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: "basic"
 #     # Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
 #     # Valid values are basic, normal, detailed, none.
+#     # This default applies only once the debug section is configured; set it to
+#     # none to keep the debugexporter detached even when the section is present.
 #
 #     verbosity: "basic"
 
@@ -4618,3 +4725,33 @@ api_key:
 #   # Allow HTTP actions to reach cloud instance metadata service (IMDS) endpoints.
 #
 #   http_allow_imds_endpoint: false
+
+#   # @param kubernetes_allowed_custom_resources - list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_KUBERNETES_ALLOWED_CUSTOM_RESOURCES - comma-separated list of strings or JSON array of strings - optional - default: []
+#   # Optional list of Kubernetes resources that custom resource actions may access.
+#   # Each entry identifies an exact Kubernetes resource. Use group/version/resource
+#   # for named API groups, for example cert-manager.io/v1/certificates, and
+#   # version/resource for the core API group, for example v1/secrets. When unset,
+#   # custom resource actions allow non-native API groups and deny Kubernetes native API
+#   # groups. When explicitly set, including to an empty list, only exact matches are
+#   # allowed.
+#
+#   kubernetes_allowed_custom_resources: []
+
+#   # @param restricted_shell - custom object - optional
+#   # Configuration for restricted shell actions executed by the Private Action Runner.
+#
+#   restricted_shell:
+
+#     # @param disable_detailed_telemetry - boolean - optional - default: false
+#     # @env DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_DISABLE_DETAILED_TELEMETRY - boolean - optional - default: false
+#     # When true, suppresses the raw command text and effective sandbox
+#     # configuration (allowed paths, commands, system services, mode, and
+#     # related settings) that rshell would otherwise attach to its "run"
+#     # telemetry span for each runCommand/runRemediationCommand
+#     # invocation. Other rshell telemetry (exit code, timing, command
+#     #  counts) is unaffected. Set this to true if the commands executed
+#     #  through the Private Action Runner's restricted shell are too
+#     #  sensitive to forward to Datadog telemetry.
+#
+#     disable_detailed_telemetry: false
