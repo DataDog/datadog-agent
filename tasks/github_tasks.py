@@ -196,10 +196,11 @@ def assign_no_shipped_change_labels(_, pr_id=-1):
 
     gh = GithubAPI('DataDog/datadog-agent')
     pr = gh.get_pr(pr_id)
-    files = gh.get_pr_files(pr_id)
+    # A file renamed out of a shipped path removes it from the deliveries
+    files = gh.get_pr_files_with_previous_names(pr_id)
     labels = set(gh.get_pr_labels(pr_id))
     # The API lists at most 3000 files, consider the remaining ones as shipped
-    shipped = len(files) < pr.changed_files or touches_shipped_files(files)
+    shipped = pr.changed_files > 3000 or touches_shipped_files(files)
 
     if not shipped:
         has_release_note = any(file.startswith(('releasenotes/notes/', 'releasenotes-dca/notes/')) for file in files)

@@ -148,6 +148,7 @@ class TestAssignNoShippedChangeLabels(unittest.TestCase):
             gh = GithubAPIMock(list(pr_labels or []), changed_files, pr=pr)
             gh.pr.remove_from_labels = gh.remove_pr_label
             gh.get_pr_label_author = MagicMock(return_value=label_author)
+            gh.get_pr_files_with_previous_names = gh.get_pr_files
             gh_mock.return_value = gh
             assign_no_shipped_change_labels(Context())
 
@@ -174,10 +175,14 @@ class TestAssignNoShippedChangeLabels(unittest.TestCase):
             pr = unittest.mock.Mock(spec=GithubAPIMock.PullRequest)
             pr.changed_files = 3001
             gh = GithubAPIMock([], ['pkg/a_test.go'], pr=pr)
+            gh.get_pr_files_with_previous_names = gh.get_pr_files
             gh_mock.return_value = gh
             assign_no_shipped_change_labels(Context())
 
             self.assertEqual(gh.get_pr_labels(), [])
+
+    def test_renamed_out_of_shipped_path(self):
+        self.make_test(['test/foo.go', 'pkg/foo.go'], [])
 
     def test_shipped_remove_auto_labels(self):
         self.make_test(['pkg/a.go'], [], pr_labels=['changelog/no-changelog', 'qa/no-code-change'])
