@@ -23,6 +23,7 @@ go_library(
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/hostinfo",
+        "//pkg/util/kubernetes/nodename",
         "//pkg/util/log",
     ],
 )
@@ -43,6 +44,7 @@ dd_agent_go_test(
         "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/flavor",
+        "//pkg/util/kubernetes/hostinfo",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

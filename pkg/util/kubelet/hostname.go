@@ -63,7 +63,7 @@ func getNodename(ctx context.Context) (string, error) {
 			log.Debugf("Using kubernetes nodename %q from environment variable %q", nodeName, envVar)
 			return nodeName, nil
 		}
-		if !cfg.GetBool("otelcollector.standalone.use_kubelet_collector") {
+		if nodename.KubeletDisabled(cfg) {
 			return "", fmt.Errorf("couldn't read the host nodename from the environment: %w (otelcollector.standalone.node_from_env_var)", err)
 		}
 		log.Debugf("Couldn't read the host nodename from the environment, falling back to the kubelet: %s", err)

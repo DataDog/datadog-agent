@@ -112,8 +112,7 @@ func GetFxOptions() fx.Option {
 // lacks the kubelet API access and settings kubelet needs, so kubelet would
 // fail too, and only log at debug level while it retries.
 func Enabled(cfg config.Component) bool {
-	standalone := cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent
-	return standalone && !cfg.GetBool("otelcollector.standalone.use_kubelet_collector")
+	return nodename.KubeletDisabled(cfg)
 }
 
 // localNodeName returns the name of the node whose pods this collector

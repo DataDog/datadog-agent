@@ -26,6 +26,7 @@ import (
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,6 +61,10 @@ func newClusterNameData() *clusterNameData {
 }
 
 var defaultClusterNameData *clusterNameData
+
+// newNodeInfo reads the local node's labels for the node-label discovery. Tests
+// replace it.
+var newNodeInfo = hostinfo.NewNodeInfo
 
 func init() {
 	defaultClusterNameData = newClusterNameData()
@@ -124,10 +129,12 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 
 		// Cluster check runners aren't scheduled on a specific node and don't have a
 		// reachable local kubelet, so skip the node-label based auto discovery to avoid
-		// noisy "Impossible to reach Kubelet" warnings.
+		// noisy "Impossible to reach Kubelet" warnings. Neither does otel-agent when its
+		// configuration leaves it without kubelet access, where that discovery could
+		// only fail, possibly after waiting on connection timeouts.
 		var clusterName string
-		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
-			nodeInfo, err := hostinfo.NewNodeInfo()
+		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) && !nodename.KubeletDisabled(pkgconfigsetup.Datadog()) {
+			nodeInfo, err := newNodeInfo()
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
 			} else {

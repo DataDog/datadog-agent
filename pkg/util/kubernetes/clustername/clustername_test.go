@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
 func TestGetClusterName(t *testing.T) {
@@ -186,6 +187,49 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.resourceAttributes)
 
 			assert.Equal(t, tt.want, getClusterName(context.Background(), newClusterNameData(), "hostname"))
+		})
+	}
+}
+
+// TestGetClusterNameNodeLabelsWithoutKubelet verifies that the kubelet-backed
+// node-label discovery is skipped when otel-agent's configuration leaves it
+// without kubelet access, and still runs otherwise.
+func TestGetClusterNameNodeLabelsWithoutKubelet(t *testing.T) {
+	tests := []struct {
+		name                string
+		flavor              string
+		useKubeletCollector bool
+		wantNodeLabels      bool
+	}{
+		{name: "otel-agent with the nodefilter collector", flavor: flavor.OTelAgent, useKubeletCollector: false, wantNodeLabels: false},
+		{name: "otel-agent with the kubelet collector", flavor: flavor.OTelAgent, useKubeletCollector: true, wantNodeLabels: true},
+		{name: "other flavors", flavor: flavor.DefaultAgent, useKubeletCollector: false, wantNodeLabels: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("cloud_provider_metadata", []string{})
+			mockConfig.SetInTest("otel_standalone", true)
+			mockConfig.SetInTest("otelcollector.standalone.use_kubelet_collector", tt.useKubeletCollector)
+			env.SetFeatures(t, env.Kubernetes)
+			flavor.SetTestFlavor(t, tt.flavor)
+			setProviderCatalog(map[string]Provider{})
+			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "k8s.cluster.name=laika")
+
+			calledNodeInfo := false
+			previousNewNodeInfo := newNodeInfo
+			t.Cleanup(func() { newNodeInfo = previousNewNodeInfo })
+			newNodeInfo = func() (*hostinfo.NodeInfo, error) {
+				calledNodeInfo = true
+				return nil, errors.New("no kubelet")
+			}
+
+			clusterName := getClusterName(context.Background(), newClusterNameData(), "hostname")
+			assert.Equal(t, tt.wantNodeLabels, calledNodeInfo)
+			if tt.flavor == flavor.OTelAgent {
+				assert.Equal(t, "laika", clusterName)
+			}
 		})
 	}
 }

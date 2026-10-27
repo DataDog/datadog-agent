@@ -6,7 +6,11 @@ go_library(
     srcs = ["nodename.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename",
     visibility = ["//visibility:public"],
-    deps = ["@io_k8s_apimachinery//pkg/util/validation"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/flavor",
+        "@io_k8s_apimachinery//pkg/util/validation",
+    ],
 )
 
 dd_agent_go_test(
@@ -14,6 +18,8 @@ dd_agent_go_test(
     srcs = ["nodename_test.go"],
     embed = [":nodename"],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

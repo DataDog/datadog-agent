@@ -17,7 +17,8 @@ enhancements:
     ``OTEL_K8S_NODE_NAME`` by default), instead of querying the kubelet. This
     also works when the kubelet isn't reachable, as with Kubernetes running in
     containers (k3d, kind). It falls back to the kubelet only when
-    ``use_kubelet_collector`` is ``true``. When neither ``DD_CLUSTER_NAME`` nor
+    ``use_kubelet_collector`` is ``true``; otherwise, the cluster name lookup
+    no longer queries the kubelet for node labels either. When neither ``DD_CLUSTER_NAME`` nor
     the cloud provider gives a cluster name, the hostname suffix now comes
     from the ``k8s.cluster.name`` resource attribute in
     ``OTEL_RESOURCE_ATTRIBUTES``, which the OpenTelemetry Helm charts populate.
