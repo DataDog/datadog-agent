@@ -324,6 +324,19 @@ func (a *Agent) FlushSync() {
 	}
 }
 
+// ForceFlushSync is FlushSync, but it first writes the open buckets of the
+// concentrator and the ClientStatsAggregator, which FlushSync leaves in memory,
+// to the stats writer. The agent keeps running.
+func (a *Agent) ForceFlushSync() {
+	if c, ok := a.Concentrator.(*stats.Concentrator); ok {
+		c.Writer.Write(c.Flush(true))
+	}
+	if a.ClientStatsAggregator != nil {
+		a.ClientStatsAggregator.ForceFlush()
+	}
+	a.FlushSync()
+}
+
 // WaitForStopped blocks until the agent's Run() method has fully returned,
 // meaning all components have been stopped and the shutdown sequence is complete.
 // It returns nil on clean shutdown, or the context's error if ctx is done first.

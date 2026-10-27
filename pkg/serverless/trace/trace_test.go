@@ -10,10 +10,14 @@ package trace
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,8 +37,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -61,6 +67,90 @@ func newTestServerlessTraceAgent(t *testing.T) (*serverlessTraceAgent, *config.A
 	ta := traceagent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	ta.SpanModifier = &spanModifier{ddOrigin: "lambda"}
 	return &serverlessTraceAgent{ta: ta, convertToV1: true, cancel: cancel}, cfg
+}
+
+// capturingStatsWriter records the stats payloads written to it.
+type capturingStatsWriter struct {
+	payloads []*pb.StatsPayload
+}
+
+func (w *capturingStatsWriter) Write(p *pb.StatsPayload) { w.payloads = append(w.payloads, p) }
+
+// statsBucketCount returns the number of stats buckets across payloads.
+func statsBucketCount(payloads ...*pb.StatsPayload) int {
+	n := 0
+	for _, p := range payloads {
+		for _, csp := range p.GetStats() {
+			n += len(csp.GetStats())
+		}
+	}
+	return n
+}
+
+// TestServerlessTraceAgentFlushAllForcesOpenStatsBuckets pins that FlushAll
+// sends the concentrator's still-open bucket, which a regular flush holds back.
+func TestServerlessTraceAgentFlushAllForcesOpenStatsBuckets(t *testing.T) {
+	a, cfg := newTestServerlessTraceAgent(t)
+	writer := &capturingStatsWriter{}
+	concentrator := stats.NewConcentrator(cfg, writer, time.Now(), &statsd.NoOpClient{})
+	a.ta.Concentrator = concentrator
+
+	span := &pb.Span{
+		Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+		Start: time.Now().UnixNano(), Duration: int64(time.Millisecond),
+		Metrics: map[string]float64{"_top_level": 1},
+	}
+	concentrator.Add(stats.Input{Traces: []traceutil.ProcessedTrace{{
+		TraceChunk: &pb.TraceChunk{Spans: []*pb.Span{span}},
+		Root:       span,
+	}}})
+	require.Zero(t, statsBucketCount(concentrator.Flush(false)), "precondition: a regular flush holds back the open bucket")
+
+	a.FlushAll()
+
+	assert.Equal(t, 1, statsBucketCount(writer.payloads...), "FlushAll must force the open bucket into the stats writer")
+}
+
+// TestServerlessTraceAgentFlushAllSendsStatsSynchronously pins that the forced
+// stats bucket has reached the intake by the time FlushAll returns, since the
+// MicroVM can freeze right after.
+func TestServerlessTraceAgentFlushAllSendsStatsSynchronously(t *testing.T) {
+	var statsRequests atomic.Int32
+	intake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		if r.URL.Path == "/api/v0.2/stats" {
+			statsRequests.Add(1)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer intake.Close()
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = intake.URL
+	cfg.SynchronousFlushing = true
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ta := traceagent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	go ta.StatsWriter.Run()
+	defer ta.StatsWriter.Stop()
+	a := &serverlessTraceAgent{ta: ta, cancel: cancel}
+
+	concentrator, ok := ta.Concentrator.(*stats.Concentrator)
+	require.True(t, ok)
+	span := &pb.Span{
+		Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+		Start: time.Now().UnixNano(), Duration: int64(time.Millisecond),
+		Metrics: map[string]float64{"_top_level": 1},
+	}
+	concentrator.Add(stats.Input{Traces: []traceutil.ProcessedTrace{{
+		TraceChunk: &pb.TraceChunk{Spans: []*pb.Span{span}},
+		Root:       span,
+	}}})
+
+	a.FlushAll()
+
+	assert.Equal(t, int32(1), statsRequests.Load(), "the forced stats bucket must reach the intake before FlushAll returns")
 }
 
 func setupTraceAgentTest(t *testing.T) {
