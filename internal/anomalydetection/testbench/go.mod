@@ -108,6 +108,7 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/fatih/color v1.19.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -149,6 +150,7 @@ require (
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/twmb/murmur3 v1.2.1 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
@@ -167,7 +169,9 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
+	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/apimachinery v0.37.1 // indirect
+	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
