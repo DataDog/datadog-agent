@@ -20,7 +20,7 @@ UPSTART_TEMPLATES = (
 )
 
 
-class PARLegacyStartupTemplateTests(unittest.TestCase):
+class TestPARLegacyStartupTemplates(unittest.TestCase):
     def executable(self, path, content):
         path.write_text('#!/bin/sh\nset -eu\n' + content)
         path.chmod(0o755)
