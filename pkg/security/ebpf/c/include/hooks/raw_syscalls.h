@@ -15,8 +15,6 @@ static __attribute__((always_inline)) void monitor_syscall(struct _tracepoint_ra
     struct syscall_monitor_entry_t zero = {};
     u64 now = bpf_ktime_get_ns();
 
-    send_signal(pid);
-
     // syscall_monitor_event_t lives in a per-CPU map rather than on the stack.
     // We're reusing the SPAN_FILL per-CPU map instead of using another one, but we're
     // not filling the span context here: this event represents a batch of syscall,
@@ -118,6 +116,11 @@ static __attribute__((always_inline)) void sample_syscall(struct _tracepoint_raw
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+    // handle kill action
+    if (is_raw_syscall_kill_enabled() || is_syscall_monitor_enabled()) {
+        send_signal(pid);
+    }
 
     if (is_syscall_monitor_enabled()) {
         monitor_syscall(args, pid);

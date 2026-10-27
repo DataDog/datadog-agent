@@ -263,6 +263,12 @@ static __attribute__((always_inline)) u64 is_syscall_monitor_enabled() {
     return enabled;
 };
 
+static __attribute__((always_inline)) u64 is_raw_syscall_kill_enabled() {
+    u64 enabled;
+    LOAD_CONSTANT("raw_syscall_kill_enabled", enabled);
+    return enabled;
+};
+
 static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
     u64 enabled;
     LOAD_CONSTANT("security_profile_v2_enabled", enabled);

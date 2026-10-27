@@ -3278,6 +3278,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.isSyscallMonitorEnabled()),
 		},
 		manager.ConstantEditor{
+			Name:  "raw_syscall_kill_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EnforcementEnabled && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
 			Value: utils.BoolTouint64(p.probe.Opts.SyscallsMonitorEnabled),
 		},
