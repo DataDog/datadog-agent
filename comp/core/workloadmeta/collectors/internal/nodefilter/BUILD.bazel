@@ -19,6 +19,7 @@ go_library(
         "//pkg/errors",
         "//pkg/util/containers",
         "//pkg/util/containers/image",
+        "//pkg/util/ddot",
         "//pkg/util/flavor",
         "//pkg/util/gpu",
         "//pkg/util/kubernetes",

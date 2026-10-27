@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename"
@@ -57,13 +57,13 @@ func GetHostname(ctx context.Context) (string, error) {
 // for the nodefilter collector lacks kubelet API access.
 func getNodename(ctx context.Context) (string, error) {
 	cfg := pkgconfigsetup.Datadog()
-	if cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent {
+	if ddot.IsStandalone(cfg) {
 		nodeName, envVar, err := nodename.FromEnv(cfg.GetString("otelcollector.standalone.node_from_env_var"))
 		if err == nil {
 			log.Debugf("Using kubernetes nodename %q from environment variable %q", nodeName, envVar)
 			return nodeName, nil
 		}
-		if nodename.KubeletDisabled(cfg) {
+		if ddot.KubeletDisabled(cfg) {
 			return "", fmt.Errorf("couldn't read the host nodename from the environment: %w (otelcollector.standalone.node_from_env_var)", err)
 		}
 		log.Debugf("Couldn't read the host nodename from the environment, falling back to the kubelet: %s", err)

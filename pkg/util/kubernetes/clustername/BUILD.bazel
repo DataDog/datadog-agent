@@ -19,11 +19,11 @@ go_library(
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/clusteragent",
+        "//pkg/util/ddot",
         "//pkg/util/ec2/tags",
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/hostinfo",
-        "//pkg/util/kubernetes/nodename",
         "//pkg/util/log",
     ],
 )

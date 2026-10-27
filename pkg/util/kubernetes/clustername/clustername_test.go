@@ -110,11 +110,14 @@ func TestGetClusterNameCLCRunner(t *testing.T) {
 // TestGetClusterNameOTelResourceAttributes verifies that otel-agent falls
 // back on the k8s.cluster.name attribute of its telemetry resource, from
 // service.telemetry.resource in the collector config or else from
-// OTEL_RESOURCE_ATTRIBUTES, and that other flavors ignore it.
+// OTEL_RESOURCE_ATTRIBUTES, in standalone mode only, and that other flavors
+// ignore it.
 func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 	tests := []struct {
-		name              string
-		flavor            string
+		name   string
+		flavor string
+		// connected runs otel-agent in connected mode rather than standalone.
+		connected         bool
 		configClusterName string
 		cloudClusterName  string
 		// nodeLabelClusterName is what an EKS or AKS node label holds: it only
@@ -198,6 +201,14 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			want:               "",
 		},
 		{
+			name:                         "otel-agent in connected mode ignores it",
+			flavor:                       flavor.OTelAgent,
+			connected:                    true,
+			telemetryResourceClusterName: "from-config",
+			resourceAttributes:           "k8s.cluster.name=laika",
+			want:                         "",
+		},
+		{
 			name:               "other flavors ignore it",
 			flavor:             flavor.DefaultAgent,
 			resourceAttributes: "k8s.cluster.name=laika",
@@ -211,6 +222,7 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			mockConfig.SetInTest("cloud_provider_metadata", []string{})
 			mockConfig.SetInTest("cluster_name", tt.configClusterName)
 			mockConfig.SetInTest("otelcollector.standalone.telemetry_resource_cluster_name", tt.telemetryResourceClusterName)
+			mockConfig.SetInTest("otel_standalone", !tt.connected)
 			env.SetFeatures(t, env.Kubernetes)
 			flavor.SetTestFlavor(t, tt.flavor)
 			catalog := map[string]Provider{}

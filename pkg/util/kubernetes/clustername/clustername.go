@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -126,7 +126,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 		// configuration leaves it without kubelet access, where that discovery could
 		// only fail, possibly after waiting on connection timeouts.
 		var clusterName string
-		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) && !nodename.KubeletDisabled(pkgconfigsetup.Datadog()) {
+		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) && !ddot.KubeletDisabled(pkgconfigsetup.Datadog()) {
 			var err error
 			clusterName, err = nodeClusterNameLabel(ctx, data.clusterName)
 			if err != nil {
@@ -141,15 +141,17 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			log.Infof("Using cluster name %s from the node label", data.clusterName)
 		}
 
-		// otel-agent: OTel deployment tools (the OTel Helm charts) and users give
-		// the collector its cluster's name in the k8s.cluster.name attribute of
-		// its own telemetry resource, which is also where the cluster_name host
-		// tag of the telemetry it exports comes from. It comes last, after the
-		// cloud providers' APIs and the node labels, because charts fill it with a
-		// placeholder by default (unknown_k8s_cluster), which the EKS and AKS node
-		// labels wouldn't override. Unlike cluster_name, it is free-form, so it is
-		// lowercased before being validated.
-		if data.clusterName == "" && flavor.GetFlavor() == flavor.OTelAgent {
+		// otel-agent in DDOT standalone mode: OTel deployment tools (the OTel
+		// Helm charts) and users give the collector its cluster's name in the
+		// k8s.cluster.name attribute of its own telemetry resource, which is also
+		// where the cluster_name host tag of the telemetry it exports comes from.
+		// It comes last, after the cloud providers' APIs and the node labels,
+		// because charts fill it with a placeholder by default
+		// (unknown_k8s_cluster), which the EKS and AKS node labels wouldn't
+		// override. Unlike cluster_name, it is free-form, so it is lowercased
+		// before being validated. In connected mode, the core Agent owns the
+		// cluster name.
+		if data.clusterName == "" && ddot.IsStandalone(pkgconfigsetup.Datadog()) {
 			if resourceClusterName, source := otelResourceClusterName(); resourceClusterName != "" {
 				resourceClusterName = strings.ToLower(resourceClusterName)
 				log.Infof("Got cluster name %s from the %s resource attribute in %s", resourceClusterName, otelClusterNameAttribute, source)

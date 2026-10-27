@@ -15,7 +15,7 @@ go_library(
     deps = [
         "//pkg/config/env",
         "//pkg/config/setup",
-        "//pkg/util/flavor",
+        "//pkg/util/ddot",
         "//pkg/util/hostname/validate",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",

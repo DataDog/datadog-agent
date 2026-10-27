@@ -37,6 +37,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/nodename"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -112,7 +113,7 @@ func GetFxOptions() fx.Option {
 // lacks the kubelet API access and settings kubelet needs, so kubelet would
 // fail too, and only log at debug level while it retries.
 func Enabled(cfg config.Component) bool {
-	return nodename.KubeletDisabled(cfg)
+	return ddot.KubeletDisabled(cfg)
 }
 
 // localNodeName returns the name of the node whose pods this collector

@@ -14,21 +14,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation"
-
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
-
-// KubeletDisabled reports whether cfg leaves the agent without kubelet access,
-// so that the local node's name must come from the environment rather than from
-// the kubelet: otel-agent in DDOT standalone mode with
-// otelcollector.standalone.use_kubelet_collector set to false, which watches pods
-// through the API server with the nodefilter workloadmeta collector instead, and
-// whose deployment lacks the kubelet API access and settings the kubelet needs.
-func KubeletDisabled(cfg pkgconfigmodel.Reader) bool {
-	standalone := cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent
-	return standalone && !cfg.GetBool("otelcollector.standalone.use_kubelet_collector")
-}
 
 // FromEnv returns the local node's name, read from the first set environment
 // variable among envVars, a comma-separated list of names, and the name of

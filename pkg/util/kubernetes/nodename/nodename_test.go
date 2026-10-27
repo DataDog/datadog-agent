@@ -10,36 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
-
-func TestKubeletDisabled(t *testing.T) {
-	tests := []struct {
-		name                string
-		flavor              string
-		standalone          bool
-		useKubeletCollector bool
-		want                bool
-	}{
-		{name: "otel-agent standalone with the nodefilter collector", flavor: flavor.OTelAgent, standalone: true, want: true},
-		{name: "otel-agent standalone with the kubelet collector", flavor: flavor.OTelAgent, standalone: true, useKubeletCollector: true},
-		{name: "otel-agent not standalone", flavor: flavor.OTelAgent},
-		{name: "other flavors", flavor: flavor.DefaultAgent, standalone: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			flavor.SetTestFlavor(t, tt.flavor)
-			cfg := configmock.New(t)
-			cfg.SetInTest("otel_standalone", tt.standalone)
-			cfg.SetInTest("otelcollector.standalone.use_kubelet_collector", tt.useKubeletCollector)
-
-			assert.Equal(t, tt.want, KubeletDisabled(cfg))
-		})
-	}
-}
 
 func TestFromEnv(t *testing.T) {
 	tests := []struct {
