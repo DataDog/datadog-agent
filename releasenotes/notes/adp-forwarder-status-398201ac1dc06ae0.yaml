@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    When the Agent Data Plane (ADP) is enabled, Agent status separates Forwarder transaction
-    metrics into Core Agent, per-agent ADP, and combined Core Agent + ADP sections. Core-only
-    endpoint, HTTP-code, and storage details remain in the Core Agent section; the combined
-    section shows totals and error types that have ADP equivalents.
+    When the Agent Data Plane (ADP) is enabled, Agent status shows Core Agent Forwarder metrics
+    in the existing Forwarder section and ADP Forwarder metrics separately by remote agent.
+    Endpoint, HTTP-code, and storage details remain Core Agent-only. Legacy ``/debug/vars``
+    paths continue to combine mapped Core Agent and ADP values for ``go_expvar`` consumers.

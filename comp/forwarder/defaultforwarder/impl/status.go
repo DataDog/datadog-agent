@@ -32,7 +32,8 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 }
 
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
-	// In-process expvars are Core-only; ADP and combined totals have separate status providers.
+	// In-process expvars are Core-only; ADP has a separate status provider.
+	// Combined totals are exposed on /debug/vars for legacy checks, not in status.
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck

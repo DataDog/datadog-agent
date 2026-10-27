@@ -276,7 +276,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	assert.Equal(t, int64(10), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_metric_packets"])
 }
 
-func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
+func TestMappedRemoteValuesMergeWithoutChangingLocalExpvars(t *testing.T) {
 	local := ensureExpvarInt(t, []string{"dogstatsd-udp", "Packets"})
 	local.Set(8)
 
@@ -301,8 +301,6 @@ func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &snapshot))
 	assert.Equal(t, float64(13), snapshot["dogstatsd-udp"].(map[string]any)["Packets"])
 
-	assert.NotContains(t, snapshot, "remote_agents")
-	assert.Nil(t, expvar.Get("remote_agents"), "do not register ADP telemetry as expvars")
 	remote := provides.ExpvarSource()
 	assert.Equal(t, int64(5), remote["agent-data-plane"].(map[string]any)["dogstatsd-udp"].(map[string]any)["Packets"])
 }

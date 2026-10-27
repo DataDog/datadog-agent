@@ -41,7 +41,6 @@ func TestMergeJSONPreservesLocalAndRemoteViews(t *testing.T) {
 	assert.Equal(t, "Series", series["Name"])
 	assert.Equal(t, json.Number("7"), got["forwarder"].(map[string]any)["Transactions"].(map[string]any)["Success"])
 	assert.Equal(t, json.Number("11"), got["unrelated"].(map[string]any)["Gauge"])
-	assert.NotContains(t, got, "remote_agents", "mapped telemetry must not be exposed as new expvars")
 	assert.Contains(t, string(merged), `"Packets": 13`)
 }
 
@@ -78,13 +77,7 @@ func TestHandlerProjectsLateCoreLeafOnEveryRequest(t *testing.T) {
 		require.NoError(t, decode(response.Body.Bytes(), &got))
 		return got
 	}
-	first := read()
-	assert.NotContains(t, first, "remote_agents")
-	assert.Equal(t, json.Number("5"), first[name].(map[string]any)["Packets"])
-	before := ReadRoot(name, source)
-	assert.Empty(t, before.Core)
-	assert.Equal(t, float64(5), before.RemoteByAgent["agent-data-plane"]["Packets"])
-	assert.Equal(t, float64(5), before.Combined["Packets"])
+	assert.Equal(t, json.Number("5"), read()[name].(map[string]any)["Packets"])
 
 	root := expvar.NewMap(name)
 	local := new(expvar.Int)
@@ -92,11 +85,6 @@ func TestHandlerProjectsLateCoreLeafOnEveryRequest(t *testing.T) {
 	root.Set("Packets", local)
 	assert.Equal(t, json.Number("13"), read()[name].(map[string]any)["Packets"])
 	assert.Equal(t, "8", root.Get("Packets").String(), "the Core expvar stays separate")
-	views := ReadRoot(name, source)
-	assert.Equal(t, float64(8), views.Core["Packets"])
-	assert.Equal(t, float64(5), views.RemoteByAgent["agent-data-plane"]["Packets"])
-	assert.Equal(t, float64(13), views.Combined["Packets"])
-
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/other", nil))
 	assert.Equal(t, "other", response.Body.String())

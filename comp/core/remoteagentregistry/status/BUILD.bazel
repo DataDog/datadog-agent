@@ -10,8 +10,6 @@ go_library(
     embedsrcs = [
         "status_templates/adp_forwarder.tmpl",
         "status_templates/adp_forwarder_html.tmpl",
-        "status_templates/combined_forwarder.tmpl",
-        "status_templates/combined_forwarder_html.tmpl",
         "status_templates/remote_agents.tmpl",
         "status_templates/remote_agents_html.tmpl",
     ],
