@@ -113,10 +113,10 @@ func renderFormat(format string, params ...interface{}) string {
 	return fmt.Sprintf(format, params...)
 }
 
-// Log formats message using the default formats for its operands
-// and writes it to log with the given level, skipping extraDepth call frames
-// below its own caller to compute the origin of the entry, and attaching the
-// context key/value pairs to the record.
+// Log writes the given message to the log with the given level, skipping
+// extraDepth call frames below its own caller to compute the origin of the
+// entry, and attaching the context key/value pairs to the record. Unlike the
+// per-level methods, Log ignores the state set by SetContext.
 //
 // It returns an error containing the message for the warn, error and critical
 // levels, and nil for the trace, debug and info levels.
