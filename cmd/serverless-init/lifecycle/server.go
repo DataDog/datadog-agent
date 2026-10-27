@@ -121,12 +121,22 @@ type Flusher interface {
 }
 
 // ForceFlusher is optionally satisfied by metricFlusher (ServerlessMetricAgent
-// does; the trace flusher doesn't). flushAll calls it only for /terminate,
-// never /suspend: /suspend can resume, and forcing the open bucket there would
+// does; the trace flusher doesn't). flushAndStop calls it, flushForSuspend
+// never does: /suspend can resume, and forcing the open bucket there would
 // let a later flush send a second, partial point for that bucket — overwriting
 // the pre-suspend data in the backend instead of merging with it.
 type ForceFlusher interface {
 	FlushAll()
+}
+
+// TraceStopper shuts down a trace flusher and sends everything it still holds,
+// including the newest stats that Flush keeps in memory. Use it on /terminate
+// only, in place of Flush: the platform destroys the VM right after the
+// response, so normal process shutdown never runs. Never use it on /suspend.
+// The VM can resume there and has to keep tracing. Stop must be idempotent,
+// since process shutdown calls it again.
+type TraceStopper interface {
+	Stop()
 }
 
 // LogsFlusher is satisfied by logsAgent.ServerlessLogsAgent.
@@ -137,7 +147,7 @@ type LogsFlusher interface {
 // SampleDrainer blocks until all metric samples enqueued before the call have
 // been consumed by the aggregator worker. Must be called before Flush to ensure
 // lifecycle metrics emitted via AddEnhancedMetric are included in the flush.
-// Optional: a nil SampleDrainer disables draining (see flushAll).
+// Optional: a nil SampleDrainer disables draining (see drainPendingSamples).
 type SampleDrainer interface {
 	WaitForPendingSamples()
 }
@@ -527,33 +537,12 @@ func mirrorResponse(w http.ResponseWriter, resp *http.Response) {
 	}
 }
 
-// flushAll runs metric/trace/logs flushes in parallel and waits for them,
-// bounded by flushCtx. Used by handleWithForwarder for the env-var-set path
-// and by handleSuspend / handleTerminate for the env-var-unset path.
-// It first drains any pending metric samples so that lifecycle metrics
-// emitted immediately before this call are included in the flush.
-// forceFlushAll is true only for /terminate (see ForceFlusher).
-func (s *Server) flushAll(flushCtx context.Context, forceFlushAll bool) {
-	if s.sampleDrainer != nil {
-		drained := make(chan struct{})
-		go func() {
-			s.sampleDrainer.WaitForPendingSamples()
-			close(drained)
-		}()
-		select {
-		case <-drained:
-		case <-flushCtx.Done():
-			log.Warnf("MicroVM lifecycle: timed out waiting for pending samples to drain")
-		}
-	}
+// flushForSuspend runs metric/trace/logs flushes in parallel and waits for
+// them, bounded by flushCtx. Every agent keeps running: the VM can resume.
+func (s *Server) flushForSuspend(flushCtx context.Context) {
+	s.drainPendingSamples(flushCtx)
 	var wg sync.WaitGroup
-	wg.Go(func() {
-		if ff, ok := s.metricFlusher.(ForceFlusher); ok && forceFlushAll {
-			ff.FlushAll()
-		} else {
-			s.metricFlusher.Flush()
-		}
-	})
+	wg.Go(s.metricFlusher.Flush)
 	wg.Go(s.traceFlusher.Flush)
 	wg.Go(func() {
 		if s.logsFlusher != nil {
@@ -563,8 +552,55 @@ func (s *Server) flushAll(flushCtx context.Context, forceFlushAll bool) {
 	s.waitForFlushes(flushCtx, &wg)
 }
 
-// waitForFlushes waits for wg (the goroutines launched by flushAll: metric,
-// trace, logs), bounded by flushCtx. If flushCtx expires first, the remaining
+// flushAndStop is the last send before the VM is destroyed. Like
+// flushForSuspend, but metrics include the open bucket (see ForceFlusher) and
+// the trace agent is stopped (see TraceStopper).
+func (s *Server) flushAndStop(flushCtx context.Context) {
+	s.drainPendingSamples(flushCtx)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		if ff, ok := s.metricFlusher.(ForceFlusher); ok {
+			ff.FlushAll()
+		} else {
+			s.metricFlusher.Flush()
+		}
+	})
+	wg.Go(func() {
+		if ts, ok := s.traceFlusher.(TraceStopper); ok {
+			ts.Stop()
+		} else {
+			s.traceFlusher.Flush()
+		}
+	})
+	wg.Go(func() {
+		if s.logsFlusher != nil {
+			s.logsFlusher.Flush(flushCtx)
+		}
+	})
+	s.waitForFlushes(flushCtx, &wg)
+}
+
+// drainPendingSamples waits, bounded by flushCtx, for metric samples enqueued
+// before the call to reach the aggregator, so that lifecycle metrics emitted
+// immediately before a flush are included in it.
+func (s *Server) drainPendingSamples(flushCtx context.Context) {
+	if s.sampleDrainer == nil {
+		return
+	}
+	drained := make(chan struct{})
+	go func() {
+		s.sampleDrainer.WaitForPendingSamples()
+		close(drained)
+	}()
+	select {
+	case <-drained:
+	case <-flushCtx.Done():
+		log.Warnf("MicroVM lifecycle: timed out waiting for pending samples to drain")
+	}
+}
+
+// waitForFlushes waits for wg (the goroutines launched by flushForSuspend or
+// flushAndStop: metric, trace, logs), bounded by flushCtx. If flushCtx expires first, the remaining
 // flushes are abandoned and the handler can return to the platform promptly;
 // wg.Done() never blocks, so the abandoned goroutines still exit on their own
 // without leaking.
@@ -592,6 +628,9 @@ func (s *Server) waitForFlushes(flushCtx context.Context, wg *sync.WaitGroup) {
 // and passThroughValidate directly (fast-reachability-check path, not this
 // function).
 //
+// mode only decides when flush runs; flush decides what it does
+// (flushForSuspend or flushAndStop). It is unused, and may be nil, for noFlush.
+//
 // flushParallel: flush runs concurrently with the forward; wall-clock is
 // max(forwardTimeout, flushTimeout)+ε. Known limitation: telemetry produced
 // by the user app during PassThrough may arrive in the pipeline after
@@ -605,7 +644,7 @@ func (s *Server) waitForFlushes(flushCtx context.Context, wg *sync.WaitGroup) {
 //
 // flushCtx is deliberately NOT derived from r.Context(): if the platform
 // disconnects mid-handler, the flush still runs to its own budget.
-func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, flush func(context.Context), w http.ResponseWriter, r *http.Request) {
 	sideDone := make(chan struct{})
 
 	var parallelCtx context.Context
@@ -619,7 +658,7 @@ func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w 
 		defer close(sideDone)
 		s.emitLifecycleMetric(metricName)
 		if mode == flushParallel {
-			s.flushAll(parallelCtx, false)
+			flush(parallelCtx)
 		}
 	}()
 
@@ -630,7 +669,7 @@ func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w 
 	// still tied to the forwardTimeout context (via cancelOnCloseReader).
 	// Both flushParallel (/suspend) and flushSequential (/terminate) can run
 	// longer than forwardTimeout (default 1s vs flushTimeout default 5s), so
-	// waiting on sideDone/flushAll before reading resp.Body risks the context
+	// waiting on sideDone/flush before reading resp.Body risks the context
 	// firing mid-read and making the io.Copy in mirrorResponse fail with a
 	// partial or empty body. Buffering here — while the context is fresh —
 	// makes mirrorResponse context-independent. The body is already capped at
@@ -647,7 +686,7 @@ func (s *Server) handleWithForwarder(metricName, path string, mode flushMode, w 
 	if mode == flushSequential {
 		seqCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
 		defer cancel()
-		s.flushAll(seqCtx, true)
+		flush(seqCtx)
 	}
 
 	mirrorResponse(w, resp)
@@ -738,7 +777,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	// forwarded /run request carries a fixed Content-Length rather than
 	// chunked encoding (which some user-app HTTP servers reject).
 	r.Header.Set("Content-Length", strconv.Itoa(len(bodyBytes)))
-	s.dispatchHook(runMetricName, pathRun, noFlush, s.enabledHooks.Run, w, r)
+	s.dispatchHook(runMetricName, pathRun, noFlush, nil, s.enabledHooks.Run, w, r)
 }
 
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
@@ -753,7 +792,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		s.metadataReporter.ReportMetadata(id)
 	}
 	s.metadataMu.Unlock()
-	s.dispatchHook(resumeMetricName, pathResume, noFlush, s.enabledHooks.Resume, w, r)
+	s.dispatchHook(resumeMetricName, pathResume, noFlush, nil, s.enabledHooks.Resume, w, r)
 }
 
 // handleSuspend stops the heartbeat, flushes telemetry, and (when a forwarder
@@ -778,7 +817,9 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 //
 // If the guarantee cannot be confirmed, change flushParallel → flushSequential
 // here. The implementation already supports it (handleWithForwarder and
-// dispatchHook both handle flushSequential). The impact of that change:
+// dispatchHook both handle flushSequential), and /suspend keeps calling
+// flushForSuspend: the mode only changes when the flush runs. The impact of
+// that change:
 //   - /suspend wall-clock increases from max(forwardTimeout, flushTimeout) to
 //     forwardTimeout + flushTimeout (default: 1s + 5s = 6s vs 5s today).
 //   - The response body from the user app is fully buffered before flushing
@@ -791,7 +832,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: suspend — flushing telemetry")
 	s.heartbeat.Stop()
-	s.dispatchHook(suspendMetricName, pathSuspend, flushParallel, s.enabledHooks.Suspend, w, r)
+	s.dispatchHook(suspendMetricName, pathSuspend, flushParallel, s.flushForSuspend, s.enabledHooks.Suspend, w, r)
 }
 
 // handleTerminate flushes all telemetry and, when a forwarder is configured,
@@ -808,7 +849,7 @@ func (s *Server) handleSuspend(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTerminate(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: terminate — flushing telemetry")
 	s.heartbeat.Stop()
-	s.dispatchHook(terminateMetricName, pathTerminate, flushSequential, s.enabledHooks.Terminate, w, r)
+	s.dispatchHook(terminateMetricName, pathTerminate, flushSequential, s.flushAndStop, s.enabledHooks.Terminate, w, r)
 }
 
 // dispatchHook is the shared dispatch path for run, resume, suspend, and
@@ -817,17 +858,18 @@ func (s *Server) handleTerminate(w http.ResponseWriter, r *http.Request) {
 // toggle): delegates to handleWithForwarder which mirrors the user app's
 // response. Otherwise: emit metric, optionally flush, return 200. In
 // standalone mode the parallel/sequential distinction does not apply, so
-// both flush modes result in a single flushAll call.
-func (s *Server) dispatchHook(metricName, path string, mode flushMode, forwardEnabled bool, w http.ResponseWriter, r *http.Request) {
+// both flush modes result in a single flush call. flush is as in
+// handleWithForwarder.
+func (s *Server) dispatchHook(metricName, path string, mode flushMode, flush func(context.Context), forwardEnabled bool, w http.ResponseWriter, r *http.Request) {
 	if s.fwd != nil && forwardEnabled {
-		s.handleWithForwarder(metricName, path, mode, w, r)
+		s.handleWithForwarder(metricName, path, mode, flush, w, r)
 		return
 	}
 	s.emitLifecycleMetric(metricName)
 	if mode != noFlush {
 		flushCtx, cancel := context.WithTimeout(context.Background(), s.flushTimeout)
 		defer cancel()
-		s.flushAll(flushCtx, mode == flushSequential)
+		flush(flushCtx)
 	}
 	w.WriteHeader(http.StatusOK)
 }
