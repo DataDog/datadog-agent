@@ -2,7 +2,6 @@ single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 10m
   rules:
-    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     # On main: wait for the agent image to land in ECR before checking for baselines.
     - if: $CI_COMMIT_BRANCH == "main"
@@ -38,9 +37,14 @@ single_machine_performance-regression_detector-merge_base_check:
           BASELINE_SHA=$(git rev-parse "${CI_COMMIT_SHA}^")
           echo "On base branch, using parent commit ${BASELINE_SHA} as initial baseline"
       else
-          # On a dev branch, compute the merge base with the base branch
-          echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
-          SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
+          # On a dev branch, compute the merge base with the base branch.
+          # Stack PRs target another PR's branch: use it so the report only covers this PR's changes.
+          SMP_MERGE_BASE_BRANCH="${SMP_BASE_BRANCH}"
+          if [[ -n "${GIT_BASE_BRANCH:-}" && "${GIT_BASE_BRANCH}" != "${SMP_BASE_BRANCH}" ]] && git rev-parse --verify --quiet "origin/${GIT_BASE_BRANCH}" > /dev/null; then
+              SMP_MERGE_BASE_BRANCH="${GIT_BASE_BRANCH}"
+          fi
+          echo "Looking for merge base for branch ${SMP_MERGE_BASE_BRANCH}"
+          SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_MERGE_BASE_BRANCH})
           echo "Merge base is ${SMP_MERGE_BASE}"
           BASELINE_SHA="${SMP_MERGE_BASE}"
       fi
@@ -224,9 +228,8 @@ trigger-single-machine-performance-regression_detector:
   extends:
     - .trigger-single-machine-performance-regression_detector
   rules:
-    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
-    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
+    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change, including on stack PRs
   allow_failure: true
 
 # This job is used to run the regression detector on the main branch. It remains
