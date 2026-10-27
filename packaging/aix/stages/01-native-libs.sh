@@ -62,7 +62,7 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 # Libraries taken from AIX Toolbox (yum install <pkg>-devel) use whatever
 # version is provided by the toolbox.
 #
-ZLIB_VERSION="1.3.1"
+ZLIB_VERSION="1.3.2"
 BZIP2_VERSION="1.0.8"
 OPENSSL_VERSION="3.5.9"
 XZ_VERSION="5.8.1"
