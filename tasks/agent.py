@@ -77,6 +77,15 @@ def install_rc_x509_build_files(embedded_path, target_platform):
     return native_embedded_path
 
 
+def needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
+    """Whether a non-Bazel Agent build must install the rc-x509 native link inputs."""
+    return (
+        "rc_x509" in build_tags
+        and (target_platform.startswith("linux") or target_platform == "darwin")
+        and not enable_bazel
+    )
+
+
 def add_rc_x509_cgo_flags(env, native_embedded_path, target_platform):
     """Add the rc-x509 header and static-library directories to a Go build environment."""
     env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" -I{os.path.join(native_embedded_path, 'include')}"
@@ -157,11 +166,7 @@ def build(
         build_tags = list(set(build_tags).difference({"nvml"}))
 
     rc_x509_embedded_path = None
-    if (
-        (target_platform.startswith("linux") or target_platform == "darwin")
-        and not flavor.is_iot()
-        and not enable_bazel
-    ):
+    if needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
         if embedded_path is None:
             embedded_path = get_embedded_path(ctx)
         with gitlab_section("Install rc-x509 native build inputs", collapsed=True):

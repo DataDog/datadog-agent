@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from invoke.exceptions import Exit
 
-from tasks.agent import add_rc_x509_cgo_flags, install_rc_x509_build_files
+from tasks.agent import add_rc_x509_cgo_flags, install_rc_x509_build_files, needs_rc_x509_build_files
 
 
 class TestRCX509BuildInputs(unittest.TestCase):
@@ -79,6 +79,20 @@ class TestRCX509BuildInputs(unittest.TestCase):
             env["CGO_LDFLAGS"],
             f" -L{native_embedded_path}/lib -Wl,-rpath,{native_embedded_path}/lib",
         )
+
+    def test_needs_build_files_when_rc_x509_tag_is_set(self):
+        self.assertTrue(needs_rc_x509_build_files({"rc_x509", "zlib"}, "linux", enable_bazel=False))
+        self.assertTrue(needs_rc_x509_build_files({"rc_x509"}, "darwin", enable_bazel=False))
+
+    def test_skips_build_files_without_rc_x509_tag(self):
+        # e.g. --build-exclude=rc_x509, or the IoT flavor's tag set
+        self.assertFalse(needs_rc_x509_build_files({"zlib"}, "linux", enable_bazel=False))
+
+    def test_skips_build_files_on_unsupported_platforms(self):
+        self.assertFalse(needs_rc_x509_build_files({"rc_x509"}, "win32", enable_bazel=False))
+
+    def test_skips_build_files_for_bazel_builds(self):
+        self.assertFalse(needs_rc_x509_build_files({"rc_x509"}, "linux", enable_bazel=True))
 
 
 if __name__ == "__main__":
