@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -59,6 +61,7 @@ type Worker struct {
 	haAgent                 haagent.Component
 	watchdogWarningTimeout  time.Duration
 	isShadowWorker          bool
+	clock                   clock.Clock
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -158,6 +161,7 @@ func newWorkerWithOptions(
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
 		isShadowWorker:          isShadowWorker,
+		clock:                   clock.New(),
 	}, nil
 }
 
@@ -168,16 +172,30 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d, shadow: %t: Ready to process checks...", w.runnerID, w.ID, w.isShadowWorker)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
-	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
+	utilizationTracker := utilizationtracker.NewUtilizationTrackerWithClock(w.utilizationTickInterval, w.clock, alpha)
+
+	utilizationUpdaterDone := startUtilizationUpdater(w, utilizationTracker)
+	// Deferred in this order so that, on the way out, the tracker stops (closing
+	// its Output channel) before we wait for the updater goroutine to drain it
+	// and delete this worker's telemetry/expvar entries.
+	defer func() { <-utilizationUpdaterDone }()
 	defer utilizationTracker.Stop()
 
-	startUtilizationUpdater(w.Name, utilizationTracker)
-	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
+	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval, w.clock)
 	defer cancel()
 
-	for check := range w.pendingChecksChan {
+	// The worker exits after an interval-zero check, whether the check ran or
+	// was skipped: the collector adds an extra worker for each such check, so
+	// exiting returns the pool to its size. exitAfterCheck is set before the
+	// skips below, so their `continue` also ends the loop.
+	for exitAfterCheck := false; !exitAfterCheck; {
+		check, ok := <-w.pendingChecksChan
+		if !ok {
+			break
+		}
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
+		exitAfterCheck = longRunning
 
 		if w.haAgent.Enabled() && check.IsHASupported() && !w.haAgent.IsActive() {
 			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
@@ -212,7 +230,7 @@ func (w *Worker) Run(ctx context.Context) {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		utilizationTracker.Started()
+		utilizationTracker.Started(longRunning)
 
 		// Run the check, recovering from any panic so that a single
 		// misbehaving check cannot crash the entire agent process.
@@ -292,27 +310,42 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
+// startUtilizationUpdater starts a goroutine that publishes utilization
+// readings until ut.Output closes, then deletes this worker's telemetry and
+// expvar entries. The returned channel is closed once that cleanup has run,
+// so callers can wait for it instead of racing with it.
+func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracker) <-chan struct{} {
+	name := w.Name
+
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
+		Excluded:    w.isShadowWorker, // isShadowWorker is known for the lifetime of the worker
 	})
 
 	workerUtilization.Set(0, name)
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for value := range ut.Output {
 			expvars.SetWorkerStats(name, &expvars.WorkerStats{
-				Utilization: value,
+				Utilization: value.Utilization,
+				Excluded:    w.isShadowWorker || value.Excluded,
 			})
 
-			workerUtilization.Set(value, name)
+			workerUtilization.Set(value.Utilization, name)
 		}
 		expvars.DeleteWorkerStats(name)
+		// Workers exit after interval-zero checks while the Agent runs, and
+		// worker names are never reused, so remove the series with the worker.
+		workerUtilization.Delete(name)
 	}()
+
+	return done
 }
 
-func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration) func() {
-	ticker := time.NewTicker(interval)
+func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration, clk clock.Clock) func() {
+	ticker := clk.Ticker(interval)
 	cancel := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {

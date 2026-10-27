@@ -42,7 +42,11 @@ clusterAgent:
 				scenec2.WithInstanceType("t3.xlarge"),
 			),
 			scenkind.WithFakeintakeOptions(
-				fakeintake.WithMemory(2048),
+				// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
+				// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
+				// Fargate requires 1024 CPU units for more than 4096MiB.
+				fakeintake.WithCPU(1024),
+				fakeintake.WithMemory(6144),
 				fakeintake.WithRetentionPeriod("31m"),
 			),
 			scenkind.WithDeployDogstatsd(),
@@ -66,10 +70,12 @@ func (suite *kindSuite) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
-func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
+func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 	const (
 		deploymentLabel = "nvidia.com/dynamo-graph-deployment-name"
 		deploymentName  = "my-model"
+		componentLabel  = "nvidia.com/dynamo-component-type"
+		subTypeLabel    = "nvidia.com/dynamo-sub-component-type"
 		namespace       = "workload-cpustress"
 	)
 
@@ -87,22 +93,29 @@ func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
 	}
 	suite.Require().NotEmpty(podName, "no stress-ng pod found for Dynamo tag test")
 
-	setLabel := func(ctx context.Context, value string) error {
+	// Restore all labels so a retry can use the same pod.
+	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
+	suite.Require().NoError(err)
+	originalLabels := pod.Labels
+	setLabels := func(ctx context.Context, labels map[string]string) error {
 		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
-		if value == "" {
-			delete(pod.Labels, deploymentLabel)
-		} else {
-			pod.Labels[deploymentLabel] = value
-		}
+		pod.Labels = labels
 		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
 		return err
 	}
-	suite.Require().NoError(setLabel(ctx, deploymentName))
+	labels := make(map[string]string, len(originalLabels)+3)
+	for key, value := range originalLabels {
+		labels[key] = value
+	}
+	labels[deploymentLabel] = deploymentName
+	labels[componentLabel] = "worker"
+	labels[subTypeLabel] = "decode"
+	suite.Require().NoError(setLabels(ctx, labels))
 	defer func() {
-		suite.Require().NoError(setLabel(context.Background(), ""), "restore stress-ng pod labels")
+		suite.Require().NoError(setLabels(context.Background(), originalLabels), "restore stress-ng pod labels")
 	}()
 
 	suite.testMetric(&testMetricArgs{
@@ -112,6 +125,8 @@ func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
 				`^kube_namespace:` + namespace + `$`,
 				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
 				`^dynamo_graph_deployment:` + deploymentName + `$`,
+				`^inference_workload:` + deploymentName + `$`,
+				`^inference_workload_component:decode$`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -120,10 +135,12 @@ func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^dynamo_graph_deployment:` + deploymentName + `$`,
+				`^inference_workload:` + deploymentName + `$`,
+				`^inference_workload_component:decode$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
-				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_id:.*/apps-stress-ng@sha256:`,
+				`^image_name:.*/apps-stress-ng$`,
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,

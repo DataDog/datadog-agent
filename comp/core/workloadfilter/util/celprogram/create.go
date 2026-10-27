@@ -7,9 +7,9 @@
 package celprogram
 
 import (
+	"cel.dev/cel-go/cel"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/google/cel-go/cel"
 )
 
 // getEnv returns a reusable CEL environment for the given object type, building it once and storing

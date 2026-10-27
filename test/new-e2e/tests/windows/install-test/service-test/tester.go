@@ -185,8 +185,8 @@ func ExpectedInstalledServices() []string {
 func ExpectedRunningServices() []string {
 	return []string{
 		"datadogagent",
-		"datadog-trace-agent",
-		// datadog-process-agent is not listed: dd-procmgr supervises process-agent, so the legacy service stays Stopped
+		// datadog-trace-agent and datadog-process-agent are not listed: dd-procmgr
+		// supervises both, so the legacy services stay Stopped
 	}
 }
 

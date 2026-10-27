@@ -84,13 +84,22 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 # For TSE operations: curl
 RUN apt-get update \
     && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
+    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser \
+    # Keep license/copyright attribution (/usr/share/doc/*/copyright, /usr/share/common-licenses),
+    # drop the rest of the package documentation (changelogs, READMEs, etc.). Same cleanup as
+    # Dockerfiles/agent/Dockerfile.
+    && find /usr/share/doc -mindepth 1 -type f ! -name 'copyright*' -delete \
+    && find /usr/share/doc -mindepth 1 -type d -empty -delete \
     && rm -rf \
       /var/cache/debconf/*-old \
       /var/lib/apt/lists/* \
       /var/log/* \
       /tmp/* \
-      /var/tmp/*
+      /var/tmp/* \
+      /usr/share/man \
+      /usr/share/info \
+      /usr/share/lintian \
+      /usr/share/bash-completion
 
 COPY ./conf.d /etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
@@ -150,8 +159,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
-ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so
+COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
+ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Incompatible with the custom metrics API on port 443
 # Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root

@@ -16,6 +16,7 @@ import (
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/fs"
@@ -70,6 +71,54 @@ func TestSecureCreateDirectory(t *testing.T) {
 			assert.Equal(t, sddl, sd.String())
 		})
 	})
+}
+
+func TestConfigDirIsTrustedForRead(t *testing.T) {
+	t.Run("missing directory is not created", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "missing")
+		readable, err := ConfigDirIsTrustedForRead(dir)
+		require.NoError(t, err)
+		require.False(t, readable, "a missing directory must not authorize a subsequent read")
+		_, err = os.Stat(dir)
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+	t.Run("empty path rejected", func(t *testing.T) {
+		readable, err := ConfigDirIsTrustedForRead("")
+		require.Error(t, err)
+		require.False(t, readable)
+	})
+	// Owner allowlist coverage lives in TestEnsureDatadogDataDir. Here, exercise the
+	// read-only gate's trusted and rejected outcomes with the same preservation checks.
+	for _, tc := range []struct {
+		name     string
+		newDir   func(testing.TB) string
+		readable bool
+	}{
+		{"trusted", testutil.TrustedDir, true},
+		{"untrusted", testutil.UntrustedDir, false},
+	} {
+		t.Run(tc.name+" unchanged", func(t *testing.T) {
+			dir := tc.newDir(t)
+			config := filepath.Join(dir, "datadog.yaml")
+			contents := []byte("site: custom.example\n")
+			require.NoError(t, os.WriteFile(config, contents, 0600))
+			before, err := getSecurityDescriptor(dir)
+			require.NoError(t, err)
+			readable, err := ConfigDirIsTrustedForRead(dir)
+			if tc.readable {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "has unexpected owner")
+			}
+			assert.Equal(t, tc.readable, readable)
+			after, err := getSecurityDescriptor(dir)
+			require.NoError(t, err)
+			assert.Equal(t, before.String(), after.String())
+			actual, err := os.ReadFile(config)
+			require.NoError(t, err)
+			assert.Equal(t, contents, actual)
+		})
+	}
 }
 
 func TestEnsureDatadogDataDir(t *testing.T) {

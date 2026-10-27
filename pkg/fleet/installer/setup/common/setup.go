@@ -140,6 +140,10 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 			runtime.GOOS,
 			freshInstall,
 		)
+		if parSplitEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"); parSplitEnabledEnv != "" {
+			parSplitEnabled := strings.EqualFold(parSplitEnabledEnv, "true") || parSplitEnabledEnv == "1"
+			s.Config.DatadogYAML.PrivateActionRunner.SplitEnabled = config.BoolToPtr(parSplitEnabled)
+		}
 	}
 
 	return s, nil

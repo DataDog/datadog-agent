@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Activity dumps and security profiles now record whether a capability was
+    checked against, and obtained from, the initial user namespace, matching
+    what capabilities events already report. This requires
+    ``event_monitoring_config.capabilities_monitoring.enabled``.

@@ -13,9 +13,9 @@ import re
 import shutil
 import sys
 import tempfile
-import threading
+import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -27,7 +27,7 @@ from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
@@ -39,6 +39,7 @@ from tasks.libs.common.utils import (
     get_repo_root,
     gitlab_section,
     running_in_ci,
+    running_in_gitlab_ci,
 )
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -50,7 +51,15 @@ from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
-from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
+from tasks.tools.e2e_stacks import (
+    CI_STACK_PREFIX,
+    FINAL_UNUSED_JOB_STATUSES,
+    destroy_remote_stack_api,
+    destroy_remote_stack_local,
+    init_job_consumers,
+    read_recorded_stacks,
+    stacks_cleanup_reason,
+)
 
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
@@ -161,187 +170,63 @@ def write_test_binaries_bzl(_):
         print("}", file=bzl)
 
 
-@task(
-    help={
-        "output_dir": "Directory to store compiled test binaries",
-        "manifest_file_path": "Path to write the build manifest",
-    },
-)
-def build_binaries(ctx, output_dir="test-binaries", manifest_file_path="manifest.json"):
-    """
-    Build E2E test binaries for all test packages to be reused across test jobs.
-    This pre-builds all test binaries to optimize CI pipeline performance.
-    """
-    output_path = Path(output_dir).absolute()
-    bazel(
-        "run",
-        "--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk",
-        "//test/new-e2e/tests:install_test_binaries",
-        "--",
-        f"--destdir={output_path}",
-    )
+def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
+    """Build the E2E test binaries for the given targets with Bazel.
 
-    # Create manifest file
+    Builds the go_test targets matching the requested packages, installs the binaries
+    under test-binaries/ and writes the manifest.json expected by gotest-custom.
+    Returns True if at least one binary was built, False otherwise.
+    """
+    repo_root = get_repo_root()
     test_binaries_bzl = {}
-    exec((get_repo_root() / "test/new-e2e/tests/test_binaries.bzl").read_text(), test_binaries_bzl)
+    exec((repo_root / "test/new-e2e/tests/test_binaries.bzl").read_text(), test_binaries_bzl)
+    test_binaries = test_binaries_bzl["TEST_BINARIES"]
+
+    # Normalize targets: ./tests/agent-devx -> tests/agent-devx
+    target_prefixes = [target.lstrip("./") for target in targets]
+
+    bazel_args = ["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"]
+
+    output_path = Path("test-binaries").absolute()
+    manifest_binaries = []
+    build_start = time.monotonic()
+    for label, binary_name in test_binaries.items():
+        package = label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/")
+        if not any(package == prefix or package.startswith(prefix + "/") for prefix in target_prefixes):
+            continue
+        binary_path = output_path / binary_name
+        binary_start = time.monotonic()
+        build_binary_with_bazel(
+            label,
+            args=bazel_args,
+            bin_path=str(binary_path),
+        )
+        print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
+        manifest_binaries.append(
+            {
+                "package": package,
+                "binary": binary_name,
+                "size": binary_path.stat().st_size,
+            }
+        )
+
+    if not manifest_binaries:
+        print(f"WARNING: No Bazel test binaries found matching targets: {targets}")
+        return False
+
+    build_duration = time.monotonic() - build_start
+
     manifest = {
         "build_info": {
             "timestamp": ctx.run("date -u +%Y-%m-%dT%H:%M:%SZ", hide=True).stdout.strip(),
             "commit": get_commit_sha(ctx, short=True),
         },
-        "binaries": [
-            {
-                "package": label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/"),
-                "binary": binary_name,
-                "size": (output_path / binary_name).stat().st_size,
-            }
-            for label, binary_name in test_binaries_bzl["TEST_BINARIES"].items()
-        ],
+        "binaries": manifest_binaries,
     }
-
-    with open(manifest_file_path, "w") as f:
+    with open("manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"Manifest created: {manifest_file_path}")
-
-
-@task(
-    help={
-        "output_dir": "Directory containing compiled test binaries",
-        "manifest_file_path": "Path to the manifest JSON file",
-        "s3_base_uri": "S3 base URI for uploading (e.g. s3://bucket/path/e2e-pre-build/pipeline-id)",
-        "parallel": "Number of parallel uploads [default: 8]",
-    },
-)
-def upload_binaries(
-    ctx,
-    output_dir="test-binaries",
-    manifest_file_path="manifest.json",
-    s3_base_uri="",
-    parallel=8,
-):
-    """
-    Create per-package tarballs from pre-built test binaries and upload them to S3.
-    Each binary gets its own tarball so that test jobs can download only what they need.
-    """
-    if not s3_base_uri:
-        raise Exit("--s3-base-uri is required", code=1)
-
-    with open(manifest_file_path) as f:
-        manifest = json.load(f)
-
-    output_path = Path(output_dir)
-    tarball_dir = Path(tempfile.mkdtemp(prefix="e2e-tarballs-"))
-
-    print(f"Creating per-package tarballs and uploading to {s3_base_uri}")
-
-    print_lock = threading.Lock()
-    upload_failures = 0
-
-    def upload_single(binary_info):
-        nonlocal upload_failures
-        binary_name = binary_info["binary"]
-        binary_file = output_path / binary_name
-        if not binary_file.exists():
-            with print_lock:
-                print(f"  ✗ Binary {binary_name} not found, skipping")
-            return
-
-        tarball_path = tarball_dir / f"{binary_name}.tar.zst"
-        try:
-            ctx.run(
-                f'tar c -I zstd -f {tarball_path} -C {output_path.parent} {output_path.name}/{binary_name}',
-                hide=True,
-            )
-            ctx.run(f'aws s3 cp {tarball_path} {s3_base_uri}/{binary_name}.tar.zst', hide=True)
-            with print_lock:
-                print(f"  ✓ Uploaded {binary_name}")
-        except Exception as e:
-            with print_lock:
-                print(f"  ✗ Failed to upload {binary_name}: {e}")
-                upload_failures += 1
-
-    with ThreadPoolExecutor(max_workers=parallel) as executor:
-        futures = [executor.submit(upload_single, bi) for bi in manifest["binaries"]]
-        for future in as_completed(futures):
-            future.result()
-
-    if upload_failures > 0:
-        print(f"Error: {upload_failures} uploads failed")
-        raise Exit(code=1)
-
-    # Upload manifest
-    result = ctx.run(f'aws s3 cp {manifest_file_path} {s3_base_uri}/manifest.json', warn=True)
-    if not result.ok:
-        print(f"  ✗ Failed to upload manifest to {s3_base_uri}/manifest.json")
-        raise Exit(code=1)
-    print(f"Uploaded manifest to {s3_base_uri}/manifest.json")
-
-    # Cleanup temp tarballs
-    shutil.rmtree(tarball_dir, ignore_errors=True)
-
-
-def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
-    """Download pre-built binaries from S3 for the specified targets.
-
-    Downloads manifest.json, resolves which binaries are needed based on the
-    target package prefixes, then downloads and extracts only those tarballs.
-    Returns True if binaries were successfully downloaded, False otherwise.
-    """
-    manifest_path = "manifest.json"
-    extract_path = Path("test-binaries")
-
-    # Download manifest from S3 (unset AWS_PROFILE to use default runner credentials for the build-stable bucket)
-    with environ({"AWS_PROFILE": "DELETE"}):
-        result = ctx.run(f'aws s3 cp {s3_base_uri}/manifest.json {manifest_path}', warn=True)
-        if not result.ok:
-            print(f"WARNING: Failed to download manifest from {s3_base_uri}/manifest.json")
-            return False
-
-    with open(manifest_path) as f:
-        manifest = json.load(f)
-
-    # Normalize targets: ./tests/agent-devx -> tests/agent-devx
-    target_prefixes = []
-    for target in targets:
-        prefix = target.lstrip("./")
-        target_prefixes.append(prefix)
-
-    # Find matching binaries in manifest
-    needed_binaries = []
-    for binary_info in manifest["binaries"]:
-        pkg = binary_info["package"]
-        for prefix in target_prefixes:
-            if pkg == prefix or pkg.startswith(prefix + "/"):
-                needed_binaries.append(binary_info)
-                break
-
-    if not needed_binaries:
-        print(f"WARNING: No pre-built binaries found matching targets: {targets}")
-        return False
-
-    print(f"Downloading {len(needed_binaries)} pre-built binaries from S3")
-
-    extract_path.mkdir(exist_ok=True, parents=True)
-
-    with environ({"AWS_PROFILE": "DELETE"}):
-        for binary_info in needed_binaries:
-            binary_name = binary_info["binary"]
-            tarball_name = f"{binary_name}.tar.zst"
-            s3_path = f"{s3_base_uri}/{tarball_name}"
-
-            print(f"  Downloading {binary_name}...")
-            result = ctx.run(f'aws s3 cp {s3_path} {tarball_name}', warn=True)
-            if not result.ok:
-                print(f"  ✗ Failed to download {tarball_name}")
-                return False
-            result = ctx.run(f'tar xf {tarball_name}', warn=True)
-            if not result.ok:
-                print(f"  ✗ Failed to extract {tarball_name}")
-                return False
-            os.remove(tarball_name)
-
-    print(f"Pre-built binaries extracted to {extract_path}")
+    print(f"Built {len(manifest_binaries)} test binaries with Bazel into {output_path} in {build_duration:.1f}s")
     return True
 
 
@@ -456,8 +341,8 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "local_package": "Directory holding a locally built Agent package to install instead of a published one; build one with `dda inv omnibus.build-repackaged-agent`",
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
-        "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
-        "max_retries": "Maximum number of retries for failed tests, default 3",
+        "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of building them on the fly, then execute them with gotestsum",
+        "max_retries": "Maximum number of retries for failed tests, only in e2e CI jobs where the job after_script cleans up the stacks",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
@@ -497,7 +382,7 @@ def run(
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
-    use_prebuilt_binaries=False,
+    use_bazel_built_binaries=False,
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
@@ -687,21 +572,13 @@ def run(
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
-    if use_prebuilt_binaries:
-        s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
-        if s3_uri and targets:
-            # New flow: download per-package tarballs from S3
-            if not _download_prebuilt_binaries(ctx, s3_uri, targets):
-                print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
-                use_prebuilt_binaries = False
-        elif not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
-            print(
-                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
-            )
-            use_prebuilt_binaries = False
+    if use_bazel_built_binaries:
+        if not _build_binaries_with_bazel(ctx, targets):
+            print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
+            use_bazel_built_binaries = False
 
-    if use_prebuilt_binaries:
-        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+    if use_bazel_built_binaries:
+        bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 
@@ -741,7 +618,12 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    to_teardown: set[tuple[str, str]] = set()
+    if max_retries and not _stacks_cleaned_up_by_job():
+        # Retries reuse the stacks of the failed tests, which are only kept until the end of the run when the
+        # CI job after_script cleans them up
+        print(color_message("Retries are only supported in e2e CI jobs, disabling them", Color.ORANGE))
+        max_retries = 0
+
     result_jsons: list[str] = []
     result_junits: list[str] = []
     for attempt in range(max_retries + 1):
@@ -750,11 +632,6 @@ def run(
         args["timeout"] = _compute_go_test_timeout(timeout)
 
         remaining_tries = max_retries - attempt
-        if remaining_tries > 0:
-            # If any tries are left, avoid destroying infra on failure
-            env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
-        else:
-            env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
 
         if keep_stack is True:
             env_vars["E2E_DEV_MODE"] = "true"
@@ -804,8 +681,6 @@ def run(
                         "yellow",
                     )
                 )
-                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
-                to_teardown.update(known_flaky_failures)
 
             if to_retry:
                 failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
@@ -825,33 +700,6 @@ def run(
                 args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_retry])
             else:
                 break
-
-    # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
-    # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
-    if to_teardown:
-        print(
-            color_message(
-                f"Tearing down {len(to_teardown)} leftover test infras",
-                "yellow",
-            )
-        )
-        affected_packages = {
-            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
-        }
-        e2e_module.test_targets = list(affected_packages)
-        args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
-        env_vars["E2E_TEARDOWN_ONLY"] = "true"
-        test_flavor(
-            ctx,
-            flavor=AgentFlavor.base,
-            build_tags=tags,
-            modules=[e2e_module],
-            args=args,
-            cmd=cmd,
-            env=env_vars,
-            result_junit="",  # No need to store JUnit results for teardown-only runs
-            result_json="",  # No need to store results for teardown-only runs
-        )
 
     # Merge all the partial result JSON files into the final result JSON
     with open(result_json, "w") as merged_file:
@@ -1065,6 +913,52 @@ def cleanup_remote_stacks(ctx, stack_regex):
         print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
         print(f"Failed to destroy stack {stack}")
+
+
+def _stacks_cleaned_up_by_job() -> bool:
+    """Returns True if the stacks are cleaned up by the GitLab job after_script (`cleanup_job_stacks`) rather than by the tests."""
+    return running_in_gitlab_ci() and os.getenv("REMOTE_STACK_CLEANING") == "true"
+
+
+@task
+def cleanup_job_stacks(ctx):
+    """
+    Request the cleanup of the stacks recorded by the current e2e CI job, except the stacks an init job keeps for
+    the jobs consuming them. Meant to run in the job after_script.
+    """
+    if not running_in_ci():
+        raise Exit("This task is meant to run in an e2e CI job after_script", code=1)
+
+    stacks = read_recorded_stacks(os.environ["E2E_OUTPUT_DIR"])
+    if not stacks:
+        print("No stack recorded by the job, nothing to clean up")
+        return
+
+    job_status = os.environ["CI_JOB_STATUS"]
+    init_only = os.getenv("E2E_INIT_ONLY") == "true"
+    # An init job keeps its stacks for the jobs consuming them, unless it was canceled
+    if init_only and job_status != "canceled":
+        jobs = get_gitlab_repo().pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True).jobs.list(all=True)
+        consumers = init_job_consumers(os.environ["CI_JOB_NAME"], jobs)
+        if not consumers:
+            print(color_message(f"No job consuming the stacks of {os.environ['CI_JOB_NAME']} found", Color.ORANGE))
+        active_consumers = [job for job in consumers if job.status not in FINAL_UNUSED_JOB_STATUSES]
+        if active_consumers:
+            print(f"Keeping stacks {', '.join(stacks)} for {', '.join(job.name for job in active_consumers)}")
+            return
+
+    reason = stacks_cleanup_reason(job_status, init_only)
+    print(f"Requesting the cleanup of stacks {', '.join(stacks)}, because {reason.value}")
+    # The job may have been interrupted during a Pulumi operation, leaving the stack locked.
+    # No context is passed, each thread builds its own as invoke contexts are not thread-safe.
+    with ThreadPoolExecutor() as executor:
+        results = executor.map(
+            lambda stack: destroy_remote_stack_api(CI_STACK_PREFIX + stack, cancel_first=True), stacks
+        )
+        for exit_code, stdout, stderr, stack in results:
+            print(f"Stack {stack}: {stdout} {stderr}")
+            if exit_code != 0:
+                print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:

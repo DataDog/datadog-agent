@@ -145,7 +145,6 @@ cc_shared_library(
         "@zlib//:z_pkg",
         "@xz//:lzma_pkg",
         "@bzip2//:bz2_pkg",
-        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -327,12 +326,12 @@ dd_cc_packaged(
 
 dd_cc_packaged(
     name = "rpm_pkg",
-    dest_dir = "embedded/lib",
-    input = ":rpm",
-    installed_files = [
+    data = [
         ":hdr_files",
         ":misc_files",
     ],
+    dest_dir = "embedded/lib",
+    input = ":rpm",
     version = "9.4.0",
     visibility = ["//visibility:public"],
 )

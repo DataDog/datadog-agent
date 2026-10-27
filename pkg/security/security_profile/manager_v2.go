@@ -81,6 +81,9 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType) {
 		size += probes.OpenSamplesMaxEntries
 	}
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType) {
+		size += probes.BindSamplesMaxEntries
+	}
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
 	}
@@ -182,6 +185,8 @@ type ManagerV2 struct {
 	// resolution) and flushed once per SendStats cycle, like the other counters above.
 	tagResolutionEventsDropped  *atomic.Uint64
 	tagResolutionCgroupsExpired *atomic.Uint64
+	tagResolutionCappedCgroup   *atomic.Uint64
+	tagResolutionCappedTotal    *atomic.Uint64
 	cleanupProfilesRemoved      *atomic.Uint64
 	evictionRuns                *atomic.Uint64
 	evictionNodesEvicted        *atomic.Uint64
@@ -282,6 +287,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 		sampleRefreshMisses:         atomic.NewUint64(0),
 		tagResolutionEventsDropped:  atomic.NewUint64(0),
 		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		tagResolutionCappedCgroup:   atomic.NewUint64(0),
+		tagResolutionCappedTotal:    atomic.NewUint64(0),
 		cleanupProfilesRemoved:      atomic.NewUint64(0),
 		evictionRuns:                atomic.NewUint64(0),
 		evictionNodesEvicted:        atomic.NewUint64(0),
@@ -426,7 +433,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 
 // setupPersistenceTicker creates the ticker channel for periodic profile persistence
 func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return make(chan time.Time)
 	}
 
@@ -435,7 +442,7 @@ func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
 
 // setupNodeEvictionTicker creates the ticker channel for periodic node eviction
 func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled || m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled || m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
 		return make(chan time.Time)
 	}
 
@@ -444,7 +451,7 @@ func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
 
 // setupProfileCleanupTicker creates the ticker channel for periodic profile cleanup
 func (m *ManagerV2) setupProfileCleanupTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled || m.config.RuntimeSecurity.SecurityProfileCleanupDelay <= 0 {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled || m.config.RuntimeSecurity.SecurityProfileCleanupDelay <= 0 {
 		return make(chan time.Time)
 	}
 
@@ -454,7 +461,7 @@ func (m *ManagerV2) setupProfileCleanupTicker() <-chan time.Time {
 
 // setupStalePurgesTicker creates the ticker channel for periodic purge of stale pending events
 func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return make(chan time.Time)
 	}
 
@@ -500,6 +507,7 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
+			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
 				// Queue for delayed removal
 				m.pendingProfileRemovalsLock.Lock()
@@ -668,6 +676,10 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	if !m.config.RuntimeSecurity.RuntimeEnabled {
+		return
+	}
+
 	// Filter out events that are not in the configured V2 event types
 	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
 		return
@@ -771,6 +783,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
+	// Resolve the event time before firstSeen reads it: Timestamp stays zero until resolved
+	event.ResolveEventTime()
+
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
@@ -783,7 +798,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -793,6 +807,16 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 				em.eventsDropped.Add(uint64(eventsLen))
 			}
 		}
+		return
+	}
+
+	// some containers never resolve tags (e.g. Docker-in-Docker), so the queue is bounded
+	if pendingEvents.events.Len() >= m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup {
+		m.tagResolutionCappedCgroup.Inc()
+		return
+	}
+	if m.queueSize.Load() >= uint64(m.config.RuntimeSecurity.SecurityProfileV2TagResolutionMaxPendingEvents) {
+		m.tagResolutionCappedTotal.Inc()
 		return
 	}
 
@@ -903,6 +927,16 @@ func (m *ManagerV2) SendStats() error {
 	}
 	if value := m.tagResolutionCgroupsExpired.Swap(0); value > 0 {
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedCgroup.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:cgroup"}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.tagResolutionCappedTotal.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsCapped, int64(value), []string{"limit:total"}, 1.0); err != nil {
 			return err
 		}
 	}
@@ -1029,7 +1063,7 @@ func (m *ManagerV2) SendStats() error {
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
 // Returns the profile and whether the event was actually inserted (new data added).
 func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return nil, false
 	}
 
@@ -1057,32 +1091,32 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Build workloadID for cache entry lookup
-	workloadID := getWorkloadIDFromEvent(event)
-
-	// Link this workload to the profile (tracks in profile.Instances)
-	workload := m.getOrCreateWorkload(event, selector, workloadID)
-	m.linkWorkloadToProfile(secprof, workload)
-
-	// Check if profile has reached max size. V2 uses its own knob evaluated against the
-	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
-	// semantics for ActivityDump/legacy Manager paths.
-	// TODO: we should handle this in a better way
-
-	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
-		secprof.Disable()
-		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
-		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
-	}
-
 	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
 	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
 		imageTag = "latest"
 	}
-	m.ensureVersionContext(secprof, imageTag)
+	// Evict surplus versions before the size check, since eviction can free enough space.
+	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
+
+	// Build workloadID for cache entry lookup
+	workloadID := getWorkloadIDFromEvent(event)
+
+	// Link this workload to the profile (tracks in profile.Instances)
+	workload := m.getOrCreateWorkload(event, selector, workloadID)
+	m.linkWorkloadToProfile(secprof, workload)
+	m.seedMountsForWorkload(secprof, workload, event)
+
+	// Check if profile has reached max size. V2 uses its own knob evaluated against the
+	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
+	// semantics for ActivityDump/legacy Manager paths.
+	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
+		secprof.Disable()
+		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
+		return nil, false
+	}
 
 	// Insert the event into the profile's activity tree
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
@@ -1181,6 +1215,71 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
 }
 
+// baseMountNamespaceFromEvent returns the mount namespace to treat as the workload's base,
+// and whether that value is authoritative. It is authoritative when it comes from the
+// process the tree would root the workload on; otherwise it falls back to the event's own
+// namespace, which is only a guess because the event may come from a process that setns'd.
+func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
+	pc := event.ProcessContext
+	if pc == nil {
+		return 0, false
+	}
+
+	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.MntNS != 0 {
+		return root.Process.MntNS, true
+	}
+
+	return pc.Process.MntNS, false
+}
+
+// seedMountsForWorkload seeds a profile's mount table with the workload's
+// pre-existing mounts from its base mount namespace. Later changes come from
+// live mount events.
+func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
+	if workload == nil {
+		return
+	}
+
+	nsID, authoritative := baseMountNamespaceFromEvent(event)
+	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
+		return
+	}
+
+	var mounts []model.Mount
+	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
+		mounts = append(mounts, *mnt)
+	})
+
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+
+	pid := event.ProcessContext.Process.Pid
+	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())
+	now := time.Now()
+	for i := range mounts {
+		mnt := &mounts[i]
+
+		// mount paths are resolved lazily, so a cached entry may have an empty Path.
+		// Resolve it here (the iterator lock is released) and skip mounts we cannot
+		// resolve rather than recording an empty mount point.
+		mountPoint := mnt.Path
+		if resolved, _, _, err := m.resolvers.MountResolver.ResolveMountPath(mnt.MountID, pid); err == nil && resolved != "" {
+			mountPoint = resolved
+		}
+		if mountPoint == "" {
+			continue
+		}
+		mnt.Path = mountPoint
+
+		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+		if secprof.ComputeHeapSize() >= maxSize {
+			break
+		}
+	}
+}
+
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
 // Returns (removed, remainingInstances) - whether the workload was found and removed, and the remaining instance count
 func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgroupModel.CacheEntry) (bool, int) {
@@ -1188,7 +1287,7 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 	defer prof.InstancesLock.Unlock()
 
 	var workloadID containerutils.WorkloadID
-	if cgce.IsContainerContextNull() {
+	if !cgce.IsContainerContextNull() {
 		workloadID = cgce.GetContainerID()
 	} else if cgce.IsCGroupContextResolved() {
 		workloadID = cgce.GetCGroupID()
@@ -1289,7 +1388,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 			time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout),
 			filepathsInProcessCache,
 			selector.Image,
-			selector.Tag,
 		)
 		if evicted > 0 {
 			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
@@ -1315,10 +1413,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
-	eventTime := event.Timestamp
-	if eventTime.IsZero() {
-		eventTime = time.Now()
-	}
+	eventTime := event.ResolveEventTime()
 
 	// Initialize metadata
 	secprof.Metadata = mtdt.Metadata{
@@ -1392,26 +1487,14 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 	return nil
 }
 
-// ensureVersionContext creates a version context for the given tag if it doesn't exist
-func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
+// ensureVersionContext creates or refreshes a version context and evicts surplus versions.
+// Existing contexts keep the tags of the workload that introduced the version.
+func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	evictedVersions := secprof.PrepareNewVersion(tag, workloadTags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, nowNano)
+	if len(evictedVersions) > 0 {
+		m.purgeCookiesForProfile(secprof, evictedVersions...)
 	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-	profileTags := secprof.GetTags()
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           make([]string, len(profileTags)),
-	}
-	copy(vCtx.Tags, profileTags)
-
-	secprof.AddVersionContext(tag, vCtx)
 }
 
 // seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
@@ -1429,7 +1512,7 @@ func (m *ManagerV2) seededSyscalls() []uint32 {
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
 func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadID, ctx *model.SecurityProfileContext, imageTag string) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return
 	}
 
@@ -1495,7 +1578,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 			profile.Unlock()
 			continue
 		}
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
@@ -1582,7 +1665,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+		pce := pr.Get(pid)
 		if pce == nil {
 			continue
 		}
@@ -1657,7 +1740,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
+			pce := pr.Get(pid)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
@@ -1697,6 +1780,13 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	if !entry.profile.UpdateVersionContextLastSeen(entry.imageTag, nowNano) {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
+
 	entry.profile.Lock()
 	defer entry.profile.Unlock()
 
@@ -1710,17 +1800,19 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 		return
 	}
 
-	now := time.Now()
 	entry.processNode.AppendImageTagID(imageTagID, now)
 	if entry.eventNodeBase != nil {
 		entry.eventNodeBase.AppendImageTagID(imageTagID, now)
 	}
 }
 
-func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
+// purgeCookiesForProfile removes cookies for a profile, optionally restricted to the given versions.
+func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile, imageTags ...string) {
 	for _, key := range m.sampleCookieMap.Keys() {
 		if entry, ok := m.sampleCookieMap.Peek(key); ok && entry.profile == prof {
-			m.sampleCookieMap.Remove(key)
+			if len(imageTags) == 0 || slices.Contains(imageTags, entry.imageTag) {
+				m.sampleCookieMap.Remove(key)
+			}
 		}
 	}
 }

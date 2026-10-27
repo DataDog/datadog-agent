@@ -200,6 +200,12 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 		return
 	}
 
+	// mirror the +Inf case: the open-ended bottom bucket collapses to its upper bound
+	if math.IsInf(bucket.LowerBound, -1) {
+		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.UpperBound, bucket.UpperBound, uint(bucket.Value))
+		return
+	}
+
 	log.Tracef(
 		"Interpolating %d values over the [%f-%f] bucket",
 		bucket.Value, bucket.LowerBound, bucket.UpperBound,
@@ -316,7 +322,8 @@ func (cs *CheckSampler) releaseMetrics() {
 	for i := 0; i < int(metrics.NumMetricTypes); i++ {
 		mtype := metrics.MetricType(i).String()
 		tlmChecksContextsByMtype.Delete(idString, mtype)
-		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindStruct)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype, tags.BytesKindData)
 	}
 }
 

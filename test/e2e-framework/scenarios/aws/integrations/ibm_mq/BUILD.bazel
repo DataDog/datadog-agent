@@ -37,4 +37,5 @@ dd_agent_go_test(
     name = "ibm_mq_test",
     srcs = ["config_render_test.go"],
     embed = [":ibm_mq"],
+    tags = ["go_link:enormous"],
 )

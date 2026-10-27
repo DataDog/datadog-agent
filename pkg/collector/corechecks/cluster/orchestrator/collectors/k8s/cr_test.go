@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package k8s
 
@@ -22,6 +22,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -108,4 +109,40 @@ func TestCRCollector(t *testing.T) {
 	assert.Len(t, result.Result.ManifestMessages, 1)
 	assert.IsType(t, &model.CollectorManifestCR{}, result.Result.ManifestMessages[0])
 
+}
+
+func TestGenericCollectorManifestKind(t *testing.T) {
+	collector := (GenericResource{
+		Name:     "endpointslices",
+		Kind:     "EndpointSlice",
+		Group:    "discovery.k8s.io",
+		Version:  "v1",
+		NodeType: orchestrator.K8sEndpointSlice,
+	}).NewGenericCollector()
+	assert.Equal(t, "EndpointSlice", collector.Metadata().Kind)
+
+	resource := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "discovery.k8s.io/v1",
+		"kind":       "EndpointSlice",
+		"metadata": map[string]interface{}{
+			"name":            "test-slice",
+			"namespace":       "default",
+			"uid":             "generic-manifest-kind-test",
+			"resourceVersion": "1",
+		},
+	}}
+	runCfg := &collectors.CollectorRunConfig{
+		Config:      orchestratorconfig.NewDefaultOrchestratorConfig(nil),
+		ClusterID:   "test-cluster",
+		MsgGroupRef: atomic.NewInt32(0),
+	}
+	result, err := collector.Process(runCfg, []runtime.Object{resource})
+	if !assert.NoError(t, err) || !assert.Len(t, result.Result.ManifestMessages, 1) {
+		return
+	}
+	message := result.Result.ManifestMessages[0].(*model.CollectorManifest)
+	if assert.Len(t, message.Manifests, 1) {
+		assert.Equal(t, "EndpointSlice", message.Manifests[0].Kind)
+		assert.Equal(t, "discovery.k8s.io/v1", message.Manifests[0].ApiVersion)
+	}
 }

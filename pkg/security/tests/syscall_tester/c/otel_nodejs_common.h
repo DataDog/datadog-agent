@@ -30,10 +30,8 @@
 #include "otel_process_ctx_common.h"
 #include "otel_tls_common.h"
 
-// --- V8 layout, as the writer publishes it in its process context ---
+// --- V8 layout the nodejs_v1 schema implies ---
 
-#define OTEL_NODEJS_TAGGED_SIZE 8
-#define OTEL_NODEJS_JS_MAP_TABLE_OFFSET 0x18
 #define OTEL_NODEJS_OHM_HEADER_SIZE 0x10
 #define OTEL_NODEJS_JS_OBJECT_RECORD_OFFSET 24
 
@@ -58,7 +56,8 @@ struct otel_thread_ctx_nodejs {
     uint64_t cped_slot;
     uint64_t als_handle;
     int32_t als_identity_hash;
-    int32_t _pad;
+    uint8_t record_slot_offset;
+    uint8_t _pad[3];
     uint64_t undefined_addr;
 };
 
@@ -168,6 +167,7 @@ static inline void otel_nodejs_build(struct otel_nodejs_graph *g, enum otel_node
     g->discovery.cped_slot = (uint64_t)(uintptr_t)&g->cped;
     g->discovery.als_handle = (uint64_t)(uintptr_t)&g->als_slot;
     g->discovery.als_identity_hash = OTEL_NODEJS_ALS_HASH;
+    g->discovery.record_slot_offset = OTEL_NODEJS_JS_OBJECT_RECORD_OFFSET;
     g->discovery.undefined_addr = g->undefined;
 }
 
@@ -185,16 +185,11 @@ static const char *const otel_nodejs_attribute_keys[] = {
 };
 
 // otel_nodejs_encode_process_ctx writes the process context payload of a Node.js
-// writer: the schema its records follow, the key names their attributes select,
-// and the V8 layout the reader walks them with.
+// writer: the schema its records follow and the key names their attributes select.
 static inline size_t otel_nodejs_encode_process_ctx(uint8_t *out) {
     size_t off = otel_pb_string_attribute(out, "threadlocal.schema_version", "nodejs_v1_dev");
     off += otel_pb_string_array_attribute(out + off, "threadlocal.attribute_key_map", otel_nodejs_attribute_keys,
                                           sizeof(otel_nodejs_attribute_keys) / sizeof(otel_nodejs_attribute_keys[0]));
-    off += otel_pb_int_attribute(out + off, "threadlocal.tagged_size", OTEL_NODEJS_TAGGED_SIZE);
-    off += otel_pb_int_attribute(out + off, "threadlocal.js_map_table_offset", OTEL_NODEJS_JS_MAP_TABLE_OFFSET);
-    off += otel_pb_int_attribute(out + off, "threadlocal.ordered_hash_map_header_size", OTEL_NODEJS_OHM_HEADER_SIZE);
-    off += otel_pb_int_attribute(out + off, "threadlocal.js_object_record_offset", OTEL_NODEJS_JS_OBJECT_RECORD_OFFSET);
     return off;
 }
 

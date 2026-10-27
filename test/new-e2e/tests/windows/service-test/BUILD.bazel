@@ -39,7 +39,6 @@ dd_agent_go_test(
     ],
     tags = ["manual"],
     deps = [
-        "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/scenarios/aws/ec2/windows",

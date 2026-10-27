@@ -62,9 +62,10 @@ static int prepare_otel_context(struct otel_record_with_attrs *record, char **ar
         return -1;
     }
 
-    // Give the agent the time to resolve this process before a record is there
-    // to be read.
-    usleep(500000);
+    // No record until the agent has resolved this process.
+    if (otel_wait_for_agent() < 0) {
+        return -1;
+    }
     if (mode == otel_record_absent) {
         return 0;
     }
@@ -78,16 +79,14 @@ static int prepare_otel_context(struct otel_record_with_attrs *record, char **ar
     return 0;
 }
 
-static int open_test_path(const char *path, int unlink_after) {
+static int open_test_path(const char *path) {
     int fd = open(path, O_CREAT, 0777);
     if (fd < 0) {
         perror("open");
         return -1;
     }
     close(fd);
-    if (unlink_after) {
-        unlink(path);
-    }
+    unlink(path);
     return 0;
 }
 
@@ -99,7 +98,7 @@ static void *thread_otel_open(void *data) {
         return NULL;
     }
 
-    open_test_path(opts->argv[opts->path_index], 1);
+    open_test_path(opts->argv[opts->path_index]);
 
     otel_thread_ctx_v1 = NULL;
     return NULL;
@@ -141,37 +140,6 @@ int otel_span_open_null_ptr(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     return run_on_thread(thread_otel_open, argv, otel_record_absent, 1);
-}
-
-static int wait_for_file(const char *path) {
-    for (int i = 0; i < 1000; i++) {
-        if (access(path, F_OK) == 0) {
-            return 0;
-        }
-        usleep(10000);
-    }
-    fprintf(stderr, "timed out waiting for %s\n", path);
-    return -1;
-}
-
-int otel_span_open_wait(int argc, char **argv) {
-    if (argc < 6) {
-        fprintf(stderr, "Usage: otel-span-open-wait <trace_id> <span_id> <ready_path> <continue_path> <file_path>\n");
-        return EXIT_FAILURE;
-    }
-
-    struct otel_record_with_attrs record;
-    if (prepare_otel_context(&record, argv, otel_record_valid) < 0) {
-        return EXIT_FAILURE;
-    }
-
-    if (open_test_path(argv[3], 0) < 0 || wait_for_file(argv[4]) < 0 || open_test_path(argv[5], 1) < 0) {
-        otel_thread_ctx_v1 = NULL;
-        return EXIT_FAILURE;
-    }
-
-    otel_thread_ctx_v1 = NULL;
-    return EXIT_SUCCESS;
 }
 
 static void *thread_otel_exec(void *data) {
@@ -237,7 +205,7 @@ int otel_span_fork_open(int argc, char **argv) {
         otel_fill_record(&own, argv[1], argv[3]);
         publish_otel_record(&own);
 
-        _exit(open_test_path(argv[4], 1) < 0 ? EXIT_FAILURE : EXIT_SUCCESS);
+        _exit(open_test_path(argv[4]) < 0 ? EXIT_FAILURE : EXIT_SUCCESS);
     }
 
     int status;

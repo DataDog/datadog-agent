@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+    Windows devices using ``infrastructure_mode: end_user_device`` now use
+    ``<hostname>-<serial-number>`` as their automatically detected Agent hostname.
+    On macOS, EUDM now uses ``<Computer-Name>-<serial-number>``, using the
+    configured Computer Name instead of the network-derived hostname.
+    Explicit hostname overrides are preserved. Devices without a usable serial
+    retain the existing hostname behavior. Existing device history is not migrated.

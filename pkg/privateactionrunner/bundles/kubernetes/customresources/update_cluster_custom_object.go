@@ -8,18 +8,16 @@ package com_datadoghq_kubernetes_customresources
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type UpdateClusterCustomObjectHandler struct{}
+type UpdateClusterCustomObjectHandler struct{ policy resourcePolicy }
 
-func NewUpdateClusterCustomObjectHandler() *UpdateClusterCustomObjectHandler {
-	return &UpdateClusterCustomObjectHandler{}
+func NewUpdateClusterCustomObjectHandler(policy resourcePolicy) *UpdateClusterCustomObjectHandler {
+	return &UpdateClusterCustomObjectHandler{policy: policy}
 }
 
 type UpdateClusterCustomObjectInputs struct {
@@ -42,15 +40,14 @@ func (h *UpdateClusterCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	client, err := support.DynamicKubeClient(credential)
+	gvr, err := h.policy.groupVersionResource(inputs.Group, inputs.Version, inputs.Plural)
 	if err != nil {
 		return nil, err
 	}
 
-	gvr := schema.GroupVersionResource{
-		Group:    inputs.Group,
-		Version:  inputs.Version,
-		Resource: inputs.Plural,
+	client, err := support.DynamicKubeClient(credential)
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := client.Resource(gvr).Update(ctx, &unstructured.Unstructured{Object: inputs.Body}, support.MetaUpdate(inputs.UpdateFields))

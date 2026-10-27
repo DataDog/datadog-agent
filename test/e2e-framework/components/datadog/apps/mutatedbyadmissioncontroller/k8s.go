@@ -189,7 +189,7 @@ func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name strin
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name:  pulumi.String(name),
-							Image: pulumi.String("ghcr.io/datadog/apps-mutated:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-mutated")),
 						},
 					},
 				},

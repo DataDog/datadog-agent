@@ -37,7 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-const logDir = "var/log"
+const (
+	logDir = "var/log"
+
+	// sshSessionCacheSize is the size of the cache holding the SSH sessions parsed from the auth log
+	sshSessionCacheSize = 100
+)
 
 // UserSessionKey describes the key to a user session
 type UserSessionKey struct {
@@ -89,6 +94,9 @@ type SSHSessionKey struct {
 type SSHSessionValue struct {
 	AuthenticationMethod int
 	PublicKey            string
+	// unresolved is set on sessions for which the authentication log line was never found. It is
+	// used to make sure we delay the events of a given session only once.
+	unresolved bool
 }
 
 // Resolver is used to resolve the user sessions context
@@ -105,15 +113,23 @@ type Resolver struct {
 
 // NewResolver returns a new instance of Resolver
 func NewResolver(cacheSize int, sshEnabled bool) (*Resolver, error) {
-	lru, err := simplelru.NewLRU[uint64, *model.K8SSessionContext](cacheSize, nil)
+	k8sCache, err := simplelru.NewLRU[uint64, *model.K8SSessionContext](cacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create User Session resolver cache: %v", err)
 	}
 
-	return &Resolver{
-		k8suserSessions: lru,
+	resolver := &Resolver{
+		k8suserSessions: k8sCache,
 		sshEnabled:      sshEnabled,
-	}, nil
+	}
+
+	if sshEnabled {
+		if resolver.sshSessionParsed, err = lru.New[SSHSessionKey, SSHSessionValue](sshSessionCacheSize); err != nil {
+			return nil, fmt.Errorf("couldn't create SSH Session cache: %v", err)
+		}
+	}
+
+	return resolver, nil
 }
 
 // Start initializes the eBPF map of the resolver
@@ -194,7 +210,39 @@ func (r *Resolver) GetSSHSession(key SSHSessionKey) (SSHSessionValue, bool) {
 	if r.sshSessionParsed == nil {
 		return SSHSessionValue{}, false
 	}
-	return r.sshSessionParsed.Get(key)
+	value, ok := r.sshSessionParsed.Get(key)
+	if !ok || value.unresolved {
+		return SSHSessionValue{}, false
+	}
+	return value, true
+}
+
+// SSHSessionsResolvable returns true if the ssh auth log is being tailed. When it is not, nothing
+// will ever populate the session cache, so waiting for a session to be resolved is pointless.
+func (r *Resolver) SSHSessionsResolvable() bool {
+	r.RLock()
+	defer r.RUnlock()
+
+	return r.sshLogReader != nil
+}
+
+// MarkSSHSessionUnresolved flags a session as unresolvable, so that the events of that session are
+// not delayed anymore while waiting for its authentication log line.
+func (r *Resolver) MarkSSHSessionUnresolved(key SSHSessionKey) {
+	if r.sshSessionParsed == nil {
+		return
+	}
+	// don't overwrite a session whose log line was parsed in the meantime
+	r.sshSessionParsed.ContainsOrAdd(key, SSHSessionValue{unresolved: true})
+}
+
+// IsSSHSessionUnresolved returns true if the session was already flagged as unresolvable
+func (r *Resolver) IsSSHSessionUnresolved(key SSHSessionKey) bool {
+	if r.sshSessionParsed == nil {
+		return false
+	}
+	value, ok := r.sshSessionParsed.Peek(key)
+	return ok && value.unresolved
 }
 
 // Init opens the file and sets the initial offset
@@ -470,21 +518,11 @@ func sshAuthLogPathCandidates() []string {
 // StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
 // Lock must be held
 func (r *Resolver) StartSSHUserSessionResolver() error {
-	var err error
-
-	// Initialize the SSH session LRU cache (needed in all cases)
-	r.sshSessionParsed, err = lru.New[SSHSessionKey, SSHSessionValue](100)
-	if err != nil {
-		seclog.Errorf("couldn't create SSH Session LRU cache: %v", err)
-		return err
-	}
-
 	// Try to find the ssh log file (container: also under HOST_ROOT or /host/var/log)
 	// We stop on the first file found
 	path := ""
 	for _, possiblePath := range sshAuthLogPathCandidates() {
-		_, err = os.Stat(possiblePath)
-		if err == nil {
+		if _, err := os.Stat(possiblePath); err == nil {
 			path = possiblePath
 			break
 		}

@@ -1,0 +1,37 @@
+datadog:
+  apiKeyExistingSecret: datadog-secret
+  clusterName: "__CLUSTER_NAME__"
+  logLevel: INFO
+  apm:
+    instrumentation:
+      enabled: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+  processAgent:
+    enabled: true
+    processCollection: true
+  kubelet:
+    tlsVerify: false
+  clusterChecks:
+    enabled: true
+  env:
+    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_RECORDING_OUTPUT_DIR
+      value: /tmp/observer-metrics
+    - name: DD_ANOMALY_DETECTION_RECORDING_FLUSH_INTERVAL
+      value: "__FLUSH__"
+    - name: DD_ANOMALY_DETECTION_RECORDING_RETENTION
+      value: "__RETENTION__"
+    - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
+      value: "__RECORDING_ONLY__"
+agents:
+  image:
+    repository: datadog/agent-dev
+    tag: "__TAG__"
+    pullPolicy: Never
+    doNotCheckTag: true
+clusterAgent:
+  enabled: true
+  replicas: 1

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -67,10 +68,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	spanByID, resByID, scopeByID := transform.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	topLevelSpans := transform.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range conf.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
+	ignoreResources := filters.NewBlacklister(conf.Ignore["resource"])
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
 	for spanID, otelspan := range spanByID {
@@ -84,7 +82,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		} else {
 			resourceName = transform.GetOTelResourceV1(otelspan, otelres)
 		}
-		if _, exists := ignoreResNames[resourceName]; exists {
+		if allowed, _ := ignoreResources.AllowsString(resourceName); !allowed {
 			continue
 		}
 

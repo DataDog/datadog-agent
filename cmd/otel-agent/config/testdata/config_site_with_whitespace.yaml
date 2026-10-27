@@ -1,0 +1,16 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  datadog:
+    api:
+      site: "  datadoghq.eu  "
+    hostname: myhost
+processors:
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

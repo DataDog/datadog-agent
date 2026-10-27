@@ -4,8 +4,8 @@ dd_agent_go_test(
     name = "gohaitest_test",
     srcs = ["gohai_test.go"],
     env_inherit = select({
-        "@platforms//os:macos": ["PATH"],
-        "//conditions:default": None,
+        "@platforms//os:macos": ["PATH"],  # gohai's darwin collectors shell out to sysctl, df, and uname
+        "//conditions:default": [],
     }),
     deps = [
         "//pkg/opentelemetry-mapping-go/inframetadata/gohai",

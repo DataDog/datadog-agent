@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -99,6 +100,17 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 		return nil, err
 	}
 	return rules, nil
+}
+
+// GlobalTagFilters compiles the global filters. Structural errors are returned;
+// malformed patterns are reported and otherwise ignored.
+func GlobalTagFilters(coreConfig pkgconfigmodel.Reader) (*tagfilter.Filters, tagfilter.Report, error) {
+	var tf TagFilters
+	if err := structure.UnmarshalKey(coreConfig, "logs_config.tag_filters", &tf, structure.EnableStringUnmarshal, structure.ErrorUnused); err != nil {
+		return nil, tagfilter.Report{}, err
+	}
+	filters, report := tf.Compile()
+	return filters, report, nil
 }
 
 // HasMultiLineRule returns true if the rule set contains a multi_line rule
@@ -261,13 +273,15 @@ const DefaultUnreliableMountFingerprintMaxBytes = 4096
 
 // UnreliableMountEnabled reports whether the node-wide profile for unreliable
 // mounts is enabled. It selects direct fingerprint reads on Linux, line-checksum
-// defaults, and a separate rotation drain timeout. Other platforms read buffered.
+// defaults, a separate rotation drain timeout, and a sequential handoff after
+// fingerprint-detected rotations. Other platforms read buffered.
 func UnreliableMountEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	return coreConfig.GetBool("logs_config.unreliable_mount.enabled")
 }
 
-// UnreliableMountDrainTimeout is how long a tailer keeps reading a rotated file
-// before closing it when unreliable_mount is enabled. A fresh open can fail while
+// UnreliableMountDrainTimeout is the longest a tailer keeps reading a rotated file
+// before closing it when unreliable_mount is enabled. A sequential-handoff drain
+// ends earlier, once the file has gone 30 seconds without new reads. A fresh open can fail while
 // the existing descriptor still drains, so this is separate from close_timeout.
 // Returns 0 when unreliable_mount is disabled so callers fall back to close_timeout.
 func UnreliableMountDrainTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {

@@ -30,6 +30,9 @@ var (
 
 // IsRunningOn returns true if the agent is running on GCE
 func IsRunningOn(ctx context.Context) bool {
+	if isProductNameGCE() {
+		return true
+	}
 	if _, err := GetHostname(ctx); err == nil {
 		return true
 	}

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Skip nydus images in the overlayfs direct scan before taking a
+    containerd view. The view of a nydus image shows one tree for all its
+    layers, so the scan failed every hour, or for an image of two layers
+    reported an SBOM with no packages as a success, and each view started
+    nydusd, which can prefetch the whole image.

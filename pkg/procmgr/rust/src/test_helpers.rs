@@ -72,6 +72,33 @@ pub fn exit_status(code: i32) -> std::process::ExitStatus {
         .unwrap()
 }
 
+/// Build an `ExitStatus` for a process killed by `signal`.
+///
+/// The raw wait status of a signal death is the signal number in the low bits,
+/// which is what makes `ExitStatus::signal()` report it and `code()` report
+/// nothing.
+#[cfg(unix)]
+pub fn signal_exit_status(signal: i32) -> std::process::ExitStatus {
+    use std::os::unix::process::ExitStatusExt;
+    std::process::ExitStatus::from_raw(signal)
+}
+
+/// Build an `ExitStatus` for a process that died without returning a value:
+/// SIGSEGV on Unix, an access violation on Windows. Same fault, and the two
+/// platforms report it in the only shape each one has.
+#[cfg(unix)]
+pub fn crash_exit_status() -> std::process::ExitStatus {
+    signal_exit_status(nix::sys::signal::Signal::SIGSEGV as i32)
+}
+
+/// See the Unix twin above.
+#[cfg(windows)]
+pub fn crash_exit_status() -> std::process::ExitStatus {
+    use std::os::windows::process::ExitStatusExt;
+    const STATUS_ACCESS_VIOLATION: u32 = 0xC000_0005;
+    std::process::ExitStatus::from_raw(STATUS_ACCESS_VIOLATION)
+}
+
 /// YAML config snippet for a process that sleeps for a long time.
 #[cfg(unix)]
 pub fn sleep_config_yaml() -> &'static str {
@@ -125,6 +152,37 @@ pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
             "trap '' TERM; while true; do sleep 60; done".into(),
         ],
     )
+}
+
+/// [`trap_term_sleep`] that creates `ready` once SIGTERM is trapped, for tests
+/// that must not signal it before then: until the trap is in place, SIGTERM
+/// kills the shell like any other process.
+#[cfg(unix)]
+pub fn trap_term_sleep_ready(ready: &std::path::Path) -> (&'static str, Vec<String>) {
+    (
+        "/bin/sh",
+        vec![
+            "-c".into(),
+            format!(
+                "trap '' TERM; : > '{}'; while true; do sleep 60; done",
+                ready.display()
+            ),
+        ],
+    )
+}
+
+/// Polls until `path` exists, failing after `deadline`.
+#[cfg(unix)]
+pub async fn wait_for_file(path: &std::path::Path, deadline: std::time::Duration) {
+    let started = std::time::Instant::now();
+    while !path.exists() {
+        assert!(
+            started.elapsed() < deadline,
+            "{} did not appear within {deadline:?}",
+            path.display()
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
 }
 
 /// Command that ignores graceful-stop and sleeps forever.

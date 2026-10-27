@@ -16,6 +16,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,8 +99,18 @@ type SafeDevice interface {
 	GetMIGInstanceProfileName(gpuInstanceID int) (string, error)
 	// GetGpuFabricInfo returns the NVLink fabric information for the device.
 	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
+	// GetGpuFabricInfoV3 returns the NVLink fabric information with the health summary. On drivers
+	// that do not support version 3 it falls back to version 2, leaving the health summary unset.
+	GetGpuFabricInfoV3() (nvml.GpuFabricInfo_v3, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
+	// GetPlatformInfo returns where the GPU sits in a rack-scale system (chassis, slot, tray, module).
+	GetPlatformInfo() (nvml.PlatformInfo, error)
+	// GetSerial returns the board serial number of the device
+	GetSerial() (string, error)
+	// GetNumaNodeId returns the NUMA node closest to the device
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	GetNumaNodeId() (int, error)
 
 	// GetMinorNumber returns the device's minor number, which is the N in the
 	// /dev/nvidiaN device node. This is distinct from the enumeration index
@@ -175,12 +186,19 @@ type SafeDevice interface {
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
 	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetGridLicensableFeatures returns the vGPU software licensable features
+	// of the device and their license state
+	GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error)
 	// GetSupportedEventTypes returns a bitmask of all supported device events
 	GetSupportedEventTypes() (uint64, error)
 	// RegisterEvents registers the device for events to be waited in the given set
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
 	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
 	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+	// GetRetiredPagesCount retrieves the number of memory pages the driver has
+	// retired, or will retire on the next driver reload, for the given retirement
+	// cause. Only the number of retired pages is exposed, not their addresses.
+	GetRetiredPagesCount(cause nvml.PageRetirementCause) (uint64, error)
 	// GetSramEccErrorStatus retrieves the detailed SRAM ECC error status for the device.
 	GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error)
 }
@@ -202,6 +220,8 @@ type DeviceInfo struct {
 	CoreCount          int
 	Architecture       nvml.DeviceArchitecture
 	VirtualizationMode nvml.GpuVirtualizationMode
+	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
+	PCIBusID string
 
 	// NVLinkLinkCount is the number of NVLink links available on the device.
 	NVLinkLinkCount int
@@ -357,9 +377,12 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 		memInfo, err := device.SafeDevice.GetMemoryInfo()
 		if err != nil {
-			return nil, err
+			log.Warnf("error getting physical device memory info for device %s: %v", device.Name, err)
+			// Zero denotes unavailable device-local memory. Some devices have no on-chip
+			// memory and use shared host memory, so callers must omit capacity-derived metrics.
+		} else {
+			device.Memory = memInfo.Total
 		}
-		device.Memory = memInfo.Total
 	}
 
 	return device, nil
@@ -393,6 +416,8 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		// MIG instances share their parent's PCI function.
+		migChildDevice.PCIBusID = d.PCIBusID
 		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
 		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
@@ -514,6 +539,15 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		d.VirtualizationMode = virtualizationMode
 	} else {
 		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
+	}
+
+	pciInfo, err := dev.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get PCI info: %v", err)
+		}
+	} else {
+		d.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	d.fillNVLinkDataFromNVML(dev)

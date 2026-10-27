@@ -42,6 +42,8 @@ properties:
     description: |-
       The port that the trace receiver should listen on.
       Set to 0 to disable the HTTP receiver.
+    minimum: 0
+    maximum: 65535
   receiver_socket:
     node_type: setting
     type: string
@@ -79,6 +81,7 @@ properties:
       Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
       therefore the proxy must be able to handle TCP connections.
     example: <ENDPOINT>:<PORT>
+    pattern: ^(https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?([/\w \.-]*)*/?$
   max_traces_per_second:
     node_type: setting
     type: number
@@ -96,6 +99,8 @@ properties:
       disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
       value sufficiently high for your traffic pattern.
     comment: deprecated
+    minimum: 0
+    maximum: 1000000000
   target_traces_per_second:
     node_type: setting
     type: number
@@ -903,21 +908,6 @@ properties:
 
             - ns2
             - system-ns
-      csi_driver_detection_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        env_vars:
-        - DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
-        comment: |-
-          Temporary feature flag controlling whether the auto-instrumentation
-          library injection auto provider switches to the CSI provider when the
-          Datadog CSI driver is detected in the cluster (via workloadmeta). When
-          false, the auto provider always falls back to the init-container
-          provider.
-
-          TODO(apm-auto-instrumentation): once CSI auto-detection has been
-          validated in production, remove this flag and the associated wiring in.
       injection_mode:
         node_type: setting
         type: string
@@ -1092,6 +1082,9 @@ properties:
     default: 0
     env_vars:
     - DD_APM_CONNECTION_RESET_INTERVAL
+    minimum: 0
+    description: Interval in seconds after which the trace agent connection to Datadog
+      is reset. 0 disables the reset.
   dd_agent_bin:
     node_type: setting
     type: string
@@ -1187,6 +1180,9 @@ properties:
     node_type: setting
     type: number
     default: 0
+    minimum: 0
+    maximum: 100
+    description: Additional sampling rate multiplier for trace collection.
   install_id:
     node_type: setting
     type: string

@@ -76,10 +76,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteInstallInfo { get; }
 
-        public ManagedAction ReportInstallFailure { get; }
-
-        public ManagedAction ReportInstallSuccess { get; }
-
         public ManagedAction EnsureNpmServiceDepdendency { get; }
 
         public ManagedAction ConfigureServices { get; }
@@ -125,9 +121,8 @@ namespace WixSetup.Datadog_Agent
 
             // See PrerequisitesCustomActions.EnsureSecureConfigRoot.
             //
-            // After InstallValidate so REMOVE is set, and before InstallInitialize so failing here does
-            // not leave a partial installation behind. APPLICATIONDATADIRECTORY is resolved earlier, by
-            // CostFinalize.
+            // After InstallValidate and before InstallInitialize, so rejection happens before the
+            // transaction starts. ReadConfig independently validates ownership before importing settings.
             //
             // Runs unconditionally, including on uninstall and on removal for an upgrade: this only
             // asserts (never creates or modifies) the directory, so it cannot leave a partial
@@ -182,8 +177,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.ReadConfig,
                     Return.ignore,
                     When.After,
-                    // Must execute after CostFinalize since we depend
-                    // on APPLICATIONDATADIRECTORY being set.
+                    // The directory is resolved here; ReadConfig validates its owner before reading.
                     Step.CostFinalize,
                     // Not needed during uninstall, but since it runs before InstallValidate the recommended
                     // REMOVE=ALL condition does not work, so always run it.
@@ -209,20 +203,6 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             };
-
-            ReportInstallFailure = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallFailure)),
-                    CustomActions.ReportFailure,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallInitialize
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -582,6 +562,7 @@ namespace WixSetup.Datadog_Agent
                            "DD_APP_KEY=[DD_APP_KEY]," +
                            "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED]," +
                            "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]," +
+                           "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=[DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
@@ -638,20 +619,6 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
                                "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
-
-            // Hitting this CustomAction always means the install succeeded
-            // because when an install fails, it rollbacks from the `InstallFinalize`
-            // step.
-            ReportInstallSuccess = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallSuccess)),
-                    CustomActions.ReportSuccess,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-                )
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted

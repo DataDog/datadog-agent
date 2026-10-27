@@ -17,12 +17,12 @@ import (
 )
 
 // packageAgentFapolicydSuite runs the same install assertions as packageBaseSuite.testInstall,
-// but on the "9-fapolicyd" RedHat9 image, which has fapolicyd pre-baked (provision-e2e-rhel-centos.sh).
+// on the standard RedHat9 image, which has fapolicyd pre-baked (provision-e2e-rhel-centos.sh).
 // It embeds packageBaseSuite directly rather than packageAgentSuite so that it doesn't promote
 // packageAgentSuite's other Test* methods (experiment lifecycle, NSS-user, FIPS, ...) into its own
 // run. It has its own stack/suite type per test/new-e2e/AGENTS.md so it doesn't share a Pulumi
 // stack with packageAgentSuite, and it lives outside the TestPackages flavor matrix since it only
-// ever targets RedHat9Fapolicyd.
+// ever targets RedHat9. The image is shared, but the VM and test state are isolated.
 type packageAgentFapolicydSuite struct {
 	packageBaseSuite
 }
@@ -36,12 +36,12 @@ func TestPackageAgentFapolicyd(t *testing.T) {
 
 	method := GetInstallMethodFromEnv(t)
 	suite := &packageAgentFapolicydSuite{
-		packageBaseSuite: newPackageSuite("agent-fapolicyd", e2eos.RedHat9Fapolicyd, e2eos.AMD64Arch, method, awshost.WithRunOptions(ec2.WithoutFakeIntake())),
+		packageBaseSuite: newPackageSuite("agent-fapolicyd", e2eos.RedHat9, e2eos.AMD64Arch, method, awshost.WithRunOptions(ec2.WithoutFakeIntake())),
 	}
 
 	opts := []awshost.ProvisionerOption{
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOSArch(e2eos.RedHat9Fapolicyd, e2eos.AMD64Arch), ec2.WithInternetAccess()),
+			ec2.WithEC2InstanceOptions(ec2.WithOSArch(e2eos.RedHat9, e2eos.AMD64Arch), ec2.WithInternetAccess()),
 			ec2.WithoutAgent(),
 		),
 	}
@@ -53,5 +53,6 @@ func TestPackageAgentFapolicyd(t *testing.T) {
 }
 
 func (s *packageAgentFapolicydSuite) TestInstallWithFapolicyd() {
+	s.host.Run("rpm -q fapolicyd")
 	s.testInstall()
 }

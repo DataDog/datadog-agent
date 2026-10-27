@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Container image layers created at the zero time, which is how tools built
+    on go-containerregistry record an unset time, now report no creation time
+    where they reported the year 1. On CRI-O, a layer whose history entry
+    omits its creation time reports none as well.

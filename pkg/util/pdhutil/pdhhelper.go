@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	modPdhDll = windows.NewLazyDLL("pdh.dll")
+	modPdhDll = windows.NewLazySystemDLL("pdh.dll")
 
 	procPdhEnumObjects              = modPdhDll.NewProc("PdhEnumObjectsW")
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")

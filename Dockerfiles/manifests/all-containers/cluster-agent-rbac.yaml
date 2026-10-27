@@ -155,7 +155,6 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - serviceaccounts
       - namespaces
     verbs:
       - list
@@ -165,14 +164,6 @@ rules:
       - poddisruptionbudgets
     verbs:
       - get
-      - list
-      - watch
-  - apiGroups:
-      - rbac.authorization.k8s.io
-    resources:
-      - clusterrolebindings
-      - rolebindings
-    verbs:
       - list
       - watch
   - apiGroups:

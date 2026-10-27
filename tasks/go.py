@@ -10,6 +10,7 @@ import posixpath
 import re
 import shutil
 import sys
+import tempfile
 import textwrap
 import traceback
 from collections import defaultdict
@@ -20,7 +21,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -136,18 +137,30 @@ def deps_vendored(ctx, verbose=False):
 
     print("vendoring dependencies")
     with timed("go mod vendor"):
-        verbosity = ' -v' if verbose else ''
+        verbosity = ('-v',) if verbose else ()
 
         # We need to set GOWORK=off to avoid the go command to use the go.work directory
         # It is needed because it does not work very well with vendoring, we should no longer need it when we get rid of vendoring. ADXR-766
-        ctx.run(f"go mod vendor{verbosity}", env={"GOWORK": "off"})
-        ctx.run(f"go mod tidy{verbosity}", env={"GOWORK": "off"})
+        bazel("run", "--run_env=GOWORK=off", "//:go", "--", "mod", "vendor", *verbosity)
+        bazel("run", "--run_env=GOWORK=off", "//:go", "--", "mod", "tidy", *verbosity)
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
         # For this reason, we need to use a 3rd party tool to copy these files.
         # We won't need this if/when we change to non-vendored modules
-        ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
+        gomodcache = bazel("run", "//:go", "--", "env", "GOMODCACHE", capture_output=True).strip()
+        with tempfile.TemporaryDirectory() as gopath:
+            os.mkdir(os.path.join(gopath, "pkg"))
+            os.symlink(gomodcache, os.path.join(gopath, "pkg", "mod"), target_is_directory=True)
+            bazel(
+                "run",
+                f"--run_env=GOPATH={gopath}",  # modvendor ignores GOMODCACHE and instead hardcodes $GOPATH/pkg/mod
+                "//internal/tools:modvendor",
+                "--",
+                "-copy",
+                "**/*.c **/*.h **/*.proto **/*.java",
+                *verbosity,
+            )
 
         # If github.com/DataDog/datadog-agent gets vendored too - nuke it
         # This may happen because of the introduction of nested modules
@@ -331,7 +344,8 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     _check_valid_mods()
     timings = []
-    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
+    use_bazel = shutil.which("bazel") and is_bazel_workspace()
+    (_bazel_tidy if use_bazel else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
         print(f"{result.duration:6.2f}s  {result.name}", file=sys.stderr)
 
@@ -345,7 +359,9 @@ def _timed_step(name, timings, f):
 
 
 def _go_only_tidy(ctx, verbose: bool, timings=None):
-    _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
+    # Pre-Bazel branches don't use a Go workspace either
+    if os.path.exists("go.work"):
+        _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
 
     if os.name != 'nt':  # not windows
         import resource
@@ -372,7 +388,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
 
     _timed_step("go mod tidy (all modules)", timings, _tidy_all_modules)
 
-    print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
+    if is_bazel_workspace():
+        print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
 
 
 def _bazel_tidy(ctx, verbose: bool, timings=None):
@@ -415,7 +432,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.7 linux/amd64"
+    # result is like "go version go1.26.10 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

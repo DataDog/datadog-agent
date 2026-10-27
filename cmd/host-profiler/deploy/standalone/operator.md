@@ -35,6 +35,7 @@ Before deploying, update the provided manifests for your environment:
    - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the resource requests and limits under `spec.resources`. For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
    - Review the OpenTelemetry Collector configuration under `spec.config`. Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
+   - To tag profiles by cluster, see [Cluster name](#cluster-name).
 
 3. Choose a network policy manifest:
    - If your cluster enforces Kubernetes NetworkPolicy, use [`operator/network-policy.yaml`](operator/network-policy.yaml) by default.
@@ -42,6 +43,25 @@ Before deploying, update the provided manifests for your environment:
    - If you change the namespace or `OpenTelemetryCollector` name, update the policy metadata and pod selectors.
 
 If your cluster does not enforce NetworkPolicy resources, these manifests do not restrict egress; use your cluster's supported network controls instead.
+
+## Kubernetes cluster name
+
+In [`operator/collector.yaml`](operator/collector.yaml), uncomment the detector and its config. For an explicit name, uncomment `env` and `OTEL_RESOURCE_ATTRIBUTES` in `spec.env`.
+
+Cloud detector requirements vary by provider. See the [OpenTelemetry resource detection docs](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#supported-detectors) to enable one.
+
+## Collector health metrics
+
+Health metrics are not sent to Datadog by default because they can incur additional charges: they are emitted by each host and may affect Infrastructure Monitoring billing, depending on your plan and whether the host is already billed by Datadog. See [host billing](https://docs.datadoghq.com/account_management/billing/#hosts) and [usage details](https://docs.datadoghq.com/account_management/plan_and_usage/usage_details/).
+
+If you're still looking to enable them, set Collector metrics level to `normal`:
+
+```yaml
+service:
+  telemetry:
+    metrics:
+      level: normal
+```
 
 ## Deploy
 

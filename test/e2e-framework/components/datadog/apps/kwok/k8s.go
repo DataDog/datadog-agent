@@ -8,6 +8,8 @@
 package kwok
 
 import (
+	"fmt"
+
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -42,7 +44,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 
 	kwok, err := yaml.NewConfigFile(e.Ctx(), "kwok", &yaml.ConfigFileArgs{
 		File:            releaseBaseURL + "kwok.yaml",
-		Transformations: []yaml.Transformation{relaxExemptFlowSchema},
+		Transformations: []yaml.Transformation{relaxExemptFlowSchema, setControllerResources},
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -79,5 +81,50 @@ func relaxExemptFlowSchema(state map[string]interface{}, _ ...pulumi.ResourceOpt
 	}
 	if plc["name"] == "exempt" {
 		plc["name"] = "global-default"
+	}
+}
+
+// setControllerResources sets resources on the kwok-controller container, which the upstream
+// manifest leaves unset. On EKS the controller runs on Fargate, which sizes the pod from its
+// requests: without any, it gets the smallest size (0.25 vCPU, 0.5 GB) and is OOM-killed when
+// simulating about a thousand nodes and ten thousand pods, leaving new pods stuck Pending.
+// At that scale it uses about 0.8 CPU and less than 1 GB, so it gets the 1 vCPU / 2 GB size.
+func setControllerResources(state map[string]interface{}, _ ...pulumi.ResourceOption) {
+	if state["kind"] != "Deployment" {
+		return
+	}
+	metadata, ok := state["metadata"].(map[string]interface{})
+	if !ok || metadata["name"] != "kwok-controller" {
+		return
+	}
+	spec, ok := state["spec"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	template, ok := spec["template"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	podSpec, ok := template["spec"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	containers, ok := podSpec["containers"].([]interface{})
+	if !ok {
+		return
+	}
+	// Fargate reserves 256 MB of each pod's memory for its Kubernetes components (kubelet,
+	// kube-proxy, containerd) and adds it to the request when selecting the size: request
+	// 2Gi - 256Mi to get a 2 GB size rather than the next one up.
+	memory := fmt.Sprintf("%dMi", 2*1024-256)
+	for _, c := range containers {
+		container, ok := c.(map[string]interface{})
+		if !ok || container["name"] != "kwok-controller" {
+			continue
+		}
+		container["resources"] = map[string]interface{}{
+			"requests": map[string]interface{}{"cpu": "1", "memory": memory},
+			"limits":   map[string]interface{}{"memory": memory},
+		}
 	}
 }

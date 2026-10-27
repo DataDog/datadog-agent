@@ -44,6 +44,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/security/rules/filtermodel",
@@ -54,6 +55,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/security/rules/filtermodel",
@@ -64,6 +66,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/security/rules/filtermodel",
@@ -74,6 +77,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/security/rules/filtermodel",
@@ -84,6 +88,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/security/rules/filtermodel",
@@ -94,6 +99,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/security/rules/filtermodel",
@@ -104,6 +110,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/rules/filtermodel",
@@ -114,6 +121,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/security/rules/filtermodel",
@@ -124,6 +132,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/security/rules/filtermodel",
@@ -134,6 +143,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/security/rules/filtermodel",
@@ -144,6 +154,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/security/rules/filtermodel",
@@ -154,6 +165,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/security/rules/filtermodel",
@@ -164,6 +176,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/security/rules/filtermodel",
@@ -174,6 +187,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/security/rules/filtermodel",
@@ -184,6 +198,7 @@ dd_agent_go_test(
             "@com_github_hashicorp_go_multierror//:go-multierror",
             "@com_github_masterminds_semver_v3//:semver",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

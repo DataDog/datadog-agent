@@ -42,6 +42,7 @@ class Linux:
     libvirt_dir = kmt_dir / "libvirt"
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
+    virsh = "sudo virsh"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
     config_path = kmt_dir / "config.json"
 
@@ -75,6 +76,8 @@ class MacOS:
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_system_dir = get_homebrew_prefix() / "var/run/libvirt"
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
+    # The libvirt socket is world-accessible (see setup/mac_localvms.py), no need for sudo
+    virsh = f"virsh -c '{libvirt_socket}'"
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
     config_path = kmt_dir / "config.json"
@@ -99,17 +102,18 @@ def flare(ctx: Context, tmp_flare_folder: Path, dest_folder: Path, keep_uncompre
     ctx.run(f"git rev-parse --abbrev-ref HEAD >> {tmp_flare_folder}/git_version.txt", warn=True)
     ctx.run(f"mkdir -p {tmp_flare_folder}/stacks")
     ctx.run(f"cp -r {kmt_os.stacks_dir} {tmp_flare_folder}/stacks", warn=True)
-    ctx.run(f"sudo virsh list --all > {tmp_flare_folder}/virsh_list.txt", warn=True)
+    ctx.run(f"{kmt_os.virsh} list --all > {tmp_flare_folder}/virsh_list.txt", warn=True)
     ctx.run(f"cp {kmt_os.config_path} {tmp_flare_folder}/config.json", warn=True)
 
     virsh_config_folder = tmp_flare_folder / 'vm-configs'
     ctx.run(f"mkdir -p {virsh_config_folder}", warn=True)
     ctx.run(
-        f"sudo virsh list --all | grep ddvm | awk '{{ print $2 }}' | xargs -I % -S 1024 /bin/bash -c \"sudo virsh dumpxml % > {virsh_config_folder}/%.xml\"",
+        f"{kmt_os.virsh} list --all | grep ddvm | awk '{{ print $2 }}' | xargs -I % -S 1024 /bin/bash -c \"{kmt_os.virsh} dumpxml % > {virsh_config_folder}/%.xml\"",
         warn=True,
     )
     ctx.run(f"ps aux | grep -i appgate | grep -v grep > {tmp_flare_folder}/ps_appgate.txt", warn=True)
-    ctx.run(f"sudo chmod a+rw {tmp_flare_folder}/*", warn=True)
+    if kmt_os is Linux:
+        ctx.run(f"sudo chmod a+rw {tmp_flare_folder}/*", warn=True)
 
     ctx.run(f"mkdir -p {dest_folder}")
     now_ts = datetime.now().strftime("%Y%m%d-%H%M%S")

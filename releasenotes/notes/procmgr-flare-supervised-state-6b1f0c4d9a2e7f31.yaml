@@ -1,0 +1,27 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Flares now include ``procmgr/state.json``, a dump of the processes supervised by
+    ``dd-procmgrd``: their state, PID, spawn profile, user, restart count and last exit code,
+    plus which supervisor owns each migratable agent service. The file is written even when
+    ``dd-procmgrd`` cannot be reached, recording why, so a flare distinguishes a supervisor that
+    is down from one that was never queried.
+  - |
+    On Windows, the flare's ``servicestatus.json`` now includes the ``dd-procmgr-service``
+    supervisor. Agent processes supervised by ``dd-procmgrd`` leave their legacy service
+    registered and stopped, so previously a flare from a healthy host showed stopped services
+    with no record of the service actually running them.
+fixes:
+  - |
+    The procmgr supervision telemetry no longer reports a migratable service as unsupervised
+    when ``dd-procmgrd`` stops answering. The per-service supervisor checks shared a timeout
+    with the calls to ``dd-procmgrd``, so an unresponsive daemon consumed the whole budget and
+    every ``systemctl is-active`` check failed before it could run, reporting no supervisor for
+    services systemd was still running.

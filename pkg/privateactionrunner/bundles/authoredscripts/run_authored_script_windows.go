@@ -10,6 +10,7 @@ package com_datadoghq_authoredscripts
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -21,7 +22,7 @@ type RunAuthoredScriptHandler struct{}
 
 // NewRunAuthoredScriptHandler returns the Windows stub. Authored scripts are
 // not supported on Windows, so the catalog is unused.
-func NewRunAuthoredScriptHandler(_ authoredscriptssupport.Catalog) *RunAuthoredScriptHandler {
+func NewRunAuthoredScriptHandler(_ authoredscriptssupport.Catalog, _ *http.Client) *RunAuthoredScriptHandler {
 	return &RunAuthoredScriptHandler{}
 }
 

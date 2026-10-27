@@ -44,7 +44,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -339,7 +339,7 @@ func enrichProcessesWithContainerID(procs map[int32]*procutil.Process, pidToCid 
 }
 
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
-// It uses PID, creation time, command line hash, and container ID to detect new or changed processes
+// It uses PID, creation time, command line hash, parent PID, and container ID to detect new or changed processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -358,7 +358,8 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 			continue
 		}
 
-		if !procutil.IsSameProcess(procA, procB) || procA.ContainerID != procB.ContainerID {
+		parentChanged := procA.Ppid != procB.Ppid
+		if !procutil.IsSameProcess(procA, procB) || parentChanged || procA.ContainerID != procB.ContainerID {
 			newProcs = append(newProcs, procA)
 		}
 	}
@@ -419,7 +420,7 @@ func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32)
 		HeartbeatPids: heartbeatPids,
 	}
 
-	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfig.DiscoveryModule)
+	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfigtypes.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}
