@@ -65,7 +65,7 @@ func TestRpmScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test RPM package on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
-			slice := strings.Split(osVers, "-")
+			slice := strings.Split(strings.TrimSuffix(osVers, "-e2e"), "-")
 			var version float64
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
