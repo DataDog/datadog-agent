@@ -65,6 +65,7 @@ dd_agent_go_test(
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatform/fx",
         "//comp/forwarder/eventplatformreceiver/impl",
+        "//comp/networkpath/npcollector/def",
         "//comp/networkpath/npcollector/fx",
         "//comp/networkpath/npcollector/mock",
         "//comp/networkpath/traceroute/fx-remote",
