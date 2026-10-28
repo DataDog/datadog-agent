@@ -6,9 +6,16 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace/config/mock",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/mock",
+        "//comp/core/tagger/impl",
+        "//comp/core/telemetry/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/impl",
+        "//comp/def",
         "//comp/trace/config/def",
         "//comp/trace/config/impl",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
+        "@com_github_stretchr_testify//require",
     ],
 )
