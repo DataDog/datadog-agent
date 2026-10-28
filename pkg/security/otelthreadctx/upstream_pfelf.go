@@ -13,7 +13,7 @@
 // relocation type matched, and has no DynValue -- all three of which
 // resolveTLSAccess needs. The same PR adds libpf.Symbol.Info, the symbol type
 // findOTelTLSSymbol needs to tell a TLS symbol from a same-named data one; that
-// field is not copied here, the symbol walk of otel_tls.go filling in for it.
+// field is not copied here, the symbol walk of layout.go filling in for it.
 //
 // To remove once the pin includes PR #1229:
 //   - delete this file,
@@ -37,7 +37,7 @@
 //go:build linux
 
 //nolint:misspell // RELA is the ELF term throughout, not a typo of "real"
-package process
+package otelthreadctx
 
 import (
 	"bytes"

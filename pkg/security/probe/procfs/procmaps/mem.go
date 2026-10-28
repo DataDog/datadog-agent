@@ -5,16 +5,15 @@
 
 //go:build linux
 
-package procfs
+package procmaps
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Mem is the memory of a running process, addressed by virtual address.
@@ -22,9 +21,9 @@ type Mem struct {
 	f *os.File
 }
 
-// OpenMem opens the memory of pid for reading.
-func OpenMem(pid uint32) (Mem, error) {
-	f, err := os.Open(kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "mem"))
+// OpenMem opens /proc/<pid>/mem under procRoot
+func OpenMem(procRoot string, pid uint32) (Mem, error) {
+	f, err := os.Open(filepath.Join(procRoot, strconv.FormatUint(uint64(pid), 10), "mem"))
 	if err != nil {
 		return Mem{}, err
 	}
