@@ -82,14 +82,16 @@ type kueuePodSetAssignmentEntry struct {
 }
 
 type kueueWorkloadEntry struct {
-	namespace         string
-	name              string
-	queueName         string
-	clusterQueueName  string
-	labels            map[string]string
-	annotations       map[string]string
-	uid               string
-	podSetAssignments []kueuePodSetAssignmentEntry
+	namespace              string
+	name                   string
+	queueName              string
+	clusterQueueName       string
+	labels                 map[string]string
+	annotations            map[string]string
+	uid                    string
+	podSetAssignments      []kueuePodSetAssignmentEntry
+	podTemplateLabels      map[string]string
+	podTemplateAnnotations map[string]string
 }
 
 type kaiPodGroupEntry struct {
@@ -416,14 +418,16 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	switch eventType {
 	case workloadmeta.EventTypeSet:
 		s.kueueWorkloads[key] = kueueWorkloadEntry{
-			namespace:         workload.Namespace,
-			name:              workload.Name,
-			queueName:         workload.QueueName,
-			clusterQueueName:  workload.ClusterQueueName,
-			labels:            workload.Labels,
-			annotations:       workload.Annotations,
-			uid:               workload.UID,
-			podSetAssignments: kueuePodSetAssignmentEntries(workload.PodSetAssignments),
+			namespace:              workload.Namespace,
+			name:                   workload.Name,
+			queueName:              workload.QueueName,
+			clusterQueueName:       workload.ClusterQueueName,
+			labels:                 workload.Labels,
+			annotations:            workload.Annotations,
+			uid:                    workload.UID,
+			podSetAssignments:      kueuePodSetAssignmentEntries(workload.PodSetAssignments),
+			podTemplateLabels:      workload.PodTemplateLabels,
+			podTemplateAnnotations: workload.PodTemplateAnnotations,
 		}
 		return true
 	case workloadmeta.EventTypeUnset:
@@ -802,15 +806,17 @@ func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeM
 
 func protoKueueWorkload(entry kueueWorkloadEntry, eventType pb.KubeMetadataEventType) *pb.KueueWorkload {
 	return &pb.KueueWorkload{
-		Namespace:         entry.namespace,
-		Name:              entry.name,
-		Queue:             entry.queueName,
-		ClusterQueue:      entry.clusterQueueName,
-		Labels:            entry.labels,
-		Annotations:       entry.annotations,
-		Uid:               entry.uid,
-		PodSetAssignments: protoKueuePodSetAssignments(entry.podSetAssignments),
-		Type:              eventType,
+		Namespace:              entry.namespace,
+		Name:                   entry.name,
+		Queue:                  entry.queueName,
+		ClusterQueue:           entry.clusterQueueName,
+		Labels:                 entry.labels,
+		Annotations:            entry.annotations,
+		Uid:                    entry.uid,
+		PodSetAssignments:      protoKueuePodSetAssignments(entry.podSetAssignments),
+		PodTemplateLabels:      entry.podTemplateLabels,
+		PodTemplateAnnotations: entry.podTemplateAnnotations,
+		Type:                   eventType,
 	}
 }
 
@@ -867,7 +873,9 @@ func kueueWorkloadEqual(left, right kueueWorkloadEntry) bool {
 		left.uid == right.uid &&
 		maps.Equal(left.labels, right.labels) &&
 		maps.Equal(left.annotations, right.annotations) &&
-		kueuePodSetAssignmentsEqual(left.podSetAssignments, right.podSetAssignments)
+		kueuePodSetAssignmentsEqual(left.podSetAssignments, right.podSetAssignments) &&
+		maps.Equal(left.podTemplateLabels, right.podTemplateLabels) &&
+		maps.Equal(left.podTemplateAnnotations, right.podTemplateAnnotations)
 }
 
 func kaiPodGroupEqual(left, right kaiPodGroupEntry) bool {

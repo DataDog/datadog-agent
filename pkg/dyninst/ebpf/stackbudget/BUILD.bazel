@@ -9,7 +9,6 @@ go_library(
     deps = ["//pkg/util/safeelf"],
 )
 
-# keep
 dd_agent_go_test(
     name = "stackbudget_test",
     srcs = ["stackbudget_test.go"],
@@ -26,4 +25,5 @@ dd_agent_go_test(
         "DYNINST_EBPF_OBJ_X86_64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.x86_64)",
         "DYNINST_EBPF_OBJ_X86_64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.x86_64)",
     },
+    deps = ["//pkg/util/safeelf"],
 )
