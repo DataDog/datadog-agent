@@ -590,6 +590,7 @@ func start(log log.Component,
 			})
 			// Set cluster checks handler in clusterchecks component
 			clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
+			api.SetKubeMetadataClusterChecks(clusterCheckHandler)
 		} else {
 			pkglog.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}

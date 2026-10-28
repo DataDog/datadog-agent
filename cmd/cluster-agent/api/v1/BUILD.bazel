@@ -26,6 +26,7 @@ go_library(
         "//pkg/clusteragent",
         "//pkg/clusteragent/api",
         "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/proto/pbgo/core",
         "//pkg/util/cloudproviders/cloudfoundry",
@@ -40,6 +41,7 @@ go_library(
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@io_k8s_apimachinery//pkg/util/sets",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
