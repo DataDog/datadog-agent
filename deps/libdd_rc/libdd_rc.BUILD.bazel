@@ -2,6 +2,7 @@ load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper"
 load("@//bazel/rules:platform_transition.bzl", "platform_transition_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
@@ -119,6 +120,28 @@ go_proto_library(
     ],
 )
 
+# The standard Agent flavor builds rc-x509-ffi against rc-crypto's non-FIPS
+# AWS-LC backend; the FIPS flavor keeps AWS-LC FIPS. Windows stays on the FIPS
+# crate graph and its MSVC DLL until it moves to a MinGW static build.
+selects.config_setting_group(
+    name = "fips_crate_graph",
+    match_any = [
+        "@@//packages/agent:fips_flavor",  # buildifier: disable=canonical-repository
+        "@platforms//os:windows",
+    ],
+)
+
+_RC_X509_FFI_CRATES = [
+    "futures",
+    "rc-x509-client",
+    "rc-x509-proto",
+    "tokio",
+    "tokio-stream",
+    "tokio-util",
+    "tracing",
+    "tracing-subscriber",
+]
+
 rust_static_library(
     name = "rc_x509_ffi",
     srcs = [
@@ -133,16 +156,10 @@ rust_static_library(
     crate_root = "lib/rc-x509-ffi/src/lib.rs",
     edition = "2024",
     visibility = ["//visibility:public"],
-    deps = [
-        "@libdd_rc_crates//:futures",
-        "@libdd_rc_crates//:rc-x509-client",
-        "@libdd_rc_crates//:rc-x509-proto",
-        "@libdd_rc_crates//:tokio",
-        "@libdd_rc_crates//:tokio-stream",
-        "@libdd_rc_crates//:tokio-util",
-        "@libdd_rc_crates//:tracing",
-        "@libdd_rc_crates//:tracing-subscriber",
-    ],
+    deps = select({
+        ":fips_crate_graph": ["@libdd_rc_crates//:" + c for c in _RC_X509_FFI_CRATES],
+        "//conditions:default": ["@libdd_rc_crates_nonfips//:" + c for c in _RC_X509_FFI_CRATES],
+    }),
 )
 
 # The shipping Windows Agent is built with MinGW, but AWS-LC's Windows FIPS
@@ -345,10 +362,6 @@ dd_cc_packaged(
 cc_library(
     name = "rc_x509_ffi_cc",
     hdrs = ["include/libdd_rc.h"],
-    data = select({
-        "@rules_go//go/platform:darwin": [":_aws_lc_fips_crypto_dylib_packaged"],
-        "//conditions:default": [],
-    }),
     includes = ["include"],
     linkopts = select({
         "@rules_go//go/platform:linux": [
@@ -362,9 +375,6 @@ cc_library(
     deps = select({
         "@rules_go//go/platform:windows": [":_rc_x509_ffi_windows_dll_msvc"],
         "//conditions:default": [":rc_x509_ffi"],
-    }) + select({
-        "@rules_go//go/platform:darwin": [":aws_lc_fips_crypto_dylib"],
-        "//conditions:default": [],
     }),
 )
 
@@ -383,7 +393,6 @@ go_library(
         "ffi-hosts/go/internal/libddrcffi/doc.go",
         "ffi-hosts/go/internal/libddrcffi/fakeconn.go",
         "ffi-hosts/go/internal/libddrcffi/ffi.go",
-        "ffi-hosts/go/internal/libddrcffi/ffi_fips.go",
         "ffi-hosts/go/internal/libddrcffi/invokepool.go",
         "ffi-hosts/go/internal/libddrcffi/lifecycle.go",
         "ffi-hosts/go/internal/libddrcffi/pinnedhandle.go",
@@ -391,6 +400,9 @@ go_library(
     ] + select({
         "@rules_go//go/platform:windows": [],
         "//conditions:default": ["ffi-hosts/go/internal/libddrcffi/log_sink.go"],
+    }) + select({
+        ":fips_crate_graph": ["ffi-hosts/go/internal/libddrcffi/ffi_fips.go"],
+        "//conditions:default": [],
     }),
     cdeps = [":rc_x509_ffi_cc"],
     cgo = True,
