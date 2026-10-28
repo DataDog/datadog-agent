@@ -298,14 +298,19 @@ func getTestAtel(t *testing.T,
 	if sndr == nil {
 		sndr, err = newSenderImpl(cfg, log, client)
 	}
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	atel := createAtel(cfg, log, tel, sndr, runner)
-	if atel == nil {
-		err = errors.New("failed to create atel")
-	}
-	assert.NoError(t, err)
+	require.NotNil(t, atel)
 
+	t.Cleanup(func() {
+		if atel.cancel != nil {
+			atel.cancel()
+		}
+		if atel.logsDone != nil {
+			<-atel.logsDone
+		}
+	})
 	return atel
 }
 

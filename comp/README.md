@@ -78,6 +78,12 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
+### [comp/checks/ddinjectorlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/ddinjectorlogs)
+
+*Datadog Team*: windows-products
+
+Package ddinjectorlogs defines the DDInjector ETW logs forwarding component.
+
 ### [comp/checks/windowseventlog](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/windowseventlog)
 
 *Datadog Team*: windows-products
