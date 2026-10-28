@@ -357,6 +357,7 @@ func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 	// Resolved before the goroutine, which first waits out the rotation drain, to
 	// keep the source lock off that path.
 	missedSource, missedService := missedBytesIdentity(t.file.Source.Config())
+	source := t.file.Source.UnderlyingSource()
 	go func() {
 		// Name whichever limit ended the drain and, for the timeout, the setting that raises it.
 		limit, advice := fmt.Sprintf("rotation close timeout (%s)", t.closeTimeout), " Consider increasing "+t.closeTimeoutSetting
@@ -384,6 +385,7 @@ func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
 						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes)
+						source.RecordMissedBytes(remainingBytes)
 						log.Warnf("After the %s, there were %d bytes remaining unread for file %q. These unread logs are now lost.%s", limit, remainingBytes, t.file.Path, advice)
 					}
 				}
