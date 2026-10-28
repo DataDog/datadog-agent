@@ -160,6 +160,54 @@ func (s *baseProcmgrSuite) TestDaemonServiceStateTelemetry() {
 	}, 7*time.Minute, 10*time.Second)
 }
 
+// processStateMetric is the COAT one-hot for each catalog process supervised by
+// dd-procmgrd. Tags are process (processes.d name) and state (lowercase procmgr state).
+const processStateMetric = "runtime__procmgr_process_state"
+
+// skippedCatalogProcessName is a migratable catalog entry the smoke suites pin in
+// Skipped via a missing condition_path_exists. Arbitrary processes.d names never
+// appear on this gauge.
+const skippedCatalogProcessName = "datadog-agent-par-control"
+
+func skippedCatalogProcessYAML(command, conditionPath string) string {
+	return fmt.Sprintf(`command: %s
+condition_path_exists: %s
+auto_start: true
+restart: never
+description: catalog process held in Skipped for COAT process_state
+`, command, conditionPath)
+}
+
+// TestSkippedProcessStateTelemetry checks that a catalog process in Skipped is
+// reported on runtime.procmgr_process_state with state=skipped.
+//
+// COAT gauges are dumped by diagnose show-metadata agent-full-telemetry, which
+// is the same path TestDaemonServiceStateTelemetry and the fleet installer
+// assertions use. They are not in the telemetry-check allowlist, so they never
+// show up as fakeintake metric payloads.
+func (s *baseProcmgrSuite) TestSkippedProcessStateTelemetry() {
+	s.requireCLI()
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
+		assertTableRow(ct, out, skippedCatalogProcessName, map[string]string{
+			"STATE": "Skipped",
+			"PID":   "-",
+		})
+	}, 30*time.Second, 2*time.Second)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assert.True(ct, telemetryGaugeIsTrue(output, processStateMetric, map[string]string{
+			"process": skippedCatalogProcessName,
+			"state":   "skipped",
+		}), "catalog process in Skipped should set process_state skipped=1: %s", output)
+		assert.False(ct, telemetryGaugeIsTrue(output, processStateMetric, map[string]string{
+			"process": skippedCatalogProcessName,
+			"state":   "running",
+		}), "skipped catalog process must not also report running=1: %s", output)
+	}, 7*time.Minute, 10*time.Second)
+}
+
 func (s *baseProcmgrSuite) TestCLIStatus() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
@@ -195,7 +243,7 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("list"))
 		assertTableRow(ct, out, "missing-binary", map[string]string{
-			"STATE": "Created",
+			"STATE": "Skipped",
 			"PID":   "-",
 		})
 	}, 30*time.Second, 2*time.Second)
@@ -252,6 +300,28 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 		require.NoError(ct, err)
 		assert.GreaterOrEqual(ct, restartCount, uint64(1), "restart count should reflect crash restart")
 	}, 30*time.Second, 2*time.Second)
+}
+
+const agentServiceRunningMetric = "runtime__agent_service_running"
+
+// agentServiceSupervisors are the supervisor tags on agent_service_running. The gauge is one-hot:
+// exactly one supervisor series is set to 1 for a given service.
+var agentServiceSupervisors = []string{"procmgr", "systemd", "windows_service"}
+
+// assertAgentServiceRunningExclusive checks the service is up under wantSupervisor and that no
+// other supervisor series is 1 for that service (exclusive one-hot; COAT drops zeros).
+func assertAgentServiceRunningExclusive(ct *assert.CollectT, output, serviceID, wantSupervisor string) {
+	assert.True(ct, telemetryGaugeIsTrue(output, agentServiceRunningMetric, map[string]string{
+		"service": serviceID, "supervisor": wantSupervisor,
+	}), "agent_service_running should be 1 for service=%s supervisor=%s: %s", serviceID, wantSupervisor, output)
+	for _, supervisor := range agentServiceSupervisors {
+		if supervisor == wantSupervisor {
+			continue
+		}
+		assert.False(ct, telemetryGaugeIsTrue(output, agentServiceRunningMetric, map[string]string{
+			"service": serviceID, "supervisor": supervisor,
+		}), "only one supervisor may be set for %s, but %q is also 1: %s", serviceID, supervisor, output)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -375,4 +445,33 @@ func extractColumn(line string, idx int, columns []tableColumn) string {
 		end = len(line)
 	}
 	return strings.TrimSpace(line[start:end])
+}
+
+// telemetryGaugeIsTrue reports whether "show-metadata agent-full-telemetry" carries metric set to 1
+// with every label in labels. That payload is unfiltered, so a gauge the reporter emitted at 0 is
+// present as a line valued 0 and is correctly reported as not set here.
+func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, metric) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
+			continue
+		}
+
+		allLabelsMatch := true
+		for key, value := range labels {
+			if !strings.Contains(line, key+`="`+value+`"`) {
+				allLabelsMatch = false
+				break
+			}
+		}
+		if allLabelsMatch {
+			return true
+		}
+	}
+	return false
 }

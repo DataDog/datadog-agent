@@ -6,9 +6,12 @@
 package analyzelogs
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -43,6 +47,35 @@ func TestCommand(t *testing.T) {
 			require.Equal(t, time.Duration(5)*time.Second, cliParams.inactivityTimeout)
 			require.Equal(t, defaultCoreConfigPath, cliParams.CoreConfigPath)
 		})
+}
+
+type loadRecordingAutoConfig struct {
+	autodiscovery.Component
+	calls int
+	err   error
+}
+
+func (ac *loadRecordingAutoConfig) LoadAndRun(context.Context) error {
+	ac.calls++
+	return ac.err
+}
+
+func TestGetSourcesFileDoesNotLoadAutodiscovery(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("logs:\n  - type: file\n    path: test.log\n"), 0600))
+	ac := &loadRecordingAutoConfig{}
+	sources, err := getSources(ac, &CliParams{LogConfigPath: path})
+	require.NoError(t, err)
+	require.Len(t, sources, 1)
+	require.Zero(t, ac.calls, "a file-only invocation must not prepare or start autodiscovery")
+}
+
+func TestResolveCheckConfigReturnsPreparationError(t *testing.T) {
+	failure := errors.New("preparation failed")
+	ac := &loadRecordingAutoConfig{err: failure}
+	_, err := resolveCheckConfig(ac, &CliParams{LogConfigPath: "test-check"})
+	require.ErrorIs(t, err, failure)
+	require.Equal(t, 1, ac.calls)
 }
 
 func CreateTestFile(tempDir string, fileName string, fileContent string) *os.File {

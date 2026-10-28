@@ -89,6 +89,8 @@ func (s *grpcSession) Describe(ctx context.Context, nameOrUUID string) (ProcessS
 		Before:              detail.GetBefore(),
 		Stdout:              detail.GetStdout(),
 		Stderr:              detail.GetStderr(),
+		ConfigError:         detail.GetConfigError(),
+		SkipReasons:         detail.GetSkipReasons(),
 	}, nil
 }
 
@@ -117,6 +119,8 @@ func processesFromListResponse(resp *pb.ListResponse) map[string]ProcessSnapshot
 			LastSignal:   proc.LastSignal,
 			Profile:      proc.GetProfile(),
 			User:         proc.GetUser(),
+			ConfigError:  proc.GetConfigError(),
+			SkipReasons:  proc.GetSkipReasons(),
 		}
 	}
 	return processes

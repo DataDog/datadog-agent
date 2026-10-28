@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -34,9 +32,9 @@ import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
-	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -46,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -66,20 +65,6 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(par.Enabled)
 }
 
-func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
-	if containerized {
-		return envValue == "true"
-	}
-	return configEnabled
-}
-
-func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
-	if fipsEnabled {
-		return false
-	}
-	return goos == "linux" || (goos == "windows" && !containerized && processManagerEnabled)
-}
-
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
@@ -92,6 +77,7 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	PcapUploader  pcapuploader.Component
 	IPC           ipc.Component
 	Statsd        statsdcomp.Component
 }
@@ -109,6 +95,7 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	pcapUploader   pcapuploader.Component
 	ipc            ipc.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
@@ -142,20 +129,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if splitDeploymentEnabled(
-		reqs.Config.GetBool(par.SplitEnabled),
-		configenv.IsContainerized(),
-		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
-	) {
-		fipsEnabled := reqs.Config.GetBool("fips.enabled")
-		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
-			fipsEnabled = fipsEnabled || buildFIPSEnabled
-		}
-		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
-			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
-			reqs.Log.Flush()
-			return Provides{}, privateactionrunner.ErrSplitDeployment
-		}
+	mode, err := deployment.Resolve(reqs.Config)
+	if err != nil {
+		return Provides{}, err
+	}
+	if mode == deployment.Split {
+		reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrSplitDeployment
+	}
+	if deployment.Requested(reqs.Config) {
 		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
@@ -167,7 +150,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -192,7 +175,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -216,6 +199,7 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	pcapUploader pcapuploader.Component,
 	ipcComp ipc.Component,
 	metricsClient statsdclient.ClientInterface,
 	ha helmactions.Component,
@@ -229,6 +213,7 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		pcapUploader:   pcapUploader,
 		ipc:            ipcComp,
 		metricsClient:  metricsClient,
 		startChan:      make(chan struct{}),
@@ -360,6 +345,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
 
+	// The executor has its own span buffer; start its sender only after setup succeeds.
+	if cfg != nil {
+		p.startTelemetry(cfg)
+	}
+
 	go func() {
 		defer close(p.executorDone)
 		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
@@ -372,9 +362,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
-	if !p.coreConfig.GetBool(par.Enabled) || !splitDeploymentEnabled(
-		p.coreConfig.GetBool(par.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
-	) {
+	if !p.coreConfig.GetBool(par.Enabled) || !deployment.Requested(p.coreConfig) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
 	}
@@ -386,7 +374,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -405,7 +393,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -456,6 +444,10 @@ func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
 		}
 	}
 
+	// Flush completed spans after draining, or best-effort if the stop deadline expired.
+	// Actions still running after the deadline may finish after the sender stops.
+	p.stopTelemetry()
+
 	var stopErr error
 	if p.encryptionStore != nil {
 		p.encryptionStore.Stop()
@@ -477,7 +469,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		if p.shutdowner != nil {
 			go func() {
@@ -504,12 +496,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// runner_id is only finalized after enrollment.
 	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
 
-	p.telemetry = telemetry.NewTelemetry(
-		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
-		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
-		observability.ParService,
-	)
+	p.startTelemetry(cfg)
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
@@ -521,7 +508,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}
@@ -562,9 +549,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 		stopErr = errors.Join(stopErr, err)
 	}
-	if p.telemetry != nil {
-		p.telemetry.Stop()
-	}
+	p.stopTelemetry()
 	if p.ownsMetricsClient && p.metricsClient != nil {
 		if err := p.metricsClient.Flush(); err != nil {
 			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
@@ -574,6 +559,22 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 		}
 	}
 	return stopErr
+}
+
+func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+	p.telemetry = telemetry.NewTelemetry(
+		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
+		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		cfg.DatadogSite,
+		observability.ParService,
+	)
+}
+
+func (p *PrivateActionRunner) stopTelemetry() {
+	if p.telemetry != nil {
+		p.telemetry.Stop()
+		p.telemetry = nil
+	}
 }
 
 func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {

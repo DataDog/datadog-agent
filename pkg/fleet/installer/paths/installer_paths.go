@@ -35,6 +35,12 @@ const (
 	DatadogProgramFilesDir = ""
 )
 
+// ConfigDirIsTrustedForRead permits reads on non-Windows platforms, where this Windows
+// directory-ownership policy does not apply.
+func ConfigDirIsTrustedForRead(_ string) (bool, error) {
+	return true, nil
+}
+
 // SetupInstallerDataDir ensures that permissions are set correctly on the installer data directory.
 // This is a no-op on non-Windows platforms.
 func SetupInstallerDataDir() error {

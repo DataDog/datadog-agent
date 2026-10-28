@@ -48,19 +48,13 @@ build do
   end
 
   if project.name == "installer"
-    # This file depends on the type of package and must therefor be generated during
-    # packaging, not building.
-    uninstall_command="sudo yum remove datadog-installer"
-    if debian_target?
-        uninstall_command="sudo apt-get remove datadog-installer"
+    # The README depends on the type of package being built, so it must be
+    # generated during packaging, not building the tarballs. When we eliminate
+    # the tarball intermediary, we can fold this into the .deb/.rpm target.
+    host_distribution = ""
+    if not Omnibus::Config.host_distribution().nil?
+      host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
     end
-    # Omnibus hardcodes the template rendering to be in config/templates/<software-name>
-    # so we need to move the input to its expected location
-    FileUtils.mkdir_p "#{Omnibus::Config.project_root()}/config/templates/package-artifact"
-    FileUtils.move "#{Omnibus::Config.project_root()}/config/templates/installer/README.md.erb", "#{Omnibus::Config.project_root()}/config/templates/package-artifact/README.md.erb"
-    erb source: "README.md.erb",
-       dest: "#{install_dir}/README.md",
-       mode: 0644,
-       vars: { uninstall_command: uninstall_command}
+    command "bazel run #{omnibazel_flags} #{host_distribution} -- //packages/installer:install_readme --destdir=#{install_dir}"
   end
 end

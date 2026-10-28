@@ -20,7 +20,7 @@
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
-#       - capabilities_required (optional): {nvlink: <min_generation>, c2c: <bool>} (hardware capabilities required for the metric)
+#       - capabilities_required (optional): {nvlink: <min_generation>, max_nvlink: <max_generation>, c2c: <bool>} (hardware capabilities required for the metric; max_nvlink requires nvlink)
 metric_prefix: gpu
 metrics:
   clock.speed.graphics:
@@ -365,6 +365,63 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  # device.sharing_fraction is only reported for containers assigned a share of
+  # a GPU, so it is optional: other workloads never produce it.
+  device.sharing_fraction:
+    metadata:
+      metric_type: gauge
+      unit: fraction
+      description: >-
+        Fraction of the GPU assigned to the container, when the GPU is shared
+        between containers that are each assigned a fraction of it, as described
+        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        GPU fractions). Not reported for containers without an assigned fraction.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 0
+        max: 1
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
+  # device.sharing_memory is only reported for containers assigned a share of
+  # a GPU, so it is optional: other workloads never produce it.
+  device.sharing_memory:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: >-
+        GPU memory the container is allowed to use, when the GPU is shared
+        between containers that are each assigned a fraction of it, as described
+        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        GPU fractions). The GPU memory not assigned to any container can be
+        computed with `max:gpu.memory.limit{*} by {gpu_uuid} -
+        sum:gpu.device.sharing_memory{*} by {gpu_uuid}`. Not reported for
+        containers without an assigned fraction.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   device.total:
     metadata:
       metric_type: gauge
@@ -635,6 +692,66 @@ metrics:
     custom_tags:
       - origin
       - type
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  fabric.registered:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU completed its registration with the NVLink fabric
+        (1) or not (0), as reported by NVML. Only emitted for GPUs attached to
+        an NVLink fabric (NVSwitch systems such as HGX and GB200 NVL72).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  fabric.health.unhealthy:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether NVML reports the GPU's NVLink fabric health summary as
+        unhealthy or limited capacity (1) or healthy (0). Requires a driver
+        that reports the fabric health summary (R580 or later).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  fabric.health.issue:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Set to 1 for each NVLink fabric health issue NVML reports for the GPU
+        (degraded bandwidth, route recovery, unhealthy route, access timeout
+        recovery or incorrect configuration), tagged with fabric_issue. Only
+        emitted while the issue is set.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - fabric_issue
+    validator:
+      values: [1]
+    optional: true
     support:
       unsupported_architectures: []
       device_modes:
@@ -924,21 +1041,27 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Whether the GPU is unavailable for the reason in the unavailable_reason
-        tag. The lost reason means NVML reports the GPU as inaccessible
-        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
-        0 means available, 1 means unavailable.
+        Whether the GPU is unavailable for the reason in unavailable_reason, 0 or
+        1, on physical GPUs (MIG parents included, slices excluded). A GPU has at
+        most one reason at 1, in this order: lost (NVML reports the GPU as
+        inaccessible), unhealthy (device plugin unhealthy or an NVML recovery
+        action), unschedulable (the node is cordoned, not Ready or matches a rule).
+        Series carry device tags but no workload tags. Only unschedulable series
+        carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
+        after the cause clears.
       aggregation: absolute_usage
     tagsets:
       - device
     custom_tags:
       - unavailable_reason
+      - unschedulable_reason
+    optional: true
     validator:
       values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
   device.needs_recovery:
@@ -1056,14 +1179,14 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 4
   nvlink.errors.crc.flit:
     metadata:
       metric_type: gauge
@@ -1085,6 +1208,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.buffer.overrun:
     metadata:
       metric_type: gauge
@@ -1125,6 +1249,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.effective:
     metadata:
       metric_type: gauge
@@ -1198,6 +1323,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.replay:
     metadata:
       metric_type: gauge
@@ -1220,6 +1346,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.rx:
     metadata:
       metric_type: gauge
@@ -2445,3 +2572,27 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  vgpu.license_status:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the vGPU software license for the device's enabled product is
+        active (1) or inactive (0), as reported by NVML from inside the guest
+        VM. An inactive license exposes the workload to driver performance
+        limitations but does not by itself indicate that throttling is in
+        effect. Tagged with vgpu_product. Only emitted for vGPU devices that
+        support vGPU software licensing.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - vgpu_product
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: false
+        vgpu: true

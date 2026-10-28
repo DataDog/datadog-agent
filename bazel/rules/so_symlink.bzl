@@ -6,12 +6,13 @@ _SPECS = [
     struct(os = "windows", prefix = "bin/", format = "{}.dll"),
 ]
 
-def _gen_targets(base_name, src, libname, version, prefix, dest_dir, spec, attributes = None):
+def _gen_targets(base_name, src, libname, version, prefix, dest_dir, mode, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
     base = (dest_dir + "/") if dest_dir else spec.prefix
     dest_prefix = base + (prefix + "/" if prefix else "")
-    attributes = attributes or pkg_attributes(mode = "0644")
+    attributes = pkg_attributes(mode = mode)
+    link_attributes = pkg_attributes(mode = "0644")
 
     # Windows: no symlinks, no renaming - just copy the DLL as-is
     if spec.os == "windows":
@@ -48,7 +49,7 @@ def _gen_targets(base_name, src, libname, version, prefix, dest_dir, spec, attri
             name = targets[-1],
             link_name = "{}{}".format(dest_prefix, link),
             target = target,
-            attributes = attributes,
+            attributes = link_attributes,
             target_compatible_with = [platform],
             package_metadata = [],
         )
@@ -57,11 +58,11 @@ def _gen_targets(base_name, src, libname, version, prefix, dest_dir, spec, attri
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform], package_metadata = [])
     return platform, [":{}".format(name)]
 
-def _so_symlink_impl(name, src, libname, version, prefix, dest_dir, visibility):
+def _so_symlink_impl(name, src, libname, version, prefix, dest_dir, mode, visibility):
     src_str = ":{}".format(src.name)
     pkg_filegroup(
         name = name,
-        srcs = select(dict([_gen_targets(name, src_str, libname, version, prefix, dest_dir, spec) for spec in _SPECS])),
+        srcs = select(dict([_gen_targets(name, src_str, libname, version, prefix, dest_dir, mode, spec) for spec in _SPECS])),
         package_metadata = [],
         visibility = visibility,
     )
@@ -108,6 +109,11 @@ so_symlink = macro(
             When set, files land under <dest_dir>/ on all platforms; use this
             for deps with non-standard install layouts.""",
             default = "",
+            configurable = False,
+        ),
+        "mode": attr.string(
+            doc = "Permissions of the installed library file. The symlinks are not affected.",
+            default = "0644",
             configurable = False,
         ),
     },

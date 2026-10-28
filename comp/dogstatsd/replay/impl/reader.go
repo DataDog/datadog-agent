@@ -170,19 +170,26 @@ func (tc *TrafficCaptureReader) ReadState() (*pb.TaggerState, error) {
 		return nil, fmt.Errorf("The replay file is version: %v and does not contain a tagger state", tc.Version)
 	}
 
+	// A capture whose writer errored has no trailer, so the last four bytes are
+	// payload rather than a state size.
 	length := len(tc.Contents)
+	if length < 4 {
+		return nil, fmt.Errorf("replay file is too short (%d bytes) to contain a tagger state", length)
+	}
 	sz := binary.LittleEndian.Uint32(tc.Contents[length-4 : length])
 
 	log.Debugf("State bytes to be read: %v", sz)
 	if sz == 0 {
 		return nil, nil
 	}
+	if int64(sz)+4 > int64(length) {
+		return nil, fmt.Errorf("tagger state size %d exceeds the %d bytes available, replay file is truncated or corrupt", sz, length-4)
+	}
 
 	// pb state
 	pbState := &pb.TaggerState{}
 	err := proto.Unmarshal(tc.Contents[length-int(sz)-4:length-4], pbState)
 	if err != nil {
-		tc.Unlock()
 		return nil, err
 	}
 

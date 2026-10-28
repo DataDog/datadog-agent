@@ -99,8 +99,18 @@ type SafeDevice interface {
 	GetMIGInstanceProfileName(gpuInstanceID int) (string, error)
 	// GetGpuFabricInfo returns the NVLink fabric information for the device.
 	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
+	// GetGpuFabricInfoV3 returns the NVLink fabric information with the health summary. On drivers
+	// that do not support version 3 it falls back to version 2, leaving the health summary unset.
+	GetGpuFabricInfoV3() (nvml.GpuFabricInfo_v3, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
+	// GetPlatformInfo returns where the GPU sits in a rack-scale system (chassis, slot, tray, module).
+	GetPlatformInfo() (nvml.PlatformInfo, error)
+	// GetSerial returns the board serial number of the device
+	GetSerial() (string, error)
+	// GetNumaNodeId returns the NUMA node closest to the device
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	GetNumaNodeId() (int, error)
 
 	// GetMinorNumber returns the device's minor number, which is the N in the
 	// /dev/nvidiaN device node. This is distinct from the enumeration index
@@ -176,6 +186,9 @@ type SafeDevice interface {
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
 	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetGridLicensableFeatures returns the vGPU software licensable features
+	// of the device and their license state
+	GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error)
 	// GetSupportedEventTypes returns a bitmask of all supported device events
 	GetSupportedEventTypes() (uint64, error)
 	// RegisterEvents registers the device for events to be waited in the given set

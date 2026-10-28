@@ -225,6 +225,20 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
+	// An interval-zero check runs once, possibly for a long time, on whichever
+	// worker receives it, and that worker exits when the check returns (see
+	// Worker.Run). This extra worker keeps the pool at full size while the
+	// check runs and takes the place of the exiting worker afterwards.
+	// It is added before the check is enqueued: if the check could finish
+	// first, the runner would replace the exiting worker and this one would
+	// stay on top. Enter never fails for interval-zero checks.
+	// checkInstances sizes the pool for periodic checks, so it is not
+	// incremented here: this extra worker already accounts for the check.
+	if ch.Interval() == 0 && !check.IsShadow(ch) {
+		c.log.Infof("Adding an extra runner for the '%s' zero-interval check", ch)
+		c.runner.AddWorker()
+	}
+
 	if err := c.scheduler.Enter(ch); err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
@@ -232,15 +246,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	if check.IsShadow(ch) {
 		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
 		c.runner.AddShadowWorker()
-	} else if ch.Interval() == 0 {
-		// Track the total number of checks running in order to have an appropriate number of workers
-		c.checkInstances++
-		// Adding a temporary runner for long running check in case the
-		// number of runners is lower than the number of long running
-		// checks.
-		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
-		c.runner.AddWorker()
-	} else {
+	} else if ch.Interval() != 0 {
 		// Track the total number of checks running in order to have an appropriate number of workers
 		c.checkInstances++
 		c.runner.UpdateNumWorkers(c.checkInstances)

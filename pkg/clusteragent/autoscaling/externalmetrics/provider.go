@@ -112,6 +112,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		autoscalerAutogenLabelSelector,
 		hpaGVR,
 		apiCl.InformerFactory,
+		apiCl.DynamicInformerFactory,
 		wpaInformer,
 		le.IsLeader,
 		&provider.store,

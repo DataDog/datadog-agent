@@ -46,6 +46,12 @@ func init() {
 // DefaultScrubber, but can be used to initialize other, custom scrubbers with
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
+	delaFallbackReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(?i)(\bfallback\s*=\s*)[^,\]]*`),
+		Hints:       []string{"DELA["},
+		Repl:        []byte(`${1}********`),
+		LastUpdated: parseVersion("7.84.0"),
+	}
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
@@ -239,6 +245,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
+				apiKey = scrubber.ScrubLine(apiKey)
 				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
@@ -294,6 +301,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.78.5"),
 	}
 
+	privateActionRunnerYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
+		ProcessValue: func(data any) any {
+			wrapped := data
+			scrubber.ScrubDataObj(&wrapped)
+			scrubPrivateActionRunnerCredentialValues(wrapped)
+			return wrapped
+		},
+		LastUpdated: parseVersion("7.85.0"),
+	}
+
 	// HTTP header-style API keys with "key" suffix
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
@@ -346,6 +364,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
 
+	scrubber.AddReplacer(SingleLine, delaFallbackReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
@@ -376,6 +395,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
 	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
+	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -576,6 +596,32 @@ func scrubAllLeafValues(data interface{}) interface{} {
 		return defaultReplacement
 	default:
 		return defaultReplacement
+	}
+}
+
+func scrubPrivateActionRunnerCredentialValues(data interface{}) {
+	updateMapValuesCaseInsensitive(data, "credentials", func(credentials interface{}) interface{} {
+		updateMapValuesCaseInsensitive(credentials, "values", scrubAllLeafValues)
+		return credentials
+	})
+}
+
+// Update every matching key in place, preserving its spelling. Multiple case
+// variants may coexist in the original config, and all must be scrubbed.
+func updateMapValuesCaseInsensitive(data interface{}, key string, update func(interface{}) interface{}) {
+	switch target := data.(type) {
+	case map[string]interface{}:
+		for k, value := range target {
+			if strings.EqualFold(k, key) {
+				target[k] = update(value)
+			}
+		}
+	case map[interface{}]interface{}:
+		for k, value := range target {
+			if name, ok := k.(string); ok && strings.EqualFold(name, key) {
+				target[k] = update(value)
+			}
+		}
 	}
 }
 

@@ -168,6 +168,7 @@ func (c *unbundledTransformer) getTagsFromTagger(tagsAcc tagset.TagsAccumulator)
 		log.Debugf("error getting global tags: %s", err)
 	}
 	tagsAcc.Append(globalTags...)
+	tagsAcc.Append(c.taggerInstance.GetInfraTags()...)
 }
 
 func (c *unbundledTransformer) shouldCollect(ev *v1.Event) bool {

@@ -245,6 +245,23 @@ func TestDigest(t *testing.T) {
 
 	// assert the ClusterCheck field is not taken into account
 	assert.NotEqual(t, simpleConfig.Digest(), simpleIngoreADTagsConfig.Digest())
+
+	for _, tc := range []struct {
+		from string
+		to   string
+	}{
+		{"", "low"},
+		{"low", "orchestrator"},
+		{"orchestrator", "high"},
+		{"high", ""},
+	} {
+		t.Run("cardinality "+tc.from+" to "+tc.to, func(t *testing.T) {
+			before := Config{Name: "redisdb", CheckTagCardinality: tc.from}
+			after := Config{Name: "redisdb", CheckTagCardinality: tc.to}
+			assert.NotEqual(t, before.Digest(), after.Digest())
+			assert.NotEqual(t, before.FastDigest(), after.FastDigest())
+		})
+	}
 }
 
 func TestIsDiscovery(t *testing.T) {

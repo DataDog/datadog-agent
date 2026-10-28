@@ -198,7 +198,6 @@ cc_shared_library(
     deps = [":libtdsodbc"],
     dynamic_deps = [
         "@unixodbc//:odbc_pkg",
-        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -235,7 +234,7 @@ dd_cc_packaged(
     name = "tdsodbc_pkg",
     input = ":tdsodbc",
     dest_dir = "embedded/lib",
-    installed_files = [
+    data = [
         ":so_links",
     ],
     visibility = ["//visibility:public"],

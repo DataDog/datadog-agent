@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"maps"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
@@ -16,6 +18,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -27,6 +31,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -41,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -55,6 +61,7 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	Capabilities   *iainterface.Capabilities `optional:"true"`
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -65,10 +72,11 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
+		Capabilities:   deps.Capabilities,
 	}
 }
 
-func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, options ...fx.Option) Provides {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
@@ -81,6 +89,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
+			fx.Options(options...),
 		)),
 	)
 }
@@ -110,6 +119,245 @@ func TestGetPayload(t *testing.T) {
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "hostname-for-test", payload.Hostname)
 	assert.Equal(t, 1234, payload.Metadata["test"])
+}
+
+func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		capabilities *iainterface.Capabilities
+		wantFetches  int
+	}{
+		{name: "absent capabilities", wantFetches: 1},
+		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, wantFetches: 1},
+		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
+			originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
+			t.Cleanup(func() {
+				fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
+				fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
+			})
+			fetches := map[string]int{}
+			fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
+				return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+					fetches[name]++
+					return remoteConfig, nil
+				}
+			}
+			fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
+			fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
+			fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
+			fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
+
+			var options []fx.Option
+			if tt.capabilities != nil {
+				options = append(options, fx.Supply(tt.capabilities))
+			}
+			if tt.wantFetches == 0 {
+				options = append(options, fx.Decorate(func(ipc.HTTPClient) ipc.HTTPClient { return nil }))
+			}
+			p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil, options...)
+			ia := p.Comp.(*inventoryagent)
+			configDir := t.TempDir()
+			configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
+			fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
+			if err := os.MkdirAll(fleetDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			ia.Set("resource_id", "test-resource")
+			ia.Set("flavor", "embedded-test")
+			ia.Set("config_dd_url", "explicit-url")
+			for index, value := range []string{"first", "second"} {
+				ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
+				ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
+				ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
+				ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
+				applicationConfig := []byte("service: " + value)
+				fleetConfig := []byte("service: fleet-" + value)
+				for path, contents := range map[string][]byte{
+					filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
+					filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
+				} {
+					if err := os.WriteFile(path, contents, 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				payload := ia.getPayload().(*Payload)
+
+				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
+				assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
+				assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
+				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
+				assert.Contains(t, payload.Metadata, "install_method_tool")
+				assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
+				assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
+				assert.Equal(t, uuid.GetUUID(), payload.UUID)
+				for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
+					assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
+				}
+				for name, field := range map[string]string{
+					"security":     "feature_cspm_enabled",
+					"process":      "feature_process_enabled",
+					"trace":        "feature_apm_enabled",
+					"system-probe": "feature_networks_enabled",
+				} {
+					assert.Equal(t, (index+1)*tt.wantFetches, fetches[name], name)
+					if tt.wantFetches == 0 {
+						assert.NotContains(t, payload.Metadata, field)
+					} else {
+						assert.Equal(t, true, payload.Metadata[field], field)
+					}
+				}
+				// Local collectors are intentionally skipped too, even with populated inputs.
+				for field, expected := range map[string]any{
+					"config_site":                         value + ".example.com",
+					"feature_logs_enabled":                index == 0,
+					"fleet_policies_applied":              []string{value},
+					"config_id":                           value,
+					"application_monitoring_config":       applicationConfig,
+					"application_monitoring_config_fleet": fleetConfig,
+				} {
+					if tt.wantFetches == 0 {
+						assert.NotContains(t, payload.Metadata, field)
+					} else {
+						assert.Equal(t, expected, payload.Metadata[field], field)
+					}
+				}
+				if tt.wantFetches == 0 {
+					assert.Equal(t, "explicit-url", payload.Metadata["config_dd_url"], "skipping refresh must not filter explicitly set fields")
+				} else {
+					assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
+				}
+			}
+		})
+	}
+}
+
+func TestCapabilitiesReadiness(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		capabilities *iainterface.Capabilities
+		deferred     bool
+	}{
+		{name: "absent capabilities"},
+		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}},
+		{name: "deferred capability", capabilities: &iainterface.Capabilities{DeferUntilReady: true}, deferred: true},
+		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil), deferred: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			serializerMock := serializermock.NewMetricSerializer(t)
+			options := []fx.Option{fx.Decorate(func(serializer.MetricSerializer) serializer.MetricSerializer {
+				return serializerMock
+			})}
+			if tt.capabilities != nil {
+				options = append(options, fx.Supply(tt.capabilities))
+			}
+			p := getProvides(t, map[string]any{"inventories_first_run_delay": 0}, nil, options...)
+			ia := p.Comp.(*inventoryagent)
+			require.NotNil(t, p.Provider.Callback, "a deferred provider must remain registered")
+			if !tt.deferred {
+				serializerMock.On("SendMetadata", mock.Anything).Return(nil).Twice()
+			}
+
+			// Exercise the published callback immediately after construction, before injection.
+			assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
+			p.Comp.Set("resource_id", "complete-resource")
+			p.Comp.Submit()
+			data, err := ia.GetAsJSON()
+			if tt.deferred {
+				assert.EqualError(t, err, "inventory metadata is not ready")
+				assert.Nil(t, data)
+				assert.True(t, ia.LastCollect.IsZero())
+				assert.True(t, ia.RefreshTriggered())
+				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
+
+				serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
+					return payload.Metadata["resource_id"] == "complete-resource"
+				})).Return(nil).Once()
+				p.Comp.SetReady(true)
+				p.Comp.Submit()
+				data, err = ia.GetAsJSON()
+			}
+			require.NoError(t, err)
+			assert.Contains(t, string(data), `"resource_id": "complete-resource"`)
+			assert.False(t, ia.LastCollect.IsZero())
+			assert.False(t, ia.RefreshTriggered())
+			serializerMock.AssertExpectations(t)
+		})
+	}
+}
+
+func TestCapabilitiesReadinessDoesNotEnableInventory(t *testing.T) {
+	p := getProvides(t, map[string]any{"inventories_enabled": false}, nil,
+		fx.Supply(iainterface.NewServerlessCapabilities(func() string {
+			t.Fatal("disabled inventory must not resolve identity")
+			return ""
+		})))
+	ia := p.Comp.(*inventoryagent)
+	p.Comp.SetReady(true)
+	p.Comp.Submit()
+	assert.False(t, ia.Enabled)
+	assert.Nil(t, p.Provider.Callback)
+	assert.Nil(t, ia.MetadataProvider().Callback)
+	assert.True(t, ia.LastCollect.IsZero())
+	_, err := ia.GetAsJSON()
+	assert.EqualError(t, err, "inventory metadata is disabled")
+}
+
+func TestCapabilitiesPayloadUUID(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		withResolver bool
+		resolvedUUID string
+	}{
+		{name: "nil resolver"},
+		{name: "empty override", withResolver: true},
+		{name: "override", withResolver: true, resolvedUUID: "process-uuid"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			originalGetUUID := uuid.GetUUID
+			t.Cleanup(func() { uuid.GetUUID = originalGetUUID })
+			hostUUIDCalls := 0
+			uuid.GetUUID = func() string {
+				hostUUIDCalls++
+				return "host-uuid"
+			}
+			resolvedUUID := tt.resolvedUUID
+			resolverCalls := 0
+			var resolver func() string
+			if tt.withResolver {
+				resolver = func() string {
+					resolverCalls++
+					return resolvedUUID
+				}
+			}
+			p := getProvides(t, nil, nil, fx.Supply(iainterface.NewServerlessCapabilities(resolver)))
+			ia := p.Comp.(*inventoryagent)
+			first := ia.getPayload().(*Payload)
+			if resolvedUUID == "" {
+				assert.Equal(t, "host-uuid", first.UUID)
+				assert.Equal(t, 1, hostUUIDCalls)
+			} else {
+				assert.Equal(t, resolvedUUID, first.UUID)
+				assert.Zero(t, hostUUIDCalls)
+			}
+			resolvedUUID = "next-instance-uuid"
+			second := ia.getPayload().(*Payload)
+			if tt.withResolver {
+				assert.Equal(t, resolvedUUID, second.UUID)
+				assert.Equal(t, 2, resolverCalls)
+				if tt.resolvedUUID == "" {
+					assert.Equal(t, 1, hostUUIDCalls)
+				} else {
+					assert.Zero(t, hostUUIDCalls)
+				}
+			} else {
+				assert.Equal(t, "host-uuid", second.UUID)
+				assert.Equal(t, 2, hostUUIDCalls)
+			}
+		})
+	}
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {

@@ -32,9 +32,8 @@ jobs:
 
       - name: Tidy and generate licenses
         run: |
-          go mod tidy
+          GONOPROXY=github.com/DataDog/opentelemetry-ebpf-profiler go mod tidy
           dda inv -- -e tidy
-          dda inv -- -e install-tools
           dda inv -- -e generate-licenses
 
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5

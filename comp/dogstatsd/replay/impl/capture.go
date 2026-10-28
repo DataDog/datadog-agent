@@ -9,8 +9,8 @@ package replayimpl
 import (
 	"context"
 	"errors"
+	"os"
 	"path"
-	"sync"
 	"time"
 
 	"github.com/spf13/afero"
@@ -21,7 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const captureShutdownTimeout = 5 * time.Second
 
 type Requires struct {
 	Lc     compdef.Lifecycle
@@ -31,52 +34,38 @@ type Requires struct {
 
 // trafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
-	writer       *TrafficCaptureWriter
-	config       model.Reader
-	tagger       tagger.Component
-	startUpError error
-
-	sync.RWMutex
+	writer *TrafficCaptureWriter
+	config model.Reader
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewComponent(deps Requires) replay.Component {
 	tc := &trafficCapture{
+		writer: NewTrafficCaptureWriter(deps.Config.GetInt("dogstatsd_capture_depth"), deps.Tagger),
 		config: deps.Config,
-		tagger: deps.Tagger,
 	}
 	deps.Lc.Append(compdef.Hook{
-		OnStart: tc.configure,
+		OnStop: tc.shutdown,
 	})
 
 	return tc
 }
 
-func (tc *trafficCapture) configure(_ context.Context) error {
-	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"), tc.tagger)
-	if writer == nil {
-		tc.startUpError = errors.New("unable to instantiate capture writer")
-	}
-	tc.writer = writer
-
+// shutdown drains an ongoing capture so the file is not left truncated.
+func (tc *trafficCapture) shutdown(_ context.Context) error {
+	tc.writer.StopAndWait(captureShutdownTimeout)
 	return nil
 }
 
 // IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
 func (tc *trafficCapture) IsOngoing() bool {
-	tc.RLock()
-	defer tc.RUnlock()
-
-	if tc.writer == nil {
-		return false
-	}
-
 	return tc.writer.IsOngoing()
 }
 
 // StartCapture starts a TrafficCapture and returns an error in the event of an issue.
 func (tc *trafficCapture) StartCapture(p string, d time.Duration, compressed bool) (string, error) {
-	if tc.IsOngoing() {
+	// Cheap rejection; startCapture below is the authoritative reservation.
+	if tc.writer.IsOngoing() {
 		return "", errors.New("Ongoing capture in progress")
 	}
 
@@ -85,40 +74,35 @@ func (tc *trafficCapture) StartCapture(p string, d time.Duration, compressed boo
 		return "", err
 	}
 
-	go tc.writer.Capture(target, d, compressed)
+	if _, err := tc.writer.startCapture(target, d, compressed); err != nil {
+		// Still ours: nothing else will write to or close it.
+		target.Close()
+		if rmErr := os.Remove(path); rmErr != nil {
+			log.Warnf("could not remove unused capture file %v: %v", path, rmErr)
+		}
+		return "", err
+	}
 
 	return path, nil
 }
 
 // StopCapture stops an ongoing TrafficCapture.
 func (tc *trafficCapture) StopCapture() {
-	tc.Lock()
-	defer tc.Unlock()
-	if tc.writer == nil {
-		return
-	}
-
 	tc.writer.StopCapture()
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
 func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
-	tc.Lock()
-	defer tc.Unlock()
 	return tc.writer.RegisterSharedPoolManager(p)
 }
 
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.
 func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
-	tc.Lock()
-	defer tc.Unlock()
 	return tc.writer.RegisterOOBPoolManager(p)
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
 func (tc *trafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
-	tc.RLock()
-	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)
 }
 
@@ -131,5 +115,5 @@ func (tc *trafficCapture) defaultlocation() string {
 }
 
 func (tc *trafficCapture) GetStartUpError() error {
-	return tc.startUpError
+	return nil
 }

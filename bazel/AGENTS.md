@@ -206,8 +206,22 @@ Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extens
 content in sync with source files automatically. When a new language or generator is added to the binary, its rules
 become part of the same automated workflow — you do not need to know which extensions are loaded.
 
+After deleting a package's last test file, check for an obsolete `dd_agent_go_test` rule: Gazelle can retain the macro
+and its stale source references. Remove the obsolete rule and its unused load explicitly.
+
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
+
+#### Only add `# keep` when Gazelle would otherwise change the code
+
+A `# keep` comment is only useful when Gazelle would rewrite or drop the value it annotates. Do not add one:
+
+- on attributes Gazelle never manages (`target_compatible_with`, `tags`, `data`, `env`, `gotags`, `linkmode`, ...),
+- on top-level assignments or other non-rule statements,
+- on a value or rule that already matches what Gazelle generates.
+
+To check whether a `# keep` is needed, remove it, run `bazel run //:gazelle -- ./path/to/package`, and keep it only if
+the resulting diff is non-empty. If you do add one, explain why on the same line (`# keep: <reason>`).
 
 #### `test/new-e2e/tests/` is not migrated — exclude new suite directories
 
@@ -390,7 +404,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
   used outside their file.
 - Rule implementation functions are always private: `_myrule_impl` for `myrule`.
 - `print()` is for debugging only. Never leave `print()` calls in committed code unless guarded by `if DEBUG:` with
-  `DEBUG = False`.
+  `DEBUG = False`, or denoting an actionable warning, whose message then starts with `WARNING: `.
 - **Prefer rules over macros.** Macros expand before analysis, making `bazel query` output hard to interpret and aspects
   unaware of them. Use macros only for targets intended to be referenced directly at the CLI.
 - Internal macro targets (not meant to be used directly) must have:
@@ -927,11 +941,10 @@ symlink creation without administrator elevation. The `.bazelrc` sets `--enable_
 
 **Runfiles file junctions.** `--enable_runfiles` builds the runfiles tree with directory junctions. Windows junctions
 cannot point at files, so a file runfile shows up as a directory (`d----l`) and `open()` fails with `Permission
-denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path;
-`bazel/patches/rules_pkg-windows-junction-copy.patch` makes the copier follow the reparse point. For generated trees
-that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is one directory
-junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the runfiles library
-over constructing paths under `*.runfiles`.
+denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path. For
+generated trees that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is
+one directory junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the
+runfiles library over constructing paths under `*.runfiles`.
 
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.
@@ -988,6 +1001,10 @@ asserting on wall-clock time fail. Prefer waiting on a signal over a fixed durat
 **Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
 external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
 `DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
+Linking tests depending on the Pulumi k8s SDK peaks at 25x to 35x their binary's on-disk footprint, beyond what `GoLink`
+books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` add the `resources:memory:6144` tag, honored
+locally since Bazel 9.2.0. Prefer that tag over a `resources:memory` entry in `exec_properties`: the latter is also sent
+as a remote execution platform property, and RBE workers that don't advertise it can't be scheduled.
 
 ## Testing
 

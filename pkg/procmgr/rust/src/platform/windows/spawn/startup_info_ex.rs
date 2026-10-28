@@ -16,15 +16,17 @@ use windows_sys::Win32::System::Threading::{
 
 /// Extended `STARTUPINFO` used by `CreateProcessW` / `CreateProcessAsUserW`.
 ///
-/// `STARTUPINFOEX` carries extra create-time attributes (which stdio HANDLEs to inherit,
+/// `STARTUPINFOEX` carries extra create-time attributes (which HANDLEs to inherit,
 /// which job object to join). Attribute pointers must remain
 /// valid until `CreateProcess*` returns, so this type owns those arrays.
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
     attribute_list_storage: Vec<u8>,
-    /// Deduped inheritable stdio handles for `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`.
+    /// Explicit inheritable handles for `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`.
+    /// The workload stdio constructor deduplicates its three standard handles.
     stdio_handles: Vec<HANDLE>,
-    job_handles: [HANDLE; 1],
+    // Attribute values must remain at a stable address when Self is moved.
+    job_handles: Box<[HANDLE; 1]>,
 }
 
 impl StartupInfoEx {
@@ -35,6 +37,18 @@ impl StartupInfoEx {
         stderr: HANDLE,
         job: HANDLE,
     ) -> Result<Self> {
+        let mut startup =
+            Self::with_handles_and_job(dedup_stdio_handles(stdin, stdout, stderr), job)?;
+        startup.siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        startup.siex.StartupInfo.hStdInput = stdin;
+        startup.siex.StartupInfo.hStdOutput = stdout;
+        startup.siex.StartupInfo.hStdError = stderr;
+        Ok(startup)
+    }
+
+    /// Explicit inheritance without standard-slot assignment, used by the
+    /// detached helper. The job itself is deliberately non-inheritable.
+    pub(crate) fn with_handles_and_job(handles: Vec<HANDLE>, job: HANDLE) -> Result<Self> {
         const ATTRIBUTE_COUNT: u32 = 2;
         let mut attribute_list_size = 0usize;
         // Call with a null attribute list to retrieve its size and allocate once.
@@ -72,10 +86,10 @@ impl StartupInfoEx {
         }
 
         let mut startup = Self {
-            siex: new_siex(stdin, stdout, stderr, attribute_list),
+            siex: new_siex(attribute_list),
             attribute_list_storage,
-            stdio_handles: dedup_stdio_handles(stdin, stdout, stderr),
-            job_handles: [job],
+            stdio_handles: handles,
+            job_handles: Box::new([job]),
         };
         // JOB_LIST before HANDLE_LIST: assign supervision job before restricting inheritance.
         startup.attach_job_list()?;
@@ -119,18 +133,9 @@ fn dedup_stdio_handles(stdin: HANDLE, stdout: HANDLE, stderr: HANDLE) -> Vec<HAN
     handles
 }
 
-fn new_siex(
-    stdin: HANDLE,
-    stdout: HANDLE,
-    stderr: HANDLE,
-    attribute_list: *mut std::ffi::c_void,
-) -> STARTUPINFOEXW {
+fn new_siex(attribute_list: *mut std::ffi::c_void) -> STARTUPINFOEXW {
     let mut siex: STARTUPINFOEXW = unsafe { mem::zeroed() };
     siex.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
-    siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-    siex.StartupInfo.hStdInput = stdin;
-    siex.StartupInfo.hStdOutput = stdout;
-    siex.StartupInfo.hStdError = stderr;
     siex.lpAttributeList = attribute_list;
     siex
 }

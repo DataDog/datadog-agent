@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment leaves out the opens of processes that read
+    code without running it, such as ldconfig after a library install,
+    depmod, dracut, ldd, file copies and archives, file integrity scanners
+    and the byte compilation of Python modules at install. They marked the
+    packages they read as running as root.

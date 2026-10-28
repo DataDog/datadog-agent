@@ -11,7 +11,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
     | tar -xzf - -C /usr/local/bin && \
     chmod +x /usr/local/bin/dda
 
-FROM golang:1.26.7-trixie
+FROM golang:1.26.10-trixie
 
 RUN cross_debian_arch=$(uname -m | sed -e 's/aarch64/amd64/'  -e 's/x86_64/arm64/'); \
     cross_pkg_arch=$(uname -m | sed -e 's/aarch64/x86-64/' -e 's/x86_64/aarch64/'); \
@@ -20,6 +20,7 @@ RUN cross_debian_arch=$(uname -m | sed -e 's/aarch64/amd64/'  -e 's/x86_64/arm64
     apt-get install -y sudo less curl wget make git cmake unzip \
         libc6-dev g++ gcc pkgconf clang-17 clang-format-17 \
         gcc-${cross_pkg_arch}-linux-gnu libc6-${cross_debian_arch}-cross \
+        g++-${cross_pkg_arch}-linux-gnu \
         musl-dev:amd64 musl-dev:arm64 && \
     apt-get clean autoclean && \
     apt-get autoremove --yes

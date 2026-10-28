@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/protectedfile"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -95,19 +96,6 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 
 	var kernelHeaders []string
 	if opts.UseKernelHeaders {
-		// Validate the agent's dedicated temporary directory *before* the header
-		// search runs. GetKernelHeaders reuses, and recursively deletes the contents
-		// of, subdirectories of ebpf.KernelHeaderDownloadDir, which lives under
-		// ebpf.AgentTmpDir.
-		if err := ebpf.SecureCacheDir(ebpf.AgentTmpDir); err != nil {
-			err = fmt.Errorf("agent temporary directory: %w", err)
-			if logRuntimeDirOnce(err.Error()) {
-				log.Warnf("skipping runtime compilation: %v", err)
-			}
-			a.tm.compilationResult = headerFetchErr
-			return nil, err
-		}
-
 		headerOpts := headers.HeaderOptions{
 			DownloadEnabled: config.EnableKernelHeaderDownload,
 			Dirs:            config.KernelHeadersDirs,
@@ -116,7 +104,15 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 			YumReposDir:     config.YumReposDir,
 			ZypperReposDir:  config.ZypperReposDir,
 		}
-		kernelHeaders = headers.GetKernelHeaders(headerOpts)
+		// Called only if the header search reaches the downloaded-header path, and
+		// before that directory is read from, deleted in, or written to. Configured,
+		// /lib/modules and kheaders.tar.xz sources return without it, so supplying
+		// headers by those means does not require this directory to be securable.
+		// SecureCacheDir verifies every component of the path it is given, so passing the
+		// leaf checks "system-probe" and "kernel-headers" rather than assuming they
+		// are safe because the directory above them is. GetKernelHeaders wraps
+		// the error to say which directory it was.
+		kernelHeaders = headers.GetKernelHeaders(headerOpts, ebpf.SecureCacheDir)
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
 			return nil, errors.New("unable to find kernel headers")
@@ -207,8 +203,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 }
 
 // creates a ram backed file from the given reader. The file is made immutable
-func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFile, error) {
-	protectedFile, err := NewProtectedFile(name, runtimeDir, source)
+func createProtectedFile(name, runtimeDir string, source io.Reader) (protectedfile.ProtectedFile, error) {
+	protectedFile, err := protectedfile.NewProtectedFile(name, runtimeDir, source)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create protected file: %w", err)
 	}
@@ -217,7 +213,7 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 }
 
 // verify reads the asset from the reader and verifies the content hash matches what is expected.
-func (a *asset) verify(source ProtectedFile) error {
+func (a *asset) verify(source protectedfile.ProtectedFile) error {
 	sum, err := sha256Reader(source)
 	if err != nil {
 		return fmt.Errorf("hash file %s: %w", source.Name(), err)

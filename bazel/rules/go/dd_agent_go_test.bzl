@@ -88,6 +88,9 @@ def dd_agent_go_test(
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     user_tags = tags or []
+    if "go_link:enormous" in user_tags:  # `GoLink` peaks at 6.1 GiB RSS when dragging most of the pulumi-kubernetes SDK
+        # A tag, unlike `exec_properties`, doesn't become a remote execution platform property that no worker advertises.
+        user_tags = user_tags + ["resources:memory:6144"]
     user_tcw = [] if target_compatible_with == None else target_compatible_with
 
     #TODO(regis): make our Gazelle extension manage the following attributes (didn't want to bloat #56569)
@@ -97,7 +100,6 @@ def dd_agent_go_test(
     visibility = None
     if native.package_name().startswith("test/new-e2e/tests/"):
         kwargs["importpath"] = importpath  # for CI Visibility's module-identity parity
-        visibility = ["//test/new-e2e/tests:__subpackages__"]  # needed by //test/new-e2e/tests:test_binaries
 
     if include_default:
         _test_tag_set_check_name(name)
