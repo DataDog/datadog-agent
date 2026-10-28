@@ -71,6 +71,17 @@ message KueueWorkload {
   map<string, string> pod_template_annotations = 11;
 }
 
+// KubernetesAutoscaler is an autoscaler (HPA, VPA, WPA, DPA, or an HPA managed
+// by KEDA) and the workload it targets, in the autoscaler namespace.
+message KubernetesAutoscaler {
+  string namespace = 1;
+  string name = 2;
+  string autoscaler_kind = 3; // horizontalpodautoscaler, verticalpodautoscaler, watermarkpodautoscaler, datadogpodautoscaler or keda
+  string target_kind = 4; // deployment, statefulset or argo_rollout
+  string target_name = 5;
+  KubeMetadataEventType type = 6;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
@@ -78,4 +89,5 @@ message KubeMetadataStreamResponse {
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
   repeated KueueWorkload kueue_workloads = 6;
+  repeated KubernetesAutoscaler kubernetes_autoscalers = 7;
 }
