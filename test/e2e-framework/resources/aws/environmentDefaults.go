@@ -244,7 +244,7 @@ func agentQADefault() environmentDefault {
 			defaultVPCID: "vpc-0097b9307ec2c8139",
 			defaultSubnets: []SubnetConfig{
 				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},    // us-east-1a (ci-us-east-1a)
-				{ID: "subnet-TODO-ci-us-east-1a-2", MacOSCompatible: true}, // us-east-1a (ci-us-east-1a-2) TODO: replace with the real ID once ddoghq/cloud-inventory#824 is applied
+				{ID: "subnet-0a3f12f04bf8b0770", MacOSCompatible: true}, // us-east-1a (ci-us-east-1a-2)
 				{ID: "subnet-04bf3124d5c31c2e0", MacOSCompatible: true},    // us-east-1b (ci-us-east-1b)
 				{ID: "subnet-06eecbdafc2dac21e", MacOSCompatible: false},   // us-east-1d (ci-us-east-1d)
 			},
