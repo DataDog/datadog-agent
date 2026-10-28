@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -514,14 +515,31 @@ func allowEnvVar(envVar string) bool {
 	}
 
 	allowedEnvs := pkgconfigsetup.Datadog().GetStringSlice("ad_allowed_env_vars")
-
-	// If the option is not set or is empty, the default behavior applies: all
-	// envs are allowed.
-	if len(allowedEnvs) == 0 {
-		return true
+	if len(allowedEnvs) > 0 {
+		return slices.ContainsFunc(allowedEnvs, func(env string) bool {
+			return strings.EqualFold(env, envVar)
+		})
 	}
 
-	return slices.ContainsFunc(allowedEnvs, func(env string) bool {
-		return strings.EqualFold(env, envVar)
-	})
+	// If the option is not set or is empty, the default behavior applies: all
+	// envs are allowed except the ones bound to agent settings, which can hold
+	// credentials that configs from untrusted sources (e.g. pod annotations)
+	// must not be able to read.
+	_, blocked := blockedAgentEnvVars()[strings.ToUpper(envVar)]
+	return !blocked
+}
+
+var blockedAgentEnvVars = sync.OnceValue(computeBlockedAgentEnvVars)
+
+func computeBlockedAgentEnvVars() map[string]struct{} {
+	cfg := pkgconfigsetup.Datadog()
+	envVars := cfg.GetEnvVars()
+	set := make(map[string]struct{}, len(envVars))
+	for _, envVar := range envVars {
+		set[strings.ToUpper(envVar)] = struct{}{}
+	}
+	for _, envVar := range cfg.GetStringSlice("ad_allowed_agent_env_vars") {
+		delete(set, strings.ToUpper(envVar))
+	}
+	return set
 }
