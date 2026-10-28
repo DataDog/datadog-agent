@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    Experimental: the Agent can collect logs from files on an SMB 2/3 share,
+    Experimental: the Agent can collect logs from files on an SMB 3 share,
     such as a Windows file server, Samba or Azure Files, without mounting the
     share. Configure a log source with ``type: smb``, a ``path`` glob relative
     to the share root and an ``smb`` block with the ``host``, ``share``,
@@ -25,8 +25,17 @@ features:
     responses, and refuses guest and anonymous sessions. It does not encrypt
     the traffic itself: the log lines are encrypted only if the server
     enforces encryption or the source sets ``require_encryption: true`` in
-    its ``smb`` block. Only the full Agent on Linux, Windows and macOS,
-    including its container image, includes the SMB log source: the IoT
+    its ``smb`` block. It offers SMB 3 dialects only; set
+    ``allow_smb2: true`` for a server that supports nothing newer (it cannot
+    be combined with ``require_encryption``). Use a fully qualified host name
+    or an IP address as ``host``: the Agent warns about single-label and
+    ``.local`` names, which other machines on the subnet can answer for.
+    To avoid locking out an Active Directory account, the Agent sends one
+    logon at a time per account, and no logon with a password that the
+    server refused, until the password changes or the Agent restarts; the
+    source status says why it stopped and what to fix. A locked-out account
+    is tried again once an hour. Only the full Agent on Linux, Windows and
+    macOS, including its container image, includes the SMB log source: the IoT
     Agent, the Heroku Agent and FIPS builds of the Agent do not, and report
     ``smb`` sources as errors in the Agent status. FIPS builds leave it out
     because SMB NTLMv2 authentication, the only one supported, needs
