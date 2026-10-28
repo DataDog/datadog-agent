@@ -209,8 +209,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			// A removed Kueue entity is no longer in the store, so the pods
 			// that used it get re-tagged without it.
 			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
-			// A removed process is no longer in the store, so its container
-			// gets re-tagged without it.
 			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		default:
@@ -433,10 +431,8 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 }
 
-// retagProcessContainer recomputes the tags of the container of the given
-// process. Container tags include tags promoted from the processes in the store
-// at that time, and setting, changing or removing those processes later does
-// not generate a new event for the container.
+// retagProcessContainer recomputes the tags of the container of the process,
+// as process changes do not generate an event for the container.
 func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity) []*types.TagInfo {
 	if !c.promoteProcessTags {
 		return nil
@@ -464,9 +460,7 @@ func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity
 	})
 }
 
-// hasPromotableProcessTag reports whether the process has a promotable tag.
-// Processes without one are ignored when promoting tags, so they cannot change
-// the tags of their container.
+// Processes without a promotable tag cannot change the tags of their container.
 func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 	if process.Service == nil {
 		return false
@@ -481,21 +475,21 @@ func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 	return false
 }
 
-// addPromotedProcessTags adds the promotable process tags on which every
-// process of the container that has the tag agrees.
 func (c *WorkloadMetaCollector) addPromotedProcessTags(containerID string, tagList *taglist.TagList) {
 	processes := c.store.ListProcessesWithFilter(func(process *workloadmeta.Process) bool {
 		return processContainerID(process) == containerID
 	})
 	for _, key := range promotableProcessTagKeys {
 		if value, ok := agreedProcessTagValue(processes, key); ok {
+			// Promotable process tags are, for now, only training identifiers
+			// shared by all the pods of a training run, so they are low
+			// cardinality.
 			tagList.AddLow(key, value)
 		}
 	}
 }
 
-// agreedProcessTagValue returns the value of the tracer tag when the processes
-// that have it agree on it. Processes without the tag are ignored.
+// agreedProcessTagValue ignores processes without the tag.
 func agreedProcessTagValue(processes []*workloadmeta.Process, key string) (string, bool) {
 	var agreed string
 	for _, process := range processes {
