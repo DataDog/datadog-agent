@@ -242,7 +242,9 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       CHART_DIR="$WORKSPACE_ROOT/chart-$EPISODE"
     fi
 
+    # Helm release names are capped at 53 characters.
     EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+    EP_RELEASE="$(echo "$EP_RELEASE" | cut -c1-53 | sed 's/-*$//')"
 
     EP_VALUES_FILE="$WORKSPACE_ROOT/ep-values.yaml"
     umask 077
