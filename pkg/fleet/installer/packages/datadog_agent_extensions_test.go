@@ -9,6 +9,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -121,7 +123,23 @@ func TestEndUserDeviceModeEnabled(t *testing.T) {
 	}
 }
 
+// isolateAgentConfig keeps the machine's datadog.yaml, EUDM mode and registry env vars out of the test,
+// so only the extensions and registry the test sets up are used.
+func isolateAgentConfig(t *testing.T) {
+	originalPath := agentConfigPath
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	agentConfigPath = func() string { return configPath }
+	t.Cleanup(func() { agentConfigPath = originalPath })
+	t.Setenv("DD_INFRASTRUCTURE_MODE", "full")
+	// Unset rather than empty: an empty per-image override replaces DD_INSTALLER_REGISTRY_URL.
+	for _, key := range []string{"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE", "DD_INSTALLER_MIRROR"} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
+	isolateAgentConfig(t)
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
 	ctx := HookContext{Context: context.Background()}
 	err := installAgentExtensions(ctx, "7.50.0-1", false)
@@ -129,6 +147,7 @@ func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
 }
 
 func TestInstallDDOTExtensionIfEnabled_Enabled(t *testing.T) {
+	isolateAgentConfig(t)
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	// Keep the download on a local stub that rejects every request.
 	var registryHits atomic.Int32
