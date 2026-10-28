@@ -123,7 +123,7 @@ use_repo(crate, "libdd_rc_crates")
 http_archive(
     name = "libdd_rc_source",
     build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
-    sha256 = "f92cd06712e1b2046bfbab405cf6f84d6390bd3ec7765fadeea8831c015fa112",
-    strip_prefix = "libdd-rc-7e239d684d47b563f319df5d83653329eaa66a2a",
-    urls = ["https://github.com/DataDog/libdd-rc/archive/7e239d684d47b563f319df5d83653329eaa66a2a.tar.gz"],
+    sha256 = "3cd296b58c8ee55be39eb991ef92f16ec8cbc1acfcdf886fe9b8a5980b481090",
+    strip_prefix = "libdd-rc-2c5496404cceab24219560ad23dd71c9226bbb0a",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/2c5496404cceab24219560ad23dd71c9226bbb0a.tar.gz"],
 )

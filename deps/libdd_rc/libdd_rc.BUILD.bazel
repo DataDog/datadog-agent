@@ -28,7 +28,7 @@ package_metadata(
     purl = purl_for_generic(
         download_url = "https://github.com/DataDog/libdd-rc/archive/{version}.tar.gz",
         package = "libdd-rc",
-        version = "7e239d684d47b563f319df5d83653329eaa66a2a",
+        version = "2c5496404cceab24219560ad23dd71c9226bbb0a",
     ),
 )
 
@@ -383,6 +383,7 @@ go_library(
         "ffi-hosts/go/internal/libddrcffi/doc.go",
         "ffi-hosts/go/internal/libddrcffi/fakeconn.go",
         "ffi-hosts/go/internal/libddrcffi/ffi.go",
+        "ffi-hosts/go/internal/libddrcffi/ffi_fips.go",
         "ffi-hosts/go/internal/libddrcffi/invokepool.go",
         "ffi-hosts/go/internal/libddrcffi/lifecycle.go",
         "ffi-hosts/go/internal/libddrcffi/pinnedhandle.go",
