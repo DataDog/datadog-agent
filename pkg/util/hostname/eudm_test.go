@@ -27,15 +27,20 @@ func TestEUDMResolution(t *testing.T) {
 		file, sidecar, fail     bool
 		useSerial               bool
 		gce, azure, ec2Priority bool
+		fqdn, container         bool
 		deviceName              string
 		want, provider          string
 	}{
 		{name: "serial disabled", mode: "end_user_device", want: "device", provider: eudmProviderName},
-		{name: "device beats local fqdn", mode: "end_user_device", useSerial: true, want: "device-abc123", provider: eudmProviderName},
+		{name: "device beats OS fallback", mode: "end_user_device", useSerial: true, want: "device-abc123", provider: eudmProviderName},
 		{name: "explicit hostname", mode: "end_user_device", useSerial: true, override: "explicit", want: "explicit", provider: hostnameinterface.ConfigProvider},
 		{name: "hostname file", mode: "end_user_device", useSerial: true, file: true, want: "from-file", provider: "hostnameFile"},
-		{name: "non EUDM", mode: "host", useSerial: true, want: "hostname-from-fqdn", provider: "fqdn"},
-		{name: "missing serial", mode: "end_user_device", useSerial: true, fail: true, want: "hostname-from-fqdn", provider: "fqdn"},
+		{name: "non EUDM", fqdn: true, mode: "host", useSerial: true, want: "hostname-from-fqdn", provider: "fqdn"},
+		{name: "missing serial", fqdn: true, mode: "end_user_device", useSerial: true, fail: true, want: "hostname-from-fqdn", provider: "fqdn"},
+		{name: "FQDN wins without serial", mode: "end_user_device", fqdn: true, want: "hostname-from-fqdn", provider: "fqdn"},
+		{name: "FQDN wins with serial", mode: "end_user_device", fqdn: true, useSerial: true, want: "hostname-from-fqdn", provider: "fqdn"},
+		{name: "container wins", mode: "end_user_device", container: true, useSerial: true, want: "container-host", provider: "container"},
+		{name: "missing serial falls back to OS", mode: "end_user_device", useSerial: true, fail: true, want: "hostname-from-os", provider: "os"},
 		{name: "GCE wins", mode: "end_user_device", useSerial: true, gce: true, want: "hostname-from-gce", provider: "gce"},
 		{name: "Azure wins", mode: "end_user_device", useSerial: true, azure: true, want: "hostname-from-azure", provider: "azure"},
 		{name: "EC2 prioritized without serial", mode: "end_user_device", ec2Priority: true, want: "hostname-from-ec2", provider: "aws"},
@@ -45,11 +50,20 @@ func TestEUDMResolution(t *testing.T) {
 		{name: "sidecar", mode: "end_user_device", useSerial: true, sidecar: true, want: "", provider: hostnameinterface.FargateProvider},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			setupHostnameTest(t, testCase{GCE: tc.gce, azure: tc.azure, FQDN: true, OS: true, EC2: true, EC2Proritized: tc.ec2Priority, fargate: tc.sidecar})
+			setupHostnameTest(t, testCase{GCE: tc.gce, azure: tc.azure, FQDN: tc.fqdn, OS: true, EC2: true, EC2Proritized: tc.ec2Priority, fargate: tc.sidecar})
+			oldContainer := containerProvider.cb
+			t.Cleanup(func() { containerProvider.cb = oldContainer })
+			containerProvider.cb = func(_ context.Context, _ string) (string, error) {
+				if tc.container {
+					return "container-host", nil
+				}
+				return "", errors.New("not containerized")
+			}
 			cfg := configmock.New(t)
 			cfg.SetInTest("infrastructure_mode", tc.mode)
 			cfg.SetInTest("hostname", tc.override)
 			cfg.SetInTest("hostname_use_serial", tc.useSerial)
+			cfg.SetInTest("hostname_fqdn", tc.fqdn)
 			cfg.SetInTest("ec2_prioritize_instance_id_as_hostname", tc.ec2Priority)
 			cfg.SetInTest("ec2_use_windows_prefix_detection", true)
 			cfg.SetInTest("ec2_prefer_imdsv2", false)
@@ -58,7 +72,6 @@ func TestEUDMResolution(t *testing.T) {
 				setupHostnameFile(t, "from-file")
 			}
 			getEUDMHostname = func(useSerial bool) (string, error) {
-				require.False(t, tc.gce || tc.azure, "cloud hostname must skip EUDM")
 				require.Equal(t, tc.useSerial, useSerial)
 				if tc.fail {
 					return "", errors.New("missing serial")
