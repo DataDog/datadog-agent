@@ -10,6 +10,7 @@ package receiver
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -22,6 +23,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
+
+// 19 Hz avoids lockstep sampling with periodic activity.
+const defaultSamplesPerSecond = 19
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
@@ -59,6 +63,14 @@ func errSymbolUploaderReportMaxInvalid() error {
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the confmap.Validator interface.
 func (c *Config) Validate() error {
+	// Normalize before upstream validation so even non-positive overrides use the supported frequency.
+	if c.EbpfCollectorConfig.SamplesPerSecond != defaultSamplesPerSecond {
+		slog.Warn("Datadog Host Profiler will use its supported sampling frequency instead of the configured samples_per_second value. "+
+			"If your use case requires a different sampling frequency, please contact Datadog Support at https://docs.datadoghq.com/help/.",
+			slog.Int("configured_samples_per_second", c.EbpfCollectorConfig.SamplesPerSecond),
+			slog.Int("effective_samples_per_second", defaultSamplesPerSecond))
+		c.EbpfCollectorConfig.SamplesPerSecond = defaultSamplesPerSecond
+	}
 	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
 	}
@@ -104,8 +116,7 @@ func defaultConfig(profilerName string) component.Config {
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
 	cfg.SendErrorFrames = false
-	// 19Hz avoids lockstep sampling with periodic activity
-	cfg.SamplesPerSecond = 19
+	cfg.SamplesPerSecond = defaultSamplesPerSecond
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{
