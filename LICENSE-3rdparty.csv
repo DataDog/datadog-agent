@@ -430,6 +430,9 @@ core,github.com/Microsoft/hcsshim/internal/timeout,MIT,Copyright (c) 2015 Micros
 core,github.com/Microsoft/hcsshim/internal/vmcompute,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/wclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/winapi/cimfs,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/winapi/cimwriter,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/Microsoft/hcsshim/internal/winapi/types,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/osversion,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/NVIDIA/go-nvml/pkg/dl,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
@@ -1068,6 +1071,7 @@ core,github.com/containerd/containerd/v2/core/transfer/streaming,Apache-2.0,"Cop
 core,github.com/containerd/containerd/v2/core/unpack,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/v2/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/v2/internal/cleanup,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/v2/internal/fsview,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/v2/internal/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/v2/internal/lazyregexp,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/v2/internal/randutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -2320,9 +2324,6 @@ core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,Copyright 2016 The
 core,github.com/opencontainers/image-spec/specs-go/v1,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,Copyright 2015 The Linux Foundation
 core,github.com/opencontainers/runtime-spec/specs-go/features,Apache-2.0,Copyright 2015 The Linux Foundation
-core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,Copyright (c) 2017 The Authors
-core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c) 2017 The Authors
-core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
 core,github.com/openshift/client-go/quota/applyconfigurations/internal,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/applyconfigurations/quota/v1,Apache-2.0,"Copyright 2014 Red Hat, Inc"
