@@ -34,7 +34,7 @@ dda inv aws.eks.gensim.submit \
   --episodes=authcore-pgbouncer:pool-saturation \
   --s3-bucket=qbranch-gensim-recordings \
   --flush-interval=1m \
-  --retention=90m
+  --retention=300m
 ```
 
 Alternatively, pass `--episode-manifest=path/to/manifest.json`. The manifest is

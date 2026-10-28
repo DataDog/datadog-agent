@@ -120,7 +120,7 @@ func Run(ctx *pulumi.Context) error {
 	}
 	retention := cfg.Get("retention")
 	if retention == "" {
-		retention = "90m"
+		retention = "300m"
 	}
 	recordingOnly := cfg.Get("recordingOnly")
 	if recordingOnly == "" {
@@ -625,7 +625,7 @@ func renderAgentValues(agentImage, mode string) (string, error) {
 		AgentImage:    agentImage,
 		Mode:          mode,
 		FlushInterval: "1m",
-		Retention:     "90m",
+		Retention:     "300m",
 		RecordingOnly: recOnly,
 		ClusterName:   "gensim",
 	})
@@ -677,11 +677,11 @@ func renderAgentValuesWithConfig(cfg agentValuesConfig) (string, error) {
 
 	retention := strings.TrimSpace(cfg.Retention)
 	if retention == "" {
-		retention = "90m"
+		retention = "300m"
 	}
 	retentionDur, err := time.ParseDuration(retention)
 	if err != nil || retentionDur <= 0 {
-		return "", fmt.Errorf("invalid retention %q: must be a positive duration such as 90m or 2h", cfg.Retention)
+		return "", fmt.Errorf("invalid retention %q: must be a positive duration such as 300m or 5h", cfg.Retention)
 	}
 	if retentionDur <= flushDur {
 		return "", fmt.Errorf("retention (%s) must exceed flushInterval (%s)", retention, flushInterval)

@@ -44,7 +44,7 @@ question):
 | Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml`. A path under `observer-scenarios*` is an old recording output (`episode.json` + `parquet/`); read its `episode.json` to map back to `<episode-dir>:<scenario>` in `gensim-episodes` |
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full` (confirm pipeline and amd64 platform). If no tag is known, point the user at the CI Visibility Explorer (`ci_level:job env:prod @git.repository.id:gitlab.ddbuild.io/DataDog/datadog-agent @ci.pipeline.name:DataDog/datadog-agent @ci.provider.instance:gitlab-ci @ci.job.name:dev_branch-recorder-full @ci.status:success`): `https://app.datadoghq.com/ci/ci-cd/explorer/executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3Agitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.provider.instance%3Agitlab-ci%20%40ci.job.name%3Adev_branch-recorder-full%20%40ci.status%3Asuccess&agg_m=count&agg_m_source=base&agg_t=count&ci_cd_explorer_tab=pipelines&fromUser=true&refresh_mode=sliding&paused=false` |
-| Run settings | `FLUSH` (default `1m`, `FLUSH_SECONDS=60`), `RETENTION` (default `90m`), `RECORDING_ONLY` (`true`/`false`, default `true` for recording), `RUN_MODE` (`full` or `shortened` on VM), or `EKS_MODE` (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
+| Run settings | `FLUSH` (default `1m`, `FLUSH_SECONDS=60`), `RETENTION` (default `300m`), `RECORDING_ONLY` (`true`/`false`, default `true` for recording), `RUN_MODE` (`full` or `shortened` on VM), or `EKS_MODE` (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
 | Output | Any fresh nonexistent local absolute path per episode (e.g. `/tmp/scenarios/kafka`, `/tmp/vm-scenarios/<episode>`, or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. `--episode`/`--scenario` on `fetch` still use the canonical `gensim-episodes` names |
 | Batch / teardown | Episodes to run and whether to keep the EKS stack for reuse; on EKS the default is to destroy each stack once its recording is fetched and validated, retain it only if the user asks to reuse it |
 
@@ -62,7 +62,7 @@ Set `SKILL` to this skill's absolute directory. Local prerequisites before execu
 
 Use at least 4 vCPU / 16 GiB and about 20 GB free disk. Set `VM` to the confirmed `user@host` (and `SSH_PORT` if
 non-default), plus `FLUSH` (default `1m`), `FLUSH_SECONDS` (matching `FLUSH` in seconds, default `60`), `RETENTION`
-(default `90m`), `RECORDING_ONLY` (default `true`), and `RUN_MODE` (`full` or `shortened`).
+(default `300m`), `RECORDING_ONLY` (default `true`), and `RUN_MODE` (`full` or `shortened`).
 
 1. Provision or probe the VM (run `dda inv e2e.setup --team=<team>` first if AWS e2e setup is missing):
 

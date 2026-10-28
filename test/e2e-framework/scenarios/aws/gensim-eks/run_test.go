@@ -97,10 +97,20 @@ func TestRenderAgentValuesModesAndValidation(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte(bothValues), &parsedBoth))
 	bothEnv := envMapFromValues(t, parsedBoth)
 	require.Equal(t, "true", bothEnv["DD_ANOMALY_DETECTION_RECORDING_ENABLED"])
+	require.Equal(t, "300m", bothEnv["DD_ANOMALY_DETECTION_RECORDING_RETENTION"])
 	require.Equal(t, "true", bothEnv["DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED"])
 	require.Equal(t, "false", bothEnv["DD_ANOMALY_DETECTION_RECORDING_ONLY"])
 	require.Equal(t, "info", bothEnv["DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY"])
 	require.NotContains(t, liveEnv, "DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY")
+
+	defaultRetentionValues, err := renderAgentValuesWithConfig(agentValuesConfig{
+		AgentImage: "docker.io/datadog/agent-dev:my-recorder-tag",
+		Mode:       "record-parquet",
+	})
+	require.NoError(t, err)
+	var parsedDefault map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(defaultRetentionValues), &parsedDefault))
+	require.Equal(t, "300m", envMapFromValues(t, parsedDefault)["DD_ANOMALY_DETECTION_RECORDING_RETENTION"])
 
 	invalidCases := []struct {
 		name string
