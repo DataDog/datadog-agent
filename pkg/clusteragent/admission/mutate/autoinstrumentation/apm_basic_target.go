@@ -7,20 +7,12 @@
 
 package autoinstrumentation
 
-import (
-	"strings"
-)
-
 const (
 	// apmBasicTargetName is the name of the target injecting dd-trace-c in APM Basic mode.
 	apmBasicTargetName = "apm-basic"
 	// apmBasicEnabledLabelKey is the pod label that opts a workload into APM Basic.
 	apmBasicEnabledLabelKey = "admission.datadoghq.com/apm-basic.enabled"
 )
-
-// apmBasicHookModules are the dd-trace-c hook modules that observe HTTP(S) and database traffic. "all" is not used
-// because it also selects the GPU module.
-var apmBasicHookModules = []string{"socket", "openssl", "postgres", "mysql", "sqlite", "mongodb", "oracle"}
 
 // APMBasicConfig configures the target injecting dd-trace-c in APM Basic mode, which reports RED metrics without
 // sending traces.
@@ -35,8 +27,9 @@ type APMBasicConfig struct {
 
 // newAPMBasicTarget builds the target injecting dd-trace-c in APM Basic mode, or nil when APM Basic is disabled.
 //
-// DD_INJECT_NATIVE=fallback loads dd-trace-c only into processes where the injector did not inject a language SDK,
-// so a process is never observed by two tracers.
+// DD_INJECT_NATIVE=always makes the injector load dd-trace-c into every process, alongside any language SDK.
+// DD_APM_BASIC_ENABLED is the only APM Basic setting: dd-trace-c chooses which hook modules to install for it, so
+// the module list follows the injected tracer version rather than the Agent.
 func newAPMBasicTarget(cfg APMBasicConfig) *Target {
 	if !cfg.Enabled {
 		return nil
@@ -50,7 +43,6 @@ func newAPMBasicTarget(cfg APMBasicConfig) *Target {
 		TracerVersions: cfg.TracerVersions,
 		TracerConfigs: []TracerConfig{
 			{Name: "DD_INJECT_NATIVE", Value: "always"},
-			{Name: "DD_TRACE_HOOK_MODULES", Value: strings.Join(apmBasicHookModules, ",")},
 			{Name: "DD_APM_BASIC_ENABLED", Value: "true"},
 		},
 	}

@@ -49,7 +49,6 @@ func TestNewAPMBasicTarget(t *testing.T) {
 	assert.Equal(t, versions, got.TracerVersions)
 	assert.Equal(t, []TracerConfig{
 		{Name: "DD_INJECT_NATIVE", Value: "always"},
-		{Name: "DD_TRACE_HOOK_MODULES", Value: "socket,openssl,postgres,mysql,sqlite,mongodb,oracle"},
 		{Name: "DD_APM_BASIC_ENABLED", Value: "true"},
 	}, got.TracerConfigs)
 }
@@ -162,7 +161,6 @@ apm_config:
 	assert.Equal(t, "0", target.libraries[0].tag)
 	assert.Equal(t, []corev1.EnvVar{
 		{Name: "DD_INJECT_NATIVE", Value: "always"},
-		{Name: "DD_TRACE_HOOK_MODULES", Value: "socket,openssl,postgres,mysql,sqlite,mongodb,oracle"},
 		{Name: "DD_APM_BASIC_ENABLED", Value: "true"},
 	}, target.tracerEnvVars)
 }
