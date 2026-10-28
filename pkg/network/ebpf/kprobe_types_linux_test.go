@@ -93,5 +93,5 @@ func TestCgoAlignment_SSLHandshakeState(t *testing.T) {
 }
 
 func TestCgoAlignment_TLSDiagEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[TLSDiagEvent](t)
+	ebpftest.AssertCgoAlignment[TLSDiagEvent](t)
 }
