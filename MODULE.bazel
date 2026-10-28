@@ -4,6 +4,8 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
+wine_wmc_repository = use_repo_rule("//bazel/tools/wmc:wine_wmc.bzl", "wine_wmc_repository")
+
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
 
 # Environment values available for packaging.
@@ -613,5 +615,18 @@ rules_wine_ext = use_extension("@rules_wine//wine/extension:wine.bzl", "wine")
 use_repo(rules_wine_ext, "wine_toolchains")
 
 register_toolchains("@wine_toolchains//:all")
+
+# Same Wine tag the rules_wine prebuilt is built from. wmc is not in that
+# runtime archive, so the resource toolchain compiles it from this tree.
+wine_wmc_repository(
+    name = "wine_wmc",
+    build_file = "//bazel/tools/wmc:overlay/wmc.BUILD.bazel",
+    config_h = "//bazel/tools/wmc:overlay/config.h",
+    parser_c = "//bazel/tools/wmc:overlay/mcy.tab.c",
+    parser_h = "//bazel/tools/wmc:overlay/mcy.tab.h",
+    sha256 = "98b21b4ebdf7d9e2baa4a3508514285cf449f455603f82d3364b014c0e79b793",
+    strip_prefix = "wine-wine-11.20",
+    urls = ["https://codeload.github.com/wine-mirror/wine/tar.gz/refs/tags/wine-11.20"],
+)
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
