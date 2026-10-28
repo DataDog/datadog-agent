@@ -347,6 +347,62 @@ hostprofiler:
 	require.Equal(t, "none", level)
 }
 
+func TestProviderIncludeEnvVars(t *testing.T) {
+	const extraEnvVar = "CUSTOM_ENV_VAR"
+	tests := []struct {
+		name     string
+		settings string
+		envValue string
+		want     string
+	}{
+		{name: "default"},
+		{
+			name:     "empty",
+			settings: "hostprofiler:\n  include_env_vars: ''\n",
+		},
+		{
+			name:     "yaml",
+			settings: "hostprofiler:\n  include_env_vars: " + extraEnvVar + "\n",
+			want:     extraEnvVar,
+		},
+		{
+			name:     "multiple",
+			settings: "hostprofiler:\n  include_env_vars: " + extraEnvVar + ",ANOTHER_ENV_VAR\n",
+			want:     extraEnvVar + ",ANOTHER_ENV_VAR",
+		},
+		{
+			name:     "env",
+			envValue: extraEnvVar,
+			want:     extraEnvVar,
+		},
+		{
+			name:     "env-overrides-yaml",
+			settings: "hostprofiler:\n  include_env_vars: ANOTHER_ENV_VAR\n",
+			envValue: extraEnvVar,
+			want:     extraEnvVar,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv("DD_HOSTPROFILER_INCLUDE_ENV_VARS", tt.envValue)
+			}
+			cfg := config.NewMockFromYAML(t, "api_key: test-key\nsite: datadoghq.com\n"+tt.settings)
+			provider := newProvider(cfg, testCollectorParams{})(confmap.ProviderSettings{})
+
+			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
+			require.NoError(t, err)
+			actual, err := retrieved.AsConf()
+			require.NoError(t, err)
+
+			value, exists := confmaputils.Get[string](actual.ToStringMap(), "receivers::profiling::include_env_vars")
+			require.Equal(t, tt.want != "", exists)
+			require.Equal(t, tt.want, value)
+			require.NoError(t, validateOTelConfig(t, actual))
+		})
+	}
+}
+
 func TestProviderMethods(t *testing.T) {
 	provider := newProvider(config.NewMock(t), testCollectorParams{})(confmap.ProviderSettings{})
 
