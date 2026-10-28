@@ -42,6 +42,7 @@
         - deps/dbus/**/*
         - deps/gcrypt/**/*
         - deps/gpg-error/**/*
+        - deps/libpgpr.BUILD.bazel
         - deps/libselinux.BUILD.bazel
         - deps/libsepol.BUILD.bazel
         - deps/libxml2/**/*

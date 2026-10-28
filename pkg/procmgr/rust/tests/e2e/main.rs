@@ -11,6 +11,8 @@ mod config_gates;
 mod config_status;
 mod crashed_state;
 mod create;
+#[cfg(unix)]
+mod critical_exit;
 mod daemon;
 mod ddot;
 mod describe;
