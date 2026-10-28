@@ -548,6 +548,10 @@ if python3 "$scripts/recording.py" validate "$bad_eks" 60 --backend eks > /dev/n
     exit 1
 fi
 [[ -f "$bad_eks/validation.json" && -f "$bad_eks/artifact.zip" ]]
+cp "$eks_root/s3/gensim-results-eval-20261015T120000Z-abcdef1-112233-authcore-pgbouncer-pool-saturation.zip" "$bad_eks/artifact.zip"
+python3 "$scripts/recording.py" validate "$bad_eks" 60 --backend eks > /dev/null
+[[ ! -f "$bad_eks/artifact.zip" ]]
+python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); assert d["usable"] is True and not d["errors"]' "$bad_eks/validation.json" 
 
 [[ "$(python3 "$scripts/recording.py" wait "$FIXTURE/episode.json" 60)" == 0 ]]
 if [[ -x /usr/bin/python3 ]]; then

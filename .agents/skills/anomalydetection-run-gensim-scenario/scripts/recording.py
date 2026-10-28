@@ -166,19 +166,38 @@ def validate(
                 raise ValueError("archive is missing tmp/gensim-archive/results/<scenario>.json")
             if len(result_members) > 1:
                 raise ValueError("archive contains multiple episode result JSON files")
+            reserved_metadata = {
+                "episode.json",
+                "recording-manifest.json",
+                "validation.json",
+                "artifact.zip",
+                "recording.tar",
+            }
+            for info in metadata_members:
+                target_name = PurePosixPath(info.filename).name
+                if target_name in reserved_metadata:
+                    raise ValueError(f"reserved metadata filename in archive: {info.filename}")
 
-            with zf.open(result_members[0]) as src, (output / "episode.json").open("xb") as dst:
+            for existing in parquet_dir.iterdir():
+                if existing.is_file():
+                    existing.unlink()
+            if (output / "validation.json").exists():
+                (output / "validation.json").unlink()
+            if manifest_member is None and (output / "recording-manifest.json").exists():
+                (output / "recording-manifest.json").unlink()
+
+            with zf.open(result_members[0]) as src, (output / "episode.json").open("wb") as dst:
                 shutil.copyfileobj(src, dst)
             if manifest_member is not None:
-                with zf.open(manifest_member) as src, (output / "recording-manifest.json").open("xb") as dst:
+                with zf.open(manifest_member) as src, (output / "recording-manifest.json").open("wb") as dst:
                     shutil.copyfileobj(src, dst)
             for info in metadata_members:
                 target_name = PurePosixPath(info.filename).name
-                with zf.open(info) as src, (output / target_name).open("xb") as dst:
+                with zf.open(info) as src, (output / target_name).open("wb") as dst:
                     shutil.copyfileobj(src, dst)
             for info in parquet_members:
                 target_name = PurePosixPath(info.filename).name
-                with zf.open(info) as src, (parquet_dir / target_name).open("xb") as dst:
+                with zf.open(info) as src, (parquet_dir / target_name).open("wb") as dst:
                     shutil.copyfileobj(src, dst)
     elif (output / "recording.tar").exists():
         archive_to_remove = output / "recording.tar"
@@ -198,10 +217,16 @@ def validate(
                 ):
                     raise ValueError(f"unsafe or duplicate archive entry: {member.name}")
                 names.add(path.name)
+            for existing in parquet_dir.iterdir():
+                if existing.is_file():
+                    existing.unlink()
+            for stale_name in ("recording-manifest.json", "validation.json"):
+                if (output / stale_name).exists():
+                    (output / stale_name).unlink()
             for member in members:
                 if member.isfile():
                     destination = parquet_dir / PurePosixPath(member.name).name
-                    with archive.extractfile(member) as source, destination.open("xb") as target:
+                    with archive.extractfile(member) as source, destination.open("wb") as target:
                         shutil.copyfileobj(source, target)
 
     existing_manifest = {}
@@ -228,7 +253,10 @@ def validate(
     if flush <= 0:
         raise ValueError("flush interval must be positive seconds")
 
-    errors = list(existing_manifest.get("errors") or [])
+    if "validated_at" in existing_manifest:
+        errors = []
+    else:
+        errors = list(existing_manifest.get("errors") or [])
     pod_records = list(existing_manifest.get("pods") or [])
 
     if backend == "vm":

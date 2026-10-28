@@ -46,7 +46,7 @@ question):
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full` (confirm pipeline and amd64 platform). If no tag is known, point the user at the CI Visibility Explorer (`ci_level:job env:prod @git.repository.id:gitlab.ddbuild.io/DataDog/datadog-agent @ci.pipeline.name:DataDog/datadog-agent @ci.provider.instance:gitlab-ci @ci.job.name:dev_branch-recorder-full @ci.status:success`): `https://app.datadoghq.com/ci/ci-cd/explorer/executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3Agitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.provider.instance%3Agitlab-ci%20%40ci.job.name%3Adev_branch-recorder-full%20%40ci.status%3Asuccess&agg_m=count&agg_m_source=base&agg_t=count&ci_cd_explorer_tab=pipelines&fromUser=true&refresh_mode=sliding&paused=false` |
 | Run settings | `FLUSH` (default `1m`, `FLUSH_SECONDS=60`), `RETENTION` (default `90m`), `RECORDING_ONLY` (`true`/`false`, default `true` for recording), `RUN_MODE` (`full` or `shortened` on VM), or `EKS_MODE` (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
 | Output | Any fresh nonexistent local absolute path per episode (e.g. `/tmp/scenarios/kafka`, `/tmp/vm-scenarios/<episode>`, or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. `--episode`/`--scenario` on `fetch` still use the canonical `gensim-episodes` names |
-| Batch / teardown | Episodes to run and resources to remove afterwards; retain reusable infrastructure until the batch finishes |
+| Batch / teardown | Episodes to run and whether to keep the EKS stack for reuse; on EKS the default is to destroy each stack once its recording is fetched and validated, retain it only if the user asks to reuse it |
 
 Retention must exceed the episode duration plus the final flush wait (and the full batch on VM). Do not operate on
 production machines or clusters: these steps deploy workloads on disposable AWS sandbox stacks or VMs and create dddev
@@ -126,7 +126,7 @@ from `/dev/null`, otherwise it consumes the loop's input and only the first stac
 1. Submit the episode or batch in the background (first-time cluster provisioning takes >10 minutes; never run under a
 short foreground timeout). `--episodes` is `<dir under postmortems/ or synthetics/>:<episodes/*.yaml name without extension>`,
 e.g. `703_shopify_bfcm_incident:kafka-partition-saturation`. Source `"$ENV_FILE"` (`set -a; . "$ENV_FILE"; set +a`) in
-the same shell without printing secrets, and append `--no-recording-only` when `RECORDING_ONLY=false`:
+the same shell without printing secrets, and append `--recording-only=false` when `RECORDING_ONLY=false`:
 
 ```bash
 GENSIM_REPO_PATH="${GENSIM_REPO_PATH:-}" dda inv aws.eks.gensim.submit \
@@ -170,7 +170,7 @@ dda inv aws.eks.gensim.fetch \
 Both `scripts/fetch.sh` (VM) and `dda inv aws.eks.gensim.fetch` (EKS) run
 `scripts/recording.py validate`:
 
-- Creates `$OUT` exclusively so existing data is never overwritten.
+- Fetch helpers create `$OUT` exclusively so existing data is never overwritten; `recording.py validate` can be re-run idempotently on `$OUT` before the archive is cleaned up.
 - Verifies safe archive paths, Agent pod readiness and zero restarts (`agent-before.json` / `agent-after.json`), and
   manifest SHA-256 checksums. Legacy VM recordings without before/after snapshots remain fetchable with
   `agent_history_verified: false`.
@@ -197,7 +197,11 @@ After all episodes in the batch have been uploaded, fetched, and validated:
   clone, or the user's checkout if used directly) to ensure no generated files (`results/*.json`, deleted chart
   templates) remain. In the clean clone, restore generated changes with `git -C <clone> checkout -- <generated-files>`.
 - **VM**: uninstall selected Helm releases (`KUBECONFIG="$HOME/gensim/kubeconfig" helm --kube-context kind-gadget-dev --namespace default uninstall <release>`), delete kind only when requested (`kind delete cluster --name gadget-dev`), and destroy the VM only when requested (`dda inv aws.destroy-vm --stack-name=<stack>`).
-- **EKS**: stop active workloads while keeping the cluster with `dda inv aws.eks.gensim.stop-all --stack-name=<stack>`; destroy the cluster only when requested with `dda inv aws.eks.gensim.destroy --stack-name=<stack>`.
+- **EKS**: destroy the stack by default (`dda inv aws.eks.gensim.destroy --stack-name=<stack>`, ~13m) — including failed
+  or abandoned stacks — and confirm resources are deleted; use `dda inv aws.eks.gensim.stop-all --stack-name=<stack>`
+  only when the user asks to keep it for reuse. Each stack attaches a `gensim-ecr-push` inline policy to the shared
+  `ec2InstanceRole` (10,240 B IAM cap), so un-destroyed stacks eventually block all new stacks with `LimitExceeded`
+  (never delete `ec2InstanceRole` policies manually).
 
 Use this final-response template per episode:
 
@@ -208,7 +212,7 @@ Use this final-response template per episode:
 | Output / artifact | Local `$OUT` path (and S3 artifact key on EKS), kept metrics/log file and row counts, removed file count |
 | Window | Start/end, flush interval, observed coverage from `validation.json` |
 | Quality / states | `episode_outcome`, `collection`, `upload`, `validation` (`passed`/`failed`), sample gaps, restarts; distinguish `unknown` from `verified` |
-| Teardown | Releases/workloads/cluster/VM removed vs retained; `gensim-episodes` repo left clean |
+| Teardown | Releases/workloads/cluster/VM removed vs retained (for EKS, whether `destroy` completed); `gensim-episodes` repo left clean |
 
 Example 1 (VM): "Record a shortened `kafka-partition-saturation` episode on `ubuntu@10.0.1.23` (`--backend vm`) with
 `datadog/agent-dev:my-branch-recorder-full`, use `~/dddev.env`, save under `/tmp/vm-scenarios`, and keep the VM."
