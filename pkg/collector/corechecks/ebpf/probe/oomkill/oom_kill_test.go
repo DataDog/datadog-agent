@@ -354,6 +354,85 @@ func TestOOMKillMemcgFlushPartialPins(t *testing.T) {
 	})
 }
 
+// TestOOMKillMemcgFlushStatsDisabled checks that a probe not collecting the cgroup memory stats
+// replaces a pinned one that does, and removes the memcg flush pins.
+func TestOOMKillMemcgFlushStatsDisabled(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		skipIfPinningUnsupported(t)
+		skipIfCgroupMemoryStatsUnsupported(t)
+		setTestPinDir(t)
+
+		firstLinkID, firstFlushLinkIDs := crashPinnedMemcgFlushProbe(t, testConfig(withPersistMonitoring(true), withCgroupMemoryStats(true)))
+
+		second, err := NewProbe(testConfig(withPersistMonitoring(true)))
+		require.NoError(t, err)
+		t.Cleanup(second.Close)
+		// emit_cgroup_memory_stats is part of the program tag
+		assert.NotEqual(t, firstLinkID, linkID(t, second.link), "second probe should attach a new oom-kill link")
+		assert.Empty(t, second.flushLinks, "second probe should not attach memcg flush links")
+		assertPins(t, "the new oom-kill probe should be pinned")
+		assertNoMemcgFlushPins(t, "memcg flush pins should be removed")
+		firstFlushLinkIDs[oomLinkName] = firstLinkID
+		assertLinksDetached(t, firstFlushLinkIDs, "the pinned probes should be detached")
+	})
+}
+
+// TestOOMKillMemcgFlushIncompatibleCounter checks that an incompatible memcg_flush_seq pin is
+// replaced, and that the pinned probes using it are not taken over.
+func TestOOMKillMemcgFlushIncompatibleCounter(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		skipIfPinningUnsupported(t)
+		skipIfCgroupMemoryStatsUnsupported(t)
+		setTestPinDir(t)
+
+		cfg := testConfig(withPersistMonitoring(true), withCgroupMemoryStats(true))
+		firstLinkID, firstFlushLinkIDs := crashPinnedMemcgFlushProbe(t, cfg)
+
+		removePin(mapPinPath(memcgFlushSeqName))
+		incompatible, err := bpflib.NewMap(&bpflib.MapSpec{Type: bpflib.Array, KeySize: 4, ValueSize: 4, MaxEntries: 1})
+		require.NoError(t, err)
+		require.NoError(t, incompatible.Pin(mapPinPath(memcgFlushSeqName)))
+		incompatibleID := mapID(t, incompatible)
+		require.NoError(t, incompatible.Close())
+
+		second, err := NewProbe(cfg)
+		require.NoError(t, err)
+		t.Cleanup(second.Close)
+		assert.NotEqual(t, firstLinkID, linkID(t, second.link), "second probe should attach a new oom-kill link")
+		assertNoneEqual(t, firstFlushLinkIDs, memcgFlushLinkIDs(t, second), "second probe should attach new memcg flush links")
+		assertPins(t, "the new oom-kill probe should be pinned")
+		assertMemcgFlushPins(t, "the new memcg flush probes should be pinned")
+
+		seq, err := bpflib.LoadPinnedMap(mapPinPath(memcgFlushSeqName), nil)
+		require.NoError(t, err)
+		defer seq.Close()
+		assert.NotEqual(t, incompatibleID, mapID(t, seq), "the incompatible memcg_flush_seq should be replaced")
+		assertMemcgFlushCounting(t, "new memcg flush probes should count the flushes on the new counter")
+	})
+}
+
+// TestOOMKillMemcgFlushClose checks that a graceful close removes every pin, and detaches the
+// oom-kill and memcg flush probes.
+func TestOOMKillMemcgFlushClose(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		skipIfPinningUnsupported(t)
+		skipIfCgroupMemoryStatsUnsupported(t)
+		setTestPinDir(t)
+
+		p, err := NewProbe(testConfig(withPersistMonitoring(true), withCgroupMemoryStats(true)))
+		require.NoError(t, err)
+		require.True(t, p.pinned, "probe should be pinned when pinning is supported")
+		assertPins(t, "the oom-kill probe should be pinned")
+		assertMemcgFlushPins(t, "the memcg flush probes should be pinned")
+		linkIDs := memcgFlushLinkIDs(t, p)
+		linkIDs[oomLinkName] = linkID(t, p.link)
+
+		p.Close()
+		assertNoPins(t, "graceful close should remove the pins")
+		assertLinksDetached(t, linkIDs, "graceful close should detach the probes")
+	})
+}
+
 // crashPinnedMemcgFlushProbe starts a pinned probe collecting the cgroup memory stats, then
 // simulates system-probe dying without a graceful shutdown: the file descriptors are released but
 // the pins are left in place, so the probes keep running. It returns the IDs of the oom-kill link
@@ -387,6 +466,28 @@ func assertMemcgFlushCounting(t *testing.T, msg string) {
 		cur, err := memcgFlushSeq(seq)
 		return err == nil && cur != before
 	}, 10*time.Second, 100*time.Millisecond, msg)
+}
+
+// assertLinksDetached checks that the links of ids are released by the kernel
+func assertLinksDetached(t *testing.T, ids map[string]link.ID, msg string) {
+	for name, id := range ids {
+		assert.Eventually(t, func() bool {
+			l, err := link.NewFromID(id)
+			if err != nil {
+				return true
+			}
+			_ = l.Close()
+			return false
+		}, 5*time.Second, 100*time.Millisecond, "%s: %s", name, msg)
+	}
+}
+
+func mapID(t *testing.T, m *bpflib.Map) bpflib.MapID {
+	info, err := m.Info()
+	require.NoError(t, err)
+	id, ok := info.ID()
+	require.True(t, ok, "map ID not available")
+	return id
 }
 
 // assertNoneEqual checks that no link of got has the ID of the link of the same name in want
