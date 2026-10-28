@@ -4162,24 +4162,27 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.lint
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.codegen
 </span></code></pre></div>
+<p>If external consumers of <code>pkg/config/setup</code>, such as the OTel Collector, need the change, also refresh the <a href="../../../architecture/agent-schema/#the-generated-settings-snapshot">committed snapshot</a> and commit it:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.codegen-snapshot
+</span></code></pre></div>
 <h2 id="generate-configuration-examples">Generate configuration examples<a class="headerlink" href="#generate-configuration-examples" title="Permanent link">&para;</a></h2>
 <p>The Agent build generates configuration examples automatically. To validate all generated examples locally, run:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template-all
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template-all
 </span></code></pre></div>
 <p>To preview the example for one platform without running the whole build, render it to a temporary file:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>--schema<span class="o">=</span>./pkg/config/schema/yaml/core_schema.yaml<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>--build-type<span class="o">=</span>datadog-agent<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>--os-target<span class="o">=</span>linux<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--output<span class="o">=</span>/tmp/datadog.yaml.example
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.template<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--schema<span class="o">=</span>./pkg/config/schema/yaml/core_schema.yaml<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--build-type<span class="o">=</span>datadog-agent<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--os-target<span class="o">=</span>linux<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>--output<span class="o">=</span>/tmp/datadog.yaml.example
 </span></code></pre></div>
 <p>Choose an output path suitable for your operating system. See the <a href="../../../reference/agent-schema/cli/#schematemplate">template command reference</a> for supported build types and platforms.</p>
 <h2 id="locate-a-setting">Locate a setting<a class="headerlink" href="#locate-a-setting" title="Permanent link">&para;</a></h2>
 <p>Find a setting's schema node and the source file and line where it is declared:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span>apm_config.enabled
 </span></code></pre></div>
 <p>To list every setting whose path ends in <code>enabled</code>, use a pattern:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">'*enabled'</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>--<span class="w"> </span>schema.locate<span class="w"> </span><span class="s1">'*enabled'</span>
 </span></code></pre></div>
 <p>See the <a href="../../../reference/agent-schema/cli/#schemalocate">lookup command reference</a> for regular expressions, schema selection, and JSON output.</p>
 
