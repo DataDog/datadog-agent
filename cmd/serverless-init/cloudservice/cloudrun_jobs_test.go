@@ -7,6 +7,8 @@ package cloudservice
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -88,6 +91,138 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 		"gcrj.task_count":     "5",
 		"gcrj.resource_name":  "projects/test_project/locations/test_region/jobs/test_job",
 	}, tags)
+}
+
+func TestCloudRunJobsGetMetadata(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id": "test_container",
+			"location":     "test_region",
+			"project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test_job")
+	t.Setenv("CLOUD_RUN_EXECUTION", "test_execution")
+
+	service.GetTags()
+	metadata := service.GetMetadata()
+
+	assert.Equal(t, serverlessdef.CloudServiceMetadata{
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/executions/test_execution",
+		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job",
+		ResourceName:     "test_job",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
+	}, metadata)
+	assert.True(t, service.CanCollectMetadata())
+}
+
+// TestCloudRunJobsGetMetadataMissingExecution pins that a missing
+// CLOUD_RUN_EXECUTION must not degrade the resource_id to the job ID.
+func TestCloudRunJobsGetMetadataMissingExecution(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"location":   "test_region",
+			"project_id": "test_project",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test_job")
+	os.Unsetenv("CLOUD_RUN_EXECUTION")
+
+	service.GetTags()
+	metadata := service.GetMetadata()
+
+	assert.Empty(t, metadata.ResourceID)
+	assert.Equal(t, "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job", metadata.ParentResourceID)
+}
+
+func TestCloudRunJobExecutionIdentity(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	instance := "first-instance"
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{projectID: "project", location: "region", containerID: instance}
+	}
+	t.Setenv(cloudRunJobNameEnvVar, "unknown")
+	t.Setenv(cloudRunExecutionEnvVar, "execution")
+	t.Setenv(cloudRunTaskIndexEnvVar, "0")
+	t.Setenv(cloudRunTaskAttemptEnvVar, "0")
+	t.Setenv(cloudRunTaskCountEnvVar, "2")
+	firstTask := &CloudRunJobs{}
+	firstTask.GetTags()
+	first := firstTask.GetMetadata()
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/execution", first.ResourceID)
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/jobs/unknown", first.ParentResourceID)
+	t.Setenv(cloudRunTaskIndexEnvVar, "1")
+	t.Setenv(cloudRunTaskAttemptEnvVar, "2")
+	instance = "next-instance"
+	service := &CloudRunJobs{}
+	service.GetTags()
+	assert.Equal(t, first, service.GetMetadata())
+	t.Setenv(cloudRunExecutionEnvVar, "next-execution")
+	next := service.GetMetadata()
+	assert.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/next-execution", next.ResourceID)
+	assert.NotEqual(t, first.ResourceID, next.ResourceID)
+	assert.Equal(t, first.ParentResourceID, next.ParentResourceID)
+	assert.Equal(t, first.ResourceName, next.ResourceName)
+}
+
+func TestCloudRunJobsMetadataSharesTagLookup(t *testing.T) {
+	for _, available := range []bool{false, true} {
+		t.Run(fmt.Sprintf("metadata=%t", available), func(t *testing.T) {
+			t.Setenv(cloudRunJobNameEnvVar, "job")
+			t.Setenv(cloudRunExecutionEnvVar, "execution")
+			t.Setenv(cloudRunTaskIndexEnvVar, "1")
+			t.Setenv(cloudRunTaskAttemptEnvVar, "2")
+			t.Setenv(cloudRunTaskCountEnvVar, "3")
+			service := &CloudRunJobs{}
+			gcpMetadata := map[string]string{projectID: "", location: "", containerID: ""}
+			if available {
+				gcpMetadata = map[string]string{projectID: "project", location: "region", containerID: "instance"}
+			}
+			saved := metadataHelperFunc
+			t.Cleanup(func() { metadataHelperFunc = saved })
+			calls := 0
+			metadataHelperFunc = func(_ *GCPConfig, kind CloudRunType) map[string]string {
+				calls++
+				assert.Equal(t, CloudRunJob, kind)
+				return gcpMetadata
+			}
+
+			assert.Empty(t, service.GetMetadata().ResourceID, "metadata before GetTags has no GCP values")
+			assert.Zero(t, calls, "GetMetadata must not fetch GCP metadata")
+
+			first := service.GetTags()
+			first[projectID] = "mutated-by-caller"
+			second := service.GetTags()
+			assert.Equal(t, gcpMetadata[projectID], second[projectID])
+			assert.NotContains(t, gcpMetadata, "origin", "tag enrichment must not mutate cached metadata")
+			assert.Equal(t, CloudRunJobsOrigin, second["origin"])
+			assert.Equal(t, "job", second[cloudRunJobTagPrefix+jobNameTag])
+			assert.Equal(t, "execution", second[cloudRunJobTagPrefix+executionNameTag])
+			assert.Equal(t, "1", second[cloudRunJobTagPrefix+taskIndexTag])
+			assert.Equal(t, "2", second[cloudRunJobTagPrefix+taskAttemptTag])
+			assert.Equal(t, "3", second[cloudRunJobTagPrefix+taskCountTag])
+			if available {
+				assert.Equal(t, "projects/project/locations/region/jobs/job", second[cloudRunJobTagPrefix+resourceNameTag])
+				assert.NotEmpty(t, service.GetMetadata().ResourceID)
+			} else {
+				assert.NotContains(t, second, cloudRunJobTagPrefix+resourceNameTag)
+				assert.Equal(t, "unknown", service.GetEnhancedMetricTags(second).Base[projectID])
+				assert.Empty(t, service.GetMetadata().ResourceID)
+			}
+			assert.Equal(t, 1, calls, "metadata and telemetry share the cached lookup, including failures")
+		})
+	}
 }
 
 func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {
