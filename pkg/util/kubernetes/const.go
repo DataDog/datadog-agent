@@ -116,6 +116,8 @@ const (
 	ServiceKind = "Service"
 	// ConfigMapKind represents the ConfigMap object kind
 	ConfigMapKind = "ConfigMap"
+	// SecretKind represents the Secret object kind
+	SecretKind = "Secret"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 	// ClusterRoleKind represents the ClusterRole object kind
