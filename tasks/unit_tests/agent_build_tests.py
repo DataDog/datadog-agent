@@ -5,7 +5,6 @@ from unittest.mock import patch
 from invoke.exceptions import Exit
 
 from tasks.agent import add_rc_x509_cgo_flags, install_rc_x509_build_files, needs_rc_x509_build_files
-from tasks.flavor import AgentFlavor
 
 
 class TestRCX509BuildInputs(unittest.TestCase):
@@ -13,12 +12,11 @@ class TestRCX509BuildInputs(unittest.TestCase):
     def test_installs_below_an_embedded_prefix_parent(self, bazel):
         embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
 
-        native_embedded_path = install_rc_x509_build_files(embedded_path, "linux", AgentFlavor.base)
+        native_embedded_path = install_rc_x509_build_files(embedded_path, "linux")
 
         self.assertEqual(native_embedded_path, embedded_path)
         bazel.assert_called_once_with(
             "run",
-            "--//packages/agent:flavor=base",
             "@libdd_rc_source//:install_rc_x509_ffi_linux_build_files",
             "--",
             f"--destdir={os.path.join(os.sep, 'tmp', 'agent')}",
@@ -28,12 +26,11 @@ class TestRCX509BuildInputs(unittest.TestCase):
     def test_installs_below_a_development_root(self, bazel):
         development_root = os.path.join(os.sep, "tmp", "agent", "dev")
 
-        native_embedded_path = install_rc_x509_build_files(development_root, "linux-arm64", AgentFlavor.base)
+        native_embedded_path = install_rc_x509_build_files(development_root, "linux-arm64")
 
         self.assertEqual(native_embedded_path, os.path.join(development_root, "embedded"))
         bazel.assert_called_once_with(
             "run",
-            "--//packages/agent:flavor=base",
             "@libdd_rc_source//:install_rc_x509_ffi_linux_build_files",
             "--",
             f"--destdir={development_root}",
@@ -43,27 +40,12 @@ class TestRCX509BuildInputs(unittest.TestCase):
     def test_installs_macos_build_files(self, bazel):
         embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
 
-        native_embedded_path = install_rc_x509_build_files(embedded_path, "darwin", AgentFlavor.base)
+        native_embedded_path = install_rc_x509_build_files(embedded_path, "darwin")
 
         self.assertEqual(native_embedded_path, embedded_path)
         bazel.assert_called_once_with(
             "run",
-            "--//packages/agent:flavor=base",
             "@libdd_rc_source//:install_rc_x509_ffi_macos_build_files",
-            "--",
-            f"--destdir={os.path.join(os.sep, 'tmp', 'agent')}",
-        )
-
-    @patch("tasks.agent.bazel")
-    def test_builds_fips_inputs_for_the_fips_flavor(self, bazel):
-        embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
-
-        install_rc_x509_build_files(embedded_path, "linux", AgentFlavor.fips)
-
-        bazel.assert_called_once_with(
-            "run",
-            "--//packages/agent:flavor=fips",
-            "@libdd_rc_source//:install_rc_x509_ffi_linux_build_files",
             "--",
             f"--destdir={os.path.join(os.sep, 'tmp', 'agent')}",
         )
@@ -71,7 +53,7 @@ class TestRCX509BuildInputs(unittest.TestCase):
     @patch("tasks.agent.bazel")
     def test_rejects_unsupported_platform(self, bazel):
         with self.assertRaisesRegex(Exit, "not supported on win32"):
-            install_rc_x509_build_files(os.path.join(os.sep, "tmp", "agent", "embedded"), "win32", AgentFlavor.base)
+            install_rc_x509_build_files(os.path.join(os.sep, "tmp", "agent", "embedded"), "win32")
         bazel.assert_not_called()
 
     def test_adds_native_paths_without_discarding_existing_cgo_flags(self):

@@ -12,7 +12,7 @@ class TestRcX509Pin(unittest.TestCase):
         go_mod = (REPO_ROOT / "go.mod").read_text()
         module = (REPO_ROOT / "deps/libdd_rc/libdd_rc.MODULE.bazel").read_text()
         overlay = (REPO_ROOT / "deps/libdd_rc/libdd_rc.BUILD.bazel").read_text()
-        nonfips_cargo = (REPO_ROOT / "deps/libdd_rc/nonfips/Cargo.toml").read_text()
+        cargo = (REPO_ROOT / "deps/libdd_rc/Cargo.toml").read_text()
 
         go_version = re.search(r"github\.com/DataDog/libdd-rc/ffi-hosts/go (\S+)", go_mod)
         self.assertIsNotNone(go_version, "libdd-rc Go module not found in go.mod")
@@ -26,9 +26,9 @@ class TestRcX509Pin(unittest.TestCase):
         archive_commits = set(re.findall(r"libdd-rc/archive/([0-9a-f]{40})\.tar\.gz", module))
         archive_commits |= set(re.findall(r'strip_prefix = "libdd-rc-([0-9a-f]{40})"', module))
         archive_commits |= set(re.findall(r'package = "libdd-rc",\s*version = "([0-9a-f]{40})"', overlay))
-        # The non-FIPS crate set git-pins the libdd-rc crates until they are published with
-        # the fips/non-fips feature pass-through.
-        archive_commits |= set(re.findall(r'libdd-rc", rev = "([0-9a-f]{40})"', nonfips_cargo))
+        # The crate set git-pins the libdd-rc crates until they are published with the
+        # fips/non-fips feature pass-through.
+        archive_commits |= set(re.findall(r'libdd-rc", rev = "([0-9a-f]{40})"', cargo))
         self.assertEqual(len(archive_commits), 1, f"libdd-rc source pins disagree: {sorted(archive_commits)}")
 
         archive_commit = archive_commits.pop()

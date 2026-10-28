@@ -1,25 +1,13 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+# rc-x509-ffi's dependency graph, built with rc-crypto's non-FIPS AWS-LC backend
+# and kept isolated from the Agent's root crate graph.
 crate.from_cargo(
     name = "libdd_rc_crates",
     cargo_lock = "//deps/libdd_rc:Cargo.lock",
     cargo_toml = "//deps/libdd_rc:Cargo.toml",
-    platform_triples = [
-        "aarch64-apple-darwin",
-        "aarch64-unknown-linux-gnu",
-        "x86_64-apple-darwin",
-        "x86_64-unknown-linux-gnu",
-    ],
-    validate_lockfile = True,
-)
-
-# The same rc-x509-ffi dependencies built with rc-crypto's non-FIPS backend,
-# for the standard (non-FIPS) Agent flavor.
-crate.from_cargo(
-    name = "libdd_rc_crates_nonfips",
-    cargo_lock = "//deps/libdd_rc/nonfips:Cargo.lock",
-    cargo_toml = "//deps/libdd_rc/nonfips:Cargo.toml",
     platform_triples = [
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-gnu",
@@ -40,10 +28,7 @@ crate.annotation(
     crate = "rc-x509-proto",
     patch_args = ["-p1"],
     patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
-    repositories = [
-        "libdd_rc_crates",
-        "libdd_rc_crates_nonfips",
-    ],
+    repositories = ["libdd_rc_crates"],
 )
 
 # libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
@@ -51,10 +36,7 @@ crate.annotation(
 # tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
 crate.annotation(
     crate = "tracing",
-    repositories = [
-        "libdd_rc_crates",
-        "libdd_rc_crates_nonfips",
-    ],
+    repositories = ["libdd_rc_crates"],
     rustc_flags = ["--cfg=tracing_unstable"],
 )
 crate.annotation(
@@ -65,61 +47,20 @@ crate.annotation(
     # crate_universe cannot infer from a custom rustc cfg.
     deps = ["@libdd_rc_crates//:valuable-0.1.1"],
 )
-crate.annotation(
-    crate = "tracing-core",
-    repositories = ["libdd_rc_crates_nonfips"],
-    rustc_flags = ["--cfg=tracing_unstable"],
-    deps = ["@libdd_rc_crates_nonfips//:valuable-0.1.1"],
-)
 
-# rc-crypto's FIPS feature reaches aws-lc-rs through both rcgen/aws_lc_rs and
-# x509-parser/verify-aws. Those upstream feature declarations retain the
-# non-FIPS aws-lc-sys dependency edge even though aws-lc-rs imports only
-# aws-lc-fips-sys when its `fips` feature is enabled. Avoid building the unused
-# native backend; the placeholder preserves the resolved Rust dependency until
-# the feature graph is fixed upstream.
-crate.annotation(
-    crate = "aws-lc-sys",
-    gen_build_script = "off",
-    patch_args = ["-p1"],
-    patches = ["//deps/libdd_rc:aws-lc-sys-unused-fips-backend.patch"],
-    repositories = ["libdd_rc_crates"],
-)
-
-# TODO: update as needed
+# AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
+# references its exact upstream license text.
 crate.annotation(
     additive_build_file_content = """
-alias(
-    name = "aws_lc_fips_build_output",
-    actual = ":aws-lc-fips-sys_build_script",
-    visibility = ["//visibility:public"],
-)
-
-# The Agent's package metadata rule references the exact upstream license text.
 exports_files(["LICENSE"], visibility = ["//visibility:public"])
 """,
-    build_script_env_select = {
-        "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
-        "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
-    },
-    build_script_tools = ["@go_work_sdk//:files"],
-    build_script_tools_select = {
-        "aarch64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
-        "x86_64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
-    },
-    crate = "aws-lc-fips-sys",
-    patch_args = ["-p1"],
-    patches = [
-        # Despite its name, this patch also forwards GO_EXECUTABLE to CMake for
-        # Linux FIPS builds.
-        "//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch",
-    ],
+    crate = "aws-lc-sys",
     repositories = ["libdd_rc_crates"],
 )
 
-inject_repo(crate, "go_work_sdk", "protobuf")
+inject_repo(crate, "protobuf")
 
-use_repo(crate, "libdd_rc_crates", "libdd_rc_crates_nonfips")
+use_repo(crate, "libdd_rc_crates")
 
 http_archive(
     name = "libdd_rc_source",

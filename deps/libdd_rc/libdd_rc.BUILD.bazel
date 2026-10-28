@@ -1,5 +1,4 @@
 load("@//compliance/rules:purl.bzl", "purl_for_generic")
-load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -12,7 +11,7 @@ load("@rules_rust//rust:defs.bzl", "rust_static_library")
 
 package(
     default_package_metadata = [
-        ":aws_lc_fips_package_metadata",
+        ":aws_lc_package_metadata",
         ":libdd_rc_package_metadata",
     ],
 )
@@ -35,27 +34,27 @@ license(
     license_text = "LICENSE",
 )
 
-# aws-lc-fips-sys builds and packages the native AWS-LC FIPS runtime. Cargo's
+# aws-lc-sys builds AWS-LC, which is linked into librc_x509_ffi.a. Cargo's
 # generated BUILD file does not carry package_metadata, so attach its upstream
 # license to the libdd-rc wrapper targets that introduce it into the Agent.
 package_metadata(
-    name = "aws_lc_fips_package_metadata",
-    attributes = [":aws_lc_fips_license"],
+    name = "aws_lc_package_metadata",
+    attributes = [":aws_lc_license"],
     purl = purl_for_generic(
-        download_url = "https://crates.io/api/v1/crates/aws-lc-fips-sys/{version}/download",
-        package = "aws-lc-fips-sys",
-        version = "0.14.2",
+        download_url = "https://crates.io/api/v1/crates/aws-lc-sys/{version}/download",
+        package = "aws-lc-sys",
+        version = "0.45.0",
     ),
 )
 
 license(
-    name = "aws_lc_fips_license",
+    name = "aws_lc_license",
     license_kinds = [
         "@rules_license//licenses/spdx:Apache-2.0",
         "@rules_license//licenses/spdx:ISC",
         "@rules_license//licenses/spdx:OpenSSL",
     ],
-    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:LICENSE",
+    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-sys-0.45.0//:LICENSE",
 )
 
 proto_library(
@@ -116,15 +115,6 @@ go_proto_library(
     ],
 )
 
-# The standard Agent flavor builds rc-x509-ffi against rc-crypto's non-FIPS
-# AWS-LC backend; the FIPS flavor keeps AWS-LC FIPS.
-selects.config_setting_group(
-    name = "fips_crate_graph",
-    match_any = [
-        "@@//packages/agent:fips_flavor",  # buildifier: disable=canonical-repository
-    ],
-)
-
 _RC_X509_FFI_CRATES = [
     "futures",
     "rc-x509-client",
@@ -150,10 +140,7 @@ rust_static_library(
     crate_root = "lib/rc-x509-ffi/src/lib.rs",
     edition = "2024",
     visibility = ["//visibility:public"],
-    deps = select({
-        ":fips_crate_graph": ["@libdd_rc_crates//:" + c for c in _RC_X509_FFI_CRATES],
-        "//conditions:default": ["@libdd_rc_crates_nonfips//:" + c for c in _RC_X509_FFI_CRATES],
-    }),
+    deps = ["@libdd_rc_crates//:" + c for c in _RC_X509_FFI_CRATES],
 )
 
 cc_library(
@@ -161,18 +148,6 @@ cc_library(
     hdrs = ["include/libdd_rc.h"],
     includes = ["include"],
     visibility = ["//visibility:public"],
-)
-
-# The published Go module's cgo bridge links these version-agnostic names from
-# the Agent's embedded build prefix. AWS-LC is static on Linux, but its archive
-# is emitted inside the Cargo build script's tree artifact with a versioned
-# filename, so materialize the stable linker name expected by ffi.go.
-genrule(
-    name = "aws_lc_fips_crypto_linux_static_file",
-    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
-    outs = ["libaws_lc_fips_crypto.a"],
-    cmd = "cp $(execpath @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)/build/artifacts/libaws_lc_fips_0_14_2_crypto.a $@",
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(
@@ -185,12 +160,8 @@ pkg_files(
 
 pkg_files(
     name = "rc_x509_ffi_linux_static_files",
-    # The non-FIPS crate graph builds AWS-LC into librc_x509_ffi.a, and its Go
-    # build (rcx509_nonfips) does not link -laws_lc_fips_crypto.
-    srcs = [":rc_x509_ffi"] + select({
-        ":fips_crate_graph": [":aws_lc_fips_crypto_linux_static_file"],
-        "//conditions:default": [],
-    }),
+    # AWS-LC is built into librc_x509_ffi.a.
+    srcs = [":rc_x509_ffi"],
     prefix = "embedded/lib",
     target_compatible_with = ["@platforms//os:linux"],
 )
@@ -284,9 +255,6 @@ go_library(
     ] + select({
         "@rules_go//go/platform:windows": [],
         "//conditions:default": ["ffi-hosts/go/internal/libddrcffi/log_sink.go"],
-    }) + select({
-        ":fips_crate_graph": ["ffi-hosts/go/internal/libddrcffi/ffi_fips.go"],
-        "//conditions:default": [],
     }),
     cdeps = [":rc_x509_ffi_cc"],
     cgo = True,
