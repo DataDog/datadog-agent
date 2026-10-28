@@ -14,6 +14,7 @@ package oomkill
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -51,6 +52,12 @@ const (
 	// emitCgroupMemoryStatsConst is the LOAD_CONSTANT of the eBPF program set from
 	// oom_kill.emit_cgroup_memory_stats
 	emitCgroupMemoryStatsConst = "emit_cgroup_memory_stats"
+	// memcgFlushBeginName and memcgFlushEndName count the memcg stats flush steps into
+	// memcg_flush_seq, which the oom-kill programs check the cgroup memory stats against
+	memcgFlushBeginName = "fentry__mem_cgroup_css_rstat_flush"
+	memcgFlushEndName   = "fexit__mem_cgroup_css_rstat_flush"
+	memcgFlushHookName  = "mem_cgroup_css_rstat_flush"
+	memcgFlushSeqName   = "memcg_flush_seq"
 )
 
 var supportsFentry = features.SupportsFentry
@@ -67,6 +74,8 @@ type Probe struct {
 	progName string
 	link     link.Link
 	oomMap   *maps.GenericMap[statsKey, oomStats]
+	// flushLinks attach the memcg flush programs, when the cgroup memory stats are collected
+	flushLinks []link.Link
 	// pinned is true if this probe owns the bpffs pins of the link and map
 	pinned bool
 }
@@ -152,9 +161,21 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 		return nil, err
 	}
 
+	// The cgroup memory stats are checked against the memcg stats flushes, which the memcg flush
+	// programs count. Without them the check would always pass, so the stats are not collected.
 	emitStats := uint64(0)
 	if cfg.EmitCgroupMemoryStats {
-		emitStats = 1
+		if err := cgroupMemoryStatsSupported(); err != nil {
+			log.Warnf("cgroup memory stats disabled: %s", err)
+		} else if err := memcgFlushTrackingSupported(spec); err != nil {
+			log.Warnf("cgroup memory stats disabled, memcg stats flushes cannot be tracked: %s", err)
+		} else {
+			emitStats = 1
+		}
+	}
+	if emitStats == 0 {
+		delete(spec.Programs, memcgFlushBeginName)
+		delete(spec.Programs, memcgFlushEndName)
 	}
 	rewriteConstant(spec, emitCgroupMemoryStatsConst, emitStats)
 
@@ -333,8 +354,19 @@ func (k *Probe) attach() error {
 		removePin(linkPinPath(oomLinkName))
 	}
 
+	if err := k.attachMemcgFlushPrograms(); err != nil {
+		return err
+	}
+
 	prog := k.coll.Programs[k.progName]
-	if pinnedProg := samePinnedProgram(pinnedLink, prog, k.oomMap.Map()); pinnedProg != nil {
+	// The oom-kill program also reads memcg_flush_seq when it collects the cgroup memory stats, so
+	// a pinned one reading the counter of a previous probe, which nothing updates anymore, is not
+	// taken over.
+	usedMaps := []*bpflib.Map{k.oomMap.Map()}
+	if len(k.flushLinks) > 0 {
+		usedMaps = append(usedMaps, k.coll.Maps[memcgFlushSeqName])
+	}
+	if pinnedProg := samePinnedProgram(pinnedLink, prog, usedMaps...); pinnedProg != nil {
 		log.Infof("taking ownership of pinned oom-kill probe")
 		_ = prog.Close()
 		k.coll.Programs[k.progName] = pinnedProg
@@ -356,11 +388,72 @@ func (k *Probe) attach() error {
 		})
 	}
 	if err != nil {
+		k.closeMemcgFlushLinks()
 		return fmt.Errorf("failed to attach %s to %s: %w", k.progName, oomHookName, err)
 	}
 	k.link = l
 
 	return nil
+}
+
+// cgroupMemoryStatsSupported returns nil if the cgroup memory stats can be collected on the running
+// kernel.
+func cgroupMemoryStatsSupported() error {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return fmt.Errorf("detect kernel version: %w", err)
+	}
+	if kv < kernel.VersionCode(6, 8, 0) {
+		return fmt.Errorf("kernel %s is older than 6.8", kv)
+	}
+	return nil
+}
+
+// memcgFlushTrackingSupported returns nil if the memcg flush programs of spec can be loaded and
+// attached on the running kernel.
+func memcgFlushTrackingSupported(spec *bpflib.CollectionSpec) error {
+	for _, name := range []string{memcgFlushBeginName, memcgFlushEndName} {
+		if _, ok := spec.Programs[name]; !ok {
+			return fmt.Errorf("program '%s' not found", name)
+		}
+	}
+	if _, ok := spec.Maps[memcgFlushSeqName]; !ok {
+		return fmt.Errorf("map '%s' not found", memcgFlushSeqName)
+	}
+
+	if err := features.SupportsFentry(memcgFlushHookName); err != nil {
+		return fmt.Errorf("fentry on %s: %w", memcgFlushHookName, err)
+	}
+	if err := features.SupportsFexit(memcgFlushHookName); err != nil {
+		return fmt.Errorf("fexit on %s: %w", memcgFlushHookName, err)
+	}
+	return nil
+}
+
+// attachMemcgFlushPrograms attaches the memcg flush programs, if they are loaded.
+func (k *Probe) attachMemcgFlushPrograms() error {
+	for _, name := range []string{memcgFlushBeginName, memcgFlushEndName} {
+		prog, ok := k.coll.Programs[name]
+		if !ok {
+			continue
+		}
+		l, err := link.AttachTracing(link.TracingOptions{Program: prog})
+		if err != nil {
+			k.closeMemcgFlushLinks()
+			return fmt.Errorf("failed to attach %s to %s: %w", name, memcgFlushHookName, err)
+		}
+		k.flushLinks = append(k.flushLinks, l)
+	}
+	return nil
+}
+
+func (k *Probe) closeMemcgFlushLinks() {
+	for _, l := range k.flushLinks {
+		if err := l.Close(); err != nil {
+			log.Errorf("error detaching memcg flush probe: %s", err)
+		}
+	}
+	k.flushLinks = nil
 }
 
 // rewriteConstant sets the value loaded by every LOAD_CONSTANT(name) of the programs in spec.
@@ -408,6 +501,7 @@ func (k *Probe) Close() {
 	if err := k.link.Close(); err != nil {
 		log.Errorf("error detaching OOM Kill probe: %s", err)
 	}
+	k.closeMemcgFlushLinks()
 	k.coll.Close()
 }
 
@@ -461,15 +555,24 @@ func convertStatsV2(in oomStatsV2Layout) (out model.OOMKillStats) {
 	out.Pages = in.Pages
 	out.MemCgOOM = in.Memcg_oom
 	out.CgroupMemory = model.CgroupMemoryStats{
-		Usage:        in.Mem.Usage,
-		ActiveAnon:   in.Mem.Active_anon,
-		InactiveAnon: in.Mem.Inactive_anon,
-		ActiveFile:   in.Mem.Active_file,
-		InactiveFile: in.Mem.Inactive_file,
-		Unevictable:  in.Mem.Unevictable,
-		Kernel:       in.Mem.Kernel,
+		Usage:        cgroupMemoryStat(in.Mem.Usage),
+		ActiveAnon:   cgroupMemoryStat(in.Mem.Active_anon),
+		InactiveAnon: cgroupMemoryStat(in.Mem.Inactive_anon),
+		ActiveFile:   cgroupMemoryStat(in.Mem.Active_file),
+		InactiveFile: cgroupMemoryStat(in.Mem.Inactive_file),
+		Unevictable:  cgroupMemoryStat(in.Mem.Unevictable),
+		Kernel:       cgroupMemoryStat(in.Mem.Kernel),
 	}
 	return
+}
+
+// cgroupMemoryStat maps the -1 that the eBPF program, like the bpf_mem_cgroup_page_state kfunc,
+// records for a stat item the kernel does not track to 0
+func cgroupMemoryStat(v uint64) uint64 {
+	if v == math.MaxUint64 {
+		return 0
+	}
+	return v
 }
 
 // pinningFeaturesSupported reports whether the probe should be pinned to bpffs. All of the following must hold:

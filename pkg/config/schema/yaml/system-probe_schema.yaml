@@ -1855,10 +1855,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: |
-          Collects the memory statistics of the cgroup (usage, anon, file, unevictable and
-          kernel memory) at the time of a cgroup OOM kill. Requires fentry support and kernel
-          6.8 or later; ignored otherwise.
   privileged_logs:
     node_type: section
     type: object

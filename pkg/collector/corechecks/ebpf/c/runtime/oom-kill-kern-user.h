@@ -17,7 +17,13 @@ struct cgroup_memory_stats {
     __u64 inactive_file;
     __u64 unevictable;
     __u64 kernel;
+    // CGROUP_MEM_STATS_* flags
+    __u64 flags;
 };
+
+// The stat items could not be read without overlapping a memcg stats flush step, and can be off by
+// the updates that step moved.
+#define CGROUP_MEM_STATS_UNSTABLE (1 << 0)
 
 struct stats_key {
     __u64 ts;

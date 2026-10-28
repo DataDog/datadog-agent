@@ -111,6 +111,66 @@ func testOOMKillProbe(t *testing.T, cfg *Config, progName string) {
 	assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
 }
 
+// TestOOMKillCgroupMemoryStats checks that the memory statistics of the cgroup are reported for a
+// cgroup OOM kill only when oom_kill.emit_cgroup_memory_stats is enabled and the fentry program is
+// used.
+func TestOOMKillCgroupMemoryStats(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		if kv < kernel.VersionCode(6, 8, 0) {
+			t.Skipf("cgroup memory stats are not collected on kernel %v", kv)
+		}
+
+		t.Run("enabled", func(t *testing.T) {
+			skipIfFentryUnsupported(t)
+			assertCgroupMemoryStats(t, cgroupOOMKillStats(t, true))
+		})
+
+		t.Run("disabled", func(t *testing.T) {
+			skipIfFentryUnsupported(t)
+			stats := cgroupOOMKillStats(t, false)
+			assert.Zero(t, stats, "no cgroup memory stats should be reported when disabled")
+		})
+
+		t.Run("kprobe", func(t *testing.T) {
+			disableFentry(t)
+			assertCgroupMemoryStats(t, cgroupOOMKillStats(t, true))
+		})
+	})
+}
+
+func assertCgroupMemoryStats(t *testing.T, stats model.CgroupMemoryStats) {
+	assert.NotZero(t, stats.Usage, "usage")
+	assert.NotZero(t, stats.ActiveAnon+stats.InactiveAnon+stats.ActiveFile+stats.InactiveFile, "lru pages")
+	assert.NotZero(t, stats.Kernel, "kernel memory")
+}
+
+// cgroupOOMKillStats triggers a cgroup OOM kill with a probe configured to emit the cgroup memory
+// stats or not, and returns the cgroup memory stats reported for it
+func cgroupOOMKillStats(t *testing.T, emit bool) model.CgroupMemoryStats {
+	setTestPinDir(t)
+	cfg := testConfig(false)
+	cfg.EmitCgroupMemoryStats = emit
+	p, err := NewProbe(cfg)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	pid := triggerOOMKill(t)
+
+	var result model.OOMKillStats
+	require.Eventually(t, func() bool {
+		for _, r := range p.GetAndFlush() {
+			if r.TriggerPid == uint32(pid) {
+				result = r
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 500*time.Millisecond, "failed to find an OOM killed process with pid %d", pid)
+
+	require.Equal(t, uint32(1), result.MemCgOOM, "the OOM kill should be a cgroup OOM kill")
+	return result.CgroupMemory
+}
+
 func otherProgram(progName string) string {
 	if progName == oomFentryName {
 		return oomKprobeName

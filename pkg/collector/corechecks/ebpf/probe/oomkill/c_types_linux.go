@@ -30,6 +30,7 @@ type cgroupMemoryStats struct {
 	Inactive_file uint64
 	Unevictable   uint64
 	Kernel        uint64
+	Flags         uint64
 }
 
 type statsKey struct {
