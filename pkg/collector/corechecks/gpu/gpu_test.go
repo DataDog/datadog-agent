@@ -1425,7 +1425,8 @@ func withKAISchedulerEnabled(t *testing.T) {
 
 func TestEmitSharingFractionPerContainer(t *testing.T) {
 	// Two KAI pods share GPU 0 in halves, and one of them also holds half of
-	// GPU 1. Each fraction must carry the tags of its own pod only.
+	// GPU 1. Each share, its fraction and its memory, must carry the tags of
+	// its own pod only.
 	withKAISchedulerEnabled(t)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
@@ -1441,13 +1442,13 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 		EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "frac-a"},
 		Runtime:      workloadmeta.ContainerRuntimeContainerd,
 		GPUDeviceIDs: []string{gpu0},
-		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5}},
+		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5, Memory: 8 << 30}},
 	}
 	fracMulti := &workloadmeta.Container{
 		EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "frac-multi"},
 		Runtime:      workloadmeta.ContainerRuntimeContainerd,
 		GPUDeviceIDs: []string{gpu0, gpu1},
-		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5}, gpu1: {Fraction: 0.5}},
+		GPUShares:    map[string]workloadmeta.GPUShare{gpu0: {Fraction: 0.5, Memory: 8 << 30}, gpu1: {Fraction: 0.5, Memory: 8 << 30}},
 	}
 	for _, container := range []*workloadmeta.Container{fracA, fracMulti} {
 		wmetaMock.Set(container)
@@ -1463,27 +1464,38 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 		value float64
 		tags  []string
 	}
-	var emitted []series
+	emitted := make(map[string][]series)
 	for _, call := range mockSender.Mock.Calls {
-		if call.Method != "GaugeWithTimestamp" || call.Arguments.Get(0).(string) != "gpu.device.sharing_fraction" {
+		if call.Method != "GaugeWithTimestamp" {
+			continue
+		}
+		name := call.Arguments.Get(0).(string)
+		if name != "gpu.device.sharing_fraction" && name != "gpu.device.sharing_memory" {
 			continue
 		}
 		tags := slices.Sorted(slices.Values(call.Arguments.Get(3).([]string)))
-		emitted = append(emitted, series{call.Arguments.Get(1).(float64), tags})
+		emitted[name] = append(emitted[name], series{call.Arguments.Get(1).(float64), tags})
 	}
 
-	assert.ElementsMatch(t, []series{
-		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
-		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
-		{0.5, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
-	}, emitted)
+	perPod := func(value float64) []series {
+		return []series{
+			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
+			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+		}
+	}
+	assert.ElementsMatch(t, perPod(0.5), emitted["gpu.device.sharing_fraction"])
+	assert.ElementsMatch(t, perPod(8<<30), emitted["gpu.device.sharing_memory"])
 }
 
+// sharingMetricNames are the metrics of the sharing collector, by spec name.
+var sharingMetricNames = []string{"device.sharing_fraction", "device.sharing_memory"}
+
 func TestSharingFractionFollowsSpec(t *testing.T) {
-	// device.sharing_fraction needs a container on the device, which
+	// The sharing collector's metrics need a container on the device, which
 	// TestMetricsFollowSpec cannot add without giving every device metric
-	// container tags that their spec does not list. Validate it on its own,
-	// against the same spec and validation code.
+	// container tags that their spec does not list. Validate them on their
+	// own, against the same spec and validation code.
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
 	withKAISchedulerEnabled(t)
@@ -1503,29 +1515,33 @@ func TestSharingFractionFollowsSpec(t *testing.T) {
 				EntityID:     workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "fractional"},
 				Runtime:      workloadmeta.ContainerRuntimeContainerd,
 				GPUDeviceIDs: []string{testutil.DefaultGpuUUID},
-				GPUShares:    map[string]workloadmeta.GPUShare{testutil.DefaultGpuUUID: {Fraction: 0.5}},
+				GPUShares:    map[string]workloadmeta.GPUShare{testutil.DefaultGpuUUID: {Fraction: 0.5, Memory: 8 << 30}},
 			})
 			setup.fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "fractional"), "spec-test", []string{"kube_container_name:fractional"}, nil, nil, nil)
 
 			setup.runCollection()
 
 			emitted := GetEmittedGPUMetrics(setup.mockSender)
-			require.NotEmpty(t, emitted["device.sharing_fraction"])
-			results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]gpuspec.MetricObservation{
-				"device.sharing_fraction": emitted["device.sharing_fraction"],
-			}, setup.knownTagValues, gpuspec.ValidationOptions{
+			observations := make(map[string][]gpuspec.MetricObservation)
+			for _, name := range sharingMetricNames {
+				require.NotEmpty(t, emitted[name], "%s not emitted", name)
+				observations[name] = emitted[name]
+			}
+			results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, setup.knownTagValues, gpuspec.ValidationOptions{
 				WorkloadActive:  true,
 				ConfigFeatures:  gpuspec.AllConfigFeatures(),
 				WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
 			})
 			require.NoError(t, err)
-			status := results.Metrics["device.sharing_fraction"]
-			require.NotNil(t, status)
-			assert.False(t, status.HasFailures(), "%+v", status)
-			for tag, tagResult := range status.TagResults {
-				assert.Zero(t, tagResult.Missing, "tag %s missing", tag)
-				assert.Zero(t, tagResult.Unknown, "tag %s unknown", tag)
-				assert.Zero(t, tagResult.InvalidValue, "tag %s invalid: %v", tag, tagResult.InvalidValueSamples)
+			for _, name := range sharingMetricNames {
+				status := results.Metrics[name]
+				require.NotNil(t, status, name)
+				assert.False(t, status.HasFailures(), "%s: %+v", name, status)
+				for tag, tagResult := range status.TagResults {
+					assert.Zero(t, tagResult.Missing, "%s: tag %s missing", name, tag)
+					assert.Zero(t, tagResult.Unknown, "%s: tag %s unknown", name, tag)
+					assert.Zero(t, tagResult.InvalidValue, "%s: tag %s invalid: %v", name, tag, tagResult.InvalidValueSamples)
+				}
 			}
 		})
 	}

@@ -145,8 +145,8 @@ github.com/cenkalti/backoff/v7 v7.0.1/go.mod h1:qcKBGwsu4hpxHtQ8tWYsQ+ifzx2+sS+X
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
-github.com/chai2010/gettext-go v1.0.2 h1:1Lwwip6Q2QGsAdl/ZKPCwTe9fe0CjlUbqj5bFNSjIRk=
-github.com/chai2010/gettext-go v1.0.2/go.mod h1:y+wnP2cHYaVj19NZhYKAwEMH2CI1gNHeQQ+5AjwawxA=
+github.com/chai2010/gettext-go v1.0.3 h1:9liNh8t+u26xl5ddmWLmsOsdNLwkdRTg5AG+JnTiM80=
+github.com/chai2010/gettext-go v1.0.3/go.mod h1:y+wnP2cHYaVj19NZhYKAwEMH2CI1gNHeQQ+5AjwawxA=
 github.com/charmbracelet/bubbles v1.0.0 h1:12J8/ak/uCZEMQ6KU7pcfwceyjLlWsDLAxB5fXonfvc=
 github.com/charmbracelet/bubbles v1.0.0/go.mod h1:9d/Zd5GdnauMI5ivUIVisuEm3ave1XwXtD1ckyV6r3E=
 github.com/charmbracelet/bubbletea v1.3.10 h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
@@ -555,8 +555,8 @@ github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 h1:XTI3n9L4NrABP2ivPB+v45MBKP8hhgs
 github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0/go.mod h1:Yf4jYBGmvm+xnvsmQDCbKJ6EOlmvn/iL4pB8cpqT8g0=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 h1:i8WP3JtVBC+O7QOoDoX1gKXihMSPpRVVFT0L/i7TyXo=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0/go.mod h1:W/jRMGvQSKB15Mi+ln4TnV0viqwSWFw8Urq8+AgYqKc=
-github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.1 h1:Cm0KNafIRE2c4fDRsPfirrUjwKcc1ybd3WXHRfpfNkY=
-github.com/pulumi/pulumi-gcp/sdk/v10 v10.1.1/go.mod h1:lbuguIveyWmBBzaFkWW5Sv/Pyjd0+JlKXNRnvlcgd9s=
+github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0 h1:ALvxfepuXd6oTN64HazxrsMmzNW3utecWiDX9hGk5LU=
+github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0/go.mod h1:lbuguIveyWmBBzaFkWW5Sv/Pyjd0+JlKXNRnvlcgd9s=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2 h1:W9XLxp6EzQGf14DumMCGOnT9QcRRSgsI+f5Do3pMqqU=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2/go.mod h1:/klrd3ib4AMRlFMjrxkv5r76x3Bdr68wIMEKfRkRzHU=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
@@ -772,8 +772,8 @@ golang.org/x/net v0.0.0-20200226121028-0de0cce0169b/go.mod h1:z5CRVTTTmAJ677TzLL
 golang.org/x/net v0.0.0-20200421231249-e086a090c8fd/go.mod h1:qpuaurCH72eLCgpAm/N6yyVIVM9cpaDIP3A8BGJEC5A=
 golang.org/x/net v0.0.0-20201021035429-f5854403a974/go.mod h1:sp8m0HH+o8qH0wwXwYZr8TS3Oi6o0r6Gce1SSxlDquU=
 golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4/go.mod h1:p54w0d4576C0XHj96bSt6lcn1PtDYWL6XObtHCRCNQM=
-golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
-golang.org/x/net v0.61.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
+golang.org/x/net v0.62.0 h1:18ELalfM5+XNRwzM2nYqXsZQ9ByS1uhj2O/U7+5jqRY=
+golang.org/x/net v0.62.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
 golang.org/x/oauth2 v0.37.0 h1:JUlcxA8oAtauLfiH8FX2/FkAWHAdi0QtGCGc+hofE98=
 golang.org/x/oauth2 v0.37.0/go.mod h1:IxwZNxUULJmpBFf9K/9NTMSIfZZuvuTy1gGxhigP/58=
 golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
@@ -833,8 +833,8 @@ google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d h1:C9v1o0/4quuhOAf
 google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d/go.mod h1:Wz2wFJntZFmLGo7pLDXZ3wYk5hyc0Mb+SkHhDDXT+lU=
 google.golang.org/genproto/googleapis/api v0.0.0-20260904194346-d0f1323225a4 h1:NCe/UiklGd/9xjT+ROBVhJ1kf6TRQaFedsR+z7u1gvo=
 google.golang.org/genproto/googleapis/api v0.0.0-20260904194346-d0f1323225a4/go.mod h1:fJ2lYaWjqNknJyQBOCd0fA3HnEElJqGplH71a2txi+g=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 h1:0SXBqli5dnuCKMjI/X3FM226zEaEa0GUcSCJtN1vL2o=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8/go.mod h1:OaIUM3+LpYcK2GXM4FTmhWoIq371Owdr+Cc7/BsYHHc=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b h1:6WNWHZk91dp4gZ25642OALkuG1UVNZbwENJD19DnB8k=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b/go.mod h1:OaIUM3+LpYcK2GXM4FTmhWoIq371Owdr+Cc7/BsYHHc=
 google.golang.org/grpc v1.84.0 h1:soMyaPJ8pAak5PIQ0DGBUir0XRo2fRoMqhNWMLlLxO0=
 google.golang.org/grpc v1.84.0/go.mod h1:ljCht0DrxQrXBDRTZp52Qxh3Ffk8CdYm2sj4O2QN2C0=
 google.golang.org/protobuf v1.36.12 h1:pJOKDDOyeXErUroCihFAd5LQuwXBSpVnKGrj5o/fwxc=

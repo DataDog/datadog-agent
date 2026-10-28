@@ -165,6 +165,8 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
+	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	phonehomefx "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/fx"
 	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
@@ -310,6 +312,7 @@ func run(log log.Component,
 	_ systemprobemetadata.Component,
 	_ securityagentmetadata.Component,
 	_ status.Component,
+	_ phonehome.Component,
 	collector collector.Component,
 	_ cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
@@ -496,6 +499,7 @@ func getSharedFxOption() fx.Option {
 		rctelemetryreporterfx.Module(),
 		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),
+		phonehomefx.Module(),
 		rcservicemrffx.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),

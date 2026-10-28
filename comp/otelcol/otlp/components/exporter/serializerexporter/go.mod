@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/se
 go 1.26.0
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421
 	github.com/DataDog/datadog-agent/comp/core/config v0.83.0
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.83.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.83.0
@@ -57,12 +58,11 @@ require (
 	go.uber.org/fx v1.24.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.28.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	google.golang.org/protobuf v1.36.12
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.215-0.20261016095910-a4a2a218d421 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.83.0 // indirect
@@ -207,7 +207,7 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 )
 

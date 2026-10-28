@@ -94,7 +94,6 @@ dd_agent_go_test(
         "rule_filters_test.go",
         "ruleset_test.go",
     ],
-    # keep
     cgo = select({
         "@platforms//os:linux": True,
         "//conditions:default": False,
