@@ -21,7 +21,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from tasks.libs.build.bazel import bazel, bazel_not_found_message
+from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -344,9 +344,7 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     _check_valid_mods()
     timings = []
-    # Branches that predate the Bazel migration (e.g. Agent 6, tidied by release tasks running from main)
-    # have no MODULE.bazel, so the Bazel targets used by `_bazel_tidy` don't exist there.
-    use_bazel = shutil.which("bazel") and os.path.exists("MODULE.bazel")
+    use_bazel = shutil.which("bazel") and is_bazel_workspace()
     (_bazel_tidy if use_bazel else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
         print(f"{result.duration:6.2f}s  {result.name}", file=sys.stderr)
@@ -390,7 +388,7 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
 
     _timed_step("go mod tidy (all modules)", timings, _tidy_all_modules)
 
-    if os.path.exists("MODULE.bazel"):
+    if is_bazel_workspace():
         print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
 
 

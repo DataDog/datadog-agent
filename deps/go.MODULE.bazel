@@ -266,6 +266,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_ecsobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_hostobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_k8sobserver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_opampextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_pprofextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_storage_filestorage",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",

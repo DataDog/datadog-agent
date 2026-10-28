@@ -135,7 +135,6 @@
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
-/.gitlab/.post/do_not_merge.yml                                           @DataDog/agent-devx
 /.gitlab/deploy*/*                                                        @DataDog/agent-delivery
 /.gitlab/.pre/deps_fetch/*                                                @DataDog/agent-devx
 /.gitlab/test/e2e/*                                                       @DataDog/agent-devx
@@ -144,7 +143,6 @@
 /.gitlab/test/kernel_matrix_testing/*                                     @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/build/lint/*                                                     @DataDog/agent-devx
 /.gitlab/.pre/maintenance_jobs/*                                          @DataDog/agent-devx
-/.gitlab/.post/notify/*                                                   @DataDog/agent-devx
 /.gitlab/build/pkg_metrics/*                                              @DataDog/agent-devx
 /.gitlab/.pre/setup/*                                                     @DataDog/agent-devx
 /.gitlab/deploy/trigger_distribution.yml                                  @DataDog/agent-delivery
@@ -165,9 +163,6 @@
 /.gitlab/build/source_test/*                                              @DataDog/agent-devx
 /.gitlab/build/source_test/linux.yml                                      @DataDog/agent-devx @Datadog/agent-build
 /.gitlab/build/source_test/macos.yml                                      @DataDog/agent-devx @Datadog/agent-build @DataDog/windows-products
-/.gitlab/build/source_test/notify.yml                                     @DataDog/agent-devx
-/.gitlab/build/source_test/slack.yml                                      @DataDog/agent-devx
-/.gitlab/build/source_test/tooling_unit_tests.yml                         @DataDog/agent-devx
 /.gitlab/build/source_test/kmt_tasks.yml                                  @DataDog/ebpf-platform
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml                @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/cluster_agent.yml                             @DataDog/container-platform @DataDog/agent-build
@@ -383,6 +378,7 @@
 /cmd/system-probe/                                  @DataDog/ebpf-platform
 /cmd/system-probe/modules/usm*                      @DataDog/ebpf-platform
 /cmd/system-probe/modules/network_tracer*           @DataDog/cloud-network-monitoring
+/cmd/system-probe/modules/packet_capture*           @DataDog/cloud-network-monitoring
 /cmd/system-probe/modules/oom_kill_probe*           @DataDog/container-integrations
 /cmd/system-probe/modules/process*                  @DataDog/container-experiences
 /cmd/system-probe/modules/eventmonitor*             @DataDog/agent-security
@@ -553,11 +549,13 @@
 /comp/metriclookback @DataDog/q-branch
 /comp/networkconfigmanagement @DataDog/ndm-integrations
 /comp/networkdevices @DataDog/network-device-monitoring-core
+/comp/networkpcap/uploader @DataDog/cloud-network-monitoring
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
+/comp/privateactionrunner/phonehome @DataDog/action-platform
 /comp/publishermetadatacache @DataDog/windows-products
-/comp/rdnsquerier @DataDog/ndm-integrations
+/comp/rdnsquerier @DataDog/ndm-integrations @DataDog/network-path
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/network-device-monitoring-core
@@ -795,6 +793,7 @@
 /pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks                @DataDog/action-platform @Datadog/network-path
+/pkg/privateactionrunner/bundles/remoteaction/pcap                    @DataDog/action-platform @DataDog/cloud-network-monitoring
 /pkg/proto/                                                           @DataDog/agent-runtimes
 /pkg/proto/datadog/dogstatsdhttp                                      @DataDog/agent-metric-pipelines
 /pkg/proto/datadog/kubemetadata                                       @DataDog/container-platform
@@ -1150,8 +1149,9 @@
 /test/benchmarks/apm_scripts/                                   @DataDog/agent-apm
 /test/regression/                                               @DataDog/single-machine-performance
 /test/regression/ebpf                                           @DataDog/single-machine-performance @DataDog/ebpf-platform
-/test/regression/cases/quality_gate_security_*                  @DataDog/single-machine-performance @DataDog/agent-security
-/test/regression/cases/quality_gate_private_action_runner*      @DataDog/single-machine-performance @DataDog/action-platform
+/test/regression/container/quality_gates/quality_gate_security_*  @DataDog/single-machine-performance @DataDog/agent-security
+/test/regression/container/quality_gates/quality_gate_private_action_runner* @DataDog/single-machine-performance @DataDog/action-platform
+/test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 
 /tools/                                                              @DataDog/agent-devx
 /tools/host-profiler/                                                @DataDog/profiling-full-host
@@ -1175,9 +1175,7 @@
 /internal/third_party/golang/    @DataDog/container-integrations
 
 /q_branch/              @DataDog/q-branch
-/internal/qbranch/      @DataDog/q-branch
-/internal/qbranch/anomalydetection-scorer/    @DataDog/agent-anomaly-detection
-/internal/qbranch/anomalydetection-testbench/ @DataDog/agent-anomaly-detection
+/internal/anomalydetection/ @DataDog/agent-anomaly-detection
 /comp/anomalydetection/ @DataDog/agent-anomaly-detection # Useful for AGENTS.md files etc. at the root of all AD components
 
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
