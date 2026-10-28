@@ -9,6 +9,7 @@ package dns
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"runtime"
 	"syscall"
@@ -22,7 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const maxIPBufferSize = 200
+const (
+	maxIPBufferSize = 200
+
+	// dnsHeaderLen is the size of the fixed header at the start of every DNS message
+	dnsHeaderLen = 12
+)
 
 var (
 	errTruncated      = errors.New("the packet is truncated")
@@ -64,6 +70,10 @@ type dnsParser struct {
 	collectDNSStats    bool
 	collectDNSDomains  bool
 	recordedQueryTypes map[layers.DNSType]struct{}
+
+	// extraResponses holds responses found after the first message of the last
+	// TCP segment passed to ParseInto. It is reused across calls.
+	extraResponses []dnsPacketInfo
 }
 
 func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
@@ -110,18 +120,23 @@ func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 }
 
 func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInfo) error {
+	p.extraResponses = p.extraResponses[:0]
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
-	if p.decoder.Truncated {
-		return errTruncated
-	}
-
-	if err != nil {
-		return err
-	}
-
 	// If there is a DNS layer then it would be the last layer
-	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
+	if p.decoder.Truncated || err != nil || len(p.layers) == 0 || p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
+		// The whole DNS message isn't available, either because the packet was
+		// cut short by the snaplen or because it's a TCP segment holding part of
+		// a message. A response can still be matched to its query by its header.
+		if p.collectDNSStats && p.parseResponseHeaderInto(pktInfo) {
+			return nil
+		}
+		if p.decoder.Truncated {
+			return errTruncated
+		}
+		if err != nil {
+			return err
+		}
 		return errSkippedPayload
 	}
 
@@ -133,6 +148,101 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 		return nil
 	}
 
+	p.setKey(pktInfo)
+	pktInfo.transactionID = p.dnsPayload.ID
+	if pktInfo.pktType != query && p.hasLayer(layers.LayerTypeTCP) {
+		p.appendTrailingResponses(pktInfo)
+	}
+	return nil
+}
+
+// parseResponseHeaderInto fills pktInfo from the fixed header of a DNS response
+// whose full message couldn't be decoded. The header is enough for DNS stats:
+// the response is matched to its query by ID, and the name and type come from
+// the query. It returns false if the payload doesn't start with a response header.
+func (p *dnsParser) parseResponseHeaderInto(pktInfo *dnsPacketInfo) bool {
+	var ok bool
+	switch {
+	case p.hasLayer(layers.LayerTypeUDP):
+		ok = setResponseFromHeader(p.udpPayload.UDP.LayerPayload(), pktInfo)
+	case p.hasLayer(layers.LayerTypeTCP):
+		payload := p.tcpPayload.TCP.LayerPayload()
+		// The message usually starts after its 2-byte length, but the length
+		// may have been sent in a segment of its own.
+		ok = (len(payload) > 2 && setResponseFromHeader(payload[2:], pktInfo)) || setResponseFromHeader(payload, pktInfo)
+	}
+	if !ok {
+		return false
+	}
+	p.setKey(pktInfo)
+	pktInfo.partial = true
+	return true
+}
+
+// appendTrailingResponses records the responses that follow the first message
+// of a TCP segment, as happens with pipelined queries. Only their headers are read.
+func (p *dnsParser) appendTrailingResponses(first *dnsPacketInfo) {
+	payload := p.tcpPayload.TCP.LayerPayload()
+	rest := payload[2+int(binary.BigEndian.Uint16(payload)):]
+	for len(rest) > 2 {
+		extra := dnsPacketInfo{key: first.key, partial: true}
+		if !setResponseFromHeader(rest[2:], &extra) {
+			return
+		}
+		p.extraResponses = append(p.extraResponses, extra)
+		next := 2 + int(binary.BigEndian.Uint16(rest))
+		if next > len(rest) {
+			return
+		}
+		rest = rest[next:]
+	}
+}
+
+// isStandardQueryHeader reports whether msg starts with the header of a
+// standard query or response with a single question, the only messages DNS
+// stats use. Data from the middle of a message is very unlikely to pass.
+func isStandardQueryHeader(msg []byte) bool {
+	if len(msg) < dnsHeaderLen {
+		return false
+	}
+	flags := binary.BigEndian.Uint16(msg[2:4])
+	opcode := (flags >> 11) & 0xf
+	reservedZ := flags & 0x0040
+	return opcode == 0 && reservedZ == 0 && binary.BigEndian.Uint16(msg[4:6]) == 1
+}
+
+// setResponseFromHeader reads the ID and response code of a DNS response from
+// the start of msg. A false positive would still need to match the ID of a
+// pending query on the same connection.
+func setResponseFromHeader(msg []byte, pktInfo *dnsPacketInfo) bool {
+	if !isStandardQueryHeader(msg) {
+		return false
+	}
+	flags := binary.BigEndian.Uint16(msg[2:4])
+	if flags&0x8000 == 0 { // not a response
+		return false
+	}
+	pktInfo.transactionID = binary.BigEndian.Uint16(msg[0:2])
+	pktInfo.rCode = uint8(flags & 0xf)
+	if pktInfo.rCode == 0 {
+		pktInfo.pktType = successfulResponse
+	} else {
+		pktInfo.pktType = failedResponse
+	}
+	return true
+}
+
+func (p *dnsParser) hasLayer(layerType gopacket.LayerType) bool {
+	for _, layer := range p.layers {
+		if layer == layerType {
+			return true
+		}
+	}
+	return false
+}
+
+// setKey fills the connection key of pktInfo from the decoded IP and transport layers
+func (p *dnsParser) setKey(pktInfo *dnsPacketInfo) {
 	for _, layer := range p.layers {
 		switch layer {
 		case layers.LayerTypeIPv4:
@@ -169,9 +279,6 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 			pktInfo.key.Protocol = syscall.IPPROTO_TCP
 		}
 	}
-
-	pktInfo.transactionID = p.dnsPayload.ID
-	return nil
 }
 
 // source: https://github.com/weaveworks/scope

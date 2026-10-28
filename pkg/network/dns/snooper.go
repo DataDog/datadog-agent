@@ -33,6 +33,7 @@ var snooperTelemetry = struct {
 	queries        *telemetry.StatCounterWrapper
 	successes      *telemetry.StatCounterWrapper
 	errors         *telemetry.StatCounterWrapper
+	headerOnly     *telemetry.StatCounterWrapper
 }{
 	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsModuleName, "decoding_errors", []string{}, "Counter measuring the number of decoding errors while processing packets"),
 	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsModuleName, "truncated_pkts", []string{}, "Counter measuring the number of truncated packets while processing"),
@@ -40,6 +41,7 @@ var snooperTelemetry = struct {
 	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsModuleName, "queries", []string{}, "Counter measuring the number of packets that are DNS queries in processed packets"),
 	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsModuleName, "successes", []string{}, "Counter measuring the number of successful DNS responses in processed packets"),
 	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsModuleName, "errors", []string{}, "Counter measuring the number of failed DNS responses in processed packets"),
+	telemetry.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), dnsModuleName, "header_only_responses", []string{}, "Counter measuring the number of DNS responses read from their header only (split across TCP segments, truncated, or not decodable)"),
 }
 
 var _ ReverseDNS = &socketFilterSnooper{}
@@ -164,7 +166,8 @@ func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo,
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
-	if err := s.parserFor(info).ParseInto(data, t, &pktInfo); err != nil {
+	parser := s.parserFor(info)
+	if err := parser.ParseInto(data, t, &pktInfo); err != nil {
 		switch err {
 		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
@@ -174,21 +177,36 @@ func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo,
 		}
 		return nil
 	}
-
-	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
-		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
+	if parser.decoder.Truncated {
+		snooperTelemetry.truncatedPkts.Inc()
 	}
 
+	s.processPacketInfo(&pktInfo, t, ts)
+	for i := range parser.extraResponses {
+		s.processPacketInfo(&parser.extraResponses[i], t, ts)
+	}
+	return nil
+}
+
+func (s *socketFilterSnooper) processPacketInfo(pktInfo *dnsPacketInfo, t *translation, ts time.Time) {
+	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
+		s.statKeeper.ProcessPacketInfo(*pktInfo, ts)
+	}
+
+	if pktInfo.partial {
+		snooperTelemetry.headerOnly.Inc()
+	}
 	if pktInfo.pktType == successfulResponse {
-		s.cache.Add(t)
+		// responses read from their header only have no answers to cache
+		if !pktInfo.partial {
+			s.cache.Add(t)
+		}
 		snooperTelemetry.successes.Inc()
 	} else if pktInfo.pktType == failedResponse {
 		snooperTelemetry.errors.Inc()
 	} else {
 		snooperTelemetry.queries.Inc()
 	}
-
-	return nil
 }
 
 func (s *socketFilterSnooper) pollPackets() {

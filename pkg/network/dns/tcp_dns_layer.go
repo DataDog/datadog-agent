@@ -22,36 +22,37 @@ type tcpWithDNSSupport struct {
 	layers.TCP
 }
 
-// A DNS payload in a TCP segment is preceded by extra two bytes that
-// contain the size of the DNS payload. So if the size of the TCP payload
-// minus first two bytes equals the DNS payload size, we can safely say
-// that the whole of the DNS payload is contained in that single TCP segment.
-func (m *tcpWithDNSSupport) hasSelfContainedDNSPayload() bool {
+// A DNS message in a TCP segment is preceded by extra two bytes that
+// contain the size of the message. If the segment starts with a whole
+// message, it can be decoded like a UDP payload. Any further messages in the
+// same segment are handled by the parser (see appendTrailingResponses).
+func (m *tcpWithDNSSupport) startsWithCompleteDNSMessage() bool {
 	payload := m.TCP.LayerPayload()
 	if len(payload) < 2 {
 		return false
 	}
-
-	// Assume it's a self-contained DNS message if the Length field
-	// matches the length of the TCP segment
-	dnsLengthField := binary.BigEndian.Uint16(payload)
-	return int(dnsLengthField) == len(payload)-2
+	dnsLengthField := int(binary.BigEndian.Uint16(payload))
+	return dnsLengthField >= dnsHeaderLen && dnsLengthField <= len(payload)-2 && isStandardQueryHeader(payload[2:])
 }
 
 func (m *tcpWithDNSSupport) NextLayerType() gopacket.LayerType {
-	// TODO: deal with TCP fragmentation and out-of-order segments
-	if m.hasSelfContainedDNSPayload() {
+	if m.startsWithCompleteDNSMessage() {
 		return layers.LayerTypeDNS
 	}
-	return m.TCP.NextLayerType()
+	// The segment holds part of a message split across segments. Decoding it
+	// as DNS would fail, so stop here; the parser can still match a response
+	// from its header (see parseResponseHeaderInto).
+	// TODO: reassemble split messages so their answers reach the reverse DNS cache
+	return gopacket.LayerTypeZero
 }
 
 func (m *tcpWithDNSSupport) LayerPayload() []byte {
 	payload := m.TCP.LayerPayload()
 	if len(payload) > 1 {
-		// Omit the DNS length field, only included
-		// in TCP, in order to reuse the DNS UDP parser
-		payload = payload[2:]
+		// Omit the DNS length field, only included in TCP, and any messages
+		// after the first one, in order to reuse the DNS UDP parser
+		end := 2 + int(binary.BigEndian.Uint16(payload))
+		payload = payload[2:min(end, len(payload))]
 	}
 	return payload
 }

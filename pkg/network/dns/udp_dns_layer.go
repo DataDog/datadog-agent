@@ -22,7 +22,12 @@ type udpWithDNSSupport struct {
 	layers.UDP
 }
 
-// NextLayerType always returns LayerTypeDNS to ensure the payload is decoded as DNS
+// NextLayerType returns LayerTypeDNS to ensure the payload is decoded as DNS,
+// unless the payload was cut short by the snaplen: decoding would fail, and the
+// parser reads just the response header instead.
 func (m *udpWithDNSSupport) NextLayerType() gopacket.LayerType {
+	if int(m.Length)-8 > len(m.Payload) {
+		return gopacket.LayerTypeZero
+	}
 	return layers.LayerTypeDNS
 }
