@@ -88,7 +88,11 @@ bazel:test:linux-arm64:
     - ld -v
     - bazel cquery -c opt --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
     - bazel build -c opt --jobs=$RC_X509_BAZEL_JOBS --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
-    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test //deps/libdd_rc/smoke:log_sink_test $RC_X509_ADDITIONAL_TEST_TARGETS
+    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test //deps/libdd_rc/smoke:log_sink_test
+    # Package tests use the default compilation mode, like the package builds:
+    # -c opt drops PIC from static archives such as libffi.a, which cpython's
+    # shared extension modules cannot link.
+    - bazel test --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all $RC_X509_ADDITIONAL_TEST_TARGETS
   after_script:
     - mkdir -p "$RC_X509_ARTIFACTS_DIR"
     - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true
