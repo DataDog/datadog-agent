@@ -1139,8 +1139,8 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 }
 
 // FinalizePatterns runs a merge pass on every FileNode map in the tree
-// using MinGroupSize as the threshold. No-op when path-pattern
-// merging is disabled on the tree. Idempotent.
+// using MinGroupSize as the threshold, then folds covered patterns. No-op
+// when path-pattern merging is disabled on the tree. Idempotent.
 func (at *ActivityTree) FinalizePatterns() {
 	if at == nil {
 		return
@@ -1159,6 +1159,8 @@ func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize 
 		return
 	}
 	mergeChildren(pn.Files, minGroupSize, at.Stats)
+	foldCoveredPatterns(pn.Files, at.Stats)
+	pn.filesIndex.reset()
 	for _, fn := range pn.Files {
 		at.finalizePatternsOnFile(fn, minGroupSize)
 	}
@@ -1172,6 +1174,8 @@ func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
 		return
 	}
 	mergeChildren(fn.Children, minGroupSize, at.Stats)
+	foldCoveredPatterns(fn.Children, at.Stats)
+	fn.childrenIndex.reset()
 	for _, child := range fn.Children {
 		at.finalizePatternsOnFile(child, minGroupSize)
 	}

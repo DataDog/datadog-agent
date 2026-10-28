@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"sort"
 	"strconv"
@@ -82,7 +83,8 @@ type FileNode struct {
 	// pattern is the lazily compiled matcher of a pattern node's Name.
 	pattern *compiledPattern
 	// signature caches structureSignature(Name).
-	signature string
+	signature     string
+	childrenIndex *childIndex
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -164,8 +166,8 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 		out += "<TR>"
 		out += "<TD>open</TD>"
 		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
-		out += "<TD ALIGN=\"LEFT\">" + prefix + "/" + fn.Name + "</TD>"
-		out += "<TD>" + pkg + "</TD>"
+		out += "<TD ALIGN=\"LEFT\">" + html.EscapeString(prefix+"/"+fn.Name) + "</TD>"
+		out += "<TD>" + html.EscapeString(pkg) + "</TD>"
 		out += "</TR>"
 	}
 	return out
@@ -229,7 +231,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		rawParent, nextRawParentIndex := ExtractFirstParent(currentRawPath)
 
 		lastComponent := len(currentPath) <= nextParentIndex+1
-		child, ok := findChildWithPatternFallback(currentFn.Children, parent, lastComponent, stats)
+		child, ok := findChildWithPatternFallback(currentFn.Children, &currentFn.childrenIndex, parent, lastComponent, stats)
 		if ok {
 			if child.IsPattern && child.Name != parent && stats != nil {
 				stats.FilePatternLookupHits++
@@ -254,12 +256,12 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			leafNode := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, reducedPath, resolvers)
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()
-			currentFn = insertChildAndMerge(currentFn.Children, parent, leafNode, stats)
+			currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, leafNode, stats)
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, "", resolvers)
 		stats.SizeBytes += newChild.size()
-		currentFn = insertChildAndMerge(currentFn.Children, parent, newChild, stats)
+		currentFn = insertChildAndMerge(currentFn.Children, &currentFn.childrenIndex, parent, newChild, stats)
 		reducedPath = withPatternComponent(reducedPath, currentPath, parent, currentFn.Name)
 		currentPath = currentPath[nextParentIndex:]
 		currentRawPath = currentRawPath[nextRawParentIndex:]

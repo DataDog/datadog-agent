@@ -1354,6 +1354,8 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
 	cfg := activity_tree.DefaultPathPatternConfig()
 	cfg.Enabled = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsEnabled
+	cfg.MaxChildren = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMaxChildren
+	cfg.MinGroupSizeOnInsert = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinGroupSizeOnInsert
 	cfg.MinGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinGroupSize
 	cfg.MinDateGroupSize = m.config.RuntimeSecurity.SecurityProfileV2PathPatternsMinDateGroupSize
 	return cfg
@@ -1810,9 +1812,14 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 
 	m.sampleRefreshHits.Inc()
 
-	entry.profile.Lock()
-	defer entry.profile.Unlock()
+	prof := entry.profile
+	prof.Lock()
+	defer prof.Unlock()
 
+	// a merge may have retargeted the cookie while this refresh waited for the lock
+	if entry, ok = m.sampleCookieMap.Peek(cookie); !ok || entry.profile != prof {
+		return
+	}
 	if entry.isOrphaned() {
 		m.sampleCookieMap.Remove(cookie)
 		return

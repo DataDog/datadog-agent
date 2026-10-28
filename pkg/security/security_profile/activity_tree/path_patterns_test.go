@@ -8,8 +8,10 @@
 package activitytree
 
 import (
+	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,6 +51,30 @@ func TestStructureSignature(t *testing.T) {
 			assert.Equal(t, tc.want, structureSignature(tc.name))
 		})
 	}
+}
+
+func TestTokenizeName_TokensMatchTheirPlaceholder(t *testing.T) {
+	names := []string{
+		"sess-42", "sess42", "pod-abc123-xyz", "file_v2.tar", "config.json", "cafe",
+		"deadbeef", "3fa9c2e1", "DEADBEEF12", "12345678", "x9y8z7", "5nVjCHLMxA",
+		"2024-01-15.log", "2024_01_15", "2024.01.15", "app-20240115.log", "2024-13-15.log",
+		"app-2024-01-15T10-30-00.log", "app-20240201-093000.log", "2024-01-15_10:30:00Z",
+		"123e4567-e89b-12d3-a456-426614174000", "123E4567-E89B-12D3-A456-426614174000.json",
+	}
+	for _, name := range names {
+		for _, tok := range tokenizeName(name) {
+			if tok.class == classLiteral {
+				continue
+			}
+			placeholder := classes[tok.class].placeholder
+			assert.True(t, compilePattern(placeholder).matches(tok.text), "%s: %q typed %s", name, tok.text, placeholder)
+		}
+	}
+
+	for _, id := range []string{strings.Repeat("a", 64), strings.Repeat("B", 32) + "-12", "8b0c5f3e-1a2b-3c4d-5e6f-7a8b"} {
+		assert.True(t, compilePattern("<container_id>").matches(id), id)
+	}
+	assert.False(t, compilePattern("<container_id>").matches(strings.Repeat("a", 63)))
 }
 
 func TestBuildTemplate(t *testing.T) {
@@ -116,13 +142,42 @@ func TestPatternMatches(t *testing.T) {
 		{"app-<date>.log", "app-2025-13-31.log", false},
 		{"app-<date>.log", "app-12345678.log", false},
 		{"app-<date>.log", "app-evil.log", false},
-		// literal regex metacharacters are escaped
+		{"app-<date>.log", "app-2025-12_31.log", false},
+		{"app-<date>.log", "app-2025-1231.log", false},
 		{"a.b-<num>", "a.b-1", true},
 		{"a.b-<num>", "axb-1", false},
+		{"sess<num>log", "sess42log", true},
+		{"<any>-<num>", "a-b-12", true},
+		{"<any>-<num>", "a-b-x", false},
+		{"kubepods-<any>.slice", "kubepods-burstable-pod12.slice", true},
+		{"docker-<container_id>.scope", "docker-" + strings.Repeat("ab12", 16) + ".scope", true},
+		{"docker-<container_id>.scope", "docker-" + strings.Repeat("ab12", 15) + ".scope", false},
+		{"\xff-<num>", "\xff-4", true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.template+"::"+tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, compilePattern(tc.template).re.MatchString(tc.name))
+			assert.Equal(t, tc.want, compilePattern(tc.template).matches(tc.name))
+		})
+	}
+}
+
+func BenchmarkPatternMatches(b *testing.B) {
+	for _, tc := range []struct{ template, regex, name string }{
+		{"sess-<num>", `^sess-[0-9]+$`, "sess-12345"},
+		{"app-<date>.log", `^app-(?:19|20)[0-9]{2}[-_.]?(?:0[1-9]|1[0-2])[-_.]?(?:0[1-9]|[12][0-9]|3[01])\.log$`, "app-2025-12-31.log"},
+		{"job.<alnum>", `^job\.[0-9A-Za-z]*(?:[0-9][A-Za-z]|[A-Za-z][0-9])[0-9A-Za-z]*$`, "job.5nVjCHLMxA"},
+	} {
+		pattern := compilePattern(tc.template)
+		re := regexp.MustCompile(tc.regex)
+		b.Run(tc.template+"/matcher", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				pattern.matches(tc.name)
+			}
+		})
+		b.Run(tc.template+"/regexp", func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				re.MatchString(tc.name)
+			}
 		})
 	}
 }
@@ -300,12 +355,12 @@ func TestMergeChildren_SplitsMixedFamiliesByAffix(t *testing.T) {
 		"job.sess99": "job.sess<num>",
 		"job.evil42": "job.<alnum>",
 	} {
-		c, ok := findChildWithPatternFallback(children, name, true, stats)
+		c, ok := findChildWithPatternFallback(children, new(*childIndex), name, true, stats)
 		if assert.True(t, ok, name) {
 			assert.Equal(t, want, c.Name, name)
 		}
 	}
-	_, ok := findChildWithPatternFallback(children, "job.backdoor", true, stats)
+	_, ok := findChildWithPatternFallback(children, new(*childIndex), "job.backdoor", true, stats)
 	assert.False(t, ok, "pure-alpha names must not match <alnum>")
 }
 
@@ -379,11 +434,11 @@ func TestMergeChildren_BareAlnumOnlyForDirectories(t *testing.T) {
 	assert.Equal(t, 1, mergeChildren(children, 3, stats))
 	assert.Equal(t, []string{"<alnum>", "latin1"}, childrenNames(children))
 
-	c, ok := findChildWithPatternFallback(children, "Zq8wX7vB6n", false, stats)
+	c, ok := findChildWithPatternFallback(children, new(*childIndex), "Zq8wX7vB6n", false, stats)
 	if assert.True(t, ok) {
 		assert.Equal(t, "<alnum>", c.Name)
 	}
-	_, ok = findChildWithPatternFallback(children, "Zq8wX7vB6n", true, stats)
+	_, ok = findChildWithPatternFallback(children, new(*childIndex), "Zq8wX7vB6n", true, stats)
 	assert.False(t, ok, "a directory-only pattern must not match a file")
 }
 
@@ -420,7 +475,7 @@ func TestMergeChildren_DatesNeedOnlyTwoMembers(t *testing.T) {
 
 	assert.Equal(t, 1, mergeChildren(children, 3, stats))
 	assert.Equal(t, []string{"app-<date>.log", "app.log"}, childrenNames(children))
-	c, ok := findChildWithPatternFallback(children, "app-2025-03-01.log", true, stats)
+	c, ok := findChildWithPatternFallback(children, new(*childIndex), "app-2025-03-01.log", true, stats)
 	if assert.True(t, ok) {
 		assert.Equal(t, "app-<date>.log", c.Name)
 	}
@@ -640,23 +695,23 @@ func TestFindChildWithPatternFallback(t *testing.T) {
 	}
 	stats := enablePatternsTestStats()
 
-	c, ok := findChildWithPatternFallback(children, "exact.log", true, stats)
+	c, ok := findChildWithPatternFallback(children, new(*childIndex), "exact.log", true, stats)
 	assert.True(t, ok)
 	assert.Equal(t, "exact.log", c.Name)
 
-	c, ok = findChildWithPatternFallback(children, "sess-xyz", true, stats)
+	c, ok = findChildWithPatternFallback(children, new(*childIndex), "sess-xyz", true, stats)
 	assert.True(t, ok)
 	assert.Equal(t, "sess-<alpha>", c.Name)
 
-	_, ok = findChildWithPatternFallback(children, "nope.log", true, stats)
+	_, ok = findChildWithPatternFallback(children, new(*childIndex), "nope.log", true, stats)
 	assert.False(t, ok)
 
 	// With patterns disabled on the stats, only the exact lookup runs.
 	disabled := NewActivityTreeNodeStats()
-	_, ok = findChildWithPatternFallback(children, "sess-xyz", true, disabled)
+	_, ok = findChildWithPatternFallback(children, new(*childIndex), "sess-xyz", true, disabled)
 	assert.False(t, ok, "disabled stats should skip the pattern fallback")
 
-	c, ok = findChildWithPatternFallback(children, "exact.log", true, disabled)
+	c, ok = findChildWithPatternFallback(children, new(*childIndex), "exact.log", true, disabled)
 	assert.True(t, ok)
 	assert.Equal(t, "exact.log", c.Name)
 }
@@ -667,13 +722,13 @@ func TestFindChildWithPatternFallback_RejectsCrossClass(t *testing.T) {
 	}
 	stats := enablePatternsTestStats()
 
-	c, ok := findChildWithPatternFallback(children, "424242", true, stats)
+	c, ok := findChildWithPatternFallback(children, new(*childIndex), "424242", true, stats)
 	if assert.True(t, ok) {
 		assert.Equal(t, "<num>", c.Name)
 	}
-	_, ok = findChildWithPatternFallback(children, "malicious_binary", true, stats)
+	_, ok = findChildWithPatternFallback(children, new(*childIndex), "malicious_binary", true, stats)
 	assert.False(t, ok)
-	_, ok = findChildWithPatternFallback(children, "abc123", true, stats)
+	_, ok = findChildWithPatternFallback(children, new(*childIndex), "abc123", true, stats)
 	assert.False(t, ok)
 }
 
@@ -683,11 +738,11 @@ func TestFindChildWithPatternFallback_AcceptsCorrectShape(t *testing.T) {
 	}
 	stats := enablePatternsTestStats()
 
-	c, ok := findChildWithPatternFallback(children, "prefix-99", true, stats)
+	c, ok := findChildWithPatternFallback(children, new(*childIndex), "prefix-99", true, stats)
 	if assert.True(t, ok) {
 		assert.Equal(t, "prefix-<num>", c.Name)
 	}
-	_, ok = findChildWithPatternFallback(children, "prefix-rootkit", true, stats)
+	_, ok = findChildWithPatternFallback(children, new(*childIndex), "prefix-rootkit", true, stats)
 	assert.False(t, ok)
 }
 
@@ -706,7 +761,7 @@ func TestFindChildWithPatternFallback_PrefersMostSpecific(t *testing.T) {
 		"job-42":    "job-<num>",
 		"job-x9y8z": "job-<alnum>",
 	} {
-		c, ok := findChildWithPatternFallback(children, name, true, stats)
+		c, ok := findChildWithPatternFallback(children, new(*childIndex), name, true, stats)
 		if assert.True(t, ok, name) {
 			assert.Equal(t, want, c.Name, name)
 		}
@@ -720,10 +775,10 @@ func TestFindChildWithPatternFallback_StrictAfterReload(t *testing.T) {
 	children := map[string]*FileNode{"<num>": reloaded}
 	stats := enablePatternsTestStats()
 
-	_, ok := findChildWithPatternFallback(children, "424242", true, stats)
+	_, ok := findChildWithPatternFallback(children, new(*childIndex), "424242", true, stats)
 	assert.True(t, ok)
 	for _, candidate := range []string{"malicious_binary", "abc123", "etc"} {
-		_, ok := findChildWithPatternFallback(children, candidate, true, stats)
+		_, ok := findChildWithPatternFallback(children, new(*childIndex), candidate, true, stats)
 		assert.False(t, ok, "reloaded <num> must not match %q", candidate)
 	}
 }
@@ -736,9 +791,9 @@ func TestFindChildWithPatternFallback_ReducerStarIsLiteral(t *testing.T) {
 	children := map[string]*FileNode{"*": star}
 	stats := enablePatternsTestStats()
 
-	_, ok := findChildWithPatternFallback(children, "net", true, stats)
+	_, ok := findChildWithPatternFallback(children, new(*childIndex), "net", true, stats)
 	assert.False(t, ok)
-	c, ok := findChildWithPatternFallback(children, "*", true, stats)
+	c, ok := findChildWithPatternFallback(children, new(*childIndex), "*", true, stats)
 	assert.True(t, ok)
 	assert.Same(t, star, c)
 }
@@ -1021,6 +1076,193 @@ func TestInsertFileEvent_DisabledByDefaultOnV1Trees(t *testing.T) {
 	at.FinalizePatterns()
 	assert.Len(t, tmp.Children, count)
 	assert.Equal(t, int64(0), stats.FileNodesMerged)
+}
+
+func TestPathPatterns_InvalidUTF8Names(t *testing.T) {
+	at, pn := newPatternTestTree()
+	count := at.Stats.PathPatternConfig().MaxChildren + 1
+	for i := 0; i < count; i++ {
+		insertTestPath(pn, "/tmp/\xff-"+strconv.Itoa(i), at.Stats, false)
+	}
+	at.FinalizePatterns()
+	assert.Len(t, pn.Files["tmp"].Children, count)
+	assert.False(t, insertTestPath(pn, "/tmp/\xff-0", at.Stats, true))
+}
+
+func TestFinalizePatterns_SplitsDigitsOnlyFromMixedNames(t *testing.T) {
+	for _, tc := range []struct {
+		names []string
+		want  []string
+	}{
+		{[]string{"sess42", "sess4a2", "sess4b2", "sess4c2"}, []string{"sess42", "sess<alnum>"}},
+		{[]string{"sess1", "sess2", "sess3", "sess4a2", "sess4b2"}, []string{"sess4a2", "sess4b2", "sess<num>"}},
+		{[]string{"sess1", "sess2", "sess3", "sess4a2", "sess4b2", "sess4c2"}, []string{"sess<alnum>", "sess<num>"}},
+	} {
+		at, pn := newPatternTestTree()
+		for _, n := range tc.names {
+			insertTestPath(pn, "/tmp/"+n, at.Stats, false)
+		}
+		at.FinalizePatterns()
+
+		tmp := pn.Files["tmp"]
+		assert.Equal(t, tc.want, childrenNames(tmp.Children), "%v", tc.names)
+		reloaded := reloadFileNode(tmp)
+		for _, n := range tc.names {
+			assert.False(t, insertTestPath(pn, "/tmp/"+n, at.Stats, true), n)
+			_, ok := findChildWithPatternFallback(reloaded.Children, new(*childIndex), n, true, at.Stats)
+			assert.True(t, ok, "%s after reload", n)
+		}
+	}
+}
+
+func TestMatchingMembers_DropsNamesTheTemplateDoesNotMatch(t *testing.T) {
+	members := tokenizeNames([]string{"sess42", "sess4a2", "sess4b2"})
+	assert.Equal(t, []string{"sess4a2", "sess4b2"}, namesOf(matchingMembers("sess<alnum>", members)))
+}
+
+func TestFinalizePatterns_FoldsCoveredLeafPatterns(t *testing.T) {
+	random := []string{"job.5nVjCHLMxA", "job.Qx7bK2pLmZ", "job.a9Fk3JdW0e"}
+
+	at, pn := newPatternTestTree()
+	for _, n := range append([]string{"job.sess1", "job.sess2", "job.sess3"}, random...) {
+		insertTestPath(pn, "/tmp/"+n, at.Stats, false)
+	}
+	at.FinalizePatterns()
+	assert.Equal(t, []string{"job.<alnum>"}, childrenNames(pn.Files["tmp"].Children))
+	assert.False(t, insertTestPath(pn, "/tmp/job.sess42", at.Stats, true))
+
+	at, pn = newPatternTestTree()
+	for _, n := range []string{"job.sess1", "job.sess2", "job.sess3"} {
+		insertTestPath(pn, "/tmp/"+n+"/conf", at.Stats, false)
+	}
+	for _, n := range random {
+		insertTestPath(pn, "/tmp/"+n+"/data", at.Stats, false)
+	}
+	at.FinalizePatterns()
+	assert.Equal(t, []string{"job.<alnum>", "job.sess<num>"}, childrenNames(pn.Files["tmp"].Children))
+	assert.False(t, insertTestPath(pn, "/tmp/job.sess7/conf", at.Stats, true))
+	assert.True(t, insertTestPath(pn, "/tmp/job.sess7/data", at.Stats, true))
+}
+
+func TestPatternCovers(t *testing.T) {
+	for _, tc := range []struct {
+		broad, narrow string
+		want          bool
+	}{
+		{"job.<alnum>", "job.sess<num>", true},
+		{"job.<alnum>", "job.<num>backup", true},
+		{"job.<alnum>", "job.pod<alnum>", true},
+		{"<any>.log", "app<num>.log", true},
+		{"<any>-1", "<container_id>-1", true},
+		{"job.<alnum>", "job.<num>", false},
+		{"sess<alnum>", "sess<num>", false},
+		{"job.sess<num>", "job.<alnum>", false},
+		{"job.<alnum>", "job.sess<num>.tmp", false},
+		{"<alnum>", "sess<num>", false},
+	} {
+		broad := &FileNode{Name: tc.broad, IsPattern: true, NodeBase: NewNodeBase()}
+		narrow := &FileNode{Name: tc.narrow, IsPattern: true, NodeBase: NewNodeBase()}
+		assert.Equal(t, tc.want, patternCovers(broad, narrow), "%s covers %s", tc.broad, tc.narrow)
+	}
+}
+
+func TestInsertFileEvent_MergesInRounds(t *testing.T) {
+	at, pn := newPatternTestTree()
+	insert := func(name string) { insertTestPath(pn, "/data/"+name, at.Stats, false) }
+	firstRound := at.Stats.PathPatternConfig().MaxChildren + 1
+
+	for i := 0; i < firstRound; i++ {
+		insert(fixedAlnumName(i))
+	}
+	data := pn.Files["data"]
+	assert.Equal(t, 2*firstRound, data.childrenIndex.nextMerge, "a round that merged nothing waits for the directory to double")
+
+	for i := 1; i <= 5; i++ {
+		insert("sess-" + strconv.Itoa(i))
+	}
+	for i := firstRound; len(data.Children) < 2*firstRound-1; i++ {
+		insert(fixedAlnumName(i))
+	}
+	assert.NotContains(t, data.Children, "sess-<num>")
+	insert(fixedAlnumName(1000))
+	assert.Contains(t, data.Children, "sess-<num>", "got: %v", childrenNames(data.Children))
+}
+
+func TestInsertFileEvent_MergeRoundFoldsCoveredPatterns(t *testing.T) {
+	random := []string{"5nVjCHLMxA", "Qx7bK2pLmZ", "a9Fk3JdW0e", "7Hq2Lw9Zr4", "Tz4Kp8Xm1Q", "m3Rk9Vb2Nc", "Wq6Jd1Ls8F", "2bYx7Pn4Ug", "Hv5Gt0Ry3K", "9cLp4Ws6Db", "Ex8Nz2Qa5M"}
+	at, pn := newPatternTestTree()
+	require.Equal(t, at.Stats.PathPatternConfig().MaxChildren+1, len(random)+5)
+	for i := 1; i <= 5; i++ {
+		insertTestPath(pn, "/tmp/job.sess"+strconv.Itoa(i), at.Stats, false)
+	}
+	for _, n := range random {
+		insertTestPath(pn, "/tmp/job."+n, at.Stats, false)
+	}
+	assert.Equal(t, []string{"job.<alnum>"}, childrenNames(pn.Files["tmp"].Children))
+	assert.False(t, insertTestPath(pn, "/tmp/job.sess42", at.Stats, true))
+}
+
+func TestFindChildWithPatternFallback_FollowsChildrenChanges(t *testing.T) {
+	stats := enablePatternsTestStats()
+	children := map[string]*FileNode{"a.log": newTestFileLeaf("a.log")}
+	var index *childIndex
+	_, ok := findChildWithPatternFallback(children, &index, "42.log", true, stats)
+	assert.False(t, ok)
+
+	num := &FileNode{Name: "<num>.log", IsPattern: true, NodeBase: NewNodeBase()}
+	children[num.Name] = num
+	c, ok := findChildWithPatternFallback(children, &index, "42.log", true, stats)
+	assert.True(t, ok)
+	assert.Same(t, num, c)
+
+	delete(children, num.Name)
+	_, ok = findChildWithPatternFallback(children, &index, "42.log", true, stats)
+	assert.False(t, ok)
+}
+
+func BenchmarkInsertFileEvent_UnmergeableSiblings(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		paths := make([]string, n)
+		for i := range paths {
+			paths[i] = "/data/" + fixedAlnumName(i)
+		}
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				at, pn := newPatternTestTree()
+				for _, p := range paths {
+					insertTestPath(pn, p, at.Stats, false)
+				}
+			}
+		})
+	}
+}
+
+func TestFileNodeLabel_EscapesPlaceholders(t *testing.T) {
+	status := newTestFileLeaf("status")
+	status.Open = &OpenNode{}
+	status.File = &FileInfo{}
+	num := newTestFileLeaf("<num>")
+	num.Children["status"] = status
+	proc := newTestFileLeaf("proc")
+	proc.Children["<num>"] = num
+
+	label := proc.getNodeLabel("")
+	assert.Contains(t, label, "<TD ALIGN=\"LEFT\">/proc/&lt;num&gt;/status</TD>")
+	assert.NotContains(t, label, "<num>")
+}
+
+// fixedAlnumName returns distinct names that never merge.
+func fixedAlnumName(i int) string {
+	var letters []byte
+	for {
+		letters = append([]byte{byte('a' + i%26)}, letters...)
+		i /= 26
+		if i == 0 {
+			break
+		}
+	}
+	return string(letters) + "1"
 }
 
 func enablePatternsTestStats() *Stats {

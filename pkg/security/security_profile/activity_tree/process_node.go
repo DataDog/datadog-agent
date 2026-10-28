@@ -177,6 +177,8 @@ type ProcessNode struct {
 	Syscalls     map[int]*SyscallNode
 	Capabilities []*CapabilityNode
 	Children     []*ProcessNode
+
+	filesIndex *childIndex
 }
 
 // size approximates the in-memory heap footprint of this process node, excluding the
@@ -444,7 +446,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	rawParent, nextRawParentIndex := ExtractFirstParent(rawFilePath)
 	rawRest := rawFilePath[nextRawParentIndex:]
 
-	child, ok := findChildWithPatternFallback(pn.Files, parent, len(filePath) <= nextParentIndex+1, stats)
+	child, ok := findChildWithPatternFallback(pn.Files, &pn.filesIndex, parent, len(filePath) <= nextParentIndex+1, stats)
 	if ok {
 		if child.IsPattern && child.Name != parent && stats != nil {
 			stats.FilePatternLookupHits++
@@ -465,13 +467,13 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
 			stats.SizeBytes += node.size()
-			owner := insertChildAndMerge(pn.Files, parent, node, stats)
+			owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, node, stats)
 			return true, &owner.NodeBase
 		}
 		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 		stats.FileNodes++
 		stats.SizeBytes += newChild.size()
-		owner := insertChildAndMerge(pn.Files, parent, newChild, stats)
+		owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, newChild, stats)
 		rest := filePath[nextParentIndex:]
 		filePath = withPatternComponent(filePath, filePath, parent, owner.Name)
 		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, rest, rawRest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
