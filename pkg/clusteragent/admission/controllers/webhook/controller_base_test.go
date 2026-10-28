@@ -9,15 +9,18 @@ package webhook
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -191,4 +194,22 @@ func TestAutoInstrumentation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLastReconcileErrorRecovery(t *testing.T) {
+	c := &controllerBase{
+		config: getV1Cfg(t),
+		queue:  workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]()),
+	}
+	t.Cleanup(c.queue.ShutDown)
+	require.NoError(t, c.LastReconcileError())
+
+	reconcileErr := errors.New("registration failed")
+	c.queue.Add("webhook")
+	require.True(t, c.processNextWorkItem(func() error { return reconcileErr }))
+	assert.ErrorIs(t, c.LastReconcileError(), reconcileErr)
+
+	c.queue.Add("webhook")
+	require.True(t, c.processNextWorkItem(func() error { return nil }))
+	assert.NoError(t, c.LastReconcileError())
 }

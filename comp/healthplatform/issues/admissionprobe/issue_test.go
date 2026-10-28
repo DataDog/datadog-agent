@@ -193,7 +193,7 @@ func TestBuildIssue_CauseWebhookControllerFailed_NoFixHintPointsAtDescriptionIns
 func TestBuildIssue_CauseWebhookMissing(t *testing.T) {
 	template := &AdmissionProbeIssue{}
 	issue, err := template.BuildIssue(map[string]string{
-		"issue": `The admission webhook configuration "datadog-webhook" does not exist in the cluster. Both the secret controller and the webhook controller last reconciled successfully, so the object was most likely deleted after being created rather than never created.`,
+		"issue": `The admission webhook configuration "datadog-webhook" does not exist in the cluster. No controller reconciliation error is available to explain why.`,
 		"cause": CauseWebhookMissing,
 	})
 
@@ -203,7 +203,9 @@ func TestBuildIssue_CauseWebhookMissing(t *testing.T) {
 		assert.NotContains(t, step.Text, "port 8000", "steps should not ask the user to check network connectivity when the webhook is confirmed missing")
 		assert.NotContains(t, step.Text, "kubectl get", "the probe already confirmed the webhook is absent; steps shouldn't ask the user to re-verify that")
 	}
-	assert.Contains(t, issue.Remediation.Steps[0].Text, "deleted after being created")
+	assert.NotContains(t, issue.Remediation.Steps[0].Text, "was deleted")
+	assert.Contains(t, issue.Remediation.Steps[0].Text, "creation is pending")
+	assert.Contains(t, issue.Title, "Missing")
 }
 
 func TestBuildIssue_CauseIndeterminate(t *testing.T) {
@@ -278,4 +280,15 @@ func TestNewModule(t *testing.T) {
 	assert.NotNil(t, issue)
 	assert.Nil(t, m.BuiltInPeriodicHealthCheck())
 	assert.Nil(t, m.BuiltInStartupHealthCheck())
+}
+
+func TestBuildIssue_DiagnosticSummary(t *testing.T) {
+	for _, cause := range []string{CauseSecretControllerFailed, CauseSecretControllerForbidden, CauseWebhookControllerFailed, CauseWebhookControllerForbidden, CauseWebhookMissing, CauseIndeterminate, CauseProbeConfigForbidden, CauseProbeFailed} {
+		t.Run(cause, func(t *testing.T) {
+			issue, err := (&AdmissionProbeIssue{}).BuildIssue(map[string]string{"cause": cause, "issue": "specific failure"})
+			require.NoError(t, err)
+			assert.NotContains(t, issue.Remediation.Summary, "Verify network connectivity")
+			assert.NotContains(t, issue.Title, "Unreachable")
+		})
+	}
 }

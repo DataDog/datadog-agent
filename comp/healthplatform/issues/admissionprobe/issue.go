@@ -52,6 +52,8 @@ const (
 	// (RBAC). The probe cannot determine whether the webhook is reachable in
 	// this case, but the cause is still known and actionable.
 	CauseProbeConfigForbidden = "probe_config_forbidden"
+	// CauseProbeFailed means the dry-run request failed before webhook connectivity could be determined.
+	CauseProbeFailed = "probe_failed"
 )
 
 // AdmissionProbeIssue builds a complete issue for admission webhook connectivity failures.
@@ -80,6 +82,23 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 		remediation = "Ensure proper inbound network connectivity to the cluster agent's node on port 8000."
 	}
 
+	title := "Admission Controller Unreachable"
+	summary := "Verify network connectivity between the Kubernetes API server and the cluster agent admission webhook"
+	switch context["cause"] {
+	case CauseSecretControllerFailed, CauseSecretControllerForbidden:
+		title = "Admission Controller Certificate Error"
+		summary = "Resolve the admission controller certificate Secret error"
+	case CauseWebhookControllerFailed, CauseWebhookControllerForbidden:
+		title = "Admission Webhook Registration Error"
+		summary = "Resolve the admission webhook registration error"
+	case CauseWebhookMissing:
+		title = "Admission Webhook Configuration Missing"
+		summary = "Restore the missing admission webhook configuration"
+	case CauseIndeterminate, CauseProbeConfigForbidden, CauseProbeFailed:
+		title = "Admission Webhook Connectivity Unknown"
+		summary = "Resolve the error preventing verification of admission webhook connectivity"
+	}
+
 	steps := remediationSteps(context["cause"], remediation, context["fix_hint"])
 
 	extra, err := structpb.NewStruct(map[string]any{
@@ -93,7 +112,7 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 		Id:          IssueID,
 		IssueName:   issueName,
 		IssueType:   issueType,
-		Title:       "Admission Controller Unreachable",
+		Title:       title,
 		Description: issue,
 		Category:    category,
 		Location:    location,
@@ -101,7 +120,7 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 		Source:      source,
 		Extra:       extra,
 		Remediation: &healthplatform.Remediation{
-			Summary: "Verify network connectivity between the Kubernetes API server and the cluster agent admission webhook",
+			Summary: summary,
 			Steps:   steps,
 		},
 		Tags: []string{"admission-controller", "connectivity", "cluster-agent"},
@@ -159,12 +178,8 @@ func remediationSteps(cause, remediation, fixHint string) []*healthplatform.Reme
 			{Order: 3, Text: "See docs: https://dtdg.co/4eZW0g4"},
 		}
 	case CauseWebhookMissing:
-		// The issue description already names the missing webhook configuration
-		// and states that both controllers last reconciled without error, so the
-		// object was most likely deleted after being created rather than never
-		// created — there's nothing left to "go check", only to recreate it.
 		return []*healthplatform.RemediationStep{
-			{Order: 1, Text: "The webhook configuration named in the issue description above was deleted after being created; nothing else in the cluster agent detected an error, so this is most likely an external deletion (e.g. by another controller, an admission policy, or a manual kubectl delete)"},
+			{Order: 1, Text: "Allow the webhook controller to create the missing configuration; no reconciliation error is available to determine whether creation is pending or needs to be retried"},
 			{Order: 2, Text: "Restart the cluster agent to force the webhook controller to recreate the webhook configuration immediately, rather than waiting for its next reconcile"},
 			{Order: 3, Text: "See docs: https://dtdg.co/4eZW0g4"},
 		}
@@ -177,6 +192,15 @@ func remediationSteps(cause, remediation, fixHint string) []*healthplatform.Reme
 			{Order: 1, Text: grant},
 			{Order: 2, Text: "This does not mean the admission webhook itself is broken — the probe cannot verify webhook connectivity until this permission is restored"},
 			{Order: 3, Text: "See docs: https://dtdg.co/4eZW0g4"},
+		}
+	case CauseProbeFailed:
+		diagnosis := fixHint
+		if diagnosis == "" {
+			diagnosis = "Resolve the dry-run request error included in the issue description above"
+		}
+		return []*healthplatform.RemediationStep{
+			{Order: 1, Text: diagnosis},
+			{Order: 2, Text: "The probe will retry automatically; webhook connectivity cannot be determined until the dry-run request succeeds"},
 		}
 	case CauseIndeterminate:
 		diagnosis := fixHint

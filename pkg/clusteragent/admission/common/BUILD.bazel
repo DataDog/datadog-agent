@@ -8,6 +8,7 @@ go_library(
         "global.go",
         "label_selectors.go",
         "lib_config.go",
+        "rbac_error.go",
         "webhook_status.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common",
@@ -17,6 +18,7 @@ go_library(
         "//pkg/util/log",
         "@io_k8s_api//admission/v1:admission",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes",
     ],
@@ -27,6 +29,7 @@ dd_agent_go_test(
     srcs = [
         "label_selectors_test.go",
         "lib_config_test.go",
+        "rbac_error_test.go",
         "webhook_status_test.go",
     ],
     embed = [":common"],
@@ -36,7 +39,6 @@ dd_agent_go_test(
         "kubeapiserver",
         "kubelet",
     ]],
-    include_default = False,
     deps = [
         "//pkg/config/mock",
         "//pkg/util/pointer",

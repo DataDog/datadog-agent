@@ -23,7 +23,10 @@ go_library(
 
 dd_agent_go_test(
     name = "probe_test",
-    srcs = ["probe_test.go"],
+    srcs = [
+        "kind_manual_test.go",
+        "probe_test.go",
+    ],
     embed = [":probe"],
     gotags_sets = [[
         "cel",
@@ -42,11 +45,15 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_api//rbac/v1:rbac",
         "@io_k8s_apimachinery//pkg/api/errors",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//rest",
         "@io_k8s_client_go//testing",
+        "@io_k8s_client_go//tools/clientcmd",
     ],
 )

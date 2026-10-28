@@ -301,17 +301,29 @@ func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
 	assert.Nil(t, hp.GetIssue(healthIssueID), "expected health issue to be cleared after successful probe")
 }
 
-func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
-	client := fakeclientset.NewSimpleClientset()
-	client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewTimeoutError("request timed out", 10)
-	})
-
-	p, hp := newTestProbeWithHP(t, client)
-	p.runProbe(context.Background())
-
-	issue := hp.GetIssue(healthIssueID)
-	require.NotNil(t, issue, "API timeout errors should report health issues as they indicate connectivity problems")
+func TestRunProbe_ReportsHealthIssueOnAPIError(t *testing.T) {
+	for _, probeErr := range []error{k8serrors.NewTimeoutError("request timed out", 10), errors.New("connection reset")} {
+		t.Run(probeErr.Error(), func(t *testing.T) {
+			client := fakeclientset.NewSimpleClientset()
+			client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, probeErr
+			})
+			p, hp := newTestProbeWithHP(t, client)
+			p.runProbe(context.Background())
+			issue := hp.GetIssue(healthIssueID)
+			require.NotNil(t, issue)
+			assert.Contains(t, issue.Description, probeErr.Error())
+			assert.Contains(t, issue.Title, "Unknown")
+			assert.NotContains(t, issue.Description, "is unreachable")
+			for _, step := range issue.Remediation.Steps {
+				assert.NotContains(t, step.Text, "configuration is registered")
+				assert.NotContains(t, step.Text, "port 8000")
+			}
+			if k8serrors.IsTimeout(probeErr) {
+				assert.Contains(t, issue.Remediation.Steps[0].Text, "timed out")
+			}
+		})
+	}
 }
 
 func TestRunProbe_NoHealthReportWithoutPlatform(t *testing.T) {
@@ -457,19 +469,23 @@ func TestWebhookExists_BothConfigured_ValidatingMissing(t *testing.T) {
 func TestRunProbe_ReportsWebhookMissingIssue(t *testing.T) {
 	withRealWebhookStatusLookup(t)
 
-	// No MutatingWebhookConfiguration exists, so the probe should diagnose
-	// this as "webhook was never created" rather than a network issue.
+	// No configuration exists and neither controller has reconciled yet.
+	// The probe cannot determine whether it was deleted or never created.
 	client := fakeclientset.NewSimpleClientset()
 	p, hp := newTestProbeWithHP(t, client)
 	p.webhookName = "datadog-webhook"
 	p.mutationEnabled = true
+	p.secretController = &fakeReconcileStatusProvider{}
+	p.webhookController = &fakeReconcileStatusProvider{}
 
 	p.runProbe(context.Background())
 
 	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue)
 	assert.Contains(t, issue.Description, `"datadog-webhook" does not exist`)
-	assert.Contains(t, issue.Description, "deleted after being created")
+	assert.NotContains(t, issue.Description, "last reconciled successfully")
+	assert.NotContains(t, issue.Description, "deleted after being created")
+	assert.Contains(t, issue.Description, "may not have been created yet")
 }
 
 func TestRunProbe_ReportsNetworkIssueWhenWebhookConfirmedExists(t *testing.T) {

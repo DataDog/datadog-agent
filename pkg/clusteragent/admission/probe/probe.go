@@ -294,9 +294,9 @@ func (p *Probe) handleError(ctx context.Context, err error) {
 		exists, existsErr := p.webhookExists(ctx)
 		if existsErr == nil && !exists {
 			if p.logLimiter.ShouldLog() {
-				log.Errorf("Admission controller probe failed: webhook configuration %q does not exist. The secret and webhook controllers report no reconciliation error, so it was most likely deleted after being created.", p.webhookName)
+				log.Errorf("Admission controller probe failed: webhook configuration %q does not exist. No controller reconciliation error is available to explain why.", p.webhookName)
 			}
-			p.reportHealthIssue(fmt.Sprintf("The admission webhook configuration %q does not exist in the cluster. Both the secret controller and the webhook controller last reconciled successfully, so the object was most likely deleted after being created rather than never created.", p.webhookName), admissionprobe.CauseWebhookMissing, "")
+			p.reportHealthIssue(fmt.Sprintf("The admission webhook configuration %q does not exist in the cluster. No controller reconciliation error is available to explain why; the configuration may not have been created yet or may have been deleted.", p.webhookName), admissionprobe.CauseWebhookMissing, "")
 			return
 		}
 
@@ -330,7 +330,8 @@ func (p *Probe) handleError(ctx context.Context, err error) {
 	if p.logLimiter.ShouldLog() {
 		log.Errorf("Admission controller probe failed: %v", err)
 	}
-	p.reportHealthIssue("", "", "")
+	fixHint, _ := k8sErrorFixHint(err)
+	p.reportHealthIssue(fmt.Sprintf("The cluster agent could not complete the admission webhook connectivity probe: %v. Webhook connectivity could not be determined.", err), admissionprobe.CauseProbeFailed, fixHint)
 }
 
 // rbacFixHint reports the exact RBAC permission that was denied, if err

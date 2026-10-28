@@ -112,7 +112,8 @@ func TestManual_AgainstRealKindCluster(t *testing.T) {
 			t.Logf("Step %d: %s", s.Order, s.Text)
 		}
 		assert.Contains(t, issue.Description, `"datadog-webhook" does not exist`)
-		assert.Contains(t, issue.Description, "deleted after being created")
+		assert.Contains(t, issue.Description, "may not have been created yet")
+		assert.NotContains(t, issue.Description, "deleted after being created")
 		for _, s := range issue.Remediation.Steps {
 			assert.NotContains(t, s.Text, "kubectl get")
 		}
