@@ -73,7 +73,8 @@ Old POC `.phone-home` attempt journals block new startup rather than silently di
 pending credentials. Preserve/reconcile old experimental state before migrating test VMs.
 
 Internal `par_phone_home` expvar reports waiting/blocked/handoff and a bounded reason.
-This controller does not add status-command presentation.
+When PAR is enabled, `datadog-agent status` also reports the startup-gate state,
+reason and next check in JSON, text and HTML.
 
 ## AAA discovery
 
