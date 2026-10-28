@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +45,8 @@ const (
 	FileOperationCopy FileOperationType = "copy"
 	// FileOperationMove moves the config at the given path to the given path.
 	FileOperationMove FileOperationType = "move"
+	// FileOperationRestore restores settings to their original values from the stable config.
+	FileOperationRestore FileOperationType = "restore"
 )
 
 var (
@@ -145,7 +148,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 	destinationPath := strings.TrimPrefix(a.DestinationPath, "/")
 
 	switch a.FileOperationType {
-	case FileOperationPatch, FileOperationMergePatch:
+	case FileOperationPatch, FileOperationMergePatch, FileOperationRestore:
 		err := ensureDir(root, path)
 		if err != nil {
 			return err
@@ -178,6 +181,15 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			newJSONBytes, err = patch.Apply(previousJSONBytes)
 			if err != nil {
 				return fmt.Errorf("could not apply patch to config file %q: %w", a.FilePath, err)
+			}
+		case FileOperationRestore:
+			patch, err := patch.DecodePatch(a.Patch)
+			if err != nil {
+				return fmt.Errorf("could not decode restore patch for config file %q: %w", a.FilePath, err)
+			}
+			newJSONBytes, err = patch.ApplyWithOptions(previousJSONBytes, restorePatchOptions())
+			if err != nil {
+				return fmt.Errorf("could not apply restore patch to config file %q: %w", a.FilePath, err)
 			}
 		case FileOperationMergePatch:
 			newJSONBytes, err = patch.MergePatch(previousJSONBytes, a.Patch)
@@ -369,6 +381,118 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 	default:
 		return fmt.Errorf("unknown operation type: %s", a.FileOperationType)
 	}
+}
+
+// fillRestoration makes "restore" work correctly. It converts the Patch in a restore operation
+// by converting it from an array of settings into a JSON patch (RFC 6902) that will assign each
+// of those settings the value found in the original stable config file.
+// Setting paths are dot-separated, and path segments index into lists when they are integers
+// (e.g. "snmp_traps.community_strings.0"). Settings absent from the stable config are removed.
+func fillRestoration(operations *Operations, stablePath string) error {
+	for i := range operations.FileOperations {
+		operation := &operations.FileOperations[i]
+		if operation.FileOperationType != FileOperationRestore {
+			continue
+		}
+		if getConfigFileSpec(operation.FilePath) == nil {
+			return fmt.Errorf("modifying config file %s is not allowed", operation.FilePath)
+		}
+		var settings []string
+		if err := json.Unmarshal(operation.Patch, &settings); err != nil {
+			return fmt.Errorf("could not decode restore settings for config file %q: %w", operation.FilePath, err)
+		}
+		stableConfig, err := readStableConfig(stablePath, operation.FilePath)
+		if err != nil {
+			return err
+		}
+		restorePatch := make([]restorePatchOperation, 0, 2*len(settings))
+		for _, setting := range settings {
+			pointer := settingToJSONPointer(setting)
+			// "add" inserts into lists rather than replacing, so the previous value is removed
+			// first. Together with restorePatchOptions this sets the value whether or not the
+			// setting, or any of its parents, exists in the config being patched.
+			restorePatch = append(restorePatch, restorePatchOperation{Op: "remove", Path: pointer})
+			if value, ok := lookupSetting(stableConfig, setting); ok {
+				restorePatch = append(restorePatch, restorePatchOperation{Op: "add", Path: pointer, Value: value})
+			}
+		}
+		restorePatchBytes, err := json.Marshal(restorePatch)
+		if err != nil {
+			return fmt.Errorf("could not serialize restore patch for config file %q: %w", operation.FilePath, err)
+		}
+		operation.Patch = restorePatchBytes
+	}
+	return nil
+}
+
+// restorePatchOperation is a single JSON patch (RFC 6902) operation of a restore patch.
+type restorePatchOperation struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value any    `json:"value"`
+}
+
+// restorePatchOptions are the options used to apply restore patches: removing a setting that
+// does not exist is a no-op, and adding a setting creates any of its missing parents.
+func restorePatchOptions() *patch.ApplyOptions {
+	options := patch.NewApplyOptions()
+	options.AllowMissingPathOnRemove = true
+	options.EnsurePathExistsOnAdd = true
+	return options
+}
+
+// settingToJSONPointer converts a dot-separated setting path into a JSON pointer (RFC 6901).
+func settingToJSONPointer(setting string) string {
+	var pointer strings.Builder
+	for _, segment := range strings.Split(setting, ".") {
+		pointer.WriteString("/")
+		pointer.WriteString(strings.NewReplacer("~", "~0", "/", "~1").Replace(segment))
+	}
+	return pointer.String()
+}
+
+// readStableConfig reads the config file at filePath under stablePath as a JSON marshallable
+// value. A missing file is treated as an empty config.
+func readStableConfig(stablePath string, filePath string) (any, error) {
+	root, err := os.OpenRoot(stablePath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	stableYAMLBytes, err := root.ReadFile(strings.TrimPrefix(filePath, "/"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	stable := make(map[string]any)
+	err = yaml.Unmarshal(stableYAMLBytes, &stable)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", filePath, err)
+	}
+	return convertYAML2UnmarshalToJSONMarshallable(stable), nil
+}
+
+// lookupSetting returns the value at the given dot-separated setting path in config.
+func lookupSetting(config any, setting string) (any, bool) {
+	current := config
+	for _, segment := range strings.Split(setting, ".") {
+		switch node := current.(type) {
+		case map[string]any:
+			value, ok := node[segment]
+			if !ok {
+				return nil, false
+			}
+			current = value
+		case []any:
+			index, err := strconv.Atoi(segment)
+			if err != nil || index < 0 || index >= len(node) {
+				return nil, false
+			}
+			current = node[index]
+		default:
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 func ensureDir(root *os.Root, filePath string) error {

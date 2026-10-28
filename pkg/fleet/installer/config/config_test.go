@@ -1443,3 +1443,248 @@ func TestOperationApply_JQDeleteTag(t *testing.T) {
 	got := applyJQToTags(t, []any{"env:staging", "team:fleet"}, transform)
 	assert.Equal(t, []any{"team:fleet"}, got)
 }
+
+func TestFillRestoration(t *testing.T) {
+	stableDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(stableDir, "datadog.yaml"), []byte(`api_key: my_apikey
+snmp_traps:
+  community_strings:
+    - abc
+    - def
+`), 0644))
+
+	operations := Operations{
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`["untouched"]`),
+			},
+			{
+				FileOperationType: FileOperationRestore,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`["api_key", "snmp_traps.community_strings.0", "does_not_exist", "a/b~c"]`),
+			},
+		},
+	}
+
+	err := fillRestoration(&operations, stableDir)
+	require.NoError(t, err)
+
+	// Non-restore operations are left untouched
+	assert.JSONEq(t, `["untouched"]`, string(operations.FileOperations[0].Patch))
+	assert.Equal(t, FileOperationRestore, operations.FileOperations[1].FileOperationType)
+	assert.Equal(t, "/datadog.yaml", operations.FileOperations[1].FilePath)
+	assert.JSONEq(t, `[
+		{"op": "remove", "path": "/api_key", "value": null},
+		{"op": "add", "path": "/api_key", "value": "my_apikey"},
+		{"op": "remove", "path": "/snmp_traps/community_strings/0", "value": null},
+		{"op": "add", "path": "/snmp_traps/community_strings/0", "value": "abc"},
+		{"op": "remove", "path": "/does_not_exist", "value": null},
+		{"op": "remove", "path": "/a~1b~0c", "value": null}
+	]`, string(operations.FileOperations[1].Patch))
+}
+
+// TestRestore fills restore operations from a stable config and applies them to a modified
+// experiment config, checking the settings end up restored to their stable values.
+func TestRestore(t *testing.T) {
+	tests := []struct {
+		name       string
+		filePath   string
+		stable     string
+		experiment string
+		settings   string
+		expected   string
+	}{
+		{
+			name:       "core config",
+			filePath:   "/datadog.yaml",
+			stable:     "api_key: my_apikey\nsite: datadoghq.com\nlogs_config:\n  container_collect_all: true\n",
+			experiment: "api_key: new_apikey\nsite: datadoghq.eu\nlogs_config:\n  container_collect_all: false\n",
+			settings:   `["api_key", "logs_config.container_collect_all"]`,
+			expected:   "api_key: my_apikey\nsite: datadoghq.eu\nlogs_config:\n  container_collect_all: true\n",
+		},
+		{
+			name:       "core config with list index",
+			filePath:   "/datadog.yaml",
+			stable:     "api_key: my_apikey\nsnmp_traps:\n  community_strings: [abc, def]\n",
+			experiment: "api_key: new_apikey\nsnmp_traps:\n  community_strings: [xyz, uvw]\n",
+			settings:   `["api_key", "snmp_traps.community_strings.0"]`,
+			expected:   "api_key: my_apikey\nsnmp_traps:\n  community_strings: [abc, uvw]\n",
+		},
+		{
+			name:       "core config with nested list index",
+			filePath:   "/datadog.yaml",
+			stable:     "logs_config:\n  processing_rules:\n    - type: exclude_at_match\n      name: exclude_healthcheck\n",
+			experiment: "logs_config:\n  processing_rules:\n    - type: exclude_at_match\n      name: renamed\n",
+			settings:   `["logs_config.processing_rules.0.name"]`,
+			expected:   "logs_config:\n  processing_rules:\n    - type: exclude_at_match\n      name: exclude_healthcheck\n",
+		},
+		{
+			name:       "list index appended to shorter list",
+			filePath:   "/datadog.yaml",
+			stable:     "snmp_traps:\n  community_strings: [abc, def]\n",
+			experiment: "snmp_traps:\n  community_strings: [abc]\n",
+			settings:   `["snmp_traps.community_strings.1"]`,
+			expected:   "snmp_traps:\n  community_strings: [abc, def]\n",
+		},
+		{
+			name:       "whole section",
+			filePath:   "/datadog.yaml",
+			stable:     "snmp_traps:\n  enabled: true\n  community_strings: [abc, def]\n",
+			experiment: "snmp_traps:\n  enabled: false\n  port: 9162\n",
+			settings:   `["snmp_traps"]`,
+			expected:   "snmp_traps:\n  enabled: true\n  community_strings: [abc, def]\n",
+		},
+		{
+			name:       "setting missing from experiment is added with its parents",
+			filePath:   "/datadog.yaml",
+			stable:     "api_key: my_apikey\nlogs_config:\n  processing_rules:\n    - name: rule\n",
+			experiment: "site: datadoghq.eu\n",
+			settings:   `["api_key", "logs_config.processing_rules"]`,
+			expected:   "api_key: my_apikey\nsite: datadoghq.eu\nlogs_config:\n  processing_rules:\n    - name: rule\n",
+		},
+		{
+			name:       "setting missing from stable is removed",
+			filePath:   "/datadog.yaml",
+			stable:     "api_key: my_apikey\n",
+			experiment: "api_key: my_apikey\nlogs_enabled: true\n",
+			settings:   `["logs_enabled", "logs_config.container_collect_all"]`,
+			expected:   "api_key: my_apikey\n",
+		},
+		{
+			name:       "null setting",
+			filePath:   "/datadog.yaml",
+			stable:     "proxy: null\n",
+			experiment: "proxy:\n  http: http://proxy\n",
+			settings:   `["proxy"]`,
+			expected:   "proxy: null\n",
+		},
+		{
+			name:       "system-probe config",
+			filePath:   "/system-probe.yaml",
+			stable:     "network_config:\n  enabled: true\nservice_monitoring_config:\n  enabled: false\n",
+			experiment: "network_config:\n  enabled: false\nservice_monitoring_config:\n  enabled: true\n",
+			settings:   `["network_config.enabled", "service_monitoring_config.enabled"]`,
+			expected:   "network_config:\n  enabled: true\nservice_monitoring_config:\n  enabled: false\n",
+		},
+		{
+			name:       "integration config",
+			filePath:   "/conf.d/redisdb.d/conf.yaml",
+			stable:     "init_config: {}\ninstances:\n  - host: localhost\n    port: 6379\n    tags: [env:prod]\n",
+			experiment: "init_config: {}\ninstances:\n  - host: localhost\n    port: 6380\n    tags: [env:staging]\n",
+			settings:   `["instances.0.port", "instances.0.tags.0"]`,
+			expected:   "init_config: {}\ninstances:\n  - host: localhost\n    port: 6379\n    tags: [env:prod]\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stableDir := t.TempDir()
+			experimentDir := t.TempDir()
+			filePath := strings.TrimPrefix(tt.filePath, "/")
+			for dir, content := range map[string]string{stableDir: tt.stable, experimentDir: tt.experiment} {
+				fullPath := filepath.Join(dir, filePath)
+				require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
+				require.NoError(t, os.WriteFile(fullPath, []byte(content), 0644))
+			}
+			operations := Operations{
+				FileOperations: []FileOperation{
+					{FileOperationType: FileOperationRestore, FilePath: tt.filePath, Patch: []byte(tt.settings)},
+				},
+			}
+
+			require.NoError(t, fillRestoration(&operations, stableDir))
+			require.NoError(t, operations.Apply(context.Background(), experimentDir))
+
+			restored, err := os.ReadFile(filepath.Join(experimentDir, filePath))
+			require.NoError(t, err)
+			var restoredMap, expectedMap map[string]any
+			require.NoError(t, yaml.Unmarshal(restored, &restoredMap))
+			require.NoError(t, yaml.Unmarshal([]byte(tt.expected), &expectedMap))
+			assert.Equal(t, expectedMap, restoredMap)
+		})
+	}
+}
+
+func TestFillRestoration_MissingFile(t *testing.T) {
+	operations := Operations{
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationRestore, FilePath: "/security-agent.yaml", Patch: []byte(`["runtime_security_config.enabled"]`)},
+		},
+	}
+
+	err := fillRestoration(&operations, t.TempDir())
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `[{"op": "remove", "path": "/runtime_security_config/enabled", "value": null}]`, string(operations.FileOperations[0].Patch))
+}
+
+func TestFillRestoration_MultipleOperations(t *testing.T) {
+	stableDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(stableDir, "datadog.yaml"), []byte("api_key: my_apikey\nsite: datadoghq.eu\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(stableDir, "system-probe.yaml"), []byte("network_config:\n  enabled: true\n"), 0644))
+
+	operations := Operations{
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationRestore, FilePath: "/datadog.yaml", Patch: []byte(`["api_key"]`)},
+			{FileOperationType: FileOperationRestore, FilePath: "/system-probe.yaml", Patch: []byte(`["network_config.enabled"]`)},
+			{FileOperationType: FileOperationRestore, FilePath: "/datadog.yaml", Patch: []byte(`["site"]`)},
+		},
+	}
+
+	err := fillRestoration(&operations, stableDir)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `[{"op": "remove", "path": "/api_key", "value": null}, {"op": "add", "path": "/api_key", "value": "my_apikey"}]`, string(operations.FileOperations[0].Patch))
+	assert.JSONEq(t, `[{"op": "remove", "path": "/network_config/enabled", "value": null}, {"op": "add", "path": "/network_config/enabled", "value": true}]`, string(operations.FileOperations[1].Patch))
+	assert.JSONEq(t, `[{"op": "remove", "path": "/site", "value": null}, {"op": "add", "path": "/site", "value": "datadoghq.eu"}]`, string(operations.FileOperations[2].Patch))
+}
+
+func TestFillRestoration_Errors(t *testing.T) {
+	stableDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(stableDir, "datadog.yaml"), []byte("api_key: [unclosed\n"), 0644))
+
+	tests := []struct {
+		name     string
+		filePath string
+		settings string
+	}{
+		{name: "disallowed file", filePath: "/not-allowed.yaml", settings: `["api_key"]`},
+		{name: "patch is not an array", filePath: "/system-probe.yaml", settings: `{"api_key": "x"}`},
+		{name: "malformed stable file", filePath: "/datadog.yaml", settings: `["api_key"]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			operations := Operations{
+				FileOperations: []FileOperation{
+					{FileOperationType: FileOperationRestore, FilePath: tt.filePath, Patch: []byte(tt.settings)},
+				},
+			}
+			assert.Error(t, fillRestoration(&operations, stableDir))
+		})
+	}
+}
+
+func TestOperationApply_Restore(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(filePath, []byte("api_key: new_apikey\nsite: datadoghq.com\n"), 0644))
+
+	root, err := os.OpenRoot(tmpDir)
+	require.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationRestore,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(`[{"op": "remove", "path": "/api_key"}, {"op": "add", "path": "/api_key", "value": "my_apikey"}, {"op": "remove", "path": "/missing/setting"}]`),
+	}
+	require.NoError(t, op.apply(context.Background(), root))
+
+	updated, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	var updatedMap map[string]any
+	require.NoError(t, yaml.Unmarshal(updated, &updatedMap))
+	assert.Equal(t, map[string]any{"api_key": "my_apikey", "site": "datadoghq.com"}, updatedMap)
+}

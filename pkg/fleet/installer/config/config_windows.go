@@ -66,6 +66,10 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
+	err = fillRestoration(&operations, d.StablePath)
+	if err != nil {
+		return fmt.Errorf("error filling restore operations: %w", err)
+	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 	err = operations.Apply(ctx, d.StablePath)
 	if err != nil {

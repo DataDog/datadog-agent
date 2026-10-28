@@ -59,6 +59,10 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return err
 	}
 
+	err = fillRestoration(&operations, d.StablePath)
+	if err != nil {
+		return err
+	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 
 	err = operations.Apply(ctx, d.ExperimentPath)
