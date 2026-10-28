@@ -28,6 +28,7 @@ import (
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
+	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -111,7 +112,7 @@ type Deps struct {
 func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...fx.Option) Deps {
 	return fxutil.Test[Deps](t, fx.Options(
 		fxutil.ProvideComponentConstructor(NewComponent),
-		submittermock.MockModule(),
+		fx.Provide(func() submitter.Component { return submittermock.New(t) }),
 		hostinfomock.MockModule(),
 
 		// Checks
