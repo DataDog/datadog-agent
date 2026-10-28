@@ -44,23 +44,10 @@ type StatusResponse struct {
 
 // RebalanceResponse holds the DCA response for a rebalancing request
 type RebalanceResponse struct {
-	Digest      string `json:"digest"`
-	CheckName   string `json:"check_name"`
-	CheckWeight int    `json:"check_weight"`
-
+	Digest         string `json:"digest"`
+	CheckName      string `json:"check_name"`
 	SourceNodeName string `json:"source_node_name"`
-	SourceDiff     int    `json:"source_diff"`
-
-	DestNodeName string `json:"dest_node_name"`
-	DestDiff     int    `json:"dest_diff"`
-}
-
-// IsolateResponse holds the DCA response for an isolate request
-type IsolateResponse struct {
-	CheckID    string `json:"check_id"`
-	CheckNode  string `json:"check_node"`
-	IsIsolated bool   `json:"is_isolated"`
-	Reason     string `json:"reason"`
+	DestNodeName   string `json:"dest_node_name"`
 }
 
 // ConfigResponse holds the DCA response for a config query
