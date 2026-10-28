@@ -13,7 +13,6 @@ tests_aix-ppc64:
     - changes:
         paths:
           - .gitlab/aix/common/**/*
-          - .gitlab/aix/aix.yml
         compare_to: $COMPARE_TO_BRANCH
     - when: manual
       variables:
@@ -42,7 +41,6 @@ package_aix-ppc64:
     - changes:
         paths:
           - .gitlab/aix/common/**/*
-          - .gitlab/aix/aix.yml
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   script:
