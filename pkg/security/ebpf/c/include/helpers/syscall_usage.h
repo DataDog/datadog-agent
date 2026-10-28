@@ -110,7 +110,7 @@ static __attribute__((always_inline)) int send_syscall_usage_event(void *ctx, u3
     __builtin_memcpy(event->syscalls, usage->period, sizeof(event->syscalls));
     __builtin_memset(usage->period, 0, sizeof(usage->period));
 
-    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
     event->event_reason = reason;
     if (send_event_ptr(ctx, EVENT_SYSCALLS, event) != 0) {
         // the event was dropped: put the syscalls back so that the next tick sends them again

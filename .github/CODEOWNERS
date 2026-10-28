@@ -1173,7 +1173,6 @@
 /internal/third_party/kubernetes @DataDog/container-integrations
 /internal/third_party/golang/    @DataDog/container-integrations
 
-/q_branch/              @DataDog/q-branch
 /internal/anomalydetection/ @DataDog/agent-anomaly-detection
 /comp/anomalydetection/ @DataDog/agent-anomaly-detection # Useful for AGENTS.md files etc. at the root of all AD components
 
