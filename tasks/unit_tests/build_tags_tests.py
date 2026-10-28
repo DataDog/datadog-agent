@@ -109,9 +109,10 @@ class TestCodegenPayloadData(unittest.TestCase):
                 self.assertNotIn("rc_x509", tags)
                 self.assertNotIn("rcx509_nonfips", tags)
 
-    def test_rcx509_nonfips_is_excluded_on_windows(self):
-        # Windows keeps libdd-rc's AWS-LC FIPS DLL until it moves to a MinGW static build.
+    def test_rc_x509_is_excluded_on_windows(self):
+        # The x509 client is not built for Windows yet.
         tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform="win32")
+        self.assertNotIn("rc_x509", tags)
         self.assertNotIn("rcx509_nonfips", tags)
 
     def test_common_tags_disjoint_from_flavor_specific(self):

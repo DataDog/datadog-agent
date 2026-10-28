@@ -9,7 +9,6 @@ crate.from_cargo(
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-gnu",
         "x86_64-apple-darwin",
-        "x86_64-pc-windows-msvc",
         "x86_64-unknown-linux-gnu",
     ],
     validate_lockfile = True,
@@ -73,16 +72,6 @@ crate.annotation(
     deps = ["@libdd_rc_crates_nonfips//:valuable-0.1.1"],
 )
 
-# rules_rust consumes non-Cargo build-script stdout, hiding the command stream
-# from a failed nested Ninja build. Retain the normal behavior unless the
-# Windows AWS-LC diagnostic explicitly asks cmake-rs to mirror failed output.
-crate.annotation(
-    crate = "cmake",
-    patch_args = ["-p1"],
-    patches = ["//deps/libdd_rc:cmake-forward-failed-output.patch"],
-    repositories = ["libdd_rc_crates"],
-)
-
 # rc-crypto's FIPS feature reaches aws-lc-rs through both rcgen/aws_lc_rs and
 # x509-parser/verify-aws. Those upstream feature declarations retain the
 # non-FIPS aws-lc-sys dependency edge even though aws-lc-rs imports only
@@ -111,37 +100,24 @@ exports_files(["LICENSE"], visibility = ["//visibility:public"])
 """,
     build_script_env_select = {
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
-        # Keep Go, libclang, and NASM action-scoped. Perl intentionally follows
-        # the existing Windows OpenSSL/OpenSSL-FIPS build convention and is
-        # resolved from the CI image PATH exposed by --action_env=PATH.
-        "x86_64-pc-windows-msvc": "{\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\",\"NUM_JOBS\":\"8\",\"PERL_EXECUTABLE\":\"perl\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],
     build_script_tools_select = {
         "aarch64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
-        "x86_64-pc-windows-msvc": [
-            "@go_work_sdk//:bin/go.exe",
-            "@libclang_windows//:clang/native/libclang.dll",
-            "@nasm_windows//:nasm.exe",
-        ],
         "x86_64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
     },
     crate = "aws-lc-fips-sys",
     patch_args = ["-p1"],
     patches = [
-        # The macOS linker patch also forwards GO_EXECUTABLE to CMake for all
-        # FIPS builds (Linux included), and the hermetic MSVC patch extends its
-        # get_cmake_config() rewrite, so keep it and this order even though
-        # macOS no longer builds AWS-LC FIPS.
+        # Despite its name, this patch also forwards GO_EXECUTABLE to CMake for
+        # Linux FIPS builds.
         "//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch",
-        "//deps/libdd_rc:aws-lc-fips-sys-hermetic-msvc.patch",
-        "//deps/libdd_rc:aws-lc-sys-nasm-command.patch",
     ],
     repositories = ["libdd_rc_crates"],
 )
 
-inject_repo(crate, "go_work_sdk", "libclang_windows", "nasm_windows", "protobuf")
+inject_repo(crate, "go_work_sdk", "protobuf")
 
 use_repo(crate, "libdd_rc_crates", "libdd_rc_crates_nonfips")
 

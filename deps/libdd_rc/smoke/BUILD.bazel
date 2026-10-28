@@ -1,28 +1,12 @@
 # gazelle:ignore
 
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@rules_go//go:def.bzl", "go_binary", "go_test")
+load("@rules_go//go:def.bzl", "go_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
-
-go_binary(
-    name = "windows_msvc_lifecycle",
-    srcs = ["windows_msvc_lifecycle.go"],
-    # rules_go's auto mode disables cgo when it sees a non-host platform.
-    # The public rcx509 dependency crosses cgo using the supplied MinGW C++
-    # toolchain, so require cgo instead of silently compiling a pure-Go host.
-    pure = "off",
-    tags = ["manual"],
-    target_compatible_with = [
-        "//bazel/platforms:rust_abi_gnu",
-        "@platforms//os:windows",
-    ],
-    visibility = ["//packages/agent/dependencies:__pkg__"],
-    deps = ["@libdd_rc_source//:rcx509"],
-)
 
 copy_file(
     name = "client_lifecycle_test_src",
@@ -50,15 +34,14 @@ go_test(
     target_compatible_with = select({
         "@platforms//os:linux": [],
         "@platforms//os:macos": [],
-        "@platforms//os:windows": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = ["@libdd_rc_source//:rcx509"],
 )
 
 # The upstream log sink accepts a Unix file descriptor. Keep that assertion
-# separate from the portable public-client lifecycle so Windows can exercise
-# NewClient/Close without pretending a HANDLE fits in the fd-based API.
+# separate from the portable public-client lifecycle, which Windows will also
+# run once it is supported.
 go_test(
     name = "log_sink_test",
     srcs = [":log_sink_test_src"],

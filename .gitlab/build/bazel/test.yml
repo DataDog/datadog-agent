@@ -139,29 +139,6 @@ bazel:rc-x509-ffi:macos-arm64:
   variables:
     RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test //packages/agent/dependencies:rc_x509_packaged_agent_lifecycle_test
 
-# The shipping Windows Agent uses MinGW, while AWS-LC supports Windows FIPS
-# only through the MSVC ABI. Build the optimized, assembly-enabled native DLLs
-# behind that boundary, then validate their FFI and packaged-Agent lifecycle.
-# Keep this lane optional until Depot allow-lists the checksum-pinned NASM
-# archive; restore it as an on-success merge gate once that external blocker is
-# removed. The Linux and macOS rc-x509 lanes remain blocking.
-bazel:rc-x509-ffi:windows-amd64:
-  extends: [.bazel:runner:windows-amd64, .bazel:test]
-  stage: source_test
-  needs: []
-  rules:
-    - when: manual
-      allow_failure: true
-  variables:
-    POWERSHELL_SCRIPT: |-
-      bazel version
-      try {
-        & .\deps\libdd_rc\smoke\run_windows_msvc_lifecycle.ps1
-      } finally {
-        & .\deps\libdd_rc\smoke\show_windows_msvc_build_logs.ps1
-      }
-      exit (Get-Variable LASTEXITCODE -ValueOnly)
-
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
   script:
