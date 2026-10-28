@@ -18,11 +18,12 @@ import (
 
 func TestEnableOTelCollectorConfigInDatadogYAML(t *testing.T) {
 	// on Linux config sync uses the IPC server over a unix socket (with an
-	// explicit socket path shared by the core agent and the DDOT collector),
-	// on other platforms it uses the TCP listener
+	// explicit socket path in the fleet-installer run directory, shared by the
+	// core agent and the DDOT collector), on other platforms it uses the TCP
+	// listener
 	var expectedAgentIPC []string
 	if runtime.GOOS == "linux" {
-		expectedAgentIPC = []string{"    use_socket: true\n", "    socket_path: /etc/datadog-agent/agent_ipc.socket\n"}
+		expectedAgentIPC = []string{"    use_socket: true\n", "    socket_path: /opt/datadog-packages/run/agent_ipc.socket\n"}
 	} else {
 		expectedAgentIPC = []string{"    port: 5009\n"}
 	}
