@@ -50,15 +50,15 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	columnResults, bulkErr := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
+	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
 		bulkMaxRepetitions, useGetBulk)
-	if bulkErr != nil {
-		log.Debugf("failed to fetch oids with GetBulk batching: %v", bulkErr)
+	if err != nil {
+		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
 		columnResults = make(valuestore.ColumnResultValuesType)
 		remainingOIDs := columnOIDs
 		var batchErr *columnBatchError
-		if errors.As(bulkErr, &batchErr) {
+		if errors.As(err, &batchErr) {
 			columnResults = batchErr.fetchedValues
 			remainingOIDs = batchErr.unfetchedOIDs
 		}
@@ -67,7 +67,7 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 			bulkMaxRepetitions, useGetNext)
 		if err != nil {
 			scalarsOnly := &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: valuestore.ColumnResultValuesType{}}
-			return scalarsOnly, fmt.Errorf("failed to fetch oids with GetBulk batching: %v; GetNext fallback also failed: %v", bulkErr, err)
+			return scalarsOnly, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
 		maps.Copy(columnResults, getNextResults)
 	}
