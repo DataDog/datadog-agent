@@ -49,8 +49,8 @@ instances:
       - dogstatsd_uds_packet_reading_errors:
           name: dogstatsd_uds.packet_reading_errors
           type: rate
-      - dogstatsd_uds_origin_detection_errors:
-          name: dogstatsd_uds.origin_detection_errors
+      - dogstatsd_uds_origin_detection_error:
+          name: dogstatsd_uds.origin_detection_error
           type: rate
       - forwarder_transactions_dropped:
           name: forwarder.transactions.dropped

@@ -30,8 +30,8 @@ dogstatsd__uds_packets{transport="unix",state="ok"} 20
 dogstatsd__uds_packets{transport="unixgram",state="ok"} 30
 dogstatsd__uds_packets{transport="unix",state="error"} 4
 dogstatsd__uds_packets{transport="tcp",state="ok"} 100
-# TYPE dogstatsd__uds_origin_detection_errors counter
-dogstatsd__uds_origin_detection_errors 3
+# TYPE dogstatsd__uds_origin_detection_error counter
+dogstatsd__uds_origin_detection_error 3
 # TYPE dogstatsd__processed counter
 dogstatsd__processed{message_type="metrics",state="ok",origin="host"} 40
 dogstatsd__processed{message_type="metrics",state="error",origin="host"} 5
@@ -91,7 +91,7 @@ func TestExpvarSeriesFromPromTextSelectsExpectedSeries(t *testing.T) {
 	assert.Equal(t, int64(2), values["dogstatsd_udp_packet_reading_errors"])
 	assert.Equal(t, int64(54), values["dogstatsd_uds_packets"])
 	assert.Equal(t, int64(4), values["dogstatsd_uds_packet_reading_errors"])
-	assert.Equal(t, int64(3), values["dogstatsd_uds_origin_detection_errors"])
+	assert.Equal(t, int64(3), values["dogstatsd_uds_origin_detection_error"])
 	assert.Equal(t, int64(40), values["dogstatsd_metric_packets"])
 	assert.Equal(t, int64(5), values["dogstatsd_metric_parse_errors"])
 	assert.Equal(t, int64(50), values["dogstatsd_event_packets"])

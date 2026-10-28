@@ -78,8 +78,8 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "dogstatsd_uds_origin_detection_errors",
-		metricName: "dogstatsd__uds_origin_detection_errors",
+		id:         "dogstatsd_uds_origin_detection_error",
+		metricName: "dogstatsd__uds_origin_detection_error",
 		expvarPath: []string{"dogstatsd-uds", "OriginDetectionErrors"},
 		metricType: dto.MetricType_COUNTER,
 	},
