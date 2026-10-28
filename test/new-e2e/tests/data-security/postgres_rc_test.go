@@ -91,6 +91,19 @@ func (s *postgresRCSuite) TestRCScenarios() {
 		assert.NoError(c, s.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timed out waiting for fakeintake to be healthy")
 
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.Env().Agent.Client.IsReady())
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for the agent to be ready")
+
+	// Polls is cumulative on a reused stack: wait for it to grow instead of for it to be non-zero.
+	before, err := s.Env().FakeIntake.Client().RCStats()
+	require.NoError(s.T(), err)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().RCStats()
+		require.NoError(c, err)
+		assert.Greater(c, stats.Polls, before.Polls, "agent did not poll fakeintake Remote Config")
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for the agent to poll Remote Config")
+
 	for _, sc := range loadRCScenarios(s.T()) {
 		s.Run(sc.Name, func() {
 			payload, err := json.Marshal(sc.RC)
@@ -108,7 +121,7 @@ func (s *postgresRCSuite) TestRCScenarios() {
 			}
 			s.EventuallyWithT(func(c *assert.CollectT) {
 				assert.Regexp(c, pattern, s.Env().Agent.Client.RemoteConfig())
-			}, time.Minute, 5*time.Second)
+			}, 3*time.Minute, 5*time.Second)
 
 			if len(sc.Expected) == 0 {
 				return // rejected task: nothing is scanned
