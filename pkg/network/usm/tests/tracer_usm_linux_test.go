@@ -857,6 +857,13 @@ func testRedisRESPValidation(t *testing.T, tr *tracer.Tracer, clientHost, target
 		{"resp integer", []byte(":42\r\n"), redisStack},
 		{"resp negative integer", []byte(":-1\r\n"), redisStack},
 		{"resp null bulk string", []byte("$-1\r\n"), redisStack},
+		{"resp simple string with digits", []byte("+123\r\n"), redisStack},
+		{"resp3 double with negative exponent", []byte(",1e-7\r\n"), redisStack},
+		{"resp3 double with positive exponent", []byte(",1e+7\r\n"), redisStack},
+		{"resp 100MB bulk string", []byte("$100000000\r\n"), redisStack},
+		// RESP_FIELD_MAX_LEN is 10: the longest first field accepted.
+		{"resp integer at max field length", []byte(":1000000000\r\n"), redisStack},
+		{"resp integer past max field length", []byte(":10000000000\r\n"), unclassified},
 
 		// A RESP type byte followed by ciphertext must not be classified as
 		// Redis. Every one of these was a false positive before the fix.

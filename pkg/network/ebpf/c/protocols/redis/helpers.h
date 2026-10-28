@@ -35,6 +35,7 @@ static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
 #define RESP_CLASS_DOT   (1 << 2) // '.', for RESP3 doubles
 #define RESP_CLASS_ALPHA (1 << 3) // A-Za-z, for +OK, -ERR, inf/nan
 #define RESP_CLASS_PUNCT (1 << 4) // ' ', '-', '_', for error and status text
+#define RESP_CLASS_INNER_SIGN (1 << 5) // '-' or '+' at any position, for double exponents (1e-7)
 
 // Is c acceptable inside a RESP field of the given classes? `first` marks the
 // byte immediately after the type prefix, the only position a sign may occupy.
@@ -52,6 +53,9 @@ static __always_inline bool resp_char_allowed(char c, __u8 allowed_classes, bool
         return true;
     }
     if ((allowed_classes & RESP_CLASS_PUNCT) && (c == ' ' || c == '-' || c == '_')) {
+        return true;
+    }
+    if ((allowed_classes & RESP_CLASS_INNER_SIGN) && (c == '-' || c == '+')) {
         return true;
     }
     return false;
@@ -84,12 +88,16 @@ static __always_inline bool resp_char_allowed(char c, __u8 allowed_classes, bool
 // Validates the first field of a RESP frame: the bytes between the type prefix
 // at buf[0] and the CRLF that terminates the field.
 //
-// Only the first RESP_FIELD_MAX_LEN bytes are examined. A field longer than
-// that is rejected rather than accepted on faith — a payload we cannot
-// positively identify as RESP must not be classified as Redis. That covers
-// every field we classify on in practice: length and count prefixes, +OK,
-// +PONG, -ERR ....
-#define RESP_FIELD_MAX_LEN 9
+// The steps below examine buf[1] through buf[11], and the CR must be among
+// them, so a field of at most RESP_FIELD_MAX_LEN bytes is accepted. That
+// covers every bulk and array length Redis accepts by default (512 MB is nine
+// digits), integers up to ten characters, +OK, +PONG, -ERR .... A longer field
+// is rejected rather than accepted on faith — a payload we cannot positively
+// identify as RESP must not be classified as Redis. The last step reads
+// buf[12], well inside the CLASSIFICATION_MAX_BUFFER bytes every caller
+// passes. Raising the limit means adding a step, and re-checking the verifier
+// under both CO-RE and runtime compilation.
+#define RESP_FIELD_MAX_LEN 10
 static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf_size, __u8 allowed_classes) {
     RESP_FIELD_STEP(1);
     RESP_FIELD_STEP(2);
@@ -100,12 +108,16 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
     RESP_FIELD_STEP(7);
     RESP_FIELD_STEP(8);
     RESP_FIELD_STEP(9);
+    RESP_FIELD_STEP(10);
+    RESP_FIELD_STEP(11);
     return false;
 }
 
-// Text fields: the character set the previous validator accepted for simple
-// strings and errors (A-Za-z plus '.', ' ', '-', '_'), minus the unbounded scan.
-#define RESP_CLASS_TEXT (RESP_CLASS_ALPHA | RESP_CLASS_DOT | RESP_CLASS_PUNCT)
+// Text fields: simple strings and errors (A-Za-z, 0-9, '.', ' ', '-', '_').
+// RESP allows any byte but CR and LF here; digits are included because real
+// replies carry them (e.g. +FULLRESYNC <runid> <offset>), and they raise the
+// false-positive rate on random bytes only from ~1.40e-7 to ~1.48e-7.
+#define RESP_CLASS_TEXT (RESP_CLASS_ALPHA | RESP_CLASS_DIGIT | RESP_CLASS_DOT | RESP_CLASS_PUNCT)
 
 // is_redis reports whether buf holds the start of a RESP frame.
 //
@@ -141,9 +153,10 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     case RESP3_BIG_NUMBER_PREFIX:      // Big Number
         return check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_DIGIT | RESP_CLASS_SIGN);
 
-    // Doubles additionally carry '.' and the literals inf, -inf and nan.
+    // Doubles additionally carry '.', a signed exponent (1e-7), and the literals
+    // inf, -inf and nan. Only the character set is checked, not the grammar.
     case RESP3_DOUBLE_PREFIX:          // Double
-        return check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_DIGIT | RESP_CLASS_SIGN | RESP_CLASS_DOT | RESP_CLASS_ALPHA);
+        return check_resp_field_and_crlf(buf, buf_size,RESP_CLASS_DIGIT | RESP_CLASS_SIGN | RESP_CLASS_INNER_SIGN | RESP_CLASS_DOT | RESP_CLASS_ALPHA);
 
     // Simple strings: +OK\r\n, +PONG\r\n.
     case RESP_SIMPLE_STRING_PREFIX:    // Simple String
