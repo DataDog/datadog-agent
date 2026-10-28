@@ -212,6 +212,17 @@ and its stale source references. Remove the obsolete rule and its unused load ex
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
 
+#### Only add `# keep` when Gazelle would otherwise change the code
+
+A `# keep` comment is only useful when Gazelle would rewrite or drop the value it annotates. Do not add one:
+
+- on attributes Gazelle never manages (`target_compatible_with`, `tags`, `data`, `env`, `gotags`, `linkmode`, ...),
+- on top-level assignments or other non-rule statements,
+- on a value or rule that already matches what Gazelle generates.
+
+To check whether a `# keep` is needed, remove it, run `bazel run //:gazelle -- ./path/to/package`, and keep it only if
+the resulting diff is non-empty. If you do add one, explain why on the same line (`# keep: <reason>`).
+
 #### `test/new-e2e/tests/` is not migrated — exclude new suite directories
 
 Most of `test/new-e2e/tests/` is listed in the root `BUILD.bazel` `# gazelle:exclude` block. Those suites provision real

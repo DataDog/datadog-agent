@@ -373,6 +373,28 @@ network_path:
 	assert.True(t, newConfig(standard, testSysprobe(t, true)).enabled)
 }
 
+func TestConfigBasicTestsStandDownWhenTracerouteDisabled(t *testing.T) {
+	tests := []struct {
+		name          string
+		yaml          string
+		traceroute    bool
+		expectEnabled bool
+	}{
+		{name: "basic, traceroute explicitly enabled", traceroute: true, expectEnabled: true},
+		{name: "basic, traceroute explicitly disabled", traceroute: false},
+		{name: "standard, traceroute explicitly disabled", yaml: "network_path:\n  connections_monitoring:\n    enabled: true\n", traceroute: false, expectEnabled: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sysprobe := sysprobeconfigmock.NewMockWithOverrides(t, map[string]any{
+				"network_config.enabled": true,
+				"traceroute.enabled":     tt.traceroute,
+			})
+			assert.Equal(t, tt.expectEnabled, newConfig(mock.NewFromYAML(t, tt.yaml), sysprobe).enabled)
+		})
+	}
+}
+
 func TestConfigEnabledForEUDMBasicNetworkPathTests(t *testing.T) {
 	config := mock.NewFromYAML(t, "infrastructure_mode: end_user_device\n")
 	assert.True(t, newConfig(config, testSysprobe(t, false)).enabled)
