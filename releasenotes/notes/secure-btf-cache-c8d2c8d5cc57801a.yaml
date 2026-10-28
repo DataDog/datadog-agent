@@ -1,0 +1,10 @@
+---
+security:
+  - |
+    Secure the system-probe BTF cache by validating directory ownership and permissions
+    before reading or extracting embedded and downloaded BTF files.
+deprecations:
+  - |
+    The ``system_probe_config.btf_output_dir`` setting and
+    ``DD_SYSTEM_PROBE_BTF_OUTPUT_DIR`` environment variable are deprecated and ignored.
+    BTF files are always cached in ``/var/tmp/datadog-agent/system-probe/btf``.

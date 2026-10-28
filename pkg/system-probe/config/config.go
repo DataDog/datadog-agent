@@ -177,6 +177,10 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[types.NoisyNeighborModule] = struct{}{}
 	}
+	if cfg.GetBool(pktcapNS("enabled")) {
+		c.EnabledModules[types.PacketCaptureModule] = struct{}{}
+		c.PacketCaptureSocket = cfg.GetString(pktcapNS("socket"))
+	}
 	// Read from the core config (datadog.yaml), not the system-probe config, so that
 	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:
 	// end_user_device) also starts the system-probe module.

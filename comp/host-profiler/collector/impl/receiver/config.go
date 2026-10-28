@@ -9,6 +9,7 @@ package receiver
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,11 +31,13 @@ type Config struct {
 }
 
 // defaultEnvVars lists environment variables read from profiled processes to populate
-// unified service tags (service, env, version) in OTLP resource attributes.
+// unified service tags (service, env, version) and the crashtracking monitor process marker
+// in OTLP resource attributes.
 // The order indicates which environment variable takes precedence.
 var defaultEnvVars = []string{
 	"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION",
 	"OTEL_RESOURCE_ATTRIBUTES", // TODO: remove once we rebase our fork on upstream.
+	"DD_CRASHTRACKING_IS_MONITOR_PROCESS",
 }
 
 var _ confmap.Validator = (*Config)(nil)
@@ -47,6 +50,12 @@ func errSymbolEndpointsSiteRequired() error {
 }
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
+}
+func errSymbolUploaderReportIntervalInvalid() error {
+	return fmt.Errorf("symbol_uploader.report.interval must be positive and at most %s", symboluploader.MaxReportInterval)
+}
+func errSymbolUploaderReportMaxInvalid() error {
+	return fmt.Errorf("symbol_uploader.report.max_paths_per_report must be positive and at most %d", symboluploader.MaxReportMaxPathsPerReport)
 }
 
 // Validate validates the config.
@@ -76,6 +85,12 @@ func (c *Config) Validate() error {
 			if endpoint.APIKey == "" {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
+		}
+		if c.SymbolUploader.Report.Interval <= 0 || c.SymbolUploader.Report.Interval > symboluploader.MaxReportIntervalSeconds {
+			return errSymbolUploaderReportIntervalInvalid()
+		}
+		if c.SymbolUploader.Report.MaxPathsPerReport <= 0 || c.SymbolUploader.Report.MaxPathsPerReport > symboluploader.MaxReportMaxPathsPerReport {
+			return errSymbolUploaderReportMaxInvalid()
 		}
 	}
 	return nil
