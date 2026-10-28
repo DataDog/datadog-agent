@@ -3082,6 +3082,24 @@ func TestAcquireHostnameCoreAgentUnreachable(t *testing.T) {
 	require.Error(t, acquireHostname(cfg))
 }
 
+func TestDebugServerHostFollowsCmdHost(t *testing.T) {
+	t.Run("ipv6", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"cmd_host": "::1",
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "::1", cfg.DebugServerHost)
+		assert.Equal(t, "[::1]:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
+
+	t.Run("default", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, nil).Object()
+		require.NotNil(t, cfg)
+		assert.Equal(t, "localhost", cfg.DebugServerHost)
+		assert.Equal(t, "127.0.0.1:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
+	})
+}
+
 func TestAcquireHostnameFallbackEUDM(t *testing.T) {
 	cfg := configcomp.NewMock(t)
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
