@@ -208,6 +208,11 @@ register_toolchains(
     "//bazel/toolchains/dd_strip:windows_toolchain",
 )
 
+register_toolchains(
+    "//bazel/rules/windows:linux_x86_64_toolchain",
+    "//bazel/rules/windows:windows_toolchain",
+)
+
 #########################
 ## Prebuilt binaries   ##
 #########################
@@ -407,6 +412,10 @@ llvm_toolchain.target(
 llvm_toolchain.target(
     arch = "x86_64",
     os = "macos",
+)
+llvm_toolchain.target(
+    arch = "x86_64",
+    os = "windows",
 )
 use_repo(llvm_toolchain, "llvm_toolchains")
 

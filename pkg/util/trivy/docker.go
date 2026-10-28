@@ -130,7 +130,10 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return nil, "", fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+	// From API 1.52, the daemon omits GraphDriver for the images of its
+	// containerd image store.
+	driver := fanalImage.inspect.GraphDriver
+	if scanOptions.OverlayFsScan && driver != nil && driver.Name == "overlay2" {
 		layers, err := buildDockerLayerPaths(fanalImage.inspect)
 		if err != nil {
 			return nil, "overlayfs", fmt.Errorf("unable to pair layer paths for image %s: %w", imgMeta.ID, err)

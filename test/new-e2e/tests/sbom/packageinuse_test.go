@@ -57,7 +57,7 @@ const (
 // when the usage it carries started being recorded, as a Unix timestamp
 // (seconds). Until the usage window of its workload closes, one refresh period
 // later, an unseen package goes out stripped of its runtime properties.
-const propUsageObservedSince = "UsageObservedSince"
+const propUsageObservedSince = "datadog:usage:ObservedSince"
 
 // usageWindow is how long the usage of a workload is recorded before an unseen
 // package reads "0": the refresh period the suites set for the host and the
