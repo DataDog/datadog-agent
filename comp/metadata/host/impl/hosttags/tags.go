@@ -19,8 +19,10 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
@@ -49,20 +51,44 @@ type providerDef struct {
 	getTags func(context.Context) ([]string, error)
 }
 
-func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
+func getProvidersDefinitions(ctx context.Context, conf model.Reader) map[string]*providerDef {
 	providers := make(map[string]*providerDef)
 
-	if conf.GetBool("collect_gce_tags") {
+	// We should not try to fetch host tags for a cloud we know we are not
+	// running on
+	// We should only attempt to resolve the cloud provider if we need to retrieve cloud provider info
+	var cloudProvider string
+	if conf.GetBool("collect_gce_tags") || conf.GetBool("collect_ec2_tags") || conf.GetBool("collect_ec2_instance_info") {
+		cloudProvider, _ = cloudproviders.DetectCloudProvider(ctx, false)
+	}
+	// shouldCollect returns whether the given setting is enabled and the host is not
+	// running on a cloud provider other than the one the setting targets. When the
+	// setting was explicitly configured by the user but is bypassed, a warning is
+	// logged to make it visible (settings enabled by default are bypassed silently).
+	shouldCollect := func(setting string, provider string) bool {
+		if !conf.GetBool(setting) {
+			return false
+		}
+		if cloudProvider == "" || cloudProvider == provider {
+			return true
+		}
+		if conf.IsConfigured(setting) {
+			log.Warnf("'%s' is enabled but the host is running on %s, not %s: skipping collection", setting, cloudProvider, provider)
+		}
+		return false
+	}
+
+	if shouldCollect("collect_gce_tags", gce.CloudProviderName) {
 		providers["gce"] = &providerDef{1, gce.GetTags}
 	}
 
-	if conf.GetBool("collect_ec2_tags") {
+	if shouldCollect("collect_ec2_tags", ec2.CloudProviderName) {
 		// WARNING: if this config is enabled on a non-ec2 host, then its
 		// retries may time out, causing a 3s delay
 		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
-	if conf.GetBool("collect_ec2_instance_info") {
+	if shouldCollect("collect_ec2_instance_info", ec2.CloudProviderName) {
 		providers["ec2_instance_info"] = &providerDef{3, ec2tags.GetInstanceInfo}
 	}
 
@@ -181,7 +207,7 @@ func Get(ctx context.Context, cached bool, conf model.Reader, includeInfraMode b
 	hostTags = appendToHostTags(hostTags, getInfraTags(conf))
 
 	gceTags := []string{}
-	providers := getProvidersDefinitionsFunc(conf)
+	providers := getProvidersDefinitionsFunc(ctx, conf)
 	for {
 		for name, provider := range providers {
 			provider.retries--
