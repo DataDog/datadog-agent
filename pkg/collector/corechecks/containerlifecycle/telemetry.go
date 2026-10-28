@@ -32,6 +32,6 @@ var bundleSize = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 	"subscription_bundle_size",
 	[]string{"channel"},
 	"Number of events in each bundle received from a workloadmeta subscription channel",
-	[]float64{1, 5, 10, 50, 100, 250, 500, 1000, 5000},
+	[]float64{1, 5, 10, 25, 50, 100, 250, 500},
 	telemetry.Options{NoDoubleUnderscoreSep: true},
 )

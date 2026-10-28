@@ -152,7 +152,7 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 	}
 
 	bundle.Ch = nil                 // to avoid comparing the channel
-	bundle.EnqueuedAt = time.Time{} // set by the Store, not deterministic
+	bundle.EnqueuedAt = time.Time{} // set by the Store
 	assert.Equal(t, expected, bundle)
 }
 
