@@ -468,6 +468,12 @@ func TestSubmitterExpiresStaleStatusAndRejectsOlderFeedback(t *testing.T) {
 	s.updateRTStatus(inactive, 3, &model.CollectorStatus{ActiveClients: 0})
 	<-notifier.Wake
 	activeUpdatedAt := s.endpointRTStatuses[active].updatedAt
+	// Windows can assign the same timestamp to consecutive responses. Keep
+	// the healthy status fresh when the unreachable status reaches its TTL.
+	inactiveStatus := s.endpointRTStatuses[inactive]
+	inactiveStatus.updatedAt = activeUpdatedAt.Add(time.Second)
+	s.endpointRTStatuses[inactive] = inactiveStatus
+
 	s.expireRTStatuses(activeUpdatedAt.Add(rtStatusTTL - time.Nanosecond))
 	assert.Len(t, notifier.Latest().Statuses, 2)
 	s.expireRTStatuses(activeUpdatedAt.Add(rtStatusTTL))
