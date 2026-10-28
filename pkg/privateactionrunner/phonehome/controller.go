@@ -63,10 +63,13 @@ func Run(ctx context.Context, cfg model.Reader, source Source) {
 	if !Enabled(cfg) {
 		return
 	}
+	mode, err := deployment.Resolve(cfg)
+	if err == nil && mode != deployment.Split {
+		return
+	}
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
-	mode, err := deployment.Resolve(cfg)
 	if runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent || err != nil || mode != deployment.Split ||
 		!filepath.IsAbs(cfg.GetString(par.IdentityFilePath)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		publish(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})

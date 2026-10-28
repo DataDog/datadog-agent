@@ -19,6 +19,10 @@ PIDFile={{.InstallDir}}/run/agent.pid
 User=dd-agent
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Procmgr}}
+# This service layout does not start procmgr.
+Environment="DD_PROCESS_MANAGER_ENABLED=false"
+{{- end}}
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 Environment="EXPERIMENT_TIMEOUT=3000s"

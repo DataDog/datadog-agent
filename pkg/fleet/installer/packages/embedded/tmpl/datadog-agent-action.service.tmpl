@@ -17,6 +17,10 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Procmgr}}
+# Match core's effective deployment mode in the non-procmgr service layout.
+Environment="DD_PROCESS_MANAGER_ENABLED=false"
+{{- end}}
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 {{- end}}

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Keep Private Action Runner deployment selection consistent with the packaged
+    host service layout. SysV, Upstart, and systemd installations without the
+    process manager use monolithic PAR when explicitly enabled, without waiting
+    for core-owned startup authorization. A temporarily unavailable process
+    manager does not cause split deployments to fall back to monolithic mode.

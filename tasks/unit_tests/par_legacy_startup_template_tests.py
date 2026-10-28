@@ -121,7 +121,7 @@ AS_AGENT=yes PATH=/usr/bin:/bin exec "$shell" -c "$command" "$@"
             daemon = commands / 'start-stop-daemon'
             self.executable(
                 daemon,
-                '''echo "$* split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-unset}" >> "$CALLS"
+                '''echo "$* split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-unset} manager=${DD_PROCESS_MANAGER_ENABLED:-unset}" >> "$CALLS"
 case " $* " in *" --exec "*) ;; *) exit 90 ;; esac
 case "$1" in
     --status)
@@ -180,6 +180,7 @@ log_warning_msg() { echo "WARNING: $*"; }
                 'PATH': str(commands),
                 'POSIXLY_CORRECT': '1',
                 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
+                'DD_PROCESS_MANAGER_ENABLED': 'true',
                 'PIDFILE': str(pidfile),
                 'CALLS': str(calls),
                 'SLEEPS': str(sleeps),
@@ -224,7 +225,7 @@ log_warning_msg() { echo "WARNING: $*"; }
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(sleeps, ['1', '1'])
                 self.assertEqual(calls.count('--status'), 3)
-                self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                self.assertRegex(calls, r'--start .*--make-pidfile .*split=true manager=false')
                 self.assertIn('monolithic mode', result.stdout)
                 self.assertNotIn('WARNING', result.stdout)
 
@@ -335,7 +336,7 @@ log_warning_msg() { echo "WARNING: $*"; }
             runner = root / 'runner.py'
             runner.write_text('''import os, signal, sys
 assert os.getsid(0) == os.getpgrp() == os.getpid()
-assert os.environ['DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED'] == 'false'
+assert os.environ['DD_PROCESS_MANAGER_ENABLED'] == 'false'
 if sys.argv[1] == 'running':
     while True:
         signal.pause()
@@ -380,13 +381,69 @@ log_failure_msg() { echo "$*"; }''',
                     finally:
                         service('stop')
 
+    def test_core_legacy_launchers_disable_process_manager(self):
+        templates = (
+            'packages/debian/etc/sysvinit_debian.in',
+            'packages/debian/etc/upstart_debian.conf.in',
+            'packages/redhat/etc/upstart_redhat.conf.in',
+        )
+        for name in templates:
+            with self.subTest(template=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                binary = root / 'bin/agent/agent'
+                binary.parent.mkdir(parents=True)
+                self.executable(binary, 'echo "manager=$DD_PROCESS_MANAGER_ENABLED"\n')
+                source = (REPO_ROOT / name).read_text()
+                if 'sysvinit' in name:
+                    block = re.search(r'^do_start\(\)\n\{.*?^\}', source, re.MULTILINE | re.DOTALL)
+                    self.assertIsNotNone(block)
+                    script = f'AGENTPATH="{binary}"\nPIDFILE="{root}/pid"\nAGENT_USER=fixture\nAGENT_ARGS=run\n'
+                    script += block.group() + '\ndo_start\n'
+                    self.executable(
+                        root / 'start-stop-daemon',
+                        '''case " $* " in *" --test "*) exit 0 ;; esac
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = --startas ]; then shift; exec "$1"; fi
+    shift
+done
+exit 2
+''',
+                    )
+                else:
+                    blocks = re.findall(r'^script\n(.*?)^end script$', source, re.MULTILINE | re.DOTALL)
+                    self.assertEqual(len(blocks), 1)
+                    script = blocks[0].replace('{install_dir}', tmp)
+                logfile = root / 'errors.log'
+                script = script.replace('/var/log/datadog/errors.log', str(logfile))
+                self.executable(
+                    root / 'su',
+                    '''shell=$2
+command=$4
+shift 6
+exec "$shell" -c "$command" "$@"
+''',
+                )
+                result = subprocess.run(
+                    [shutil.which('bash'), '-c', script],
+                    env={**os.environ, 'PATH': f'{tmp}:/usr/bin:/bin', 'DD_PROCESS_MANAGER_ENABLED': 'true'},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                output = result.stdout + (logfile.read_text() if logfile.exists() else '')
+                self.assertIn('manager=false', output)
+
     def test_upstart_script_blocks_force_monolithic_without_warning(self):
         for template in UPSTART_TEMPLATES:
             with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 binary = root / 'embedded/bin/privateactionrunner'
                 binary.parent.mkdir(parents=True)
-                self.executable(binary, 'echo "split=$DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"\n')
+                self.executable(
+                    binary, 'echo "split=$DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED manager=$DD_PROCESS_MANAGER_ENABLED"\n'
+                )
                 # Upstart's script/end script delimiters are syntax, not layout comments.
                 blocks = re.findall(r'^script\n(.*?)^end script$', template.read_text(), re.MULTILINE | re.DOTALL)
                 self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
@@ -407,6 +464,7 @@ exec "$shell" -c "$command" "$@"
                         **os.environ,
                         'PATH': f'{tmp}:/usr/bin:/bin',
                         'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
+                        'DD_PROCESS_MANAGER_ENABLED': 'true',
                     },
                     text=True,
                     capture_output=True,
@@ -414,6 +472,6 @@ exec "$shell" -c "$command" "$@"
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 output = result.stdout + (logfile.read_text() if logfile.exists() else '')
-                self.assertIn('split=false', output)
+                self.assertIn('split=true manager=false', output)
                 self.assertIn('monolithic mode', output)
                 self.assertNotIn('not supported', output)

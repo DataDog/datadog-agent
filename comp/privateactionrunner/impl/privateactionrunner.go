@@ -139,7 +139,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrSplitDeployment
 	}
 	if deployment.Requested(reqs.Config) {
-		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
+		reqs.Log.Info("Split deployment is not selected for this environment; continuing with the monolithic PAR")
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
@@ -372,6 +372,14 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	}
 	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
+	}
+	mode, err := deployment.Resolve(p.coreConfig)
+	if err != nil {
+		return runCtx, nil, err
+	}
+	if mode != deployment.Split {
+		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
+		return runCtx, nil, nil
 	}
 	cfg, err := p.getRunnerConfig(ctx)
 	if errors.Is(err, opms.ErrEnrollmentRejected) {

@@ -48,7 +48,12 @@ func resolve(cfg model.Reader, goos string, containerized bool, envValue string,
 	if !requested(cfg.GetBool(par.SplitEnabled), containerized, envValue) {
 		return Monolithic, nil
 	}
-	if cfg.GetBool("fips.enabled") || !(goos == "linux" || (goos == "windows" && !containerized && cfg.GetBool("process_manager.enabled"))) {
+	if cfg.GetBool("fips.enabled") || !(goos == "linux" || (goos == "windows" && !containerized)) {
+		return Monolithic, nil
+	}
+	// Packaged host launchers opt out when their service layout does not start procmgr.
+	// Containers explicitly launch their own supervisor instead.
+	if !containerized && !cfg.GetBool("process_manager.enabled") {
 		return Monolithic, nil
 	}
 	buildFIPS, err := fipsEnabled()

@@ -27,6 +27,28 @@ import (
 	"google.golang.org/grpc"
 )
 
+func TestUnavailableSupervisorKeepsWaitingWithoutDiscovery(t *testing.T) {
+	f := newFixture(t)
+	f.pm.control = nil
+	f.c.source = nil
+	require.Equal(t, pollInterval, f.c.step(context.Background()))
+	require.Equal(t, phonehomedef.StateWaiting, f.state.State)
+	require.Equal(t, phonehomedef.ReasonSupervisorUnavailable, f.state.Reason)
+	require.Zero(t, f.pm.starts)
+	require.False(t, f.c.attempted)
+}
+
+func TestMonolithicRunDoesNotWaitForSupervisor(t *testing.T) {
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest(par.Enabled, true)
+	cfg.SetInTest(par.SplitEnabled, true)
+	previous := Status()
+	// A nil source would panic if the unsupported deployment attempted discovery.
+	Run(context.Background(), cfg, nil)
+	require.Equal(t, previous, Status(), "no waiting/blocked status for monolithic PAR")
+}
+
 type supervisor struct {
 	pb.ProcessManagerClient
 	control, executor *pb.ProcessDetail
