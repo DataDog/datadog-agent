@@ -16,6 +16,7 @@ go_library(
         "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/runner/def",
+        "//pkg/util/flavor",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
@@ -43,6 +44,7 @@ dd_agent_go_test(
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/runner/def",
         "//pkg/config/env",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

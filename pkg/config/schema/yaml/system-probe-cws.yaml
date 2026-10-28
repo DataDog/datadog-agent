@@ -362,6 +362,22 @@ properties:
     node_type: section
     type: object
     properties:
+      bind:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
       connect:
         node_type: section
         type: object
@@ -564,11 +580,11 @@ properties:
       enrichment_interval:
         node_type: setting
         type: string
-        default: 1m
+        default: 30m
       forward_interval:
         node_type: setting
         type: string
-        default: 20s
+        default: 1m
       generate_policies:
         node_type: setting
         type: boolean
@@ -708,6 +724,11 @@ properties:
         node_type: setting
         type: integer
         default: 20
+        description: |
+          Maximum number of image tag versions retained per security profile,
+          for both v1 and v2. The least recently seen version and its exclusive
+          activities are evicted when the limit is exceeded. Values below 1
+          are treated as 1.
       node_eviction_timeout:
         node_type: setting
         type: string
@@ -739,6 +760,7 @@ properties:
             - open
             - dns
             - bind
+            - mount
             - connect
             - capabilities
             items:
@@ -789,6 +811,24 @@ properties:
             node_type: setting
             type: string
             default: 30s
+          tag_resolution:
+            node_type: section
+            type: object
+            properties:
+              max_pending_events:
+                node_type: setting
+                type: integer
+                default: 4096
+                description: |
+                  Maximum number of events, across all workloads, held while
+                  waiting for their workload tags to be resolved.
+              max_pending_events_per_cgroup:
+                node_type: setting
+                type: integer
+                default: 512
+                description: |
+                  Maximum number of events per workload held while waiting for
+                  its tags to be resolved.
       watch_dir:
         node_type: setting
         type: boolean

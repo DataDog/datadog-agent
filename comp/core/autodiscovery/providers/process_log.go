@@ -99,7 +99,7 @@ func addSources(sources map[string]bool, path string, sourcePattern *regexp.Rege
 func discoverIntegrationSources() map[string]bool {
 	sources := make(map[string]bool)
 
-	// Build search paths similar to LoadComponents
+	// Build search paths similar to AutoConfig's default preparation
 	searchPaths := []string{
 		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
 		pkgconfigsetup.Datadog().GetString("confd_path"),

@@ -11,6 +11,7 @@ go_library(
         "process_procmgr_config_windows.go",
         "procmgr_yaml_placeholders_windows.go",
         "reload_windows.go",
+        "security_procmgr_config_windows.go",
         "sysprobe_procmgr_config_windows.go",
         "trace_procmgr_config_windows.go",
     ],

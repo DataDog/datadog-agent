@@ -18,6 +18,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -35,7 +36,15 @@ const (
 	//   (timestamps: ~60 chars, static text: ~50 chars)
 	// Conservative estimate: 250 chars
 	bundleFixedOverhead = 250
+
+	// truncatedMessageMarker replaces the tail of an event message cut down to
+	// fit the events API limit.
+	truncatedMessageMarker = "... (truncated)"
 )
+
+// errEventTextTooLong is returned when a single event's text is too long to fit
+// in any bundle, so the event is dropped.
+var errEventTextTooLong = errors.New("event text length exceeds the maximum allowed length")
 
 type kubernetesEventBundle struct {
 	involvedObject      v1.ObjectReference // Parent object for this event bundle
@@ -57,7 +66,7 @@ func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesE
 		countByAction:       make(map[string]int),
 		alertType:           getDDAlertType(event.Type),
 		hostInfo:            getEventHostInfo(clusterName, event),
-		estimatedSize:       bundleFixedOverhead + len(event.Source.Component),
+		estimatedSize:       bundleFixedOverhead + escapedLength(event.Source.Component),
 	}
 }
 
@@ -68,7 +77,7 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	eventText, fits := b.fitsEvent(event)
 	if !fits {
-		return fmt.Errorf("event text length exceeds the maximum allowed length: %d > %d", len(eventText), maxEstimatedEventTextLength)
+		return fmt.Errorf("%w: %d > %d (%s)", errEventTextTooLong, escapedLength(eventText), maxEstimatedEventTextLength, describeKubernetesEvent(event))
 	}
 
 	// We do not process the events in chronological order necessarily.
@@ -112,6 +121,8 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 		tags = append(tags, "host_provider_id:"+b.hostInfo.providerID)
 	}
 
+	tags = taggerutils.AppendUniqueTags(tags, taggerInstance.GetInfraTags()...)
+
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := event.Event{
 		Title:          "Events from the " + readableKey,
@@ -145,7 +156,7 @@ func (b *kubernetesEventBundle) formatEventText() string {
 }
 
 func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
-	eventText := "**" + event.Reason + "**: " + event.Message + "\n"
+	eventText := buildEventText(event.Reason, event.Message)
 
 	// If we haven't seen this action before, and adding it would probably exceed the limit, deny it
 	if b.countByAction[eventText] == 0 && (b.estimatedSize+estimateEventOverhead(eventText) > maxEstimatedEventTextLength) {
@@ -153,6 +164,11 @@ func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
 	}
 
 	return eventText, true
+}
+
+// buildEventText formats an event's entry text as it appears in a bundle.
+func buildEventText(reason, message string) string {
+	return "**" + reason + "**: " + message + "\n"
 }
 
 func formatStringIntMap(input map[string]int) string {
@@ -174,10 +190,61 @@ func formatStringIntMap(input map[string]int) string {
 }
 
 // estimateEventOverhead calculates the overhead for a single event in the bundle
-// including count representation, space, and the event text
+// including count representation, space, and the escaped event text
 func estimateEventOverhead(eventText string) int {
 	// Count: worst case 10 digits (max int32 ~2 billion) +
 	// Space separator: 1 char +
 	// Event text
-	return 10 + 1 + len(eventText)
+	return 10 + 1 + escapedLength(eventText)
+}
+
+// escapedLength returns the length of s after formatEventText escapes every
+// '~' as '\~'.
+func escapedLength(s string) int {
+	return len(s) + strings.Count(s, "~")
+}
+
+// escapedPrefixLen returns the byte length of the longest prefix of s whose
+// escaped length fits budget.
+func escapedPrefixLen(s string, budget int) int {
+	for i := 0; i < len(s); i++ {
+		cost := 1
+		if s[i] == '~' {
+			cost = 2
+		}
+		if budget < cost {
+			return i
+		}
+		budget -= cost
+	}
+	return len(s)
+}
+
+// truncateOversizedEvent truncates the event message if it exceeds the limit, otherwise returns the event unchanged.
+func truncateOversizedEvent(event *v1.Event) (*v1.Event, bool) {
+	// The event text limit for an empty bundle: the total budget minus the
+	// fixed overhead, the component name and the estimated count prefix.
+	limit := maxEstimatedEventTextLength - bundleFixedOverhead - escapedLength(event.Source.Component) - estimateEventOverhead("")
+
+	// If the event text fits the limit, return the event unchanged
+	if escapedLength(buildEventText(event.Reason, event.Message)) <= limit {
+		return event, false
+	}
+
+	// Leave room for the reason, the marker and the newline.
+	messageBudget := max(limit-escapedLength(buildEventText(event.Reason, ""))-escapedLength(truncatedMessageMarker), 0)
+
+	truncated := *event
+	truncated.Message = strings.ToValidUTF8(event.Message[:escapedPrefixLen(event.Message, messageBudget)], "") + truncatedMessageMarker
+	return &truncated, true
+}
+
+// describeKubernetesEvent identifies an event for logs. Source.Component is
+// only set on old-style events; ReportingController is the new-style equivalent.
+func describeKubernetesEvent(event *v1.Event) string {
+	source := event.Source.Component
+	if source == "" {
+		source = event.ReportingController
+	}
+	return fmt.Sprintf("reason: %s, source: %s, involved_object: %s", event.Reason, source, buildReadableKey(event.InvolvedObject))
 }

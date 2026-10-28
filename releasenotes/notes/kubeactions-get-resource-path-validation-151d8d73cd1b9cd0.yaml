@@ -1,0 +1,12 @@
+---
+security:
+  - |
+    Cluster Agent Kubernetes actions: the ``get_resource`` action now rejects
+    resource kinds and API versions that are not valid Kubernetes names.
+    Before this fix, a crafted value containing ``/`` or ``..`` could get
+    around the protections on Secrets and system namespaces and read other
+    resources that the Cluster Agent service account has access to.
+    The protected-namespace check is now also case-insensitive, and the
+    ``get_resource`` action no longer lowercases the namespace and name. Before
+    this fix, a namespace such as ``Kube-System`` passed the check and was then
+    read as ``kube-system``.

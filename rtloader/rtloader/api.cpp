@@ -4,7 +4,7 @@
 // (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 #ifdef _WIN32
-#    include <Windows.h>
+#    include <windows.h>
 #else
 #    include <dlfcn.h>
 #endif

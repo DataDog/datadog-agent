@@ -14,17 +14,22 @@ OUTPUT=$3
 
 source "{helper}"
 
-RESOLVED_RPATH=$(origin_rpath '$ORIGIN' "$RPATH")
-"{patchelf}" --set-rpath "$RESOLVED_RPATH" --force-rpath "$INPUT" --output "$OUTPUT"
+if needs_rpath "{patchelf}" "{readelf}" "$INPUT"; then
+    RESOLVED_RPATH=$(origin_rpath '$ORIGIN' "$RPATH")
+    "{patchelf}" --set-rpath "$RESOLVED_RPATH" --force-rpath "$INPUT" --output "$OUTPUT"
+else
+    cp -L "$INPUT" "$OUTPUT"
+fi
 """.format(
             helper = ctx.file._helper.path,
             patchelf = ctx.executable.patchelf.path,
+            readelf = ctx.executable.readelf.path,
         ),
     )
 
     return DefaultInfo(
         executable = rewriter_tool,
-        files = depset([rewriter_tool, ctx.file._helper, ctx.executable.patchelf]),
+        files = depset([rewriter_tool, ctx.file._helper, ctx.executable.patchelf, ctx.executable.readelf]),
     )
 
 patchelf_rpath_rewriter = rule(
@@ -32,6 +37,13 @@ patchelf_rpath_rewriter = rule(
     attrs = {
         "patchelf": attr.label(
             doc = "A valid label of a target pointing at a patchelf executable.",
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+            mandatory = True,
+        ),
+        "readelf": attr.label(
+            doc = "A valid label of a target pointing at a readelf executable.",
             cfg = "exec",
             executable = True,
             allow_files = True,
@@ -65,18 +77,21 @@ cp -rL "$INPUT/." "$OUTPUT"
 chmod -R u+w "$OUTPUT"
 
 while IFS= read -r -d '' f; do
-    RESOLVED_RPATH=$(origin_rpath_for_tree_file '$ORIGIN' "$OUTPUT" "$f" "$RPATH")
-    "{patchelf}" --set-rpath "$RESOLVED_RPATH" --force-rpath "$f"
+    if needs_rpath "{patchelf}" "{readelf}" "$f"; then
+        RESOLVED_RPATH=$(origin_rpath_for_tree_file '$ORIGIN' "$OUTPUT" "$f" "$RPATH")
+        "{patchelf}" --set-rpath "$RESOLVED_RPATH" --force-rpath "$f"
+    fi
 done < <(find "$OUTPUT" -type f \( -name '*.so' -o -name '*.so.*' \) -print0)
 """.format(
             helper = ctx.file._helper.path,
             patchelf = ctx.executable.patchelf.path,
+            readelf = ctx.executable.readelf.path,
         ),
     )
 
     return DefaultInfo(
         executable = rewriter_tool,
-        files = depset([rewriter_tool, ctx.file._helper, ctx.executable.patchelf]),
+        files = depset([rewriter_tool, ctx.file._helper, ctx.executable.patchelf, ctx.executable.readelf]),
     )
 
 patchelf_tree_rpath_rewriter = rule(
@@ -84,6 +99,13 @@ patchelf_tree_rpath_rewriter = rule(
     attrs = {
         "patchelf": attr.label(
             doc = "A valid label of a target pointing at a patchelf executable.",
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+            mandatory = True,
+        ),
+        "readelf": attr.label(
+            doc = "A valid label of a target pointing at a readelf executable.",
             cfg = "exec",
             executable = True,
             allow_files = True,

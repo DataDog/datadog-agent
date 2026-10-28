@@ -9,11 +9,13 @@
 package privatebundles
 
 import (
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
@@ -42,6 +44,7 @@ import (
 	com_datadoghq_kubernetes_admissionregistration "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/admission"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
 	com_datadoghq_kubernetes_apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
+	com_datadoghq_kubernetes_autoscaling "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/autoscaling"
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
@@ -63,7 +66,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
+func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, _ pcapuploader.Component, _ hostnameinterface.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
@@ -92,6 +95,7 @@ func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute tra
 			"com.datadoghq.kubernetes.admissionregistration":     com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
 			"com.datadoghq.kubernetes.apiextensions":             com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":                      com_datadoghq_kubernetes_apps.NewKubernetesApps(),
+			"com.datadoghq.kubernetes.autoscaling":               com_datadoghq_kubernetes_autoscaling.NewKubernetesAutoscaling(),
 			"com.datadoghq.kubernetes.batch":                     com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":                      com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),

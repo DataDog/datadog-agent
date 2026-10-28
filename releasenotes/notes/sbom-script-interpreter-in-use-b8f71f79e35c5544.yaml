@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment of host and container SBOMs reports the package
+    of the interpreter of a script as running, such as the package of
+    ``python3`` or ``perl`` named on the ``#!`` line of the script. A package
+    run only through scripts read as not running.

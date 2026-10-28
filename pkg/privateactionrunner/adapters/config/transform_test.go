@@ -107,6 +107,45 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 	}
 }
 
+func TestIsActionAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		allowlist []string
+		bundleID  string
+		action    string
+		allowed   bool
+	}{
+		{"exact action", []string{"com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "getPod", true},
+		{"different action", []string{"com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "deletePod", false},
+		{"bundle wildcard", []string{"com.datadoghq.kubernetes.core.*"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"kubernetes wildcard", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"gitlab wildcard", []string{"com.datadoghq.gitlab.*"}, "com.datadoghq.gitlab.projects", "listProjects", true},
+		{"root bundle wildcard", []string{"com.datadoghq.http.*"}, "com.datadoghq.http", "request", true},
+		{"nested bundle wildcard", []string{"com.datadoghq.authoredscripts.*"}, "com.datadoghq.authoredscripts.helm.repo", "add", true},
+		{"parent wildcard with exact bundle entry", []string{"com.datadoghq.kubernetes.*", "com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"other integration", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.gitlab.projects", "listProjects", false},
+		{"similar integration prefix", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.kubernetesother.core", "getPod", false},
+		{"sibling bundle", []string{"com.datadoghq.kubernetes.core.*"}, "com.datadoghq.kubernetes.apps", "listDeployment", false},
+		{"exact action does not cover children", []string{"com.datadoghq.kubernetes.getPod"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"global wildcard", []string{"*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"namespace wildcard", []string{"com.datadoghq.*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"namespace wildcard on namespace", []string{"com.datadoghq.*"}, "com.datadoghq", "getPod", false},
+		{"empty integration", []string{"com.datadoghq..*"}, "com.datadoghq..core", "getPod", false},
+		{"other namespace", []string{"com.other.kubernetes.*"}, "com.other.kubernetes.core", "getPod", false},
+		{"embedded wildcard", []string{"com.datadoghq.kube*.*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"empty allowlist", nil, "com.datadoghq.kubernetes.core", "getPod", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+			mockConfig.SetInTest(par.ActionsAllowlist, tt.allowlist)
+			config := &Config{ActionsAllowlist: makeActionsAllowlist(mockConfig)}
+			assert.Equal(t, tt.allowed, config.IsActionAllowed(tt.bundleID, tt.action))
+		})
+	}
+}
+
 func TestGetDatadogHost(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -433,6 +472,32 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
 		assert.False(t, has)
+	})
+
+	t.Run("kubeactions bundle is not allowed when its private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
+
+	t.Run("explicit allowlist entries still apply when the kubeactions private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.kubernetes.kubeactions.getResource"})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("getResource"))
+		assert.False(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("deletePod"))
 	})
 }
 

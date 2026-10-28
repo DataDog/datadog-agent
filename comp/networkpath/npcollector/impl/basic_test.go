@@ -333,10 +333,29 @@ func TestStandardModeTakesPrecedenceOverBasic(t *testing.T) {
 	assert.False(t, pathtest.RunOnce)
 }
 
-func TestBasicEmptyWindowSelectsNothing(t *testing.T) {
+func TestBasicEmptyBootstrapWindowRetriesSoon(t *testing.T) {
+	now := MockTimeNow()
 	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
-	selector.start(MockTimeNow())
-	assert.Empty(t, selector.flush(MockTimeNow().Add(basicBootstrapWindow)))
+	selector.start(now)
+	assert.Empty(t, selector.flush(now.Add(basicBootstrapWindow)))
+
+	selector.add(basicPath("late"), 1, now.Add(8*time.Minute))
+	assert.Nil(t, selector.flush(now.Add(2*basicBootstrapWindow-time.Second)))
+	assert.Equal(t, []string{"late"}, pathHosts(selector.flush(now.Add(2*basicBootstrapWindow))))
+}
+
+func TestBasicEmptyHourlyWindowRetriesSoon(t *testing.T) {
+	now := MockTimeNow()
+	selector := newBasicSelector(basicCandidateLimit, basicSelectionsPerWindow)
+	selector.add(basicPath("bootstrap"), 1, now)
+	require.Len(t, selector.flush(now.Add(basicBootstrapWindow)), 1)
+
+	hourlyClose := now.Add(basicBootstrapWindow + basicSelectionInterval)
+	require.Empty(t, selector.flush(hourlyClose))
+
+	selector.add(basicPath("late"), 1, hourlyClose.Add(time.Minute))
+	assert.Nil(t, selector.flush(hourlyClose.Add(basicBootstrapWindow-time.Second)))
+	assert.Equal(t, []string{"late"}, pathHosts(selector.flush(hourlyClose.Add(basicBootstrapWindow))))
 }
 
 func TestBasicDisabledCreatesNoCollectorMachinery(t *testing.T) {

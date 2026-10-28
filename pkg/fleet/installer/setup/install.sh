@@ -82,7 +82,7 @@ DATADOG_AGENT_OPTIONAL_REMOVE_CMD
 
 echo "Downloading the Datadog installer..."
 if command -v curl >/dev/null; then
-  if ! sudo_env_cmd curl -L --retry 3 "$installer_url" --output "$tmp_bin" >/dev/null; then
+  if ! sudo_env_cmd curl -L --fail --retry 3 "$installer_url" --output "$tmp_bin" >/dev/null; then
     echo "Error: Download failed with curl." >&2
     exit 1
   fi

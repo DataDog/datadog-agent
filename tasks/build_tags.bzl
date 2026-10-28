@@ -39,7 +39,6 @@ ALL_TAGS = set([
     "ec2",
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
-    "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
@@ -49,6 +48,7 @@ ALL_TAGS = set([
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
+    "nodefilter",  # used for the nodefilter workloadmeta collector (node-scoped API-server pod watch)
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
@@ -104,7 +104,6 @@ AGENT_TAGS = set([
     "docker",
     "ec2",
     "fargateprocess",
-    "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
@@ -136,7 +135,6 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "docker",
         "ec2",
         "fargateprocess",
-        "jetson",
         "kubeapiserver",
         "kubelet",
         "nvml",
@@ -174,7 +172,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
+IOT_AGENT_TAGS = set(["systemd", "zlib"])
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = set(["ec2"])
@@ -259,7 +257,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = set(["netgo", "osusergo"])
 
-OTEL_AGENT_TAGS = set(["otlp", "zlib", "kubelet"])
+OTEL_AGENT_TAGS = set(["otlp", "zlib", "kubelet", "nodefilter"])
 
 LOADER_TAGS = set()
 
@@ -277,7 +275,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
+LINUX_ONLY_TAGS = set(["netcgo", "systemd", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
 
 # List of tags to always remove when building on AIX
 AIX_EXCLUDED_TAGS = set([
@@ -285,23 +283,14 @@ AIX_EXCLUDED_TAGS = set([
     "clusterchecks",
     "containerd",
     "cri",
-    "crio",
     "docker",
     "fargateprocess",
-    "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
-    "bpf",
-    "netcgo",
     "npm",
-    "nvml",
-    "pcap",
-    "podman",
     "sharedlibrarycheck",
-    "systemd",
     "systemprobechecks",
-    "trivy",
 ])
 
 # List of tags to always remove when building on Windows
@@ -331,7 +320,7 @@ DEP_ONLY_TAGS = COMMON_TAGS | set([
 BASE_TEST_TAGS = sorted(UNIT_TEST_TAGS)
 
 # Feature tags covered by the existing unit-test configurations.
-TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
+TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | OTEL_AGENT_TAGS | SYSTEM_PROBE_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
 
 # Supported feature tags that a test source may opt into through //go:build.
 AUTO_TEST_TAGS = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - UNIT_TEST_EXCLUDED_TAGS)

@@ -33,12 +33,6 @@ func getUpstreamEventSchema() string {
 var upstreamEventSchema = getUpstreamEventSchema()
 
 //nolint:unused
-func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
-	t.Helper()
-	return validateStringSchema(t, ad, "file:///activity_dump_proto.schema.json")
-}
-
-//nolint:unused
 func validateMessageSchema(t *testing.T, msg string) bool {
 	t.Helper()
 	if !validateStringSchema(t, msg, "file:///message.schema.json") {

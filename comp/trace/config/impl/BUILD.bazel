@@ -117,20 +117,9 @@ dd_agent_go_test(
         "config_test.go",
         "install_signature_test.go",
     ],
-    data = glob(["testdata/**"]) + [
-        "//comp/trace/config/impl/hostname_helper",  # keep
-    ],
+    data = glob(["testdata/**"]),
     embed = [":impl"],
-    embedsrcs = ["testdata/stringcode.go.tmpl"],
-    env = {
-        "HOSTNAME_HELPER": "$(rlocationpath //comp/trace/config/impl/hostname_helper)",  # keep
-    },
     gotags_sets = [["otlp"]],
-    # Windows runfiles path for hostname_helper is currently broken.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
@@ -150,11 +139,9 @@ dd_agent_go_test(
         "//pkg/trace/config",
         "//pkg/util/fxutil",
         "//pkg/util/log",
-        "//pkg/util/testutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_fx//:fx",
-        "@rules_go//go/runfiles",
     ],
 )

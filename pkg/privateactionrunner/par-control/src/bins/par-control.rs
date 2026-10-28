@@ -66,7 +66,7 @@ async fn run() -> Result<()> {
     log::set_max_level(bootstrapped.log_level());
 
     if !bootstrapped.split_mode() {
-        log::info!("private_action_runner split mode is disabled; exiting");
+        log::info!("private_action_runner split mode is inactive; exiting");
         return Ok(());
     }
 

@@ -42,7 +42,6 @@ def _cgo_godefs_impl(ctx):
     all_deps = list(ctx.attr.deps)
     inc = collect_include_dirs(all_deps)
     headers = collect_headers(all_deps + list(ctx.attr.hdrs))
-    src_dir = src.dirname
 
     # Filter out bazel-out and root dirs; keep only source-tree includes.
     # CcInfo adds generated output dirs that don't affect correctness but
@@ -52,56 +51,56 @@ def _cgo_godefs_impl(ctx):
         for d in dirs:
             if d.startswith("bazel-out") or d == ".":
                 continue
-            r = _relpath(d, src_dir)
+            r = _relpath(d, src.dirname)
             if r not in result:
                 result.append(r)
         return result
 
-    include_flags = " ".join(
-        ["-I " + d for d in _filter_and_rel(inc.includes)] +
-        ["-isystem " + d for d in _filter_and_rel(inc.system_includes)] +
-        ["-iquote " + d for d in _filter_and_rel(inc.quote_includes)],
-    )
+    cgo_flags = []
+    for flag, dirs in (
+        ("-I", inc.includes),
+        ("-isystem", inc.system_includes),
+        ("-iquote", inc.quote_includes),
+    ):
+        for d in _filter_and_rel(dirs):
+            cgo_flags.append(flag)
+            cgo_flags.append(d)
+    cgo_flags.append("-fsigned-char")
 
-    genpost_args = ""
     test_out = None
+    package_name = ""
     if platform == "linux":
         test_name = "_" + base + "_" + platform + "_test.go"
         test_out = ctx.actions.declare_file(test_name)
         outputs.append(test_out)
-        test_path_no_ext = test_out.path.removesuffix(".go")
         package_name = ctx.label.package.split("/")[-1]
-        genpost_args = "$ROOT/{test} {pkg}".format(test = test_path_no_ext, pkg = package_name)
 
-    cmd = (
-        "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +
-        "GOROOT=$ROOT/{goroot} CC=$ROOT/{cc} $ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
-        "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
-    ).format(
-        cc = ctx.file.c_compiler.path,
-        goroot = go.sdk.root_file.dirname,
-        src_dir = src.dirname,
-        go = go.sdk.go.path,
-        includes = include_flags,
-        src_file = src.basename,
-        genpost = genpost.path,
-        genpost_args = genpost_args,
-        out = out.path,
-    )
+    # genpost runs cgo itself and writes the outputs, so this does not need a
+    # shell to pipe cgo's stdout. Paths are execroot-relative; genpost makes
+    # CC and GOROOT absolute before changing to the source directory.
+    args = ctx.actions.args()
+    args.add("-out", out)
+    args.add("-src", src)
+    args.add("-go", go.sdk.go)
+    args.add("-cc", ctx.file.c_compiler)
+    args.add("-goroot", go.sdk.root_file.dirname)
+    if test_out:
+        args.add("-test", test_out)
+        args.add("-pkg", package_name)
+    args.add("--")
+    args.add_all(cgo_flags)
 
     env = dict(go.env)
     env["CGO_ENABLED"] = "1"
 
-    # run_shell needed: genpost reads stdin and writes stdout, so the pipeline
-    # `go tool cgo -godefs | genpost > out` requires shell pipe/redirect.
-    ctx.actions.run_shell(
+    ctx.actions.run(
         outputs = outputs,
         inputs = depset(
-            [src, go.sdk.go, ctx.file.c_compiler],
+            [src, go.sdk.go, ctx.file.c_compiler] + ctx.files.c_compiler_data,
             transitive = [headers, go.sdk.tools, go.sdk.srcs, go.sdk.libs],
         ),
-        tools = [genpost],
-        command = cmd,
+        executable = genpost,
+        arguments = [args],
         env = env,
         mnemonic = "CgoGodefs",
         progress_message = "Generating Go types from %{label}",
@@ -135,6 +134,11 @@ _cgo_godefs = go_rule(
         "c_compiler": attr.label(
             allow_single_file = True,
             cfg = "exec",
+        ),
+        "c_compiler_data": attr.label_list(
+            allow_files = True,
+            cfg = "exec",
+            doc = "Files the C compiler needs at run time, e.g. clang's builtin resource directory (stddef.h, ...).",
         ),
         "_genpost": attr.label(
             default = "//pkg/ebpf/cgo:genpost",
@@ -171,7 +175,13 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         hdrs = hdrs,
         c_compiler = select({
             "@platforms//os:windows": "@winlibs_mingw64//:gcc",
-            "//conditions:default": "@llvm_toolchain_llvm//:bin/clang",
+            "//conditions:default": "@llvm//tools:clang",
+        }),
+        # The minimal LLVM distribution ships builtin headers apart from the
+        # binary; clang finds them via bin/../lib/clang/<ver> only if staged.
+        c_compiler_data = select({
+            "@platforms//os:windows": [],
+            "//conditions:default": ["@llvm//:builtin_resource_dir"],
         }),
         target_compatible_with = compat,
     )
@@ -216,7 +226,7 @@ INTERNAL_FOR_TESTING = {"relpath": _relpath}
 cgo_godefs = macro(
     doc = """Generate Go type definitions from a CGo source file.
 
-    Runs `go tool cgo -godefs` on the source file, post-processes with genpost,
+    genpost runs `go tool cgo -godefs` on the source file and post-processes it,
     and on Linux also generates alignment test stubs.
 
     On Linux, the base eBPF headers (pkg/ebpf/c) are prepended

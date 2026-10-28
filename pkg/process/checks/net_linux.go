@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -39,6 +40,12 @@ func getRemoteProcessTags(pid int32, _ map[uint32][]string, processTagProvider f
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := network.GetNetworkID(context.Background())
 	if err != nil {
+		if errors.Is(err, network.ErrCloudProviderUnsupported) {
+			// the host's cloud provider is known and doesn't support network ID
+			// resolution: system-probe's fallback (EC2-only) wouldn't help either
+			// See cmd/system-probe/modules/network_tracer_linux.go
+			return "", err
+		}
 		if sysProbeClient == nil {
 			return "", fmt.Errorf("no network ID detected and system-probe client not available: %w", err)
 		}

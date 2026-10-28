@@ -87,6 +87,15 @@ def package_from_path(path: str) -> str:
     return result
 
 
+def is_bazel_workspace() -> bool:
+    """Whether the current directory is a Bazel workspace.
+
+    Branches that predate the Bazel migration (e.g. Agent 6, handled by release tasks running from main) have no
+    `MODULE.bazel`, so Bazel targets cannot be used there.
+    """
+    return os.path.exists("MODULE.bazel")
+
+
 def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
@@ -212,7 +221,6 @@ def bazel(
     env: dict[str, str] | None = None,
     ignore_errors: bool = False,
     input: str | None = None,
-    sudo: bool = False,
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
@@ -224,7 +232,7 @@ def bazel(
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
-    cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
+    cmd = (bazelisk, *_insert_omnibazel_flags(args))
     cmdline = join_command(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
 
