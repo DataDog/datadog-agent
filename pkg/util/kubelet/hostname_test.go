@@ -165,11 +165,14 @@ func Test_makeClusterNameRFC1123Compliant(t *testing.T) {
 // TestHostnameProviderOTelStandalone verifies that otel-agent in DDOT
 // standalone mode takes the node name from the environment, falling back to
 // the kubelet only when it may use it, and the cluster name from
-// OTEL_RESOURCE_ATTRIBUTES, and that other flavors keep using the kubelet.
+// OTEL_RESOURCE_ATTRIBUTES, and that otel-agent in connected mode and other
+// flavors keep using the kubelet.
 func TestHostnameProviderOTelStandalone(t *testing.T) {
 	tests := []struct {
-		name                string
-		flavor              string
+		name   string
+		flavor string
+		// connected runs otel-agent in connected mode rather than standalone.
+		connected           bool
 		useKubeletCollector bool
 		env                 map[string]string
 		// kubeletNodename is what the kubelet reports. An empty one fails the
@@ -219,6 +222,25 @@ func TestHostnameProviderOTelStandalone(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:                "invalid node name, falls back to the kubelet",
+			flavor:              flavor.OTelAgent,
+			useKubeletCollector: true,
+			env:                 map[string]string{"K8S_NODE_NAME": "Not a node name"},
+			kubeletNodename:     "kubelet-node",
+			want:                "kubelet-node",
+		},
+		{
+			name:      "otel-agent in connected mode uses the kubelet",
+			flavor:    flavor.OTelAgent,
+			connected: true,
+			env: map[string]string{
+				"K8S_NODE_NAME":            "env-node",
+				"OTEL_RESOURCE_ATTRIBUTES": "k8s.cluster.name=demo",
+			},
+			kubeletNodename: "kubelet-node",
+			want:            "kubelet-node",
+		},
+		{
 			name:   "other flavors use the kubelet",
 			flavor: flavor.DefaultAgent,
 			env: map[string]string{
@@ -236,7 +258,7 @@ func TestHostnameProviderOTelStandalone(t *testing.T) {
 			flavor.SetTestFlavor(t, tt.flavor)
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("cloud_provider_metadata", []string{})
-			mockConfig.SetInTest("otel_standalone", true)
+			mockConfig.SetInTest("otel_standalone", !tt.connected)
 			mockConfig.SetInTest("otelcollector.standalone.use_kubelet_collector", tt.useKubeletCollector)
 			for _, name := range []string{"K8S_NODE_NAME", "DD_KUBERNETES_KUBELET_NODENAME", "OTEL_K8S_NODE_NAME", "OTEL_RESOURCE_ATTRIBUTES"} {
 				t.Setenv(name, tt.env[name])
