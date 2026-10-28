@@ -9,7 +9,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,11 +36,8 @@ func prepareRunCommandTest(t *testing.T, coreAgentIPC bool) (string, *configstre
 
 	config := "hostname: test\n" + fakeCore.ConfigYAML()
 	if !coreAgentIPC {
-		// Nest the toggle under the fake's remote_agent section: a second top-level
-		// remote_agent key would be rejected as a duplicate.
-		require.Contains(t, config, "\nremote_agent:\n")
-		config = strings.Replace(config, "\nremote_agent:\n",
-			"\nremote_agent:\n  core_agent_ipc:\n    enabled: false\n", 1)
+		// The command is pointed at this file for system-probe.yaml too.
+		config += "system_probe_config:\n  core_agent_ipc:\n    enabled: false\n"
 	}
 
 	configPath := filepath.Join(testDir, "datadog.yaml")
@@ -60,12 +56,11 @@ func TestRunCommand(t *testing.T) {
 			coreAgentIPC: true,
 		},
 		{
-			// With core agent IPC disabled every component that would stream from
-			// the core agent falls back to a local or no-op implementation, and two
-			// of the gates hand fx a nil Comp. TestOneShotSubcommand validates the
-			// graph and then actually starts it, so this covers the whole fallback
-			// assembly rather than the gates individually. The fake core agent is
-			// still reachable, so a zero registration count proves the gates held.
+			// With core agent IPC disabled every component that would talk to the
+			// core agent is replaced by a local or no-op implementation, or left out.
+			// TestOneShotSubcommand validates the graph and then actually starts it,
+			// so this covers the whole fallback assembly. The fake core agent is
+			// still reachable, so a zero registration count proves nothing reached it.
 			name:         "core agent IPC disabled",
 			coreAgentIPC: false,
 		},

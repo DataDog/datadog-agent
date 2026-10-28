@@ -85,6 +85,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(config.NewAgentParams("")),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(pidimpl.NewParams("")),
-		getSharedFxOption(),
+		getSharedFxOption(coreAgentIPCEnabled("")),
 	)
 }
