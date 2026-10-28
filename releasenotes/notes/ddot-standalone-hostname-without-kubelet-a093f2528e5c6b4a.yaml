@@ -15,8 +15,9 @@ enhancements:
     ``node_from_env_var`` setting of the ``dogtel`` extension
     (``K8S_NODE_NAME``, ``DD_KUBERNETES_KUBELET_NODENAME`` and
     ``OTEL_K8S_NODE_NAME`` by default), instead of querying the kubelet. This
-    also works when the kubelet isn't reachable, as with Kubernetes running in
-    containers (k3d, kind). It falls back to the kubelet only when
+    works with the RBAC and settings an upstream OpenTelemetry Collector
+    deployment already has, without kubelet API access or Datadog-specific
+    kubelet settings. It falls back to the kubelet only when
     ``use_kubelet_collector`` is ``true``; otherwise, the cluster name lookup
     and host metadata (Kubernetes distribution tag, node annotation host
     aliases) no longer contact the kubelet either. When no other

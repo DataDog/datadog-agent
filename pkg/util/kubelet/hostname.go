@@ -50,9 +50,12 @@ func GetHostname(ctx context.Context) (string, error) {
 //
 // otel-agent in DDOT standalone mode first reads it from the environment
 // variables listed in otelcollector.standalone.node_from_env_var, as its
-// nodefilter workloadmeta collector does, so that it needs neither kubelet API
-// access nor a reachable kubelet, which Kubernetes running in containers (k3d,
-// kind) lacks. It falls back to the kubelet unless
+// nodefilter workloadmeta collector does. That way, it works with what a
+// deployment set up for the upstream OpenTelemetry Collector provides: no
+// kubelet API access, which RBAC meant for its k8sattributesprocessor doesn't
+// grant, and none of the Datadog-specific kubelet settings
+// (kubernetes_kubelet_host, kubelet_tls_verify), which the OpenTelemetry Helm
+// charts don't set. It falls back to the kubelet unless
 // otelcollector.standalone.use_kubelet_collector is false: a deployment set up
 // for the nodefilter collector lacks kubelet API access.
 func getNodename(ctx context.Context) (string, error) {
