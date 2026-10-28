@@ -1,0 +1,8 @@
+fixes:
+  - |
+    The private action runner now runs each task at most once before the task
+    expires, and refuses a task ID it has already accepted. When ``run_path`` is
+    writable, accepted task IDs are kept under
+    ``<run_path>/private-action-runner/accepted-tasks`` so they are remembered
+    across runner and executor restarts. The runner also refuses a task whose
+    signed envelope has expired.

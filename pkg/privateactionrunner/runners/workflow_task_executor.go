@@ -8,6 +8,9 @@ package runners
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+
+	"github.com/benbjohnson/clock"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -43,6 +46,7 @@ type WorkflowTaskExecutor struct {
 	config       *config.Config
 	taskVerifier taskverifier.TaskVerifier
 	resolver     resolver.PrivateCredentialResolver
+	ledger       *taskLedger
 }
 
 func NewWorkflowTaskExecutor(
@@ -69,11 +73,17 @@ func NewWorkflowTaskExecutor(
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
 	}
 
+	ledgerDir := ""
+	if runPath := coreConfig.GetString("run_path"); runPath != "" {
+		ledgerDir = filepath.Join(runPath, "private-action-runner", "accepted-tasks")
+	}
+
 	return &WorkflowTaskExecutor{
 		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
 		resolver:     credentialResolver,
+		ledger:       newTaskLedger(ledgerDir, clock.New()),
 	}, nil
 }
 
@@ -111,6 +121,12 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	credential, err := e.resolver.ResolveCredentials(ctx, unwrappedTask)
 	if err != nil {
 		logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID), log.ErrorField(err))
+		return nil, unwrappedTask, err
+	}
+
+	// Record the task last so that a task refused by an earlier check can still be accepted later.
+	if err := e.ledger.accept(unwrappedTask.Data.ID, unwrappedTask.Data.Attributes.ExpirationTime); err != nil {
+		logger.Error("could not accept workflow task", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID), log.ErrorField(err))
 		return nil, unwrappedTask, err
 	}
 

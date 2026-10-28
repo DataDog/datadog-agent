@@ -38,6 +38,7 @@ func (m *staticKeysManager) WaitForReady() {}
 func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
+	expiration := time.Now().Add(time.Minute).Truncate(time.Second)
 	pbTask := &privateactionspb.PrivateActionTask{
 		OrgId:          42,
 		TaskId:         "task-id",
@@ -46,7 +47,7 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 		ExecutionFqn:   "com.datadoghq.authoredscripts.helm.addRepo",
 		Inputs:         &structpb.Struct{},
 		ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-id"},
-		ExpirationTime: timestamppb.New(time.Now().Add(time.Minute)),
+		ExpirationTime: timestamppb.New(expiration),
 	}
 	data, err := proto.Marshal(pbTask)
 	require.NoError(t, err)
@@ -79,6 +80,7 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	assert.Equal(t, types.KeyTypeED25519, got.Data.Attributes.VerificationKey.KeyType)
 	assert.Contains(t, got.Data.Attributes.VerificationKey.PEM, "BEGIN PUBLIC KEY")
 	assert.Equal(t, directorProof, got.Data.Attributes.VerificationKey.DirectorProof)
+	assert.True(t, expiration.Equal(got.Data.Attributes.ExpirationTime))
 }
 
 func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
@@ -123,4 +125,42 @@ func TestTaskVerifierRejectsUnsignedTask(t *testing.T) {
 	_, err := NewTaskVerifier(nil, &config.Config{}).UnwrapTask(task)
 
 	require.ErrorContains(t, err, "task is missing signed envelope")
+}
+
+func TestSignedEnvelopeVerifierEnforcesEnvelopeExpiration(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	data, err := proto.Marshal(&privateactionspb.PrivateActionTask{
+		OrgId:          42,
+		TaskId:         "task-id",
+		Inputs:         &structpb.Struct{},
+		ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-id"},
+		ExpirationTime: timestamppb.New(time.Now().Add(time.Hour)),
+	})
+	require.NoError(t, err)
+	digest := sha256.Sum256(data)
+	verifier := &signedEnvelopeTaskVerifier{
+		keysManager: &staticKeysManager{keys: map[string]types.DecodedKey{
+			"key-id": &types.ED25519Key{KeyType: types.KeyTypeED25519, Key: public},
+		}},
+		config: &config.Config{OrgId: 42, RunnerId: "runner-id"},
+	}
+	newTask := func(envelopeExpiration time.Time) *types.Task {
+		task := &types.Task{}
+		task.Data.Attributes = &types.Attributes{SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
+			Data: data, HashType: privateactionspb.HashType_SHA256,
+			ExpirationTime: timestamppb.New(envelopeExpiration),
+			Signatures: []*privateactionspb.Signature{{
+				KeyId: "key-id", KeyType: privateactionspb.KeyType_ED25519,
+				Signature: ed25519.Sign(private, digest[:]),
+			}},
+		}}
+		return task
+	}
+
+	_, err = verifier.UnwrapTask(newTask(time.Now().Add(time.Minute)))
+	require.NoError(t, err)
+
+	_, err = verifier.UnwrapTask(newTask(time.Now().Add(-time.Minute)))
+	require.ErrorContains(t, err, "task envelope is expired")
 }

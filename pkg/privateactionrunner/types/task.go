@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -41,6 +42,8 @@ type Attributes struct {
 	// inputs, separate from user-provided action inputs.
 	SystemInputs    *privateactionspb.SystemInputs `json:"system_inputs,omitempty"`
 	VerificationKey *TaskVerificationKey           `json:"-"`
+	// ExpirationTime is the signed task expiration, set once the envelope is verified.
+	ExpirationTime time.Time `json:"-"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32
