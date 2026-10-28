@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -60,6 +61,28 @@ func TestStatusOut(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+type recordingClient struct {
+	ipc.HTTPClient
+	url string
+}
+
+func (c *recordingClient) Get(rawURL string, _ ...ipc.RequestOption) ([]byte, error) {
+	c.url = rawURL
+	return []byte(`{}`), nil
+}
+
+func TestPopulateStatusUsesCmdHost(t *testing.T) {
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"cmd_host":              "127.0.0.1",
+		"apm_config.debug.port": 5012,
+	})
+	client := &recordingClient{}
+	provider := statusProvider{Config: cfg, Client: client}
+
+	provider.populateStatus()
+	assert.Equal(t, "https://127.0.0.1:5012/debug/vars", client.url)
 }
 
 func TestSemanticCoreRendered(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -19,6 +21,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 )
 
 // Requires defines the dependencies of the status component.
@@ -73,7 +76,15 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 	timeout := s.Config.GetDuration("server_timeout") * time.Second
 
-	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(s.Config)
+	if err != nil {
+		return map[string]interface{}{
+			"port":  port,
+			"error": err.Error(),
+		}
+	}
+
+	url := fmt.Sprintf("https://%s/debug/vars", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return map[string]interface{}{
