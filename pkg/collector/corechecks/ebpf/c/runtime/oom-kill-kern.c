@@ -48,18 +48,16 @@ static __always_inline bool emit_cgroup_memory_stats() {
 #define READ_ONCE(x) (*(const volatile typeof(x) *)&(x))
 #endif
 
-// Since 6.10 (ff48c71c26aa) memcg_vmstats only holds the stat items tracked by memcg, and the kernel
-// maps a stat item to its slot through this table, which is not in BTF.
 extern const void mem_cgroup_stats_index __ksym __weak;
 // Used to locate the per-cpu copies of memcg->vmstats_percpu, like per_cpu_ptr() does.
 extern const void __per_cpu_offset __ksym __weak;
 extern const void nr_cpu_ids __ksym __weak;
 
 /*
- * `memcg_flush_seq` is a sequence count of the memcg stats flush steps: it is odd while
- * mem_cgroup_css_rstat_flush runs, and changes with every call. The calls are serialized by the
- * memcg rstat lock, so a single counter is enough. The stat items are only reported once read
- * without a flush step overlapping, which could count the updates it moves twice or miss them.
+ * `memcg_flush_seq` is a sequence count of the memcg stats flush steps. It is odd while
+ * mem_cgroup_css_rstat_flush runs, and changes with every call. This is used to make sure that
+ * stats are not being read while a flush is ongoing because iterleaved reading of stats can 
+ * cause over/under reporting.
  */
 BPF_ARRAY_MAP(memcg_flush_seq, __u64, 1)
 
@@ -69,9 +67,12 @@ static __always_inline __u64 *memcg_flush_seq_ptr() {
 }
 
 // The writers use atomics, which are fully ordered, so that the counter changes are not reordered
-// with the writes of the flush step. The reader cannot: kernels before 5.12 reject atomics with
-// BPF_FETCH anywhere in a program, even in dead code, and the oom-kill programs load on them. It
-// uses plain loads.
+// with the writes of the flush step. The reader cannot run within the oom kill program so it cannot, since 
+// kernels before 5.12 reject atomics with BPF_FETCH anywhere in a program, even in dead code, 
+// and the oom-kill programs load on them. Therefore the reader uses a plain load. We are okay with this
+// narrow window for an error. Making this behave properly requires too much work such as patching the
+// bpf instructions at load time to replace the atomic call, which is too much work for this. Maybe we 
+// can do this in the future: <- TODO
 
 SEC("fentry/mem_cgroup_css_rstat_flush")
 int BPF_PROG(fentry__mem_cgroup_css_rstat_flush) {
@@ -154,7 +155,7 @@ static __always_inline struct mem_cgroup *task_mem_cgroup(struct task_struct *ts
 }
 
 // add_cpu_pending_pages adds the stat updates of a cpu that are not flushed to memcg->vmstats yet.
-// This is what the rstat flush does (state - state_prev), without updating state_prev.
+// This is what the rstat flusher does. 
 static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
     unsigned long offset = 0;
     if (bpf_probe_read_kernel(&offset, sizeof(offset), (const unsigned long *)&__per_cpu_offset + cpu) < 0)
@@ -177,17 +178,20 @@ static long add_cpu_pending_pages(u64 cpu, struct cgroup_memory_stats_ctx *c) {
 
 // page_state_bytes returns the value of a stat item in bytes. Like the kernel, it returns -1 for an
 // item memcg does not track, and clamps the counters that per-cpu updates make transiently negative.
+// The kernel function can report transiently negative values because it does not synchronize with an 
+// ongoing flush as we do here. For us negative values can happen because we do not read the stats from
+// all CPUs atomically, so a CPU may charge a page after we scanned it and a subsequent CPU may uncharge
+// a page before we scan it, resulting in a net value less than zero.
 static __always_inline __u64 page_state_bytes(struct cgroup_memory_stats_ctx *c, int i) {
     if (c->slot[i] < 0)
         return (__u64)-1;
     return c->pages[i] > 0 ? (__u64)c->pages[i] * PAGE_SIZE : 0;
 }
 
-// read_cgroup_memory_pages computes the value of the stat items into c->pages: the counts flushed to
-// the cgroup, the counts flushed from its descendants that are not propagated to it yet, and the
-// per-cpu updates since the last flush. Each flush step moves counts between them, which keeps
-// their sum, but a step overlapping the reads can have its counts read twice or missed, so it
-// returns false when a flush step ran during the reads.
+// read_cgroup_memory_pages computes the value of the stat items into c->pages. 
+// Each flush step moves counts between them, which keeps their sum, but a step 
+// overlapping the reads can have its counts read twice or missed, so it returns false 
+// when a flush step ran during the reads.
 static __always_inline bool read_cgroup_memory_pages(struct memcg_vmstats *vmstats, struct cgroup_memory_stats_ctx *c,
                                                      u32 nr_cpus, __u64 *seq) {
     __u64 seq_begin = READ_ONCE(*seq);
@@ -216,9 +220,11 @@ static __always_inline bool read_cgroup_memory_pages(struct memcg_vmstats *vmsta
 // get_cgroup_memory_stats fills s->mem with the memory usage of the memcg of tsk, and the value of
 // some of its stat items, like memory.current and memory.stat do. Stat items are read from
 // memcg->vmstats, which is only updated when the stats are flushed, so the
-// per-cpu updates since the last flush are added to it. Flushing from here is not possible:
+// per-cpu updates since the last flush are added to it. Flushing from here is not possible because
 // bpf_mem_cgroup_flush_stats requires sleepable programs, and oom_kill_process cannot have sleepable programs.
-// The updates of descendant cgroups that were not flushed are not accounted.
+//
+// If we perform our in-bpf flush with an ongoing stats flush in the kernel we can over count the data, which is 
+// we synchronize with ongoing flushes and retry if one is detected.
 static __always_inline void get_cgroup_memory_stats(struct task_struct *tsk, struct oom_stats *s) {
     // memcg->vmstats is a pointer since 6.1, and holds the aggregated counters
     if (!bpf_core_type_exists(struct memcg_vmstats) ||
