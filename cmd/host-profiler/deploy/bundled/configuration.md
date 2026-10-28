@@ -49,7 +49,7 @@ The Host Profiler periodically logs the status of symbol uploads. These options 
 
 | Name                                             | Values | Default | Description                                                                                                        |
 |:-------------------------------------------------|:-------|:--------|:-------------------------------------------------------------------------------------------------------------------|
-| `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler flushes a batched symbol upload report. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored in bundled mode and fall back to the default. |
+| `hostprofiler.symbol_uploader.report.interval`   | int    | `300`   | Interval, in seconds, at which the Host Profiler logs symbol upload reports. Maximum `86400` (24 hours). Values outside `1` to `86400` are ignored and fall back to the default. |
 | `hostprofiler.symbol_uploader.report.max_paths_per_report` | int | `100` | Maximum number of binary paths kept per symbol upload report, per log level. Maximum `100000`. Values outside `1` to `100000` fall back to the default. |
 
 ### Host Profiler self-profiling
