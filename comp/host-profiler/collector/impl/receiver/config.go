@@ -31,11 +31,13 @@ type Config struct {
 }
 
 // defaultEnvVars lists environment variables read from profiled processes to populate
-// unified service tags (service, env, version) in OTLP resource attributes.
+// unified service tags (service, env, version) and the crashtracking monitor process marker
+// in OTLP resource attributes.
 // The order indicates which environment variable takes precedence.
 var defaultEnvVars = []string{
 	"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION",
 	"OTEL_RESOURCE_ATTRIBUTES", // TODO: remove once we rebase our fork on upstream.
+	"DD_CRASHTRACKING_IS_MONITOR_PROCESS",
 }
 
 var _ confmap.Validator = (*Config)(nil)
