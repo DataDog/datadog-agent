@@ -781,7 +781,6 @@
 /pkg/flare/certificates*.go                                           @DataDog/agent-runtimes
 /pkg/fleet/                                                           @DataDog/fleet
 /pkg/fleet/**/*_windows*.go                                           @DataDog/fleet @DataDog/windows-products
-/pkg/fleet/**/*_darwin*.go                                            @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
