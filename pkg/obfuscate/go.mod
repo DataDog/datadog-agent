@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/go-sqllexer v0.2.5
+	github.com/DataDog/go-sqllexer v0.2.6
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.12.0
@@ -17,7 +17,7 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )
 

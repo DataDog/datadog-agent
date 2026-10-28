@@ -87,6 +87,18 @@ func TestDomainForwarderSemaphorePerPolicy(t *testing.T) {
 		assert.IsType(t, &http.Transport{}, forwarder.Client.GetClient().Transport)
 	})
 
+	t.Run("dynamic shares one semaphore between workers", func(t *testing.T) {
+		concurrency := newTestDynamicConcurrencyDomain(t, 3, 5)
+		forwarder := newForwarder(t, concurrency)
+		require.NoError(t, forwarder.Start())
+		defer forwarder.Stop(false)
+
+		require.Len(t, forwarder.workers, 3)
+		for _, w := range forwarder.workers {
+			assert.Same(t, concurrency.sem, w.maxConcurrentRequests)
+		}
+		assert.IsType(t, &backoffSignalTransport{}, forwarder.Client.GetClient().Transport)
+	})
 }
 
 func TestDomainForwarderInit(t *testing.T) {

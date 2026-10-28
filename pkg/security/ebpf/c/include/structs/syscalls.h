@@ -165,6 +165,7 @@ struct syscall_cache_t {
 
         struct {
             u64 flags;
+            struct mount *newmnt;
             u32 is_thread: 1;
             u32 is_kthread : 1;
             u32 parent_pid;
@@ -278,6 +279,10 @@ struct syscall_cache_t {
         struct {
             u32 auid;
         } login_uid;
+
+        struct {
+            u32 pid;
+        } cgroup_write;
 
         struct {
             u8 in_flight;
