@@ -151,6 +151,8 @@ func unitSetProcmgr(stableData, expData installerTemplateData, ambiantCapabiliti
 	units := map[string][]byte{
 		"datadog-agent.service":             mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, true),
 		"datadog-agent-exp.service":         mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-action.service":      mustReadUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-action-exp.service":  mustReadUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported, true),
 		"datadog-agent-procmgr.service":     mustReadUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported, true),
 		"datadog-agent-procmgr-exp.service": mustReadUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported, true),
 	}

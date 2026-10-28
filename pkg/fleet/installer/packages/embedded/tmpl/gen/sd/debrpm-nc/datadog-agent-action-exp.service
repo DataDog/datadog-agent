@@ -10,6 +10,8 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
+# Match core's effective deployment mode in the non-procmgr service layout.
+Environment="DD_PROCESS_MANAGER_ENABLED=false"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 ExecStart=/opt/datadog-agent/embedded/bin/privateactionrunner run --cfgpath=/etc/datadog-agent-exp/datadog.yaml
 StartLimitInterval=10

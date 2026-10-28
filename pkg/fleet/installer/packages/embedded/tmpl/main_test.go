@@ -20,6 +20,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
+func TestPARAndCoreAgreeOnProcessManagerLayout(t *testing.T) {
+	for _, units := range []map[string][]byte{
+		unitSetSystemd(stableDataOCI, expDataOCI, true),
+		unitSetProcmgr(stableDataOCI, expDataOCI, true),
+	} {
+		for _, suffix := range []string{"", "-exp"} {
+			core := string(units["datadog-agent"+suffix+".service"])
+			par := string(units["datadog-agent-action"+suffix+".service"])
+			assert.NotEmpty(t, core)
+			assert.NotEmpty(t, par)
+			managed := strings.Contains(core, "datadog-agent-procmgr"+suffix+".service")
+			for _, unit := range []string{core, par} {
+				assert.Equal(t, !managed, strings.Contains(unit, `Environment="DD_PROCESS_MANAGER_ENABLED=false"`))
+			}
+		}
+	}
+}
+
 func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T) {
 	units := unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)
 
