@@ -378,14 +378,15 @@ network_path:
 }
 
 func TestConfigBasicTestsStandDownWhenTracerouteDisabled(t *testing.T) {
+	basic := "network_path:\n  connections_monitoring:\n    basic_tests_enabled: true\n"
 	tests := []struct {
 		name          string
 		yaml          string
 		traceroute    bool
 		expectEnabled bool
 	}{
-		{name: "basic, traceroute explicitly enabled", traceroute: true, expectEnabled: true},
-		{name: "basic, traceroute explicitly disabled", traceroute: false},
+		{name: "basic, traceroute explicitly enabled", yaml: basic, traceroute: true, expectEnabled: true},
+		{name: "basic, traceroute explicitly disabled", yaml: basic, traceroute: false},
 		{name: "standard, traceroute explicitly disabled", yaml: "network_path:\n  connections_monitoring:\n    enabled: true\n", traceroute: false, expectEnabled: true},
 	}
 	for _, tt := range tests {

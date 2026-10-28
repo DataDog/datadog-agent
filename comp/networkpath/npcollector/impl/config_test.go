@@ -286,8 +286,9 @@ func TestNewConfigBasicTestsStandDownWhenTracerouteDisabled(t *testing.T) {
 				sysprobeOverrides["traceroute.enabled"] = tt.traceroute
 			}
 			cfg := newConfig(config.NewMockWithOverrides(t, map[string]any{
-				"network_path.connections_monitoring.enabled": tt.standardTests,
-				"network_path.collector.filters":              []map[string]any{},
+				"network_path.connections_monitoring.enabled":             tt.standardTests,
+				"network_path.connections_monitoring.basic_tests_enabled": true,
+				"network_path.collector.filters":                          []map[string]any{},
 			}), sysprobeconfigmock.NewMockWithOverrides(t, sysprobeOverrides), logmock.New(t))
 			assert.Equal(t, tt.expectBasic, cfg.basicTestsEnabled)
 			assert.Equal(t, tt.expectStandard, cfg.connectionsMonitoringEnabled)
