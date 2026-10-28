@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -408,10 +408,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "1.9.4",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "1.9.4",
+										},
 									},
 								},
 							},
@@ -440,10 +442,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "m1",
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "1.9.4",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "m1",
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "1.9.4",
+										},
 									},
 								},
 							},
@@ -451,10 +455,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "m2",
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "2.1.9",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "m2",
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "2.1.9",
+										},
 									},
 								},
 							},
@@ -462,10 +468,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "4.1.1",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "4.1.1",
+										},
 									},
 								},
 							},

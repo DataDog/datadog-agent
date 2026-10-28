@@ -621,6 +621,8 @@ func TestWorkloadProfileDedicatedWaitFirstPersistence(t *testing.T) {
 	storageDir := t.TempDir()
 	opts := workloadProfileTestOpts(storageDir, tagger)
 	opts.profileReportingWaitPersistence = true
+	// the container runtime can exhaust the global open sampling rate before the test opens its file
+	opts.eventSamplingOpenRateUnlimited = true
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)

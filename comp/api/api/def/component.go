@@ -68,6 +68,7 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"network_devices.snmp_traps.forwarder.additional_endpoints",
 	"network_devices.netflow.forwarder.additional_endpoints",
 	"network_path.forwarder.additional_endpoints",
+	"network_pcap.forwarder.additional_endpoints",
 	"container_lifecycle.additional_endpoints",
 	"container_image.additional_endpoints",
 	"sbom.additional_endpoints",

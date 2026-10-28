@@ -8,10 +8,9 @@ package logsagentexporter
 
 import (
 	"context"
-	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -19,12 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 )
 
 const (
@@ -47,6 +47,10 @@ type Config struct {
 	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`
 
 	OrchestratorConfig OrchestratorConfig `mapstructure:"-"`
+
+	// TimeoutConfig and RetryConfig configure exporterhelper. used with a SyncSender for error propagation.
+	TimeoutConfig exporterhelper.TimeoutConfig `mapstructure:"-"`
+	RetryConfig   configretry.BackOffConfig    `mapstructure:"-"`
 }
 
 // OrchestratorConfig contains configuration for sending orchestrator data to Datadog.
@@ -60,6 +64,7 @@ type OrchestratorConfig struct {
 
 type factory struct {
 	logsAgentChannel  chan *message.Message
+	syncSender        SyncSender
 	gatewayUsage      otel.GatewayUsage
 	reporter          *inframetadata.Reporter
 	coatGwUsageMetric telemetry.Gauge
@@ -72,12 +77,31 @@ func NewFactoryWithType(
 	gatewayUsage otel.GatewayUsage,
 	coatGwUsageMetric telemetry.Gauge,
 	reporter *inframetadata.Reporter) exp.Factory {
-	f := &factory{
+	return newFactory(&factory{
 		logsAgentChannel:  logsAgentChannel,
 		gatewayUsage:      gatewayUsage,
 		coatGwUsageMetric: coatGwUsageMetric,
-		reporter:          reporter}
+		reporter:          reporter,
+	}, typ)
+}
 
+// NewFactoryWithSyncSender creates a logsagentexporter factory with the given type whose exporters
+// send logs through syncSender and report delivery errors from ConsumeLogs.
+func NewFactoryWithSyncSender(
+	syncSender SyncSender,
+	typ component.Type,
+	gatewayUsage otel.GatewayUsage,
+	coatGwUsageMetric telemetry.Gauge,
+	reporter *inframetadata.Reporter) exp.Factory {
+	return newFactory(&factory{
+		syncSender:        syncSender,
+		gatewayUsage:      gatewayUsage,
+		coatGwUsageMetric: coatGwUsageMetric,
+		reporter:          reporter,
+	}, typ)
+}
+
+func newFactory(f *factory, typ component.Type) exp.Factory {
 	return exp.NewFactory(
 		typ,
 		func() component.Config {
@@ -85,6 +109,7 @@ func NewFactoryWithType(
 				OtelSource:    otelSource,
 				LogSourceName: LogSourceName,
 				QueueSettings: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
+				RetryConfig:   configretry.NewDefaultBackOffConfig(),
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
@@ -119,6 +144,7 @@ func (f *factory) createLogsExporter(
 	if f.reporter != nil {
 		exporter.reporter = f.reporter
 	}
+	exporter.syncSender = f.syncSender
 
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel() runs on shutdown
@@ -127,8 +153,8 @@ func (f *factory) createLogsExporter(
 		set,
 		c,
 		exporter.ConsumeLogs,
-		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
-		exporterhelper.WithRetry(configretry.NewDefaultBackOffConfig()),
+		exporterhelper.WithTimeout(cfg.TimeoutConfig),
+		exporterhelper.WithRetry(cfg.RetryConfig),
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithShutdown(func(context.Context) error {
 			cancel()

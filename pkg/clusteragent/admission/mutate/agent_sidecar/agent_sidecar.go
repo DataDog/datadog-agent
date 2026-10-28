@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -461,21 +462,28 @@ func (w *Webhook) getVolumeTemplates() []corev1.Volume {
 }
 
 func (w *Webhook) getVolumeMountTemplates() []corev1.VolumeMount {
-	volumeMounts := newPseudoSet[corev1.VolumeMount]()
+	// corev1.VolumeMount is not comparable (BindMountOptions is a slice), so it
+	// cannot be stored in a pseudoSet: deduplicate with a deep equality check.
+	var volumeMounts []corev1.VolumeMount
+	addUnique := func(vms []corev1.VolumeMount) {
+		for _, vm := range vms {
+			if !slices.ContainsFunc(volumeMounts, func(existing corev1.VolumeMount) bool {
+				return reflect.DeepEqual(existing, vm)
+			}) {
+				volumeMounts = append(volumeMounts, vm)
+			}
+		}
+	}
 
 	if w.isReadOnlyRootFilesystem() {
-		for _, vm := range readOnlyRootFilesystemVolumeMounts {
-			volumeMounts.Add(vm)
-		}
+		addUnique(readOnlyRootFilesystemVolumeMounts)
 	}
 
 	if w.isKubeletAPILoggingEnabled {
-		for _, vm := range kubernetesAPILoggingVolumeMounts {
-			volumeMounts.Add(vm)
-		}
+		addUnique(kubernetesAPILoggingVolumeMounts)
 	}
 
-	return volumeMounts.Slice()
+	return volumeMounts
 }
 
 func (w *Webhook) addSecurityConfigToAgent(agentContainer *corev1.Container) {

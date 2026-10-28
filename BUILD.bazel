@@ -10,10 +10,12 @@ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("@llvm//toolchain:selects.bzl", "platform_llvm_binary")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
+load("//bazel/rules/msgo:defs.bzl", "msgo_binary")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
@@ -77,7 +79,7 @@ cc_library(
 # gazelle:exclude pkg/ebpf/_obj
 # It is a generated via genrule src that shouldn't be added to the runtime
 # library.
-# gazelle:exclude internal/qbranch/anomalydetection-testbench
+# gazelle:exclude internal/anomalydetection/testbench
 # gazelle:exclude vendor
 
 # ======= TESTDATA EXCLUDES =======
@@ -136,6 +138,19 @@ go_shim(
 alias(
     name = "go",
     actual = "@go_fast",  #TODO(agent-build): move back to "@rules_go//go" when golang/go#77889 is addressed
+)
+
+# bazel run //:llvm -- <tool> ...
+alias(
+    name = "llvm",
+    actual = platform_llvm_binary("llvm"),
+)
+
+# bazel run //:msgo -- ...
+msgo_binary(
+    name = "msgo",
+    src = "@rules_go//go",
+    tags = ["manual"],
 )
 
 # bazel run //:go_mod_tidy_all -- -x
