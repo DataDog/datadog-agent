@@ -26,7 +26,7 @@ const keySamplingRateGlobal = "_sample_rate"
 // in the consistent-probability sampling encoding.
 const pValueNotSampled = 63
 
-// samplingProbFromTracestate extracts the head-based sampling probability from a
+// SamplingProbFromTracestate extracts the upstream sampling probability from a
 // raw W3C tracestate string. Returns (probability, true) on success,
 // (0, false) otherwise.
 //
@@ -35,7 +35,7 @@ const pValueNotSampled = 63
 //     e.g. "ot=th:8" → probability 0.5
 //   - p (power-of-two): go.opentelemetry.io/contrib/samplers/probability/consistent.
 //     e.g. "ot=p:1;r:1" → probability 2^-1 = 0.5
-func samplingProbFromTracestate(raw string) (float64, bool) {
+func SamplingProbFromTracestate(raw string) (float64, bool) {
 	if raw == "" {
 		return 0, false
 	}
@@ -93,7 +93,7 @@ func SetSampleRateFromTracestate(span *pb.Span, rawTracestate string) bool {
 	if _, exists := span.Metrics[keySamplingRateGlobal]; exists {
 		return false // preserve an explicitly set value from upstream
 	}
-	prob, ok := samplingProbFromTracestate(rawTracestate)
+	prob, ok := SamplingProbFromTracestate(rawTracestate)
 	if !ok {
 		return false
 	}
