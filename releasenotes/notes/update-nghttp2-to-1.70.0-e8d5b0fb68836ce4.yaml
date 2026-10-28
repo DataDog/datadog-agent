@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update ``nghttp2`` to 1.70.0.

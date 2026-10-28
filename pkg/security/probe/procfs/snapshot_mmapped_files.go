@@ -57,8 +57,8 @@ func statProcessFile(pid uint32, path string) model.FileFields {
 		Mode:   fileStats.Mode,
 		UID:    fileStats.Uid,
 		GID:    fileStats.Gid,
-		CTime:  uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond()),
-		MTime:  uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond()),
+		CTime:  uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano()),
+		MTime:  uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano()),
 		Device: fileStats.Dev_major<<20 | fileStats.Dev_minor,
 		NLink:  fileStats.Nlink,
 	}

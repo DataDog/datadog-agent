@@ -92,17 +92,14 @@ go_library(
 
 dd_agent_go_binary(
     name = "system-probe",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/system-probe/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # keep
     cdeps = select({
         "@platforms//os:linux": ["//:datadog_agent_map"],
         "//conditions:default": [],
     }),
-    # keep
     cgo = select({
         "@platforms//os:linux": True,
         "@platforms//os:windows": True,

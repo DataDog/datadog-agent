@@ -3,7 +3,7 @@ import unittest
 from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
 
-from tasks.kernel_matrix_testing import compiler, platforms, vmconfig
+from tasks.kernel_matrix_testing import compiler, platforms, tool, vmconfig
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.libs.types.arch import Arch
 
@@ -244,3 +244,42 @@ class TestCompilerUser(unittest.TestCase):
         )
         self.assertEqual((self.cc.compiler_user, self.cc.compiler_home), ("root", "/root"))
         exec_.assert_called_once_with("getent passwd 0", user="root")
+
+
+class TestEnsureSudoPrivileges(unittest.TestCase):
+    def _ctx(self, groups: str) -> MagicMock:
+        ctx = MagicMock()
+        ctx.run.return_value = MagicMock(ok=True, stdout=groups)
+        return ctx
+
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
+    def test_requests_privileges_when_not_admin(self, *_):
+        ctx = self._ctx("staff everyone")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_called_with(f"'{tool.PRIVILEGES_CLI}' --add --reason 'test'")
+
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
+    def test_noop_when_already_admin(self, *_):
+        ctx = self._ctx("staff admin everyone")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_called_once_with("id -Gn", hide=True, warn=True)
+
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "darwin")
+    def test_noop_without_privileges_app(self, *_):
+        ctx = self._ctx("staff")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_not_called()
+
+    @patch("tasks.kernel_matrix_testing.tool.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.tool.os.path.exists", return_value=True)
+    @patch("tasks.kernel_matrix_testing.tool.sys.platform", "linux")
+    def test_noop_on_linux(self, *_):
+        ctx = self._ctx("staff")
+        tool.ensure_sudo_privileges(ctx, "test")
+        ctx.run.assert_not_called()

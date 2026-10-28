@@ -79,10 +79,8 @@ MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
 BAZEL_EXIT_NO_TESTS_FOUND = 4  # https://bazel.build/run/scripts#exit-codes
-# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
-# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
 )
 
 
@@ -1024,10 +1022,8 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 
         if best_module_path in modules_to_test:
-            if (
-                modules_to_test[best_module_path].test_targets is not None
-                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].test_targets
-            ):
+            # Both sides of the comparison are module-relative paths.
+            if relative_target not in modules_to_test[best_module_path].test_targets:
                 modules_to_test[best_module_path].test_targets.append(relative_target)
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, test_targets=[relative_target])
@@ -1035,11 +1031,15 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     # Clean up duplicated paths to reduce Go test cmd length
     default_modules = get_default_modules()
     for module in modules_to_test:
-        modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
+        cleaned_targets = clean_nested_paths(modules_to_test[module].test_targets)
+        modules_to_test[module].test_targets = cleaned_targets
+        modules_to_test[module].lint_targets = cleaned_targets
         if (
-            len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+            len(cleaned_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = default_modules[module].test_targets
+            default_module = default_modules[str(module)]
+            modules_to_test[module].test_targets = default_module.test_targets
+            modules_to_test[module].lint_targets = default_module.lint_targets
 
     if not modules_to_test:
         print("No modules to test")
@@ -1524,11 +1524,6 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    print(
-        f"Checking against opentelemetry-collector-contrib main instead of the latest "
-        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
-    )
-
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)

@@ -11,9 +11,9 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
@@ -24,12 +24,16 @@ const (
 	infraAttributesName = "infraattributes"
 	hpflareName         = "hpflare"
 	ddprofilingName     = "ddprofiling"
+
+	maxReportIntervalSeconds   = 24 * 60 * 60
+	maxReportMaxPathsPerReport = 100_000
 )
 
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
@@ -43,6 +47,12 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	}
 
 	_ = confmaputils.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	if interval := agent.hostProfilerConfig.SymbolUploaderReport.Interval; interval > 0 && interval <= maxReportIntervalSeconds {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::interval", interval)
+	}
+	if maxPaths := agent.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport; maxPaths > 0 && maxPaths <= maxReportMaxPathsPerReport {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::max_paths_per_report", maxPaths)
+	}
 
 	receivers["profiling"] = profiling
 	conf["receivers"] = receivers
