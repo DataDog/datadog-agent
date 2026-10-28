@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,11 +66,12 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 	}
 	resource := client.Resource(watermarkPodAutoscalerResource).Namespace(inputs.Namespace)
 
-	if err := h.validateAgainstExisting(ctx, resource, inputs); err != nil {
+	resourceVersion, err := h.validateAgainstExisting(ctx, resource, inputs)
+	if err != nil {
 		return nil, err
 	}
 
-	body, err := inputs.specPatch()
+	body, err := inputs.specPatch(resourceVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +84,9 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 		metav1.PatchOptions{},
 	)
 	if err != nil {
+		if apierrors.IsConflict(err) {
+			return nil, fmt.Errorf("the watermark pod autoscaler was modified while this action was running, so the replica bounds were not applied; re-run the action: %w", err)
+		}
 		return nil, err
 	}
 
@@ -115,18 +120,20 @@ func (inputs UpdateWatermarkAutoscalerLimitsInputs) validate() error {
 // validateAgainstExisting fills whichever bound the caller omitted from the live
 // object and compares the pair. The CRD has no cross-field validation, so a
 // single-bound patch would otherwise be able to persist maxReplicas below
-// minReplicas.
+// minReplicas. It returns the resourceVersion it read so the patch can be made
+// conditional on the object not having moved in between; the empty string means
+// nothing was read and no precondition is needed.
 func (h *UpdateWatermarkAutoscalerLimitsHandler) validateAgainstExisting(
 	ctx context.Context,
 	resource dynamic.ResourceInterface,
 	inputs UpdateWatermarkAutoscalerLimitsInputs,
-) error {
+) (string, error) {
 	if inputs.MinReplicas != nil && inputs.MaxReplicas != nil {
-		return nil
+		return "", nil
 	}
 	existing, err := h.getWatermarkPodAutoscaler(ctx, resource, inputs.Name)
 	if err != nil {
-		return err
+		return "", err
 	}
 	minReplicas, maxReplicas := inputs.MinReplicas, inputs.MaxReplicas
 	if minReplicas == nil {
@@ -135,7 +142,7 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) validateAgainstExisting(
 	if maxReplicas == nil {
 		maxReplicas = &existing.Spec.MaxReplicas
 	}
-	return compareBounds(minReplicas, maxReplicas)
+	return existing.ResourceVersion, compareBounds(minReplicas, maxReplicas)
 }
 
 // compareBounds enforces minReplicas <= maxReplicas, and is a no-op while either
@@ -151,7 +158,11 @@ func compareBounds(minReplicas, maxReplicas *int32) error {
 }
 
 // specPatch builds the merge patch, carrying only the bounds that were supplied.
-func (inputs UpdateWatermarkAutoscalerLimitsInputs) specPatch() ([]byte, error) {
+// A non-empty resourceVersion is included as an optimistic-concurrency
+// precondition: the API server rejects the patch with 409 Conflict if the object
+// changed after it was read, which keeps the single-bound comparison in
+// validateAgainstExisting from being invalidated by a concurrent write.
+func (inputs UpdateWatermarkAutoscalerLimitsInputs) specPatch(resourceVersion string) ([]byte, error) {
 	spec := map[string]interface{}{}
 	if inputs.MinReplicas != nil {
 		spec["minReplicas"] = *inputs.MinReplicas
@@ -159,7 +170,11 @@ func (inputs UpdateWatermarkAutoscalerLimitsInputs) specPatch() ([]byte, error) 
 	if inputs.MaxReplicas != nil {
 		spec["maxReplicas"] = *inputs.MaxReplicas
 	}
-	return json.Marshal(map[string]interface{}{"spec": spec})
+	patch := map[string]interface{}{"spec": spec}
+	if resourceVersion != "" {
+		patch["metadata"] = map[string]interface{}{"resourceVersion": resourceVersion}
+	}
+	return json.Marshal(patch)
 }
 
 func (h *UpdateWatermarkAutoscalerLimitsHandler) getWatermarkPodAutoscaler(

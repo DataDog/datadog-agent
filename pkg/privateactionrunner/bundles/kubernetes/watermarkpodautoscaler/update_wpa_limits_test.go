@@ -7,8 +7,10 @@ package com_datadoghq_kubernetes_watermarkpodautoscaler
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -181,4 +183,100 @@ func (suite *WatermarkPodAutoscalerTestSuite) TestUpdateWatermarkAutoscalerLimit
 			suite.Equal(test.expectedPatch, patch.Spec)
 		})
 	}
+}
+
+// TestUpdateWatermarkAutoscalerLimitsConcurrency covers the optimistic-concurrency
+// precondition. Without it the bound read by validateAgainstExisting can change
+// before the patch lands: two concurrent single-bound calls on min=2/max=10,
+// one setting minReplicas=8 and one setting maxReplicas=5, would each validate
+// against a stale pair and together persist min=8/max=5. The CRD has no
+// cross-field validation, so nothing rejects that and the controller stops
+// autoscaling the target.
+func (suite *WatermarkPodAutoscalerTestSuite) TestUpdateWatermarkAutoscalerLimitsConcurrency() {
+	const (
+		namespace       = "production"
+		wpaName         = "checkout"
+		resourceVersion = "4242"
+	)
+
+	newClient := func() *dynamicfake.FakeDynamicClient {
+		scheme := runtime.NewScheme()
+		suite.Require().NoError(v1alpha1.AddToScheme(scheme))
+		minimumReplicas := int32(2)
+		return dynamicfake.NewSimpleDynamicClient(scheme, &v1alpha1.WatermarkPodAutoscaler{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: v1alpha1.GroupVersion.String(),
+				Kind:       "WatermarkPodAutoscaler",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            wpaName,
+				Namespace:       namespace,
+				ResourceVersion: resourceVersion,
+			},
+			Spec: v1alpha1.WatermarkPodAutoscalerSpec{
+				MinReplicas: &minimumReplicas,
+				MaxReplicas: 10,
+			},
+		})
+	}
+
+	patchBody := func(client *dynamicfake.FakeDynamicClient) map[string]interface{} {
+		for _, action := range client.Actions() {
+			if patch, ok := action.(ktesting.PatchAction); ok && action.GetVerb() == "patch" {
+				var body map[string]interface{}
+				suite.Require().NoError(json.Unmarshal(patch.GetPatch(), &body))
+				return body
+			}
+		}
+		suite.Require().Fail("no patch was issued")
+		return nil
+	}
+
+	runWith := func(client *dynamicfake.FakeDynamicClient, extra map[string]any) (interface{}, error) {
+		handler := &UpdateWatermarkAutoscalerLimitsHandler{client: client}
+		inputs := map[string]any{"namespace": namespace, "name": wpaName}
+		for key, value := range extra {
+			inputs[key] = value
+		}
+		return handler.Run(testContext, newTestTask(inputs), newTestCredentials())
+	}
+
+	suite.Run("a single-bound patch carries the resourceVersion it read", func() {
+		client := newClient()
+		_, err := runWith(client, map[string]any{"minReplicas": 4})
+		suite.Require().NoError(err)
+
+		metadata, ok := patchBody(client)["metadata"].(map[string]interface{})
+		suite.Require().True(ok, "expected a metadata precondition in the patch")
+		suite.Equal(resourceVersion, metadata["resourceVersion"])
+	})
+
+	suite.Run("a both-bounds patch carries no precondition", func() {
+		client := newClient()
+		_, err := runWith(client, map[string]any{"minReplicas": 4, "maxReplicas": 12})
+		suite.Require().NoError(err)
+
+		// Both bounds are set in one merge patch, so the result is self-consistent
+		// without a read and last-writer-wins still leaves a valid pair.
+		body := patchBody(client)
+		suite.NotContains(body, "metadata")
+	})
+
+	suite.Run("a conflict surfaces an actionable error", func() {
+		client := newClient()
+		client.PrependReactor("patch", "watermarkpodautoscalers", func(ktesting.Action) (bool, runtime.Object, error) {
+			return true, nil, apierrors.NewConflict(
+				v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers").GroupResource(),
+				wpaName,
+				errors.New("the object has been modified"),
+			)
+		})
+
+		outputs, err := runWith(client, map[string]any{"minReplicas": 4})
+		suite.Require().Error(err)
+		suite.Nil(outputs)
+		suite.ErrorContains(err, "was modified while this action was running")
+		suite.ErrorContains(err, "re-run the action")
+		suite.True(apierrors.IsConflict(err), "the underlying conflict should stay unwrapped-to")
+	})
 }
