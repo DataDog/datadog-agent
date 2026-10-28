@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -336,4 +337,45 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 	assert.True(t, hasMRF, "Should have received MRF payload")
 
 	strategy.Stop()
+}
+
+func TestBatchStrategyFlushWaitsForQueuedMessages(t *testing.T) {
+	// input is buffered so messages can still be queued when Flush is called
+	input := make(chan *message.Message, 10)
+	// output is buffered so the flushed payload can be checked once Flush returns
+	output := make(chan *message.Payload, 10)
+
+	// batch size and flush time are large so only Flush sends the payload
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		make(chan struct{}),
+		NewMockServerlessMeta(false),
+		time.Hour,
+		100,
+		100,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+	defer strategy.Stop()
+
+	messages := []*message.Message{
+		message.NewMessage([]byte("a"), nil, "", 0),
+		message.NewMessage([]byte("b"), nil, "", 0),
+		message.NewMessage([]byte("c"), nil, "", 0),
+	}
+	messageMeta := make([]*message.MessageMetadata, len(messages))
+	for idx, m := range messages {
+		input <- m
+		messageMeta[idx] = &m.MessageMetadata
+	}
+
+	strategy.(*batchStrategy).Flush(context.Background())
+
+	// Once Flush returns, every message queued before it is in a single payload on the output
+	if assert.Len(t, output, 1) {
+		assert.ElementsMatch(t, messageMeta, (<-output).MessageMetas)
+	}
 }
