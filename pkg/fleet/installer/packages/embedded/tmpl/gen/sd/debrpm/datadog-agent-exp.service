@@ -12,6 +12,8 @@ PIDFile=/opt/datadog-agent/run/agent.pid
 User=dd-agent
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
+# This service layout does not start procmgr.
+Environment="DD_PROCESS_MANAGER_ENABLED=false"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 Environment="EXPERIMENT_TIMEOUT=3000s"
 Environment="DD_CONFD_PATH=/etc/datadog-agent-exp/conf.d"
