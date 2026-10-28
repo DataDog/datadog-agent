@@ -1,0 +1,72 @@
+# Dedicated downstream entry point. No Agent build/deployment jobs are included.
+# Configure a protected runner ref and reciprocal CI_JOB_TOKEN project allowlists.
+.webui-install-aws:
+  - |
+    set +x
+    # Use the framework's refreshable profile, not a one-hour STS snapshot:
+    # sequential EKS provisioning plus teardown can exceed that session lifetime.
+    mkdir -p ~/.aws
+    "$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$AGENT_QA_E2E" profile > ~/.aws/config
+    export AWS_PROFILE=agent-qa-ci AWS_DEFAULT_REGION=us-east-1
+    test "$(aws sts get-caller-identity --query Account --output text)" = 669783387624
+    pulumi login 's3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=agent-qa-ci'
+
+new-e2e-kubernetes-install:
+  stage: e2e
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ['arch:amd64', 'specific:true']
+  needs: []
+  retry: 0
+  interruptible: false
+  timeout: 3h 30m
+  resource_group: webui-kubernetes-install
+  variables:
+    TEAM: fleet
+    E2E_ENV: aws/agent-qa
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    REMOTE_STACK_CLEANING: 'false'
+    E2E_DEV_MODE: 'false'
+    WEBUI_INSTALL_BUNDLE: $CI_PROJECT_DIR/webui-instructions.json
+    WEBUI_INSTALL_EVIDENCE: $CI_PROJECT_DIR/webui-install-evidence
+    RUNNER_SCRIPT_TIMEOUT: 180m
+    RUNNER_AFTER_SCRIPT_TIMEOUT: 1800
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_CPU_REQUEST: 6
+  before_script:
+    - |
+      set +x
+      : "${WEBUI_INSTALL_ALLOWED_PROJECT_ID:?Configure the approved web-ui project ID}"
+      : "${WEBUI_INSTALL_API_KEY_PARAMETER:?Configure the shared dedicated test-org API key SSM parameter}"
+      test "$WEBUI_INSTALL_SOURCE_PROJECT" = "$WEBUI_INSTALL_ALLOWED_PROJECT_ID"
+      test "$CI_COMMIT_SHA" = "$WEBUI_INSTALL_RUNNER_SHA"
+      [[ "$WEBUI_INSTALL_SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+      [[ "$WEBUI_INSTALL_ARTIFACT_JOB" =~ ^[0-9]+$ ]]
+      [[ "$WEBUI_INSTALL_SOURCE_PROJECT" =~ ^[0-9]+$ ]]
+      for tool in helm kubectl aws pulumi dda; do command -v "$tool" >/dev/null; done
+      curl --fail --silent --show-error --max-time 60 --max-filesize 1048576 \
+        --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+        "https://gitlab.ddbuild.io/api/v4/projects/$WEBUI_INSTALL_SOURCE_PROJECT/jobs/$WEBUI_INSTALL_ARTIFACT_JOB/artifacts/kubernetes-install-artifacts/instructions.json" \
+        --output "$WEBUI_INSTALL_BUNDLE"
+    - !reference [.webui-install-aws]
+    - |
+      set +x
+      export WEBUI_INSTALL_API_KEY=$(aws ssm get-parameter --name "$WEBUI_INSTALL_API_KEY_PARAMETER" --with-decryption --query Parameter.Value --output text)
+      test -n "$WEBUI_INSTALL_API_KEY"
+  script:
+    - dda inv new-e2e-tests.run --targets=./tests/kubernetes-install --run '^TestKubernetesInstall$' --timeout=175m --max-retries=0
+    - test -s "$WEBUI_INSTALL_EVIDENCE/operator.json" && test -s "$WEBUI_INSTALL_EVIDENCE/helm.json"
+    - jq -e '.passed == true' "$WEBUI_INSTALL_EVIDENCE/operator.json" "$WEBUI_INSTALL_EVIDENCE/helm.json"
+  after_script:
+    # The normal suite destroys synchronously. Retry only teardown on failure/cancellation,
+    # with the same job identity and exact stack names; never retry the installation in place.
+    - |
+      if [ "$CI_JOB_STATUS" = success ] || [ ! -f "$WEBUI_INSTALL_BUNDLE" ]; then exit 0; fi
+    - !reference [.webui-install-aws]
+    - E2E_TEARDOWN_ONLY=true dda inv new-e2e-tests.run --targets=./tests/kubernetes-install --run '^TestKubernetesInstall$' --timeout=25m --max-retries=0
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths: [webui-install-evidence/]
+  rules:
+    - if: '$WEBUI_KUBERNETES_INSTALL == "true" && $CI_PIPELINE_SOURCE == "pipeline" && $CI_COMMIT_REF_PROTECTED == "true"'

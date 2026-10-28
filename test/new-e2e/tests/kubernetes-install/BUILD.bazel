@@ -1,0 +1,24 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "kubernetes_install_test",
+    srcs = [
+        "bundle.go",
+        "bundle_test.go",
+        "install_test.go",
+    ],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/scenarios/aws/eks",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/eks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@io_k8s_api//authorization/v1:authorization",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//tools/clientcmd",
+    ],
+)
