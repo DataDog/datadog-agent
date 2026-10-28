@@ -50,6 +50,7 @@ BPF_ARRAY_MAP(otel_span_attrs, struct otel_span_attrs_t, OTEL_SPAN_ATTRS_MAX_ENT
 BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 5)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
+BPF_ARRAY_MAP(syscall_usage_ticker_sent, u64, 1)
 
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
 BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at runtime

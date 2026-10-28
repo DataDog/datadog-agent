@@ -129,6 +129,7 @@ var bpfMapNames = []string{
 	"syscall_table",
 	"syscall_usage",
 	"syscall_usage_e",
+	"syscall_usage_t",
 	"syscalls",
 	"syscalls_stats",
 	"syscalls_stats_",
