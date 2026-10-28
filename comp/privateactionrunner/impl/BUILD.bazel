@@ -19,6 +19,7 @@ go_library(
         "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
+        "//comp/networkpcap/uploader/def",
         "//comp/privateactionrunner/def",
         "//comp/remote-config/rcclient/def",
         "//pkg/config/model",
