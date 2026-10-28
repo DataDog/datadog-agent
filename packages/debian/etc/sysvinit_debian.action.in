@@ -110,7 +110,7 @@ start_and_wait()
 					if wait "$START_PID"; then
 						# Only remove the PID file belonging to this launch.
 						if read -r pid 2>/dev/null < "$PIDFILE" && [ "$pid" = "$START_PID" ]; then
-							rm -f "$PIDFILE"
+							rm -f "$PIDFILE" || break
 						fi
 						log_end_msg 0
 						log_success_msg "$DESC exited cleanly; not running."

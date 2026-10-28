@@ -42,7 +42,10 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
                 pidfile.write_text(f'{os.getpid()}\n')
             commands = root / 'commands'
             commands.mkdir()
-            (commands / 'rm').symlink_to(shutil.which('rm'))
+            self.executable(
+                commands / 'rm',
+                f'[ "${{REMOVE_ERROR:-0}}" = 0 ] || exit "$REMOVE_ERROR"\nexec "{shutil.which("rm")}" "$@"\n',
+            )
             self.executable(commands / 'id', 'echo 1234\n')
             # Exercise real child exits and session detachment, including on macOS.
             session = root / 'setsid.py'
@@ -185,6 +188,7 @@ log_warning_msg() { echo "WARNING: $*"; }
                 'CHECK_ERROR': '0',
                 'SPAWN_ERROR': '0',
                 'STOP_ERROR': '0',
+                'REMOVE_ERROR': '0',
                 'PYTHON': sys.executable,
                 'RUNNER': str(runner),
                 'SESSION': str(session),
@@ -234,6 +238,12 @@ log_warning_msg() { echo "WARNING: $*"; }
                     self.assertNotIn('result=1', result.stdout)
                     self.assertFalse(pid_exists)
                     self.assertEqual(len(sleeps), int(after) + 1)
+
+    def test_clean_exit_does_not_hide_pid_cleanup_failure(self):
+        result, _, _, pid_exists = self.run_sysv(RUNNER_EXIT='0', REMOVE_ERROR='2')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertTrue(pid_exists)
+        self.assertNotIn('exited cleanly', result.stdout)
 
     def test_start_reports_nonzero_and_signal_exits(self):
         for outcome in ('1', '2', 'signal'):
