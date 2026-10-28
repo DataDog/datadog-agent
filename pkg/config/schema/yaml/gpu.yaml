@@ -34,6 +34,7 @@ properties:
       How long the core Agent waits for NVML initialization before reporting GPU
       readiness when gpu.enabled is true. Applies to Linux Agents with NVML support.
       The timeout starts during Agent startup, even if the GPU check is not scheduled.
+      It also expires during GPU reset windows, even while GPU collection is paused.
       Hosts without working NVML, including AMD-only hosts, wait for the full timeout
       on every Agent restart. The health probe can take up to 15 additional seconds
       to report readiness. This does not affect liveness or ongoing GPU health checks.

@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -458,6 +459,77 @@ func TestReadinessUsesNVMLState(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestReadinessWithSenderError(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		initSuccess bool
+	}{
+		{name: "NVML initialized", initSuccess: true},
+		{name: "NVML initialization fails"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				readiness := initReadiness(t)
+				lib := nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+				if tt.initSuccess {
+					require.NoError(t, ddnvml.BeginNVMLUse())
+					ddnvml.EndNVMLUse()
+				} else {
+					lib.InitFunc = func() nvml.Return { return nvml.ERROR_UNKNOWN }
+					ddnvml.WithPartialMockNVML(t, nil, nil)
+					ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface { return lib })
+				}
+				check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.NewStoppedSenderManager(), nil, readiness)
+				require.False(t, check.telemetry.nvmlState.LastNvmlInitSuccess())
+				require.Contains(t, health.GetReady().Unhealthy, CheckName)
+				synctest.Wait()
+
+				require.ErrorIs(t, check.Run(), mocksender.ErrStoppedSenderManager)
+				require.Equal(t, tt.initSuccess, check.telemetry.nvmlState.LastNvmlInitSuccess())
+				time.Sleep(15 * time.Second)
+				synctest.Wait()
+				if tt.initSuccess {
+					require.Contains(t, health.GetReady().Healthy, CheckName)
+					require.NotContains(t, health.GetReady().Unhealthy, CheckName)
+				} else {
+					require.Contains(t, health.GetReady().Unhealthy, CheckName)
+				}
+			})
+		})
+	}
+}
+
+func TestReadinessTimeoutDuringReleaseWindow(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		readiness := initReadiness(t)
+		nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+		check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil, readiness)
+		labels := mockNodeLabels{migConfigStateLabel: "pending"}
+		check.nodeInfo = labels
+		check.sysprobeNvmlState = func(model.NvmlState, time.Duration) error { return nil }
+		synctest.Wait()
+
+		require.NoError(t, check.Run())
+		require.True(t, ddnvml.IsNVMLReleased())
+		require.False(t, check.telemetry.nvmlState.LastNvmlInitSuccess())
+		require.Contains(t, health.GetReady().Unhealthy, CheckName)
+
+		time.Sleep(59 * time.Second)
+		synctest.Wait()
+		require.NoError(t, check.Run())
+		require.Contains(t, health.GetReady().Unhealthy, CheckName)
+
+		// The startup deadline passes even though the reset still pauses collection.
+		time.Sleep(16 * time.Second)
+		synctest.Wait()
+		require.NoError(t, check.Run())
+		require.True(t, ddnvml.IsNVMLReleased())
+		require.False(t, check.telemetry.nvmlState.LastNvmlInitSuccess())
+		require.Contains(t, health.GetReady().Healthy, CheckName)
+		require.NotContains(t, health.GetReady().Unhealthy, CheckName)
+	})
 }
 
 func TestReadinessWaitsForNVMLInitialization(t *testing.T) {
@@ -1993,6 +2065,12 @@ func testPRMCounters(seed uint64) map[string]uint64 {
 // ---------------------------------------------------------------------------
 // NVML release for GPU reset windows
 //
+
+type mockNodeLabels map[string]string
+
+func (labels mockNodeLabels) GetNodeLabels(context.Context) (map[string]string, error) {
+	return labels, nil
+}
 
 // newReleaseTestCheck builds a Check for the release-signal tests, with a
 // recording fake for the system-probe lease push.

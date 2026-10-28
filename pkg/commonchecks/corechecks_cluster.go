@@ -30,6 +30,8 @@ import (
 )
 
 // RegisterChecks registers the checks that can run in the Cluster Agent
+// Its signature matches corechecks.go for shared callers such as the check command.
+// Cluster Agent builds use the GPU stub and do not register GPU readiness.
 func RegisterChecks(store workloadmeta.Component, _ workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	_ telemetry.Component, _ rcclient.Component, _ flare.Component, _ snmpscanmanager.Component, _ traceroute.Component, _ option.Option[networkconfigmanagement.Component], _ *gpu.Readiness) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))

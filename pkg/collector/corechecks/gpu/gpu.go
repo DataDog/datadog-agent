@@ -81,7 +81,7 @@ type Check struct {
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
-	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
+	nodeInfo            nodeLabelReader                  // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
 	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
 }
@@ -104,6 +104,7 @@ type checkTelemetryMetrics struct {
 
 // NewReadiness registers GPU readiness before the health probe server and checks start.
 // The returned state must be shared across check cancellations and reloads.
+// The timeout also applies while NVML is released for a GPU reset.
 // A non-positive timeout disables the readiness check.
 func NewReadiness(timeout time.Duration) *Readiness {
 	if timeout <= 0 {
@@ -421,14 +422,7 @@ func (c *Check) Run() error {
 
 	currentExecutionTime := time.Now()
 
-	snd, err := c.GetSender()
-	if err != nil {
-		return fmt.Errorf("get metric sender: %w", err)
-	}
-	// Commit the metrics even in case of an error
-	defer snd.Commit()
-
-	// Check the state of the NVML library for telemetry
+	// NVML readiness is independent of metric sender availability.
 	c.telemetry.nvmlState.Check()
 	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
 	if c.telemetry.nvmlState.LastNvmlInitSuccess() && c.readiness != nil {
@@ -438,6 +432,13 @@ func (c *Check) Run() error {
 		default:
 		}
 	}
+
+	snd, err := c.GetSender()
+	if err != nil {
+		return fmt.Errorf("get metric sender: %w", err)
+	}
+	// Commit the metrics even in case of an error
+	defer snd.Commit()
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -794,6 +795,10 @@ func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 // permanently pause GPU monitoring.
 func isMigReconfigState(v string) bool {
 	return v == "pending" || v == "rebooting"
+}
+
+type nodeLabelReader interface {
+	GetNodeLabels(context.Context) (map[string]string, error)
 }
 
 // shouldReleaseNVML reports whether an NVML release window is active, driven
