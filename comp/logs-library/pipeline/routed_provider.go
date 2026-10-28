@@ -9,8 +9,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"sync"
+	"time"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -42,6 +44,7 @@ const (
 	routedProgressCapacity  = 4096
 	routedDestinationBuffer = 128
 	routedHTTPRequests      = 64
+	routedStopGrace         = 5 * time.Second
 )
 
 // RoutedOptions is the injection boundary for the normal HTTP routing
@@ -70,29 +73,40 @@ type routedStream struct {
 	strategy sender.Strategy
 }
 
+type sourceInputKey struct {
+	identifier string
+	generation uint64
+}
+
 type RoutedProvider struct {
-	opts          RoutedOptions
-	defs          *routing.Definitions
-	progress      *routing.Progress
-	monitor       metrics.PipelineMonitor
-	ingress       chan *message.Message
-	processed     chan *message.Message
-	processors    []*processor.Processor
-	streams       map[string]*routedStream
-	senders       map[string]*sender.Sender
-	groupInputs   map[string]chan *message.Payload
-	sinks         map[string]*routing.GroupSink
-	ctx           context.Context
-	cancel        context.CancelFunc
-	ingressDone   chan struct{}
-	processedDone chan struct{}
-	dispatchDone  sync.WaitGroup
-	groupDone     sync.WaitGroup
-	lifecycle     sync.RWMutex
-	stopOnce      sync.Once
-	stopRequested chan struct{}
-	started       bool
-	stopped       bool
+	opts             RoutedOptions
+	defs             *routing.Definitions
+	progress         *routing.Progress
+	monitor          metrics.PipelineMonitor
+	ingress          chan *message.Message
+	inputs           []chan *message.Message
+	sourceInputs     map[sourceInputKey]chan *message.Message
+	inputKeys        map[chan *message.Message]sourceInputKey
+	processed        chan *message.Message
+	processors       []*processor.Processor
+	streams          map[string]*routedStream
+	senders          map[string]*sender.Sender
+	groupInputs      map[string]chan *message.Payload
+	sinks            map[string]*routing.GroupSink
+	ctx              context.Context
+	cancel           context.CancelFunc
+	ingressDone      sync.WaitGroup
+	processedDone    chan struct{}
+	dispatchDone     sync.WaitGroup
+	groupDone        sync.WaitGroup
+	sourceDispatchMu sync.Mutex
+	sourceDispatch   map[string]chan *message.Message
+	sourceDone       sync.WaitGroup
+	lifecycle        sync.RWMutex
+	stopOnce         sync.Once
+	stopRequested    chan struct{}
+	started          bool
+	stopped          bool
 }
 
 // NewRoutedProvider validates injected groups before constructing workers. It
@@ -117,9 +131,13 @@ func NewRoutedProvider(opts RoutedOptions) (*RoutedProvider, error) {
 		streams:   make(map[string]*routedStream), senders: make(map[string]*sender.Sender),
 		groupInputs: make(map[string]chan *message.Payload),
 		sinks:       make(map[string]*routing.GroupSink), ctx: ctx, cancel: cancel,
-		ingressDone: make(chan struct{}), processedDone: make(chan struct{}),
-		stopRequested: make(chan struct{}),
+		sourceDispatch: make(map[string]chan *message.Message),
+		sourceInputs:   make(map[sourceInputKey]chan *message.Message),
+		inputKeys:      make(map[chan *message.Message]sourceInputKey),
+		processedDone:  make(chan struct{}),
+		stopRequested:  make(chan struct{}),
 	}
+	p.inputs = append(p.inputs, p.ingress)
 	endpointCount := 0
 	for _, group := range defs.Groups() {
 		endpointCount += len(group.Endpoints.Endpoints)
@@ -228,15 +246,28 @@ func (p *RoutedProvider) Start() {
 		proc.Start()
 	}
 	go p.dispatchProcessed()
-	go p.admit()
+	for _, input := range p.inputs {
+		if key, bound := p.inputKeys[input]; bound {
+			p.ingressDone.Add(1)
+			go p.admit(input, &key)
+			continue
+		}
+		p.ingressDone.Add(1)
+		go p.admit(input, nil)
+	}
 }
 
-func (p *RoutedProvider) admit() {
-	defer close(p.ingressDone)
+func (p *RoutedProvider) admit(input <-chan *message.Message, bound *sourceInputKey) {
+	defer p.ingressDone.Done()
 	var index uint64
-	for msg := range p.ingress {
+	if bound != nil {
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(bound.identifier))
+		index = uint64(h.Sum32()) % uint64(len(p.processors))
+	}
+	for msg := range input {
 		if done := msg.RoutingBarrier(); done != nil {
-			p.flushPrior(done)
+			close(done)
 			continue
 		}
 		if p.ctx.Err() != nil {
@@ -245,6 +276,13 @@ func (p *RoutedProvider) admit() {
 		selection, err := p.opts.Resolve(msg)
 		if err != nil {
 			p.report(err)
+			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
+				p.report(holdErr)
+			}
+			continue
+		}
+		if bound != nil && (msg.Origin == nil || msg.Origin.Identifier != bound.identifier || selection.Generation != bound.generation) {
+			p.report(routing.ErrInvalidSelection)
 			if holdErr := p.progress.HoldInvalid(p.ctx, msg); holdErr != nil {
 				p.report(holdErr)
 			}
@@ -269,7 +307,9 @@ func (p *RoutedProvider) admit() {
 			continue
 		}
 		proc := p.processors[index%uint64(len(p.processors))]
-		index++
+		if bound == nil {
+			index++
+		}
 		select {
 		case proc.InputChan() <- msg:
 		case <-p.ctx.Done():
@@ -281,7 +321,7 @@ func (p *RoutedProvider) admit() {
 
 // flushPrior sends ordered markers through every processing lane and stream.
 // Each marker can pass only after all earlier records in that stage.
-func (p *RoutedProvider) flushPrior(done chan struct{}) {
+func (p *RoutedProvider) flushPrior(ctx context.Context, done chan struct{}) {
 	defer close(done)
 	var acknowledgements []chan struct{}
 	for _, proc := range p.processors {
@@ -291,6 +331,10 @@ func (p *RoutedProvider) flushPrior(done chan struct{}) {
 		select {
 		case proc.InputChan() <- marker:
 			acknowledgements = append(acknowledgements, ack)
+		case <-ctx.Done():
+			return
+		case <-p.stopRequested:
+			return
 		case <-p.ctx.Done():
 			return
 		}
@@ -298,6 +342,10 @@ func (p *RoutedProvider) flushPrior(done chan struct{}) {
 	for _, ack := range acknowledgements {
 		select {
 		case <-ack:
+		case <-ctx.Done():
+			return
+		case <-p.stopRequested:
+			return
 		case <-p.ctx.Done():
 			return
 		}
@@ -310,6 +358,10 @@ func (p *RoutedProvider) flushPrior(done chan struct{}) {
 		select {
 		case stream.input <- marker:
 			acknowledgements = append(acknowledgements, ack)
+		case <-ctx.Done():
+			return
+		case <-p.stopRequested:
+			return
 		case <-p.ctx.Done():
 			return
 		}
@@ -317,6 +369,10 @@ func (p *RoutedProvider) flushPrior(done chan struct{}) {
 	for _, ack := range acknowledgements {
 		select {
 		case <-ack:
+		case <-ctx.Done():
+			return
+		case <-p.stopRequested:
+			return
 		case <-p.ctx.Done():
 			return
 		}
@@ -326,6 +382,65 @@ func (p *RoutedProvider) flushPrior(done chan struct{}) {
 func (p *RoutedProvider) dispatchProcessed() {
 	defer close(p.processedDone)
 	for msg := range p.processed {
+		if done := msg.RoutingBarrier(); done != nil {
+			p.sourceDispatchMu.Lock()
+			acks := make([]chan struct{}, 0, len(p.sourceDispatch))
+			for _, input := range p.sourceDispatch {
+				ack := make(chan struct{})
+				marker := &message.Message{}
+				marker.SetRoutingBarrier(ack)
+				select {
+				case input <- marker:
+					acks = append(acks, ack)
+				case <-p.ctx.Done():
+				}
+			}
+			p.sourceDispatchMu.Unlock()
+			for _, ack := range acks {
+				select {
+				case <-ack:
+				case <-p.ctx.Done():
+				}
+			}
+			close(done)
+			continue
+		}
+		identifier := ""
+		if msg.Origin != nil {
+			identifier = msg.Origin.Identifier
+		}
+		// Anonymous records have no source checkpoint and share one bounded lane.
+		if identifier == "" {
+			identifier = "\x00"
+		} else {
+			identifier = "\x01" + identifier
+		}
+		p.sourceDispatchMu.Lock()
+		input := p.sourceDispatch[identifier]
+		if input == nil {
+			input = make(chan *message.Message, routing.SourcePendingLimit)
+			p.sourceDispatch[identifier] = input
+			p.sourceDone.Add(1)
+			go p.dispatchSource(input)
+		}
+		p.sourceDispatchMu.Unlock()
+		select {
+		case input <- msg:
+		case <-p.ctx.Done():
+		}
+	}
+	p.sourceDispatchMu.Lock()
+	for id, input := range p.sourceDispatch {
+		close(input)
+		delete(p.sourceDispatch, id)
+	}
+	p.sourceDispatchMu.Unlock()
+	p.sourceDone.Wait()
+}
+
+func (p *RoutedProvider) dispatchSource(input <-chan *message.Message) {
+	defer p.sourceDone.Done()
+	for msg := range input {
 		if done := msg.RoutingBarrier(); done != nil {
 			close(done)
 			continue
@@ -422,7 +537,9 @@ func (p *RoutedProvider) Stop() {
 	if !p.started {
 		if !p.stopped {
 			p.stopped = true
-			close(p.ingress)
+			for _, input := range p.inputs {
+				close(input)
+			}
 			for _, sink := range p.sinks {
 				sink.Stop()
 			}
@@ -434,9 +551,22 @@ func (p *RoutedProvider) Stop() {
 	}
 	p.started = false
 	p.stopped = true
-	close(p.ingress)
+	for _, input := range p.inputs {
+		close(input)
+	}
 	p.lifecycle.Unlock()
-	<-p.ingressDone
+	stopComplete := make(chan struct{})
+	defer close(stopComplete)
+	go func() {
+		grace := time.NewTimer(routedStopGrace)
+		defer grace.Stop()
+		select {
+		case <-grace.C:
+			p.cancel() // Release blocked workers without acknowledging their records.
+		case <-stopComplete:
+		}
+	}()
+	p.ingressDone.Wait()
 	for _, proc := range p.processors {
 		proc.Stop()
 	}
@@ -459,6 +589,35 @@ func (p *RoutedProvider) Stop() {
 	p.cancel()
 }
 
+// SourceInput binds an input channel to one checkpointed producer generation.
+// A routed source launcher must use this boundary to receive source isolation.
+func (p *RoutedProvider) SourceInput(identifier string, generation uint64) (chan *message.Message, error) {
+	if identifier == "" || generation == 0 {
+		return nil, routing.ErrInvalidSelection
+	}
+	p.lifecycle.Lock()
+	defer p.lifecycle.Unlock()
+	if p.stopped {
+		return nil, routing.ErrStopped
+	}
+	key := sourceInputKey{identifier, generation}
+	if input := p.sourceInputs[key]; input != nil {
+		return input, nil
+	}
+	if len(p.sourceInputs) >= routedProgressCapacity {
+		return nil, errors.New("too many routed source inputs")
+	}
+	input := make(chan *message.Message, 1)
+	p.inputs = append(p.inputs, input)
+	p.sourceInputs[key] = input
+	p.inputKeys[input] = key
+	if p.started {
+		p.ingressDone.Add(1)
+		go p.admit(input, &key)
+	}
+	return input, nil
+}
+
 func (p *RoutedProvider) NextPipelineChan() chan *message.Message { return p.ingress }
 
 // GuardRegistry returns the registry to give routed source launchers. It
@@ -470,7 +629,35 @@ func (p *RoutedProvider) GuardRegistry(registry auditor.Registry) auditor.Regist
 // RetireSource releases a producer's generation ownership after it stops and
 // all of its decoder output has been admitted.
 func (p *RoutedProvider) RetireSource(identifier string, generation uint64) error {
-	return p.progress.RetireSource(identifier, generation)
+	p.sourceDispatchMu.Lock()
+	if err := p.progress.RetireSource(identifier, generation); err != nil {
+		p.sourceDispatchMu.Unlock()
+		return err
+	}
+	if !p.progress.OwnsSource(identifier) {
+		key := "\x01" + identifier
+		if input := p.sourceDispatch[key]; input != nil {
+			close(input)
+			delete(p.sourceDispatch, key)
+		}
+	}
+	p.sourceDispatchMu.Unlock()
+	key := sourceInputKey{identifier, generation}
+	p.lifecycle.Lock()
+	if input := p.sourceInputs[key]; input != nil && !p.stopped {
+		close(input)
+		delete(p.sourceInputs, key)
+		delete(p.inputKeys, input)
+		for i, candidate := range p.inputs {
+			if candidate == input {
+				p.inputs[i] = p.inputs[len(p.inputs)-1]
+				p.inputs = p.inputs[:len(p.inputs)-1]
+				break
+			}
+		}
+	}
+	p.lifecycle.Unlock()
+	return nil
 }
 
 func (p *RoutedProvider) GetOutputChan() chan *message.Message { return nil }
@@ -485,24 +672,43 @@ func (p *RoutedProvider) Flush(ctx context.Context) {
 		p.lifecycle.RUnlock()
 		return
 	}
+	acks := make([]chan struct{}, 0, len(p.inputs))
+	for _, input := range p.inputs {
+		if input == nil {
+			continue
+		}
+		ack := make(chan struct{})
+		marker := &message.Message{}
+		marker.SetRoutingBarrier(ack)
+		select {
+		case input <- marker:
+			acks = append(acks, ack)
+		case <-ctx.Done():
+			p.lifecycle.RUnlock()
+			return
+		case <-p.ctx.Done():
+			p.lifecycle.RUnlock()
+			return
+		case <-p.stopRequested:
+			p.lifecycle.RUnlock()
+			return
+		}
+	}
+	for _, ack := range acks {
+		select {
+		case <-ack:
+		case <-ctx.Done():
+			p.lifecycle.RUnlock()
+			return
+		case <-p.stopRequested:
+			p.lifecycle.RUnlock()
+			return
+		case <-p.ctx.Done():
+			p.lifecycle.RUnlock()
+			return
+		}
+	}
 	done := make(chan struct{})
-	marker := &message.Message{}
-	marker.SetRoutingBarrier(done)
-	select {
-	case p.ingress <- marker:
-		p.lifecycle.RUnlock()
-	case <-ctx.Done():
-		p.lifecycle.RUnlock()
-		return
-	case <-p.ctx.Done():
-		p.lifecycle.RUnlock()
-		return
-	case <-p.stopRequested:
-		p.lifecycle.RUnlock()
-		return
-	}
-	select {
-	case <-done:
-	case <-ctx.Done():
-	}
+	p.flushPrior(ctx, done)
+	p.lifecycle.RUnlock()
 }

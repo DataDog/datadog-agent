@@ -90,6 +90,13 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 		provider = NewProvider(1, sink, &diagnostic.BufferedMessageReceiver{}, nil, nil, endpoints, ctx, nil, nil, cfg, compressionfx.NewMockCompressor(), false, false, secretsnoopimpl.NewComponent().Comp)
 	}
 	provider.Start()
+	input := provider.NextPipelineChan()
+	if routed {
+		input, err = provider.(*RoutedProvider).SourceInput("file:benchmark", 1)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 	source := sources.NewLogSource("benchmark", &config.LogsConfig{Type: config.StringChannelType})
 	runtime.GC()
 	var before runtime.MemStats
@@ -100,7 +107,7 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 		msg := message.NewMessageWithSource([]byte("benchmark record"), "info", source, time.Now().UnixNano())
 		msg.Origin.Identifier = "file:benchmark"
 		msg.Origin.Offset = strconv.Itoa(i + 1)
-		provider.NextPipelineChan() <- msg
+		input <- msg
 	}
 	select {
 	case <-finished:
@@ -112,6 +119,11 @@ func benchmarkHTTPDelivery(b *testing.B, routed bool) {
 	var after runtime.MemStats
 	runtime.ReadMemStats(&after)
 	b.ReportMetric(float64(int64(after.HeapAlloc)-int64(before.HeapAlloc))/1024, "KiB/live-delta")
+	if routed {
+		if err := provider.(*RoutedProvider).RetireSource("file:benchmark", 1); err != nil {
+			b.Fatal(err)
+		}
+	}
 	provider.Stop()
 	ctx.Stop()
 	close(sink.ch)

@@ -359,3 +359,104 @@ func TestIndependentGroupKeepsPreviouslyPersistedPrefix(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestProgressCloseReleasesBlockedSink(t *testing.T) {
+	p, err := NewProgress(1, &progressTestSink{}) // No auditor consumer yet.
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := progressMessage("file", "1")
+	if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteGroup("a", terminalPayload(m))
+	done := make(chan struct{})
+	go func() { p.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Close hung behind a nil auditor sink")
+	}
+}
+
+func TestSourceBudgetWakesOnlyAfterSafePrefixRelease(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, SourcePendingLimit+2)}
+	p, err := NewProgress(SourcePendingLimit+2, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	x := make([]*message.Message, SourcePendingLimit)
+	for i := range x {
+		x[i] = progressMessage("x", "1")
+		if _, err := p.Register(context.Background(), x[i], Selection{Generation: 1}, []string{"a", "b"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	blocked := progressMessage("x", "65")
+	registered := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	go func() {
+		_, err := p.Register(ctx, blocked, Selection{Generation: 1}, []string{"a", "b"})
+		registered <- err
+	}()
+	select {
+	case err := <-registered:
+		t.Fatalf("X passed its source budget: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	y := progressMessage("y", "1")
+	if _, err := p.Register(context.Background(), y, Selection{Generation: 1}, []string{"b"}); err != nil {
+		t.Fatal(err)
+	}
+	p.CompleteGroup("b", terminalPayload(y))
+	if got := nextCheckpoint(t, sink.ch); got != "1" {
+		t.Fatal(got)
+	}
+	p.CompleteGroup("b", terminalPayload(x[0]))
+	select {
+	case err := <-registered:
+		t.Fatalf("B-only completion freed X before A: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	p.CompleteGroup("a", terminalPayload(x[0]))
+	if got := nextCheckpoint(t, sink.ch); got != "1" {
+		t.Fatal(got)
+	}
+	select {
+	case err := <-registered:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("X did not resume after its safe prefix advanced")
+	}
+}
+
+func TestAggregateBudgetBackpressuresOtherSources(t *testing.T) {
+	sink := &progressTestSink{ch: make(chan *message.Payload, 3)}
+	p, err := NewProgress(3, sink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	x, y, xLater := progressMessage("x", "1"), progressMessage("y", "1"), progressMessage("x", "2")
+	for _, m := range []*message.Message{x, y, xLater} {
+		if _, err := p.Register(context.Background(), m, Selection{Generation: 1}, []string{"b"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err := p.Register(ctx, progressMessage("z", "1"), Selection{Generation: 1}, []string{"b"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("aggregate exhaustion did not backpressure Z: %v", err)
+	}
+	p.CompleteGroup("b", terminalPayload(x))
+	if got := nextCheckpoint(t, sink.ch); got != "1" {
+		t.Fatal(got)
+	}
+	if _, err := p.Register(context.Background(), progressMessage("z", "1"), Selection{Generation: 1}, []string{"b"}); err != nil {
+		t.Fatalf("aggregate capacity did not wake Z: %v", err)
+	}
+}

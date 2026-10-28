@@ -21,21 +21,28 @@ var (
 	ErrUnknownGeneration = errors.New("log routing source generation not owned")
 )
 
+// SourcePendingLimit bounds retained records from one checkpointed source.
+// It is smaller than the routed stream input so one stalled source cannot
+// fill that stage on its own.
+const SourcePendingLimit = 64
+
 // Progress coordinates terminal outcomes for original records. Its capacity
 // counts record references, not log bodies. Full capacity backpressures callers
 // before ownership transfers; it never acknowledges a rejected registration.
 type Progress struct {
-	mu        sync.Mutex
-	limit     int
-	next      uint64
-	records   map[uint64]*record
-	sources   map[string]*sourceProgress
-	histories int
-	space     chan struct{}
-	ready     chan *message.Payload
-	finished  chan struct{}
-	sink      sender.Sink
-	stopped   bool
+	mu          sync.Mutex
+	limit       int
+	sourceLimit int
+	next        uint64
+	records     map[uint64]*record
+	sources     map[string]*sourceProgress
+	histories   int
+	space       chan struct{}
+	ready       chan *message.Payload
+	shutdown    chan struct{}
+	finished    chan struct{}
+	sink        sender.Sink
+	stopped     bool
 }
 
 type record struct {
@@ -60,9 +67,9 @@ func NewProgress(limit int, sink sender.Sink) (*Progress, error) {
 		return nil, errors.New("invalid routing progress capacity or sink")
 	}
 	p := &Progress{
-		limit: limit, records: make(map[uint64]*record),
+		limit: limit, sourceLimit: min(limit, SourcePendingLimit), records: make(map[uint64]*record),
 		sources: make(map[string]*sourceProgress), space: make(chan struct{}),
-		ready: make(chan *message.Payload, limit), finished: make(chan struct{}), sink: sink,
+		ready: make(chan *message.Payload, limit), shutdown: make(chan struct{}), finished: make(chan struct{}), sink: sink,
 	}
 	go p.forward()
 	return p, nil
@@ -73,7 +80,11 @@ func (p *Progress) forward() {
 	for payload := range p.ready {
 		// The Agent constructs its provider before it starts the auditor. This
 		// channel is acquired only when terminal progress is ready to publish.
-		p.sink.Channel() <- payload
+		select {
+		case p.sink.Channel() <- payload:
+		case <-p.shutdown:
+			return // A blocked sink must not prevent shutdown.
+		}
 	}
 }
 
@@ -121,7 +132,8 @@ func (p *Progress) register(ctx context.Context, msg *message.Message, selection
 			_, seen := source.seenGenerations[selection.Generation]
 			needsHistory = requireCompleteSource && !seen
 		}
-		if len(p.records) < p.limit && (!needsOwner || len(p.sources) < p.limit) && (!needsHistory || p.histories < p.limit) {
+		sourceHasRoom := identifier == "" || source == nil || len(source.queue) < p.sourceLimit
+		if len(p.records) < p.limit && sourceHasRoom && (!needsOwner || len(p.sources) < p.limit) && (!needsHistory || p.histories < p.limit) {
 			break
 		}
 		space := p.space
@@ -299,6 +311,13 @@ func (p *Progress) Pending() int {
 	return len(p.records)
 }
 
+// OwnsSource reports whether any active generation still owns this identifier.
+func (p *Progress) OwnsSource(identifier string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.sources[identifier] != nil
+}
+
 // Close releases unresolved reservations without acknowledging them. Call it
 // only after every group sink has stopped producing outcomes.
 func (p *Progress) Close() {
@@ -306,6 +325,7 @@ func (p *Progress) Close() {
 	if !p.stopped {
 		p.stopped = true
 		close(p.space)
+		close(p.shutdown)
 		close(p.ready)
 		p.records = nil
 		p.sources = nil
