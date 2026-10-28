@@ -43,7 +43,7 @@ package_metadata(
     purl = purl_for_generic(
         download_url = "https://crates.io/api/v1/crates/aws-lc-sys/{version}/download",
         package = "aws-lc-sys",
-        version = "0.45.0",
+        version = "0.46.0",
     ),
 )
 
@@ -54,7 +54,7 @@ license(
         "@rules_license//licenses/spdx:ISC",
         "@rules_license//licenses/spdx:OpenSSL",
     ],
-    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-sys-0.45.0//:LICENSE",
+    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-sys-0.46.0//:LICENSE",
 )
 
 proto_library(
