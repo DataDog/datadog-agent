@@ -425,3 +425,19 @@ http_archive(
         "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
 )
+
+# Static glibc (and libgcc_eh) for -static Linux links: hermetic-llvm ships shared-object glibc stubs only.
+# Same tarballs as the crosstool-NG GCC toolchains; versions must match the glibc pinned in //bazel/platforms.
+http_archive(
+    name = "glibc_static_x86_64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "3e842665eecc8ebe8ebf8e6f391809a2124c362e97f3d7dfb2df78225c719342",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/98b584a9d5921dfe1262878d9d7fc322288f919c6e24763401f7cf29194de9c7/x86_64/x86_64-linux-gnu-gcc.tar.xz"],
+)
+
+http_archive(
+    name = "glibc_static_aarch64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "26b924f31f21c2d84a3f78954d295ff6eaeaa758dca39cb3c25178c2cfd00692",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/3857f6dd078bb69ceb53e37536fa0e90eb7f3c2eefa1454f5f43376f02d8c9cc/aarch64/aarch64-linux-gnu-gcc.tar.xz"],
+)

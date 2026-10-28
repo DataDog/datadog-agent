@@ -1,0 +1,35 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+
+package(default_visibility = ["//visibility:public"])
+
+config_setting(
+    name = "x86_64_gnu_2_17",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@llvm//constraints/libc:gnu.2.17",
+    ],
+)
+
+config_setting(
+    name = "arm64_gnu_2_23",
+    constraint_values = [
+        "@platforms//cpu:arm64",
+        "@llvm//constraints/libc:gnu.2.23",
+    ],
+)
+
+copy_to_directory(
+    name = "empty",
+    srcs = [],
+)
+
+# Value of @llvm//runtimes/glibc:glibc_static_library_search_directory. Any other
+# glibc version gets no archives, so its -static links keep failing loudly.
+alias(
+    name = "glibc_static",
+    actual = select({
+        ":arm64_gnu_2_23": "@glibc_static_aarch64//:glibc_static_library_search_directory",
+        ":x86_64_gnu_2_17": "@glibc_static_x86_64//:glibc_static_library_search_directory",
+        "//conditions:default": ":empty",
+    }),
+)

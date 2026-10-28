@@ -83,6 +83,7 @@ common:linux_x86_64 --config=linux_target
 common:linux_x86_64 --host_platform=//bazel/platforms:linux_x86_64
 common:linux_target --linkopt=-Wl,--build-id=sha1 # hermetic-llvm's lld emits no build ID by default
 common:linux_target --linkopt=-Wl,--undefined-version # lld, unlike GNU ld, rejects version scripts naming undefined symbols
+common --@llvm//runtimes/glibc:glibc_static_library_search_directory=//bazel/toolchains/glibc_static # -static links; hermetic-llvm ships glibc stubs only
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --experimental_use_llvm_covmap # gcov's runtime is missing in foreign_cc links (CPython's _ctypes)
