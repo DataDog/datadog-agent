@@ -25,6 +25,7 @@ go_library(
 dd_agent_go_test(
     name = "metrics_test",
     srcs = [
+        "atomic_align_test.go",
         "capacity_monitor_test.go",
         "metrics_test.go",
         "missed_bytes_test.go",
