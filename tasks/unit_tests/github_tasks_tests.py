@@ -708,14 +708,8 @@ class TestGetTeams(unittest.TestCase):
 
 
 class TestNotifyCommunityPR(unittest.TestCase):
-    def notify(self, opened_days_ago, teams):
-        from datetime import datetime, timedelta, timezone
-
-        pr = MagicMock(
-            title=' Fix a typo ',
-            html_url='https://github.com/DataDog/datadog-agent/pull/1',
-            created_at=datetime.now(timezone.utc) - timedelta(days=opened_days_ago),
-        )
+    def notify(self, teams):
+        pr = MagicMock(title=' Fix a typo ', html_url='https://github.com/DataDog/datadog-agent/pull/1')
         with (
             patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock,
             patch('slack_sdk.WebClient') as web_mock,
@@ -729,16 +723,12 @@ class TestNotifyCommunityPR(unittest.TestCase):
             return web_mock.return_value.chat_postMessage
 
     def test_notify_owning_team(self):
-        post = self.notify(opened_days_ago=0, teams=['@datadog/team-a'])
+        post = self.notify(teams=['@datadog/team-a'])
         post.assert_called_once_with(
             channel='#team-a',
             text=':pr: *New Community PR*\nFix a typo <https://github.com/DataDog/datadog-agent/pull/1|DataDog/datadog-agent#1>',
         )
 
     def test_skip_unmapped_team(self):
-        post = self.notify(opened_days_ago=0, teams=['@datadog/team-b'])
-        post.assert_not_called()
-
-    def test_skip_old_pr(self):
-        post = self.notify(opened_days_ago=30, teams=['@datadog/team-a'])
+        post = self.notify(teams=['@datadog/team-b'])
         post.assert_not_called()

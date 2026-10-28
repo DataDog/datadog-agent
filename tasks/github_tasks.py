@@ -180,22 +180,16 @@ def _assign_pr_team_labels(gh, pr_id, teams):
 
 
 @task
-def notify_community_pr(_, repo='', pr_id=-1, max_age_days=7):
+def notify_community_pr(_, repo='', pr_id=-1):
     """
-    Will notify the teams owning the changed files about a community PR.
-    PRs opened more than max_age_days ago are skipped, so that labeling old PRs does not flood Slack.
+    Will notify the teams owning the changed files about a community PR
     """
-    from datetime import datetime, timedelta, timezone
-
     from slack_sdk import WebClient
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
     pr = gh.get_pr(pr_id)
-    if datetime.now(timezone.utc) - pr.created_at > timedelta(days=int(max_age_days)):
-        print(f'PR {pr_id} was opened more than {max_age_days} days ago, skipping the notification')
-        return
 
     # Find teams corresponding to file changes
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
