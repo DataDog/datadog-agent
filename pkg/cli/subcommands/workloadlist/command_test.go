@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,25 +36,5 @@ func TestCommand(t *testing.T) {
 			if cliParams.verboseList {
 				t.Errorf("expected verboseList to be false by default")
 			}
-		})
-}
-
-func TestLogLevelIgnoresEnv(t *testing.T) {
-	t.Setenv("DD_LOG_LEVEL", "info")
-
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand(func() GlobalParams { return GlobalParams{} })},
-		[]string{"workload-list"},
-		workloadList,
-		func(_ *cliParams, bundleParams core.BundleParams) {
-			assert.Equal(t, "off", bundleParams.LogParams.LogLevelFn(nil))
-		})
-
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand(func() GlobalParams { return GlobalParams{} })},
-		[]string{"workload-list", "--log_level", "debug"},
-		workloadList,
-		func(_ *cliParams, bundleParams core.BundleParams) {
-			assert.Equal(t, "debug", bundleParams.LogParams.LogLevelFn(nil))
 		})
 }

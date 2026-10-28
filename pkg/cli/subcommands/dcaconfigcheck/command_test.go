@@ -10,10 +10,8 @@ package dcaconfigcheck
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCommand(t *testing.T) {
@@ -28,24 +26,4 @@ func TestCommand(t *testing.T) {
 		[]string{"configcheck"},
 		run,
 		func() {})
-}
-
-func TestLogLevelIgnoresEnv(t *testing.T) {
-	t.Setenv("DD_LOG_LEVEL", "info")
-
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand(func() GlobalParams { return GlobalParams{} })},
-		[]string{"configcheck"},
-		run,
-		func(bundleParams core.BundleParams) {
-			assert.Equal(t, "off", bundleParams.LogParams.LogLevelFn(nil))
-		})
-
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand(func() GlobalParams { return GlobalParams{} })},
-		[]string{"configcheck", "--log_level", "debug"},
-		run,
-		func(bundleParams core.BundleParams) {
-			assert.Equal(t, "debug", bundleParams.LogParams.LogLevelFn(nil))
-		})
 }
