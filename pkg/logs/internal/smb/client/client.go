@@ -51,6 +51,16 @@ type Config struct {
 	Domain   string // NTLM domain; empty lets the server choose
 	Port     int    // 0 means 445
 
+	// AllowSMB2 offers SMB 2.0.2 and 2.1 besides SMB 3.x, for servers that
+	// support nothing newer. SMB 2 sessions cannot be encrypted, and the
+	// negotiation that picks the dialect is not authenticated before SMB 3.1.1.
+	AllowSMB2 bool
+	// RequireEncryption makes Dial fail unless the server encrypts the session
+	// or the share (SMB 3 only). Without it, the Agent signs every message but
+	// the content of the files can be read by anyone on the network path
+	// unless the server enforces encryption.
+	RequireEncryption bool
+
 	DialTimeout time.Duration // bounds connect, authentication and mount; 0 means 10s
 	OpTimeout   time.Duration // bounds each ListDir/ReadAt call; 0 means 30s
 }
@@ -177,14 +187,14 @@ func CleanPath(p string) (string, error) {
 
 // String implements fmt.Stringer without the password.
 func (c Config) String() string {
-	return fmt.Sprintf("{Host:%s Share:%s Username:%s Password:%s Domain:%s Port:%d DialTimeout:%s OpTimeout:%s}",
-		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.DialTimeout, c.OpTimeout)
+	return fmt.Sprintf("{Host:%s Share:%s Username:%s Password:%s Domain:%s Port:%d AllowSMB2:%t RequireEncryption:%t DialTimeout:%s OpTimeout:%s}",
+		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.AllowSMB2, c.RequireEncryption, c.DialTimeout, c.OpTimeout)
 }
 
 // GoString implements fmt.GoStringer without the password.
 func (c Config) GoString() string {
-	return fmt.Sprintf("client.Config{Host:%q, Share:%q, Username:%q, Password:%q, Domain:%q, Port:%d, DialTimeout:%d, OpTimeout:%d}",
-		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.DialTimeout, c.OpTimeout)
+	return fmt.Sprintf("client.Config{Host:%q, Share:%q, Username:%q, Password:%q, Domain:%q, Port:%d, AllowSMB2:%t, RequireEncryption:%t, DialTimeout:%d, OpTimeout:%d}",
+		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.AllowSMB2, c.RequireEncryption, c.DialTimeout, c.OpTimeout)
 }
 
 // target names the share in logs and errors, without credentials.
@@ -219,6 +229,8 @@ func (c Config) validate() error {
 		return fmt.Errorf("smb: share %q must be a single share name", c.Share)
 	case c.Port < 0 || c.Port > 65535:
 		return fmt.Errorf("smb: port %d is out of range", c.Port)
+	case c.AllowSMB2 && c.RequireEncryption:
+		return errors.New("smb: require_encryption needs SMB 3 and cannot be combined with allow_smb2")
 	}
 	return nil
 }

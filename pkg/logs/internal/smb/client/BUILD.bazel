@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "classify.go",
         "client.go",
+        "guard.go",
         "reconnect.go",
         "smb.go",
     ],
@@ -34,12 +35,15 @@ dd_agent_go_test(
     srcs = [
         "classify_test.go",
         "client_test.go",
+        "guard_test.go",
         "reconnect_test.go",
         "smb_test.go",
     ],
     embed = [":client"],
     deps = [
         "//pkg/logs/internal/smb/client/fake",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/auth",
         "//pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
