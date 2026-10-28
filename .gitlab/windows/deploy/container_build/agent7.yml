@@ -124,6 +124,9 @@ docker_sign_agent7_windows:
     - docker_build_agent7_windows
     - docker_build_fips_agent7_windows
   id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
     DDSIGN_ID_TOKEN:
       aud: image-integrity
   script:

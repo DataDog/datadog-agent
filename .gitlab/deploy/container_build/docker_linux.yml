@@ -123,6 +123,9 @@
     - ddsign sign ${TARGET_TAG}@$(crane digest ${TARGET_TAG})
     - !reference [.static_quality_gate_docker]
   id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
     DDSIGN_ID_TOKEN:
       aud: image-integrity
   variables:

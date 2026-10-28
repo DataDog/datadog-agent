@@ -63,6 +63,9 @@ docker_sign_fakeintake:
   rules: !reference [docker_build_fakeintake, rules]
   needs: [docker_build_fakeintake]
   id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
     DDSIGN_ID_TOKEN:
       aud: image-integrity
   variables:
