@@ -41,7 +41,7 @@ go_library(
 dd_agent_go_test(
     name = "pod_test",
     srcs = ["pod_test.go"],
-    data = ["//pkg/collector/corechecks/orchestrator:testdata"],  # keep
+    data = ["//pkg/collector/corechecks/orchestrator:testdata"],
     embed = [":pod"],
     gotags_sets = [[
         "cel",
