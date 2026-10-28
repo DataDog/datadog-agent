@@ -49,7 +49,7 @@ func newAPMBasicTarget(cfg APMBasicConfig) *Target {
 		},
 		TracerVersions: cfg.TracerVersions,
 		TracerConfigs: []TracerConfig{
-			{Name: "DD_INJECT_NATIVE", Value: "fallback"},
+			{Name: "DD_INJECT_NATIVE", Value: "always"},
 			{Name: "DD_TRACE_HOOK_MODULES", Value: strings.Join(apmBasicHookModules, ",")},
 			{Name: "DD_APM_BASIC_ENABLED", Value: "true"},
 		},
