@@ -43,6 +43,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 		_ = confmaputils.Set(profiling, "include_env_vars", agent.hostProfilerConfig.IncludeEnvVars)
 	}
 	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
+	_ = confmaputils.Set(profiling, "filter_min_process_age", agent.hostProfilerConfig.FilterMinProcessAge.String())
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
 	for option, value := range agent.hostProfilerConfig.SymbolUploaderOptions {
 		_ = confmaputils.Set(profiling, "symbol_uploader::"+option, value)

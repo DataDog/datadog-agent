@@ -55,6 +55,24 @@ func TestSendErrorFrames(t *testing.T) {
 	}
 }
 
+func TestFilterMinProcessAge(t *testing.T) {
+	for _, tc := range []struct {
+		settings string
+		expected string
+	}{
+		{"", "0s"},
+		{"hostprofiler:\n  filter_min_process_age: 5s", "5s"},
+	} {
+		cfg := config.NewMockFromYAML(t, tc.settings)
+		conf := confMap{}
+		buildReceivers(conf, newConfigManager(cfg))
+
+		receivers := conf["receivers"].(map[string]any)
+		profiling := receivers["profiling"].(map[string]any)
+		assert.Equal(t, tc.expected, profiling["filter_min_process_age"])
+	}
+}
+
 func TestNewConfigManagerAdditionalHTTPHeadersFromYAML(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key

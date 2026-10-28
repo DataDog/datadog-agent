@@ -45,6 +45,7 @@ The following settings can be overridden in the Datadog Agent configuration for 
 | `hostprofiler.additional_http_headers` | map[string]string | _(empty)_ | Adds custom headers to profile export requests, for example when required by an outbound proxy or gateway. |
 | `hostprofiler.send_error_frames` | bool   | `false` | Includes unwind error frames in profiles for troubleshooting. |
 | `hostprofiler.include_env_vars` | string (comma-separated) | _(empty)_ | Collects additional environment variables from profiled processes without replacing the default metadata collection. Only include variables whose values are safe to send with profiles; do not include secrets. |
+| `hostprofiler.filter_min_process_age` | duration | `0s` | Skips profiling processes younger than this duration, to filter out short-lived processes. `0s` disables the filter. |
 
 ### Symbol uploader
 

@@ -8226,6 +8226,13 @@ properties:
         default: false
         description: |
           Includes unwind error frames in profiles for troubleshooting.
+      filter_min_process_age:
+        node_type: setting
+        type: string
+        default: 0s
+        format: duration
+        description: |
+          Skips profiling processes younger than this duration, to filter out short-lived processes. 0 disables the filter.
       ddprofiling:
         node_type: section
         type: object

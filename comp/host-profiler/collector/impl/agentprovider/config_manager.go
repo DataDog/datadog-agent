@@ -6,6 +6,8 @@
 package agentprovider
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,6 +40,7 @@ type hostProfilerConfig struct {
 	DebugVerbosity        string
 	IncludeEnvVars        string
 	SendErrorFrames       bool
+	FilterMinProcessAge   time.Duration
 	AdditionalHTTPHeaders map[string]string
 	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
@@ -126,6 +129,7 @@ func newConfigManager(config config.Component) configManager {
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		IncludeEnvVars:        config.GetString("hostprofiler.include_env_vars"),
 		SendErrorFrames:       config.GetBool("hostprofiler.send_error_frames"),
+		FilterMinProcessAge:   config.GetDuration("hostprofiler.filter_min_process_age"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 		DDProfiling: ddProfilingConfig{
 			Enabled: config.GetBool("hostprofiler.ddprofiling.enabled"),
