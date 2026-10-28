@@ -67,6 +67,10 @@ func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *el
 	if err != nil {
 		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
+	if _, ok := mf.(*os.File); !ok && !m.IsVDSO() {
+		_ = mf.Close()
+		return nil, fmt.Errorf("mapping file %s for PID %d is not backed by a file", m.Path, pr.PID())
+	}
 
 	// elfFile takes ownership of mf
 	elfFile, err := pfelf.NewFileFromFS(mf)
