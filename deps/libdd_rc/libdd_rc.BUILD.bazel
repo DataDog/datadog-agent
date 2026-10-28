@@ -1,0 +1,286 @@
+load("@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_static_library")
+
+package(
+    default_package_metadata = [
+        ":aws_lc_package_metadata",
+        ":libdd_rc_package_metadata",
+    ],
+)
+
+exports_files(["LICENSE"])
+
+package_metadata(
+    name = "libdd_rc_package_metadata",
+    attributes = [":libdd_rc_license"],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/libdd-rc/archive/{version}.tar.gz",
+        package = "libdd-rc",
+        version = "2c5496404cceab24219560ad23dd71c9226bbb0a",
+    ),
+)
+
+license(
+    name = "libdd_rc_license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+)
+
+# aws-lc-sys builds AWS-LC, which is linked into librc_x509_ffi.a. Cargo's
+# generated BUILD file does not carry package_metadata, so attach its upstream
+# license to the libdd-rc wrapper targets that introduce it into the Agent.
+package_metadata(
+    name = "aws_lc_package_metadata",
+    attributes = [":aws_lc_license"],
+    purl = purl_for_generic(
+        download_url = "https://crates.io/api/v1/crates/aws-lc-sys/{version}/download",
+        package = "aws-lc-sys",
+        version = "0.46.0",
+    ),
+)
+
+license(
+    name = "aws_lc_license",
+    license_kinds = [
+        "@rules_license//licenses/spdx:Apache-2.0",
+        "@rules_license//licenses/spdx:ISC",
+        "@rules_license//licenses/spdx:OpenSSL",
+    ],
+    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-sys-0.46.0//:LICENSE",
+)
+
+proto_library(
+    name = "signature_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/signature/v1/signature.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+)
+
+proto_library(
+    name = "magic_tunnel_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/v1/protocol.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+)
+
+proto_library(
+    name = "remote_config_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/remote_config/v1/remote_config.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+proto_library(
+    name = "protocol_proto",
+    srcs = glob(["lib/rc-x509-proto/protos/rc/x509/protocol/v1/*.proto"]),
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = [
+        ":magic_tunnel_proto",
+        ":signature_proto",
+    ],
+)
+
+go_proto_library(
+    name = "signature_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/signature",
+    proto = ":signature_proto",
+)
+
+go_proto_library(
+    name = "magic_tunnel_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel",
+    proto = ":magic_tunnel_proto",
+)
+
+go_proto_library(
+    name = "remote_config_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config",
+    proto = ":remote_config_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "protocol_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/protocol",
+    proto = ":protocol_proto",
+    deps = [
+        ":magic_tunnel_go_proto",
+        ":signature_go_proto",
+    ],
+)
+
+_RC_X509_FFI_CRATES = [
+    "futures",
+    "rc-x509-client",
+    "rc-x509-proto",
+    "tokio",
+    "tokio-stream",
+    "tokio-util",
+    "tracing",
+    "tracing-subscriber",
+]
+
+rust_static_library(
+    name = "rc_x509_ffi",
+    srcs = [
+        "lib/rc-x509-ffi/src/connection.rs",
+        "lib/rc-x509-ffi/src/ctx.rs",
+        "lib/rc-x509-ffi/src/io_handle.rs",
+        "lib/rc-x509-ffi/src/lib.rs",
+        "lib/rc-x509-ffi/src/log_sink.rs",
+    ],
+    compile_data = ["lib/rc-x509-ffi/README.md"],
+    crate_name = "rc_x509_ffi",
+    crate_root = "lib/rc-x509-ffi/src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = ["@libdd_rc_crates//:" + c for c in _RC_X509_FFI_CRATES],
+)
+
+cc_library(
+    name = "rc_x509_ffi_headers",
+    hdrs = ["include/libdd_rc.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_linux_header_file",
+    srcs = ["include/libdd_rc.h"],
+    prefix = "embedded/include",
+    strip_prefix = "include",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_linux_static_files",
+    # AWS-LC is built into librc_x509_ffi.a.
+    srcs = [":rc_x509_ffi"],
+    prefix = "embedded/lib",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_ffi_linux_build_files",
+    srcs = [
+        ":rc_x509_ffi_linux_header_file",
+        ":rc_x509_ffi_linux_static_files",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install_rc_x509_ffi_linux_build_files",
+    srcs = [":rc_x509_ffi_linux_build_files"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_macos_header_file",
+    srcs = ["include/libdd_rc.h"],
+    prefix = "embedded/include",
+    strip_prefix = "include",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_macos_native_files",
+    # macOS only ships the standard flavor, which links non-FIPS AWS-LC
+    # statically into librc_x509_ffi.a.
+    srcs = [":rc_x509_ffi"],
+    prefix = "embedded/lib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_ffi_macos_build_files",
+    srcs = [
+        ":rc_x509_ffi_macos_header_file",
+        ":rc_x509_ffi_macos_native_files",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install_rc_x509_ffi_macos_build_files",
+    srcs = [":rc_x509_ffi_macos_build_files"],
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "rc_x509_ffi_cc",
+    hdrs = ["include/libdd_rc.h"],
+    includes = ["include"],
+    linkopts = select({
+        "@rules_go//go/platform:linux": [
+            "-lpthread",
+            "-ldl",
+            "-lm",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [":rc_x509_ffi"],
+)
+
+# The upstream cgo directives name the libraries to link but not their
+# locations. Bazel supplies the header, Rust archive, and any platform-specific
+# native runtime libraries through rc_x509_ffi_cc.
+# The optional log-sink API currently transports a Unix integer file descriptor
+# and cannot represent a 64-bit Windows HANDLE. Keep both Go wrappers out of the
+# Windows package; the x509 client itself does not depend on native tracing.
+go_library(
+    name = "libddrcffi",
+    srcs = [
+        "ffi-hosts/go/internal/libddrcffi/cachebust.go",
+        "ffi-hosts/go/internal/libddrcffi/connection.go",
+        "ffi-hosts/go/internal/libddrcffi/context.go",
+        "ffi-hosts/go/internal/libddrcffi/doc.go",
+        "ffi-hosts/go/internal/libddrcffi/fakeconn.go",
+        "ffi-hosts/go/internal/libddrcffi/ffi.go",
+        "ffi-hosts/go/internal/libddrcffi/invokepool.go",
+        "ffi-hosts/go/internal/libddrcffi/lifecycle.go",
+        "ffi-hosts/go/internal/libddrcffi/pinnedhandle.go",
+        "ffi-hosts/go/internal/libddrcffi/registry.go",
+    ] + select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["ffi-hosts/go/internal/libddrcffi/log_sink.go"],
+    }),
+    cdeps = [":rc_x509_ffi_cc"],
+    cgo = True,
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/internal/libddrcffi",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":magic_tunnel_go_proto",
+        ":protocol_go_proto",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_library(
+    name = "rcx509",
+    srcs = [
+        "ffi-hosts/go/rcx509/backoff.go",
+        "ffi-hosts/go/rcx509/client.go",
+        "ffi-hosts/go/rcx509/session.go",
+    ] + select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["ffi-hosts/go/rcx509/log_sink.go"],
+    }),
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":libddrcffi",
+        "@com_github_coder_websocket//:websocket",
+    ],
+)

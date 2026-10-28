@@ -9,6 +9,7 @@ package remoteconfig
 import (
 	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	rcstatusfx "github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/fx"
+	rcx509clientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,5 +20,6 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		rcclientfx.Module(),
 		rcstatusfx.Module(),
+		rcx509clientfx.Module(),
 	)
 }

@@ -18,6 +18,7 @@ go_library(
     ],
     cgo = select({
         "@platforms//os:linux": True,
+        "@platforms//os:macos": True,
         "//conditions:default": False,
     }),  # keep
     importpath = "github.com/DataDog/datadog-agent/cmd/agent",

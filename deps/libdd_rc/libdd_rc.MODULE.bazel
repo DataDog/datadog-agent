@@ -1,0 +1,84 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+# rc-x509-ffi's dependency graph, built with rc-crypto's non-FIPS AWS-LC backend
+# and kept isolated from the Agent's root crate graph.
+crate.from_cargo(
+    name = "libdd_rc_crates",
+    cargo_lock = "//deps/libdd_rc:Cargo.lock",
+    cargo_toml = "//deps/libdd_rc:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+    ],
+    validate_lockfile = True,
+)
+crate.annotation(
+    build_script_env = {
+        "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
+        "PROTOBUF_WELL_KNOWN_PROTOS": "$(execpaths @protobuf//:well_known_type_protos)",
+    },
+    build_script_tools = [
+        "@@//bazel/toolchains/protoc:protoc",
+        "@protobuf//:well_known_type_protos",
+    ],
+    crate = "rc-x509-proto",
+    patch_args = ["-p1"],
+    # The libdd-rc crates are git-pinned, and rules_rs applies patches to the
+    # whole git checkout, so the patch uses repository-relative paths. Make them
+    # crate-relative again when switching to the published crates.
+    patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
+    repositories = ["libdd_rc_crates"],
+)
+
+# libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
+# valuable integration is gated on both the Cargo feature and this cfg in
+# tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
+crate.annotation(
+    crate = "tracing",
+    repositories = ["libdd_rc_crates"],
+    rustc_flags = ["--cfg=tracing_unstable"],
+)
+crate.annotation(
+    crate = "tracing-core",
+    repositories = ["libdd_rc_crates"],
+    rustc_flags = ["--cfg=tracing_unstable"],
+    # Cargo declares this edge under cfg(tracing_unstable), which
+    # crate_universe cannot infer from a custom rustc cfg.
+    deps = ["@libdd_rc_crates//:valuable-0.1.1"],
+)
+
+# rc-x509-client's build script runs `git rev-parse HEAD` from its checkout to
+# embed a commit hash, which is neither hermetic nor available in a source
+# archive. Skip it and supply the hash of the pinned libdd-rc revision instead.
+crate.annotation(
+    crate = "rc-x509-client",
+    gen_build_script = "off",
+    repositories = ["libdd_rc_crates"],
+    rustc_env = {"BUILD_GIT_COMMIT_HASH": "2c5496404cceab24219560ad23dd71c9226bbb0a"},
+)
+
+# AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
+# references its exact upstream license text.
+crate.annotation(
+    additive_build_file_content = """
+exports_files(["LICENSE"], visibility = ["//visibility:public"])
+""",
+    crate = "aws-lc-sys",
+    repositories = ["libdd_rc_crates"],
+)
+
+inject_repo(crate, "protobuf")
+
+use_repo(crate, "libdd_rc_crates")
+
+http_archive(
+    name = "libdd_rc_source",
+    build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
+    sha256 = "3cd296b58c8ee55be39eb991ef92f16ec8cbc1acfcdf886fe9b8a5980b481090",
+    strip_prefix = "libdd-rc-2c5496404cceab24219560ad23dd71c9226bbb0a",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/2c5496404cceab24219560ad23dd71c9226bbb0a.tar.gz"],
+)

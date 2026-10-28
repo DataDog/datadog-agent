@@ -1,0 +1,28 @@
+[package]
+name = "libdd-rc-agent-deps"
+version = "0.0.0"
+edition = "2024"
+publish = false
+rust-version = "1.94"
+
+[lib]
+path = "lib.rs"
+
+[workspace]
+
+# Direct dependencies of rc-x509-ffi, built with rc-crypto's non-FIPS AWS-LC
+# backend. The x509 client is not built into FIPS-flavor Agents yet.
+#
+# TODO: switch to crates.io versions once libdd-rc publishes crates with the
+# fips/non-fips feature pass-through. The published rc-x509-client 0.2.1
+# always enables rc-crypto's default "fips" feature. Keep the rev in sync
+# with the libdd_rc_source pin in libdd_rc.MODULE.bazel.
+[dependencies]
+futures = "0.3.32"
+rc-x509-client = { git = "https://github.com/DataDog/libdd-rc", rev = "2c5496404cceab24219560ad23dd71c9226bbb0a", default-features = false, features = ["non-fips"] }
+rc-x509-proto = { git = "https://github.com/DataDog/libdd-rc", rev = "2c5496404cceab24219560ad23dd71c9226bbb0a" }
+tokio = { version = "1.52.3", features = ["macros", "parking_lot", "rt", "sync", "time"] }
+tokio-stream = "0.1.18"
+tokio-util = "0.7.18"
+tracing = { version = "0.1.44", features = ["valuable"] }
+tracing-subscriber = { version = "0.3.23", features = ["fmt", "env-filter"] }

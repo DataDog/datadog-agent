@@ -1,0 +1,58 @@
+# gazelle:ignore
+
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_go//go:def.bzl", "go_test")
+
+copy_file(
+    name = "client_lifecycle_test_src",
+    src = "client_lifecycle_test.go.in",
+    out = "client_lifecycle_generated_test.go",
+)
+
+copy_file(
+    name = "log_sink_test_src",
+    src = "log_sink_test.go.in",
+    out = "log_sink_generated_test.go",
+)
+
+go_test(
+    name = "client_lifecycle_test",
+    srcs = [":client_lifecycle_test_src"],
+    # External Go links invoke dsymutil unless DWARF is disabled. The macOS
+    # amd64 runner's bundled dsymutil cannot execute under its host dyld; this
+    # smoke does not consume debug data, and release Agent binaries use -w too.
+    gc_linkopts = select({
+        "@platforms//os:macos": ["-w"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@libdd_rc_source//:rcx509"],
+)
+
+# The upstream log sink accepts a Unix file descriptor. Keep that assertion
+# separate from the portable public-client lifecycle, which Windows will also
+# run once it is supported.
+go_test(
+    name = "log_sink_test",
+    srcs = [":log_sink_test_src"],
+    gc_linkopts = select({
+        "@platforms//os:macos": ["-w"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@libdd_rc_source//:rcx509"],
+)
+
+# Exercise the same native dependency collection and Mach-O rewriting used by
+# the real package graph without making the production Agent depend on rc-x509
+# yet. The archive deliberately mirrors the paths below /opt/datadog-agent.
