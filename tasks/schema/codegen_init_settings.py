@@ -452,7 +452,11 @@ def run_codegen(schema, outsource_dir, sysprobe=False):
         sourcecode = render_settings_file(
             [
                 ('InitCoreAgentFull', 'registers the settings used only by the full core Agent.', output_full_agent),
-                ('InitCommonBase', 'registers the settings shared by the core Agent and serverless-init.', output_common_base),
+                (
+                    'InitCommonBase',
+                    'registers the settings shared by the core Agent and serverless-init.',
+                    output_common_base,
+                ),
             ]
         )
 

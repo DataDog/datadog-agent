@@ -16,7 +16,7 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefaultWithDeprecation("full_agent_renamed_setting", false, []string{"old_full_agent_setting"})
 }
 
-// InitCommonBase registers the settings shared by every Agent binary.
+// InitCommonBase registers the settings shared by the core Agent and serverless-init.
 func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("plain_setting", "abc")
 	config.BindEnvAndSetDefaultWithDeprecation("renamed_setting", "abc", []string{"old_setting"}, "DD_RENAMED_SETTING")

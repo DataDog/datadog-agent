@@ -15,7 +15,7 @@ import (
 func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 }
 
-// InitCommonBase registers the settings shared by every Agent binary.
+// InitCommonBase registers the settings shared by the core Agent and serverless-init.
 func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("my_setting", "abc")
 }

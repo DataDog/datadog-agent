@@ -1065,7 +1065,7 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
 }
 
-// InitCommonBase registers the settings shared by every Agent binary.
+// InitCommonBase registers the settings shared by the core Agent and serverless-init.
 func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("api_key", "")
 	config.BindEnvAndSetDefault("app_key", "")
