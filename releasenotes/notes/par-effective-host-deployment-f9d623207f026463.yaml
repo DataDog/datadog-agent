@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    Make core, standalone Private Action Runner, and its executor consistently
-    honor ``process_manager.enabled: false`` on Linux hosts. This selects
-    monolithic PAR when explicitly enabled, without core-owned startup
-    authorization. A temporarily unavailable process manager does not cause
-    split deployments to fall back to monolithic mode.
