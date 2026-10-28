@@ -24,6 +24,10 @@ SETUP_INIT_DIR = os.path.join("pkg", "config", "setup")
 GENERATED_SETTINGS_DIR = os.path.join(SETUP_INIT_DIR, "generatedsettings_local")
 # Committed snapshot of the generatedsettings module: the one external consumers download at a released tag.
 GENERATED_SETTINGS_SNAPSHOT_DIR = os.path.join(SETUP_INIT_DIR, "generatedsettings")
+# Files codegen used to write straight into SETUP_INIT_DIR. They were gitignored, so they linger in existing
+# checkouts, where they no longer compile.
+_LEGACY_SETUP_GENERATED_FILES = ("all_settings.go", "generated.go", "system_probe_settings.go")
+_GENERATED_FILE_MARKER = "// NOTE! This is a generated file, do not modify it."
 CORE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "core_schema.yaml")
 SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.yaml")
 
@@ -160,8 +164,23 @@ def schema_codegen(ctx):
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
     system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
 
+    _remove_legacy_setup_files()
     _generate_settings(core_schema, system_probe_schema, GENERATED_SETTINGS_DIR)
     run_constants_codegen(core_schema, system_probe_schema, os.path.join(SETUP_INIT_DIR, "constants"))
+
+
+def _remove_legacy_setup_files(setup_dir=SETUP_INIT_DIR):
+    """Remove the settings files codegen used to write into pkg/config/setup, leaving any hand-written file alone."""
+    for name in _LEGACY_SETUP_GENERATED_FILES:
+        path = os.path.join(setup_dir, name)
+        try:
+            with open(path) as f:
+                generated = _GENERATED_FILE_MARKER in f.read(1024)
+        except FileNotFoundError:
+            continue
+        if generated:
+            print(f"Removing {path}, now generated into {GENERATED_SETTINGS_DIR}")
+            os.remove(path)
 
 
 def _generate_settings(core_schema, system_probe_schema, output_dir):

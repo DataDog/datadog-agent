@@ -9,6 +9,7 @@ import yaml
 
 import tasks.schema.codegen_init_settings as codegen
 from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
+from tasks.schema.generate import _remove_legacy_setup_files
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -91,6 +92,18 @@ class TestCodegenInitSettings(unittest.TestCase):
             generated = f.read()
         self.assertIn('\tpkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"\n', generated)
         self.assertIn('config.BindEnvAndSetDefault("my_setting", pkgconfigenv.GetPlatformDefault(', generated)
+
+    def test_remove_legacy_setup_files(self):
+        # Settings files codegen used to write into pkg/config/setup are removed, but a hand-written file is kept
+        legacy = os.path.join(self.tmpdir, 'all_settings.go')
+        with open(legacy, 'w') as f:
+            f.write(codegen.file_header)
+        handwritten = os.path.join(self.tmpdir, 'generated.go')
+        with open(handwritten, 'w') as f:
+            f.write('package setup\n')
+        _remove_legacy_setup_files(self.tmpdir)
+        self.assertFalse(os.path.exists(legacy))
+        self.assertTrue(os.path.exists(handwritten))
 
     def test_as_go_value(self):
         cases = [
