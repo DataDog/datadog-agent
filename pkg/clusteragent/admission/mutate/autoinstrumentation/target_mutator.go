@@ -8,7 +8,6 @@
 package autoinstrumentation
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -146,17 +145,7 @@ func (m *TargetMutator) ClearRemotePolicies() {
 }
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
-func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-	return m.MutatePodWithContext(context.Background(), pod, ns, dc)
-}
-
-// MutatePodWithContext traces APM selection and injection without recording pod data.
-func (m *TargetMutator) MutatePodWithContext(ctx context.Context, pod *corev1.Pod, ns string, _ dynamic.Interface) (injected bool, retErr error) {
-	span, ctx := mutatecommon.StartMutationSpan(ctx, "autoinstrumentation")
-	defer func() {
-		span.SetTag("injected", injected)
-		mutatecommon.FinishMutationSpan(span, retErr)
-	}()
+func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// Sanitize input.
@@ -178,7 +167,6 @@ func (m *TargetMutator) MutatePodWithContext(ctx context.Context, pod *corev1.Po
 	// CSI), so checking for it guards all modes. The CSI mode in particular has no init container,
 	// so the per-init-container checks below would miss it.
 	if containsVolume(pod, libraryinjection.InstrumentationVolumeName) {
-		span.SetTag("skip_reason", "already_instrumented")
 		log.Debugf("Instrumentation volume %q already exists in pod %q", libraryinjection.InstrumentationVolumeName, mutatecommon.PodString(pod))
 		return false, nil
 	}
@@ -186,28 +174,24 @@ func (m *TargetMutator) MutatePodWithContext(ctx context.Context, pod *corev1.Po
 	for _, supportedLang := range ssi.SupportedLanguages {
 		lang := language(supportedLang)
 		if containsInitContainer(pod, initContainerName(lang)) {
-			span.SetTag("skip_reason", "already_instrumented")
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
 		}
 	}
 	// Check for the image_volume mode's init container.
 	if containsInitContainer(pod, libraryinjection.InjectLDPreloadInitContainerName) {
-		span.SetTag("skip_reason", "already_instrumented")
 		log.Debugf("Init container %q already exists in pod %q", libraryinjection.InjectLDPreloadInitContainerName, mutatecommon.PodString(pod))
 		return false, nil
 	}
 
-	resolved := m.resolveTargetWithContext(ctx, pod)
+	resolved := m.resolveTarget(pod)
 	if resolved == nil {
-		span.SetTag("skip_reason", "no_target")
 		return false, nil
 	}
 	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
 
 	injection := resolved.plan
 	if injection.blocked {
-		span.SetTag("skip_reason", "blocked")
 		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
 		return false, nil
@@ -240,7 +224,7 @@ func (m *TargetMutator) MutatePodWithContext(ctx context.Context, pod *corev1.Po
 	}
 
 	// Inject the libraries.
-	err := m.core.injectTracersWithContext(ctx, pod, extracted)
+	err := m.core.injectTracers(pod, extracted)
 	if err != nil {
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}
@@ -270,27 +254,6 @@ func (m *TargetMutator) addAppliedMetadata(pod *corev1.Pod, resolved *injectionR
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 	return m.getTarget(pod) != nil
-}
-
-// ShouldMutatePodWithContext preserves context when selection is used as a filter.
-func (m *TargetMutator) ShouldMutatePodWithContext(ctx context.Context, pod *corev1.Pod) bool {
-	resolved := m.resolveTargetWithContext(ctx, pod)
-	return resolved != nil && !resolved.plan.blocked
-}
-
-func (m *TargetMutator) resolveTargetWithContext(ctx context.Context, pod *corev1.Pod) *injectionResolution {
-	span, _ := mutatecommon.StartMutationSpan(ctx, "resolve_target")
-	defer span.Finish()
-	resolved := m.resolveTarget(pod)
-	outcome := "no_target"
-	if resolved != nil {
-		outcome = "selected"
-		if resolved.plan.blocked {
-			outcome = "blocked"
-		}
-	}
-	span.SetTag("outcome", outcome)
-	return resolved
 }
 
 // getTarget returns an injectable resolution. A remote-config denial is not

@@ -43,10 +43,8 @@ func TestMutateTracing(t *testing.T) {
 			defer mt.Stop()
 			parent, ctx := tracer.StartSpanFromContext(context.Background(), "parent")
 			called := false
-			patch, err := MutateWithContext(ctx, []byte(tt.raw), "sensitive-namespace", "test", func(ctx context.Context, pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			patch, err := MutateWithContext(ctx, []byte(tt.raw), "sensitive-namespace", "test", func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 				called = true
-				child, _ := StartMutationSpan(ctx, "test_child")
-				defer child.Finish()
 				if tt.fail {
 					return false, errors.New("sensitive-error: sensitive-env")
 				}
@@ -86,7 +84,6 @@ func TestMutateTracing(t *testing.T) {
 				callback := spans["cluster_agent.admission.mutate_pod"]
 				require.NotNil(t, callback)
 				require.Equal(t, mutation.SpanID(), callback.ParentID())
-				require.Equal(t, callback.SpanID(), spans["cluster_agent.admission.test_child"].ParentID())
 				require.Equal(t, fmt.Sprint(tt.inject), mutation.Tag("injected"))
 			}
 			if !tt.fail && !tt.decodeFail {
@@ -97,36 +94,6 @@ func TestMutateTracing(t *testing.T) {
 			}
 		})
 	}
-}
-
-type contextualTestMutator struct {
-	ctx context.Context
-}
-
-func (m *contextualTestMutator) MutatePod(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-	panic("context-aware method should be used")
-}
-
-func (m *contextualTestMutator) MutatePodWithContext(ctx context.Context, _ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	m.ctx = ctx
-	return false, nil
-}
-
-func TestComposedMutatorsPreserveContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	contextual := &contextualTestMutator{}
-	legacyCalled := false
-	legacy := MutatorFunc(func(*corev1.Pod, string, dynamic.Interface) (bool, error) {
-		legacyCalled = true
-		return true, nil
-	})
-	mutators := NewMutators(contextual, legacy)
-	injected, err := WithContext(mutators)(ctx, &corev1.Pod{}, "", nil)
-	require.NoError(t, err)
-	require.True(t, injected)
-	require.True(t, legacyCalled)
-	require.Same(t, ctx, contextual.ctx)
 }
 
 // Run without mocktracer: it retains spans and would distort allocation results.

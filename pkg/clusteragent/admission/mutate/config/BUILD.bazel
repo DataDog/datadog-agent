@@ -29,10 +29,7 @@ go_library(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = [
-        "config_test.go",
-        "tracing_test.go",
-    ],
+    srcs = ["config_test.go"],
     data = glob(["testdata/**"]),
     embed = [":config"],
     gotags_sets = [[
@@ -49,8 +46,6 @@ dd_agent_go_test(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/pointer",
-        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
-        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//admission/v1:admission",

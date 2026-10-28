@@ -9,7 +9,6 @@
 package appsec
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -155,7 +154,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 				request.Object,
 				request.Namespace,
 				w.Name(),
-				func(ctx context.Context, pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
+				func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
 					matched, proxyType, outcome, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
 					if !matched {
 						return false, nil
@@ -166,7 +165,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 					mutated, admErr := appsecconfig.NormalizeOutcomeForAdmission(outcome, err)
 					if admErr == nil && mutated {
 						// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
-						return mutatecommon.WithContext(w.configMutator)(ctx, pod, ns, cl)
+						return w.configMutator.MutatePod(pod, ns, cl)
 					}
 					return mutated, admErr
 				},

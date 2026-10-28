@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,15 +51,6 @@ func getOwnerInfo(owner metav1.OwnerReference) (*ownerInfo, error) {
 		gvr:  gv.WithResource(strings.ToLower(owner.Kind) + "s"),
 		name: owner.Name,
 	}, nil
-}
-
-// getOwnerWithContext measures the complete owner fallback (including cache hits
-// and ReplicaSet-to-Deployment traversal). It intentionally does not change the
-// Kubernetes client's existing cancellation behavior as part of instrumentation.
-func getOwnerWithContext(ctx context.Context, ref metav1.OwnerReference, ns string, dc dynamic.Interface, ttl time.Duration) (result *owner, retErr error) {
-	span, _ := mutatecommon.StartMutationSpan(ctx, "owner_lookup")
-	defer func() { mutatecommon.FinishMutationSpan(span, retErr) }()
-	return getOwner(ref, ns, dc, ttl)
 }
 
 // getOwner returns the object of the pod's owner

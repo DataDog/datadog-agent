@@ -20,9 +20,12 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/stretchr/testify/require"
 	admiv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 
 	admicommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
 func TestAdmissionRequestTracing(t *testing.T) {
@@ -50,12 +53,13 @@ func TestAdmissionRequestTracing(t *testing.T) {
 			called := false
 			s.Register("/test", "test", admicommon.MutatingWebhook, func(req *Request) *admiv1.AdmissionResponse {
 				called = true
-				child, _ := tracer.StartSpanFromContext(req.Context, "child")
-				child.Finish()
-				if tt.fail {
-					return admicommon.MutationResponse(nil, errors.New("sensitive-error"))
-				}
-				return &admiv1.AdmissionResponse{Allowed: true}
+				return admicommon.MutationResponse(mutatecommon.MutateWithContext(req.Context, req.Object, req.Namespace, "test",
+					func(*corev1.Pod, string, dynamic.Interface) (bool, error) {
+						if tt.fail {
+							return false, errors.New("sensitive-error")
+						}
+						return false, nil
+					}, nil))
 			}, nil, nil)
 			body := tt.body
 			if tt.version != "" {
@@ -96,7 +100,17 @@ func TestAdmissionRequestTracing(t *testing.T) {
 				require.Nil(t, request.Tag("error.message"))
 			}
 			if called {
-				require.Equal(t, request.SpanID(), spans["child"].ParentID())
+				mutation := spans["cluster_agent.admission.mutate"]
+				require.NotNil(t, mutation)
+				require.Equal(t, request.SpanID(), mutation.ParentID())
+				callback := spans["cluster_agent.admission.mutate_pod"]
+				require.NotNil(t, callback)
+				require.Equal(t, mutation.SpanID(), callback.ParentID())
+				if !tt.fail {
+					patch := spans["cluster_agent.admission.prepare_patch"]
+					require.NotNil(t, patch)
+					require.Equal(t, mutation.SpanID(), patch.ParentID())
+				}
 			}
 		})
 	}

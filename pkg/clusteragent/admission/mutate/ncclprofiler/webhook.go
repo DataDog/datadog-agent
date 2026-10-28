@@ -11,7 +11,6 @@
 package ncclprofiler
 
 import (
-	"context"
 	"path"
 	"strings"
 
@@ -237,7 +236,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			request.Object,
 			request.Namespace,
 			w.Name(),
-			func(_ context.Context, pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+			func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 				log.Debugf("Injecting NCCL profiler plugin into pod %s", mutatecommon.PodString(pod))
 				return mutatePod(pod, w.injectorImage, w.hostSocketDir, w.clientSocketDir, w.socketFilename, w.initResources)
 			},

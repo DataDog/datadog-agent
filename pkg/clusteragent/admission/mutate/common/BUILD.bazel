@@ -9,7 +9,6 @@ go_library(
         "mutator.go",
         "pod_spec_normalizer.go",
         "test_utils.go",
-        "tracing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common",
     visibility = ["//visibility:public"],

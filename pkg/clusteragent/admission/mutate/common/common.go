@@ -11,11 +11,13 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -29,19 +31,32 @@ import (
 // Kubernetes cluster-autoscaler to mark a volume as safe to evict
 const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 
+// Mutation errors may contain pod data. Never attach the original error to spans.
+var errMutation = errors.New("admission mutation failed")
+
+func finishMutationSpan(span *tracer.Span, err error) {
+	if err != nil {
+		span.Finish(tracer.WithError(errMutation))
+		return
+	}
+	span.Finish()
+}
+
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
 func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) ([]byte, error) {
-	return MutateWithContext(context.Background(), rawPod, ns, mutationType, WithContext(m), dc)
+	return MutateWithContext(context.Background(), rawPod, ns, mutationType, m, dc)
 }
 
 // MutateWithContext handles the shared mutation flow while preserving trace context.
 // The injection result and patch presence are separate: normalization or a mutator
 // returning false may still change the pod.
-func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationType string, m ContextMutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
-	span, ctx := StartMutationSpan(ctx, "mutate")
-	span.SetTag("resource.name", mutationType)
-	defer func() { FinishMutationSpan(span, retErr) }()
+func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	span, ctx := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate", tracer.ResourceName(mutationType))
+	defer func() { finishMutationSpan(span, retErr) }()
 
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
@@ -65,13 +80,12 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 	}
 
 	injected, err := func() (injected bool, retErr error) {
-		mutationSpan, mutationCtx := StartMutationSpan(ctx, "mutate_pod")
-		mutationSpan.SetTag("resource.name", mutationType)
+		mutationSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate_pod", tracer.ResourceName(mutationType))
 		defer func() {
 			mutationSpan.SetTag("injected", injected)
-			FinishMutationSpan(mutationSpan, retErr)
+			finishMutationSpan(mutationSpan, retErr)
 		}()
-		return m(mutationCtx, &pod, ns, dc)
+		return m(&pod, ns, dc)
 	}()
 	span.SetTag("injected", injected)
 	if err != nil {
@@ -81,8 +95,8 @@ func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationTy
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
-	patchSpan, _ := StartMutationSpan(ctx, "prepare_patch")
-	defer func() { FinishMutationSpan(patchSpan, retErr) }()
+	patchSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.prepare_patch")
+	defer func() { finishMutationSpan(patchSpan, retErr) }()
 	afterJSON, err := json.Marshal(pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)

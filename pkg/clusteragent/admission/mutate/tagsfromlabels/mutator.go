@@ -8,7 +8,6 @@
 package tagsfromlabels
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -57,23 +56,13 @@ func NewMutator(cfg *MutatorConfig, filter mutatecommon.MutationFilter) *Mutator
 // MutatePod implements the common.Mutator interface for the tags mutator. It injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed.
 func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-	return i.MutatePodWithContext(context.Background(), pod, ns, dc)
-}
-
-// MutatePodWithContext traces tag injection and preserves context for owner lookups.
-func (i *Mutator) MutatePodWithContext(ctx context.Context, pod *corev1.Pod, ns string, dc dynamic.Interface) (injected bool, retErr error) {
-	span, ctx := mutatecommon.StartMutationSpan(ctx, "tags_from_labels")
-	defer func() {
-		span.SetTag("injected", injected)
-		mutatecommon.FinishMutationSpan(span, retErr)
-	}()
+	var injected bool
 
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !mutatecommon.ShouldMutatePodWithContext(ctx, i.filter, pod) {
-		span.SetTag("skip_reason", "filtered")
+	if !i.filter.ShouldMutatePod(pod) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false
 		return false, nil
 	}
@@ -99,9 +88,8 @@ func (i *Mutator) MutatePodWithContext(ctx context.Context, pod *corev1.Pod, ns 
 		return false, nil
 	}
 
-	owner, err := getOwnerWithContext(ctx, owners[0], ns, dc, i.config.ownerCacheTTL)
+	owner, err := getOwner(owners[0], ns, dc, i.config.ownerCacheTTL)
 	if err != nil {
-		span.SetTag("skip_reason", "owner_lookup_failed")
 		log.Warnf("failed to get owner reference for pod, skipping owner-based tagging: %v", err)
 		return false, nil // skip tagging, don't fail webhook
 	}
