@@ -48,6 +48,14 @@ func shouldHaveKueueMetadata(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.kueue.enabled")
 }
 
+// shouldScopeKueueWorkloadsPerNode mirrors the kube metadata stream setting
+// that sends each node only the Kueue Workloads of its pods.
+func shouldScopeKueueWorkloadsPerNode(cfg config.Reader) bool {
+	return shouldHaveKueueMetadata(cfg) &&
+		cfg.GetBool("cluster_agent.kueue.workloads_per_node") &&
+		cfg.GetBool("cluster_checks.enabled")
+}
+
 func newKueueQueueStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {

@@ -23,6 +23,51 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
+// nodesRunningCheck returns the Kubernetes nodes whose node Agent runs a check
+// dispatched as an endpoints check. It returns false when they are unknown:
+// while the dispatcher is not running, when the check is not dispatched (it
+// may run as a node Agent check), or when it is dispatched as a cluster check
+// to a node Agent, which is identified by its hostname rather than its node
+// name. Cluster checks dispatched to cluster check runners are not returned.
+func (d *dispatcher) nodesRunningCheck(checkName string) (map[string]struct{}, bool) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	if !d.store.active {
+		return nil, false
+	}
+	dispatched := false
+	for digest, config := range d.store.digestToConfig {
+		if config.Name != checkName {
+			continue
+		}
+		node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+		if !found {
+			continue
+		}
+		node.RLock()
+		nodeType := node.nodetype
+		node.RUnlock()
+		if nodeType != types.NodeTypeCLCRunner {
+			return nil, false
+		}
+		dispatched = true
+	}
+	nodes := make(map[string]struct{})
+	for nodeName, configs := range d.store.endpointsConfigs {
+		for _, config := range configs {
+			if config.Name == checkName {
+				nodes[nodeName] = struct{}{}
+				break
+			}
+		}
+	}
+	if !dispatched && len(nodes) == 0 {
+		return nil, false
+	}
+	return nodes, true
+}
+
 // nodeConfigsSnapshot holds a node's configs and precomputed instance IDs,
 // copied out of the store so scrubbing can happen without holding d.store's lock.
 type nodeConfigsSnapshot struct {
