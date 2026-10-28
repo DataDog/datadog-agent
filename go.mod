@@ -631,8 +631,8 @@ require (
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.206.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.6.0 // indirect
-	github.com/docker/cli v29.9.1+incompatible // indirect
-	github.com/docker/docker v29.3.1+incompatible // indirect
+	github.com/docker/cli v29.9.2+incompatible // indirect
+	github.com/docker/docker v28.5.3-0.20260325154711-31a1689cb0a1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -1092,10 +1092,6 @@ replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-2026101
 // Stub the progress UI in trivy-db; cheggaaa/pb/v3 transitively activates
 // reflect.MethodByName via text/template, defeating Go's linker DCE.
 replace github.com/aquasecurity/trivy-db => github.com/0intro/trivy-db v0.0.0-20260519151230-bd5a14880f9a
-
-// github.com/docker/docker v28 has known security vulnerabilities (CVE-2026-34040, CVE-2026-33997).
-// Pin to the 28.x branch head which includes the backported security fixes (not yet tagged).
-replace github.com/docker/docker => github.com/docker/docker v28.5.3-0.20260325154711-31a1689cb0a1+incompatible
 
 // use synced version of aptly fork without module rename
 replace github.com/aptly-dev/aptly => github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9
