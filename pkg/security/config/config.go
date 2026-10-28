@@ -432,8 +432,8 @@ type RuntimeSecurityConfig struct {
 	// description: EventSamplingOpenThreshold defines the ring buffer pressure percentage below which open events are always admitted when dynamic sampling is enabled
 	// visibility: private
 	// default_value: 80
-
 	EventSamplingOpenThreshold int
+
 	// description: EventSamplingConnectEnabled defines if the agent should sample connect events
 	// visibility: private
 	// default_value: true
@@ -574,6 +574,16 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SecurityProfileV2ClearLocalProfilesOnStart bool
 
+	// description: SecurityProfileV2TagResolutionMaxPendingEvents is the maximum number of events, across all cgroups, queued while waiting for tag resolution.
+	// visibility: private
+	// default_value: 4096
+	SecurityProfileV2TagResolutionMaxPendingEvents int
+
+	// description: SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup is the maximum number of events per cgroup queued while waiting for tag resolution.
+	// visibility: private
+	// default_value: 512
+	SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup int
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -639,7 +649,7 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SBOMResolverEnabled bool
 
-	// description: SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
+	// description: SBOMResolverWorkloadsCacheSize defines the count of unused image scans to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
 	// visibility: private
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
@@ -1099,6 +1109,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
 		SecurityProfileV2ClearLocalProfilesOnStart:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.clear_local_profiles_on_start"),
 
+		SecurityProfileV2TagResolutionMaxPendingEvents:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events"),
+		SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup"),
+
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
 		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
@@ -1316,6 +1329,20 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
 	}
 
+	for _, rate := range []struct {
+		eventType string
+		value     int
+	}{
+		{"open", c.EventSamplingOpenRate},
+		{"connect", c.EventSamplingConnectRate},
+		{"bind", c.EventSamplingBindRate},
+		{"syscalls", c.EventSamplingSyscallsRate},
+	} {
+		if rate.value < 0 || rate.value >= math.MaxUint16 {
+			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.rate: %d, must be in [0, %d)", rate.eventType, rate.value, math.MaxUint16)
+		}
+	}
+
 	for _, threshold := range []struct {
 		eventType string
 		value     int
@@ -1336,6 +1363,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.SecurityProfileV2ProfilingStartupDelay < 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profiling_startup_delay: %s, must not be negative", c.SecurityProfileV2ProfilingStartupDelay)
+	}
+
+	if c.SecurityProfileV2TagResolutionMaxPendingEvents < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEvents)
+	}
+
+	if c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup)
 	}
 
 	c.sanitizePlatform()

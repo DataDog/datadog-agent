@@ -9,6 +9,7 @@ package headers
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,7 +37,9 @@ func TestDownloadKernelHeaders(t *testing.T) {
 		YumReposDir:    "/etc/yum.repos.d",
 		ZypperReposDir: "/etc/zypp/repos.d",
 	}
-	dirs := GetKernelHeaders(opts)
+	// The download directory here is a test-owned temp dir, not a root-owned one, so
+	// this test supplies a permissive validator; the validation itself is covered below.
+	dirs := GetKernelHeaders(opts, func(string) error { return nil })
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
 
@@ -131,4 +134,54 @@ func TestInvalidExistingKernelHeaders(t *testing.T) {
 		_, err = getSysfsHeaderDirs(tmpDir, kv)
 		require.ErrorIs(t, err, errInvalidTempDirectory)
 	})
+}
+
+// When the download directory cannot be secured, the search must stop before the
+// directory is read, deleted in, or downloaded into.
+func TestUnsecurableDownloadDirStopsSearch(t *testing.T) {
+	ebpftest.LogLevel(t, "debug")
+	t.Cleanup(func() { HeaderProvider = nil })
+
+	// A stale tree that getKernelHeaders would otherwise validate and delete: it has no
+	// critical headers, which is exactly the condition that triggers the cleanup.
+	downloadDir := t.TempDir()
+	stale := filepath.Join(downloadDir, "usr/src/linux-headers-"+kernelRelease(t))
+	require.NoError(t, os.MkdirAll(stale, 0755))
+	canary := filepath.Join(stale, "canary")
+	require.NoError(t, os.WriteFile(canary, []byte("must survive"), 0644))
+
+	dirs := GetKernelHeaders(HeaderOptions{
+		DownloadEnabled: true,
+		Dirs:            []string{t.TempDir()}, // present but invalid: skips the local search
+		DownloadDir:     downloadDir,
+	}, func(string) error {
+		return errors.New("download directory could not be secured")
+	})
+
+	assert.Empty(t, dirs)
+	assert.Equal(t, validationFailure, HeaderProvider.GetResult())
+	assert.FileExists(t, canary, "nothing under an unsecurable download directory may be deleted")
+}
+
+// A caller that does not supply a validator must not get the downloaded-header path at
+// all, rather than silently getting it unvalidated.
+func TestNilValidatorDisablesDownloadedHeaders(t *testing.T) {
+	ebpftest.LogLevel(t, "debug")
+	t.Cleanup(func() { HeaderProvider = nil })
+
+	dirs := GetKernelHeaders(HeaderOptions{
+		DownloadEnabled: true,
+		Dirs:            []string{t.TempDir()},
+		DownloadDir:     t.TempDir(),
+	}, nil)
+
+	assert.Empty(t, dirs)
+	assert.Equal(t, validationFailure, HeaderProvider.GetResult())
+}
+
+func kernelRelease(t *testing.T) string {
+	t.Helper()
+	rel, err := kernel.Release()
+	require.NoError(t, err)
+	return rel
 }

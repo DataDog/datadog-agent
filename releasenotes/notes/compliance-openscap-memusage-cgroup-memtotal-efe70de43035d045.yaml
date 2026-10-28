@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: On hosts and in containers with cgroup v1 and no memory limit,
+    the memory guard of the bundled OpenSCAP stops a rule that collects
+    many items once ``oscap-io`` uses a third of the memory, as with cgroup
+    v2. It read the unlimited cgroup as 8 EiB of memory and never stopped.

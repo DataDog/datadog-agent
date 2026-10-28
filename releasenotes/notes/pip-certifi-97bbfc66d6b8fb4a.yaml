@@ -1,0 +1,5 @@
+---
+security:
+  - |
+    Update the embedded ``pip`` to 26.2.2. Its vendored ``certifi`` CA bundle no longer
+    includes the ``emSign ECC Root CA - G3`` root certificate.

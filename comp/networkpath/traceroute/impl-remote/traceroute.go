@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
@@ -98,7 +98,7 @@ func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, client
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&disable_source_public_ip_collection=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, disableSourcePublicIPCollection, tracerouteQueries, e2eQueries))
+	url := sysprobeclient.ModuleURL(sysconfigtypes.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&disable_source_public_ip_collection=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, disableSourcePublicIPCollection, tracerouteQueries, e2eQueries))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err

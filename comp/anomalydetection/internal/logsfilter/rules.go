@@ -46,15 +46,14 @@ type ProcessingRule struct {
 
 // Rules evaluates the ordered rule list against incoming log sources.
 type Rules struct {
-	rules       []compiledRule
-	hasTagRules bool // true if any rule has tag predicates, requiring sorted input
+	rules []compiledRule
 }
 
 type compiledRule struct {
 	exclude bool
 	name    string
 	source  string
-	tags    []string // sorted, trimmed
+	tags    []string // trimmed, deduplicated
 }
 
 // NewRules parses, validates, and compiles the given rule list.
@@ -88,14 +87,7 @@ func NewRules(rules []ProcessingRule) (*Rules, error) {
 			tags:    tags,
 		})
 	}
-	hasTagRules := false
-	for _, r := range compiled {
-		if len(r.tags) > 0 {
-			hasTagRules = true
-			break
-		}
-	}
-	return &Rules{rules: compiled, hasTagRules: hasTagRules}, nil
+	return &Rules{rules: compiled}, nil
 }
 
 // LoadRules reads processing rules from the given config key and compiles them.
@@ -113,13 +105,29 @@ func LoadRules(cfg config.Component, key string) (*Rules, error) {
 	return NewRules(raw)
 }
 
-// NeedsSortedTags reports whether any rule has tag predicates requiring sorted input to IsAllowed.
-func (r *Rules) NeedsSortedTags() bool {
-	return r != nil && r.hasTagRules
+// MayAllowSource evaluates only source-level rules in order and reports whether
+// a log with the given source could be allowed. It returns true as soon as it
+// encounters a potentially matching rule that depends on tags, or when no rule
+// matches. A false return means a conclusive source-only exclude rule matched
+// before any tag-dependent candidate.
+func (r *Rules) MayAllowSource(source string) bool {
+	if r == nil {
+		return true
+	}
+	for _, rule := range r.rules {
+		if rule.source != "" && rule.source != source {
+			continue
+		}
+		if len(rule.tags) > 0 {
+			return true
+		}
+		return !rule.exclude
+	}
+	return true
 }
 
 // IsAllowed returns true if the log should be ingested.
-// tags must be sorted when NeedsSortedTags returns true.
+// tags may be in any order.
 // A nil receiver always allows.
 func (r *Rules) IsAllowed(source string, tags []string) bool {
 	if r == nil {
@@ -134,24 +142,21 @@ func (r *Rules) IsAllowed(source string, tags []string) bool {
 }
 
 // matches reports whether the rule applies to the given log.
-// tags must be sorted in ascending order (guaranteed by callers of IsAllowed).
 func (r compiledRule) matches(source string, tags []string) bool {
 	if r.source != "" && r.source != source {
 		return false
 	}
-	return containsAllTagsSorted(tags, r.tags)
+	return containsAllTags(tags, r.tags)
 }
 
-// containsAllTagsSorted reports whether all ruleTags appear in sampleTags.
-// Both slices must be sorted in ascending order.
-func containsAllTagsSorted(sampleTags, ruleTags []string) bool {
-	j := 0
-	for i := 0; i < len(sampleTags) && j < len(ruleTags); i++ {
-		if sampleTags[i] == ruleTags[j] {
-			j++
+// containsAllTags reports whether all ruleTags appear in sampleTags.
+func containsAllTags(sampleTags, ruleTags []string) bool {
+	for _, ruleTag := range ruleTags {
+		if !slices.Contains(sampleTags, ruleTag) {
+			return false
 		}
 	}
-	return j == len(ruleTags)
+	return true
 }
 
 func compileRuleTags(tags []string) ([]string, error) {

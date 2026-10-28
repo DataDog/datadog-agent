@@ -94,6 +94,21 @@ class TestUtils(unittest.TestCase):
 class TestGetModifiedPackages(unittest.TestCase):
     """Tests for the package selection used by `linter.go -o` and `test -o`."""
 
+    @patch(
+        "tasks.gotest.get_go_modified_files",
+        new=MagicMock(return_value=["comp/api/api/def/foo.go", "comp/api/api/def/bar.go"]),
+    )
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="comp/api/api/def"))
+    @patch("tasks.gotest.get_module_by_path", new=MagicMock(return_value=GoModule("comp/api/api/def")))
+    def test_no_duplicate_target_for_files_in_same_package(self):
+        # Several files in the same package of a nested module must yield a single
+        # target, in both `test_targets` and `lint_targets`.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./."])
+        self.assertEqual(modules[0].lint_targets, ["./."])
+
     @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["pkg/aggregator/foo.go"]))
     @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
     @patch(

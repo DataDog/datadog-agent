@@ -11,14 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 func init() { registerModule(EventMonitor) }
 
 // EventMonitor - Event monitor Factory
 var EventMonitor = &module.Factory{
-	Name: config.EventMonitorModule,
+	Name: sysconfigtypes.EventMonitorModule,
 	Fn:   createEventMonitorModule,
 }
 

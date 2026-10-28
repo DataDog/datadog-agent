@@ -131,7 +131,7 @@ var distroUbuntu2404 = distro{
 	os:   os.Ubuntu2404,
 	// The container VM needs Docker pre-baked: ec2docker no longer runtime-installs it
 	// for Ubuntu, and the plain 24.04 AMI lacks it. The -e2e AMI is still Ubuntu 24.04.
-	containerOS: &os.Ubuntu2404E2E,
+	containerOS: &os.Ubuntu2404,
 	frameworkID: "cis-ubuntu2404",
 	family:      debian,
 	minRules:    320,
@@ -433,9 +433,9 @@ func (s *hostBenchmarksSuite) TestReporting() {
 				// `compliance check --report`. A mismatch means the startup
 				// resolution broke, not that the payload was mangled.
 				assert.Truef(c,
-					strings.HasPrefix(f.HostCCRID, "arn:aws:ec2:") && strings.HasSuffix(f.HostCCRID, wantCCRIDSuffix),
-					"finding %s reached fakeintake with host_ccrid %q, want the EC2 ARN of instance %s",
-					f.RuleID, f.HostCCRID, instanceID)
+					strings.HasPrefix(f.CCRID, "arn:aws:ec2:") && strings.HasSuffix(f.CCRID, wantCCRIDSuffix),
+					"finding %s reached fakeintake with ccrid %q, want the EC2 ARN of instance %s",
+					f.RuleID, f.CCRID, instanceID)
 				break
 			}
 		}
