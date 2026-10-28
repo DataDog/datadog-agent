@@ -18,14 +18,6 @@ var emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
 
-var queueLength = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-	CheckName,
-	"subscription_queue_length",
-	[]string{"channel"},
-	"Number of event bundles waiting in a workloadmeta subscription channel, observed when a bundle is received",
-	telemetry.Options{NoDoubleUnderscoreSep: true},
-)
-
 var queueLatency = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 	CheckName,
 	"subscription_queue_latency_seconds",

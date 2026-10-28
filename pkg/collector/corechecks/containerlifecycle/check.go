@@ -178,35 +178,35 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			observeSubscriptionQueue("cont", contEventsCh, eventBundle)
+			observeSubscriptionQueue("cont", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceRuntime)
 		case eventBundle, ok := <-contCreateEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			observeSubscriptionQueue("cont-create", contCreateEventsCh, eventBundle)
+			observeSubscriptionQueue("cont-create", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceAll)
 		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			observeSubscriptionQueue("cont-node-orchestrator-delete", contNodeOrchestratorDeleteEventsCh, eventBundle)
+			observeSubscriptionQueue("cont-node-orchestrator-delete", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-podEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			observeSubscriptionQueue("pod", podEventsCh, eventBundle)
+			observeSubscriptionQueue("pod", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
-			observeSubscriptionQueue("task", taskEventsCh, eventBundle)
+			observeSubscriptionQueue("task", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case <-c.stopCh:
 			return nil
@@ -214,11 +214,9 @@ func (c *Check) Run() error {
 	}
 }
 
-// observeSubscriptionQueue records the backlog of a workloadmeta subscription
-// channel: its current depth, the size of the received bundle, and the time
-// the bundle waited in the channel.
-func observeSubscriptionQueue(channel string, ch chan workloadmeta.EventBundle, bundle workloadmeta.EventBundle) {
-	queueLength.Set(float64(len(ch)), channel)
+// observeSubscriptionQueue records the size of the received bundle and the
+// time it waited in the subscription channel.
+func observeSubscriptionQueue(channel string, bundle workloadmeta.EventBundle) {
 	bundleSize.Observe(float64(len(bundle.Events)), channel)
 	if !bundle.EnqueuedAt.IsZero() {
 		queueLatency.Observe(time.Since(bundle.EnqueuedAt).Seconds(), channel)
