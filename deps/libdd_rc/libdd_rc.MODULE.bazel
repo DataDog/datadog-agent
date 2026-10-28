@@ -27,6 +27,9 @@ crate.annotation(
     ],
     crate = "rc-x509-proto",
     patch_args = ["-p1"],
+    # The libdd-rc crates are git-pinned, and rules_rs applies patches to the
+    # whole git checkout, so the patch uses repository-relative paths. Make them
+    # crate-relative again when switching to the published crates.
     patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
     repositories = ["libdd_rc_crates"],
 )
@@ -46,6 +49,16 @@ crate.annotation(
     # Cargo declares this edge under cfg(tracing_unstable), which
     # crate_universe cannot infer from a custom rustc cfg.
     deps = ["@libdd_rc_crates//:valuable-0.1.1"],
+)
+
+# rc-x509-client's build script runs `git rev-parse HEAD` from its checkout to
+# embed a commit hash, which is neither hermetic nor available in a source
+# archive. Skip it and supply the hash of the pinned libdd-rc revision instead.
+crate.annotation(
+    crate = "rc-x509-client",
+    gen_build_script = "off",
+    repositories = ["libdd_rc_crates"],
+    rustc_env = {"BUILD_GIT_COMMIT_HASH": "2c5496404cceab24219560ad23dd71c9226bbb0a"},
 )
 
 # AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule

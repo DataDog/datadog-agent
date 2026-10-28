@@ -29,6 +29,7 @@ class TestRcX509Pin(unittest.TestCase):
         # The crate set git-pins the libdd-rc crates until they are published with the
         # fips/non-fips feature pass-through.
         archive_commits |= set(re.findall(r'libdd-rc", rev = "([0-9a-f]{40})"', cargo))
+        archive_commits |= set(re.findall(r'"BUILD_GIT_COMMIT_HASH": "([0-9a-f]{40})"', module))
         self.assertEqual(len(archive_commits), 1, f"libdd-rc source pins disagree: {sorted(archive_commits)}")
 
         archive_commit = archive_commits.pop()
