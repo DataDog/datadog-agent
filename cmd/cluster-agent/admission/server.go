@@ -20,6 +20,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -43,6 +46,10 @@ import (
 )
 
 const jsonContentType = "application/json"
+
+// Admission errors may contain object data or user information. Export only a
+// fixed category to tracing, leaving the original response and logs unchanged.
+var errAdmissionRequest = errors.New("admission request failed")
 
 // maxRequestBodyBytes returns admission_controller.max_request_bytes.
 func maxRequestBodyBytes() int64 {
@@ -189,6 +196,37 @@ func (s *Server) Run(mainCtx context.Context) error {
 // handle contains the main logic responsible for handling admission requests.
 // It supports both v1 and v1beta1 requests.
 func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName string, webhookType admicommon.WebhookType, webhookFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.admission.request",
+		tracer.ResourceName(webhookName),
+		tracer.SpanType("web"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
+		tracer.Tag("webhook.type", webhookType.String()))
+	r = r.WithContext(ctx)
+	statusCode := http.StatusOK
+	var spanErr error
+	defer func() {
+		if p := recover(); p != nil {
+			span.SetTag("failure_stage", "panic")
+			span.Finish(tracer.WithError(errAdmissionRequest))
+			panic(p)
+		}
+		span.SetTag("http.status_code", statusCode)
+		span.Finish(tracer.WithError(spanErr))
+	}()
+	reject := func(status int, stage string) {
+		spanErr = errAdmissionRequest
+		statusCode = status
+		span.SetTag("failure_stage", stage)
+		w.WriteHeader(status)
+	}
+	recordResponse := func(response *admiv1.AdmissionResponse) {
+		span.SetTag("admission.allowed", response.Allowed)
+		if response.Result != nil && response.Result.Message != "" {
+			spanErr = errAdmissionRequest
+			span.SetTag("failure_stage", "webhook")
+		}
+	}
+
 	// Increment the metrics for the received webhook.
 	// We send the webhook name twice to keep the backward compatibility with `mutation_type` tag.
 	metrics.WebhooksReceived.Inc(webhookName, webhookName, webhookType.String())
@@ -202,13 +240,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 
 	// Validate admission request.
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		reject(http.StatusMethodNotAllowed, "method")
 		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
 		return
 	}
 
 	if contentType := r.Header.Get("Content-Type"); contentType != jsonContentType {
-		w.WriteHeader(http.StatusBadRequest)
+		reject(http.StatusBadRequest, "content_type")
 		log.Warnf("Unsupported content type %s, only %s is supported", contentType, jsonContentType)
 		return
 	}
@@ -224,11 +262,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			reject(http.StatusRequestEntityTooLarge, "body_too_large")
 			log.Warnf("Request body exceeds %d bytes", maxBytes)
 			return
 		}
-		w.WriteHeader(http.StatusBadRequest)
+		reject(http.StatusBadRequest, "read_body")
 		log.Warnf("Could not read request body: %v", err)
 		return
 	}
@@ -236,7 +274,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	// Deserialize admission request.
 	obj, gvk, err := s.decoder.Decode(body, nil, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		reject(http.StatusBadRequest, "decode_review")
 		log.Warnf("Could not deserialize request: %v", err)
 		return
 	}
@@ -274,6 +312,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			admissionResponse = webhookFunc(&admissionRequest)
 		}
 
+		recordResponse(admissionResponse)
 		admissionReview.Response = admissionResponse
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
@@ -307,12 +346,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			admissionResponse = webhookFunc(&admissionRequest)
 		}
 
+		recordResponse(admissionResponse)
 		admissionReview.Response = responseV1ToV1beta1(admissionResponse)
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
 	default:
 		log.Errorf("Group version kind %v is not supported", gvk)
-		w.WriteHeader(http.StatusBadRequest)
+		reject(http.StatusBadRequest, "review_kind")
 		return
 	}
 
@@ -320,7 +360,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	err = encoder.Encode(&response)
 	if err != nil {
 		log.Warnf("Failed to encode the response: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		reject(http.StatusInternalServerError, "encode_response")
 		return
 	}
 }

@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -47,6 +48,12 @@ func newMutatorCore(config *Config, wmeta workloadmeta.Component, imageResolver 
 
 func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator, includeInitContainers bool) error {
 	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm), includeInitContainers)
+}
+
+func (m *mutatorCore) injectTracersWithContext(ctx context.Context, pod *corev1.Pod, config extractedPodLibInfo) (retErr error) {
+	span, _ := mutatecommon.StartMutationSpan(ctx, "inject_tracers")
+	defer func() { mutatecommon.FinishMutationSpan(span, retErr) }()
+	return m.injectTracers(pod, config)
 }
 
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {

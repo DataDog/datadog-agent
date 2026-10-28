@@ -9,6 +9,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -31,6 +32,17 @@ const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
 func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) ([]byte, error) {
+	return MutateWithContext(context.Background(), rawPod, ns, mutationType, WithContext(m), dc)
+}
+
+// MutateWithContext handles the shared mutation flow while preserving trace context.
+// The injection result and patch presence are separate: normalization or a mutator
+// returning false may still change the pod.
+func MutateWithContext(ctx context.Context, rawPod []byte, ns string, mutationType string, m ContextMutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
+	span, ctx := StartMutationSpan(ctx, "mutate")
+	span.SetTag("resource.name", mutationType)
+	defer func() { FinishMutationSpan(span, retErr) }()
+
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
@@ -48,10 +60,20 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
 	if err := NormalizePodSpec(&pod); err != nil {
 		// TODO should we return early here?
+		span.SetTag("normalization_failed", true)
 		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
 	}
 
-	injected, err := m(&pod, ns, dc)
+	injected, err := func() (injected bool, retErr error) {
+		mutationSpan, mutationCtx := StartMutationSpan(ctx, "mutate_pod")
+		mutationSpan.SetTag("resource.name", mutationType)
+		defer func() {
+			mutationSpan.SetTag("injected", injected)
+			FinishMutationSpan(mutationSpan, retErr)
+		}()
+		return m(mutationCtx, &pod, ns, dc)
+	}()
+	span.SetTag("injected", injected)
 	if err != nil {
 		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
 		return nil, fmt.Errorf("failed to mutate pod: %v", err)
@@ -59,6 +81,8 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
+	patchSpan, _ := StartMutationSpan(ctx, "prepare_patch")
+	defer func() { FinishMutationSpan(patchSpan, retErr) }()
 	afterJSON, err := json.Marshal(pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
@@ -69,6 +93,7 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
 
+	span.SetTag("patch_present", len(patch) > 0)
 	return json.Marshal(patch)
 }
 

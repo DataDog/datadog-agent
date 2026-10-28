@@ -9,6 +9,7 @@
 package spot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -119,8 +120,8 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 }
 
 func (w *Webhook) podCreated(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(),
-		func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+	return common.MutationResponse(mutatecommon.MutateWithContext(request.Context, request.Object, request.Namespace, w.Name(),
+		func(_ context.Context, pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 			return w.handler.PodCreated(pod)
 		}, request.DynamicClient))
 }

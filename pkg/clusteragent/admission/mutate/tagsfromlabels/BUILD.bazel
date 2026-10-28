@@ -34,6 +34,7 @@ dd_agent_go_test(
     srcs = [
         "owner_test.go",
         "tags_test.go",
+        "tracing_test.go",
     ],
     embed = [":tagsfromlabels"],
     gotags_sets = [[
@@ -48,10 +49,14 @@ dd_agent_go_test(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/util/cache",
         "//pkg/util/pointer",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_client_go//dynamic/fake",
         "@io_k8s_client_go//kubernetes/scheme",
