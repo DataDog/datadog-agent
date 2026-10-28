@@ -165,6 +165,7 @@ struct syscall_cache_t {
 
         struct {
             u64 flags;
+            struct mount *newmnt;
             u32 is_thread: 1;
             u32 is_kthread : 1;
             u32 parent_pid;
