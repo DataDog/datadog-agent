@@ -19,7 +19,7 @@ alias(
     actual = "@xz//:liblzma",
 )
 
-VERSION = "5.8.1"
+VERSION = "5.8.4"
 
 package_metadata(
     name = "package_metadata",
@@ -27,7 +27,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://tukaani.org/xz/xz-{version}.tar.gz",
+        download_url = "https://github.com/tukaani-project/xz/releases/download/v{version}/xz-{version}.tar.gz",
         package = "xz",
         version = VERSION,
     ),
