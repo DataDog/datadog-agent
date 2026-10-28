@@ -11,6 +11,7 @@ go_library(
         "//comp/def",
         "//comp/privateactionrunner/phonehome/def",
         "//comp/remote-config/rcservice/def",
+        "//pkg/privateactionrunner/deployment",
         "//pkg/privateactionrunner/phonehome",
         "//pkg/util/option",
     ],
@@ -23,6 +24,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/def",
+        "//pkg/privateactionrunner/deployment",
         "@com_github_stretchr_testify//require",
     ],
 )
