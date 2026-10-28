@@ -1128,8 +1128,9 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
 
-// TEMPORARY (OTAGENT-1353): drop when the extension's WithConfigOptions lands upstream
-replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension => github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3
+// TEMPORARY (OTAGENT-1353): WithConfigOptions landed upstream in contrib #51877, ~10h after the
+// v0.163.0 cut. Drop this once OTEL_CONTRIB_VERSION reaches 0.164.0.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension => github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

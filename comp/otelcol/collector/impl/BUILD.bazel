@@ -6,7 +6,7 @@ go_library(
     srcs = [
         "collector.go",
         "collector_apikeybridge.go",
-        "collector_apikeybridge_aix.go",
+        "collector_apikeybridge_unsupported.go",
         "collector_nix.go",
         "collector_windows.go",
         "params.go",
@@ -73,8 +73,6 @@ go_library(
         ],
         "@rules_go//go/platform:freebsd": [
             "//cmd/agent/common/signals",
-            "//comp/otelcol/collector/impl/internal/apikeybridge",
-            "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_datadogextension//:datadogextension",
         ],
         "@rules_go//go/platform:illumos": [
             "//cmd/agent/common/signals",
@@ -123,8 +121,6 @@ go_library(
         ],
         "@rules_go//go/platform:solaris": [
             "//cmd/agent/common/signals",
-            "//comp/otelcol/collector/impl/internal/apikeybridge",
-            "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_datadogextension//:datadogextension",
         ],
         "@rules_go//go/platform:windows": [
             "//cmd/agent/common/signals",

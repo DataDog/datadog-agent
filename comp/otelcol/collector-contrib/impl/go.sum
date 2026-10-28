@@ -596,6 +596,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancing
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.163.0/go.mod h1:tkD9dvywQax5IlxUtme/Y2Pq2jLIr1NiHTfInehIE/U=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.163.0 h1:ezvIRoLG+TqctUn3FOKwqFRb6B/mlgRtp8qP6pNNPVw=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.163.0/go.mod h1:l4lOMyckg8WkZRCcQwrU6XQR3U6RsYSQxyyGO9yO5KE=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e h1:s1fGuzs8w0LUpu43aHPcJlaIs3xeN7slrKYj7mQxWCI=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.163.1-0.20261014163159-9982b8e8a42e/go.mod h1:OkOSRLBqKxpC3oiOhsxWyrjhEeCJtgEUbr1ZBUmGASE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0 h1:q81KTMTVcskHlGYbVaWeyASLtu/mOabXHTBEqPNy+pc=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.163.0/go.mod h1:1sNa7Hjfc9J7y8+r7oS8IBch+tvmK+VNS815nJyUSBo=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.163.0 h1:67dsvM6MmYQtLYnTx8quaw0goi9u9nI2tFdj0I/w7Zw=
@@ -926,8 +928,6 @@ github.com/tklauser/go-sysconf v0.4.0/go.mod h1:8mTNWyog7H+MpKijp4VmKJAd2bbYQ2zu
 github.com/tklauser/numcpus v0.6.0/go.mod h1:FEZLMke0lhOUG6w2JadTzp0a+Nl8PF/GFkQ5UVIcaL4=
 github.com/tklauser/numcpus v0.12.0 h1:NR85qdvHA9pFse3x3weVZ0r0ST8R6l5RHbZrlRaqob4=
 github.com/tklauser/numcpus v0.12.0/go.mod h1:ABHeXzJnr/qqwguhClkZKT1/8VABcYrsyUiUGobwWJg=
-github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3 h1:XZucr8BOYzardbsAS+z8DG/nhJaN/K0bZmbVhxzTGPY=
-github.com/truthbk/opentelemetry-collector-contrib/extension/datadogextension v0.0.0-20261015150826-8f7742590ed3/go.mod h1:sMbcDO/HJOPcFmssj3X86GlHe5DJ0ySrcJyXgS6R+xE=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/twmb/franz-go v1.7.0/go.mod h1:PMze0jNfNghhih2XHbkmTFykbMF5sJqmNJB31DOOzro=
 github.com/twmb/franz-go v1.22.2 h1:EdwIHGzD/4mgCpl/sNS0C74JYn6cL/r2KYS+8UC96Ww=
