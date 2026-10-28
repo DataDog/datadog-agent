@@ -50,33 +50,13 @@ func TestAgentPackagePermissionsRootOwnRootRunPaths(t *testing.T) {
 		"embedded",
 		"embedded/bin",
 		"embedded/bin/installer",
+		"embedded/bin/privateactionrunner",
+		"embedded/bin/rshell",
 		"embedded/bin/system-probe",
 		"embedded/bin/security-agent",
 	} {
 		assert.Truef(t, rootOwned[path], "%q is run by or contains a root binary and must be root-owned", path)
 	}
-}
-
-func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T) {
-	assert.Equal(t, installerFile.Permissions{
-		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
-		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
-		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
-		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root", Mode: 0755},
-	}, privilegedRshellPackagePermissions)
-	for _, permission := range privilegedRshellPackagePermissions {
-		assert.NotEqual(t, ".", permission.Path, "the package root must keep dd-agent ownership")
-	}
-}
-
-func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
-	packagePath := t.TempDir()
-	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
-	require.NoError(t, os.Symlink("/bin/true", binaryPath))
-
-	err := ensurePrivilegedRshellPermissions(HookContext{Context: context.Background(), PackagePath: packagePath})
-	require.ErrorContains(t, err, "privileged rshell helper is not a regular file")
 }
 
 func TestPrivilegedRshellUnitIsAlwaysWritten(t *testing.T) {

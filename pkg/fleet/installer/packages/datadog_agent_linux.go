@@ -56,8 +56,7 @@ const (
 	agentSymlink     = "/usr/bin/datadog-agent"
 	installerSymlink = "/usr/bin/datadog-installer"
 
-	privilegedRshellBinaryRelPath = "embedded/bin/rshell"
-	privilegedRshellPolicyDir     = "/etc/datadog-agent-rshell"
+	privilegedRshellPolicyDir = "/etc/datadog-agent-rshell"
 	// legacyPrivilegedRshellSocket is the socket unit older versions used to
 	// start the helper. The helper now creates its own socket.
 	legacyPrivilegedRshellSocket    = "datadog-agent-rshell-privileged.socket"
@@ -97,21 +96,14 @@ var (
 		{Path: "embedded", Owner: "root", Group: "root"},
 		{Path: "embedded/bin", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/installer", Owner: "root", Group: "root"},
+		// systemd runs these as root (the rshell privileged helper and the
+		// launcher that starts it), so dd-agent must not be able to replace them.
+		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/rshell", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
-	}
-
-	// privilegedRshellPackagePermissions protects the directories below the
-	// package root that contain the privileged helper. The package root keeps
-	// the ownership established by agentPackagePermissions.
-	privilegedRshellPackagePermissions = file.Permissions{
-		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
-		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
-		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
-		// systemd runs privateactionrunner as root to launch the helper.
-		{Path: "embedded/bin/privateactionrunner", Owner: "root", Group: "root", Mode: 0755},
 	}
 
 	// integrationRestorePermissions re-applies dd-agent ownership to embedded/lib after
@@ -205,21 +197,6 @@ func fixRestoredIntegrationOwnership(ctx HookContext) error {
 	return integrationRestorePermissions.Ensure(ctx, filepath.Join(ctx.PackagePath, "embedded/lib"))
 }
 
-func ensurePrivilegedRshellPermissions(ctx HookContext) error {
-	binaryPath := filepath.Join(ctx.PackagePath, privilegedRshellBinaryRelPath)
-	info, err := os.Lstat(binaryPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to inspect privileged rshell helper: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("privileged rshell helper is not a regular file: %s", binaryPath)
-	}
-	return privilegedRshellPackagePermissions.Ensure(ctx, ctx.PackagePath)
-}
-
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_filesystem")
@@ -243,9 +220,6 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 	if err = agentPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
-	}
-	if err = ensurePrivilegedRshellPermissions(ctx); err != nil {
-		return fmt.Errorf("failed to protect privileged rshell helper: %w", err)
 	}
 	if err := file.EnsureConfigFromExample("/etc/datadog-agent", "private-action-runner/script-config.yaml"); err != nil {
 		log.Warnf("failed to initialize PAR script config: %v", err)
@@ -298,6 +272,21 @@ func removeLegacyPrivilegedRshellSocket(ctx HookContext) {
 	default:
 		return
 	}
+	// Stop and disable the old socket units first: on a stale host where the
+	// previous package's prerm did not finish, deleting the unit file alone
+	// would leave a still-loaded, possibly active socket in systemd. Mirrors
+	// retireLegacyProcmgrUnits.
+	units := []string{legacyPrivilegedRshellSocket, legacyPrivilegedRshellSocketExp}
+	if running, err := systemd.IsRunning(); err != nil {
+		log.Warnf("failed to check whether systemd is running: %v", err)
+	} else if running {
+		if err := systemd.StopUnits(ctx, units...); err != nil {
+			log.Warnf("failed to stop legacy privileged rshell socket units: %v", err)
+		}
+		if err := systemd.DisableUnits(ctx, units...); err != nil {
+			log.Warnf("failed to disable legacy privileged rshell socket units: %v", err)
+		}
+	}
 	if err := legacyPrivilegedRshellSocketLinks.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		log.Warnf("failed to remove legacy privileged rshell socket links: %v", err)
 	}
@@ -309,6 +298,9 @@ func removeLegacyPrivilegedRshellSocket(ctx HookContext) {
 		if err := legacyPrivilegedRshellSocketUnits.EnsureAbsent(ctx, dir); err != nil {
 			log.Warnf("failed to remove legacy privileged rshell socket units from %s: %v", dir, err)
 		}
+	}
+	if err := systemd.Reload(ctx); err != nil {
+		log.Warnf("failed to reload systemd after removing legacy privileged rshell socket: %v", err)
 	}
 }
 

@@ -199,6 +199,23 @@ func (s *packageAgentSuite) TestPrivilegedRshellHelperLifecycle() {
 	s.Equal("0", ids[0])
 	s.Equal(strings.TrimSpace(s.host.Run("id -u dd-agent")), ids[1])
 
+	// A helper that keeps crashing exhausts its restart limit and enters
+	// failed. That must remove its socket and leave the core Agent running:
+	// BindsTo binds the helper to the Agent, not the Agent to the helper, so a
+	// failing helper never cascades up.
+	s.Require().Eventually(func() bool {
+		s.host.Run("sudo systemctl kill --signal=SIGKILL " + rshellServiceUnit + " 2>/dev/null || true")
+		return strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+rshellServiceUnit)) == "ActiveState=failed"
+	}, time.Minute, 500*time.Millisecond, "repeated kills did not drive the helper to failed")
+	s.False(s.socketExists(rshellSocketPath), "a failed helper must not leave its socket")
+	s.Equal("ActiveState=active", strings.TrimSpace(s.host.Run("systemctl show -p ActiveState "+agentUnit)),
+		"the helper failing must not take the core Agent down")
+	// Restarting the Agent clears the failed helper and brings it back: the
+	// Agent unit's Wants= pulls it in and resets its restart counter.
+	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.requireRshellHelperSupported()
+	s.assertRshellHelper(true)
+
 	// The helper does not depend on the PAR unit, which exits whenever the
 	// monolithic runner is not in use.
 	s.host.Run("sudo systemctl stop datadog-agent-action.service")

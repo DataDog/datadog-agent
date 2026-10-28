@@ -23,15 +23,33 @@ func TestPrivilegedRshellUnit(t *testing.T) {
 	units := unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)
 	assert.Len(t, units, 2, "the helper creates its own socket: no socket unit")
 
-	for name, want := range map[string]struct{ agent, installDir, etcDir string }{
-		"datadog-agent-rshell-privileged.service":     {"datadog-agent.service", "/opt/datadog-packages/datadog-agent/stable", "/etc/datadog-agent"},
-		"datadog-agent-rshell-privileged-exp.service": {"datadog-agent-exp.service", "/opt/datadog-packages/datadog-agent/experiment", "/etc/datadog-agent-exp"},
+	for name, want := range map[string]struct {
+		agent, installDir, etcDir, after, conflicts string
+	}{
+		"datadog-agent-rshell-privileged.service": {
+			agent:      "datadog-agent.service",
+			installDir: "/opt/datadog-packages/datadog-agent/stable",
+			etcDir:     "/etc/datadog-agent",
+			after:      "After=datadog-agent.service datadog-agent-exp.service\n",
+			conflicts:  "Conflicts=datadog-agent-exp.service datadog-agent-rshell-privileged-exp.service\n",
+		},
+		"datadog-agent-rshell-privileged-exp.service": {
+			agent:      "datadog-agent-exp.service",
+			installDir: "/opt/datadog-packages/datadog-agent/experiment",
+			etcDir:     "/etc/datadog-agent-exp",
+			after:      "After=datadog-agent.service datadog-agent-exp.service datadog-agent-rshell-privileged.service\n",
+			conflicts:  "Conflicts=datadog-agent.service datadog-agent-rshell-privileged.service\n",
+		},
 	} {
 		unit := string(units[name])
 		// BindsTo (not PartOf) so the helper stops and its RuntimeDirectory is
 		// removed when the Agent stops OR fails (restart limit exhausted).
 		assert.Contains(t, unit, "BindsTo="+want.agent+"\n", name)
-		assert.Contains(t, unit, "After="+want.agent+"\n", name+": the helper orders after the Agent it is bound to")
+		// After both core Agents and Conflicts with the opposite core/helper,
+		// mirroring datadog-agent-action's wiring so stable and experiment
+		// never run the helper at the same time against the shared socket.
+		assert.Contains(t, unit, want.after, name+": the helper orders after both core Agents")
+		assert.Contains(t, unit, want.conflicts, name+": the helper conflicts with the opposite core Agent and helper")
 		assert.NotContains(t, unit, "PartOf=", name)
 		assert.NotContains(t, unit, "datadog-agent-action", name+": the helper must not depend on the PAR frontend")
 		assert.NotContains(t, unit, "[Install]", name+": the Agent unit's Wants= pulls the helper in")
@@ -46,8 +64,6 @@ func TestPrivilegedRshellUnit(t *testing.T) {
 			" --policy=/etc/datadog-agent-rshell/policy.json\n", name)
 		assert.Contains(t, unit, "Restart=on-failure\n", name)
 	}
-	assert.Contains(t, string(units["datadog-agent-rshell-privileged-exp.service"]), "After=datadog-agent-rshell-privileged.service\n",
-		"the experiment helper must wait for the stable one to release the socket")
 }
 
 func TestAgentUnitsWantPrivilegedRshell(t *testing.T) {

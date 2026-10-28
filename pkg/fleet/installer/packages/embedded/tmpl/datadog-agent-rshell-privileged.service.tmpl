@@ -8,15 +8,15 @@
 {{- if .Stable}}
 Description=Datadog rshell privileged helper
 BindsTo=datadog-agent.service
-After=datadog-agent.service
-Conflicts=datadog-agent-rshell-privileged-exp.service
+After=datadog-agent.service datadog-agent-exp.service
+Conflicts=datadog-agent-exp.service datadog-agent-rshell-privileged-exp.service
 {{- else}}
 Description=Datadog rshell privileged helper experiment
 BindsTo=datadog-agent-exp.service
-After=datadog-agent-exp.service
-Conflicts=datadog-agent-rshell-privileged.service
-# Both variants use the same socket: release it before creating it.
-After=datadog-agent-rshell-privileged.service
+# After both core Agent units (as the monolithic runner does) and the stable
+# helper, which shares the socket and must release it before this one binds it.
+After=datadog-agent.service datadog-agent-exp.service datadog-agent-rshell-privileged.service
+Conflicts=datadog-agent.service datadog-agent-rshell-privileged.service
 {{- end}}
 ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
 
