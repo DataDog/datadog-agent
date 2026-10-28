@@ -102,6 +102,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     credentialResolver,
+		ledger:       newTaskLedger("", nil),
 	}
 
 	got, failureTask, err := executor.PrepareTask(context.Background(), dequeuedTask)
@@ -159,6 +160,58 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), failureTask.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), failureTask.Data.Attributes.SpanId)
+}
+
+func TestWorkflowTaskExecutorPrepareTaskRefusesAlreadyAcceptedTask(t *testing.T) {
+	ledgerDir := t.TempDir()
+	newExecutor := func(taskID string) *WorkflowTaskExecutor {
+		unwrappedTask := newWorkflowTask(taskID, "signed-bundle", "signed-action", "")
+		unwrappedTask.Data.Attributes.ExpirationTime = time.Now().Add(time.Hour)
+		return &WorkflowTaskExecutor{
+			registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+			config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
+			taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrappedTask},
+			resolver:     &fakeCredentialResolver{},
+			ledger:       newTaskLedger(ledgerDir, nil),
+		}
+	}
+	executor := newExecutor("signed-task")
+
+	_, _, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
+	require.NoError(t, err)
+
+	got, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
+	require.ErrorContains(t, err, errTaskAlreadyAccepted.Error())
+	assert.Nil(t, got)
+	require.NotNil(t, failureTask)
+	assert.Equal(t, "job-2", failureTask.Data.Attributes.JobId)
+
+	// A new process sharing the ledger directory still refuses the task.
+	_, _, err = newExecutor("signed-task").PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-3"))
+	require.ErrorContains(t, err, errTaskAlreadyAccepted.Error())
+
+	_, _, err = newExecutor("other-signed-task").PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-4"))
+	require.NoError(t, err)
+}
+
+func TestWorkflowTaskExecutorPrepareTaskDoesNotRecordTaskRefusedEarlier(t *testing.T) {
+	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
+	unwrappedTask.Data.Attributes.ExpirationTime = time.Now().Add(time.Hour)
+	resolver := &fakeCredentialResolver{err: errors.New("credential resolution failed")}
+	executor := &WorkflowTaskExecutor{
+		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
+		taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrappedTask},
+		resolver:     resolver,
+		ledger:       newTaskLedger(t.TempDir(), nil),
+	}
+
+	_, _, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
+	require.Error(t, err)
+
+	resolver.err = nil
+	_, _, err = executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
+	require.NoError(t, err)
 }
 
 func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
