@@ -30,6 +30,11 @@ func TestSendErrorFramesDefault(t *testing.T) {
 	require.False(t, cfg.EbpfCollectorConfig.SendErrorFrames)
 }
 
+func TestFilterMinProcessAgeDefault(t *testing.T) {
+	cfg := defaultConfig(profilerName).(Config)
+	require.Zero(t, cfg.EbpfCollectorConfig.FilterMinProcessAge)
+}
+
 func TestInterpreters(t *testing.T) {
 	config := defaultConfig(profilerName)
 	cfg := config.(Config)
