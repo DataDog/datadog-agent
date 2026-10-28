@@ -225,7 +225,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 		if configInfo.Pinned {
 			continue
 		}
-		proposedCohort.addToLeastBusy(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, "", false)
+		proposedCohort.addToLeastBusy(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, false)
 	}
 
 	minPercImprovement := config.GetInt("cluster_checks.rebalance_min_percentage_improvement")

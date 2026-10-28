@@ -75,18 +75,13 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 // leastBusyRunner returns the runner with the lowest utilization. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
-// the runner with the lowest number of configs deployed. excludeRunner can be
-// set to avoid assigning a config to a specific runner.
-func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
+// the runner with the lowest number of configs deployed.
+func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, workersNeeded float64) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
 
 	for runnerName, runnerStatus := range distribution.Runners {
-		if runnerName == excludeRunner {
-			continue
-		}
-
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
@@ -113,8 +108,8 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 // addToLeastBusy places a config on the least busy runner of the distribution.
 // Eligibility is implied by the distribution's runner set: cohort
 // distributions only contain the cohort's eligible runners.
-func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded)
+func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, pinned bool) {
+	leastBusy := distribution.leastBusyRunner(preferredRunner, workersNeeded)
 	if leastBusy == "" {
 		return
 	}
@@ -157,16 +152,6 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 
 	// Cumulate Pinned: Pin the entire config if any of its instances are pinned
 	configInfo.Pinned = configInfo.Pinned || pinned
-}
-
-func (distribution *configsDistribution) runnerWorkers() map[string]int {
-	res := map[string]int{}
-
-	for runnerName, runnerStatus := range distribution.Runners {
-		res[runnerName] = runnerStatus.Workers
-	}
-
-	return res
 }
 
 func (distribution *configsDistribution) runnerForConfig(digest string) string {
