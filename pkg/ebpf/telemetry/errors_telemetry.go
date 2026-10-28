@@ -129,6 +129,7 @@ type ebpfErrorsTelemetry interface {
 	fill([]names.MapName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
 	cleanup([]names.MapName, names.ModuleName, *maps.GenericMap[uint64, mapErrTelemetry], *maps.GenericMap[uint64, helperErrTelemetry]) error
 	setProbe(name telemetryKey, hash uint64)
+	removeProbes(names.ModuleName)
 	isInitialized() bool
 	forEachMapErrorEntryInMaps(yield func(telemetryKey, uint64, mapErrTelemetry) bool)
 	forEachHelperErrorEntryInMaps(yield func(telemetryKey, uint64, helperErrTelemetry) bool)
@@ -222,6 +223,16 @@ func (e *ebpfTelemetry) setProbe(key telemetryKey, hash uint64) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.probeKeys[key] = hash
+}
+
+func (e *ebpfTelemetry) removeProbes(mn names.ModuleName) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	for key := range e.probeKeys {
+		if key.moduleName == mn {
+			delete(e.probeKeys, key)
+		}
+	}
 }
 
 func (e *ebpfTelemetry) isInitialized() bool {
@@ -344,6 +355,15 @@ func PatchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, 
 		return errors.New("errorsTelemetry not initialized")
 	}
 	return patchEBPFTelemetry(programSpecs, enable, mn, errorsTelemetry)
+}
+
+// ClearHelperErrorKeys removes the helper-error keys that instruction patching registered for a
+// module. Call it when a manager fails to load after patching, so its keys aren't filled into
+// the helper-error map of the next manager initialized under the same module name.
+func ClearHelperErrorKeys(mn names.ModuleName) {
+	if errorsTelemetry != nil {
+		errorsTelemetry.removeProbes(mn)
+	}
 }
 
 func patchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, mn names.ModuleName, bpfTelemetry ebpfErrorsTelemetry) error {
