@@ -39,6 +39,13 @@ type hostProfilerConfig struct {
 	DDProfiling           ddProfilingConfig
 	HealthMetrics         healthMetricsConfig
 	HPFlare               hpFlareConfig
+	SymbolUploaderReport  symbolUploaderReportConfig
+}
+
+// symbolUploaderReportConfig holds the symbol uploader's batched upload report settings.
+type symbolUploaderReportConfig struct {
+	Interval          int
+	MaxPathsPerReport int
 }
 
 type endpoint struct {
@@ -115,6 +122,10 @@ func newConfigManager(config config.Component) configManager {
 		},
 		HPFlare: hpFlareConfig{
 			Port: config.GetInt("hostprofiler.hpflare.port"),
+		},
+		SymbolUploaderReport: symbolUploaderReportConfig{
+			Interval:          config.GetInt("hostprofiler.symbol_uploader.report.interval"),
+			MaxPathsPerReport: config.GetInt("hostprofiler.symbol_uploader.report.max_paths_per_report"),
 		},
 	}
 

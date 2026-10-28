@@ -538,7 +538,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: 'false'
+            default: datadog_only
             visibility: public
             description: |-
               Global default for the distribution metrics intake version. Accepted values:
@@ -615,6 +615,103 @@ properties:
       each request can be sent before waiting for the response.
     tags:
     - template_section:Common
+  forwarder_concurrency_policy:
+    node_type: setting
+    type: string
+    default: static
+    description: |-
+      How the forwarder limits the number of concurrent requests to each domain.
+      Possible values are "static" or "dynamic".
+
+      With "static", each worker can have up to 'forwarder_max_concurrent_requests'
+      requests in flight.
+
+      With "dynamic", all workers of a domain share one limit that is scaled at
+      runtime. The limit starts at 'forwarder.dynamic_concurrency.initial_limit'
+      and grows, up to 'forwarder.dynamic_concurrency.max_concurrent_requests',
+      while the forwarder is fully occupied, meaning it cannot keep up with the
+      payload arrival rate.
+      It shrinks when the backend pushes back (HTTP 408/429/503 or timeouts) or
+      when the forwarder is rarely fully occupied.
+  forwarder:
+    node_type: section
+    type: object
+    description: Forwarder configuration.
+    properties:
+      dynamic_concurrency:
+        node_type: section
+        type: object
+        description: |-
+          Settings used by the forwarder when 'forwarder_concurrency_policy' is
+          set to "dynamic".
+        properties:
+          num_workers:
+            node_type: setting
+            type: integer
+            default: 1
+            description: The number of workers used by the forwarder.
+          max_concurrent_requests:
+            node_type: setting
+            type: integer
+            default: 10
+            description: |-
+              The maximum number of concurrent requests to each domain, shared by
+              all workers. The forwarder scales the limit at runtime up to this value.
+          initial_limit:
+            node_type: setting
+            type: integer
+            default: 1
+            description: |-
+              The concurrency limit the forwarder starts with, and resets to when
+              it restarts. Must be between 1 and 'max_concurrent_requests'.
+          eval_interval:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How often the forwarder evaluates whether to raise or lower the limit.
+              Set it to at least the interval at which payloads arrive, so that a
+              single batch does not look like a sustained backlog.
+          increase_threshold:
+            node_type: setting
+            type: number
+            default: 0.8
+            description: |-
+              Increase the limit if the forwarder is fully occupied for at least
+              this fraction (between 0 and 1) of an evaluation interval.
+          decrease_threshold:
+            node_type: setting
+            type: number
+            default: 0.2
+            description: |-
+              Decrease the limit if the forwarder is fully occupied for less than
+              this fraction (between 0 and 'increase_threshold') of an evaluation
+              interval. Set to 0 to disable.
+          increase_step:
+            node_type: setting
+            type: integer
+            default: 1
+            description: How much the limit is raised by after each saturated evaluation
+              interval.
+          min_decrease_interval:
+            node_type: setting
+            type: string
+            default: 1s
+            format: duration
+            description: |-
+              The minimum time between two decreases of the limit. The limit is
+              halved when the backend pushes back; pushback received within this
+              interval of the previous decrease is ignored, so a burst of errors
+              halves the limit only once.
+          increase_cooldown:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How long after a decrease the forwarder waits before raising the
+              limit again.
   forwarder_storage_max_size_in_bytes:
     node_type: setting
     type: integer
@@ -2129,6 +2226,114 @@ properties:
             node_type: setting
             type: boolean
             default: false
+  network_pcap:
+    node_type: section
+    title: Network Pcap Configuration
+    type: object
+    description: Settings for the Private Action Runner's remote packet
+      capture action.
+    tags:
+    - full-agent-only:true
+    - platform_only:linux
+    properties:
+      forwarder:
+        node_type: section
+        type: object
+        description: Endpoints packet captures are uploaded to, read like the
+          event platform forwarders' endpoint settings. logs_dd_url (host:port)
+          or dd_url override the default "cnm-intake.<site>" host, and
+          additional_endpoints adds more. Uploads are neither batched nor
+          compressed per these settings, so the batch_* and compression keys
+          have no effect.
+        properties:
+          additional_endpoints:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          batch_max_concurrent_send:
+            node_type: setting
+            type: integer
+            default: 0
+          batch_max_content_size:
+            node_type: setting
+            type: integer
+            default: 5000000
+          batch_max_size:
+            node_type: setting
+            type: integer
+            default: 1000
+          batch_wait:
+            node_type: setting
+            type: number
+            default: 5
+          compression_kind:
+            node_type: setting
+            type: string
+            default: zstd
+          compression_level:
+            node_type: setting
+            type: integer
+            default: 6
+          connection_reset_interval:
+            node_type: setting
+            type: integer
+            default: 0
+          dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          dev_mode_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+            tags:
+            - no-env
+          input_chan_size:
+            node_type: setting
+            type: integer
+            default: 100
+          logs_dd_url:
+            node_type: setting
+            type: string
+            default: ''
+          logs_no_ssl:
+            node_type: setting
+            type: boolean
+            default: false
+          sender_backoff_base:
+            node_type: setting
+            type: number
+            default: 1
+          sender_backoff_factor:
+            node_type: setting
+            type: number
+            default: 2
+          sender_backoff_max:
+            node_type: setting
+            type: number
+            default: 120
+          sender_recovery_interval:
+            node_type: setting
+            type: integer
+            default: 2
+          sender_recovery_reset:
+            node_type: setting
+            type: boolean
+            default: false
+          use_compression:
+            node_type: setting
+            type: boolean
+            default: true
+          use_v2_api:
+            node_type: setting
+            type: boolean
+            default: true
+          zstd_compression_level:
+            node_type: setting
+            type: integer
+            default: 1
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
@@ -3428,12 +3633,38 @@ properties:
       The list of environment variables that are allowed to be resolved in check
       configurations.
       If the list is not set or is empty, the default behavior applies: all envs
-      are allowed.
+      are allowed except the ones bound to Agent settings (see
+      `ad_allowed_agent_env_vars`).
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
         - <ENV_VAR_1>
         - <ENV_VAR_2>
+    tags:
+    - template_section:CoreAgent
+  ad_allowed_agent_env_vars:
+    node_type: setting
+    type: array
+    default:
+    - DD_CLUSTER_NAME
+    - DD_ENV
+    items:
+      type: string
+    visibility: public
+    description: |-
+      The list of environment variables bound to Agent settings that are allowed
+      to be resolved in check configurations. Other environment variables bound
+      to Agent settings are not resolved because some of them hold Agent
+      credentials, like `DD_API_KEY`.
+      Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
+      `DD_ENV` if you still need them.
+      This list only applies when `ad_allowed_env_vars` is not set or is empty,
+      and `ad_disable_env_var_resolution` is set to false.
+    example: |2-
+
+        - DD_CLUSTER_NAME
+        - DD_ENV
+        - <ENV_VAR_1>
     tags:
     - template_section:CoreAgent
   ad_disable_env_var_resolution:
@@ -6022,6 +6253,16 @@ properties:
     default: ''
     tags:
     - full-agent-only:true
+  clc_runner_group:
+    node_type: setting
+    type: string
+    default: ''
+    tags:
+    - full-agent-only:true
+    comment: Cluster checks runner group of this runner, advertised to the Cluster
+      Agent. The runner only receives the checks its group claims in the Cluster
+      Agent's cluster_checks.runner_groups. When empty, it is a general worker and
+      receives the checks no group claims.
   clc_runner_port:
     node_type: setting
     type: integer
@@ -6551,7 +6792,7 @@ properties:
           healthy host into a finding.
 
           The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
-          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          -- see test/regression/container/quality_gates/quality_gate_* -- rather than for tuning on real hosts, where the only
           knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
@@ -8012,6 +8253,30 @@ properties:
         node_type: setting
         type: string
         default: ${log_path}/host-profiler.log
+      symbol_uploader:
+        node_type: section
+        type: object
+        properties:
+          report:
+            node_type: section
+            type: object
+            properties:
+              interval:
+                node_type: setting
+                type: integer
+                default: 300
+                minimum: 1
+                maximum: 86400
+                description: How often, in seconds, the host profiler flushes a
+                  batched symbol upload report.
+              max_paths_per_report:
+                node_type: setting
+                type: integer
+                default: 100
+                minimum: 1
+                maximum: 100000
+                description: Maximum number of sampled binary paths kept per symbol
+                  upload report, per log level.
     tags:
     - full-agent-only:true
   hpa_configmap_name:
@@ -9275,7 +9540,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0.001
+            default: 0
           shadow_sites:
             node_type: setting
             type: array

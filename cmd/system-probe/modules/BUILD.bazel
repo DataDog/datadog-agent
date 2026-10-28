@@ -1,6 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# pcap is excluded from the default unit-test tags; Bazel links the static libpcap.
+# gazelle:go_canonical_test_tag_set pcap
+
 go_library(
     name = "modules",
     srcs = [
@@ -26,6 +29,7 @@ go_library(
         "noisy_neighbor.go",
         "notable_events_darwin.go",
         "oom_kill_probe.go",
+        "packet_capture.go",
         "ping.go",
         "privileged_logs_linux.go",
         "process.go",
@@ -45,10 +49,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/system-probe/api/module",
-        "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/impl",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",
@@ -76,6 +80,7 @@ go_library(
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/network",
+            "//pkg/network/capture",
             "//pkg/network/config",
             "//pkg/network/encoding/marshal",
             "//pkg/network/events",
@@ -148,6 +153,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/impl",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",
@@ -175,6 +181,7 @@ go_library(
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/network",
+            "//pkg/network/capture",
             "//pkg/network/config",
             "//pkg/network/encoding/marshal",
             "//pkg/network/events",
@@ -236,6 +243,7 @@ go_library(
             "//pkg/networkpath/traceroute/config",
             "//pkg/security/config",
             "//pkg/security/module",
+            "//pkg/system-probe/config",
             "//pkg/system-probe/utils",
             "//pkg/util/fargate",
             "//pkg/util/log",
@@ -259,6 +267,7 @@ dd_agent_go_test(
         "language_detection_test.go",
         "network_tracer_test.go",
         "notable_events_darwin_test.go",
+        "packet_capture_test.go",
         "process_test.go",
         "traceroute_test.go",
     ],
@@ -270,6 +279,7 @@ dd_agent_go_test(
             "nvml",
         ],
         ["npm"],
+        ["pcap"],
     ],
     deps = select({
         "@rules_go//go/platform:android": [

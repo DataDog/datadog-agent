@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -41,7 +42,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 
 			cfg, err := New("", "")
 			require.NoError(t, err)
-			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
+			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(types.EventMonitorModule))
 		})
 	}
 
@@ -54,12 +55,12 @@ func TestDynamicInstrumentation(t *testing.T) {
 
 	cfg, err := New("", "")
 	require.NoError(t, err)
-	assert.Equal(t, true, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
+	assert.Equal(t, true, cfg.ModuleIsEnabled(types.DynamicInstrumentationModule))
 
 	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 	cfg, err = New("", "")
 	require.NoError(t, err)
-	assert.Equal(t, false, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
+	assert.Equal(t, false, cfg.ModuleIsEnabled(types.DynamicInstrumentationModule))
 
 }
 
@@ -124,7 +125,7 @@ func TestNPMEnabled(t *testing.T) {
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_NETWORK_MONITORING_ENABLED", strconv.FormatBool(te.csmNpm))
 			cfg, err := New("", "")
 			require.NoError(t, err)
-			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v, eudm: %v", te.npm, te.usm, te.ccm, te.eudm)
+			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(types.NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v, eudm: %v", te.npm, te.usm, te.ccm, te.eudm)
 		})
 	}
 }

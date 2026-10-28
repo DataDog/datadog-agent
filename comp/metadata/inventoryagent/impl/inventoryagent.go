@@ -25,6 +25,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -83,6 +84,7 @@ type inventoryagent struct {
 	log          log.Component
 	conf         config.Component
 	hostnameComp hostnameinterface.Component
+	secrets      secrets.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
@@ -103,6 +105,7 @@ type Requires struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	Secrets        secrets.Component `optional:"true"`
 	// Capabilities is optional; absent means standard full-agent behavior.
 	// See iainterface.Capabilities.
 	Capabilities *iainterface.Capabilities `optional:"true"`
@@ -125,6 +128,7 @@ func NewComponent(deps Requires) Provides {
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
 		hostnameComp: deps.Hostname,
+		secrets:      deps.Secrets,
 		hostname:     hname,
 		data:         make(agentMetadata),
 		client:       deps.IPCClient,
@@ -452,6 +456,18 @@ func (ia *inventoryagent) fetchFleetMetadata() {
 	ia.data["config_id"] = ia.conf.GetString("config_id")
 }
 
+// fetchSecretsMetadata reports where secrets appear in the configuration and which handles are used
+func (ia *inventoryagent) fetchSecretsMetadata() {
+	paths, handles := []string{}, []string{}
+	if ia.secrets != nil {
+		paths, handles = ia.secrets.GetPathsAndHandles()
+	}
+	ia.data["enc_info"] = map[string][]string{
+		"paths":   paths,
+		"handles": handles,
+	}
+}
+
 func (ia *inventoryagent) refreshMetadata() {
 	// Core Agent / agent
 	ia.fetchCoreAgentMetadata()
@@ -467,6 +483,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchFleetMetadata()
 	// Application Monitoring (tracers)
 	ia.fetchApplicationMonitoringMetadata()
+	// Secrets
+	ia.fetchSecretsMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {

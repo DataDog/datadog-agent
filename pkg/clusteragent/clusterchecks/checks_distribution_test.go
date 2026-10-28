@@ -153,7 +153,7 @@ func TestAddToLeastBusy(t *testing.T) {
 				distribution.addConfig(checkID, checkStatus.CheckName, checkStatus.WorkersNeeded, checkStatus.Runner, false)
 			}
 
-			distribution.addToLeastBusy("newCheck", "newCheck", 10, test.preferredRunner, "", false)
+			distribution.addToLeastBusy("newCheck", "newCheck", 10, test.preferredRunner, false)
 
 			assert.Equal(t, test.expectedPlacement, distribution.runnerForConfig("newCheck"))
 		})

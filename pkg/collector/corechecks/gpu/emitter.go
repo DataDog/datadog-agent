@@ -120,7 +120,9 @@ func (e *SampleEmitter) EmitSample(sample nvidia.Sample, snd sender.Sender, curr
 	metricWorkloads := sample.AssociatedWorkloads()
 	metricTags := []string{}
 
-	if len(metricWorkloads) == 0 {
+	if sample.NoWorkloadTags() {
+		metricWorkloads = nil
+	} else if len(metricWorkloads) == 0 {
 		for _, deviceContainer := range deviceContainers {
 			metricWorkloads = append(metricWorkloads, deviceContainer.EntityID)
 		}

@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Enforce the restricted shell's 5 MiB script limit before parsing commands in
+    the Private Action Runner's in-process interpreter, preventing excessive
+    parser memory use from oversized scripts.
