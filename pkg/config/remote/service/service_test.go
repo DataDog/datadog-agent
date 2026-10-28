@@ -632,6 +632,94 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
 }
 
+func TestClientGetConfigsDeliversConfigsWhenProductsChange(t *testing.T) {
+	const targetPath = "datadog/2/DATA_SECURITY_DB_SCAN_TASKS/scan-task/config.json"
+	content := []byte(`{"task_id":"existing-task"}`)
+	targets := newTargetFiles(map[string][]byte{targetPath: content})
+
+	newClient := func(products []string, targetsVersion uint64) *pbgo.Client {
+		return &pbgo.Client{
+			Id: "core-agent",
+			State: &pbgo.ClientState{
+				RootVersion:    1,
+				TargetsVersion: targetsVersion,
+			},
+			IsAgent:     true,
+			ClientAgent: &pbgo.ClientAgent{},
+			Products:    products,
+		}
+	}
+
+	setupService := func(t *testing.T) (*CoreAgentService, *mockCoreAgentUptane, *pbgo.TargetFileMeta) {
+		t.Helper()
+		api := &mockAPI{}
+		uptaneClient := &mockCoreAgentUptane{}
+		service := newTestService(t, api, uptaneClient, clock.NewMock())
+		uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+			DirectorRoot:    1,
+			DirectorTargets: 2,
+		}, nil)
+		uptaneClient.On("Targets").Return(targets, nil).Maybe()
+		uptaneClient.On("TargetFiles", []string{targetPath}).Return(
+			map[string][]byte{targetPath: content}, nil).Maybe()
+		uptaneClient.On("TargetsMeta").Return([]byte("targets-meta"), nil).Maybe()
+		return service, uptaneClient, func() *pbgo.TargetFileMeta {
+			meta := uptaneToCore(targetPath, targets[targetPath])
+			return meta
+		}()
+	}
+
+	t.Run("product subscribed before initial fetch", func(t *testing.T) {
+		service, _, cachedFile := setupService(t)
+		client := newClient([]string{string(rdata.ProductDataSecurityDBScanTasks)}, 0)
+		service.clients.seen(client)
+
+		response, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+		require.NoError(t, err)
+		require.Equal(t, []string{targetPath}, fileNames(response.TargetFiles))
+		require.Equal(t, []string{targetPath}, response.ClientConfigs)
+
+		client.State.TargetsVersion = 2
+		client.State.ConfigStates = []*pbgo.ConfigState{
+			{Id: "scan-task", Product: string(rdata.ProductDataSecurityDBScanTasks)},
+		}
+		response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{
+			Client:            client,
+			CachedTargetFiles: []*pbgo.TargetFileMeta{cachedFile},
+		})
+		require.NoError(t, err)
+		assert.Empty(t, response.TargetFiles)
+		assert.Empty(t, response.ClientConfigs)
+	})
+
+	t.Run("product subscribed after initial fetch", func(t *testing.T) {
+		service, _, cachedFile := setupService(t)
+		client := newClient(nil, 2)
+		service.clients.seen(client)
+
+		response, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+		require.NoError(t, err)
+		require.Empty(t, response.TargetFiles)
+
+		client.Products = []string{string(rdata.ProductDataSecurityDBScanTasks)}
+		response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+		require.NoError(t, err)
+		require.Equal(t, []string{targetPath}, fileNames(response.TargetFiles))
+		require.Equal(t, []string{targetPath}, response.ClientConfigs)
+
+		client.State.ConfigStates = []*pbgo.ConfigState{
+			{Id: "scan-task", Product: string(rdata.ProductDataSecurityDBScanTasks)},
+		}
+		response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{
+			Client:            client,
+			CachedTargetFiles: []*pbgo.TargetFileMeta{cachedFile},
+		})
+		require.NoError(t, err)
+		assert.Empty(t, response.TargetFiles)
+		assert.Empty(t, response.ClientConfigs)
+	})
+}
+
 func TestService(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
