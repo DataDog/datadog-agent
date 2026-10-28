@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix goroutine leaks when tagger streams disconnect or network configuration
-    transfers are canceled.
