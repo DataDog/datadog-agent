@@ -826,6 +826,7 @@
 /pkg/util/containers/metrics/ecsfargate/                              @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/containers/metrics/ecsmanagedinstances/                     @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/crio/                                                       @DataDog/container-integrations
+/pkg/util/ddot/                                                       @DataDog/opentelemetry-agent
 /pkg/util/docker/                                                     @DataDog/container-integrations
 /pkg/util/ecs/                                                        @DataDog/ecs-experiences
 /pkg/util/fargate/                                                    @DataDog/ecs-experiences
