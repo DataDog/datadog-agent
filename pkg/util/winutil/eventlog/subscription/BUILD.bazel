@@ -5,7 +5,7 @@ go_library(
     name = "subscription",
     srcs = ["subscription.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
