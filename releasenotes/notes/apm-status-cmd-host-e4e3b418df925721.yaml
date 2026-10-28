@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ``datadog-agent status`` queries the APM debug endpoint on ``cmd_host``. The debug server listens on that address when ``cmd_host`` is an IP, and on ``127.0.0.1`` when ``cmd_host`` is ``localhost``.
+    The APM debug server listens on ``cmd_host`` when that value is an IP address. Agent features that contact it, including ``datadog-agent status``, use the same address. ``localhost`` still uses ``127.0.0.1``.

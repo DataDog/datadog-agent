@@ -3095,7 +3095,7 @@ func TestDebugServerHostFollowsCmdHost(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg := buildConfigComponentFromOverrides(t, true, nil).Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, "localhost", cfg.DebugServerHost)
+		assert.Equal(t, "127.0.0.1", cfg.DebugServerHost)
 		assert.Equal(t, "127.0.0.1:"+strconv.Itoa(cfg.DebugServerPort), cfg.DebugServerAddr())
 	})
 }

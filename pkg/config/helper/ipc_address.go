@@ -35,6 +35,21 @@ func GetIPCAddress(config model.Reader) (string, error) {
 	return address, nil
 }
 
+// APMDebugHost returns the address the trace-agent debug server binds.
+// localhost uses 127.0.0.1 so callers do not also dial ::1. An address that is
+// not a loopback falls back to 127.0.0.1, matching the debug server.
+func APMDebugHost(config model.Reader) string {
+	address, err := GetIPCAddress(config)
+	if err != nil {
+		log.Warnf("APM debug server will use 127.0.0.1: %s", err)
+		return "127.0.0.1"
+	}
+	if address == "" || address == "localhost" {
+		return "127.0.0.1"
+	}
+	return address
+}
+
 // GetIPCPort returns the IPC port
 func GetIPCPort(config model.Reader) string {
 	return config.GetString("cmd_port")
