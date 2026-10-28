@@ -10009,11 +10009,12 @@ properties:
       linux: true
       windows: true
       aix: true
+      darwin: false
       other: false
     tags:
     - full-agent-only:true
     comment: |-
-      the darwin and bsd network check has not been ported from python
+      the bsd network check has not been ported from python, and the darwin one is opt-in
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
     description: Flag to enable or disable the Go core network check. When disabled, the
