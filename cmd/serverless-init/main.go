@@ -234,6 +234,20 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
+// applyCloudServiceOverrides sets the config overrides that depend on the detected
+// cloud service. It must run after cloud service detection and before
+// fxutil.OneShot constructs the DogStatsD server, which reads them.
+func applyCloudServiceOverrides(cloudService cloudservice.CloudService) {
+	// AWS Lambda MicroVM flushes telemetry in its /suspend and /terminate hooks and
+	// then suspends or destroys the VM. That flush only waits for samples already
+	// enqueued in the aggregator, so keep packets from waiting in the DogStatsD
+	// packet buffer: with this option set to 1ms, all packets received are
+	// immediately sent to the parser.
+	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
+		setOverride("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
+	}
+}
+
 func main() {
 
 	preloadEarly()
@@ -260,6 +274,7 @@ func main() {
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
+	applyCloudServiceOverrides(cloudService)
 
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside

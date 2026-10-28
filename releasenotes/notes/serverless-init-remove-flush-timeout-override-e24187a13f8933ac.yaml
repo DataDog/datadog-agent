@@ -9,5 +9,6 @@
 enhancements:
   - |
     serverless-init no longer overrides ``dogstatsd_packet_buffer_flush_timeout``
-    to 1ms. The default of 100ms now applies, and the setting can be changed with
-    ``DD_DOGSTATSD_PACKET_BUFFER_FLUSH_TIMEOUT``.
+    to 1ms, except on AWS Lambda MicroVM, where it remains 1ms. On all other
+    platforms the default of 100ms now applies, and the setting can be changed
+    with ``DD_DOGSTATSD_PACKET_BUFFER_FLUSH_TIMEOUT``.
