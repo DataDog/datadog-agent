@@ -17,17 +17,17 @@ if [[ ! -f "$agent" ]]; then
     exit 1
 fi
 
-# AWS-LC FIPS is linked statically on Linux, so the package must not contain or
-# dynamically reference a runtime AWS-LC shared object.
-packaged_shared_libraries="$(find "$stage" -type f \( -name 'libaws_lc_fips*.so' -o -name 'libaws_lc_fips*.so.*' -o -name 'libaws_lc_fips*.dylib' \) -print)"
+# AWS-LC is linked statically into the rc-x509 client, so the package must not
+# contain or dynamically reference a runtime AWS-LC shared object.
+packaged_shared_libraries="$(find "$stage" -type f \( -name 'libaws_lc*.so' -o -name 'libaws_lc*.so.*' -o -name 'libaws_lc*.dylib' \) -print)"
 if [[ -n "$packaged_shared_libraries" ]]; then
-    echo "unexpected packaged AWS-LC FIPS shared library on Linux:" >&2
+    echo "unexpected packaged AWS-LC shared library on Linux:" >&2
     printf '%s\n' "$packaged_shared_libraries" >&2
     exit 1
 fi
 
-if /usr/bin/readelf -d "$agent" | grep -E 'NEEDED.*aws_lc_fips'; then
-    echo "production Agent unexpectedly requires a dynamic AWS-LC FIPS library:" >&2
+if /usr/bin/readelf -d "$agent" | grep -E 'NEEDED.*aws_lc'; then
+    echo "production Agent unexpectedly requires a dynamic AWS-LC library:" >&2
     /usr/bin/readelf -d "$agent" >&2
     exit 1
 fi

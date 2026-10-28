@@ -115,9 +115,8 @@ pkg_filegroup(
     srcs = [":_collected_libs"],
 )
 
-# Validate the actual Agent package inputs, rather than only the focused
-# libdd-rc smoke package. The platform-specific tests below assert Linux's
-# static linkage and macOS's packaged AWS-LC FIPS dylib respectively.
+# Validate the actual Agent package inputs. The platform-specific tests below
+# assert that the rc-x509 client and AWS-LC are linked statically.
 pkg_filegroup(
     name = "rc_x509_packaged_agent_files",
     testonly = True,

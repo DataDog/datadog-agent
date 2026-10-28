@@ -75,7 +75,7 @@ x509 start marker|remote config x509 client started
 x509 stop marker|remote config x509 client stopped
 dynamic-loader failure|error while loading shared libraries|library not loaded|image not found
 symbol-resolution failure|undefined symbol|symbol not found
-AWS-LC/FIPS diagnostic|aws-lc|fips
+AWS-LC diagnostic|aws-lc|aws_lc
 fatal process diagnostic|(^|[^[:alpha:]])(fatal|panic|segmentation fault|segfault)([^[:alpha:]]|$)
 EOF
 }
