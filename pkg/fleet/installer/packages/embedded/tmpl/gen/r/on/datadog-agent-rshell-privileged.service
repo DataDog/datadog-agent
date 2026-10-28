@@ -1,11 +1,13 @@
 [Unit]
-# Pulled in by the matching Agent unit's Wants= and stopped with it. The
+# Pulled in by the matching Agent unit's Wants= and bound to it, so it is
+# stopped and its RuntimeDirectory removed whenever the Agent stops or fails. The
 # privateactionrunner launcher exits unless the Agent configuration enables the
 # helper; otherwise it replaces itself with the rshell helper, which creates
 # the socket in this unit's RuntimeDirectory and serves it until the Agent
 # stops.
 Description=Datadog rshell privileged helper
-PartOf=datadog-agent.service
+BindsTo=datadog-agent.service
+After=datadog-agent.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell
 

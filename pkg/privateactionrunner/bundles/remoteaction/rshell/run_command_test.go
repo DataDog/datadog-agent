@@ -700,10 +700,14 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 }
 
-func TestEnabledPrivilegedHelperWithoutSocketRunsUnprivileged(t *testing.T) {
+func TestEnabledPrivilegedHelperWithoutSocketFailsClosed(t *testing.T) {
+	// When privileged mode is enabled, a missing helper socket must fail the
+	// EscalationAllowed task, not run it in the ordinary interpreter: the
+	// local helper policy gates elevation and the ordinary path does not
+	// apply it, so a backend grant broader than the local policy (e.g. a :rw
+	// task under a :ro local policy) must not slip through a socket race.
 	cfg := defaultRunCommandHandlerConfig()
 	cfg.PrivilegedEnabled = true
-	// The socket is absent, as when the helper is not running.
 	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "missing-helper.sock")
 	for _, action := range []struct {
 		name    string
@@ -713,34 +717,18 @@ func TestEnabledPrivilegedHelperWithoutSocketRunsUnprivileged(t *testing.T) {
 		{name: "remediation", handler: NewRunRemediationCommandHandler(cfg)},
 	} {
 		t.Run(action.name, func(t *testing.T) {
-			for _, script := range []struct {
-				name       string
-				command    string
-				wantExit   int
-				wantStdout string
-				wantStderr string
-			}{
-				{name: "ordinary command", command: "echo hello", wantStdout: "hello\n"},
-				{name: "sudo is rejected", command: "sudo echo unexpected", wantExit: 126, wantStderr: "sudo: echo: elevation not allowed"},
-			} {
-				t.Run(script.name, func(t *testing.T) {
-					task := makeTask(script.command, []string{"rshell:echo"})
-					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
-					task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+			// A command that would succeed in the ordinary interpreter: it
+			// must error instead, proving there is no unprivileged fallback.
+			task := makeTask("echo hello", []string{"rshell:echo"})
+			task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
+			task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+			task.Data.Attributes.SignedEnvelope = &privateactionspb.RemoteConfigSignatureEnvelope{}
+			task.Data.Attributes.VerificationKey = &types.TaskVerificationKey{DirectorProof: &types.DirectorKeyProof{}}
 
-					out, err := action.handler.Run(context.Background(), task, nil)
+			out, err := action.handler.Run(context.Background(), task, nil)
 
-					require.NoError(t, err)
-					result := out.(*RunCommandOutputs)
-					assert.Equal(t, script.wantExit, result.ExitCode)
-					assert.Equal(t, script.wantStdout, result.Stdout)
-					if script.wantStderr == "" {
-						assert.Empty(t, result.Stderr)
-					} else {
-						assert.Contains(t, result.Stderr, script.wantStderr)
-					}
-				})
-			}
+			require.ErrorContains(t, err, "privileged rshell helper")
+			assert.Nil(t, out, "a missing socket must not run the task unprivileged")
 		})
 	}
 }

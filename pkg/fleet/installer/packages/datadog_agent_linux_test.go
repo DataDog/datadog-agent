@@ -92,6 +92,26 @@ func TestPrivilegedRshellUnitIsAlwaysWritten(t *testing.T) {
 	}
 }
 
+func TestLegacyPrivilegedRshellSocketUnitsCleanedFromEveryInstallPath(t *testing.T) {
+	// A DEB-to-OCI promotion runs as OCI but the stale socket unit sits under
+	// the DEB path, so cleanup must cover every package type's unit directory.
+	assert.ElementsMatch(t, installerFile.Paths{legacyPrivilegedRshellSocket, legacyPrivilegedRshellSocketExp}, legacyPrivilegedRshellSocketUnits)
+	assert.ElementsMatch(t, []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}, unitInstallPaths)
+
+	for _, dir := range unitInstallPaths {
+		root := t.TempDir()
+		for _, unit := range legacyPrivilegedRshellSocketUnits {
+			require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(root, dir, string(unit)), nil, 0644))
+		}
+		for _, unit := range legacyPrivilegedRshellSocketUnits {
+			require.NoError(t, legacyPrivilegedRshellSocketUnits.EnsureAbsent(context.Background(), filepath.Join(root, dir)))
+			_, err := os.Lstat(filepath.Join(root, dir, string(unit)))
+			assert.ErrorIs(t, err, os.ErrNotExist, "%s under %s", unit, dir)
+		}
+	}
+}
+
 func TestLegacyPrivilegedRshellSocketLinksAreRemoved(t *testing.T) {
 	root := t.TempDir()
 	for _, link := range legacyPrivilegedRshellSocketLinks {

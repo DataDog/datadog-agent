@@ -301,13 +301,14 @@ func removeLegacyPrivilegedRshellSocket(ctx HookContext) {
 	if err := legacyPrivilegedRshellSocketLinks.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		log.Warnf("failed to remove legacy privileged rshell socket links: %v", err)
 	}
-	unitsPath, err := unitsPath(ctx)
-	if err != nil {
-		log.Warnf("failed to remove legacy privileged rshell socket units: %v", err)
-		return
-	}
-	if err := legacyPrivilegedRshellSocketUnits.EnsureAbsent(ctx, unitsPath); err != nil {
-		log.Warnf("failed to remove legacy privileged rshell socket units: %v", err)
+	// Remove the legacy socket unit from every package's unit directory, not
+	// just this package type's: a DEB-to-OCI promotion runs as OCI (ctx path
+	// /etc/systemd/system) but the stale unit sits under the DEB path
+	// (/lib -> /usr/lib on Ubuntu), so a single-path cleanup would leave it.
+	for _, dir := range unitInstallPaths {
+		if err := legacyPrivilegedRshellSocketUnits.EnsureAbsent(ctx, dir); err != nil {
+			log.Warnf("failed to remove legacy privileged rshell socket units from %s: %v", dir, err)
+		}
 	}
 }
 

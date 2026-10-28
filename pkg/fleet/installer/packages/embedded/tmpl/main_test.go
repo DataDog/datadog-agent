@@ -28,7 +28,11 @@ func TestPrivilegedRshellUnit(t *testing.T) {
 		"datadog-agent-rshell-privileged-exp.service": {"datadog-agent-exp.service", "/opt/datadog-packages/datadog-agent/experiment", "/etc/datadog-agent-exp"},
 	} {
 		unit := string(units[name])
-		assert.Contains(t, unit, "PartOf="+want.agent+"\n", name)
+		// BindsTo (not PartOf) so the helper stops and its RuntimeDirectory is
+		// removed when the Agent stops OR fails (restart limit exhausted).
+		assert.Contains(t, unit, "BindsTo="+want.agent+"\n", name)
+		assert.Contains(t, unit, "After="+want.agent+"\n", name+": the helper orders after the Agent it is bound to")
+		assert.NotContains(t, unit, "PartOf=", name)
 		assert.NotContains(t, unit, "datadog-agent-action", name+": the helper must not depend on the PAR frontend")
 		assert.NotContains(t, unit, "[Install]", name+": the Agent unit's Wants= pulls the helper in")
 		// The socket lives outside /run/datadog, the Agent's RuntimeDirectory.
@@ -50,10 +54,14 @@ func TestAgentUnitsWantPrivilegedRshell(t *testing.T) {
 	for _, procmgr := range []bool{false, true} {
 		stable := string(mustReadUnit("datadog-agent.service", stableDataOCI, true, procmgr))
 		experiment := string(mustReadUnit("datadog-agent.service", expDataOCI, true, procmgr))
+		// The Agent pulls the helper in but must NOT order itself after it:
+		// the helper is a dependent (BindsTo the Agent) and orders itself
+		// After the Agent instead. Ordering the Agent after its own child was
+		// an inverted leftover from the socket-activation design.
 		assert.Regexp(t, regexp.MustCompile(`(?m)^Wants=.* datadog-agent-rshell-privileged\.service( |$)`), stable)
 		assert.Regexp(t, regexp.MustCompile(`(?m)^Wants=.* datadog-agent-rshell-privileged-exp\.service( |$)`), experiment)
-		assert.Regexp(t, regexp.MustCompile(`(?m)^After=.* datadog-agent-rshell-privileged\.service$`), stable)
-		assert.Regexp(t, regexp.MustCompile(`(?m)^After=.* datadog-agent-rshell-privileged-exp\.service$`), experiment)
+		assert.NotContains(t, stable, "After=network.target datadog-agent-rshell")
+		assert.NotContains(t, experiment, "After=network.target datadog-agent-rshell")
 	}
 }
 
