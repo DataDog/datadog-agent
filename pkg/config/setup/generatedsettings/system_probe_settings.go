@@ -552,6 +552,8 @@ func InitMainSystemProbeConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.itlb_misses", false)
 	config.BindEnvAndSetDefault("oom_kill.enabled", false)
 	config.BindEnvAndSetDefault("oom_kill.persist_monitoring", false)
+	config.BindEnvAndSetDefault("packet_capture.enabled", false)
+	config.BindEnvAndSetDefault("packet_capture.socket", "")
 	config.BindEnvAndSetDefault("privileged_logs.enabled", false)
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")

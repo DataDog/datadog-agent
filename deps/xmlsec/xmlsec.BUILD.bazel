@@ -8,7 +8,11 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata"])
 
-VERSION = "1.3.7"
+VERSION = "1.3.13"
+
+# Since 1.3.10, libtool numbers the library 10000 * major + 100 * minor +
+# micro, with no age or revision.
+SO_VERSION = "10313.0.0"
 
 package_metadata(
     name = "package_metadata",
@@ -69,8 +73,9 @@ cc_library(
         "src/keyinfo.c",
         "src/keys.c",
         "src/keysdata.c",
+        "src/keysdata_helpers.c",
         "src/keysmngr.c",
-        "src/kw_aes_des.c",
+        "src/kw_helpers.c",
         "src/list.c",
         "src/membuf.c",
         "src/nodeset.c",
@@ -78,7 +83,9 @@ cc_library(
         "src/relationship.c",
         "src/strings.c",
         "src/templates.c",
+        "src/transform_helpers.c",
         "src/transforms.c",
+        "src/x509_helpers.c",
         "src/xmldsig.c",
         "src/xmlenc.c",
         "src/xmlsec.c",
@@ -90,6 +97,10 @@ cc_library(
     copts = ["-O2"],
     defines = [
         "XMLSEC_CRYPTO_OPENSSL=1",
+        "XMLSEC_NO_CRYPTO_DYNAMIC_LOADING=1",
+        "XMLSEC_NO_MLDSA=1",
+        "XMLSEC_NO_MLKEM=1",
+        "XMLSEC_NO_SLHDSA=1",
     ],
     implementation_deps = [
         ":config_h",
@@ -128,16 +139,18 @@ cc_library(
         "src/openssl/app.c",
         "src/openssl/ciphers.c",
         "src/openssl/crypto.c",
+        "src/openssl/der_encoded_value.c",
         "src/openssl/digests.c",
         "src/openssl/evp.c",
         "src/openssl/globals.h",
         "src/openssl/hmac.c",
         "src/openssl/kdf.c",
         "src/openssl/key_agrmnt.c",
+        "src/openssl/key_encapsulation.c",
         "src/openssl/keysstore.c",
         "src/openssl/kt_rsa.c",
-        "src/openssl/kw_aes.c",
         "src/openssl/kw_des.c",
+        "src/openssl/kw_rfc_3394.c",
         "src/openssl/openssl_compat.h",
         "src/openssl/private.h",
         "src/openssl/signatures.c",
@@ -212,7 +225,7 @@ dd_cc_packaged(
     data = [":headers_files"],
     dest_dir = "embedded/lib",
     input = ":xmlsec1",
-    version = VERSION,
+    version = SO_VERSION,
     visibility = ["//visibility:public"],
 )
 
@@ -221,7 +234,7 @@ dd_cc_packaged(
     data = [":openssl_headers_files"],
     dest_dir = "embedded/lib",
     input = ":xmlsec1-openssl",
-    version = VERSION,
+    version = SO_VERSION,
     visibility = ["//visibility:public"],
 )
 

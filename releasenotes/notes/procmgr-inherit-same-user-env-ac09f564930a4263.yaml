@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Processes started by the process manager now receive the environment of
+    the process manager when they run as the same user. Variables whose names
+    start with ``DD_PM_`` are not copied. A process that runs as a different
+    account still receives only the variables named by
+    ``DD_PM_INHERIT_ENV_PREFIXES`` and ``DD_PM_INHERIT_ENV_NAMES``.
