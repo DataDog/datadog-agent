@@ -50,7 +50,7 @@ func TestOOMKillCompile(t *testing.T) {
 			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
 		}
 
-		cfg := testConfig(false)
+		cfg := testConfig()
 		cfg.BPFDebug = true
 		out, err := runtime.OomKill.Compile(&cfg.Config, []string{"-g"})
 		require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestOOMKillProbe(t *testing.T) {
 				} else {
 					disableFentry(t)
 				}
-				cfg := testConfig(false)
+				cfg := testConfig()
 				testOOMKillProbe(t, cfg, progName)
 			})
 		}
@@ -116,12 +116,8 @@ func testOOMKillProbe(t *testing.T, cfg *Config, progName string) {
 // used.
 func TestOOMKillCgroupMemoryStats(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
-		if kv < kernel.VersionCode(6, 8, 0) {
-			t.Skipf("cgroup memory stats are not collected on kernel %v", kv)
-		}
-
 		t.Run("enabled", func(t *testing.T) {
-			skipIfFentryUnsupported(t)
+			skipIfCgroupMemoryStatsUnsupported(t)
 			assertCgroupMemoryStats(t, cgroupOOMKillStats(t, true))
 		})
 
@@ -143,9 +139,7 @@ func assertCgroupMemoryStats(t *testing.T, stats model.CgroupMemoryStats) {
 // stats or not, and returns the cgroup memory stats reported for it
 func cgroupOOMKillStats(t *testing.T, emit bool) model.CgroupMemoryStats {
 	setTestPinDir(t)
-	cfg := testConfig(false)
-	cfg.EmitCgroupMemoryStats = emit
-	p, err := NewProbe(cfg)
+	p, err := NewProbe(testConfig(withCgroupMemoryStats(emit)))
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
@@ -242,7 +236,7 @@ func testPinnedTakeover(t *testing.T, persistMonitoring bool) {
 	skipIfPinningUnsupported(t)
 	setTestPinDir(t)
 
-	first, err := NewProbe(testConfig(true))
+	first, err := NewProbe(testConfig(withPersistMonitoring(true)))
 	require.NoError(t, err)
 	t.Cleanup(first.Close)
 	require.True(t, first.pinned, "first probe should be pinned when pinning is supported")
@@ -257,7 +251,7 @@ func testPinnedTakeover(t *testing.T, persistMonitoring bool) {
 	// This OOM kill happens while no system-probe is running
 	pid := triggerOOMKill(t)
 
-	second, err := NewProbe(testConfig(persistMonitoring))
+	second, err := NewProbe(testConfig(withPersistMonitoring(persistMonitoring)))
 	require.NoError(t, err)
 	t.Cleanup(second.Close)
 	assert.Equal(t, persistMonitoring, second.pinned, "second probe should own the pins only if persisting")
@@ -278,6 +272,79 @@ func testPinnedTakeover(t *testing.T, persistMonitoring bool) {
 
 	second.Close()
 	assertNoPins(t, "graceful close should remove the pins")
+}
+
+// TestOOMKillMemcgFlushPinnedTakeover checks that the memcg flush programs pinned with the oom-kill
+// probe keep counting the memcg stats flushes after system-probe died, so that the cgroup memory
+// stats of the OOM kills recorded in between are checked, and that the next probe takes them over.
+func TestOOMKillMemcgFlushPinnedTakeover(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		skipIfPinningUnsupported(t)
+		skipIfCgroupMemoryStatsUnsupported(t)
+		setTestPinDir(t)
+
+		cfg := testConfig(withPersistMonitoring(true), withCgroupMemoryStats(true))
+		first, err := NewProbe(cfg)
+		require.NoError(t, err)
+		t.Cleanup(first.Close)
+		require.True(t, first.pinned, "first probe should be pinned when pinning is supported")
+		assertPins(t, "first probe should pin the oom-kill probe")
+		assertMemcgFlushPins(t, "first probe should pin the memcg flush probes")
+		firstLinkID := linkID(t, first.link)
+		firstFlushLinkIDs := memcgFlushLinkIDs(t, first)
+
+		// Simulate system-probe dying without a graceful shutdown: release the file descriptors
+		// but leave the pins in place, so the probes keep running.
+		require.NoError(t, first.link.Close())
+		first.closeMemcgFlushLinks()
+		first.coll.Close()
+
+		seq, err := bpflib.LoadPinnedMap(mapPinPath(memcgFlushSeqName), nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = seq.Close() })
+		seqBefore, err := memcgFlushSeq(seq)
+		require.NoError(t, err)
+		// memcg stats are flushed at least every 2s
+		require.Eventually(t, func() bool {
+			cur, err := memcgFlushSeq(seq)
+			return err == nil && cur != seqBefore
+		}, 10*time.Second, 100*time.Millisecond, "pinned memcg flush probes should keep counting the flushes")
+
+		// This OOM kill happens while no system-probe is running
+		pid := triggerOOMKill(t)
+
+		second, err := NewProbe(cfg)
+		require.NoError(t, err)
+		t.Cleanup(second.Close)
+		require.True(t, second.pinned, "second probe should own the pins")
+		assert.Equal(t, firstLinkID, linkID(t, second.link), "second probe should take over the pinned oom-kill link")
+		assert.Equal(t, firstFlushLinkIDs, memcgFlushLinkIDs(t, second), "second probe should take over the pinned memcg flush links")
+		assertPins(t, "pins should be kept after taking over the oom-kill probe")
+		assertMemcgFlushPins(t, "pins should be kept after taking over the memcg flush probes")
+
+		results := second.GetAndFlush()
+		idx := slices.IndexFunc(results, func(r model.OOMKillStats) bool {
+			return r.TriggerPid == uint32(pid)
+		})
+		require.NotEqual(t, -1, idx, "OOM kill of pid %d recorded while no probe was running should be reported", pid)
+		assertCgroupMemoryStats(t, results[idx].CgroupMemory)
+	})
+}
+
+// memcgFlushLinkIDs returns the IDs of the memcg flush links of p, keyed by their pin name
+func memcgFlushLinkIDs(t *testing.T, p *Probe) map[string]link.ID {
+	ids := make(map[string]link.ID)
+	for name, l := range p.flushLinks {
+		ids[name] = linkID(t, l)
+	}
+	require.Len(t, ids, 2, "both memcg flush links should be attached")
+	return ids
+}
+
+func memcgFlushSeq(m *bpflib.Map) (uint64, error) {
+	var seq uint64
+	err := m.Lookup(uint32(0), &seq)
+	return seq, err
 }
 
 func TestOOMKillMapCompatibility(t *testing.T) {
@@ -322,7 +389,14 @@ func TestOOMKillMapCompatibility(t *testing.T) {
 
 // loadOOMMapSpec returns the spec of the oom_stats map of the probe for the current build mode
 func loadOOMMapSpec(t *testing.T) *bpflib.MapSpec {
-	cfg := testConfig(false)
+	spec := loadOOMCollectionSpec(t)
+	mapSpec, ok := spec.Maps[oomMapName]
+	require.True(t, ok, "map %s not found", oomMapName)
+	return mapSpec
+}
+
+func loadOOMCollectionSpec(t *testing.T) *bpflib.CollectionSpec {
+	cfg := testConfig()
 	var spec *bpflib.CollectionSpec
 	if cfg.EnableCORE {
 		err := ebpf.LoadCOREAsset("oom-kill.o", func(buf bytecode.AssetReader, _ manager.Options) error {
@@ -338,10 +412,7 @@ func loadOOMMapSpec(t *testing.T) *bpflib.MapSpec {
 		spec, err = bpflib.LoadCollectionSpecFromReader(buf)
 		require.NoError(t, err)
 	}
-
-	mapSpec, ok := spec.Maps[oomMapName]
-	require.True(t, ok, "map %s not found", oomMapName)
-	return mapSpec
+	return spec
 }
 
 // newTestMap creates a map from spec, skipping the test if the kernel does not keep its BTF
@@ -389,6 +460,17 @@ func skipIfFentryUnsupported(t *testing.T) {
 	}
 }
 
+// skipIfCgroupMemoryStatsUnsupported skips the test unless the cgroup memory stats are collected
+// on the running kernel, which requires tracking the memcg stats flushes
+func skipIfCgroupMemoryStatsUnsupported(t *testing.T) {
+	if err := cgroupMemoryStatsSupported(); err != nil {
+		t.Skipf("cgroup memory stats are not supported: %s", err)
+	}
+	if err := memcgFlushTrackingSupported(loadOOMCollectionSpec(t)); err != nil {
+		t.Skipf("memcg stats flushes cannot be tracked: %s", err)
+	}
+}
+
 // skipIfPinningUnsupported skips the test unless fentry is used, bpffs is available and fentry
 // links can be pinned
 func skipIfPinningUnsupported(t *testing.T) {
@@ -427,18 +509,50 @@ func programID(t *testing.T, p *bpflib.Program) bpflib.ProgramID {
 	return id
 }
 
-func assertPins(t *testing.T, msg string) {
-	_, err := os.Stat(linkPinPath(oomLinkName))
-	assert.NoError(t, err, "link pin: %s", msg)
-	_, err = os.Stat(mapPinPath(oomMapName))
-	assert.NoError(t, err, "map pin: %s", msg)
+// oomKillPins returns the pins of the oom-kill probe
+func oomKillPins() []string {
+	return []string{linkPinPath(oomLinkName), mapPinPath(oomMapName)}
 }
 
+// memcgFlushPins returns the pins added when the oom-kill probe collects the cgroup memory stats
+func memcgFlushPins() []string {
+	return []string{
+		linkPinPath(memcgFlushBeginLinkName),
+		linkPinPath(memcgFlushEndLinkName),
+		mapPinPath(memcgFlushSeqName),
+	}
+}
+
+func assertPinned(t *testing.T, paths []string, msg string) {
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		assert.NoError(t, err, "pin %s: %s", path, msg)
+	}
+}
+
+func assertNotPinned(t *testing.T, paths []string, msg string) {
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		assert.ErrorIs(t, err, os.ErrNotExist, "pin %s: %s", path, msg)
+	}
+}
+
+func assertPins(t *testing.T, msg string) {
+	assertPinned(t, oomKillPins(), msg)
+}
+
+func assertMemcgFlushPins(t *testing.T, msg string) {
+	assertPinned(t, memcgFlushPins(), msg)
+}
+
+func assertNoMemcgFlushPins(t *testing.T, msg string) {
+	assertNotPinned(t, memcgFlushPins(), msg)
+}
+
+// assertNoPins checks that none of the pins of the oom-kill probe are left, including the ones added
+// when it collects the cgroup memory stats
 func assertNoPins(t *testing.T, msg string) {
-	_, err := os.Stat(linkPinPath(oomLinkName))
-	assert.ErrorIs(t, err, os.ErrNotExist, "link pin: %s", msg)
-	_, err = os.Stat(mapPinPath(oomMapName))
-	assert.ErrorIs(t, err, os.ErrNotExist, "map pin: %s", msg)
+	assertNotPinned(t, append(oomKillPins(), memcgFlushPins()...), msg)
 }
 
 func setTestPinDir(t *testing.T) {
@@ -453,8 +567,21 @@ func setTestPinDir(t *testing.T) {
 	})
 }
 
-func testConfig(persistMonitoring bool) *Config {
+// testConfigOpt modifies the config returned by testConfig
+type testConfigOpt func(*Config)
+
+func withPersistMonitoring(enabled bool) testConfigOpt {
+	return func(cfg *Config) { cfg.PersistMonitoring = enabled }
+}
+
+func withCgroupMemoryStats(enabled bool) testConfigOpt {
+	return func(cfg *Config) { cfg.EmitCgroupMemoryStats = enabled }
+}
+
+func testConfig(opts ...testConfigOpt) *Config {
 	cfg := NewConfig()
-	cfg.PersistMonitoring = persistMonitoring
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	return cfg
 }
