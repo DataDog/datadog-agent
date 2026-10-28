@@ -856,19 +856,10 @@ file_system_include:
 func TestGivenADiskCheckWithMountPointGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithBinfmt_miscMountPoints(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "/host/proc/sys/fs/binfmt_misc",
-			Fstype:            "ext4",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
+	var usageCalls []string
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		usageCalls = append(usageCalls, mountpoint)
+		return usageData[mountpoint], nil
 	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
@@ -882,18 +873,35 @@ func TestGivenADiskCheckWithMountPointGlobalExcludeNotConfigured_WhenCheckRuns_T
 				Mountpoint: "/proc/sys/fs/binfmt_misc",
 				Fstype:     "ext4",
 				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "third",
+				Mountpoint: "/var/lib/containerd/rootfs/host/proc/sys/fs/binfmt_misc",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "regular",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
 			}}, nil
 	})
 	m := configureCheck(t, diskCheck, nil, nil)
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
+	assert.Equal(t, []string{"/home"}, usageCalls)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:first", "device_name:first"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:first", "device_name:first"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:first", "device_name:first"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:second", "device_name:second"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:second", "device_name:second"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:second", "device_name:second"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:third", "device_name:third"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:third", "device_name:third"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:third", "device_name:third"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:regular", "device_name:regular"})
 }
 
 func TestGivenADiskCheckWithMountPointGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
