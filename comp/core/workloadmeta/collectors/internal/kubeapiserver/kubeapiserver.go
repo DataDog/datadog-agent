@@ -66,6 +66,8 @@ func podsRequiredAtStartup(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
 		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
+		// The kube metadata stream sends each node the KAI PodGroups of its pods.
+		shouldHaveKAIMetadata(cfg) ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }

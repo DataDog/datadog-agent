@@ -64,6 +64,8 @@ const (
 	KAIGroupName = "scheduling.run.ai"
 	// KAIPodGroupResourceName is the plural resource name for KAI PodGroup objects
 	KAIPodGroupResourceName = "podgroups"
+	// KAIPodGroupNameAnnotationKey is the pod annotation key set by KAI Scheduler with the pod's PodGroup name
+	KAIPodGroupNameAnnotationKey = "pod-group-name"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
