@@ -393,11 +393,22 @@ func (ra *remoteAgentRegistry) getRemoteExpvarValues(ctx context.Context) map[st
 	values := collectRemoteExpvarValuesAt(ctx, ra, cache, time.Now())
 	// A caller that gave up mid-fetch may have cut the remote queries short, so don't let its
 	// snapshot satisfy other callers for the rest of the cache window.
-	if ctx.Err() == nil {
+	if !callerDone(ctx) {
 		cache.values = values
 		cache.fetchedAt = time.Now()
 	}
 	return values
+}
+
+// callerDone reports whether the caller's context has ended. The remote queries inherit the caller's deadline,
+// and gRPC can fail them with DeadlineExceeded as soon as the deadline passes, before the context's own timer
+// fires and sets ctx.Err(), so the deadline is checked directly as well.
+func callerDone(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	deadline, ok := ctx.Deadline()
+	return ok && !time.Now().Before(deadline)
 }
 
 // Collect Prometheus endpoint response from RAR for ADP and convert to Expvar.
