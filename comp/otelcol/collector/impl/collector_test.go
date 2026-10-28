@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build otlp && test
+//go:build otlp && test && !aix && !freebsd && !solaris
 
 package collectorimpl
 
