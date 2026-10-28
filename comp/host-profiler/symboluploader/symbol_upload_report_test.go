@@ -33,7 +33,7 @@ func setupReportFixture(t *testing.T) (*uploadReporter, *bytes.Buffer) {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
-	return newUploadReporter(), buf
+	return newUploadReporter(ReportConfig{}), buf
 }
 
 // decodeReports returns the symbol upload reports logged to buf.
@@ -204,7 +204,7 @@ func TestSymbolReportPeriodAggregatesByLevel(t *testing.T) {
 		require.Equal(t, []string{"/usr/lib/ld.so"}, reasonPaths(t, failure, reasonQueueFull))
 		require.NotContains(t, failure, reasonPrefix(reasonInvalidBuildID)+".paths")
 
-		time.Sleep(2 * reportInterval)
+		time.Sleep(2 * DefaultReportInterval)
 		reporter.flush()
 		require.Len(t, decodeReports(t, buf), 2)
 	})
@@ -215,11 +215,11 @@ func TestSymbolReportPartialOnCap(t *testing.T) {
 		reporter, buf := setupReportFixture(t)
 		ref := time.Now()
 
-		paths := make([]string, 0, maxReportPaths)
-		for i := range maxReportPaths {
+		paths := make([]string, 0, DefaultReportMaxPathsPerReport)
+		for i := range DefaultReportMaxPathsPerReport {
 			paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
 		}
-		reporter.Error(reasonRateLimited, maxReportPaths, paths...)
+		reporter.Error(reasonRateLimited, DefaultReportMaxPathsPerReport, paths...)
 		require.Zero(t, buf.Len())
 
 		time.Sleep(time.Minute)
@@ -230,10 +230,10 @@ func TestSymbolReportPartialOnCap(t *testing.T) {
 		reporter.Error(reasonRateLimited, 150, burst...)
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 2)
-		require.Equal(t, maxReportPaths, reasonCount(t, reports[0], reasonRateLimited))
-		require.Len(t, reasonPaths(t, reports[0], reasonRateLimited), maxReportPaths)
-		require.Equal(t, maxReportPaths, reasonCount(t, reports[1], reasonRateLimited))
-		require.Len(t, reasonPaths(t, reports[1], reasonRateLimited), maxReportPaths)
+		require.Equal(t, DefaultReportMaxPathsPerReport, reasonCount(t, reports[0], reasonRateLimited))
+		require.Len(t, reasonPaths(t, reports[0], reasonRateLimited), DefaultReportMaxPathsPerReport)
+		require.Equal(t, DefaultReportMaxPathsPerReport, reasonCount(t, reports[1], reasonRateLimited))
+		require.Len(t, reasonPaths(t, reports[1], reasonRateLimited), DefaultReportMaxPathsPerReport)
 
 		time.Sleep(time.Minute)
 		reporter.errRep.flush()
@@ -250,11 +250,11 @@ func TestSymbolReportPartialOnCap(t *testing.T) {
 
 func TestSymbolReportCapTriggeredByAnotherReason(t *testing.T) {
 	reporter, buf := setupReportFixture(t)
-	paths := make([]string, 0, maxReportPaths)
-	for i := range maxReportPaths {
+	paths := make([]string, 0, DefaultReportMaxPathsPerReport)
+	for i := range DefaultReportMaxPathsPerReport {
 		paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
 	}
-	reporter.Error(reasonRateLimited, maxReportPaths, paths...)
+	reporter.Error(reasonRateLimited, DefaultReportMaxPathsPerReport, paths...)
 	reporter.Error(reasonQueueFull, 1, "/usr/lib/ld.so")
 
 	reports := decodeReports(t, buf)
@@ -304,18 +304,18 @@ func TestSymbolReportTickerFlushesPeriods(t *testing.T) {
 
 		reporter.StartFlushTicker()
 		t.Cleanup(reporter.Stop)
-		time.Sleep(reportInterval)
+		time.Sleep(DefaultReportInterval)
 		synctest.Wait()
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 2)
 		require.Equal(t, 1, reasonCount(t, reports[0], reasonQueried))
 		require.Equal(t, 1, reasonCount(t, reports[1], reasonRateLimited))
-		requireWindow(t, reports[0], ref, ref.Add(reportInterval))
-		requireWindow(t, reports[1], ref, ref.Add(reportInterval))
+		requireWindow(t, reports[0], ref, ref.Add(DefaultReportInterval))
+		requireWindow(t, reports[1], ref, ref.Add(DefaultReportInterval))
 
 		reporter.Stop()
 		reporter.Info(reasonQueried, 1)
-		time.Sleep(reportInterval)
+		time.Sleep(DefaultReportInterval)
 		require.Len(t, decodeReports(t, buf), 2)
 	})
 }
