@@ -3,9 +3,7 @@ issuer: https://token.actions.githubusercontent.com
 
 subject: repo:DataDog/datadog-agent:pull_request
 
-# Only the add-label-pr workflow running on pull_request_target can get this token. That
-# workflow comes from the PR's target branch, which is any branch of this repository for
-# stacked and release PRs, so a PR (including from a fork) cannot change it.
+# Keep pull_request_target only: on pull_request, a PR could edit the workflow and get the token.
 claim_pattern:
   event_name: pull_request_target
   ref: refs/heads/.+

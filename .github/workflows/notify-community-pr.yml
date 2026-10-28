@@ -2,8 +2,7 @@
 name: Notify teams about community PRs
 
 on:
-  # Run the workflow from the PR's target branch, so that it can use the Slack token on PRs from forks.
-  # Never check out or run code from the PR in this workflow.
+  # Has the Slack token on fork PRs: never check out or run code from the PR.
   pull_request_target:
     types: [labeled]
 

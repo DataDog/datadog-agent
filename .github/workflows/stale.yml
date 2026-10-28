@@ -3,7 +3,6 @@ name: Close stale issues and PRs
 
 on:
   schedule:
-    # 4 times per day, as each run is limited to operations-per-run
     - cron: '0 4,10,16,22 * * *'
   workflow_dispatch:
 

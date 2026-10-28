@@ -2,9 +2,7 @@
 name: "Add labels to PR"
 
 on:
-  # Run the workflow from the PR's target branch, so that it labels PRs from forks and PRs
-  # with merge conflicts, and so that no code from the PR runs with the token.
-  # Never check out or run code from the PR in this workflow.
+  # Runs with a write token on fork PRs: never check out or run code from the PR.
   pull_request_target:
     types: [opened, synchronize, reopened]
 
@@ -43,7 +41,6 @@ jobs:
         with:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
-            // A deleted head repository can only be a fork
             const label = process.env.HEAD_REPO === `${context.repo.owner}/${context.repo.repo}` ? 'internal' : 'community';
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
