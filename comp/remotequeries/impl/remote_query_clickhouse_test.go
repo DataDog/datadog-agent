@@ -374,7 +374,7 @@ func TestRemoteQueryExecuteServiceClickHouseDatabaseInstanceTarget(t *testing.T)
 		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`},
 	})
 	runner.instance = "server: localhost\ndatabase_identifier:\n  template: $rq_database_instance\ntags:\n  - rq_database_instance:rq-ch-a1\npassword: secret-value\n"
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{DatabaseInstance: "rq-ch-a1"}, "SELECT 'hello world' AS message", false, pagedTestDelivery())
 	require.NoError(t, err)
 

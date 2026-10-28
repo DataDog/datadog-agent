@@ -13,12 +13,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 const (
@@ -202,8 +205,10 @@ type RemoteQueryUploadLimits struct {
 // base URL), and the effective limits. The session has one identifier, upload_id: there
 // is no per-session upload token, so the Agent has no token to forward. The Agent
 // forwards the handle, including BaseURL, to the integration check, which performs the
-// HTTP upload to its-agent-intake itself; the Agent performs no URL allowlisting or HTTP
-// transport and never logs the handle.
+// HTTP upload to its-agent-intake itself and authenticates it with the Agent's org API
+// and application keys; the Agent therefore only forwards a BaseURL that is on the
+// Agent's own site (see validateResultDeliveryBaseURL), performs no HTTP transport, and
+// never logs the handle.
 type RemoteQueryResultDelivery struct {
 	RunID           string
 	TaskID          string
@@ -231,8 +236,10 @@ type RemoteQueryExecuteRequest struct {
 
 // validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
 // The handle is required: every run uploads bounded JSON page files directly to
-// its-agent-intake. The Agent does not allowlist the base URL (the intake mints and owns
-// it) and never logs the handle; it only checks shape and the forwarding caps fail-closed.
+// its-agent-intake. This function checks the handle's shape and the forwarding caps
+// fail-closed and never logs the handle. The base URL's site binding needs the Agent
+// config, so it is enforced separately by validateResultDeliveryBaseURL before the
+// handle is forwarded (ExecuteStream).
 func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*RemoteQueryResultDelivery, error) {
 	if delivery == nil {
 		return nil, errors.New("result_delivery is required")
@@ -293,6 +300,49 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 		return nil, errors.New("result_delivery.limits.maxFileBytes must not exceed maxResultBytes")
 	}
 	return delivery, nil
+}
+
+// validateResultDeliveryBaseURL fails closed unless baseURL is safe to receive the
+// Agent's org API and application keys: an absolute https URL with no userinfo, query or
+// fragment, no port or port 443, whose host is the Agent's site or a subdomain of it. The
+// path is not constrained. Errors name the field and the reason but never echo the URL:
+// the handle is never logged, and url.Parse errors embed the input so they are not wrapped.
+func validateResultDeliveryBaseURL(baseURL string, site string) error {
+	const field = "result_delivery.baseUrl"
+	if strings.ContainsAny(baseURL, "\\?#") || strings.ContainsFunc(baseURL, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
+		return fmt.Errorf("%s must not contain a query, fragment, backslash, whitespace or control characters", field)
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil || !u.IsAbs() || u.Opaque != "" {
+		return fmt.Errorf("%s must be an absolute URL", field)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("%s must use the https scheme", field)
+	}
+	if u.User != nil {
+		return fmt.Errorf("%s must not contain userinfo", field)
+	}
+	if port := u.Port(); port != "" && port != "443" {
+		return fmt.Errorf("%s must not use a port other than 443", field)
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || (host != site && !strings.HasSuffix(host, "."+site)) {
+		return fmt.Errorf("%s must be on the Agent's site", field)
+	}
+	return nil
+}
+
+// site returns the Agent's configured site, lower-cased, falling back to the default site
+// when unset or when no config is available.
+func (s *RemoteQueryExecuteService) site() string {
+	site := ""
+	if s != nil && s.cfg != nil {
+		site = strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
+	}
+	if site == "" {
+		site = constants.DefaultSite
+	}
+	return site
 }
 
 // NewRemoteQueryExecuteRequest validates and normalizes a typed paged-JSON request.
@@ -644,6 +694,11 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	}
 	if req.ResultDelivery == nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
+	}
+	// The integration sends the Agent's org API and application keys to baseUrl, so it
+	// must be on the Agent's own site; reject before target resolution or any forwarding.
+	if err := validateResultDeliveryBaseURL(req.ResultDelivery.BaseURL, s.site()); err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, err.Error())
 	}
 
 	internal := req.internal()

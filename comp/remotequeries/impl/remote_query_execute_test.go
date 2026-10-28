@@ -45,7 +45,7 @@ func TestExecuteStreamAnswersPlainMatchOutcomes(t *testing.T) {
 	t.Run("unique match executes", func(t *testing.T) {
 		collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n")
 		runner := collector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
-		service := NewRemoteQueryExecuteService(collector, true, nil)
+		service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
 
 		result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
 
@@ -60,7 +60,7 @@ func TestExecuteStreamAnswersPlainMatchOutcomes(t *testing.T) {
 		collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
 		runner := collector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
 		runner.resolveEvents = resolveTargetNotFoundEvents()
-		service := NewRemoteQueryExecuteService(collector, true, nil)
+		service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
 
 		result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
 
@@ -75,7 +75,7 @@ func TestExecuteStreamAnswersPlainMatchOutcomes(t *testing.T) {
 			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"}}}},
 			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "kube", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}}}},
 		}}
-		service := NewRemoteQueryExecuteService(collector, true, nil)
+		service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
 
 		result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
 

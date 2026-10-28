@@ -14,6 +14,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//pkg/collector/check",
+        "//pkg/config/setup/constants",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_uber_go_fx//:fx",
     ],
@@ -22,6 +23,7 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "remote_query_baseurl_test.go",
         "remote_query_clickhouse_test.go",
         "remote_query_execute_test.go",
         "remote_query_forwarding_synthetic_test.go",
@@ -36,6 +38,7 @@ dd_agent_go_test(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

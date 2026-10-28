@@ -1120,7 +1120,7 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`},
 		},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", true, pagedTestDelivery())
 	require.NoError(t, err)
 
@@ -1176,8 +1176,8 @@ func TestRemoteQueryExecuteStreamRunsConcurrently(t *testing.T) {
 	}
 	postgres := newRunner("postgres", "host: localhost\nport: 5432\ndbname: postgres\n", pgEntered, chEntered)
 	clickhouse := newRunner("clickhouse", "server: localhost\nport: 8123\ndb: default\n", chEntered, pgEntered)
-	pgService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{postgres}}, true, nil)
-	chService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{clickhouse}}, true, nil)
+	pgService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{postgres}}, true, remoteQueryTestConfig(t))
+	chService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{clickhouse}}, true, remoteQueryTestConfig(t))
 	pgReq, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 	require.NoError(t, err)
 	chReq, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{Host: "localhost", Port: 8123, DBName: "default"}, "SELECT 1 AS value", false, pagedTestDelivery())
@@ -1200,7 +1200,7 @@ func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T)
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
 		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 	require.NoError(t, err)
 
@@ -1226,7 +1226,7 @@ func TestRemoteQueryExecuteServiceForwardsArbitraryQuery(t *testing.T) {
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
 		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
 	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 'hello world' AS message", false, pagedTestDelivery())
 	require.NoError(t, err)
 
@@ -1259,7 +1259,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		otherTwo := sweepRunner("ad", resolveTargetNotFoundEvents())
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			fakeWrappedCheck{Check: otherOne}, fakeWrappedCheck{Check: otherTwo}, fakeWrappedCheck{Check: matched},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1277,7 +1277,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		runner := sweepRunner("file", resolveTargetNotFoundEvents())
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			fakeWrappedCheck{Check: runner},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1297,7 +1297,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		second := sweepRunner("kube", nil)
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			fakeWrappedCheck{Check: first}, fakeWrappedCheck{Check: second},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1318,7 +1318,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		broken.resolveErr = assert.AnError
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			fakeWrappedCheck{Check: matched}, fakeWrappedCheck{Check: broken},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1344,7 +1344,7 @@ func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) 
 	t.Run("no match", func(t *testing.T) {
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}, resolveEvents: resolveTargetNotFoundEvents()},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "otherhost", Port: 5432, DBName: "other"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1361,7 +1361,7 @@ func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) 
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"}}},
 			&fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}}},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1381,7 +1381,7 @@ func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testi
 		// the resolution itself is unavailable, before any match is selected.
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1396,7 +1396,7 @@ func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testi
 	t.Run("runner error", func(t *testing.T) {
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}, err: assert.AnError},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
@@ -1414,7 +1414,7 @@ func TestRemoteQueryExecuteServiceMissingReceiptAndMalformedFinalAreExecutorErro
 	t.Run("emit callback unavailable", func(t *testing.T) {
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
-		}}, true, nil)
+		}}, true, remoteQueryTestConfig(t))
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
