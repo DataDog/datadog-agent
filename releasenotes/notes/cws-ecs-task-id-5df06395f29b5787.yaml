@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    CWS now reports the ECS task ID of containers running in ECS tasks on EC2,
+    resolved from the task cgroup the ECS agent creates when task CPU and memory
+    limits are enabled, which is the default. It is available in rules as
+    ``process.container.ecs_task_id`` and reported as ``container.ecs_task_id``
+    in CWS events.
