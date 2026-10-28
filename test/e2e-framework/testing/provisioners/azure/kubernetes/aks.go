@@ -50,7 +50,13 @@ func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	if err != nil {
 		return err
 	}
+	return AKSRunWithEnv(ctx, azureEnv, env, params)
+}
 
+// AKSRunWithEnv runs the AKS provisioner in an Azure environment the caller
+// already created, so that a custom environment can add its own resources,
+// such as a VM in the same network, next to the cluster.
+func AKSRunWithEnv(ctx *pulumi.Context, azureEnv azure.Environment, env *environments.Kubernetes, params *ProvisionerParams) error {
 	// Create the AKS cluster
 	aksCluster, err := aks.NewAKSCluster(azureEnv, params.aksOptions...)
 	if err != nil {

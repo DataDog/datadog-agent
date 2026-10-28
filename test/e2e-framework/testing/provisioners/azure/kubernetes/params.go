@@ -47,6 +47,12 @@ func newProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	return params
 }
 
+// GetProvisionerParams returns the parameters of an AKS provisioner with opts
+// applied to its defaults, for a custom provisioner that calls AKSRunWithEnv.
+func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
+	return newProvisionerParams(opts...)
+}
+
 // ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
 
