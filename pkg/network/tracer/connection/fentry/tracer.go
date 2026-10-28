@@ -129,7 +129,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
 	if err != nil {
-		return nil, fmt.Errorf("invalid probe configuration: %v", err)
+		return nil, fmt.Errorf("error selecting fentry programs: %w", err)
 	}
 
 	initManager(m)
