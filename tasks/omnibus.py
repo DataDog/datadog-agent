@@ -194,6 +194,9 @@ def get_omnibus_env(
             gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
             if not os.path.exists(gobinpath):
                 raise Exit(f"msgo go.exe not found at {gobinpath}")
+        elif sys.platform == "linux":
+            # Matches bazel/rules/msgo/extension.bzl's, anticipating Go 1.27 default.
+            env["GOEXPERIMENT"] = "ms_nocgo_opensslcrypto"
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.

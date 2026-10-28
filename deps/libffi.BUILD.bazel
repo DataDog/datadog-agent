@@ -80,11 +80,11 @@ _LINUX_X86_64_OVERRIDES = {
     "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
     "#undef FFI_MMAP_EXEC_WRIT": "/* #undef FFI_MMAP_EXEC_WRIT */",
     "#undef HAVE_AS_X86_PCREL": "#define HAVE_AS_X86_PCREL 1",
-    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "#define HAVE_LONG_DOUBLE 1",
     "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
     "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
     "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "/* #undef LIBFFI_GNU_SYMBOL_VERSIONING */",
-    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 8",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 16",
     "#undef SYMBOL_UNDERSCORE": "#define SYMBOL_UNDERSCORE 1",
 }
 
@@ -106,11 +106,11 @@ _MACOS_X86_64_OVERRIDES = {
     "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
     "#undef FFI_MMAP_EXEC_WRIT": "#define FFI_MMAP_EXEC_WRIT 1",
     "#undef HAVE_AS_X86_PCREL": "#define HAVE_AS_X86_PCREL 1",
-    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
+    "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "#define HAVE_LONG_DOUBLE 1",
     "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
     "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
     "#undef LIBFFI_GNU_SYMBOL_VERSIONING": "/* #undef LIBFFI_GNU_SYMBOL_VERSIONING */",
-    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 8",
+    "#undef SIZEOF_LONG_DOUBLE": "#define SIZEOF_LONG_DOUBLE 16",
     "#undef SYMBOL_UNDERSCORE": "#define SYMBOL_UNDERSCORE 1",
 }
 
@@ -137,26 +137,23 @@ _WINDOWS_X86_64_OVERRIDES = {
 expand_template(
     name = "ffi_h",
     out = "ffi.h",
-    substitutions = select({
+    substitutions = {"@VERSION@": VERSION} | select({
         "@//:linux_arm64": {
-            # TODO(team:agent-build): Use a constant instead of hardcoding the version
-            "@VERSION@": VERSION,
             "@FFI_EXEC_TRAMPOLINE_TABLE@": "0",
             "@TARGET@": "AARCH64",
             "@HAVE_LONG_DOUBLE@": "1",
         },
-        # All x86_64 platforms contain
-        # exactly the same values. Therefore,
-        # no need to have separate substitutions
-        # for each x86_64 platform.
-        "@platforms//cpu:x86_64": {
-            "@VERSION@": VERSION,
+        "@//:windows_x86_64": {
             "@FFI_EXEC_TRAMPOLINE_TABLE@": "0",
             "@TARGET@": "X86_64",
             "@HAVE_LONG_DOUBLE@": "0",
         },
+        "@platforms//cpu:x86_64": {
+            "@FFI_EXEC_TRAMPOLINE_TABLE@": "0",
+            "@TARGET@": "X86_64",
+            "@HAVE_LONG_DOUBLE@": "1",
+        },
         "@//:macos_arm64": {
-            "@VERSION@": VERSION,
             "@FFI_EXEC_TRAMPOLINE_TABLE@": "1",
             "@TARGET@": "AARCH64",
             "@HAVE_LONG_DOUBLE@": "0",

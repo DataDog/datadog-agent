@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a Cluster Agent crash in the AppSec proxy injector when a watched
+    ``Gateway``, ``GatewayClass`` or ``IngressClass`` was deleted while its watch
+    was being re-established.

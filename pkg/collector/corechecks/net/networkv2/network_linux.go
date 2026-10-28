@@ -253,6 +253,7 @@ func (c *NetworkCheck) submitInterfaceSysMetrics(sender sender.Sender) {
 			val, err := readIntFile(metricFilepath, filesystem)
 			if err != nil {
 				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
+				continue
 			}
 			sender.Gauge("system.net.iface."+metricName, float64(val), "", ifaceTag)
 		}
