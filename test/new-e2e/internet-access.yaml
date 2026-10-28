@@ -117,7 +117,7 @@ entries:
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
 - file: test/new-e2e/tests/otel/otel-agent/dogtel_standalone_test.go
-  function: dogtelStandaloneProvisioner
+  function: standaloneOTelAgentProvisioner
   status: debt
   reason: Pulls public standalone OTel workload images; mirror the images internally before removing this exception.
 - file: test/new-e2e/tests/otel/otel-agent/minimal_test.go
