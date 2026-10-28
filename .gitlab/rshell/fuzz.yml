@@ -21,10 +21,6 @@ stages: [source_test]
     KUBERNETES_CPU_LIMIT: 16
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
-    # go test -fuzz starts one worker per GOMAXPROCS, which otherwise follows the
-    # node's ~96 cores rather than the CPU limit above; throttled workers then miss
-    # the -fuzztime deadline and the run fails with "context deadline exceeded".
-    GOMAXPROCS: 8
     RSHELL_BASH_TEST: "1"
     GOMODCACHE: $CI_PROJECT_DIR/.cache/go/mod
     GOCACHE: $CI_PROJECT_DIR/.cache/go/build
