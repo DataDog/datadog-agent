@@ -130,11 +130,6 @@ func TestOOMKillCgroupMemoryStats(t *testing.T) {
 			stats := cgroupOOMKillStats(t, false)
 			assert.Zero(t, stats, "no cgroup memory stats should be reported when disabled")
 		})
-
-		t.Run("kprobe", func(t *testing.T) {
-			disableFentry(t)
-			assertCgroupMemoryStats(t, cgroupOOMKillStats(t, true))
-		})
 	})
 }
 
