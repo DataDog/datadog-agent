@@ -76,15 +76,8 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 	timeout := s.Config.GetDuration("server_timeout") * time.Second
 
-	ipcAddress, err := pkgconfighelper.GetIPCAddress(s.Config)
-	if err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
-	}
-
-	url := fmt.Sprintf("https://%s/debug/vars", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
+	host := pkgconfighelper.APMDebugHost(s.Config)
+	url := fmt.Sprintf("https://%s/debug/vars", net.JoinHostPort(host, strconv.Itoa(port)))
 	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return map[string]interface{}{

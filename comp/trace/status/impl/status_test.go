@@ -73,16 +73,28 @@ func (c *recordingClient) Get(rawURL string, _ ...ipc.RequestOption) ([]byte, er
 	return []byte(`{}`), nil
 }
 
-func TestPopulateStatusUsesCmdHost(t *testing.T) {
-	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
-		"cmd_host":              "127.0.0.1",
-		"apm_config.debug.port": 5012,
-	})
-	client := &recordingClient{}
-	provider := statusProvider{Config: cfg, Client: client}
-
-	provider.populateStatus()
-	assert.Equal(t, "https://127.0.0.1:5012/debug/vars", client.url)
+func TestPopulateStatusDialsDebugServer(t *testing.T) {
+	tests := []struct {
+		cmdHost string
+		url     string
+	}{
+		{cmdHost: "localhost", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "127.0.0.1", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "::1", url: "https://[::1]:5012/debug/vars"},
+		{cmdHost: "127.0.0.2", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "111.111.111.111", url: "https://127.0.0.1:5012/debug/vars"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmdHost, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"cmd_host":              tt.cmdHost,
+				"apm_config.debug.port": 5012,
+			})
+			client := &recordingClient{}
+			statusProvider{Config: cfg, Client: client}.populateStatus()
+			assert.Equal(t, tt.url, client.url)
+		})
+	}
 }
 
 func TestSemanticCoreRendered(t *testing.T) {
