@@ -11,11 +11,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/ipc/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/kubeactions/def",
         "//comp/networkpath/traceroute/def",
+        "//comp/networkpcap/uploader/def",
         "//pkg/config/model",
         "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner/adapters/actions",

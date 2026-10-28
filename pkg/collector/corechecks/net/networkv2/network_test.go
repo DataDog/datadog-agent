@@ -2028,6 +2028,52 @@ func TestIfaceSysMetricsSkipNonInterfaceEntries(t *testing.T) {
 	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:eth0"})
 }
 
+func TestIfaceSysMetricsSkipUnreadableFiles(t *testing.T) {
+	net := &fakeNetworkStats{}
+	networkCheck := createTestNetworkCheck(net)
+
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test", "provider")
+	assert.Nil(t, err)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	mockEthtool := new(MockEthtool)
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	// A missing file simulates a read error, such as carrier on a down interface.
+	for iface, files := range map[string]map[string]string{
+		"eth0":           {"mtu": "1500", "tx_queue_len": "1000", "carrier": "1"},
+		"eth_no_carrier": {"mtu": "1500", "tx_queue_len": "1000"},
+		"eth_no_mtu":     {"tx_queue_len": "1000", "carrier": "1"},
+	} {
+		for file, value := range files {
+			err = afero.WriteFile(fs, "/sys/class/net/"+iface+"/"+file, []byte(value), 0644)
+			assert.Nil(t, err)
+		}
+	}
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:eth0"})
+
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.up", mock.Anything, "", []string{"iface:eth_no_carrier"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.mtu", float64(1500), "", []string{"iface:eth_no_carrier"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.tx_queue_len", float64(1000), "", []string{"iface:eth_no_carrier"})
+
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.mtu", mock.Anything, "", []string{"iface:eth_no_mtu"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:eth_no_mtu"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.tx_queue_len", float64(1000), "", []string{"iface:eth_no_mtu"})
+}
+
 func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool := new(MockEthtool)
 

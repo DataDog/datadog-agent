@@ -19,6 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 )
 
+// newTestReporter returns a reporter whose output goes to slog.Default.
+func newTestReporter() *uploadReporter {
+	return newUploadReporter(ReportConfig{})
+}
+
 type key struct {
 	buildID string
 	arch    string
@@ -105,20 +110,20 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 	defer cancel()
 
 	t.Run("Empty batch", func(t *testing.T) {
-		results := ExecuteSymbolQueryBatch(ctx, nil, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, nil, queriers, newTestReporter())
 		require.Empty(t, results)
 	})
 
 	t.Run("Multiple buildIDs", func(t *testing.T) {
 		fileID := libpf.FileID{}
 		elfs := []*symbol.Elf{
-			symbol.NewElfForTest("arch1", "non_existing_buildid", "", fileID),
-			symbol.NewElfForTest("arch1", "buildid1", "buildid2", fileID), // multiple buildIDs, gnu_build_id should be used
-			symbol.NewElfForTest("arch2", "buildid1", "", fileID),         // arch mismatch
-			symbol.NewElfForTest("arch1", "", "", fileID),                 // empty buildID
-			symbol.NewElfForTest("arch1", "buildid2", "", fileID),         // multiple matching buildIDs, first one should be used
+			symbol.NewElfForTest("/usr/bin/foo-0", "arch1", "non_existing_buildid", "", fileID),
+			symbol.NewElfForTest("/usr/bin/foo-1", "arch1", "buildid1", "buildid2", fileID), // multiple buildIDs, gnu_build_id should be used
+			symbol.NewElfForTest("/usr/bin/foo-2", "arch2", "buildid1", "", fileID),         // arch mismatch
+			symbol.NewElfForTest("/usr/bin/foo-3", "arch1", "", "", fileID),                 // empty buildID
+			symbol.NewElfForTest("/usr/bin/foo-4", "arch1", "buildid2", "", fileID),         // multiple matching buildIDs, first one should be used
 		}
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers, newTestReporter())
 		require.ElementsMatch(t, []ElfWithBackendSources{
 			{
 				Elf: elfs[0],
@@ -180,18 +185,20 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 
 	t.Run("Errors on both endpoints", func(t *testing.T) {
 		elfs := []*symbol.Elf{
-			symbol.NewElfForTest("arch0", "buildid1", "", libpf.FileID{}),
+			symbol.NewElfForTest("/usr/bin/foo", "arch0", "buildid1", "", libpf.FileID{}),
 		}
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers, newTestReporter())
 		require.Error(t, results[0].BackendSymbolSources[0].Err)
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 	})
 
 	t.Run("Errors on one endpoint", func(t *testing.T) {
 		elfs := []*symbol.Elf{
-			symbol.NewElfForTest("arch2", "buildid1", "", libpf.FileID{}),
+			symbol.NewElfForTest("/usr/bin/foo", "arch2", "buildid1", "", libpf.FileID{}),
 		}
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+
+		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers, newTestReporter())
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 		require.NoError(t, results[0].BackendSymbolSources[0].Err)
 		require.Equal(t, symbol.SourceDebugInfo, results[0].BackendSymbolSources[0].SymbolSource)

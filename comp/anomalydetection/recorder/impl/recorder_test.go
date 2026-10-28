@@ -89,11 +89,12 @@ func (m *testMetric) GetSampleRate() float64               { return m.sampleRate
 func (m *testMetric) GetMetricType() pkgmetrics.MetricType { return m.metricType }
 
 type testLog struct {
-	content, status, hostname string
-	timestamp                 int64
-	tags                      []string
+	source, content, status, hostname string
+	timestamp                         int64
+	tags                              []string
 }
 
+func (l *testLog) GetSource() string            { return l.source }
 func (l *testLog) GetContent() string           { return l.content }
 func (l *testLog) GetStatus() string            { return l.status }
 func (l *testLog) Tags() []string               { return l.tags }
@@ -112,7 +113,8 @@ func TestRecorderForwardsOnceBeforeWriting(t *testing.T) {
 				inner = &reportingHandle{testHandle: *base, dropped: true}
 			}
 			var source string
-			h := NewComponent(metrics, logs).GetHandle(func(name string) observer.Handle {
+			rec := NewComponent(metrics, logs)
+			h := rec.GetHandle(func(name string) observer.Handle {
 				source = name
 				return inner
 			})("check")
@@ -122,6 +124,7 @@ func TestRecorderForwardsOnceBeforeWriting(t *testing.T) {
 			logTags := []string{"team:core"}
 			log := &testLog{content: "hello", status: "warn", hostname: "agent", timestamp: 456000, tags: logTags}
 			h.ObserveLog(log)
+			rec.RecordLog("check", log)
 			require.Equal(t, "check", source)
 			require.Equal(t, []string{"forward metric", "write metric", "forward log", "write log"}, events)
 			if reporting {
@@ -147,10 +150,12 @@ func TestRecorderTimestampFallbackAndHostTag(t *testing.T) {
 	var events []string
 	metrics := &metricWriter{events: &events}
 	logs := &logWriter{events: &events}
-	h := NewComponent(metrics, logs).GetHandle(func(string) observer.Handle { return &testHandle{events: &events} })("logs")
+	rec := NewComponent(metrics, logs)
+	h := rec.GetHandle(func(string) observer.Handle { return &testHandle{events: &events} })("logs")
 	before := time.Now()
 	h.ObserveMetric(&testMetric{name: "count", host: "agent", tags: []string{"host:other"}, metricType: observer.UnknownType, sampleRate: 0}, 0)
 	h.ObserveLog(&testLog{content: "message"})
+	rec.RecordLog("logs", &testLog{content: "message"})
 	after := time.Now()
 	require.Equal(t, []string{"host:other", "host:agent"}, metrics.data[0].Tags)
 	require.Equal(t, "Unknown", metrics.data[0].MetricType)

@@ -13,3 +13,6 @@ package oomkill
 import "C"
 
 type oomStats C.struct_oom_stats
+
+// oomStatsV1 is the version marker of struct oom_stats, see oom_stats_layout_linux.go
+type oomStatsV1 C.oom_stats_v1

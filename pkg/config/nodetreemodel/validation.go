@@ -110,7 +110,7 @@ func (c *ntmConfig) findUnknownEnvVars(environ []string) {
 	knownEnvVarsMu.RLock()
 	defer knownEnvVarsMu.RUnlock()
 
-	if c.configName == "system-probe" {
+	if c.schemaID != model.CoreSchema {
 		// we don't want to validate env vars multiple times since it's the same for all instances of
 		// nodetreemodel.
 		return

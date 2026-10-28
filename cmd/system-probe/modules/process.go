@@ -19,7 +19,6 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,7 +27,7 @@ func init() { registerModule(Process) }
 
 // Process is a module that fetches process level data
 var Process = &module.Factory{
-	Name: config.ProcessModule,
+	Name: sysconfigtypes.ProcessModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
@@ -109,7 +108,7 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{string(config.ProcessModule), count, statsCount, time.Since(start)}
+	args := []interface{}{string(sysconfigtypes.ProcessModule), count, statsCount, time.Since(start)}
 	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:
@@ -129,7 +128,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
-	log.Tracef("/%s/stats: %d stats, %d bytes", string(config.ProcessModule), len(stats), len(buf))
+	log.Tracef("/%s/stats: %d stats, %d bytes", string(sysconfigtypes.ProcessModule), len(stats), len(buf))
 }
 
 func getPids(r *http.Request) ([]int32, error) {

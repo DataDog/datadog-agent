@@ -89,6 +89,8 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/tagger/collectors",
+        "//comp/core/tagger/types",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",
         "//comp/core/workloadmeta/def",

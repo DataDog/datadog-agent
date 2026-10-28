@@ -34,6 +34,8 @@ go_library(
         "//comp/healthplatform/status/fx",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/fx",
+        "//comp/healthplatform/store/remote/fx",
+        "//comp/healthplatform/store/remote/fx-noop",
         "//pkg/util/fxutil",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_uber_go_fx//:fx",
