@@ -66,7 +66,7 @@ do_start()
 		*) return 2 ;;
 	esac
 	# SysV does not start the process manager required by split mode.
-	export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
+	export DD_PROCESS_MANAGER_ENABLED=false
 	# Disable job control so setsid execs, rather than forking away our waitable child.
 	set +m
 	# Preserve --background's descriptor cleanup; bash can close descriptors above 9.

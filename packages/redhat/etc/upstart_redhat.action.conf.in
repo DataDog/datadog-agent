@@ -11,7 +11,7 @@ console output
 
 script
   # Upstart does not start the process manager required by split mode.
-  export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
+  export DD_PROCESS_MANAGER_ENABLED=false
   echo "Starting Datadog Private Action Runner in monolithic mode"
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process

@@ -10,6 +10,8 @@ normal exit 0
 console output
 
 script
+  # This launch path does not start procmgr.
+  export DD_PROCESS_MANAGER_ENABLED=false
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
   # to log panic/crashes.
