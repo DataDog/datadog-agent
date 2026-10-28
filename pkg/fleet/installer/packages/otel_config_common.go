@@ -42,13 +42,9 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 		existing = map[string]any{}
 	}
 	existing["otelcollector"] = map[string]any{"enabled": true}
-	// On Linux, config sync uses the IPC server over a unix socket. The socket
-	// path is set explicitly to the fleet-installer run directory (shared by all
-	// fleet packages and writable by dd-agent), because the default socket path
-	// under run_path is not shared in the OCI layout: the core agent and the DDOT
-	// collector each resolve run_path relative to their own package root
-	// (/opt/datadog-packages/<package>/<version>/run).
-	// Other platforms only support the TCP listener for now.
+	// On linux, config sync uses the IPC server over a unix socket; other
+	// platforms only support the TCP listener. The socket path is explicit
+	// because the default one is per-package-root, not shared in the OCI layout.
 	var agentIPC map[string]any
 	if runtime.GOOS == "linux" {
 		agentIPC = map[string]any{
