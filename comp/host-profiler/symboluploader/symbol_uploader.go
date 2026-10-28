@@ -326,15 +326,13 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 
 		// The gopclntab declaration is optimistic (no parse at candidate time). Parse it now,
 		// and skip this endpoint unless the real extraction beats what it already stores.
-		if elfSymbols.CandidateSource == symbol.SourceGoPCLnTab {
-			parsedSource, _, err := d.getSymbolSourceWithGoPCLnTab(elfSymbols.Elf)
-			if err != nil {
-				pclntabErr = err
-				removeFromCache = true
-			}
-			if parsedSource == symbol.SourceNone || parsedSource <= queryResult.StoredSource {
-				continue
-			}
+		parsedSource, _, err := d.getSymbolSourceWithGoPCLnTab(elfSymbols.Elf)
+		if err != nil {
+			pclntabErr = err
+			removeFromCache = true
+		}
+		if parsedSource == symbol.SourceNone || parsedSource <= queryResult.StoredSource {
+			continue
 		}
 		endpointIndices = append(endpointIndices, i)
 	}

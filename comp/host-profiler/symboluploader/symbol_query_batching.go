@@ -159,7 +159,8 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch []ElfWithQueryResults, q
 	reporter.Error(reasonInvalidBuildID, invalidBuildIDs)
 
 	// One candidate per build ID, declaring the highest-priority source found among the binaries
-	// sharing that build ID. By default, upload is set to true for that candidate.
+	// sharing that build ID. Every member of the group uploads on an upload decision
+	// (v0 semantics: per-binary upload and retry), each with its own real extraction.
 	candidates := make([]SymbolCandidate, 0, len(buildIDToResult))
 	for buildID, results := range buildIDToResult {
 		maxSource := results[0].CandidateSource
@@ -173,9 +174,10 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch []ElfWithQueryResults, q
 		if fileName == "" {
 			fileName = filepath.Base(results[0].Path())
 		}
+
 		for _, result := range results {
 			for ind := range result.QueryResults {
-				result.QueryResults[ind].Upload = result.CandidateSource == maxSource
+				result.QueryResults[ind].Upload = true
 			}
 		}
 		candidates = append(candidates, SymbolCandidate{

@@ -181,7 +181,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 		}
 	})
 
-	t.Run("Same build ID, mixed sources: one candidate, only the best source uploads", func(t *testing.T) {
+	t.Run("Same build ID, mixed sources: one candidate, every member uploads", func(t *testing.T) {
 		q := &mockSymbolQuerier{stored: map[string]entry{
 			"shared-buildid": {decision: decisionUpload},
 		}}
@@ -202,7 +202,7 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 		require.Equal(t, "better", q.lastCandidates[0].FileName)
 
 		require.NoError(t, results[0].QueryResults[0].Err)
-		require.False(t, results[0].QueryResults[0].Upload, "lesser source must not upload")
+		require.True(t, results[0].QueryResults[0].Upload)
 		require.NoError(t, results[1].QueryResults[0].Err)
 		require.True(t, results[1].QueryResults[0].Upload, "best source must upload")
 	})
