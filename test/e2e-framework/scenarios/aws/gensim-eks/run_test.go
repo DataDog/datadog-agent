@@ -52,6 +52,10 @@ func TestRenderAgentValuesSemanticMatchWithVMRecorder(t *testing.T) {
 	require.Equal(t, "90m", env["DD_ANOMALY_DETECTION_RECORDING_RETENTION"])
 	require.Equal(t, "true", env["DD_ANOMALY_DETECTION_RECORDING_ONLY"])
 	require.Equal(t, "false", env["DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED"])
+	for _, source := range []string{"CONTAINERS", "INTERNAL", "KUBELET"} {
+		require.Equal(t, "info", env["DD_ANOMALY_DETECTION_LOGS_"+source+"_MIN_SEVERITY"])
+		require.Equal(t, "-1", env["DD_ANOMALY_DETECTION_LOGS_"+source+"_MAX_RATE_MEDIUM_PRIORITY"])
+	}
 
 	for key := range env {
 		require.False(t, strings.HasPrefix(key, "DD_OBSERVER_"), "legacy DD_OBSERVER_* env var rendered: %s", key)
@@ -95,6 +99,8 @@ func TestRenderAgentValuesModesAndValidation(t *testing.T) {
 	require.Equal(t, "true", bothEnv["DD_ANOMALY_DETECTION_RECORDING_ENABLED"])
 	require.Equal(t, "true", bothEnv["DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED"])
 	require.Equal(t, "false", bothEnv["DD_ANOMALY_DETECTION_RECORDING_ONLY"])
+	require.Equal(t, "info", bothEnv["DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY"])
+	require.NotContains(t, liveEnv, "DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY")
 
 	invalidCases := []struct {
 		name string

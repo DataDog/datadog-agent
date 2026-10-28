@@ -26,6 +26,21 @@ datadog:
       value: "__RETENTION__"
     - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
       value: "__RECORDING_ONLY__"
+    # The observer drops logs below warn and caps medium-priority logs at 100/s by default
+    # (containers, internal and kubelet inputs), which loses the workloads' info access logs.
+    # Record them all. Keep in sync with the EKS agent-values.yaml.tmpl.
+    - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY
+      value: info
+    - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MIN_SEVERITY
+      value: info
+    - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MIN_SEVERITY
+      value: info
+    - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
 agents:
   image:
     repository: datadog/agent-dev
