@@ -159,14 +159,11 @@ single_version_override(
 
 http_archive(
     name = "better_gitlab",
-    files = {
-        "run_actions/main.py": "//experimental/aiuto:run_actions/main.py",
-    },
-    sha256 = "4e38e9396bfeba240edc3b1af1ab0030fc91360be6ec7055b1b05cb8503d39a8",
-    strip_prefix = "better_gitlab-0.0.2",
+    sha256 = "cf5e270e55bc32f7d4e532e3c86efea1e8406c7e9dd79cbfafe64dbc92784084",
+    strip_prefix = "better_gitlab-0.0.3",
     type = "tar.gz",
     urls = [
-        "https://github.com/tonyaiuto/better_gitlab/archive/refs/tags/0.0.2.tar.gz",
+        "https://github.com/tonyaiuto/better_gitlab/archive/refs/tags/0.0.3.tar.gz",
     ],
 )
 
