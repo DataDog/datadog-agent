@@ -67,13 +67,6 @@ properties:
     description: |-
       If advanced_dispatching_enabled is true the leader cluster-agent collects stats
       from the cluster level check runners to optimize the check dispatching logic.
-  rebalance_with_utilization:
-    node_type: setting
-    type: boolean
-    default: true
-    visibility: public
-    description: If rebalance_with_utilization is true, the cluster-agent will rebalance
-      cluster checks using node utilization.
   clc_runners_port:
     node_type: setting
     type: integer

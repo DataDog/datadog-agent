@@ -36,7 +36,7 @@ require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.26.0
 	code.cloudfoundry.org/bbs/models v1.22.0
-	code.cloudfoundry.org/garden v0.8.0
+	code.cloudfoundry.org/garden v0.9.0
 	code.cloudfoundry.org/lager/v3 v3.92.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
@@ -410,7 +410,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.29.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.30.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.34
 	go.mongodb.org/mongo-driver/v2 v2.9.2
