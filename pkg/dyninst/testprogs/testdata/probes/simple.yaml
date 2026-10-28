@@ -2132,8 +2132,25 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
-# Map index on a map with a one-table directory (9 to ~896 entries), where
-# the runtime sets globalShift to 64.
+# Map index on a missing key in a condition
+- id: mapIndex_missing_cond
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.mapIndexMissing
+  when:
+    dsl: "m[\"missing\"] == 1"
+    json: {eq: [{index: [{ref: "m"}, "missing"]}, 1]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map index on a map with a one-table directory
 - id: mapIndex_singleTable_capture
   tags:
     - "skip_integration:arch=amd64,toolchain=go1.23.11"

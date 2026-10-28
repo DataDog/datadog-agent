@@ -1431,9 +1431,6 @@ func anyAllIntSliceOfMap(xs []map[string]int, tag string) {
 	fmt.Println("anyAllIntSliceOfMap", len(xs), tag)
 }
 
-// mapIndexSingleTable takes a map that has grown past 8 entries into a
-// directory with exactly one table, where the runtime sets globalShift to 64.
-//
 //go:noinline
 func mapIndexSingleTable(m map[string]int) {
 	fmt.Println(len(m))

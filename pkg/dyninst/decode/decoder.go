@@ -545,7 +545,12 @@ func (s *message) init(
 
 		s.Debugger.Snapshot.stack.frames = stackFrames
 		s.Debugger.Snapshot.Stack = &s.Debugger.Snapshot.stack
-		s.Debugger.Snapshot.Captures = &s.Debugger.Snapshot.captures
+		// Any/all capture expressions also set Condition_eval_error, so require a condition.
+		conditionErrored := header.Condition_eval_error != 0 ||
+			(returnHeader != nil && returnHeader.Condition_eval_error != 0)
+		if !conditionErrored || probe.GetWhen() == nil {
+			s.Debugger.Snapshot.Captures = &s.Debugger.Snapshot.captures
+		}
 	}
 
 	switch where := probe.GetWhere().(type) {
