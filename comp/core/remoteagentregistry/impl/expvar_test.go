@@ -152,7 +152,7 @@ func TestRemoteExpvarValuesOnlyUseADP(t *testing.T) {
 		withTelemetryProvider(strings.ReplaceAll(compatibilityTelemetry, "10", "1000")),
 	)
 
-	values := component.getRemoteExpvarValues()
+	values := component.getRemoteExpvarValues(t.Context())
 	require.Contains(t, values, "agent-data-plane")
 	assert.NotContains(t, values, "process-agent")
 	assert.Equal(t, int64(12), values["agent-data-plane"]["dogstatsd_udp_packets"])
@@ -165,14 +165,14 @@ func TestRemoteExpvarGaugeUsesLatestValueAndIsRemovedOnDeregistration(t *testing
 		withTelemetryProvider("# TYPE transactions__retry_queue_size gauge\ntransactions__retry_queue_size{domain=\"metrics\"} 4\n"),
 	)
 
-	values := component.getRemoteExpvarValues()
+	values := component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(4), values["agent-data-plane"]["forwarder_retry_queue_size"])
 	assert.Empty(t, component.expvarCache.counters)
 	assert.Len(t, component.expvarCache.gauges, 1)
 
 	agent.promText = "# TYPE transactions__retry_queue_size gauge\ntransactions__retry_queue_size{domain=\"metrics\"} 2\n"
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(2), values["agent-data-plane"]["forwarder_retry_queue_size"], "gauges should use the latest value, not accumulate")
 
 	agent.Stop()
@@ -180,7 +180,7 @@ func TestRemoteExpvarGaugeUsesLatestValueAndIsRemovedOnDeregistration(t *testing
 	clear(component.agentMap)
 	component.agentMapMu.Unlock()
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.NotContains(t, values, "agent-data-plane")
 	assert.Empty(t, component.expvarCache.gauges)
 }
@@ -194,7 +194,7 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 		withTelemetryProvider("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 10\n"),
 	)
 
-	values := component.getRemoteExpvarValues()
+	values := component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_udp_packets"])
 	assert.Len(t, component.expvarCache.counters, 1)
 	for _, state := range component.expvarCache.counters {
@@ -203,12 +203,12 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 
 	// A second read inside the cache window reuses the same remote snapshot.
 	agent.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 11\n"
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_udp_packets"])
 
 	agent.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 3\n"
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(13), values["agent-data-plane"]["dogstatsd_udp_packets"])
 
 	agent.Stop()
@@ -218,7 +218,7 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 	clear(component.agentMap)
 	component.agentMapMu.Unlock()
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(13), values["agent-data-plane"]["dogstatsd_udp_packets"])
 	assert.Empty(t, component.expvarCache.counters, "unregistered process series should be compacted")
 
@@ -228,7 +228,7 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 		withTelemetryProvider("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 4\n"),
 	)
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(17), values["agent-data-plane"]["dogstatsd_udp_packets"])
 }
 
@@ -239,7 +239,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 		withTelemetryProvider("# TYPE dogstatsd__processed counter\ndogstatsd__processed{message_type=\"metrics\",state=\"ok\",origin=\"container_id://worker-1\"} 10\n"),
 	)
 
-	values := component.getRemoteExpvarValues()
+	values := component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
 
 	registeredAgents := component.GetRegisteredAgents()
@@ -260,7 +260,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	// Presence refreshes last-seen even when the absolute counter does not change.
 	state.lastSeen = time.Now().Add(-remoteExpvarOriginIdleTTL - time.Second)
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
 	assert.True(t, state.lastSeen.After(initialLastSeen))
 	assert.Contains(t, component.expvarCache.counters, counterKey)
@@ -270,10 +270,28 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	agent.promText = ""
 	state.lastSeen = time.Now().Add(-remoteExpvarOriginIdleTTL - time.Second)
 	component.expvarCache.values = nil
-	values = component.getRemoteExpvarValues()
+	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
 	assert.NotContains(t, component.expvarCache.counters, counterKey)
 	assert.Equal(t, int64(10), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_metric_packets"])
+}
+
+func TestRemoteExpvarValuesHonorCallerContext(t *testing.T) {
+	provides, _, cfg, _, ipcComp := buildComponent(t)
+	cfg.SetInTest("remote_agent.registry.query_timeout", 10*time.Second)
+	component := provides.Comp.(*remoteAgentRegistry)
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, adpAgentFlavor, "Agent Data Plane", "123",
+		withTelemetryProvider("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 10\n"),
+		withDelay(2*time.Second),
+	)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	values := provides.ExpvarSource(ctx)
+	assert.Less(t, time.Since(start), time.Second, "the caller's deadline should bound the remote queries, not the query timeout")
+	assert.Empty(t, values)
+	assert.Nil(t, component.expvarCache.values, "a snapshot cut short by the caller should not be cached for other callers")
 }
 
 func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
@@ -303,7 +321,7 @@ func TestMappedRemoteValuesMergeWithoutPublishingNewExpvars(t *testing.T) {
 
 	assert.NotContains(t, snapshot, "remote_agents")
 	assert.Nil(t, expvar.Get("remote_agents"), "do not register ADP telemetry as expvars")
-	remote := provides.ExpvarSource()
+	remote := provides.ExpvarSource(t.Context())
 	assert.Equal(t, int64(5), remote["agent-data-plane"].(map[string]any)["dogstatsd-udp"].(map[string]any)["Packets"])
 }
 

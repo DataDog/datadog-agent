@@ -220,10 +220,13 @@ func callAgentsForService[PbType any, StructuredType any](
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
 	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
 ) []StructuredType {
-	return callAgentsForServiceFiltered(registry, service, nil, grpcCall, resultProcessor)
+	return callAgentsForServiceFiltered(context.Background(), registry, service, nil, grpcCall, resultProcessor)
 }
 
+// callAgentsForServiceFiltered is like callAgentsForService, but only calls agents accepted by agentFilter (when
+// non-nil), and bounds the calls by the given context in addition to the registry's query timeout.
 func callAgentsForServiceFiltered[PbType any, StructuredType any](
+	ctx context.Context,
 	registry *remoteAgentRegistry,
 	service remoteAgentServiceName,
 	agentFilter func(remoteagentregistry.RegisteredAgent) bool,
@@ -260,7 +263,7 @@ func callAgentsForServiceFiltered[PbType any, StructuredType any](
 	}
 
 	// Creates a context with a one second deadline for the RPC.
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
 	wg.Add(agentsLen)

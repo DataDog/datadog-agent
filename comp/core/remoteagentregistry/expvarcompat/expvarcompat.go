@@ -9,6 +9,7 @@ package expvarcompat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -17,8 +18,10 @@ import (
 )
 
 // Source returns a fresh snapshot of mapped remote-agent values, grouped by agent.
+// Building the snapshot may query remote agents; the context bounds that work, so callers
+// should pass the context of the request being served.
 // The registry protects its underlying counter cache; consumers must not modify the snapshot.
-type Source func() map[string]any
+type Source func(context.Context) map[string]any
 
 // Handler overlays remote values when /debug/vars is read, after local expvars
 // have been evaluated. Other routes and installations without a registry are unchanged.
@@ -35,7 +38,7 @@ func Handler(next http.Handler, source Source) http.Handler {
 		if capture.code == 0 || capture.code == http.StatusOK {
 			// Without remote values there is nothing to overlay, so serve the local body as-is
 			// rather than paying to decode and re-encode it.
-			if remote := source(); len(remote) > 0 {
+			if remote := source(r.Context()); len(remote) > 0 {
 				if merged, err := MergeJSON(body, remote); err == nil {
 					body = merged
 				}

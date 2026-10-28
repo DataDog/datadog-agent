@@ -347,9 +347,9 @@ type remoteCounterState struct {
 
 // getRemoteAgentExpvars builds a fresh snapshot of mapped ADP values grouped by agent.
 // The underlying counter cache is synchronized; this snapshot is not an expvar.
-func (ra *remoteAgentRegistry) getRemoteAgentExpvars() map[string]any {
+func (ra *remoteAgentRegistry) getRemoteAgentExpvars(ctx context.Context) map[string]any {
 	values := make(map[string]any)
-	for agentName, agentValues := range ra.getRemoteExpvarValues() {
+	for agentName, agentValues := range ra.getRemoteExpvarValues(ctx) {
 		agentVars := make(map[string]any)
 		for _, mapping := range expvarMappings {
 			if value, ok := agentValues[mapping.id]; ok {
@@ -364,7 +364,7 @@ func (ra *remoteAgentRegistry) getRemoteAgentExpvars() map[string]any {
 }
 
 // Retrieves Expvar values from cache
-func (ra *remoteAgentRegistry) getRemoteExpvarValues() map[string]map[string]int64 {
+func (ra *remoteAgentRegistry) getRemoteExpvarValues(ctx context.Context) map[string]map[string]int64 {
 	cache := &ra.expvarCache
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
@@ -386,14 +386,18 @@ func (ra *remoteAgentRegistry) getRemoteExpvarValues() map[string]map[string]int
 	}
 
 	// Update values since, presumably, more time has elapsed than we'd feel comforatble caching for
-	values := collectRemoteExpvarValuesAt(ra, cache, time.Now())
-	cache.values = values
-	cache.fetchedAt = time.Now()
+	values := collectRemoteExpvarValuesAt(ctx, ra, cache, time.Now())
+	// A caller that gave up mid-fetch may have cut the remote queries short, so don't let its
+	// snapshot satisfy other callers for the rest of the cache window.
+	if ctx.Err() == nil {
+		cache.values = values
+		cache.fetchedAt = time.Now()
+	}
 	return values
 }
 
 // Collect Prometheus endpoint response from RAR for ADP and convert to Expvar.
-func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCache, now time.Time) map[string]map[string]int64 {
+func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, cache *remoteExpvarCache, now time.Time) map[string]map[string]int64 {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
 		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
 	}
@@ -417,7 +421,7 @@ func collectRemoteExpvarValuesAt(ra *remoteAgentRegistry, cache *remoteExpvarCac
 		}
 	}
 
-	responses := callAgentsForServiceFiltered(ra, TelemetryServiceName, isADPAgent, client, processor)
+	responses := callAgentsForServiceFiltered(ctx, ra, TelemetryServiceName, isADPAgent, client, processor)
 	successfulAgents := make(map[string]struct{})
 	activeAgents := make(map[string]struct{})
 	for _, agent := range ra.GetRegisteredAgents() {

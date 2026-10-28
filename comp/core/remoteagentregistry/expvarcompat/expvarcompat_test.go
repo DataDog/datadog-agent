@@ -6,6 +6,7 @@
 package expvarcompat
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"math"
@@ -66,8 +67,8 @@ func TestHandlerPassesBodyThroughWithoutRemoteValues(t *testing.T) {
 	})
 
 	for name, source := range map[string]Source{
-		"nil snapshot":   func() map[string]any { return nil },
-		"empty snapshot": func() map[string]any { return map[string]any{} },
+		"nil snapshot":   func(context.Context) map[string]any { return nil },
+		"empty snapshot": func(context.Context) map[string]any { return map[string]any{} },
 	} {
 		t.Run(name, func(t *testing.T) {
 			response := httptest.NewRecorder()
@@ -79,9 +80,24 @@ func TestHandlerPassesBodyThroughWithoutRemoteValues(t *testing.T) {
 	}
 }
 
+func TestHandlerPassesRequestContextToSource(t *testing.T) {
+	type ctxKey struct{}
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("{}")) })
+	var got any
+	source := Source(func(ctx context.Context) map[string]any {
+		got = ctx.Value(ctxKey{})
+		return nil
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/debug/vars", nil)
+	request = request.WithContext(context.WithValue(request.Context(), ctxKey{}, "request"))
+	Handler(next, source).ServeHTTP(httptest.NewRecorder(), request)
+	assert.Equal(t, "request", got)
+}
+
 func TestHandlerProjectsLateCoreLeafOnEveryRequest(t *testing.T) {
 	const name = "remote-expvar-compat-late-core-test"
-	source := Source(func() map[string]any {
+	source := Source(func(context.Context) map[string]any {
 		return map[string]any{"agent-data-plane": map[string]any{name: map[string]any{"Packets": int64(5)}}}
 	})
 	mux := http.NewServeMux()
