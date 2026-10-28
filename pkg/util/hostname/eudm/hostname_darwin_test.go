@@ -19,11 +19,11 @@ func TestGetUsesComputerName(t *testing.T) {
 	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return info, nil }
 	got, err := Get(true)
 	require.NoError(t, err)
-	require.Equal(t, "my-mac-abc123", got)
+	require.Equal(t, "My-Mac-abc123", got)
 	info.ComputerName = "Renamed Mac"
 	renamed, err := Get(true)
 	require.NoError(t, err)
-	require.Equal(t, "renamed-mac-abc123", renamed)
+	require.Equal(t, "Renamed-Mac-abc123", renamed)
 }
 
 func TestGetComputerNameWithoutSerial(t *testing.T) {
@@ -36,7 +36,7 @@ func TestGetComputerNameWithoutSerial(t *testing.T) {
 			}
 			got, err := Get(false)
 			require.NoError(t, err)
-			require.Equal(t, "my-mac", got)
+			require.Equal(t, "My-Mac", got)
 		})
 	}
 }

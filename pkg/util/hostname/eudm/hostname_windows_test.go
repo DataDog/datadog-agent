@@ -22,7 +22,7 @@ func TestGetUsesOSHostname(t *testing.T) {
 	osHostname = func() (string, error) { return "MY-PC", nil }
 	got, err := Get(true)
 	require.NoError(t, err)
-	require.Equal(t, "my-pc-abc123", got)
+	require.Equal(t, "MY-PC-abc123", got)
 	osHostname = func() (string, error) { return "", errors.New("unavailable") }
 	_, err = Get(true)
 	require.Error(t, err)
@@ -32,14 +32,15 @@ func TestGetOSHostnameWithoutSerial(t *testing.T) {
 	oldCollect, oldHostname := collectSystemInfo, osHostname
 	t.Cleanup(func() { collectSystemInfo, osHostname = oldCollect, oldHostname })
 	osHostname = func() (string, error) { return "MY-PC", nil }
-	for _, serial := range []string{"ABC123", "", "Unknown"} {
-		t.Run(serial, func(t *testing.T) {
-			collectSystemInfo = func() (*systeminfo.SystemInfo, error) {
-				return &systeminfo.SystemInfo{ComputerName: "ignored", SerialNumber: serial}, nil
-			}
-			got, err := Get(false)
-			require.NoError(t, err)
-			require.Equal(t, "my-pc", got)
-		})
+	collectSystemInfo = func() (*systeminfo.SystemInfo, error) {
+		t.Fatal("system information must not be collected when serial appending is disabled")
+		return nil, errors.New("WMI unavailable")
 	}
+	got, err := Get(false)
+	require.NoError(t, err)
+	require.Equal(t, "MY-PC", got)
+
+	osHostname = func() (string, error) { return "", errors.New("hostname unavailable") }
+	_, err = Get(false)
+	require.ErrorContains(t, err, "hostname unavailable")
 }

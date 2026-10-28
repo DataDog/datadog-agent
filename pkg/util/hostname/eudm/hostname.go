@@ -13,14 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
-// formatHostname returns "<name>" or "<name>-<serial>": lowercase ASCII letters, digits and
+// formatHostname returns "<name>" or "<name>-<serial>": ASCII letters, digits and
 // single hyphens, with no leading or trailing hyphen, at most 253 characters,
 // and accepted by validate.ValidHostname (the Agent's RFC 1123 check). Only the
 // name is truncated; the full serial is kept so truncation cannot collide.
 func formatHostname(name, serial string, useSerial bool) (string, error) {
 	suffix := ""
 	if useSerial {
-		serial = normalize(serial)
+		serial = normalize(strings.ToLower(serial))
 		switch serial {
 		case "", "unknown", "none", "na", "n-a", "not-applicable", "not-available", "not-specified", "default-string", "system-serial-number", "to-be-filled-by-o-e-m", "to-be-filled-by-oem":
 			return "", errors.New("device serial number is missing or a placeholder")
@@ -53,12 +53,12 @@ func formatHostname(name, serial string, useSerial bool) (string, error) {
 	return hostname, nil
 }
 
-// normalize produces a lowercase ASCII name, collapsing separators to hyphens.
+// normalize preserves ASCII letter casing and collapses separators to hyphens.
 func normalize(value string) string {
 	var b strings.Builder
 	separator := false
-	for _, r := range strings.ToLower(strings.TrimSpace(value)) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+	for _, r := range strings.TrimSpace(value) {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
 			if separator && b.Len() > 0 {
 				b.WriteByte('-')
 			}

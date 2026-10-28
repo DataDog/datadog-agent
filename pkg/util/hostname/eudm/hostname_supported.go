@@ -10,6 +10,7 @@ package eudm
 import (
 	"errors"
 	"fmt"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
@@ -19,12 +20,17 @@ var collectSystemInfo = systeminfo.Collect
 // Get returns the normalized device name, optionally suffixed with its hardware serial.
 // Missing identity is an error so callers can retain legacy hostname resolution.
 func Get(useSerial bool) (string, error) {
-	info, err := collectSystemInfo()
-	if err != nil {
-		return "", fmt.Errorf("collecting device identity: %w", err)
-	}
-	if info == nil {
-		return "", errors.New("device identity is unavailable")
+	info := &systeminfo.SystemInfo{}
+	// macOS needs Computer Name; Windows only needs system information for the serial.
+	if useSerial || runtime.GOOS == "darwin" {
+		var err error
+		info, err = collectSystemInfo()
+		if err != nil {
+			return "", fmt.Errorf("collecting device identity: %w", err)
+		}
+		if info == nil {
+			return "", errors.New("device identity is unavailable")
+		}
 	}
 	name, err := deviceName(info)
 	if err != nil {
