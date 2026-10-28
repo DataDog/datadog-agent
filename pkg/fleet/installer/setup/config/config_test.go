@@ -774,3 +774,32 @@ func TestProcessConfigMarshal(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	assert.Empty(t, got)
 }
+
+func TestMergeNetworkConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	oldConfig := `---
+network_config:
+  dns_monitoring_ports:
+    - 53
+`
+	err := os.WriteFile(filepath.Join(tempDir, "system-probe.yaml"), []byte(oldConfig), 0644)
+	require.NoError(t, err)
+	config := Config{}
+	config.DatadogYAML.APIKey = "0987654321" // Required field
+	config.SystemProbeYAML = &SystemProbeConfig{}
+	config.SystemProbeYAML.NetworkConfig.Enabled = BoolToPtr(true)
+
+	err = WriteConfigs(config, tempDir)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(tempDir, "system-probe.yaml"))
+	require.NoError(t, err)
+	var systemProbe map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(data, &systemProbe))
+	assert.Equal(t, map[string]interface{}{
+		"network_config": map[string]interface{}{
+			"dns_monitoring_ports": []interface{}{53}, // pre-existing key preserved
+			"enabled":              true,              // newly added
+		},
+	}, systemProbe)
+}
