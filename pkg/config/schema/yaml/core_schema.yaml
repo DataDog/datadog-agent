@@ -203,8 +203,11 @@ properties:
     description: |-
       Append the hardware serial number to the automatically detected hostname in
       end_user_device infrastructure mode on macOS and Windows. macOS uses the
-      Computer Name regardless of this setting. Explicit hostname and hostname_file
-      settings take precedence. Restart the Agent after changing this setting;
+      Computer Name as its device-name source regardless of this setting. Explicit
+      hostname and hostname_file settings take precedence. Cloud provider hostnames,
+      hostname_fqdn, and EC2 instance-ID selection can still replace the device name,
+      including its serial-number suffix when enabled.
+      Restart the Agent after changing this setting;
       changing the hostname changes the device identity in Datadog.
     tags:
     - template_section:Common
