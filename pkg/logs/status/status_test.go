@@ -6,6 +6,7 @@
 package status
 
 import (
+	"encoding/json"
 	"math"
 	"strconv"
 	"testing"
@@ -101,6 +102,15 @@ func TestIntegrationsRespectVerbose(t *testing.T) {
 	assert.Equal(t, []string{"/var/log/foo.log"}, verboseSourceStatus.Inputs)
 	assert.NotContains(t, verboseSourceStatus.Info, "Bytes Read")
 	assert.Contains(t, verboseSourceStatus.Info, "Processing Rules")
+}
+
+func TestBytesMissedIsShownOnceNonZero(t *testing.T) {
+	logSource := sources.NewLogSource("foo", &config.LogsConfig{Type: config.FileType, Path: "/var/log/foo.log"})
+	builder := &Builder{}
+	assert.NotContains(t, builder.configToDictionary(logSource, false), "Bytes Missed")
+
+	logSource.RecordMissedBytes(7)
+	assert.Equal(t, int64(7), builder.configToDictionary(logSource, false)["Bytes Missed"])
 }
 
 func TestNonFileConfigurationIsAvailableWithoutVerbose(t *testing.T) {
@@ -348,4 +358,46 @@ func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	bp := b.getBackpressureStatus(utils)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "component with highest Saturated1mSeconds must appear in reason")
+}
+
+func TestSMBSourceConfigurationOmitsPassword(t *testing.T) {
+	defer Clear()
+	const password = "s3cr3t+Key/AbC=="
+	mockConfig := configmock.New(t)
+	InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("demo", &config.LogsConfig{
+			Type:        config.SMBType,
+			Path:        "app/*.log",
+			TailingMode: "beginning",
+			Service:     "demo-app",
+			Source:      "demo",
+			SMB: &config.SMBConfig{
+				Host:     "myacct.file.core.windows.net",
+				Share:    "logs",
+				Username: "myacct",
+				Password: password,
+				Port:     1445,
+			},
+		}),
+	}))
+
+	status := Get(true)
+	require.Len(t, status.Integrations, 1)
+	require.Len(t, status.Integrations[0].Sources, 1)
+	assert.Equal(t, map[string]interface{}{
+		"Bytes Read":  int64(0),
+		"Service":     "demo-app",
+		"Source":      "demo",
+		"Path":        "app/*.log",
+		"TailingMode": "beginning",
+		"Host":        "myacct.file.core.windows.net",
+		"Share":       "logs",
+		"Username":    "myacct",
+		"Port":        1445,
+	}, status.Integrations[0].Sources[0].Configuration)
+
+	// `agent status --json` serializes the same struct
+	statusJSON, err := json.Marshal(status)
+	require.NoError(t, err)
+	assert.NotContains(t, string(statusJSON), password)
 }

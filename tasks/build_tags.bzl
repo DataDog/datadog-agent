@@ -62,6 +62,7 @@ ALL_TAGS = set([
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "sharedlibrarycheck",
+    "smb",  # used to include the SMB log source (type: smb) in the full Agent only
     "systemd",
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
@@ -118,6 +119,7 @@ AGENT_TAGS = set([
     "podman",
     "python",
     "sharedlibrarycheck",
+    "smb",
     "systemd",
     "systemprobechecks",
     "trivy",
@@ -142,6 +144,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "nvml",
         "oracle",
         "podman",
+        "smb",
         "systemd",
         "trivy",
         "cel",
@@ -292,6 +295,7 @@ AIX_EXCLUDED_TAGS = set([
     "kubelet",
     "npm",
     "sharedlibrarycheck",
+    "smb",
     "systemprobechecks",
 ])
 

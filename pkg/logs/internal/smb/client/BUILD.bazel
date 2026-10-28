@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "client",
+    srcs = [
+        "classify.go",
+        "client.go",
+        "reconnect.go",
+        "smb.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/client",
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/logs/internal/smb/thirdparty/gosmb2",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/auth",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/wire",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+dd_agent_go_test(
+    name = "client_test",
+    srcs = [
+        "classify_test.go",
+        "client_test.go",
+        "reconnect_test.go",
+        "smb_test.go",
+    ],
+    embed = [":client"],
+    deps = [
+        "//pkg/logs/internal/smb/client/fake",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

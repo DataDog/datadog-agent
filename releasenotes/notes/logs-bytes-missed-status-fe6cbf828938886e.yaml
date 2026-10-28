@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The Agent status (``agent status`` and ``agent status --json``) shows,
+    for each log source, the bytes the Agent lost before it could read them
+    under ``Bytes Missed``, for example the unread end of a rotated file that
+    disappeared or was closed at ``logs_config.close_timeout``. It covers file
+    and SMB log sources, and appears only once a source lost bytes.
