@@ -216,6 +216,9 @@ dogstatsd-arm64:
 
 datadog-otel-agent-x64:
   extends: [.otel_build_common, .toolchain-common-x64, .agent_base_flavor]
+  rules:
+    - !reference [.except_mergequeue]  # Runs on stack PRs: needed by docker_build_agent7_full for SMP
+    - when: on_success
 
 datadog-otel-agent-arm64:
   extends: [.otel_build_common, .toolchain-common-arm64, .agent_base_flavor]

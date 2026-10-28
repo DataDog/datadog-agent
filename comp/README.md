@@ -973,6 +973,12 @@ Package networkconfigmanagement provides the component for retrieving network de
 
 Package networkdevices provides the Agent-side component for NDM.
 
+### [comp/networkpcap/uploader](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpcap/uploader)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package uploader sends network packet captures to the networkpcap intake as streamed multipart uploads
+
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
 *Datadog Team*: windows-products
@@ -993,6 +999,12 @@ last-written timestamp so callers can measure how long the agent was offline.
 
 Package privateactionrunner provides a component that enables private actions executions
 
+### [comp/privateactionrunner/phonehome](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome)
+
+*Datadog Team*: action-platform
+
+Package phonehome defines the core-owned PAR startup gate.
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products
@@ -1001,7 +1013,7 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: ndm-integrations
+*Datadog Team*: ndm-integrations network-path
 
 Package rdnsquerier provides the reverse DNS querier component.
 

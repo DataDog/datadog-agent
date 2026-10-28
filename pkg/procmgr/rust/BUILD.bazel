@@ -197,7 +197,8 @@ rust_test(
         "//pkg/config/schema:core_schema_subfiles",
         "//pkg/config/schema:system_probe_schema_subfiles",
         "//pkg/config/schema:yaml/core_schema.yaml",
-    ] + select({
+        # reaper spawn-path lint walks these sources at test time.
+    ] + _LIB_SRCS + select({
         "@platforms//os:windows": [":graceful-sleeper"],
         "//conditions:default": [],
     }),
@@ -205,6 +206,7 @@ rust_test(
     env = select({
         "@platforms//os:windows": {
             "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
+            "DD_PROCMGRD_LIB_RS": "$(rlocationpath src/lib.rs)",
             "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
             # Environment fixtures manipulate process-global state, so keep
             # the Windows tests serial.
@@ -212,6 +214,7 @@ rust_test(
         },
         "//conditions:default": {
             "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
+            "DD_PROCMGRD_LIB_RS": "$(rlocationpath src/lib.rs)",
         },
     }),
     rustc_flags = ["--cfg=bazel"],
